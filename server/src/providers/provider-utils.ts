@@ -1,9 +1,9 @@
-import type { CxBinding, CxCallInfo, ScssClassMap } from "@css-module-explainer/shared";
+import type { CallSite, CxBinding, CxCallInfo, ScssClassMap } from "@css-module-explainer/shared";
 import type {
   AnalysisEntry,
   DocumentAnalysisCache,
 } from "../core/indexing/document-analysis-cache.js";
-import { NullReverseIndex, type ReverseIndex } from "../core/indexing/reverse-index.js";
+import type { ReverseIndex } from "../core/indexing/reverse-index.js";
 import type { TypeResolver } from "../core/ts/type-resolver.js";
 import { getLineAt } from "../core/util/text-utils.js";
 
@@ -128,27 +128,11 @@ export function withCxCallAtCursor<T>(
     return null;
   }
 
-  // Record findings into the reverse index so Phase Final's
-  // WorkspaceReverseIndex receives data the moment it is swapped
-  // in. Skip the mapping work entirely when `record` is still the
-  // NullReverseIndex default — `entry.calls.map(...)` would
-  // otherwise allocate a throwaway array on every hover/def/
-  // completion keystroke (Agent 3 M6 fix). We compare method
-  // identity, not `instanceof`, because tests subclass
-  // NullReverseIndex and legitimately override `record`.
-  // When Phase Final lands, move this to
-  // DocumentAnalysisCache.analyze() so it fires once per
-  // (uri, version), not once per request.
-  if (deps.reverseIndex.record !== NullReverseIndex.prototype.record) {
-    const callSites = entry.calls.map((call) => ({
-      uri: params.documentUri,
-      range: call.originRange,
-      binding: call.binding,
-      kind: call.kind,
-      matchInfo: matchInfoFor(call),
-    }));
-    deps.reverseIndex.record(params.documentUri, callSites);
-  }
+  // Phase Final: reverse-index writes moved from here to
+  // DocumentAnalysisCache's onAnalyze hook — the per-(uri,
+  // version) enforcement point. Providers now touch the index
+  // only via `find`/`count` in the references + reference-lens
+  // providers.
 
   // Find the call whose originRange contains the cursor.
   const call = findCallAtCursor(entry.calls, params.line, params.character);
@@ -161,6 +145,23 @@ export function withCxCallAtCursor<T>(
   // return branch in their transform still get a strict nullable
   // (Agent 5 F8 fix).
   return transform({ call, binding: call.binding, classMap, entry }) ?? null;
+}
+
+/**
+ * Build the `CallSite[]` list that the reverse index consumes.
+ *
+ * Exported so `composition-root.ts` can wire it into the
+ * DocumentAnalysisCache `onAnalyze` hook without reaching into
+ * provider-utils' internals. Pure transform over an AnalysisEntry.
+ */
+export function collectCallSites(uri: string, entry: AnalysisEntry): CallSite[] {
+  return entry.calls.map((call) => ({
+    uri,
+    range: call.originRange,
+    binding: call.binding,
+    kind: call.kind,
+    matchInfo: matchInfoFor(call),
+  }));
 }
 
 /**
