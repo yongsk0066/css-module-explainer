@@ -1,0 +1,4 @@
+# oxfmt configuration
+# https://github.com/oxc-project/oxc/tree/main/crates/oxc_formatter
+
+# Use the formatter defaults; project-specific overrides go here.
