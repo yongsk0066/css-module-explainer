@@ -1,3 +1,5 @@
+import { setImmediate as yieldToEventLoop } from "node:timers/promises";
+
 export interface FileTask {
   readonly kind: "scss" | "tsx";
   readonly path: string;
@@ -32,10 +34,15 @@ export interface IndexerWorkerDeps {
  * today; flipping the supplier later is a one-line change.
  *
  * Design notes:
- * - `start()` yields to the event loop (`setImmediate`) between
- *   every file so LSP requests preempt naturally. With a 5ms
- *   parse per file, the worst-case request latency added by the
- *   worker is 5ms.
+ * - `start()` drains an internal `drain()` async generator that
+ *   interleaves pending incremental tasks (file-watcher pushes)
+ *   with the supplier stream. Pending always wins so incremental
+ *   updates jump the queue.
+ * - `for await` yields to the event loop naturally AND ESLint's
+ *   `no-await-in-loop` rule exempts `for-await-of` bodies by
+ *   default — no disables needed. Additionally, `yieldToEventLoop`
+ *   (Node's promise-returning `setImmediate`) hands control back
+ *   on every task boundary so LSP requests preempt within ~5ms.
  * - `pushFile(task)` queues an incremental file for the current
  *   run — Phase 10's file watcher feeds this.
  * - `stop()` sets a cancellation flag checked on every task
@@ -52,48 +59,11 @@ export class IndexerWorker {
   }
 
   async start(): Promise<void> {
-    // Interleaved queue drain: `pending` (incremental / priority) is
-    // always processed before pulling the next item from `supplier`.
-    // This matters for Phase 10's long-running file-watcher
-    // supplier — if the pending drain only ran after the supplier
-    // terminated, pushFile() calls during the initial walk would
-    // queue up indefinitely.
-    //
-    // Sequential by design: each task yields to the event loop so
-    // LSP requests preempt, and tasks are processed one at a time
-    // to bound memory pressure. Disabling no-await-in-loop because
-    // this is the intended concurrency model, not an accidental
-    // serialization of independent work.
-    const iterator = this.deps.supplier()[Symbol.asyncIterator]();
-    let supplierDone = false;
-
-    while (!this.stopped) {
-      // Priority drain: process every queued pending task before
-      // touching the supplier again.
-      if (this.pending.length > 0) {
-        const task = this.pending.shift()!;
-        // eslint-disable-next-line no-await-in-loop
-        await this.yieldToEventLoop();
-        // eslint-disable-next-line no-await-in-loop
-        await this.process(task);
-        continue;
-      }
-
-      // Pending is empty; if the supplier is also exhausted, we're done.
-      if (supplierDone) return;
-
-      // Pull the next task from the supplier.
-      // eslint-disable-next-line no-await-in-loop
-      const next = await iterator.next();
-      if (next.done) {
-        supplierDone = true;
-        continue;
-      }
+    for await (const task of this.drain()) {
       if (this.stopped) return;
-      // eslint-disable-next-line no-await-in-loop
-      await this.yieldToEventLoop();
-      // eslint-disable-next-line no-await-in-loop
-      await this.process(next.value);
+      await yieldToEventLoop();
+      if (this.stopped) return;
+      await this.process(task);
     }
   }
 
@@ -104,6 +74,48 @@ export class IndexerWorker {
   stop(): void {
     this.stopped = true;
     this.pending.length = 0;
+  }
+
+  /**
+   * Interleaved task producer.
+   *
+   * Yields every `pending` task (incremental / priority) before
+   * pulling the next item from `supplier`. This matters for
+   * Phase 10's long-running file-watcher supplier — if the
+   * pending drain only ran after the supplier terminated,
+   * `pushFile()` calls during the initial walk would queue up
+   * indefinitely.
+   *
+   * Written as `for await (task of supplier())` + pure sync
+   * `yield* drainPending()` so `no-await-in-loop` stays silent
+   * (the `for await` body is exempt, and `drainPending` has no
+   * awaits at all).
+   */
+  private async *drain(): AsyncGenerator<FileTask> {
+    // Pending tasks already queued before start() was called.
+    yield* this.drainPending();
+
+    for await (const task of this.deps.supplier()) {
+      if (this.stopped) return;
+      // Any pending tasks that arrived while we awaited the
+      // supplier win priority over the supplier's own task.
+      yield* this.drainPending();
+      yield task;
+    }
+
+    // Final sweep after supplier exhaustion.
+    yield* this.drainPending();
+  }
+
+  /**
+   * Synchronous generator flushing the pending queue. Pure
+   * iteration — no awaits — so the consumer's enclosing
+   * `for await` retains `no-await-in-loop` exemption.
+   */
+  private *drainPending(): Generator<FileTask> {
+    while (this.pending.length > 0) {
+      yield this.pending.shift()!;
+    }
   }
 
   private async process(task: FileTask): Promise<void> {
@@ -121,11 +133,5 @@ export class IndexerWorker {
     } else {
       this.deps.onTsxFile(task.path, content);
     }
-  }
-
-  private yieldToEventLoop(): Promise<void> {
-    return new Promise<void>((resolve) => {
-      setImmediate(resolve);
-    });
   }
 }
