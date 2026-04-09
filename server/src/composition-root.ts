@@ -43,8 +43,19 @@ const SERVER_NAME = "css-module-explainer";
 const SERVER_VERSION = "0.0.1";
 
 export interface CreateServerOptions {
-  readonly reader: MessageReader | NodeJS.ReadableStream;
-  readonly writer: MessageWriter | NodeJS.WritableStream;
+  /**
+   * When both reader and writer are provided, the connection uses
+   * them directly (Tier 2 test harness with PassThrough streams).
+   * When OMITTED, `createConnection(ProposedFeatures.all)` auto-
+   * detects the transport from process.argv flags set by the
+   * LanguageClient: `--node-ipc` → IPC, `--stdio` → stdin/stdout.
+   *
+   * The production entrypoint (server.ts) does NOT pass these so
+   * the transport matches whatever `TransportKind` the client
+   * extension specifies.
+   */
+  readonly reader?: MessageReader | NodeJS.ReadableStream;
+  readonly writer?: MessageWriter | NodeJS.WritableStream;
   /** Override the workspace TypeResolver (tests pass a Fake). */
   readonly typeResolver?: TypeResolver;
   /** Override disk read for SCSS files (tests pass an in-memory map). */
@@ -79,11 +90,17 @@ export interface CreatedServer {
  * Tests that only exercise lifecycle never touch the deps bag.
  */
 export function createServer(options: CreateServerOptions): CreatedServer {
-  const connection = createConnection(
-    ProposedFeatures.all,
-    options.reader as MessageReader,
-    options.writer as MessageWriter,
-  );
+  // When reader/writer are provided (Tier 2 harness), use them.
+  // When omitted (production), auto-detect from process.argv flags
+  // set by the LanguageClient (--node-ipc / --stdio / --pipe).
+  const connection =
+    options.reader && options.writer
+      ? createConnection(
+          ProposedFeatures.all,
+          options.reader as MessageReader,
+          options.writer as MessageWriter,
+        )
+      : createConnection(ProposedFeatures.all);
   const documents = new TextDocuments<TextDocument>(TextDocument);
 
   let bundle: CompositionBundle | null = null;
