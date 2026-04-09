@@ -69,10 +69,12 @@ export function createServer(options: CreateServerOptions): CreatedServer {
   connection.onInitialize((params: InitializeParams): InitializeResult => {
     connection.console.info(`[${SERVER_NAME}] initialize received`);
     const workspaceRoot = resolveWorkspaceRoot(params);
-    deps = buildDeps(workspaceRoot, options);
+    deps = buildDeps(workspaceRoot, options, connection);
     return {
       capabilities: {
         textDocumentSync: TextDocumentSyncKind.Incremental,
+        // Phase 6 hardcode; Plan 10/12 wires this to
+        // config.features.definition (see spec §4.8).
         definitionProvider: true,
       },
       serverInfo: {
@@ -109,7 +111,11 @@ function resolveWorkspaceRoot(params: InitializeParams): string {
   return process.cwd();
 }
 
-function buildDeps(workspaceRoot: string, options: CreateServerOptions): ProviderDeps {
+function buildDeps(
+  workspaceRoot: string,
+  options: CreateServerOptions,
+  connection: Connection,
+): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 200 });
   const styleIndexCache = new StyleIndexCache({ max: 500 });
   const analysisCache = new DocumentAnalysisCache({
@@ -140,6 +146,10 @@ function buildDeps(workspaceRoot: string, options: CreateServerOptions): Provide
     typeResolver,
     reverseIndex: new NullReverseIndex(),
     workspaceRoot,
+    logError: (message, err) => {
+      const detail = err instanceof Error ? `${err.message}\n${err.stack ?? ""}` : String(err);
+      connection.console.error(`[${SERVER_NAME}] ${message}: ${detail}`);
+    },
   };
 }
 
@@ -158,7 +168,7 @@ function defaultReadStyleFile(path: string): string | null {
  * to an empty program when missing. Phase 10 refines this with a
  * cached CompilerHost and proper watch-mode plumbing.
  */
-function createDefaultProgram(workspaceRoot: string): ts.Program {
+export function createDefaultProgram(workspaceRoot: string): ts.Program {
   const configPath = ts.findConfigFile(workspaceRoot, ts.sys.fileExists, "tsconfig.json");
   if (!configPath) {
     return ts.createProgram({

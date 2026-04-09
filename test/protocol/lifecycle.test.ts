@@ -25,8 +25,13 @@ describe("lifecycle", () => {
     // Resource cleanup happens in afterEach; no throw = success.
   });
 
-  it("handles definition requests before initialize as null (deps not built yet)", async () => {
+  it("returns null for a definition request on an unknown document", async () => {
     client = createInProcessServer();
+    // No initialize, no didOpen — the server neither crashes nor
+    // throws a JSON-RPC error. `null` is the agreed-upon
+    // "nothing to say" shape (spec §2.8 + §4.2). This exercises
+    // composition-root's toCursorParams unknown-doc branch, not
+    // the pre-initialize `!deps` guard.
     const result = await client.definition({
       textDocument: { uri: "file:///never/opened.tsx" },
       position: { line: 0, character: 0 },
