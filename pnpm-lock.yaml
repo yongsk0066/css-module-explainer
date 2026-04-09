@@ -50,6 +50,9 @@ importers:
       postcss-scss:
         specifier: ^4.0.9
         version: 4.0.9(postcss@8.5.9)
+      typescript:
+        specifier: ^6.0.2
+        version: 6.0.2
       vscode-languageserver:
         specifier: ^9.0.1
         version: 9.0.1
