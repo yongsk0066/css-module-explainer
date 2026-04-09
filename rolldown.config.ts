@@ -3,23 +3,29 @@ import { defineConfig } from "rolldown";
 export default defineConfig([
   {
     input: { extension: "client/src/extension.ts" },
+    tsconfig: "client/tsconfig.json",
+    external: ["vscode"],
+    platform: "node",
     output: {
       dir: "dist/client",
       format: "cjs",
-      sourcemap: "hidden",
       entryFileNames: "[name].js",
+      sourcemap: "hidden",
+      sourcemapExcludeSources: true,
+      minify: true,
     },
-    external: ["vscode"],
-    platform: "node",
   },
   {
     input: { server: "server/src/server.ts" },
+    tsconfig: "server/tsconfig.json",
+    platform: "node",
     output: {
       dir: "dist/server",
       format: "cjs",
-      sourcemap: "hidden",
       entryFileNames: "[name].js",
+      sourcemap: "hidden",
+      sourcemapExcludeSources: true,
+      minify: true,
     },
-    platform: "node",
   },
 ]);

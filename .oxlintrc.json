@@ -4,6 +4,7 @@
     "node": true,
     "es2022": true
   },
+  "plugins": ["unicorn", "typescript", "oxc", "import"],
   "categories": {
     "correctness": "error",
     "perf": "warn",
@@ -12,7 +13,22 @@
   "rules": {
     "no-console": "off",
     "no-unused-vars": "error",
-    "no-undef": "error"
+    "no-undef": "error",
+    "typescript/switch-exhaustiveness-check": "error",
+    "typescript/consistent-type-imports": [
+      "error",
+      { "prefer": "type-imports", "fixStyle": "separate-type-imports" }
+    ],
+    "import/no-cycle": ["error", { "maxDepth": 10 }],
+    "import/no-self-import": "error",
+    "import/no-empty-named-blocks": "error",
+    "import/no-default-export": "error"
   },
+  "overrides": [
+    {
+      "files": ["rolldown.config.ts", "vitest.config.ts", "*.config.ts"],
+      "rules": { "import/no-default-export": "off" }
+    }
+  ],
   "ignorePatterns": ["dist/**", "node_modules/**", "coverage/**", "examples/**", "**/*.d.ts"]
 }
