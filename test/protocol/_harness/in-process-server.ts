@@ -1,5 +1,6 @@
 import { PassThrough } from "node:stream";
 import {
+  CompletionRequest,
   createProtocolConnection,
   DefinitionRequest,
   DidChangeTextDocumentNotification,
@@ -9,6 +10,9 @@ import {
   InitializedNotification,
   InitializeRequest,
   ShutdownRequest,
+  type CompletionItem,
+  type CompletionList,
+  type CompletionParams,
   type DefinitionParams,
   type DidChangeTextDocumentParams,
   type DidOpenTextDocumentParams,
@@ -33,6 +37,7 @@ export interface LspTestClient {
   didChange(params: DidChangeTextDocumentParams): void;
   definition(params: DefinitionParams): Promise<LocationLink[] | Location[] | null>;
   hover(params: HoverParams): Promise<Hover | null>;
+  completion(params: CompletionParams): Promise<CompletionItem[] | CompletionList | null>;
   shutdown(): Promise<void>;
   exit(): void;
   dispose(): void;
@@ -113,6 +118,9 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
     },
     async hover(params) {
       return client.sendRequest(HoverRequest.type, params);
+    },
+    async completion(params) {
+      return client.sendRequest(CompletionRequest.type, params);
     },
     async shutdown() {
       await client.sendRequest(ShutdownRequest.type, undefined);

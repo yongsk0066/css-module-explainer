@@ -22,6 +22,7 @@ import { WorkspaceTypeResolver, type TypeResolver } from "./core/ts/type-resolve
 import { DocumentAnalysisCache } from "./core/indexing/document-analysis-cache.js";
 import { NullReverseIndex } from "./core/indexing/reverse-index.js";
 import { fileUrlToPath } from "./core/util/text-utils.js";
+import { COMPLETION_TRIGGER_CHARACTERS, handleCompletion } from "./providers/completion.js";
 import { handleDefinition } from "./providers/definition.js";
 import { handleHover } from "./providers/hover.js";
 import type { CursorParams, ProviderDeps } from "./providers/provider-utils.js";
@@ -74,10 +75,14 @@ export function createServer(options: CreateServerOptions): CreatedServer {
     return {
       capabilities: {
         textDocumentSync: TextDocumentSyncKind.Incremental,
-        // Phase 6/7 hardcode; Plan 10/12 wires these to
+        // Phase 6/7/8 hardcode; Plan 10/12 wires these to
         // config.features.* (see spec §4.8).
         definitionProvider: true,
         hoverProvider: true,
+        completionProvider: {
+          triggerCharacters: [...COMPLETION_TRIGGER_CHARACTERS],
+          resolveProvider: false,
+        },
       },
       serverInfo: {
         name: SERVER_NAME,
@@ -102,6 +107,13 @@ export function createServer(options: CreateServerOptions): CreatedServer {
     const cursor = toCursorParams(p, documents);
     if (!cursor) return null;
     return handleHover(cursor, deps);
+  });
+
+  connection.onCompletion((p) => {
+    if (!deps) return null;
+    const cursor = toCursorParams(p, documents);
+    if (!cursor) return null;
+    return handleCompletion(cursor, p, deps);
   });
 
   connection.onShutdown(() => {
