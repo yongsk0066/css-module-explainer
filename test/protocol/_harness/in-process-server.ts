@@ -9,11 +9,13 @@ import {
   HoverRequest,
   InitializedNotification,
   InitializeRequest,
+  PublishDiagnosticsNotification,
   ShutdownRequest,
   type CompletionItem,
   type CompletionList,
   type CompletionParams,
   type DefinitionParams,
+  type Diagnostic,
   type DidChangeTextDocumentParams,
   type DidOpenTextDocumentParams,
   type Hover,
@@ -23,6 +25,7 @@ import {
   type Location,
   type LocationLink,
   type ProtocolConnection,
+  type PublishDiagnosticsParams,
 } from "vscode-languageserver-protocol/node";
 import { StreamMessageReader, StreamMessageWriter } from "vscode-jsonrpc/node";
 import ts from "typescript";
@@ -38,6 +41,12 @@ export interface LspTestClient {
   definition(params: DefinitionParams): Promise<LocationLink[] | Location[] | null>;
   hover(params: HoverParams): Promise<Hover | null>;
   completion(params: CompletionParams): Promise<CompletionItem[] | CompletionList | null>;
+  /**
+   * Wait for the next publishDiagnostics notification matching
+   * `uri`, or reject after `timeoutMs`. Use this to test the
+   * debounced push-based diagnostics pipeline (Plan 09).
+   */
+  waitForDiagnostics(uri: string, timeoutMs?: number): Promise<Diagnostic[]>;
   shutdown(): Promise<void>;
   exit(): void;
   dispose(): void;
@@ -92,6 +101,22 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
     new StreamMessageReader(serverToClient),
     new StreamMessageWriter(clientToServer),
   );
+  const pendingDiagnostics = new Map<string, PublishDiagnosticsParams[]>();
+  const diagnosticsWaiters = new Map<
+    string,
+    Array<{ resolve: (d: Diagnostic[]) => void; reject: (e: unknown) => void }>
+  >();
+  client.onNotification(PublishDiagnosticsNotification.type, (params) => {
+    const waiters = diagnosticsWaiters.get(params.uri);
+    if (waiters && waiters.length > 0) {
+      const waiter = waiters.shift()!;
+      waiter.resolve([...params.diagnostics]);
+      return;
+    }
+    const queue = pendingDiagnostics.get(params.uri) ?? [];
+    queue.push(params);
+    pendingDiagnostics.set(params.uri, queue);
+  });
   client.listen();
 
   return {
@@ -121,6 +146,31 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
     },
     async completion(params) {
       return client.sendRequest(CompletionRequest.type, params);
+    },
+    async waitForDiagnostics(uri, timeoutMs = 1500) {
+      const queue = pendingDiagnostics.get(uri);
+      if (queue && queue.length > 0) {
+        return [...queue.shift()!.diagnostics];
+      }
+      return new Promise<Diagnostic[]>((resolve, reject) => {
+        const list = diagnosticsWaiters.get(uri) ?? [];
+        const timer = setTimeout(() => {
+          const filtered = list.filter((w) => w.resolve !== resolve);
+          diagnosticsWaiters.set(uri, filtered);
+          reject(new Error(`waitForDiagnostics(${uri}) timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
+        list.push({
+          resolve: (d) => {
+            clearTimeout(timer);
+            resolve(d);
+          },
+          reject: (e) => {
+            clearTimeout(timer);
+            reject(e);
+          },
+        });
+        diagnosticsWaiters.set(uri, list);
+      });
     },
     async shutdown() {
       await client.sendRequest(ShutdownRequest.type, undefined);

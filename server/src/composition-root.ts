@@ -24,8 +24,11 @@ import { NullReverseIndex } from "./core/indexing/reverse-index.js";
 import { fileUrlToPath } from "./core/util/text-utils.js";
 import { COMPLETION_TRIGGER_CHARACTERS, handleCompletion } from "./providers/completion.js";
 import { handleDefinition } from "./providers/definition.js";
+import { computeDiagnostics } from "./providers/diagnostics.js";
 import { handleHover } from "./providers/hover.js";
 import type { CursorParams, ProviderDeps } from "./providers/provider-utils.js";
+
+const DIAGNOSTICS_DEBOUNCE_MS = 200;
 
 const SERVER_NAME = "css-module-explainer";
 const SERVER_VERSION = "0.0.1";
@@ -114,6 +117,44 @@ export function createServer(options: CreateServerOptions): CreatedServer {
     const cursor = toCursorParams(p, documents);
     if (!cursor) return null;
     return handleCompletion(cursor, p, deps);
+  });
+
+  // Push-based diagnostics with 200ms debounce (spec §4.5).
+  const diagTimers = new Map<string, NodeJS.Timeout>();
+  const scheduleDiagnostics = (uri: string): void => {
+    const existing = diagTimers.get(uri);
+    if (existing) clearTimeout(existing);
+    const timer = setTimeout(() => {
+      diagTimers.delete(uri);
+      if (!deps) return;
+      const doc = documents.get(uri);
+      if (!doc) return;
+      const diagnostics = computeDiagnostics(
+        {
+          documentUri: uri,
+          content: doc.getText(),
+          filePath: fileUrlToPath(uri),
+          version: doc.version,
+        },
+        deps,
+      );
+      connection.sendDiagnostics({ uri, diagnostics });
+    }, DIAGNOSTICS_DEBOUNCE_MS);
+    diagTimers.set(uri, timer);
+  };
+
+  documents.onDidChangeContent((change) => {
+    scheduleDiagnostics(change.document.uri);
+  });
+
+  documents.onDidClose((change) => {
+    const existing = diagTimers.get(change.document.uri);
+    if (existing) {
+      clearTimeout(existing);
+      diagTimers.delete(change.document.uri);
+    }
+    // Clear lingering warnings on close.
+    connection.sendDiagnostics({ uri: change.document.uri, diagnostics: [] });
   });
 
   connection.onShutdown(() => {
