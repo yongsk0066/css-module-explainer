@@ -1,8 +1,8 @@
 import { createServer } from "./composition-root.js";
 
-const { connection } = createServer({
-  reader: process.stdin,
-  writer: process.stdout,
-});
+// No reader/writer — createServer auto-detects transport from
+// process.argv flags set by the LanguageClient (TransportKind.ipc
+// passes --node-ipc, TransportKind.stdio passes --stdio).
+const { connection } = createServer({});
 
 connection.listen();
