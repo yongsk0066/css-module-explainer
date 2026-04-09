@@ -3,21 +3,31 @@ import type {
   AnalysisEntry,
   DocumentAnalysisCache,
 } from "../core/indexing/document-analysis-cache.js";
-import type { ReverseIndex } from "../core/indexing/reverse-index.js";
+import { NullReverseIndex, type ReverseIndex } from "../core/indexing/reverse-index.js";
 import type { TypeResolver } from "../core/ts/type-resolver.js";
 import { getLineAt } from "../core/util/text-utils.js";
 
 /**
- * One request's cursor location, plus the document context the
- * provider needs to resolve it.
+ * Identity + content of a single open document. Used by
+ * document-wide computations (diagnostics) that do not care
+ * about a cursor position.
  */
-export interface CursorParams {
+export interface DocumentParams {
   readonly documentUri: string;
   readonly content: string;
   readonly filePath: string;
+  readonly version: number;
+}
+
+/**
+ * One request's cursor location, plus the document context the
+ * provider needs to resolve it. Extends `DocumentParams` so
+ * cursor providers can be passed to document-wide helpers
+ * without an explicit narrowing step.
+ */
+export interface CursorParams extends DocumentParams {
   readonly line: number;
   readonly character: number;
-  readonly version: number;
 }
 
 /**
@@ -41,12 +51,16 @@ export interface ProviderDeps {
   readonly workspaceRoot: string;
   /**
    * Log a provider-level exception. Wired to
-   * `connection.console.error` in production; defaults to a
-   * silent no-op in unit tests (hence the optional marker).
-   * Required by spec §2.8 — "log + return empty result".
+   * `connection.console.error` in production; tests pass
+   * `NOOP_LOG_ERROR`. Required (not optional) so the spec §2.8
+   * "log + return empty result" contract is explicit at every
+   * call site.
    */
-  readonly logError?: (message: string, err: unknown) => void;
+  readonly logError: (message: string, err: unknown) => void;
 }
+
+/** No-op logError stub for tests — keeps `ProviderDeps.logError` required. */
+export const NOOP_LOG_ERROR: (message: string, err: unknown) => void = () => {};
 
 /**
  * The data every `withCxCallAtCursor` transform receives.
@@ -114,23 +128,27 @@ export function withCxCallAtCursor<T>(
     return null;
   }
 
-  // Record findings into the reverse index unconditionally so
-  // Phase Final's WorkspaceReverseIndex receives data on the
-  // first swap. Phase 5's NullReverseIndex is a no-op.
-  //
-  // PHASE FINAL NOTE: recording on every provider hot-path call
-  // is wasteful once NullReverseIndex is swapped for a real
-  // WorkspaceReverseIndex. When Phase Final lands, move this
-  // record() call to DocumentAnalysisCache.analyze() so it fires
-  // once per (uri, version) instead of once per hover/def/comp.
-  const callSites = entry.calls.map((call) => ({
-    uri: params.documentUri,
-    range: call.originRange,
-    binding: call.binding,
-    kind: call.kind,
-    matchInfo: matchInfoFor(call),
-  }));
-  deps.reverseIndex.record(params.documentUri, callSites);
+  // Record findings into the reverse index so Phase Final's
+  // WorkspaceReverseIndex receives data the moment it is swapped
+  // in. Skip the mapping work entirely when `record` is still the
+  // NullReverseIndex default — `entry.calls.map(...)` would
+  // otherwise allocate a throwaway array on every hover/def/
+  // completion keystroke (Agent 3 M6 fix). We compare method
+  // identity, not `instanceof`, because tests subclass
+  // NullReverseIndex and legitimately override `record`.
+  // When Phase Final lands, move this to
+  // DocumentAnalysisCache.analyze() so it fires once per
+  // (uri, version), not once per request.
+  if (deps.reverseIndex.record !== NullReverseIndex.prototype.record) {
+    const callSites = entry.calls.map((call) => ({
+      uri: params.documentUri,
+      range: call.originRange,
+      binding: call.binding,
+      kind: call.kind,
+      matchInfo: matchInfoFor(call),
+    }));
+    deps.reverseIndex.record(params.documentUri, callSites);
+  }
 
   // Find the call whose originRange contains the cursor.
   const call = findCallAtCursor(entry.calls, params.line, params.character);
@@ -139,12 +157,10 @@ export function withCxCallAtCursor<T>(
   const classMap = deps.scssClassMapFor(call.binding);
   if (!classMap) return null;
 
-  return transform({
-    call,
-    binding: call.binding,
-    classMap,
-    entry,
-  });
+  // Normalize `undefined` → `null` so callers with a missing
+  // return branch in their transform still get a strict nullable
+  // (Agent 5 F8 fix).
+  return transform({ call, binding: call.binding, classMap, entry }) ?? null;
 }
 
 /**

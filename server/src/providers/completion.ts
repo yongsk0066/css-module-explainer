@@ -1,8 +1,4 @@
-import {
-  CompletionItemKind,
-  type CompletionItem,
-  type CompletionParams,
-} from "vscode-languageserver/node";
+import { CompletionItemKind, type CompletionItem } from "vscode-languageserver/node";
 import type { CxBinding, SelectorInfo } from "@css-module-explainer/shared";
 import { getLineAt } from "../core/util/text-utils.js";
 import { isInsideCxCall, type CursorParams, type ProviderDeps } from "./provider-utils.js";
@@ -24,13 +20,12 @@ import { isInsideCxCall, type CursorParams, type ProviderDeps } from "./provider
  */
 export function handleCompletion(
   params: CursorParams,
-  _lspParams: CompletionParams,
   deps: ProviderDeps,
 ): CompletionItem[] | null {
   try {
     return computeCompletion(params, deps);
   } catch (err) {
-    deps.logError?.("completion handler failed", err);
+    deps.logError("completion handler failed", err);
     return null;
   }
 }

@@ -123,15 +123,28 @@ export class IndexerWorker {
     try {
       content = await this.deps.readFile(task.path);
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      this.deps.logger.error(`[indexer] readFile failed for ${task.path}: ${message}`);
+      this.deps.logger.error(`[indexer] readFile failed for ${task.path}: ${errMessage(err)}`);
       return;
     }
     if (content === null) return;
-    if (task.kind === "scss") {
-      this.deps.onScssFile(task.path, content);
-    } else {
-      this.deps.onTsxFile(task.path, content);
+    // Guard the callback separately from readFile: a pathological
+    // file (unterminated SCSS, postcss parser throw) must not abort
+    // the entire walk. Per-file isolation — the worker logs and
+    // moves on.
+    try {
+      if (task.kind === "scss") {
+        this.deps.onScssFile(task.path, content);
+      } else {
+        this.deps.onTsxFile(task.path, content);
+      }
+    } catch (err) {
+      this.deps.logger.error(
+        `[indexer] onFile callback failed for ${task.path}: ${errMessage(err)}`,
+      );
     }
   }
+}
+
+function errMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }

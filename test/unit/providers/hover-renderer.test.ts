@@ -124,6 +124,17 @@ describe("renderHover", () => {
     expect(markdown).not.toContain(".item-10 {");
   });
 
+  it("falls back to the raw scss path when workspaceRoot equals scssModulePath", () => {
+    const markdown = renderHover({
+      call: staticCall,
+      binding: { ...binding, scssModulePath: "/same" },
+      infos: [info("only", 3, "color: red")],
+      workspaceRoot: "/same",
+    });
+    // relative("/same", "/same") === "" → fallback to raw path
+    expect(markdown).toContain("/same:4");
+  });
+
   it("handles an empty declarations string with empty braces", () => {
     const markdown = renderHover({
       call: staticCall,

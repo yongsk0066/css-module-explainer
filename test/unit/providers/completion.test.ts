@@ -12,7 +12,7 @@ import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache.j
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache.js";
 import { NullReverseIndex } from "../../../server/src/core/indexing/reverse-index.js";
 import type { TypeResolver } from "../../../server/src/core/ts/type-resolver.js";
-import type { ProviderDeps } from "../../../server/src/providers/provider-utils.js";
+import { NOOP_LOG_ERROR, type ProviderDeps } from "../../../server/src/providers/provider-utils.js";
 import { handleCompletion } from "../../../server/src/providers/completion.js";
 
 const TSX = `
@@ -73,13 +73,12 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     typeResolver: new FakeTypeResolver(),
     reverseIndex: new NullReverseIndex(),
     workspaceRoot: "/fake/ws",
+    logError: NOOP_LOG_ERROR,
     ...overrides,
   };
 }
 
 describe("handleCompletion", () => {
-  const completionLspParams = {} as never; // unused in the tested pipeline
-
   it("returns all classes when inside a cx() call", () => {
     const result = handleCompletion(
       {
@@ -90,7 +89,6 @@ describe("handleCompletion", () => {
         character: 16, // inside cx('
         version: 1,
       },
-      completionLspParams,
       makeDeps(),
     );
     expect(result).not.toBeNull();
@@ -109,7 +107,6 @@ describe("handleCompletion", () => {
         character: 0,
         version: 1,
       },
-      completionLspParams,
       makeDeps(),
     );
     expect(result).toBeNull();
@@ -125,7 +122,6 @@ describe("handleCompletion", () => {
         character: 5,
         version: 1,
       },
-      completionLspParams,
       makeDeps(),
     );
     expect(result).toBeNull();
@@ -141,7 +137,6 @@ describe("handleCompletion", () => {
         character: 16,
         version: 1,
       },
-      completionLspParams,
       makeDeps({ scssClassMapFor: () => new Map() as ScssClassMap }),
     );
     expect(result).toBeNull();
@@ -158,7 +153,6 @@ describe("handleCompletion", () => {
         character: 16,
         version: 1,
       },
-      completionLspParams,
       makeDeps({
         scssClassMapFor: () => {
           throw new Error("boom");
