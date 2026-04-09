@@ -9,4 +9,5 @@ export type {
   StaticClassCall,
   TemplateLiteralCall,
   VariableRefCall,
+  ResolvedType,
 } from "./types.js";

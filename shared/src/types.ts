@@ -126,3 +126,24 @@ export interface VariableRefCall extends CxCallBase {
 
 /** Discriminated union of every `cx()` argument shape we track. */
 export type CxCallInfo = StaticClassCall | TemplateLiteralCall | VariableRefCall;
+
+// ──────────────────────────────────────────────────────────────
+// Type resolution (Phase 4)
+// ──────────────────────────────────────────────────────────────
+
+/**
+ * Result of resolving a TypeScript identifier to its string-literal
+ * union type.
+ *
+ * - `kind: "union"` carries every literal member the checker saw.
+ *   A single-member union (single string literal) is represented
+ *   the same way, so consumers do not branch on arity.
+ * - `kind: "unresolvable"` is returned when the identifier cannot
+ *   be matched to a string-literal union — either because the
+ *   symbol is missing, the type is not a literal union, or the
+ *   program could not be built. The empty `values` array keeps
+ *   the consumer code branch-free.
+ */
+export type ResolvedType =
+  | { readonly kind: "union"; readonly values: readonly string[] }
+  | { readonly kind: "unresolvable"; readonly values: readonly [] };
