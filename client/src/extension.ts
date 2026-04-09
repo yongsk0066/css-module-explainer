@@ -35,21 +35,18 @@ export function activate(context: vscode.ExtensionContext): void {
     progressOnInitialization: true,
   };
 
-  try {
-    client = new LanguageClient(
-      'cssModuleExplainer',
-      'CSS Module Explainer',
-      serverOptions,
-      clientOptions,
-    );
-  } catch {
-    void vscode.window.showErrorMessage(
-      "CSS Module Explainer couldn't be started.",
-    );
-    return;
-  }
+  client = new LanguageClient(
+    'cssModuleExplainer',
+    'CSS Module Explainer',
+    serverOptions,
+    clientOptions,
+  );
 
-  void client.start();
+  void client.start().catch(err => {
+    void vscode.window.showErrorMessage(
+      `CSS Module Explainer failed to start: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  });
 
   context.subscriptions.push({
     dispose: () => {
