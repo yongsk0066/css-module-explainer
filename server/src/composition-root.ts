@@ -1,11 +1,15 @@
 import { readFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import type { MessageReader, MessageWriter } from "vscode-languageserver/node";
 import {
   createConnection,
+  DidChangeWatchedFilesNotification,
+  FileChangeType,
   ProposedFeatures,
   TextDocuments,
   TextDocumentSyncKind,
   type Connection,
+  type DidChangeWatchedFilesParams,
   type InitializeParams,
   type InitializeResult,
   type TextDocumentPositionParams,
@@ -13,13 +17,15 @@ import {
 import { TextDocument } from "vscode-languageserver-textdocument";
 import ts from "typescript";
 import type { CxBinding, ScssClassMap } from "@css-module-explainer/shared";
-import { findLangForPath } from "./core/scss/lang-registry.js";
+import { buildStyleFileWatcherGlob, findLangForPath } from "./core/scss/lang-registry.js";
 import { StyleIndexCache } from "./core/scss/scss-index.js";
 import { detectCxBindings } from "./core/cx/binding-detector.js";
 import { parseCxCalls } from "./core/cx/call-parser.js";
 import { SourceFileCache } from "./core/ts/source-file-cache.js";
 import { WorkspaceTypeResolver, type TypeResolver } from "./core/ts/type-resolver.js";
 import { DocumentAnalysisCache } from "./core/indexing/document-analysis-cache.js";
+import { scssFileSupplier } from "./core/indexing/file-supplier.js";
+import { IndexerWorker, type FileTask } from "./core/indexing/indexer-worker.js";
 import { NullReverseIndex } from "./core/indexing/reverse-index.js";
 import { fileUrlToPath } from "./core/util/text-utils.js";
 import { COMPLETION_TRIGGER_CHARACTERS, handleCompletion } from "./providers/completion.js";
@@ -42,6 +48,14 @@ export interface CreateServerOptions {
   readonly readStyleFile?: (path: string) => string | null;
   /** Override ts.Program creation (test injection for the real resolver). */
   readonly createProgram?: (workspaceRoot: string) => ts.Program;
+  /**
+   * Override the background file supplier (Phase 10). Production
+   * uses `scssFileSupplier(workspaceRoot)`; tests pass an in-memory
+   * iterable so no filesystem walk is triggered.
+   */
+  readonly fileSupplier?: () => AsyncIterable<FileTask>;
+  /** Async disk read used by the indexer worker. */
+  readonly readStyleFileAsync?: (path: string) => Promise<string | null>;
 }
 
 export interface CreatedServer {
@@ -69,12 +83,13 @@ export function createServer(options: CreateServerOptions): CreatedServer {
   );
   const documents = new TextDocuments<TextDocument>(TextDocument);
 
-  let deps: ProviderDeps | null = null;
+  let bundle: CompositionBundle | null = null;
+  const getDeps = (): ProviderDeps | null => bundle?.deps ?? null;
 
   connection.onInitialize((params: InitializeParams): InitializeResult => {
     connection.console.info(`[${SERVER_NAME}] initialize received`);
     const workspaceRoot = resolveWorkspaceRoot(params);
-    deps = buildDeps(workspaceRoot, options, connection);
+    bundle = buildBundle(workspaceRoot, options, connection);
     return {
       capabilities: {
         textDocumentSync: TextDocumentSyncKind.Incremental,
@@ -96,9 +111,32 @@ export function createServer(options: CreateServerOptions): CreatedServer {
 
   connection.onInitialized(() => {
     connection.console.info(`[${SERVER_NAME}] initialized`);
+    if (!bundle) return;
+    // Fire-and-forget: the indexer pre-warms the StyleIndexCache
+    // by walking the workspace and reading every style module.
+    // `setImmediate` yield inside the worker keeps LSP requests
+    // preempted (spec §2.6).
+    bundle.indexerWorker.start().catch((err: unknown) => {
+      connection.console.error(
+        `[${SERVER_NAME}] indexer worker crashed: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    });
+    // Register dynamic file watcher for .module.{scss,css} change
+    // events. The client sends DidChangeWatchedFilesNotification
+    // when any matching file is created / changed / deleted.
+    void connection.client
+      .register(DidChangeWatchedFilesNotification.type, {
+        watchers: [{ globPattern: buildStyleFileWatcherGlob() }],
+      })
+      .catch(() => {
+        // Some clients don't support dynamic registration; silently skip.
+      });
   });
 
   connection.onDefinition((p: TextDocumentPositionParams) => {
+    const deps = getDeps();
     if (!deps) return null;
     const cursor = toCursorParams(p, documents);
     if (!cursor) return null;
@@ -106,6 +144,7 @@ export function createServer(options: CreateServerOptions): CreatedServer {
   });
 
   connection.onHover((p: TextDocumentPositionParams) => {
+    const deps = getDeps();
     if (!deps) return null;
     const cursor = toCursorParams(p, documents);
     if (!cursor) return null;
@@ -113,6 +152,7 @@ export function createServer(options: CreateServerOptions): CreatedServer {
   });
 
   connection.onCompletion((p) => {
+    const deps = getDeps();
     if (!deps) return null;
     const cursor = toCursorParams(p, documents);
     if (!cursor) return null;
@@ -126,6 +166,7 @@ export function createServer(options: CreateServerOptions): CreatedServer {
     if (existing) clearTimeout(existing);
     const timer = setTimeout(() => {
       diagTimers.delete(uri);
+      const deps = getDeps();
       if (!deps) return;
       const doc = documents.get(uri);
       if (!doc) return;
@@ -157,8 +198,31 @@ export function createServer(options: CreateServerOptions): CreatedServer {
     connection.sendDiagnostics({ uri: change.document.uri, diagnostics: [] });
   });
 
+  // Phase 10 — file watcher. Invalidate StyleIndexCache + re-push
+  // the changed file through the indexer so the next provider
+  // request sees fresh data. Deletions just drop cache entries.
+  connection.onDidChangeWatchedFiles((params: DidChangeWatchedFilesParams) => {
+    if (!bundle) return;
+    for (const change of params.changes) {
+      const filePath = fileUrlToPath(change.uri);
+      if (change.type === FileChangeType.Deleted) {
+        bundle.styleIndexCache.invalidate(filePath);
+        continue;
+      }
+      bundle.styleIndexCache.invalidate(filePath);
+      const task: FileTask = { kind: "scss", path: filePath };
+      bundle.indexerWorker.pushFile(task);
+    }
+    // Re-run diagnostics on every open document since style
+    // changes can turn warnings on or off.
+    for (const doc of documents.all()) {
+      scheduleDiagnostics(doc.uri);
+    }
+  });
+
   connection.onShutdown(() => {
-    deps = null;
+    bundle?.indexerWorker.stop();
+    bundle = null;
   });
 
   documents.listen(connection);
@@ -173,11 +237,17 @@ function resolveWorkspaceRoot(params: InitializeParams): string {
   return process.cwd();
 }
 
-function buildDeps(
+interface CompositionBundle {
+  readonly deps: ProviderDeps;
+  readonly styleIndexCache: StyleIndexCache;
+  readonly indexerWorker: IndexerWorker;
+}
+
+function buildBundle(
   workspaceRoot: string,
   options: CreateServerOptions,
   connection: Connection,
-): ProviderDeps {
+): CompositionBundle {
   const sourceFileCache = new SourceFileCache({ max: 200 });
   const styleIndexCache = new StyleIndexCache({ max: 500 });
   const analysisCache = new DocumentAnalysisCache({
@@ -202,7 +272,7 @@ function buildDeps(
     return styleIndexCache.get(binding.scssModulePath, content);
   };
 
-  return {
+  const deps: ProviderDeps = {
     analysisCache,
     scssClassMapFor,
     typeResolver,
@@ -213,6 +283,35 @@ function buildDeps(
       connection.console.error(`[${SERVER_NAME}] ${message}: ${detail}`);
     },
   };
+
+  const supplier = options.fileSupplier ?? (() => scssFileSupplier(workspaceRoot));
+  const asyncReadFile = options.readStyleFileAsync ?? defaultReadStyleFileAsync;
+  const indexerWorker = new IndexerWorker({
+    supplier,
+    readFile: asyncReadFile,
+    onScssFile: (path, content) => {
+      // Pre-warm the style index so the next provider request on
+      // this file's classMap hits in-memory instead of parsing.
+      styleIndexCache.get(path, content);
+    },
+    onTsxFile: () => {
+      // Phase Final hook — Phase 10 only indexes SCSS.
+    },
+    logger: {
+      info: (msg) => connection.console.info(`[${SERVER_NAME}:indexer] ${msg}`),
+      error: (msg) => connection.console.error(`[${SERVER_NAME}:indexer] ${msg}`),
+    },
+  });
+
+  return { deps, styleIndexCache, indexerWorker };
+}
+
+async function defaultReadStyleFileAsync(path: string): Promise<string | null> {
+  try {
+    return await readFile(path, "utf8");
+  } catch {
+    return null;
+  }
 }
 
 function defaultReadStyleFile(path: string): string | null {

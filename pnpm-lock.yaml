@@ -50,6 +50,9 @@ importers:
       '@css-module-explainer/shared':
         specifier: workspace:*
         version: link:../shared
+      fast-glob:
+        specifier: ^3.3.3
+        version: 3.3.3
       postcss:
         specifier: ^8.5.9
         version: 8.5.9

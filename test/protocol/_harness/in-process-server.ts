@@ -4,6 +4,7 @@ import {
   createProtocolConnection,
   DefinitionRequest,
   DidChangeTextDocumentNotification,
+  DidChangeWatchedFilesNotification,
   DidOpenTextDocumentNotification,
   ExitNotification,
   HoverRequest,
@@ -17,6 +18,7 @@ import {
   type DefinitionParams,
   type Diagnostic,
   type DidChangeTextDocumentParams,
+  type DidChangeWatchedFilesParams,
   type DidOpenTextDocumentParams,
   type Hover,
   type HoverParams,
@@ -30,6 +32,12 @@ import {
 import { StreamMessageReader, StreamMessageWriter } from "vscode-jsonrpc/node";
 import ts from "typescript";
 import { createServer, type CreateServerOptions } from "../../../server/src/composition-root.js";
+import type { FileTask } from "../../../server/src/core/indexing/indexer-worker.js";
+
+// eslint-disable-next-line @typescript-eslint/require-await
+async function* emptySupplier(): AsyncGenerator<FileTask> {
+  // yields nothing
+}
 
 export interface InProcessServerOptions extends Omit<CreateServerOptions, "reader" | "writer"> {}
 
@@ -47,6 +55,7 @@ export interface LspTestClient {
    * debounced push-based diagnostics pipeline (Plan 09).
    */
   waitForDiagnostics(uri: string, timeoutMs?: number): Promise<Diagnostic[]>;
+  didChangeWatchedFiles(params: DidChangeWatchedFilesParams): void;
   shutdown(): Promise<void>;
   exit(): void;
   dispose(): void;
@@ -91,6 +100,11 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
         rootNames: [],
         options: { allowJs: true, jsx: ts.JsxEmit.Preserve },
       }),
+    // Default indexer supplier → empty. Tests exercise providers
+    // via didOpen + in-memory readStyleFile; the background walk
+    // is not wanted because it would hit the real filesystem.
+    fileSupplier: () => emptySupplier(),
+    readStyleFileAsync: async () => null,
     ...options,
     reader: new StreamMessageReader(clientToServer),
     writer: new StreamMessageWriter(serverToClient),
@@ -146,6 +160,9 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
     },
     async completion(params) {
       return client.sendRequest(CompletionRequest.type, params);
+    },
+    didChangeWatchedFiles(params) {
+      client.sendNotification(DidChangeWatchedFilesNotification.type, params);
     },
     async waitForDiagnostics(uri, timeoutMs = 1500) {
       const queue = pendingDiagnostics.get(uri);

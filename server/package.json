@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@css-module-explainer/shared": "workspace:*",
+    "fast-glob": "^3.3.3",
     "postcss": "^8.5.9",
     "postcss-scss": "^4.0.9",
     "typescript": "^6.0.2",
