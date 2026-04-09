@@ -1,7 +1,8 @@
-import type { LocationLink, Range as LspRange } from "vscode-languageserver/node";
+import type { LocationLink } from "vscode-languageserver/node";
 import type { Range, SelectorInfo } from "@css-module-explainer/shared";
 import { resolveCxCallToSelectorInfos } from "../core/cx/call-resolver.js";
 import { pathToFileUrl } from "../core/util/text-utils.js";
+import { toLspRange } from "./lsp-adapters.js";
 import {
   withCxCallAtCursor,
   type CursorParams,
@@ -64,20 +65,5 @@ function toLocationLink(originRange: Range, targetUri: string, info: SelectorInf
     targetUri,
     targetRange: toLspRange(info.ruleRange),
     targetSelectionRange: toLspRange(info.range),
-  };
-}
-
-/**
- * Shallow-copy a shared `Range` into an LSP `Range`.
- *
- * Necessary because shared ranges carry `readonly` markers and
- * the LSP type does not — TS variance rejects the direct
- * assignment even though the shapes match. One call per
- * resolved SelectorInfo, so the allocation is negligible.
- */
-function toLspRange(r: Range): LspRange {
-  return {
-    start: { line: r.start.line, character: r.start.character },
-    end: { line: r.end.line, character: r.end.character },
   };
 }

@@ -5,12 +5,15 @@ import {
   DidChangeTextDocumentNotification,
   DidOpenTextDocumentNotification,
   ExitNotification,
+  HoverRequest,
   InitializedNotification,
   InitializeRequest,
   ShutdownRequest,
   type DefinitionParams,
   type DidChangeTextDocumentParams,
   type DidOpenTextDocumentParams,
+  type Hover,
+  type HoverParams,
   type InitializeParams,
   type InitializeResult,
   type Location,
@@ -29,6 +32,7 @@ export interface LspTestClient {
   didOpen(params: DidOpenTextDocumentParams): void;
   didChange(params: DidChangeTextDocumentParams): void;
   definition(params: DefinitionParams): Promise<LocationLink[] | Location[] | null>;
+  hover(params: HoverParams): Promise<Hover | null>;
   shutdown(): Promise<void>;
   exit(): void;
   dispose(): void;
@@ -106,6 +110,9 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
     },
     async definition(params) {
       return client.sendRequest(DefinitionRequest.type, params);
+    },
+    async hover(params) {
+      return client.sendRequest(HoverRequest.type, params);
     },
     async shutdown() {
       await client.sendRequest(ShutdownRequest.type, undefined);
