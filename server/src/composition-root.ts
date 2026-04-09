@@ -26,14 +26,20 @@ import { WorkspaceTypeResolver, type TypeResolver } from "./core/ts/type-resolve
 import { DocumentAnalysisCache } from "./core/indexing/document-analysis-cache.js";
 import { scssFileSupplier } from "./core/indexing/file-supplier.js";
 import { IndexerWorker, type FileTask } from "./core/indexing/indexer-worker.js";
-import { NullReverseIndex } from "./core/indexing/reverse-index.js";
+import { WorkspaceReverseIndex } from "./core/indexing/reverse-index.js";
 import { fileUrlToPath } from "./core/util/text-utils.js";
 import { handleCodeAction } from "./providers/code-actions.js";
 import { COMPLETION_TRIGGER_CHARACTERS, handleCompletion } from "./providers/completion.js";
 import { handleDefinition } from "./providers/definition.js";
 import { computeDiagnostics } from "./providers/diagnostics.js";
 import { handleHover } from "./providers/hover.js";
-import type { CursorParams, ProviderDeps } from "./providers/provider-utils.js";
+import {
+  collectCallSites,
+  type CursorParams,
+  type ProviderDeps,
+} from "./providers/provider-utils.js";
+import { handleCodeLens } from "./providers/reference-lens.js";
+import { handleReferences } from "./providers/references.js";
 
 const DIAGNOSTICS_DEBOUNCE_MS = 200;
 
@@ -110,6 +116,8 @@ export function createServer(options: CreateServerOptions): CreatedServer {
           codeActionKinds: ["quickfix"],
           resolveProvider: false,
         },
+        referencesProvider: true,
+        codeLensProvider: { resolveProvider: false },
       },
       serverInfo: {
         name: SERVER_NAME,
@@ -176,6 +184,16 @@ export function createServer(options: CreateServerOptions): CreatedServer {
     const deps = getDeps();
     if (!deps) return null;
     return handleCodeAction(p, deps);
+  });
+
+  connection.onReferences((p) => {
+    if (!bundle) return null;
+    return handleReferences(p, bundle.readStyleFile, bundle.scssClassMapForPath, bundle.deps);
+  });
+
+  connection.onCodeLens((p) => {
+    if (!bundle) return null;
+    return handleCodeLens(p, bundle.scssClassMapForPath, bundle.readStyleFile, bundle.deps);
   });
 
   // Push-based diagnostics with 200ms debounce (spec §4.5).
@@ -270,6 +288,8 @@ interface CompositionBundle {
   readonly deps: ProviderDeps;
   readonly styleIndexCache: StyleIndexCache;
   readonly indexerWorker: IndexerWorker;
+  readonly scssClassMapForPath: (path: string) => ScssClassMap | null;
+  readonly readStyleFile: (path: string) => string | null;
 }
 
 function buildBundle(
@@ -279,11 +299,18 @@ function buildBundle(
 ): CompositionBundle {
   const sourceFileCache = new SourceFileCache({ max: 200 });
   const styleIndexCache = new StyleIndexCache({ max: 500 });
+  const reverseIndex = new WorkspaceReverseIndex();
   const analysisCache = new DocumentAnalysisCache({
     sourceFileCache,
     detectCxBindings,
     parseCxCalls,
     max: 200,
+    // Plan Final: index cx() call sites exactly once per
+    // (uri, version). Handoff invariant 3.6 moved this write
+    // off the provider hot path and into the cache.
+    onAnalyze: (uri, entry) => {
+      reverseIndex.record(uri, collectCallSites(uri, entry));
+    },
   });
 
   const typeResolver: TypeResolver =
@@ -301,6 +328,17 @@ function buildBundle(
     return styleIndexCache.get(binding.scssModulePath, content);
   };
 
+  // Path-keyed classMap lookup used by references + code-lens
+  // (they don't have a CxBinding to key off of — the cursor is in
+  // the SCSS file itself).
+  const scssClassMapForPath = (path: string): ScssClassMap | null => {
+    const lang = findLangForPath(path);
+    if (!lang) return null;
+    const content = readStyleFile(path);
+    if (content === null) return null;
+    return styleIndexCache.get(path, content);
+  };
+
   const indexerLogger = {
     info: (msg: string) => connection.console.info(`[${SERVER_NAME}:indexer] ${msg}`),
     error: (msg: string) => connection.console.error(`[${SERVER_NAME}:indexer] ${msg}`),
@@ -310,7 +348,7 @@ function buildBundle(
     analysisCache,
     scssClassMapFor,
     typeResolver,
-    reverseIndex: new NullReverseIndex(),
+    reverseIndex,
     workspaceRoot,
     logError: (message, err) => {
       const detail = err instanceof Error ? `${err.message}\n${err.stack ?? ""}` : String(err);
@@ -334,7 +372,7 @@ function buildBundle(
     logger: indexerLogger,
   });
 
-  return { deps, styleIndexCache, indexerWorker };
+  return { deps, styleIndexCache, indexerWorker, scssClassMapForPath, readStyleFile };
 }
 
 async function defaultReadStyleFileAsync(path: string): Promise<string | null> {

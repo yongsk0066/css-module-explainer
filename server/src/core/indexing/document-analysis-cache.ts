@@ -26,6 +26,15 @@ export interface DocumentAnalysisCacheDeps {
   readonly detectCxBindings: (sourceFile: ts.SourceFile, filePath: string) => CxBinding[];
   readonly parseCxCalls: (sourceFile: ts.SourceFile, binding: CxBinding) => CxCallInfo[];
   readonly max: number;
+  /**
+   * Callback fired exactly once per (uri, version) when the cache
+   * produces a fresh AnalysisEntry via `analyze()`. Plan Final
+   * wires this to `WorkspaceReverseIndex.record` so each document
+   * contributes its cx() call sites to the reverse index once per
+   * document update — NOT once per hover/def/completion keystroke
+   * (handoff invariant 3.6).
+   */
+  readonly onAnalyze?: (uri: string, entry: AnalysisEntry) => void;
 }
 
 /**
@@ -69,6 +78,11 @@ export class DocumentAnalysisCache {
     }
     const entry = this.analyze(content, filePath, version, hash);
     this.put(uri, entry);
+    // Fire the per-analysis hook exactly once per (uri, version)
+    // (invariant 3.6). Providers no longer record callsites on
+    // every hot-path request — this hook is the single write
+    // point into the reverse index.
+    this.deps.onAnalyze?.(uri, entry);
     return entry;
   }
 

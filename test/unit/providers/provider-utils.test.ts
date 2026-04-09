@@ -221,7 +221,12 @@ describe("withCxCallAtCursor / call dispatch", () => {
     expect((result as { bindings: unknown[] }).bindings).toHaveLength(1);
   });
 
-  it("records callsites into the reverse index even when no cursor match", () => {
+  it("no longer records into the reverse index on every call (Plan Final invariant 3.6)", () => {
+    // Plan Final moved the reverse-index write off the provider
+    // hot path and into `DocumentAnalysisCache.onAnalyze` — see
+    // composition-root.ts. withCxCallAtCursor must not touch the
+    // reverseIndex at all. A recording subclass would stay at
+    // zero calls if the invariant holds.
     const records: Array<[string, readonly unknown[]]> = [];
     class RecordingReverseIndex extends NullReverseIndex {
       override record(uri: string, sites: readonly unknown[]): void {
@@ -241,8 +246,6 @@ describe("withCxCallAtCursor / call dispatch", () => {
       deps,
       () => "hit",
     );
-    expect(records).toHaveLength(1);
-    expect(records[0]![0]).toBe("file:///fake/a.tsx");
-    expect(records[0]![1]).toHaveLength(1);
+    expect(records).toHaveLength(0);
   });
 });
