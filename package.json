@@ -28,7 +28,6 @@
     "onLanguage:scss",
     "onLanguage:css"
   ],
-  "contributes": {},
   "scripts": {
     "clean": "rm -rf dist",
     "build": "pnpm clean && rolldown -c rolldown.config.ts",
