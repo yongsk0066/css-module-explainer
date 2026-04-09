@@ -28,8 +28,8 @@
     "test:protocol:watch": "vitest test/protocol",
     "lint": "oxlint .",
     "lint:fix": "oxlint . --fix",
-    "format": "oxfmt --write . '!docs/**'",
-    "format:check": "oxfmt --check . '!docs/**'",
+    "format": "oxfmt --write . '!docs/**' '!examples/**'",
+    "format:check": "oxfmt --check . '!docs/**' '!examples/**'",
     "check": "pnpm lint && pnpm format:check && pnpm typecheck",
     "package": "vsce package --no-dependencies"
   },

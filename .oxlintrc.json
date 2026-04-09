@@ -14,5 +14,5 @@
     "no-unused-vars": "error",
     "no-undef": "error"
   },
-  "ignorePatterns": ["dist/**", "node_modules/**", "coverage/**", "**/*.d.ts"]
+  "ignorePatterns": ["dist/**", "node_modules/**", "coverage/**", "examples/**", "**/*.d.ts"]
 }

@@ -1,0 +1,34 @@
+# What does NOT ship in the marketplace VSIX.
+# Keep in sync with what `vsce package` uploads.
+
+# Source & config
+**/*.ts
+**/*.tsx
+**/*.map
+tsconfig*.json
+rolldown.config.ts
+vitest.config.ts
+.oxlintrc.json
+.oxfmtrc.json
+.nvmrc
+.gitignore
+.git/**
+
+# Workspaces
+shared/
+server/
+client/src/
+!server/package.json
+
+# Development tree
+docs/
+test/
+examples/
+.github/
+.vscode/
+
+# Build artifacts we don't need
+**/*.tsbuildinfo
+coverage/
+*.log
+pnpm-lock.yaml

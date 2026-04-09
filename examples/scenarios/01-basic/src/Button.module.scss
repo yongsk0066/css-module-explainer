@@ -1,0 +1,59 @@
+$radius: 8px;
+
+.button {
+  border: 1px solid currentcolor;
+  border-radius: $radius;
+  padding: 8px 16px;
+  cursor: pointer;
+  font: inherit;
+
+  &:hover {
+    filter: brightness(1.1);
+  }
+}
+
+.primary {
+  background: #2f6fed;
+  color: white;
+  border-color: #2f6fed;
+}
+
+.secondary {
+  background: transparent;
+  color: #2f6fed;
+}
+
+.sm {
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.md {
+  font-size: 14px;
+}
+
+.lg {
+  font-size: 18px;
+  padding: 12px 24px;
+}
+
+.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.disabledStripes {
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 8px,
+    rgba(0, 0, 0, 0.1) 8px,
+    rgba(0, 0, 0, 0.1) 16px
+  );
+}
+
+// Intentionally unused — exists so "Find References" on
+// this selector returns "no references" in the dogfood.
+.typoTarget {
+  color: magenta;
+}
