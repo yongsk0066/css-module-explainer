@@ -24,6 +24,8 @@
     "test": "vitest run",
     "test:unit": "vitest run test/unit",
     "test:unit:watch": "vitest test/unit",
+    "test:protocol": "vitest run test/protocol",
+    "test:protocol:watch": "vitest test/protocol",
     "lint": "oxlint .",
     "lint:fix": "oxlint . --fix",
     "format": "oxfmt --write . '!docs/**'",
