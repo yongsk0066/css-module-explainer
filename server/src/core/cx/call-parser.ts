@@ -78,7 +78,10 @@ function extractFromArgument(
       } else if (ts.isStringLiteral(name)) {
         out.push(makeStatic(name.text, innerStringRange(name, sourceFile), binding));
       }
-      // Computed properties, numeric literals, etc. are intentionally skipped.
+      // Intentional: computed-property keys (`{ [dynamicKey]: x }`)
+      // and numeric literal keys cannot be resolved to a class name
+      // at static analysis time, so they are skipped without
+      // warning. A future Phase could emit a diagnostic for these.
     }
     return;
   }
@@ -105,7 +108,12 @@ function extractFromArgument(
     return;
   }
 
-  // 6. Identifier → one variable call.
+  // 6. Identifier → one variable call. Intentional: PropertyAccess
+  // (e.g. `cx(props.variant)`) is NOT captured as a variable
+  // reference because we cannot resolve a property path against a
+  // string-literal union type without more TS Compiler API work.
+  // Such calls are silently skipped until Phase 4's type-resolver
+  // can weigh in.
   if (ts.isIdentifier(arg)) {
     out.push({
       kind: "variable",

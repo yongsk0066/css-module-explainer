@@ -77,6 +77,11 @@ export interface CxBinding {
 /**
  * Base shape for a single `cx()` argument that resolves (or fails
  * to resolve) to one or more class names.
+ *
+ * @internal This base is not exported from the shared package. Its
+ * fields are inlined into each concrete `CxCallInfo` variant via
+ * declaration merging so consumers see a flat discriminated union,
+ * not a nested hierarchy.
  */
 interface CxCallBase {
   /**

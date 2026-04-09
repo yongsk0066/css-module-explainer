@@ -209,3 +209,46 @@ describe("parseCxCalls / negative cases", () => {
     expect(calls).toEqual([]);
   });
 });
+
+describe("parseCxCalls / zero-arg and empty-collection edges (post-review)", () => {
+  it("handles `cx()` with no arguments", () => {
+    // `cx()` is a legal no-op; the parser must not crash and must
+    // return an empty array so diagnostics/hover silently do nothing.
+    const calls = run(`const x = cx();`);
+    expect(calls).toEqual([]);
+  });
+
+  it("handles `cx({})` with an empty object", () => {
+    const calls = run(`const x = cx({});`);
+    expect(calls).toEqual([]);
+  });
+
+  it("handles `cx([])` with an empty array", () => {
+    const calls = run(`const x = cx([]);`);
+    expect(calls).toEqual([]);
+  });
+
+  it("extracts a shorthand object property `{ active }`", () => {
+    // Shorthand is ES2015 `{ active: active }`. The detector handles
+    // this via isShorthandPropertyAssignment; test pins the support.
+    const calls = run(`const x = cx({ active });`);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({ kind: "static", className: "active" });
+  });
+
+  it("extracts multiple shorthand keys together", () => {
+    const calls = run(`const x = cx({ active, disabled });`);
+    const names = calls.map((c) => (c as { className: string }).className);
+    expect(names).toEqual(["active", "disabled"]);
+  });
+});
+
+describe("parseCxCalls / explicit non-goal — property access (Q3 B limit)", () => {
+  it("silently skips `cx(props.variant)` — PropertyAccessExpression is not a variable ref", () => {
+    // The parser's variable branch accepts bare identifiers only.
+    // Deeper analysis (dataflow through props, destructuring) would
+    // require the Phase 4 type-resolver and is out of scope.
+    const calls = run(`const x = cx(props.variant);`);
+    expect(calls).toEqual([]);
+  });
+});
