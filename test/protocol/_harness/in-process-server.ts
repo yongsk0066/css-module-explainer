@@ -18,6 +18,7 @@ import {
   type ProtocolConnection,
 } from "vscode-languageserver-protocol/node";
 import { StreamMessageReader, StreamMessageWriter } from "vscode-jsonrpc/node";
+import ts from "typescript";
 import { createServer, type CreateServerOptions } from "../../../server/src/composition-root.js";
 
 export interface InProcessServerOptions extends Omit<CreateServerOptions, "reader" | "writer"> {}
@@ -58,10 +59,23 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
   // die when the client disconnects) but catastrophic for in-process
   // tests: exiting kills the vitest worker. Wrapping hides the raw
   // `.read` method and skips the auto-exit block.
+  //
+  // Default `createProgram` to an empty ts.Program. Without this,
+  // composition-root's createDefaultProgram calls
+  // `ts.findConfigFile("/fake/workspace", ...)` which walks upward
+  // from /fake/workspace (nonexistent) and can find the REAL repo
+  // tsconfig.json at /Users/.../css-module-explainer/tsconfig.json —
+  // a test-hermeticity leak. The spread lets individual tests
+  // override.
   const { connection: serverConnection } = createServer({
+    createProgram: () =>
+      ts.createProgram({
+        rootNames: [],
+        options: { allowJs: true, jsx: ts.JsxEmit.Preserve },
+      }),
+    ...options,
     reader: new StreamMessageReader(clientToServer),
     writer: new StreamMessageWriter(serverToClient),
-    ...options,
   });
   serverConnection.listen();
 
@@ -100,15 +114,11 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
       client.sendNotification(ExitNotification.type);
     },
     dispose() {
-      // Dispose both connections — they internally unsubscribe
-      // from reader events and stop any pending writes. We do NOT
-      // destroy/end the underlying PassThrough streams: in-flight
-      // JSON-RPC writes (notification fire-and-forget, shutdown
-      // acks) are racing with cleanup and closing the streams
-      // causes ERR_STREAM_WRITE_AFTER_END / ERR_STREAM_DESTROYED
-      // in the writer. Each test owns a fresh stream pair, so
-      // leaking them is harmless — GC reclaims them at worker
-      // shutdown.
+      // TODO(plan-10.5): revisit if Tier 3 E2E surfaces stream
+      // leaks. For now we deliberately do NOT destroy the
+      // PassThrough pair to avoid ERR_STREAM_WRITE_AFTER_END on
+      // racing shutdown acks. Each test owns a fresh pair, so GC
+      // reclaims them at vitest worker shutdown.
       client.dispose();
       serverConnection.dispose();
     },

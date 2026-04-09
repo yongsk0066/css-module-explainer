@@ -39,6 +39,13 @@ export interface ProviderDeps {
   readonly typeResolver: TypeResolver;
   readonly reverseIndex: ReverseIndex;
   readonly workspaceRoot: string;
+  /**
+   * Log a provider-level exception. Wired to
+   * `connection.console.error` in production; defaults to a
+   * silent no-op in unit tests (hence the optional marker).
+   * Required by spec §2.8 — "log + return empty result".
+   */
+  readonly logError?: (message: string, err: unknown) => void;
 }
 
 /**
