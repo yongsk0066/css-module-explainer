@@ -1,6 +1,10 @@
 import * as path from "node:path";
 import ts from "typescript";
 import type { CxBinding } from "@css-module-explainer/shared";
+// lang-registry is the single source of truth for style extensions;
+// importing it here is a deliberate cross-domain read of neutral
+// config data, not a logic dependency. When LESS joins the registry
+// this file needs zero changes.
 import { getAllStyleExtensions } from "../scss/lang-registry.js";
 
 /**
@@ -19,6 +23,11 @@ import { getAllStyleExtensions } from "../scss/lang-registry.js";
  * bindings per file, and function-scoped bindings.
  */
 export function detectCxBindings(sourceFile: ts.SourceFile, filePath: string): CxBinding[] {
+  // Two-pass design: Pass 1 is a linear scan of top-level statements
+  // for the two import sets we care about. If either set is empty,
+  // we skip the full recursive AST walk in Pass 2 entirely — a real
+  // short-circuit, not a micro-optimization, because Pass 2 descends
+  // into every function body via ts.forEachChild.
   const imports = collectImports(sourceFile, filePath);
   if (imports.classNamesNames.size === 0 || imports.stylesBindings.size === 0) {
     return [];
@@ -45,6 +54,14 @@ function collectImports(sourceFile: ts.SourceFile, filePath: string): ImportScan
     if (!ts.isStringLiteral(moduleSpecifier)) continue;
     const specifier = moduleSpecifier.text;
 
+    // Intentional limitation: only DEFAULT imports are tracked.
+    //   import styles from './Button.module.scss';     ← handled
+    //   import classNames from 'classnames/bind';      ← handled
+    //   import * as styles from './Button.module.scss'; ← silently skipped (rare)
+    //   import { bind } from 'classnames';              ← silently skipped (Q7 B #4, rejected)
+    // Adding namespace-import support would require distinguishing
+    // the binding shape downstream; CSS-Modules-with-classnames/bind
+    // uses default imports as the canonical pattern.
     const defaultName = stmt.importClause?.name?.text;
     if (!defaultName) continue;
 
@@ -87,7 +104,13 @@ function tryParseCxBinding(
   const init = decl.initializer;
   if (!init || !ts.isCallExpression(init)) return null;
 
-  // `initializer` must be `<classNamesName>.bind(<stylesName>)`
+  // `initializer` must be `<classNamesName>.bind(<stylesName>)`.
+  // Intentional limitation: we do not unwrap ParenthesizedExpression
+  // or AsExpression wrappers, so `(classNames as typeof cn).bind(...)`
+  // fails this identifier check and is silently skipped. That
+  // pattern is vanishingly rare in real TSX using classnames/bind;
+  // handling it would require walking through arbitrary type
+  // assertions for minimal benefit.
   const callee = init.expression;
   if (!ts.isPropertyAccessExpression(callee)) return null;
   if (callee.name.text !== "bind") return null;
