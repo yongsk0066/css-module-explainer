@@ -32,6 +32,12 @@ importers:
       vitest:
         specifier: ^4.1.3
         version: 4.1.4(@types/node@25.5.2)(vite@8.0.8(@types/node@25.5.2))
+      vscode-jsonrpc:
+        specifier: ^8.2.0
+        version: 8.2.0
+      vscode-languageserver-protocol:
+        specifier: ^3.17.5
+        version: 3.17.5
 
   client:
     dependencies:
