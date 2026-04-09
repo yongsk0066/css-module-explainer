@@ -28,6 +28,7 @@ import { scssFileSupplier } from "./core/indexing/file-supplier.js";
 import { IndexerWorker, type FileTask } from "./core/indexing/indexer-worker.js";
 import { NullReverseIndex } from "./core/indexing/reverse-index.js";
 import { fileUrlToPath } from "./core/util/text-utils.js";
+import { handleCodeAction } from "./providers/code-actions.js";
 import { COMPLETION_TRIGGER_CHARACTERS, handleCompletion } from "./providers/completion.js";
 import { handleDefinition } from "./providers/definition.js";
 import { computeDiagnostics } from "./providers/diagnostics.js";
@@ -105,6 +106,10 @@ export function createServer(options: CreateServerOptions): CreatedServer {
           triggerCharacters: [...COMPLETION_TRIGGER_CHARACTERS],
           resolveProvider: false,
         },
+        codeActionProvider: {
+          codeActionKinds: ["quickfix"],
+          resolveProvider: false,
+        },
       },
       serverInfo: {
         name: SERVER_NAME,
@@ -165,6 +170,12 @@ export function createServer(options: CreateServerOptions): CreatedServer {
     const cursor = toCursorParams(p, documents);
     if (!cursor) return null;
     return handleCompletion(cursor, deps);
+  });
+
+  connection.onCodeAction((p) => {
+    const deps = getDeps();
+    if (!deps) return null;
+    return handleCodeAction(p, deps);
   });
 
   // Push-based diagnostics with 200ms debounce (spec §4.5).
