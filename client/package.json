@@ -1,0 +1,12 @@
+{
+  "name": "@css-module-explainer/client",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./dist/extension.js",
+  "scripts": {
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  }
+}
