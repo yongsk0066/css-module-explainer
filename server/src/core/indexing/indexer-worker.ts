@@ -52,28 +52,48 @@ export class IndexerWorker {
   }
 
   async start(): Promise<void> {
-    // Sequential by design: each file yields to the event loop so
-    // LSP requests can preempt, and files are processed one at a
-    // time to bound memory pressure. Disabling no-await-in-loop
-    // because this is the intended concurrency model, not an
-    // accidental serialization of independent work.
-    // eslint-disable-next-line no-await-in-loop
-    for await (const task of this.deps.supplier()) {
-      if (this.stopped) return;
-      // eslint-disable-next-line no-await-in-loop
-      await this.yieldToEventLoop();
-      // eslint-disable-next-line no-await-in-loop
-      await this.process(task);
-    }
-    while (this.pending.length > 0) {
-      if (this.stopped) return;
-      const task = this.pending.shift();
-      if (task) {
+    // Interleaved queue drain: `pending` (incremental / priority) is
+    // always processed before pulling the next item from `supplier`.
+    // This matters for Phase 10's long-running file-watcher
+    // supplier — if the pending drain only ran after the supplier
+    // terminated, pushFile() calls during the initial walk would
+    // queue up indefinitely.
+    //
+    // Sequential by design: each task yields to the event loop so
+    // LSP requests preempt, and tasks are processed one at a time
+    // to bound memory pressure. Disabling no-await-in-loop because
+    // this is the intended concurrency model, not an accidental
+    // serialization of independent work.
+    const iterator = this.deps.supplier()[Symbol.asyncIterator]();
+    let supplierDone = false;
+
+    while (!this.stopped) {
+      // Priority drain: process every queued pending task before
+      // touching the supplier again.
+      if (this.pending.length > 0) {
+        const task = this.pending.shift()!;
         // eslint-disable-next-line no-await-in-loop
         await this.yieldToEventLoop();
         // eslint-disable-next-line no-await-in-loop
         await this.process(task);
+        continue;
       }
+
+      // Pending is empty; if the supplier is also exhausted, we're done.
+      if (supplierDone) return;
+
+      // Pull the next task from the supplier.
+      // eslint-disable-next-line no-await-in-loop
+      const next = await iterator.next();
+      if (next.done) {
+        supplierDone = true;
+        continue;
+      }
+      if (this.stopped) return;
+      // eslint-disable-next-line no-await-in-loop
+      await this.yieldToEventLoop();
+      // eslint-disable-next-line no-await-in-loop
+      await this.process(next.value);
     }
   }
 
