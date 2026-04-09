@@ -90,6 +90,16 @@ const UNRESOLVABLE: ResolvedType = { kind: "unresolvable", values: [] };
  * and return its checker symbol. Looks at variable declarations,
  * function parameters, and destructuring binding elements — all
  * three places a `cx(x)` argument typically comes from.
+ *
+ * Known limitation: this is a document-order DFS that matches by
+ * name only, NOT by lexical scope. If a file has both a top-level
+ * `const size = "outer"` and a nested `function f({ size }: Props)`,
+ * the outer binding wins. This is acceptable for Phase 4 because
+ * every test fixture uses unique names within a file, but Phase 6's
+ * hover-over-shadowed-identifier tests are the first place a
+ * shadowing reproducer is likely to surface. The fix at that point
+ * is to walk up from the call site via `ts.findAncestor` + per-node
+ * symbol lookup instead of global DFS.
  */
 function findIdentifierSymbol(
   sourceFile: ts.SourceFile,
@@ -130,8 +140,18 @@ function findIdentifierSymbol(
  *   refuse to guess).
  * - Generic with a literal base constraint → recurse on the base.
  * - Anything else → unresolvable.
+ *
+ * The recursion is bounded by MAX_CONSTRAINT_DEPTH to guard against
+ * pathological constraint chains. In practice TS's checker
+ * terminates quickly; the cap is cheap insurance.
  */
-function extractStringLiterals(type: ts.Type, checker: ts.TypeChecker): ResolvedType {
+const MAX_CONSTRAINT_DEPTH = 10;
+
+function extractStringLiterals(type: ts.Type, checker: ts.TypeChecker, depth = 0): ResolvedType {
+  if (depth > MAX_CONSTRAINT_DEPTH) {
+    return UNRESOLVABLE;
+  }
+
   if (type.isStringLiteral()) {
     return { kind: "union", values: [type.value] };
   }
@@ -154,7 +174,7 @@ function extractStringLiterals(type: ts.Type, checker: ts.TypeChecker): Resolved
   // Generic with a string-literal constraint (e.g. `T extends "a" | "b"`).
   const base = checker.getBaseConstraintOfType(type);
   if (base && base !== type) {
-    return extractStringLiterals(base, checker);
+    return extractStringLiterals(base, checker, depth + 1);
   }
 
   return UNRESOLVABLE;

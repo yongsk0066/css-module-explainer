@@ -1,5 +1,5 @@
-import * as crypto from "node:crypto";
 import ts from "typescript";
+import { contentHash } from "../util/hash.js";
 
 interface SourceFileCacheEntry {
   hash: string;
@@ -76,9 +76,8 @@ function scriptKindFor(filePath: string): ts.ScriptKind {
   if (filePath.endsWith(".ts")) return ts.ScriptKind.TS;
   if (filePath.endsWith(".jsx")) return ts.ScriptKind.JSX;
   if (filePath.endsWith(".js")) return ts.ScriptKind.JS;
+  // Unknown extensions (e.g. .mts/.cts): fall back to TSX because
+  // it is the most permissive parser. Worth revisiting when the
+  // first real .mts/.cts fixture lands.
   return ts.ScriptKind.TSX;
-}
-
-function contentHash(content: string): string {
-  return crypto.createHash("md5").update(content).digest("hex");
 }
