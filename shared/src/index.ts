@@ -10,4 +10,5 @@ export type {
   TemplateLiteralCall,
   VariableRefCall,
   ResolvedType,
+  CallSite,
 } from "./types.js";

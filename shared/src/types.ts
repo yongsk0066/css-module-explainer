@@ -147,3 +147,29 @@ export type CxCallInfo = StaticClassCall | TemplateLiteralCall | VariableRefCall
 export type ResolvedType =
   | { readonly kind: "union"; readonly values: readonly string[] }
   | { readonly kind: "unresolvable"; readonly values: readonly [] };
+
+// ──────────────────────────────────────────────────────────────
+// Reverse index (Phase Final seam, declared in Phase 5)
+// ──────────────────────────────────────────────────────────────
+
+/**
+ * One recorded call site of a specific class name. The ReverseIndex
+ * (NullReverseIndex in Phase 5, WorkspaceReverseIndex in Phase Final)
+ * maps (scssFilePath, className) → CallSite[].
+ *
+ * Phase 5 does not populate any CallSites — the null-object
+ * implementation discards every record() call. Providers still
+ * feed data in from day one so the seam is exercised.
+ */
+export interface CallSite {
+  /** URI of the TSX/JSX/TS/JS file containing the cx() call. */
+  readonly uri: string;
+  /** Range covering the class token the user wrote. */
+  readonly range: Range;
+  /** Binding through which the call was made. */
+  readonly binding: CxBinding;
+  /** Kind of the original CxCallInfo variant. */
+  readonly kind: CxCallInfo["kind"];
+  /** Human-readable summary ("static: indicator", "prefix: weight-"). */
+  readonly matchInfo: string;
+}
