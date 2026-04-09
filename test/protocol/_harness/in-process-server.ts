@@ -34,9 +34,19 @@ import ts from "typescript";
 import { createServer, type CreateServerOptions } from "../../../server/src/composition-root.js";
 import type { FileTask } from "../../../server/src/core/indexing/indexer-worker.js";
 
-// eslint-disable-next-line @typescript-eslint/require-await
-async function* emptySupplier(): AsyncGenerator<FileTask> {
-  // yields nothing
+/**
+ * An exhausted AsyncIterable — yields nothing and completes
+ * immediately. Built without an `async function*` so it does
+ * not trip the `require-await` rule.
+ */
+function emptySupplier(): AsyncIterable<FileTask> {
+  return {
+    [Symbol.asyncIterator](): AsyncIterator<FileTask> {
+      return {
+        next: () => Promise.resolve({ done: true, value: undefined as never }),
+      };
+    },
+  };
 }
 
 export interface InProcessServerOptions extends Omit<CreateServerOptions, "reader" | "writer"> {}
