@@ -40,3 +40,84 @@ export interface SelectorInfo {
 
 /** Immutable map from class name to its info, produced per style file. */
 export type ScssClassMap = ReadonlyMap<string, SelectorInfo>;
+
+// ──────────────────────────────────────────────────────────────
+// Cx binding + call types (Phases 2 + 3)
+// ──────────────────────────────────────────────────────────────
+
+/**
+ * A single `const cx = classNames.bind(styles)` binding detected
+ * in one source file. A file may have several bindings (different
+ * `styles` imports, different scopes).
+ */
+export interface CxBinding {
+  /** Identifier used at call sites — `cx`, `classes`, `cxBtn`, etc. */
+  readonly cxVarName: string;
+  /** Identifier for the styles default-import. */
+  readonly stylesVarName: string;
+  /** Absolute path of the `.module.scss|css` file the binding resolves to. */
+  readonly scssModulePath: string;
+  /**
+   * Scope in which this binding is visible. Top-level bindings have
+   * `{ startLine: 0, endLine: sourceFileLastLine }`. Function-scoped
+   * bindings (Q7 B #7) carry the enclosing function's line range.
+   */
+  readonly scope: {
+    readonly startLine: number;
+    readonly endLine: number;
+  };
+  /**
+   * Identifier the `classnames/bind` default import was bound to
+   * in this file. Usually `"classNames"`, but Q7 B #3 allows any
+   * name (e.g. `"cn"`).
+   */
+  readonly classNamesImportName: string;
+}
+
+/**
+ * Base shape for a single `cx()` argument that resolves (or fails
+ * to resolve) to one or more class names.
+ */
+interface CxCallBase {
+  /**
+   * LSP highlight range for the specific class token, quote
+   * characters excluded. For `cx('indicator')`, this covers only
+   * the `indicator` text, not the surrounding apostrophes.
+   */
+  readonly originRange: Range;
+  /** The binding whose `cxVarName` was called at this site. */
+  readonly binding: CxBinding;
+}
+
+/** A static class name: `cx('indicator')` or `cx({ active: isActive })`. */
+export interface StaticClassCall extends CxCallBase {
+  readonly kind: "static";
+  readonly className: string;
+}
+
+/**
+ * A template literal with static prefix and interpolated suffix:
+ *   cx(`weight-${weight}`)
+ * The parser records the literal prefix so `call-resolver` can
+ * match it against the class map via `startsWith`.
+ */
+export interface TemplateLiteralCall extends CxCallBase {
+  readonly kind: "template";
+  /** Original template including `${...}` fragments. */
+  readonly rawTemplate: string;
+  /** Literal prefix before the first `${`. May be empty. */
+  readonly staticPrefix: string;
+}
+
+/**
+ * A bare identifier reference: `cx(size)` where `size` has a
+ * TypeScript union-of-string-literal type. The actual resolution
+ * to concrete class names is deferred to `type-resolver` (Phase 4).
+ */
+export interface VariableRefCall extends CxCallBase {
+  readonly kind: "variable";
+  readonly variableName: string;
+}
+
+/** Discriminated union of every `cx()` argument shape we track. */
+export type CxCallInfo = StaticClassCall | TemplateLiteralCall | VariableRefCall;
