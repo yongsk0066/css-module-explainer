@@ -50,9 +50,7 @@ describe("file watcher", () => {
     });
     // First pass — clean (indicator exists) and readStyleFile
     // has now been invoked at least once.
-    const first = await client.waitForDiagnostics(
-      "file:///fake/workspace/src/Button.tsx",
-    );
+    const first = await client.waitForDiagnostics("file:///fake/workspace/src/Button.tsx");
     expect(first).toEqual([]);
     const readsBeforeDelete = readCount;
     expect(readsBeforeDelete).toBeGreaterThan(0);
