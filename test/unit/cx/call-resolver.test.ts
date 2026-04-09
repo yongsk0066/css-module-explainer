@@ -1,0 +1,210 @@
+import { describe, it, expect } from "vitest";
+import type {
+  CxBinding,
+  CxCallInfo,
+  Range,
+  ResolvedType,
+  ScssClassMap,
+  SelectorInfo,
+} from "@css-module-explainer/shared";
+import type { TypeResolver } from "../../../server/src/core/ts/type-resolver.js";
+import { resolveCxCallToSelectorInfos } from "../../../server/src/core/cx/call-resolver.js";
+
+const ZERO: Range = { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } };
+
+function makeInfo(name: string): SelectorInfo {
+  return {
+    name,
+    range: ZERO,
+    fullSelector: `.${name}`,
+    declarations: "color: red",
+    ruleRange: ZERO,
+  };
+}
+
+function makeClassMap(names: string[]): ScssClassMap {
+  return new Map(names.map((n) => [n, makeInfo(n)]));
+}
+
+function makeBinding(): CxBinding {
+  return {
+    cxVarName: "cx",
+    stylesVarName: "styles",
+    scssModulePath: "/fake/a.module.scss",
+    classNamesImportName: "classNames",
+    scope: { startLine: 0, endLine: 100 },
+  };
+}
+
+class FakeTypeResolver implements TypeResolver {
+  constructor(private readonly table: Record<string, ResolvedType>) {}
+  resolve(_filePath: string, variableName: string): ResolvedType {
+    return this.table[variableName] ?? { kind: "unresolvable", values: [] };
+  }
+  invalidate(): void {}
+  clear(): void {}
+}
+
+describe("resolveCxCallToSelectorInfos / static", () => {
+  it("returns the matching class for a static call", () => {
+    const classMap = makeClassMap(["btn", "active"]);
+    const call: CxCallInfo = {
+      kind: "static",
+      className: "btn",
+      originRange: ZERO,
+      binding: makeBinding(),
+    };
+    const result = resolveCxCallToSelectorInfos({
+      call,
+      classMap,
+      typeResolver: new FakeTypeResolver({}),
+      filePath: "/fake/a.tsx",
+      workspaceRoot: "/fake",
+    });
+    expect(result.map((i) => i.name)).toEqual(["btn"]);
+  });
+
+  it("returns [] when a static class is missing from the class map", () => {
+    const classMap = makeClassMap(["btn"]);
+    const call: CxCallInfo = {
+      kind: "static",
+      className: "nope",
+      originRange: ZERO,
+      binding: makeBinding(),
+    };
+    const result = resolveCxCallToSelectorInfos({
+      call,
+      classMap,
+      typeResolver: new FakeTypeResolver({}),
+      filePath: "/fake/a.tsx",
+      workspaceRoot: "/fake",
+    });
+    expect(result).toEqual([]);
+  });
+});
+
+describe("resolveCxCallToSelectorInfos / template", () => {
+  it("returns every class whose name starts with the static prefix", () => {
+    const classMap = makeClassMap(["weight-light", "weight-normal", "weight-bold", "unrelated"]);
+    const call: CxCallInfo = {
+      kind: "template",
+      rawTemplate: "`weight-${w}`",
+      staticPrefix: "weight-",
+      originRange: ZERO,
+      binding: makeBinding(),
+    };
+    const result = resolveCxCallToSelectorInfos({
+      call,
+      classMap,
+      typeResolver: new FakeTypeResolver({}),
+      filePath: "/fake/a.tsx",
+      workspaceRoot: "/fake",
+    });
+    const names = result.map((i) => i.name).toSorted();
+    expect(names).toEqual(["weight-bold", "weight-light", "weight-normal"]);
+  });
+
+  it("returns [] when no class matches the prefix", () => {
+    const classMap = makeClassMap(["btn", "link"]);
+    const call: CxCallInfo = {
+      kind: "template",
+      rawTemplate: "`size-${s}`",
+      staticPrefix: "size-",
+      originRange: ZERO,
+      binding: makeBinding(),
+    };
+    const result = resolveCxCallToSelectorInfos({
+      call,
+      classMap,
+      typeResolver: new FakeTypeResolver({}),
+      filePath: "/fake/a.tsx",
+      workspaceRoot: "/fake",
+    });
+    expect(result).toEqual([]);
+  });
+
+  it("returns every class when the static prefix is empty", () => {
+    // `cx(`${name}-suffix`)` — staticPrefix is empty so every
+    // class starts with it. Matches every class in the map.
+    const classMap = makeClassMap(["a", "b"]);
+    const call: CxCallInfo = {
+      kind: "template",
+      rawTemplate: "`${name}-suffix`",
+      staticPrefix: "",
+      originRange: ZERO,
+      binding: makeBinding(),
+    };
+    const result = resolveCxCallToSelectorInfos({
+      call,
+      classMap,
+      typeResolver: new FakeTypeResolver({}),
+      filePath: "/fake/a.tsx",
+      workspaceRoot: "/fake",
+    });
+    expect(result.map((i) => i.name).toSorted()).toEqual(["a", "b"]);
+  });
+});
+
+describe("resolveCxCallToSelectorInfos / variable", () => {
+  it("resolves a union variable to each existing class", () => {
+    const classMap = makeClassMap(["small", "medium", "large"]);
+    const call: CxCallInfo = {
+      kind: "variable",
+      variableName: "size",
+      originRange: ZERO,
+      binding: makeBinding(),
+    };
+    const result = resolveCxCallToSelectorInfos({
+      call,
+      classMap,
+      typeResolver: new FakeTypeResolver({
+        size: { kind: "union", values: ["small", "medium", "large"] },
+      }),
+      filePath: "/fake/a.tsx",
+      workspaceRoot: "/fake",
+    });
+    expect(result.map((i) => i.name).toSorted()).toEqual(["large", "medium", "small"]);
+  });
+
+  it("drops union members that are missing from the class map", () => {
+    // Partial mismatch: the resolver returns a superset of what
+    // the class map has. call-resolver filters undefined lookups
+    // silently; Phase 9's diagnostic layer handles reporting when
+    // reportPartialUnionMismatch is enabled.
+    const classMap = makeClassMap(["small", "medium"]);
+    const call: CxCallInfo = {
+      kind: "variable",
+      variableName: "size",
+      originRange: ZERO,
+      binding: makeBinding(),
+    };
+    const result = resolveCxCallToSelectorInfos({
+      call,
+      classMap,
+      typeResolver: new FakeTypeResolver({
+        size: { kind: "union", values: ["small", "medium", "large"] },
+      }),
+      filePath: "/fake/a.tsx",
+      workspaceRoot: "/fake",
+    });
+    expect(result.map((i) => i.name).toSorted()).toEqual(["medium", "small"]);
+  });
+
+  it("returns [] for an unresolvable variable", () => {
+    const classMap = makeClassMap(["small"]);
+    const call: CxCallInfo = {
+      kind: "variable",
+      variableName: "x",
+      originRange: ZERO,
+      binding: makeBinding(),
+    };
+    const result = resolveCxCallToSelectorInfos({
+      call,
+      classMap,
+      typeResolver: new FakeTypeResolver({}),
+      filePath: "/fake/a.tsx",
+      workspaceRoot: "/fake",
+    });
+    expect(result).toEqual([]);
+  });
+});
