@@ -149,17 +149,24 @@ export type ResolvedType =
   | { readonly kind: "unresolvable"; readonly values: readonly [] };
 
 // ──────────────────────────────────────────────────────────────
-// Reverse index (Phase Final seam, declared in Phase 5)
+// Reverse index
 // ──────────────────────────────────────────────────────────────
 
 /**
- * One recorded call site of a specific class name. The ReverseIndex
- * (NullReverseIndex in Phase 5, WorkspaceReverseIndex in Phase Final)
- * maps (scssFilePath, className) → CallSite[].
- *
- * Phase 5 does not populate any CallSites — the null-object
- * implementation discards every record() call. Providers still
- * feed data in from day one so the seam is exercised.
+ * Structured classification of what a CallSite matches, used as
+ * the reverse-index key. Discriminated union — the shape is
+ * authoritative, no string parsing.
+ */
+export type CallSiteMatch =
+  | { readonly kind: "static"; readonly className: string }
+  | { readonly kind: "template"; readonly staticPrefix: string }
+  | { readonly kind: "variable"; readonly variableName: string };
+
+/**
+ * One recorded call site of a specific class name. The
+ * WorkspaceReverseIndex maps (scssFilePath, className) →
+ * CallSite[] using `match.kind === "static"` to pick the
+ * indexable subset.
  */
 export interface CallSite {
   /** URI of the TSX/JSX/TS/JS file containing the cx() call. */
@@ -168,8 +175,6 @@ export interface CallSite {
   readonly range: Range;
   /** Binding through which the call was made. */
   readonly binding: CxBinding;
-  /** Kind of the original CxCallInfo variant. */
-  readonly kind: CxCallInfo["kind"];
-  /** Human-readable summary ("static: indicator", "prefix: weight-"). */
-  readonly matchInfo: string;
+  /** Structured discriminator describing the matched pattern. */
+  readonly match: CallSiteMatch;
 }

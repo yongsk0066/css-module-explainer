@@ -6,11 +6,7 @@ export interface FileTask {
 }
 
 export interface IndexerWorkerDeps {
-  /**
-   * Background file supplier. Phase 5 ships no real supplier;
-   * Phase 10 injects one that walks `**\/\*.module.{scss,css}`.
-   * Phase Final extends it with tsx walking.
-   */
+  /** Yields FileTasks for the worker to process. */
   readonly supplier: () => AsyncIterable<FileTask>;
   /** Async file reader. Returns null when the file is missing. */
   readonly readFile: (path: string) => Promise<string | null>;
@@ -25,26 +21,17 @@ export interface IndexerWorkerDeps {
 }
 
 /**
- * Background indexer skeleton.
+ * Background indexer.
  *
- * Phase 5 ships this with no real supplier — Phase 10 adds the
- * scssFileSupplier that walks the workspace, and Phase Final
- * extends it with a tsx walker for reverse-index population.
- * Provider wiring in Plans 06–09 can depend on IndexerWorker
- * today; flipping the supplier later is a one-line change.
- *
- * Design notes:
  * - `start()` drains an internal `drain()` async generator that
  *   interleaves pending incremental tasks (file-watcher pushes)
  *   with the supplier stream. Pending always wins so incremental
  *   updates jump the queue.
- * - `for await` yields to the event loop naturally AND ESLint's
- *   `no-await-in-loop` rule exempts `for-await-of` bodies by
- *   default — no disables needed. Additionally, `yieldToEventLoop`
- *   (Node's promise-returning `setImmediate`) hands control back
- *   on every task boundary so LSP requests preempt within ~5ms.
+ * - `for await` + `yieldToEventLoop` (Node's promise-returning
+ *   `setImmediate`) hand control back on every task boundary so
+ *   LSP requests preempt within ~5ms.
  * - `pushFile(task)` queues an incremental file for the current
- *   run — Phase 10's file watcher feeds this.
+ *   run.
  * - `stop()` sets a cancellation flag checked on every task
  *   boundary. A running task is allowed to finish; no in-flight
  *   task is killed mid-parse.
@@ -80,11 +67,10 @@ export class IndexerWorker {
    * Interleaved task producer.
    *
    * Yields every `pending` task (incremental / priority) before
-   * pulling the next item from `supplier`. This matters for
-   * Phase 10's long-running file-watcher supplier — if the
-   * pending drain only ran after the supplier terminated,
-   * `pushFile()` calls during the initial walk would queue up
-   * indefinitely.
+   * pulling the next item from `supplier`. Critical for a
+   * long-running file-watcher supplier — if the pending drain
+   * only ran after the supplier terminated, `pushFile()` calls
+   * during the initial walk would queue up indefinitely.
    *
    * Written as `for await (task of supplier())` + pure sync
    * `yield* drainPending()` so `no-await-in-loop` stays silent

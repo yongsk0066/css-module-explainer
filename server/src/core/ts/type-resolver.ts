@@ -7,8 +7,8 @@ import type { ResolvedType } from "@css-module-explainer/shared";
  * TypeResolver resolves a bare identifier like `cx(size)` to its
  * string-literal union members by walking the TypeChecker. A
  * single cached `ts.Program` per workspace amortises the expensive
- * setup; Phase 4 callers either use the real WorkspaceTypeResolver
- * or inject a FakeTypeResolver in unit tests.
+ * setup; production uses `WorkspaceTypeResolver`, tests inject a
+ * `FakeTypeResolver`.
  */
 export interface TypeResolver {
   /**
@@ -94,12 +94,10 @@ const UNRESOLVABLE: ResolvedType = { kind: "unresolvable", values: [] };
  * Known limitation: this is a document-order DFS that matches by
  * name only, NOT by lexical scope. If a file has both a top-level
  * `const size = "outer"` and a nested `function f({ size }: Props)`,
- * the outer binding wins. This is acceptable for Phase 4 because
- * every test fixture uses unique names within a file, but Phase 6's
- * hover-over-shadowed-identifier tests are the first place a
- * shadowing reproducer is likely to surface. The fix at that point
- * is to walk up from the call site via `ts.findAncestor` + per-node
- * symbol lookup instead of global DFS.
+ * the outer binding wins. Acceptable today because test fixtures
+ * use unique names within a file. Fix when a shadowing reproducer
+ * surfaces: walk up from the call site via `ts.findAncestor` +
+ * per-node symbol lookup instead of global DFS.
  */
 function findIdentifierSymbol(
   sourceFile: ts.SourceFile,

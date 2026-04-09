@@ -31,6 +31,7 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
       max: 10,
     }),
     scssClassMapFor: () => new Map() as ScssClassMap,
+    scssClassMapForPath: () => null,
     typeResolver: new FakeTypeResolver(),
     reverseIndex: new NullReverseIndex(),
     workspaceRoot: "/fake",

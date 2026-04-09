@@ -84,6 +84,7 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
         ["indicator", info("indicator")],
         ["unknown", info("unknown")], // nearby typo target
       ]) as ScssClassMap,
+    scssClassMapForPath: () => null,
     typeResolver: new FakeTypeResolver(),
     reverseIndex: new NullReverseIndex(),
     workspaceRoot: "/fake/ws",
@@ -177,6 +178,7 @@ describe("computeDiagnostics", () => {
           ["indicator", info("indicator")],
           ["active", info("active")],
         ]) as ScssClassMap,
+      scssClassMapForPath: () => null,
       typeResolver: new FakeTypeResolver(),
       reverseIndex: new NullReverseIndex(),
       workspaceRoot: "/fake/ws",
@@ -217,6 +219,7 @@ describe("computeDiagnostics", () => {
           ["small", info("small")],
           ["medium", info("medium")],
         ]) as ScssClassMap,
+      scssClassMapForPath: () => null,
       typeResolver: new UnionResolver(),
       reverseIndex: new NullReverseIndex(),
       workspaceRoot: "/fake/ws",
@@ -246,6 +249,7 @@ describe("computeDiagnostics", () => {
     const deps: ProviderDeps = {
       analysisCache,
       scssClassMapFor: () => new Map([["indicator", info("indicator")]]) as ScssClassMap,
+      scssClassMapForPath: () => null,
       typeResolver: new FakeTypeResolver(), // always unresolvable
       reverseIndex: new NullReverseIndex(),
       workspaceRoot: "/fake/ws",

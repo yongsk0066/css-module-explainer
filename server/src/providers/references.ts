@@ -1,39 +1,29 @@
 import type { Location, ReferenceParams } from "vscode-languageserver/node";
-import type { SelectorInfo } from "@css-module-explainer/shared";
+import type { ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
 import { findLangForPath } from "../core/scss/lang-registry.js";
 import { fileUrlToPath } from "../core/util/text-utils.js";
 import { toLspRange } from "./lsp-adapters.js";
-import type { ProviderDeps } from "./provider-utils.js";
+import { rangeContains, type ProviderDeps } from "./provider-utils.js";
 
 /**
  * Handle `textDocument/references` for a class selector inside a
- * `.module.scss|css` file.
+ * `.module.{scss,css}` file.
  *
- * Pipeline (spec §4.6):
+ * Pipeline:
  * 1. Bail if the file is not a style module.
- * 2. Resolve the class selector the cursor is sitting on by
- *    scanning the file's content via the supplied `readStyleFile`
- *    hook and matching the classMap entry whose `range` contains
- *    the cursor.
- * 3. Ask the ReverseIndex for every `CallSite` that references
- *    that (scssPath, className) pair.
- * 4. Convert each CallSite into an LSP `Location`.
- *
- * Returns `null` when the cursor is not on a class selector,
- * when no references are known, or on exception (spec §2.8).
+ * 2. Ask `deps.scssClassMapForPath` — null result also covers
+ *    "file missing on disk", so no separate exists-check.
+ * 3. Find the SelectorInfo whose `range` contains the cursor.
+ * 4. Ask the ReverseIndex for every CallSite referencing that
+ *    (scssPath, className) pair.
+ * 5. Convert each CallSite to an LSP `Location`.
  */
-export function handleReferences(
-  params: ReferenceParams,
-  readStyleFile: (path: string) => string | null,
-  classMapFor: (path: string) => ReadonlyMap<string, SelectorInfo> | null,
-  deps: ProviderDeps,
-): Location[] | null {
+export function handleReferences(params: ReferenceParams, deps: ProviderDeps): Location[] | null {
   try {
     const filePath = fileUrlToPath(params.textDocument.uri);
     if (!findLangForPath(filePath)) return null;
-    if (readStyleFile(filePath) === null) return null;
 
-    const classMap = classMapFor(filePath);
+    const classMap = deps.scssClassMapForPath(filePath);
     if (!classMap) return null;
 
     const info = findSelectorAtCursor(classMap, params.position.line, params.position.character);
@@ -53,16 +43,12 @@ export function handleReferences(
 }
 
 function findSelectorAtCursor(
-  classMap: ReadonlyMap<string, SelectorInfo>,
+  classMap: ScssClassMap,
   line: number,
   character: number,
 ): SelectorInfo | null {
   for (const info of classMap.values()) {
-    const { start, end } = info.range;
-    if (line < start.line || line > end.line) continue;
-    if (line === start.line && character < start.character) continue;
-    if (line === end.line && character > end.character) continue;
-    return info;
+    if (rangeContains(info.range, line, character)) return info;
   }
   return null;
 }

@@ -8,15 +8,17 @@ import {
 import type { ProviderDeps } from "./provider-utils.js";
 
 /**
- * Handle `textDocument/codeAction` for Plan 09 diagnostics.
+ * Handle `textDocument/codeAction` by emitting quickfixes from
+ * diagnostic suggestions.
  *
- * Consumes `Diagnostic.data.suggestion` attached by the diagnostics
- * provider and returns one `CodeAction` per suggestion that rewrites
- * the flagged range to the suggested class name. Spec §4.5b.
+ * Consumes `Diagnostic.data.suggestion` attached by the
+ * diagnostics provider and returns one `CodeAction` per
+ * suggestion that rewrites the flagged range to the suggested
+ * class name.
  *
  * Pure function over LSP params: no AST, no file I/O, no cache
- * lookups. This is the cheapest provider in the codebase — the
- * heavy lifting already happened at diagnostic publish time.
+ * lookups. The heavy lifting already happened at diagnostic
+ * publish time.
  */
 export function handleCodeAction(
   params: CodeActionParams,

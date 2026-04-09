@@ -1,19 +1,15 @@
 import type { CallSite } from "@css-module-explainer/shared";
+import type { AnalysisEntry } from "./document-analysis-cache.js";
 
 /**
  * Reverse index of cx() call sites, keyed by (scssPath, className).
- *
- * In Phase 5 every provider records its findings into a
- * NullReverseIndex — the contract is exercised but nothing is
- * stored. Phase Final swaps in a WorkspaceReverseIndex that
- * actually builds the reverse map; no provider code changes.
  */
 export interface ReverseIndex {
   /**
    * Replace the contribution for `uri` with `callSites`. Idempotent:
    * a second call with the same uri drops the previous entries
-   * automatically. Phase Final implementations maintain a reverse
-   * pointer (uri → keys) so this stays O(1) amortised.
+   * automatically. Implementations maintain a reverse pointer
+   * (uri → keys) so this stays O(1) amortised.
    */
   record(uri: string, callSites: readonly CallSite[]): void;
 
@@ -26,7 +22,7 @@ export interface ReverseIndex {
    */
   find(scssPath: string, className: string): readonly CallSite[];
 
-  /** Fast count for reference-lens rendering (Phase Final). */
+  /** Fast count for reference-lens rendering. */
   count(scssPath: string, className: string): number;
 
   /** Drop every contribution across every uri. */
@@ -34,33 +30,20 @@ export interface ReverseIndex {
 }
 
 /**
- * No-op implementation used throughout Phase 5–Phase 9.
- *
- * Every method silently accepts input and returns empty results.
- * The class exists so providers can call `record()` unconditionally
- * from day one — when Phase Final swaps in WorkspaceReverseIndex,
- * provider code is already shaped correctly.
+ * No-op ReverseIndex. Kept so test doubles and benchmark harnesses
+ * can exercise the ReverseIndex contract without maintaining a
+ * real forward/back map.
  */
 export class NullReverseIndex implements ReverseIndex {
-  record(_uri: string, _callSites: readonly CallSite[]): void {
-    // intentionally empty
-  }
-
-  forget(_uri: string): void {
-    // intentionally empty
-  }
-
+  record(_uri: string, _callSites: readonly CallSite[]): void {}
+  forget(_uri: string): void {}
   find(_scssPath: string, _className: string): readonly CallSite[] {
     return [];
   }
-
   count(_scssPath: string, _className: string): number {
     return 0;
   }
-
-  clear(): void {
-    // intentionally empty
-  }
+  clear(): void {}
 }
 
 /**
@@ -78,6 +61,13 @@ export class NullReverseIndex implements ReverseIndex {
  *
  * `find` and `count` are O(1) amortised — both walk at most
  * one flat array.
+ *
+ * Only `CallSite.match.kind === "static"` contributes entries.
+ * Template and variable kinds are deliberately skipped — they
+ * cover a range of possible classes and resolving each member
+ * to a concrete CallSite would need the classMap at index time,
+ * which the reverse index does not hold. A future extension can
+ * emit one CallSite per resolved member before recording.
  */
 export class WorkspaceReverseIndex implements ReverseIndex {
   private readonly forward = new Map<string, Map<string, CallSite[]>>();
@@ -88,9 +78,9 @@ export class WorkspaceReverseIndex implements ReverseIndex {
     if (callSites.length === 0) return;
     const keys = new Set<string>();
     for (const site of callSites) {
+      if (site.match.kind !== "static") continue;
       const scssPath = site.binding.scssModulePath;
-      const className = classNameFor(site);
-      if (className === null) continue;
+      const className = site.match.className;
       const classMap = this.forward.get(scssPath) ?? new Map<string, CallSite[]>();
       const list = classMap.get(className) ?? [];
       list.push(site);
@@ -136,29 +126,28 @@ export class WorkspaceReverseIndex implements ReverseIndex {
 }
 
 /**
- * Extract the class name a call site resolves to for indexing.
- *
- * Phase Final indexes STATIC calls only — they are the primary
- * reference target ("find every `cx('indicator')`"). Template and
- * variable calls are deliberately skipped: they cover a range of
- * possible classes and resolving each resolved member to a
- * concrete CallSite would require the classMap at index time,
- * which the reverse index does not hold. Phase Final+ can extend
- * this by emitting one CallSite per resolved member before
- * recording.
- *
- * `matchInfo` shape is defined by `provider-utils.matchInfoFor`:
- * for static it's `"static: <className>"`. We parse the prefix
- * explicitly rather than using a loose split so the parser fails
- * loudly if the shape changes.
+ * Build the `CallSite[]` list the reverse index consumes from
+ * an AnalysisEntry. Co-located with `WorkspaceReverseIndex` — the
+ * projection and its consumer change together.
  */
-const STATIC_MATCH_PREFIX = "static: ";
+export function collectCallSites(uri: string, entry: AnalysisEntry): CallSite[] {
+  return entry.calls.map((call) => ({
+    uri,
+    range: call.originRange,
+    binding: call.binding,
+    match: matchOf(call),
+  }));
+}
 
-function classNameFor(site: CallSite): string | null {
-  if (site.kind !== "static") return null;
-  if (!site.matchInfo.startsWith(STATIC_MATCH_PREFIX)) return null;
-  const value = site.matchInfo.slice(STATIC_MATCH_PREFIX.length).trim();
-  return value.length > 0 ? value : null;
+function matchOf(call: AnalysisEntry["calls"][number]): CallSite["match"] {
+  switch (call.kind) {
+    case "static":
+      return { kind: "static", className: call.className };
+    case "template":
+      return { kind: "template", staticPrefix: call.staticPrefix };
+    case "variable":
+      return { kind: "variable", variableName: call.variableName };
+  }
 }
 
 const BACK_KEY_SEP = "\u0000";

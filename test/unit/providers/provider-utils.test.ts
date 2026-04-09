@@ -13,10 +13,10 @@ import { NullReverseIndex } from "../../../server/src/core/indexing/reverse-inde
 import type { TypeResolver } from "../../../server/src/core/ts/type-resolver.js";
 import {
   NOOP_LOG_ERROR,
-  isInsideCxCall,
   withCxCallAtCursor,
   type ProviderDeps,
 } from "../../../server/src/providers/provider-utils.js";
+import { isInsideCxCall } from "../../../server/src/providers/completion.js";
 
 const TSX = `
 import classNames from 'classnames/bind';
@@ -81,6 +81,7 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   return {
     analysisCache,
     scssClassMapFor: () => new Map([["indicator", makeInfo("indicator")]]) as ScssClassMap,
+    scssClassMapForPath: () => null,
     typeResolver: new FakeTypeResolver(),
     reverseIndex: new NullReverseIndex(),
     workspaceRoot: "/fake",
