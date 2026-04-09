@@ -8,7 +8,7 @@ The format is based on
 this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] — unreleased
+## [1.0.0] — 2026-04-10
 
 First marketplace-ready release. Everything below was built
 from scratch in a single sprint; there is no prior

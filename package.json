@@ -1,7 +1,7 @@
 {
   "name": "css-module-explainer",
   "displayName": "CSS Module Explainer",
-  "version": "1.0.0-rc.1",
+  "version": "1.0.0",
   "private": true,
   "description": "Go to Definition, Hover, Autocomplete, Diagnostics, Quick Fixes, and Find References for classnames/bind cx() patterns with CSS Modules.",
   "categories": [
