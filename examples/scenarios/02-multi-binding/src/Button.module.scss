@@ -1,0 +1,23 @@
+.button {
+  border: 1px solid currentcolor;
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font: inherit;
+
+  &:hover {
+    filter: brightness(1.05);
+  }
+}
+
+.primary {
+  background: #2f6fed;
+  color: white;
+  border-color: #2f6fed;
+}
+
+.secondary {
+  background: transparent;
+  color: #444;
+  border-color: #ccc;
+}
