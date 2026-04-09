@@ -111,4 +111,58 @@ describe("DocumentAnalysisCache", () => {
     cache.get("file:///b.tsx", "const b = 2;", "/b.tsx", 1);
     expect(detectSpy).toHaveBeenCalledTimes(1);
   });
+
+  it("re-puts the same uri under LRU pressure without evicting a touched sibling (post-review coverage)", () => {
+    // Exercises the `entries.has(uri)` branch inside put(): when a
+    // cached uri is re-analyzed with changed content, we delete+
+    // re-insert rather than evict a different key.
+    const sourceFileCache = new SourceFileCache({ max: 10 });
+    const detectSpy = vi.fn((): CxBinding[] => []);
+    const parseSpy = vi.fn((): CxCallInfo[] => []);
+    const cache = new DocumentAnalysisCache({
+      sourceFileCache,
+      detectCxBindings: detectSpy,
+      parseCxCalls: parseSpy,
+      max: 2,
+    });
+    cache.get("file:///a.tsx", "const a = 1;", "/a.tsx", 1);
+    cache.get("file:///b.tsx", "const b = 2;", "/b.tsx", 1);
+    // Same uri (a.tsx) with changed content — hits put() with
+    // entries.has(uri) === true, should NOT evict b.
+    cache.get("file:///a.tsx", "const a = 2;", "/a.tsx", 2);
+    detectSpy.mockClear();
+    // If b was evicted we would re-analyze here. Expectation: no
+    // re-analysis because b is still in the cache.
+    cache.get("file:///b.tsx", "const b = 2;", "/b.tsx", 1);
+    expect(detectSpy).not.toHaveBeenCalled();
+  });
+
+  it("invalidates an uncached uri via the fileURLToPath fallback (post-review coverage)", () => {
+    // Exercises the fallback branch in invalidate() when no
+    // AnalysisEntry exists for the uri. The SourceFileCache might
+    // still hold the entry under the derived path.
+    const sourceFileCache = new SourceFileCache({ max: 10 });
+    const detectSpy = vi.fn((): CxBinding[] => []);
+    const parseSpy = vi.fn((): CxCallInfo[] => []);
+    const cache = new DocumentAnalysisCache({
+      sourceFileCache,
+      detectCxBindings: detectSpy,
+      parseCxCalls: parseSpy,
+      max: 10,
+    });
+    const sfcInvalidate = vi.spyOn(sourceFileCache, "invalidate");
+    cache.invalidate("file:///never/seen.tsx");
+    expect(sfcInvalidate).toHaveBeenCalledWith("/never/seen.tsx");
+  });
+
+  it("swallows a malformed uri in invalidate without throwing (post-review coverage)", () => {
+    const sourceFileCache = new SourceFileCache({ max: 10 });
+    const cache = new DocumentAnalysisCache({
+      sourceFileCache,
+      detectCxBindings: (): CxBinding[] => [],
+      parseCxCalls: (): CxCallInfo[] => [],
+      max: 10,
+    });
+    expect(() => cache.invalidate("not::a::uri")).not.toThrow();
+  });
 });

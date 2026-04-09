@@ -200,10 +200,9 @@ describe("withCxCallAtCursor / call dispatch", () => {
     expect(transform).not.toHaveBeenCalled();
   });
 
-  it("passes the reverseIndex from deps to the transform context", () => {
-    const index = new NullReverseIndex();
-    const deps = makeDeps({ reverseIndex: index });
-    const spy = vi.fn((ctx) => ctx.reverseIndex);
+  it("passes the AnalysisEntry so providers can read sourceFile without a second cache lookup", () => {
+    const deps = makeDeps();
+    const spy = vi.fn((ctx) => ctx.entry);
     const result = withCxCallAtCursor(
       {
         documentUri: "file:///fake/a.tsx",
@@ -216,7 +215,8 @@ describe("withCxCallAtCursor / call dispatch", () => {
       deps,
       spy,
     );
-    expect(result).toBe(index);
+    expect(result).toBeTruthy();
+    expect((result as { bindings: unknown[] }).bindings).toHaveLength(1);
   });
 
   it("records callsites into the reverse index even when no cursor match", () => {

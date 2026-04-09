@@ -1,10 +1,8 @@
+import type { CxBinding, CxCallInfo, ScssClassMap } from "@css-module-explainer/shared";
 import type {
-  CxBinding,
-  CxCallInfo,
-  ScssClassMap,
-  SelectorInfo,
-} from "@css-module-explainer/shared";
-import type { DocumentAnalysisCache } from "../core/indexing/document-analysis-cache.js";
+  AnalysisEntry,
+  DocumentAnalysisCache,
+} from "../core/indexing/document-analysis-cache.js";
 import type { ReverseIndex } from "../core/indexing/reverse-index.js";
 import type { TypeResolver } from "../core/ts/type-resolver.js";
 import { getLineAt } from "../core/util/text-utils.js";
@@ -45,16 +43,21 @@ export interface ProviderDeps {
 
 /**
  * The data every `withCxCallAtCursor` transform receives.
+ *
+ * Kept to the four fields the design spec (section 4.1) defines.
+ * Providers access `deps` (typeResolver, reverseIndex, workspaceRoot,
+ * scssClassMapFor) and `params` (filePath, documentUri, version) via
+ * closure in the outer provider function — no pass-throughs.
+ *
+ * `entry` carries the already-parsed AnalysisEntry so providers can
+ * read `entry.sourceFile`, `entry.bindings`, or `entry.calls` without
+ * a second cache lookup (the "one parse per file" invariant).
  */
 export interface CxCallContext {
   readonly call: CxCallInfo;
   readonly binding: CxBinding;
   readonly classMap: ScssClassMap;
-  readonly typeResolver: TypeResolver;
-  readonly reverseIndex: ReverseIndex;
-  readonly workspaceRoot: string;
-  readonly filePath: string;
-  readonly matches: readonly SelectorInfo[];
+  readonly entry: AnalysisEntry;
 }
 
 /**
@@ -107,6 +110,12 @@ export function withCxCallAtCursor<T>(
   // Record findings into the reverse index unconditionally so
   // Phase Final's WorkspaceReverseIndex receives data on the
   // first swap. Phase 5's NullReverseIndex is a no-op.
+  //
+  // PHASE FINAL NOTE: recording on every provider hot-path call
+  // is wasteful once NullReverseIndex is swapped for a real
+  // WorkspaceReverseIndex. When Phase Final lands, move this
+  // record() call to DocumentAnalysisCache.analyze() so it fires
+  // once per (uri, version) instead of once per hover/def/comp.
   const callSites = entry.calls.map((call) => ({
     uri: params.documentUri,
     range: call.originRange,
@@ -127,16 +136,7 @@ export function withCxCallAtCursor<T>(
     call,
     binding: call.binding,
     classMap,
-    typeResolver: deps.typeResolver,
-    reverseIndex: deps.reverseIndex,
-    workspaceRoot: deps.workspaceRoot,
-    filePath: params.filePath,
-    // `matches` is left empty here — call-resolver fills it in
-    // where each provider needs it. Providers call
-    // `resolveCxCallToSelectorInfos` themselves, since the choice
-    // of how to use the result (single, multi, filter) is
-    // provider-specific.
-    matches: [],
+    entry,
   });
 }
 
