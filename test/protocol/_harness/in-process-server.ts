@@ -51,9 +51,16 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
   const serverToClient = new PassThrough();
   const clientToServer = new PassThrough();
 
+  // Pre-wrap streams in typed reader/writer BEFORE handing them to
+  // createServer. vscode-languageserver/node otherwise detects a raw
+  // readable stream and attaches its own `end`/`close` handlers that
+  // call `process.exit()` — fine in production (the server should
+  // die when the client disconnects) but catastrophic for in-process
+  // tests: exiting kills the vitest worker. Wrapping hides the raw
+  // `.read` method and skips the auto-exit block.
   const { connection: serverConnection } = createServer({
-    reader: clientToServer,
-    writer: serverToClient,
+    reader: new StreamMessageReader(clientToServer),
+    writer: new StreamMessageWriter(serverToClient),
     ...options,
   });
   serverConnection.listen();
@@ -93,10 +100,17 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
       client.sendNotification(ExitNotification.type);
     },
     dispose() {
+      // Dispose both connections — they internally unsubscribe
+      // from reader events and stop any pending writes. We do NOT
+      // destroy/end the underlying PassThrough streams: in-flight
+      // JSON-RPC writes (notification fire-and-forget, shutdown
+      // acks) are racing with cleanup and closing the streams
+      // causes ERR_STREAM_WRITE_AFTER_END / ERR_STREAM_DESTROYED
+      // in the writer. Each test owns a fresh stream pair, so
+      // leaking them is harmless — GC reclaims them at worker
+      // shutdown.
       client.dispose();
       serverConnection.dispose();
-      clientToServer.end();
-      serverToClient.end();
     },
   };
 }
