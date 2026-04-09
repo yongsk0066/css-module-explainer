@@ -5,6 +5,8 @@
 **/*.ts
 **/*.tsx
 **/*.map
+**/*.js.map
+**/*.d.ts.map
 tsconfig*.json
 rolldown.config.ts
 vitest.config.ts
@@ -14,10 +16,13 @@ vitest.config.ts
 .gitignore
 .git/**
 
-# Workspaces
+# Workspaces — we only ship `dist/` (rolldown output).
+# The per-workspace `dist/` and `tsbuildinfo` from `tsc -b`
+# are unused at runtime and must NOT be packaged.
 shared/
 server/
-client/src/
+client/
+!dist/**/*.js
 !server/package.json
 
 # Development tree
@@ -32,3 +37,12 @@ examples/
 coverage/
 *.log
 pnpm-lock.yaml
+
+# pnpm symlinks inside workspace packages — vsce's yazl zipper
+# can't follow them. The actual runtime code is in dist/*.
+node_modules/
+**/node_modules/
+
+# Scaffolding we don't ship (README, CHANGELOG, LICENSE DO ship)
+.oxfmtrc.json
+.editorconfig

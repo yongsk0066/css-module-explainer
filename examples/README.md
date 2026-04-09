@@ -1,64 +1,86 @@
 # css-module-explainer examples sandbox
 
-Manual dogfood sandbox. These scenarios are **not** run by any automated
-test — their only purpose is to exercise the extension inside a real
-VS Code instance against representative code patterns the parser
-supports.
+**Single React app** containing every supported `cx()` pattern
+as a separate component. Launch once, browse all scenarios
+through the sidebar.
 
 ## How to use
 
+### Option A — Extension Development Host (recommended)
+
 1. Open this repository in VS Code.
-2. Press **F5** to launch the Extension Development Host. A second VS
-   Code window opens with the extension attached.
-3. In the second window, `File → Open Folder…` → pick one of
-   `examples/scenarios/01-basic/`, `02-multi-binding/`, etc.
-4. Open any `.tsx` file that imports `classnames/bind`. Exercise:
-   - **Hover** over a `cx('indicator')` literal → markdown with the
-     SCSS rule.
-   - **Cmd-click** (Go to Definition) → jumps to the `.indicator`
-     selector in the `.module.scss` file.
-   - **Type** `cx('` → completion list with every class name.
-   - **Typo** → diagnostics underline + "Replace with 'indicator'"
-     quick fix in the light bulb.
-   - **Find References** on a class selector inside the `.module.scss`
-     → every `cx()` call site that references it.
-5. If Vite+ breaks, each scenario also runs under plain `pnpm vite`:
+2. Press **F5** to launch the Extension Development Host. A
+   second VS Code window opens with the extension attached.
+3. In the second window, open this `examples/` folder.
+4. Start the sandbox dev server in a terminal:
    ```bash
-   cd examples/scenarios/01-basic
+   cd examples
    pnpm install
-   pnpm vite
+   pnpm dev          # Vite+ (vp CLI) — preferred
+   # or, if vp regresses:
+   pnpm dev:vite     # plain vite fallback
    ```
+5. Open any `src/scenarios/*/*.tsx` file in the attached VS
+   Code window and exercise the providers:
+   - **Hover** on a class literal → markdown with the SCSS rule
+   - **Cmd-click** → jump to the `.className` selector
+   - **Type `cx('`** → completion list
+   - **Typo** → diagnostic underline + Quick Fix
+   - **Find References** on a class inside `.module.scss` → every call site
+
+### Option B — Install the extension locally
+
+```bash
+cd /Users/yongseok/dev/css-module-explainer
+pnpm build
+pnpm exec vsce package --no-dependencies
+code --install-extension css-module-explainer-*.vsix
+```
+
+Then restart VS Code and open this folder normally.
 
 ## Scenarios
 
-| # | Directory | Pattern |
-|---|---|---|
-| 01 | `01-basic/` | One cx binding, string + object arg, static class |
-| 02 | `02-multi-binding/` | Two cx bindings in one file (Card + Button) |
-| 03 | `03-multiline-heavy/` | Multi-line cx() calls (Q3 B+D) — stub |
-| 04 | `04-dynamic-keys/` | `cx(\`${prefix}-${variant}\`)` template — stub |
-| 05 | `05-global-local/` | `:global` / `:local` selectors (Q6 B) — stub |
-| 06 | `06-alias-imports/` | `import cn from 'classnames/bind'` (Q7 B) — stub |
-| 07 | `07-function-scoped/` | Function-scoped cx binding (Q7 B) — stub |
-| 08 | `08-css-only/` | `.module.css` instead of `.module.scss` — stub |
-| 09 | `09-large-component/` | 100+ cx() calls for perf smoke — stub |
+Every scenario lives under `src/scenarios/<nn-name>/` and is
+listed in `src/App.tsx`'s sidebar.
 
-Scenarios marked **stub** have a README describing intent; they have
-no `package.json` yet. Contributions welcome.
+| # | Folder | cx() pattern |
+|---|---|---|
+| 01 | `01-basic/` | Single binding, string + object arg, multi-arg mix |
+| 02 | `02-multi-binding/` | Two bindings (Card + Button) in one file |
+| 03 | `03-multiline-heavy/` | Multi-line cx call with conditionals + spreads |
+| 04 | `04-dynamic-keys/` | Template literal `` cx(`btn-${variant}`) `` |
+| 05 | `05-global-local/` | `:global` / `:local` selectors |
+| 06 | `06-alias-imports/` | `import cn from 'classnames/bind'` |
+| 07 | `07-function-scoped/` | cx binding declared inside a function body |
+| 08 | `08-css-only/` | `.module.css` instead of `.module.scss` |
+| 09 | `09-large-component/` | Stress test: 100+ cx() calls |
+
+`03-09` will grow as the dogfood loop surfaces gaps. The
+directory structure is locked; each scenario sub-directory
+should drop into `src/scenarios/` without layout changes.
+
+## Vite+ vs plain Vite
+
+The primary runner is `vp` (the `vite-plus` CLI — the same
+binary the upstream project ships). It bundles `vite`,
+`oxlint`, and `oxfmt` as a single unified toolchain. When
+Vite+ alpha regresses (it is still `0.1.x`), switch to
+`pnpm dev:vite` — it uses the same `vite.config.ts` and the
+same React plugin, just without the `vp` wrapper.
 
 ## What's not here
 
-- Automated tests. Tier 1 lives in `test/unit/`, Tier 2 in
-  `test/protocol/`. Tier 3 E2E (Plan 10.5) will land under
-  `test/e2e/` with a frozen fixture workspace — NOT under
-  `examples/`.
-- A monorepo workspace that the root `pnpm install` traverses into.
-  Each scenario is independently installable so the marketplace CI
-  stays fast and this sandbox never pollutes the server dependency
-  tree.
+- **Automated tests.** Tier 1 lives in `test/unit/`, Tier 2 in
+  `test/protocol/`, benchmarks in `test/benchmark/`. This
+  sandbox is manual-QA only.
+- **A workspace that the root `pnpm install` traverses into.**
+  `examples/` has its own isolated `package.json`; running
+  `pnpm install` from the repo root does NOT install this
+  folder's dependencies. Bootstrap it explicitly with
+  `cd examples && pnpm install`.
 
 ## Design decisions
 
-See `docs/superpowers/plans/2026-04-10-plan-11.5-examples-sandbox.md`
-for the full plan and the decisions locked in during the original
-brainstorming session (spec §8.6 + Q9).
+Full rationale in the plan document:
+`docs/superpowers/plans/2026-04-10-plan-11.5-examples-sandbox.md`.

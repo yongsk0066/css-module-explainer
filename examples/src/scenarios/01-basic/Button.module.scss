@@ -10,22 +10,26 @@ $radius: 8px;
   &:hover {
     filter: brightness(1.1);
   }
+
+  &:disabled {
+    cursor: not-allowed;
+  }
 }
 
 .primary {
-  background: #2f6fed;
+  background: #4f46e5;
   color: white;
-  border-color: #2f6fed;
+  border-color: #4f46e5;
 }
 
 .secondary {
   background: transparent;
-  color: #2f6fed;
+  color: #4f46e5;
 }
 
 .sm {
   font-size: 12px;
-  padding: 4px 8px;
+  padding: 4px 10px;
 }
 
 .md {
@@ -39,7 +43,6 @@ $radius: 8px;
 
 .disabled {
   opacity: 0.5;
-  cursor: not-allowed;
 }
 
 .disabledStripes {
@@ -52,8 +55,7 @@ $radius: 8px;
   );
 }
 
-// Intentionally unused — exists so "Find References" on
-// this selector returns "no references" in the dogfood.
+// Unused — exists so "Find References" returns "no references".
 .typoTarget {
   color: magenta;
 }
