@@ -122,6 +122,58 @@ describe("parseStyleModule / Q6 B edge cases", () => {
     });
   });
 
+  describe("compound selectors (post-review correctness fix)", () => {
+    it("indexes every class in '.foo.bar { ... }'", () => {
+      const map = parseStyleModule(`.foo.bar { color: red; }`, "/fake/a.module.scss");
+      expect(map.has("foo")).toBe(true);
+      expect(map.has("bar")).toBe(true);
+    });
+
+    it("indexes only the rightmost compound segment in '.a .b.c'", () => {
+      // CSS Modules exposes every class in the rightmost compound
+      // segment. `.a` is an ancestor; `.b.c` is the compound that
+      // keys the exported name.
+      const map = parseStyleModule(`.a .b.c { color: red; }`, "/fake/a.module.scss");
+      expect(map.has("b")).toBe(true);
+      expect(map.has("c")).toBe(true);
+      expect(map.has("a")).toBe(false);
+    });
+  });
+
+  describe("token range word-boundary (post-review correctness fix)", () => {
+    it("points to the standalone '.btn' in '.btn-primary .btn'", () => {
+      const map = parseStyleModule(`.btn-primary .btn { color: red; }`, "/fake/a.module.scss");
+      const btnInfo = map.get("btn")!;
+      // '.btn-primary ' is 13 characters. '.btn' starts at column 13,
+      // the class name 'btn' starts at column 14.
+      expect(btnInfo.range.start.character).toBe(14);
+      expect(btnInfo.range.end.character).toBe(14 + "btn".length);
+    });
+
+    it("does not collide class prefixes when .btn-primary is first", () => {
+      const map = parseStyleModule(
+        `.btn-primary { color: red; }\n.btn { color: blue; }`,
+        "/fake/a.module.scss",
+      );
+      expect(map.get("btn")!.range.start.line).toBe(1);
+      expect(map.get("btn-primary")!.range.start.line).toBe(0);
+    });
+  });
+
+  describe("partial parse recovery (post-review test pin)", () => {
+    it("returns an empty map when a late syntax error breaks the whole file", () => {
+      // postcss throws on the broken trailing rule; we catch at the
+      // file boundary and never surface the earlier valid rules.
+      // Pinning this all-or-nothing behavior so future streaming
+      // refactors do not silently change it.
+      const map = parseStyleModule(
+        `.valid { color: red; }\n.broken { color: `,
+        "/fake/a.module.scss",
+      );
+      expect(map.size).toBe(0);
+    });
+  });
+
   describe("CSS variables (Q6 B #7)", () => {
     it("includes --var-name declarations in the declarations text", () => {
       const map = parseStyleModule(`.theme { --bg: red; --fg: white; }`, "/fake/a.module.scss");

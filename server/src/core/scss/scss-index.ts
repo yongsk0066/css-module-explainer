@@ -34,29 +34,39 @@ export function parseStyleModule(content: string, filePath: string): ScssClassMa
     const processOptions = syntax ? { from: filePath, syntax } : { from: filePath };
     root = postcss().process(content, processOptions).root;
   } catch {
+    // Parse failure → empty map; contract is documented on the
+    // parseStyleModule JSDoc above. We intentionally do not log
+    // here because StyleIndexCache will retry on the next content
+    // change, and diagnostics for broken CSS modules are Phase 2's
+    // responsibility (via a dedicated diagnostic category).
     return classMap;
   }
 
   // postcss's root.nodes is typed as ChildNode[] | Root_[] at the
   // Document level, but at Root level it is ChildNode[]. Narrow
   // by walking children directly.
-  walkRules(root.nodes as ChildNode[], "", classMap);
+  walkStyleNodes(root.nodes as ChildNode[], "", classMap);
   return classMap;
 }
 
 /**
- * Walk postcss child nodes and record every class that CSS Modules
- * would expose on the `styles` object.
+ * Walk postcss child nodes — both rules and transparent at-rules —
+ * and record every class that CSS Modules would expose on the
+ * `styles` object.
  *
  * - `parentSelector` carries the resolved selector chain for SCSS
  *   `&` nesting. Empty at the top level.
- * - `@media` / `@at-root` / `@supports` are transparent wrappers:
- *   we recurse into their bodies with the current parent intact.
+ * - `@media` / `@at-root` (block form) / `@supports` are transparent
+ *   wrappers: we recurse into their bodies with the current parent
+ *   intact.
+ * - `@at-root <selector>` inline form is special-cased (see branch
+ *   below) because postcss-scss puts its selector in `params` and
+ *   declarations as direct children.
  * - `@keyframes`, `@font-face`, and any other at-rule are NOT
  *   transparent — their children are not class selectors in the
  *   CSS-Modules sense.
  */
-function walkRules(
+function walkStyleNodes(
   nodes: ChildNode[] | undefined,
   parentSelector: string,
   classMap: Map<string, SelectorInfo>,
@@ -66,15 +76,10 @@ function walkRules(
     if (node.type === "rule") {
       recordRule(node, parentSelector, classMap);
     } else if (node.type === "atrule" && isTransparentAtRule(node.name)) {
-      // Inline @at-root form — `@at-root .escaped { ... }` — parses as
-      // an atrule with its selector in `params` and declarations as
-      // direct children. Treat it as a synthetic rule anchored at the
-      // workspace root (empty parent), since that's what @at-root
-      // semantically does.
-      if (node.name === "at-root" && hasInlineSelector(node)) {
+      if (node.name === "at-root" && isInlineAtRoot(node)) {
         recordAtRootInlineRule(node, classMap);
       } else {
-        walkRules(node.nodes, parentSelector, classMap);
+        walkStyleNodes(node.nodes, parentSelector, classMap);
       }
     }
   }
@@ -84,17 +89,16 @@ function isTransparentAtRule(name: string): boolean {
   return name === "media" || name === "at-root" || name === "supports";
 }
 
-function hasInlineSelector(atrule: AtRule): boolean {
-  const params = atrule.params?.trim();
-  if (!params) return false;
-  // Inline form carries a selector in `params`. The block form
-  // (`@at-root { ... }`) has an empty `params`.
-  return params.length > 0;
+function isInlineAtRoot(atrule: AtRule): boolean {
+  // Inline form: `@at-root .escaped { ... }` — postcss-scss puts the
+  // selector in `params`. Block form: `@at-root { ... }` — `params`
+  // is empty.
+  return atrule.params.trim().length > 0;
 }
 
 function recordRule(rule: Rule, parentSelector: string, classMap: Map<string, SelectorInfo>): void {
-  const declarations = collectOwnDeclarations(rule);
-  const ruleRange = rangeForRule(rule);
+  const declarations = collectDeclarations(rule.nodes);
+  const ruleRange = rangeForSourceNode(rule);
 
   // Each comma-separated selector produces its own entry.
   const selectors = rule.selectors ?? [rule.selector];
@@ -105,8 +109,8 @@ function recordRule(rule: Rule, parentSelector: string, classMap: Map<string, Se
     resolvedSelectors.push(resolved);
 
     for (const className of extractClassNames(resolved)) {
-      const tokenRange = findTokenRange(rule, className, raw);
-      // Q6 B #8 — cascade last-wins: .set() overwrites.
+      const tokenRange = findClassTokenRange(rule.source?.start, className, raw);
+      // Q6 B #8 — cascade last-wins: .set() overwrites on redefinition.
       classMap.set(className, {
         name: className,
         range: tokenRange,
@@ -118,18 +122,24 @@ function recordRule(rule: Rule, parentSelector: string, classMap: Map<string, Se
   }
 
   // Recurse into nested rules using the first resolved selector as
-  // the new parent. SCSS semantics: a grouped nested rule under
-  // ".a, .b" uses ".a" as its & resolution.
+  // the new parent. Known limitation: SCSS actually expands nested
+  // rules under ALL grouped selectors (".a, .b" → ".a .child, .b .child");
+  // we only track the first branch here. No real-world project has
+  // hit this yet, but the day it does, this comment is the breadcrumb.
   const nextParent = resolvedSelectors[0] ?? parentSelector;
-  walkRules(rule.nodes, nextParent, classMap);
+  walkStyleNodes(rule.nodes, nextParent, classMap);
 }
 
-function collectOwnDeclarations(rule: Rule): string {
-  // Only declarations that belong directly to this rule — not
-  // nested rules. CSS variables (--name) are included so hover
-  // cards can show them.
+/**
+ * Collect direct-child declarations of a rule or at-rule as a
+ * flattened `"prop: value; ..."` string. Does not descend into
+ * nested rules. CSS variables (--name) are included so hover cards
+ * can show them.
+ */
+function collectDeclarations(nodes: ChildNode[] | undefined): string {
+  if (!nodes) return "";
   const parts: string[] = [];
-  for (const child of rule.nodes ?? []) {
+  for (const child of nodes) {
     if (child.type === "decl") {
       const d = child as Declaration;
       parts.push(`${d.prop}: ${d.value}`);
@@ -146,59 +156,23 @@ function collectOwnDeclarations(rule: Rule): string {
  */
 function recordAtRootInlineRule(atrule: AtRule, classMap: Map<string, SelectorInfo>): void {
   const selector = atrule.params.trim();
-  const declarations = collectAtRuleDeclarations(atrule);
-  const ruleRange = rangeForAtRule(atrule);
+  const declarations = collectDeclarations(atrule.nodes);
+  const ruleRange = rangeForSourceNode(atrule);
   const selectors = selector.split(",").map((s) => s.trim());
 
   for (const raw of selectors) {
     for (const className of extractClassNames(raw)) {
+      const start = atrule.source?.start;
+      const baseColumn = (start?.column ?? 1) - 1 + "@at-root ".length;
       classMap.set(className, {
         name: className,
-        range: findAtRuleTokenRange(atrule, className, raw),
+        range: atRootTokenRange(start?.line ?? 1, baseColumn, className, raw),
         fullSelector: raw,
         declarations,
         ruleRange,
       });
     }
   }
-}
-
-function collectAtRuleDeclarations(atrule: AtRule): string {
-  const parts: string[] = [];
-  for (const child of atrule.nodes ?? []) {
-    if (child.type === "decl") {
-      const d = child as Declaration;
-      parts.push(`${d.prop}: ${d.value}`);
-    }
-  }
-  return parts.join("; ");
-}
-
-function rangeForAtRule(atrule: AtRule): Range {
-  const start = atrule.source?.start;
-  const end = atrule.source?.end;
-  return {
-    start: start
-      ? { line: start.line - 1, character: start.column - 1 }
-      : { line: 0, character: 0 },
-    end: end ? { line: end.line - 1, character: end.column - 1 } : { line: 0, character: 0 },
-  };
-}
-
-function findAtRuleTokenRange(atrule: AtRule, className: string, rawSelector: string): Range {
-  const start = atrule.source?.start;
-  if (!start) return zeroRange();
-  // Inline @at-root: the params start at `atrule.source.start.column`
-  // plus "@at-root " (9 characters). This is best-effort since postcss
-  // does not expose the params column directly.
-  const line = start.line - 1;
-  const baseCol = start.column - 1 + "@at-root ".length;
-  const offset = rawSelector.indexOf(`.${className}`);
-  const character = offset >= 0 ? baseCol + offset + 1 : baseCol;
-  return {
-    start: { line, character },
-    end: { line, character: character + className.length },
-  };
 }
 
 /**
@@ -221,40 +195,58 @@ function resolveSelector(raw: string, parent: string): string {
  * Extract class names that CSS Modules would expose on the styles
  * object for a resolved selector.
  *
- * Rules:
- *   - `:global(.x)` wraps are stripped and the inner class is NOT
- *     recorded (it does not appear on the styles object).
- *   - `:local(.x)` wraps are stripped and the inner class IS
- *     recorded.
- *   - Other pseudo-classes/elements (:hover, ::before) are stripped
- *     from the name but don't change inclusion.
- *   - Only the LAST class in a compound/descendant selector is
- *     exposed on `styles` — that's the name the user imports.
- *     Each class in a group selector (".a, .b") is a separate
- *     call to this function, so grouping is handled upstream.
+ * Rules applied in order:
+ *   1. `:global(.x)` wraps are stripped **and** their inner class
+ *      is dropped — :global classes never appear on the styles
+ *      object.
+ *   2. `:local(.x)` wraps are stripped but the inner class stays.
+ *   3. Other pseudo-classes/elements (:hover, ::before, :nth-child)
+ *      are stripped so they do not interfere with class matching.
+ *   4. What remains is a descendant selector like `.a .b .c.d`;
+ *      CSS Modules exposes every class in the **rightmost
+ *      compound segment** (`.c.d` → both `c` and `d`). The earlier
+ *      segments exist as ancestors but are not keys.
+ *
+ * This returns every class from that rightmost compound, so
+ * `.a .b.c` yields `["b", "c"]` and `.btn` yields `["btn"]`.
  */
 function extractClassNames(resolvedSelector: string): string[] {
-  // Drop :global(...) blocks entirely — including their class names.
+  // (1) + (2) + (3) — strip wrappers and pseudos.
   const withoutGlobal = resolvedSelector.replace(/:global\s*\(\s*[^)]*\)/g, "");
-  // Strip :local(...) wrappers but keep the inner class.
   const withoutLocal = withoutGlobal.replace(/:local\s*\(\s*([^)]*)\s*\)/g, "$1");
-  // Remove pseudo-classes/elements that aren't wrappers.
   const withoutPseudos = withoutLocal.replace(/::?[a-zA-Z-]+(?:\([^)]*\))?/g, "");
-  const matches = withoutPseudos.match(/\.[a-zA-Z_][\w-]*/g) ?? [];
-  if (matches.length === 0) return [];
-  const last = matches[matches.length - 1]!;
-  return [last.slice(1)];
+
+  // (4) — keep only the rightmost compound segment. Combinators
+  // that split compounds are whitespace, `>`, `+`, `~`.
+  const segments = withoutPseudos.trim().split(/\s*[>+~]\s*|\s+/);
+  const lastSegment = segments[segments.length - 1] ?? "";
+  const matches = lastSegment.match(/\.[a-zA-Z_][\w-]*/g) ?? [];
+  return matches.map((m) => m.slice(1));
 }
 
-function findTokenRange(rule: Rule, className: string, rawSelector: string): Range {
-  const start = rule.source?.start;
-  if (!start) return zeroRange();
-  const line = start.line - 1;
-  const dotted = `.${className}`;
-  // Search the raw (unresolved) selector so the character offset
-  // matches the text the user wrote on disk.
-  const offset = rawSelector.indexOf(dotted);
-  const baseCol = start.column - 1;
+/**
+ * Word-boundary-aware class token offset finder.
+ *
+ * `".btn-primary .btn".indexOf(".btn")` returns `0`, pointing at
+ * the `btn` *inside* `btn-primary` — wrong. We anchor the match
+ * on `(?![\w-])` so `btn` won't match inside `btn-primary`.
+ */
+function findClassOffset(rawSelector: string, className: string): number {
+  const escaped = className.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`\\.${escaped}(?![\\w-])`);
+  const match = re.exec(rawSelector);
+  return match?.index ?? -1;
+}
+
+function findClassTokenRange(
+  sourceStart: { line: number; column: number } | undefined,
+  className: string,
+  rawSelector: string,
+): Range {
+  if (!sourceStart) return zeroRange();
+  const line = sourceStart.line - 1;
+  const offset = findClassOffset(rawSelector, className);
+  const baseCol = sourceStart.column - 1;
   const character = offset >= 0 ? baseCol + offset + 1 : baseCol;
   return {
     start: { line, character },
@@ -262,9 +254,24 @@ function findTokenRange(rule: Rule, className: string, rawSelector: string): Ran
   };
 }
 
-function rangeForRule(rule: Rule): Range {
-  const start = rule.source?.start;
-  const end = rule.source?.end;
+function atRootTokenRange(
+  startLine: number,
+  baseColumn: number,
+  className: string,
+  rawSelector: string,
+): Range {
+  const line = startLine - 1;
+  const offset = findClassOffset(rawSelector, className);
+  const character = offset >= 0 ? baseColumn + offset + 1 : baseColumn;
+  return {
+    start: { line, character },
+    end: { line, character: character + className.length },
+  };
+}
+
+function rangeForSourceNode(node: Rule | AtRule): Range {
+  const start = node.source?.start;
+  const end = node.source?.end;
   return {
     start: start
       ? { line: start.line - 1, character: start.column - 1 }
@@ -290,8 +297,8 @@ interface StyleIndexCacheEntry {
  * Content-hashed LRU cache for parseStyleModule results.
  *
  * - Hit path: provider asks for a file + its current content, we
- *   compute md5 once and return the cached ScssClassMap by
- *   reference identity.
+ *   compute a content hash once and return the cached ScssClassMap
+ *   by reference identity.
  * - Miss path: we call parseStyleModule, store the result, and
  *   return it.
  * - Eviction: insertion order + size bound; a hit moves the entry
@@ -306,7 +313,7 @@ export class StyleIndexCache {
   }
 
   get(filePath: string, content: string): ScssClassMap {
-    const hash = md5(content);
+    const hash = contentHash(content);
     const cached = this.entries.get(filePath);
     if (cached && cached.hash === hash) {
       // Touch: re-insert to move to the end (MRU).
@@ -341,6 +348,12 @@ export class StyleIndexCache {
   }
 }
 
-function md5(content: string): string {
+/**
+ * Stable content hash used as the cache key suffix. md5 is used for
+ * speed (not cryptographic security). Swapping to xxhash in the
+ * future requires changing only this function; callers treat the
+ * result as opaque.
+ */
+function contentHash(content: string): string {
   return crypto.createHash("md5").update(content).digest("hex");
 }
