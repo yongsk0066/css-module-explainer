@@ -84,11 +84,15 @@ export function createServer(options: CreateServerOptions): CreatedServer {
   const documents = new TextDocuments<TextDocument>(TextDocument);
 
   let bundle: CompositionBundle | null = null;
+  let watchedFilesDisposable: Promise<{ dispose(): void }> | null = null;
+  let clientSupportsDynamicWatchers = false;
   const getDeps = (): ProviderDeps | null => bundle?.deps ?? null;
 
   connection.onInitialize((params: InitializeParams): InitializeResult => {
     connection.console.info(`[${SERVER_NAME}] initialize received`);
     const workspaceRoot = resolveWorkspaceRoot(params);
+    clientSupportsDynamicWatchers =
+      params.capabilities.workspace?.didChangeWatchedFiles?.dynamicRegistration ?? false;
     bundle = buildBundle(workspaceRoot, options, connection);
     return {
       capabilities: {
@@ -124,15 +128,19 @@ export function createServer(options: CreateServerOptions): CreatedServer {
       );
     });
     // Register dynamic file watcher for .module.{scss,css} change
-    // events. The client sends DidChangeWatchedFilesNotification
-    // when any matching file is created / changed / deleted.
-    void connection.client
-      .register(DidChangeWatchedFilesNotification.type, {
-        watchers: [{ globPattern: buildStyleFileWatcherGlob() }],
-      })
-      .catch(() => {
-        // Some clients don't support dynamic registration; silently skip.
-      });
+    // events when the client supports it (checked during
+    // initialize). Production VS Code always does; the in-process
+    // test harness does not advertise the capability, so the
+    // registration is skipped entirely — no spurious rejections.
+    // The returned Disposable is retained so `onShutdown` can
+    // release it cleanly (Agent 5 F12).
+    if (clientSupportsDynamicWatchers) {
+      watchedFilesDisposable = connection.client
+        .register(DidChangeWatchedFilesNotification.type, {
+          watchers: [{ globPattern: buildStyleFileWatcherGlob() }],
+        })
+        .catch(() => ({ dispose: () => {} }));
+    }
   });
 
   connection.onDefinition((p: TextDocumentPositionParams) => {
@@ -156,7 +164,7 @@ export function createServer(options: CreateServerOptions): CreatedServer {
     if (!deps) return null;
     const cursor = toCursorParams(p, documents);
     if (!cursor) return null;
-    return handleCompletion(cursor, p, deps);
+    return handleCompletion(cursor, deps);
   });
 
   // Push-based diagnostics with 200ms debounce (spec §4.5).
@@ -165,11 +173,13 @@ export function createServer(options: CreateServerOptions): CreatedServer {
     const existing = diagTimers.get(uri);
     if (existing) clearTimeout(existing);
     const timer = setTimeout(() => {
-      diagTimers.delete(uri);
+      // Fetch state BEFORE deleting the timer handle so a
+      // concurrent onDidChangeContent can't see an empty
+      // diagTimers entry mid-flight (Agent 3 H1 race fix).
       const deps = getDeps();
-      if (!deps) return;
       const doc = documents.get(uri);
-      if (!doc) return;
+      diagTimers.delete(uri);
+      if (!deps || !doc) return;
       const diagnostics = computeDiagnostics(
         {
           documentUri: uri,
@@ -222,6 +232,14 @@ export function createServer(options: CreateServerOptions): CreatedServer {
 
   connection.onShutdown(() => {
     bundle?.indexerWorker.stop();
+    // Clear any pending debounced diagnostic publishes so they
+    // don't fire after shutdown (keeps handles out of the event
+    // loop and drops closures referencing documents/connection).
+    for (const timer of diagTimers.values()) clearTimeout(timer);
+    diagTimers.clear();
+    // Unregister dynamic file watcher if the client accepted it.
+    void watchedFilesDisposable?.then((d) => d.dispose()).catch(() => {});
+    watchedFilesDisposable = null;
     bundle = null;
   });
 
@@ -272,6 +290,11 @@ function buildBundle(
     return styleIndexCache.get(binding.scssModulePath, content);
   };
 
+  const indexerLogger = {
+    info: (msg: string) => connection.console.info(`[${SERVER_NAME}:indexer] ${msg}`),
+    error: (msg: string) => connection.console.error(`[${SERVER_NAME}:indexer] ${msg}`),
+  };
+
   const deps: ProviderDeps = {
     analysisCache,
     scssClassMapFor,
@@ -284,7 +307,7 @@ function buildBundle(
     },
   };
 
-  const supplier = options.fileSupplier ?? (() => scssFileSupplier(workspaceRoot));
+  const supplier = options.fileSupplier ?? (() => scssFileSupplier(workspaceRoot, indexerLogger));
   const asyncReadFile = options.readStyleFileAsync ?? defaultReadStyleFileAsync;
   const indexerWorker = new IndexerWorker({
     supplier,
@@ -297,10 +320,7 @@ function buildBundle(
     onTsxFile: () => {
       // Phase Final hook — Phase 10 only indexes SCSS.
     },
-    logger: {
-      info: (msg) => connection.console.info(`[${SERVER_NAME}:indexer] ${msg}`),
-      error: (msg) => connection.console.error(`[${SERVER_NAME}:indexer] ${msg}`),
-    },
+    logger: indexerLogger,
   });
 
   return { deps, styleIndexCache, indexerWorker };

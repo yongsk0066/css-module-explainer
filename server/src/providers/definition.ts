@@ -37,7 +37,7 @@ export function handleDefinition(params: CursorParams, deps: ProviderDeps): Loca
     // Spec §2.8 — "log + return empty result". The logger is
     // wired to connection.console.error in production and
     // defaults to a no-op in unit tests.
-    deps.logError?.("definition handler failed", err);
+    deps.logError("definition handler failed", err);
     return null;
   }
 }

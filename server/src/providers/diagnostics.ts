@@ -7,7 +7,7 @@ import type { CxCallInfo, ScssClassMap } from "@css-module-explainer/shared";
 import { resolveCxCallToSelectorInfos } from "../core/cx/call-resolver.js";
 import { findClosestMatch } from "../core/util/text-utils.js";
 import { toLspRange } from "./lsp-adapters.js";
-import type { CursorParams, ProviderDeps } from "./provider-utils.js";
+import type { DocumentParams, ProviderDeps } from "./provider-utils.js";
 
 /**
  * Compute diagnostics for an open document.
@@ -21,51 +21,47 @@ import type { CursorParams, ProviderDeps } from "./provider-utils.js";
  * / missing class names. Returns [] for clean documents — caller
  * MUST still publish to clear prior warnings.
  */
-export function computeDiagnostics(
-  params: Pick<CursorParams, "documentUri" | "content" | "filePath" | "version">,
-  deps: ProviderDeps,
-): Diagnostic[] {
+export function computeDiagnostics(params: DocumentParams, deps: ProviderDeps): Diagnostic[] {
+  // Fast path: if the file has no binding at all, nothing to diagnose.
+  if (!params.content.includes("classnames/bind")) return [];
+
+  let entry;
   try {
-    // Fast path: if the file has no binding at all, nothing to
-    // diagnose.
-    if (!params.content.includes("classnames/bind")) return [];
-    const entry = deps.analysisCache.get(
+    entry = deps.analysisCache.get(
       params.documentUri,
       params.content,
       params.filePath,
       params.version,
     );
-    if (entry.calls.length === 0) return [];
+  } catch (err) {
+    deps.logError("diagnostics analysis failed", err);
+    return [];
+  }
+  if (entry.calls.length === 0) return [];
 
-    const diagnostics: Diagnostic[] = [];
-    // One classMap lookup per distinct binding — cheap amortized
-    // cost because StyleIndexCache is content-hashed.
-    const classMapCache = new Map<string, ScssClassMap | null>();
-    const classMapFor = (binding: (typeof entry.calls)[number]["binding"]): ScssClassMap | null => {
-      const key = binding.scssModulePath;
-      if (classMapCache.has(key)) return classMapCache.get(key) ?? null;
-      const map = deps.scssClassMapFor(binding);
-      classMapCache.set(key, map);
-      return map;
-    };
-
-    for (const call of entry.calls) {
-      const classMap = classMapFor(call.binding);
+  // Per-call isolation: a single throwing call (e.g. a malformed
+  // binding or a misbehaving TypeResolver entry) must NOT erase
+  // every other diagnostic in the same document. Spec §2.8 —
+  // "log + return empty result" applies per-call, not per-file.
+  const diagnostics: Diagnostic[] = [];
+  for (const call of entry.calls) {
+    try {
+      const classMap = deps.scssClassMapFor(call.binding);
       if (!classMap) continue;
       const d = validateCall(call, classMap, params, deps);
       if (d) diagnostics.push(d);
+    } catch (err) {
+      deps.logError("diagnostics per-call validation failed", err);
+      // continue to the next call
     }
-    return diagnostics;
-  } catch (err) {
-    deps.logError?.("diagnostics computation failed", err);
-    return [];
   }
+  return diagnostics;
 }
 
 function validateCall(
   call: CxCallInfo,
   classMap: ScssClassMap,
-  params: Pick<CursorParams, "filePath">,
+  params: Pick<DocumentParams, "filePath">,
   deps: ProviderDeps,
 ): Diagnostic | null {
   const range: LspRange = toLspRange(call.originRange);

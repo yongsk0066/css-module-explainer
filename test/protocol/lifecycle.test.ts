@@ -13,7 +13,17 @@ describe("lifecycle", () => {
     client = createInProcessServer();
     const result = await client.initialize();
     expect(result.capabilities.definitionProvider).toBe(true);
+    expect(result.capabilities.hoverProvider).toBe(true);
     expect(result.serverInfo?.name).toBe("css-module-explainer");
+  });
+
+  it("advertises completionProvider with every Plan 08 trigger character", async () => {
+    client = createInProcessServer();
+    const result = await client.initialize();
+    const provider = result.capabilities.completionProvider;
+    expect(provider).toBeDefined();
+    expect(provider?.triggerCharacters).toEqual(["'", '"', "`", ","]);
+    expect(provider?.resolveProvider).toBe(false);
   });
 
   it("completes the initialize → initialized → shutdown handshake cleanly", async () => {

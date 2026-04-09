@@ -2,17 +2,16 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import {
-  buildStyleGlob,
-  scssFileSupplier,
-} from "../../../server/src/core/indexing/file-supplier.js";
+import { scssFileSupplier } from "../../../server/src/core/indexing/file-supplier.js";
+import { buildStyleFileWatcherGlob } from "../../../server/src/core/scss/lang-registry.js";
 import type { FileTask } from "../../../server/src/core/indexing/indexer-worker.js";
 
-describe("buildStyleGlob", () => {
+const noopLogger = { error: () => {} };
+
+describe("buildStyleFileWatcherGlob", () => {
   it("covers every registered style module extension", () => {
-    const glob = buildStyleGlob();
+    const glob = buildStyleFileWatcherGlob();
     expect(glob).toMatch(/module\.(scss|css)|module\.\{/);
-    expect(glob.startsWith("**/*.")).toBe(true);
   });
 });
 
@@ -35,7 +34,7 @@ describe("scssFileSupplier", () => {
 
   it("yields only .module.{scss,css} files outside node_modules", async () => {
     const tasks: FileTask[] = [];
-    for await (const task of scssFileSupplier(root)) {
+    for await (const task of scssFileSupplier(root, noopLogger)) {
       tasks.push(task);
     }
     const sorted = tasks.map((t) => t.path).toSorted();

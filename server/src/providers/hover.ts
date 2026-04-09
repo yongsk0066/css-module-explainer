@@ -21,7 +21,7 @@ export function handleHover(params: CursorParams, deps: ProviderDeps): Hover | n
   try {
     return withCxCallAtCursor(params, deps, (ctx) => buildHover(ctx, params, deps));
   } catch (err) {
-    deps.logError?.("hover handler failed", err);
+    deps.logError("hover handler failed", err);
     return null;
   }
 }

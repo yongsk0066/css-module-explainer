@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type ts from "typescript";
 import type {
   CxBinding,
@@ -11,7 +11,7 @@ import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache.j
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache.js";
 import { NullReverseIndex } from "../../../server/src/core/indexing/reverse-index.js";
 import type { TypeResolver } from "../../../server/src/core/ts/type-resolver.js";
-import type { ProviderDeps } from "../../../server/src/providers/provider-utils.js";
+import { NOOP_LOG_ERROR, type ProviderDeps } from "../../../server/src/providers/provider-utils.js";
 import { handleDefinition } from "../../../server/src/providers/definition.js";
 
 const TSX = `
@@ -84,6 +84,7 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     typeResolver: new FakeTypeResolver(),
     reverseIndex: new NullReverseIndex(),
     workspaceRoot: "/fake",
+    logError: NOOP_LOG_ERROR,
     ...overrides,
   };
 }
@@ -165,6 +166,7 @@ describe("handleDefinition", () => {
       typeResolver: new FakeTypeResolver(),
       reverseIndex: new NullReverseIndex(),
       workspaceRoot: "/fake",
+      logError: NOOP_LOG_ERROR,
     };
     const result = handleDefinition(baseParams, deps);
     expect(result).not.toBeNull();
@@ -172,13 +174,16 @@ describe("handleDefinition", () => {
     expect(result!.every((l) => l.targetUri.startsWith("file://"))).toBe(true);
   });
 
-  it("never throws when the underlying transform raises", () => {
+  it("logs and returns null when the underlying transform raises", () => {
+    const logError = vi.fn();
     const deps = makeDeps({
       scssClassMapFor: () => {
         throw new Error("boom");
       },
+      logError,
     });
     expect(() => handleDefinition(baseParams, deps)).not.toThrow();
     expect(handleDefinition(baseParams, deps)).toBeNull();
+    expect(logError).toHaveBeenCalledWith("definition handler failed", expect.any(Error));
   });
 });

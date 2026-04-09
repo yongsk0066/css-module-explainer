@@ -11,7 +11,7 @@ import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache.j
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache.js";
 import { NullReverseIndex } from "../../../server/src/core/indexing/reverse-index.js";
 import type { TypeResolver } from "../../../server/src/core/ts/type-resolver.js";
-import type { ProviderDeps } from "../../../server/src/providers/provider-utils.js";
+import { NOOP_LOG_ERROR, type ProviderDeps } from "../../../server/src/providers/provider-utils.js";
 import { handleHover } from "../../../server/src/providers/hover.js";
 
 const TSX = `
@@ -75,6 +75,7 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     typeResolver: new FakeTypeResolver(),
     reverseIndex: new NullReverseIndex(),
     workspaceRoot: "/fake/ws",
+    logError: NOOP_LOG_ERROR,
     ...overrides,
   };
 }

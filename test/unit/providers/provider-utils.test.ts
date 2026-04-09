@@ -12,6 +12,7 @@ import { DocumentAnalysisCache } from "../../../server/src/core/indexing/documen
 import { NullReverseIndex } from "../../../server/src/core/indexing/reverse-index.js";
 import type { TypeResolver } from "../../../server/src/core/ts/type-resolver.js";
 import {
+  NOOP_LOG_ERROR,
   isInsideCxCall,
   withCxCallAtCursor,
   type ProviderDeps,
@@ -83,6 +84,7 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     typeResolver: new FakeTypeResolver(),
     reverseIndex: new NullReverseIndex(),
     workspaceRoot: "/fake",
+    logError: NOOP_LOG_ERROR,
     ...overrides,
   };
 }

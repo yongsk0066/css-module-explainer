@@ -1,42 +1,39 @@
 import fastGlob from "fast-glob";
-import { getAllStyleExtensions } from "../scss/lang-registry.js";
+import { buildStyleFileWatcherGlob } from "../scss/lang-registry.js";
 import type { FileTask } from "./indexer-worker.js";
 
 /**
- * Build the glob pattern covering every registered style module
- * extension. Today: `**\/*.module.{scss,css}`. Adding LESS later
- * is a one-entry change in `scss/lang-registry`.
- */
-export function buildStyleGlob(): string {
-  const exts = getAllStyleExtensions();
-  // Strip the leading `.` and aggregate into a brace expression
-  // when more than one — `fast-glob` supports both forms.
-  const stripped = exts.map((e) => e.replace(/^\./, ""));
-  if (stripped.length === 1) return `**/*.${stripped[0]}`;
-  return `**/*.{${stripped.join(",")}}`;
-}
-
-/**
  * Walk the workspace and yield one `FileTask` per style module
- * file. Yields are sequential (fast-glob streaming) so the
- * IndexerWorker's `setImmediate` yield between tasks keeps LSP
- * requests preempted.
+ * file. Backed by `fast-glob`'s streaming API: `fast-glob` does
+ * parallel directory enumeration ahead of the consumer up to its
+ * internal highWaterMark (16 chunks), so memory stays bounded
+ * for large workspaces (Agent 3 review M4 — documented here so
+ * the "sequential" claim stays accurate).
  *
- * Errors inside fast-glob are swallowed into an empty supplier —
- * an unreadable directory should not crash the worker.
+ * Errors inside fast-glob are caught at the `for await` boundary
+ * so a single unreadable directory does not abort the entire
+ * walk. The caller gets a partial result and a logged error.
  */
-export function scssFileSupplier(workspaceRoot: string): AsyncIterable<FileTask> {
+export function scssFileSupplier(
+  workspaceRoot: string,
+  logger: { error: (msg: string) => void },
+): AsyncIterable<FileTask> {
   return {
     async *[Symbol.asyncIterator](): AsyncGenerator<FileTask> {
-      const stream = fastGlob.stream(buildStyleGlob(), {
+      const stream = fastGlob.stream(buildStyleFileWatcherGlob(), {
         cwd: workspaceRoot,
         absolute: true,
         onlyFiles: true,
         followSymbolicLinks: false,
         ignore: ["**/node_modules/**", "**/dist/**", "**/.git/**"],
       });
-      for await (const entry of stream) {
-        yield { kind: "scss", path: String(entry) };
+      try {
+        for await (const entry of stream) {
+          yield { kind: "scss", path: String(entry) };
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        logger.error(`scssFileSupplier aborted mid-walk: ${message}`);
       }
     },
   };

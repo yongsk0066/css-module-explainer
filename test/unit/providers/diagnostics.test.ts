@@ -12,7 +12,7 @@ import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache.j
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache.js";
 import { NullReverseIndex } from "../../../server/src/core/indexing/reverse-index.js";
 import type { TypeResolver } from "../../../server/src/core/ts/type-resolver.js";
-import type { ProviderDeps } from "../../../server/src/providers/provider-utils.js";
+import { NOOP_LOG_ERROR, type ProviderDeps } from "../../../server/src/providers/provider-utils.js";
 import { computeDiagnostics } from "../../../server/src/providers/diagnostics.js";
 
 const TSX = `
@@ -87,6 +87,7 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     typeResolver: new FakeTypeResolver(),
     reverseIndex: new NullReverseIndex(),
     workspaceRoot: "/fake/ws",
+    logError: NOOP_LOG_ERROR,
     ...overrides,
   };
 }
@@ -129,7 +130,7 @@ describe("computeDiagnostics", () => {
     expect(result).toEqual([]);
   });
 
-  it("logs and returns an empty array on exception", () => {
+  it("isolates per-call exceptions — one throw does not erase other diagnostics", () => {
     const logError = vi.fn();
     const result = computeDiagnostics(
       baseParams,
@@ -140,6 +141,140 @@ describe("computeDiagnostics", () => {
         logError,
       }),
     );
+    // Both cx() calls throw, so we get no diagnostics but TWO
+    // isolated log entries — NOT a single "abort everything"
+    // entry. This is the key Plan 06 5-agent review fix: a
+    // single bad call must not silently drop every other
+    // diagnostic in the same document.
+    expect(result).toEqual([]);
+    expect(logError).toHaveBeenCalledTimes(2);
+    expect(logError).toHaveBeenCalledWith(
+      "diagnostics per-call validation failed",
+      expect.any(Error),
+    );
+  });
+
+  it("warns on a template-literal call whose prefix matches nothing", () => {
+    const sourceFileCache = new SourceFileCache({ max: 10 });
+    const analysisCache = new DocumentAnalysisCache({
+      sourceFileCache,
+      detectCxBindings,
+      parseCxCalls: (_sf, binding) => [
+        {
+          kind: "template",
+          rawTemplate: "prefix-${x}",
+          staticPrefix: "prefix-",
+          originRange: { start: { line: 4, character: 14 }, end: { line: 4, character: 28 } },
+          binding,
+        },
+      ],
+      max: 10,
+    });
+    const deps: ProviderDeps = {
+      analysisCache,
+      scssClassMapFor: () =>
+        new Map([
+          ["indicator", info("indicator")],
+          ["active", info("active")],
+        ]) as ScssClassMap,
+      typeResolver: new FakeTypeResolver(),
+      reverseIndex: new NullReverseIndex(),
+      workspaceRoot: "/fake/ws",
+      logError: NOOP_LOG_ERROR,
+    };
+    const result = computeDiagnostics(baseParams, deps);
+    expect(result).toHaveLength(1);
+    expect(result[0]!.message).toContain("No class starting with 'prefix-'");
+  });
+
+  it("warns on a variable call whose union has a missing member", () => {
+    const sourceFileCache = new SourceFileCache({ max: 10 });
+    const analysisCache = new DocumentAnalysisCache({
+      sourceFileCache,
+      detectCxBindings,
+      parseCxCalls: (_sf, binding) => [
+        {
+          kind: "variable",
+          variableName: "size",
+          originRange: { start: { line: 4, character: 14 }, end: { line: 4, character: 18 } },
+          binding,
+        },
+      ],
+      max: 10,
+    });
+    // Union has three values but classMap only has two of them.
+    class UnionResolver implements TypeResolver {
+      resolve() {
+        return { kind: "union" as const, values: ["small", "medium", "large"] as const };
+      }
+      invalidate() {}
+      clear() {}
+    }
+    const deps: ProviderDeps = {
+      analysisCache,
+      scssClassMapFor: () =>
+        new Map([
+          ["small", info("small")],
+          ["medium", info("medium")],
+        ]) as ScssClassMap,
+      typeResolver: new UnionResolver(),
+      reverseIndex: new NullReverseIndex(),
+      workspaceRoot: "/fake/ws",
+      logError: NOOP_LOG_ERROR,
+    };
+    const result = computeDiagnostics(baseParams, deps);
+    expect(result).toHaveLength(1);
+    expect(result[0]!.message).toContain("Missing class for union member");
+    expect(result[0]!.message).toContain("'large'");
+  });
+
+  it("skips variable calls with an unresolvable type (ignoreUnresolvableUnions)", () => {
+    const sourceFileCache = new SourceFileCache({ max: 10 });
+    const analysisCache = new DocumentAnalysisCache({
+      sourceFileCache,
+      detectCxBindings,
+      parseCxCalls: (_sf, binding) => [
+        {
+          kind: "variable",
+          variableName: "unknown",
+          originRange: { start: { line: 4, character: 14 }, end: { line: 4, character: 21 } },
+          binding,
+        },
+      ],
+      max: 10,
+    });
+    const deps: ProviderDeps = {
+      analysisCache,
+      scssClassMapFor: () => new Map([["indicator", info("indicator")]]) as ScssClassMap,
+      typeResolver: new FakeTypeResolver(), // always unresolvable
+      reverseIndex: new NullReverseIndex(),
+      workspaceRoot: "/fake/ws",
+      logError: NOOP_LOG_ERROR,
+    };
+    const result = computeDiagnostics(baseParams, deps);
+    expect(result).toEqual([]);
+  });
+
+  it("keeps clean diagnostics when one call throws — per-call isolation", () => {
+    const logError = vi.fn();
+    // Throw only for 'unknonw', succeed for 'indicator'.
+    let callCount = 0;
+    const result = computeDiagnostics(
+      baseParams,
+      makeDeps({
+        scssClassMapFor: () => {
+          callCount += 1;
+          if (callCount === 2) throw new Error("only the second one");
+          return new Map([["indicator", info("indicator")]]) as ScssClassMap;
+        },
+        logError,
+      }),
+    );
+    // 'indicator' resolved cleanly → zero diagnostics for it.
+    // 'unknonw' threw → isolated, logged, does not erase the
+    // rest. Final diagnostics is [] because 'indicator' was
+    // clean and 'unknonw' was dropped by the catch. The win is
+    // that the throw didn't propagate outward.
     expect(result).toEqual([]);
     expect(logError).toHaveBeenCalledTimes(1);
   });
