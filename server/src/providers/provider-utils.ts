@@ -1,4 +1,9 @@
-import type { CallSite, CxBinding, CxCallInfo, ScssClassMap } from "@css-module-explainer/shared";
+import type {
+  CxBinding,
+  CxCallInfo,
+  Range as SharedRange,
+  ScssClassMap,
+} from "@css-module-explainer/shared";
 import type {
   AnalysisEntry,
   DocumentAnalysisCache,
@@ -41,20 +46,26 @@ export interface CursorParams extends DocumentParams {
 export interface ProviderDeps {
   readonly analysisCache: DocumentAnalysisCache;
   /**
-   * Look up the ScssClassMap for a binding. The composition root
-   * wires this to a `StyleIndexCache.get` reading the file from
-   * disk; tests pass an in-memory function.
+   * Look up the ScssClassMap for a binding the cursor is inside.
+   * Wired to `StyleIndexCache.get` reading from disk in
+   * production; tests pass an in-memory function.
    */
   readonly scssClassMapFor: (binding: CxBinding) => ScssClassMap | null;
+  /**
+   * Look up the ScssClassMap for a raw file path. Used by the
+   * references + reference-lens providers whose cursor lives
+   * inside the style file itself, where no CxBinding is
+   * available.
+   */
+  readonly scssClassMapForPath: (path: string) => ScssClassMap | null;
   readonly typeResolver: TypeResolver;
   readonly reverseIndex: ReverseIndex;
   readonly workspaceRoot: string;
   /**
    * Log a provider-level exception. Wired to
    * `connection.console.error` in production; tests pass
-   * `NOOP_LOG_ERROR`. Required (not optional) so the spec §2.8
-   * "log + return empty result" contract is explicit at every
-   * call site.
+   * `NOOP_LOG_ERROR`. Required so the "log + return empty
+   * result" contract is explicit at every call site.
    */
   readonly logError: (message: string, err: unknown) => void;
 }
@@ -82,12 +93,13 @@ export interface CxCallContext {
 }
 
 /**
- * Front stage for every Plan 06–09.5 provider.
+ * Front stage for every cursor-based cx() provider (definition,
+ * hover, completion).
  *
  * Three fast paths are checked before any AST work:
  *
- *   1. `content.includes('classnames/bind')` — skip files that
- *      import nothing relevant.
+ *   1. `hasCxBindImport(content)` — skip files that import
+ *      nothing relevant.
  *   2. Cursor line has no `(` — no cx call can possibly be open
  *      at the cursor.
  *   3. `analysisCache.get()` returns empty bindings → skip.
@@ -105,7 +117,7 @@ export function withCxCallAtCursor<T>(
   transform: (ctx: CxCallContext) => T | null,
 ): T | null {
   // Fast path 1 — no classnames/bind import anywhere in the file.
-  if (!params.content.includes("classnames/bind")) {
+  if (!hasCxBindImport(params.content)) {
     return null;
   }
 
@@ -128,65 +140,37 @@ export function withCxCallAtCursor<T>(
     return null;
   }
 
-  // Phase Final: reverse-index writes moved from here to
-  // DocumentAnalysisCache's onAnalyze hook — the per-(uri,
-  // version) enforcement point. Providers now touch the index
-  // only via `find`/`count` in the references + reference-lens
-  // providers.
-
-  // Find the call whose originRange contains the cursor.
   const call = findCallAtCursor(entry.calls, params.line, params.character);
   if (!call) return null;
 
   const classMap = deps.scssClassMapFor(call.binding);
   if (!classMap) return null;
 
-  // Normalize `undefined` → `null` so callers with a missing
-  // return branch in their transform still get a strict nullable
-  // (Agent 5 F8 fix).
+  // Normalize `undefined` → `null` so a transform with a missing
+  // return branch still yields a strict nullable.
   return transform({ call, binding: call.binding, classMap, entry }) ?? null;
 }
 
 /**
- * Build the `CallSite[]` list that the reverse index consumes.
- *
- * Exported so `composition-root.ts` can wire it into the
- * DocumentAnalysisCache `onAnalyze` hook without reaching into
- * provider-utils' internals. Pure transform over an AnalysisEntry.
+ * Fast-path predicate: does this document contain a
+ * `classnames/bind` import anywhere? Used by every provider
+ * before touching the AST.
  */
-export function collectCallSites(uri: string, entry: AnalysisEntry): CallSite[] {
-  return entry.calls.map((call) => ({
-    uri,
-    range: call.originRange,
-    binding: call.binding,
-    kind: call.kind,
-    matchInfo: matchInfoFor(call),
-  }));
+export function hasCxBindImport(content: string): boolean {
+  return content.includes("classnames/bind");
 }
 
 /**
- * Return true when the last `cxVarName(` on `textBefore` is still
- * open — i.e. the cursor is inside the argument list of a cx
- * call. Used by the completion provider to gate trigger chars.
+ * Does `(line, character)` fall inside `range`? Inclusive on
+ * both ends, matching the LSP convention used throughout the
+ * codebase. Shared between the cursor-based providers.
  */
-export function isInsideCxCall(textBefore: string, cxVarName: string): boolean {
-  const needle = `${cxVarName}(`;
-  const callIdx = textBefore.lastIndexOf(needle);
-  if (callIdx === -1) return false;
-
-  // Walk forward from after the opening paren, counting
-  // parenthesis depth. We are inside the cx call if depth > 0
-  // by the end of the string.
-  let depth = 1;
-  for (let i = callIdx + needle.length; i < textBefore.length; i += 1) {
-    const ch = textBefore[i];
-    if (ch === "(") depth += 1;
-    else if (ch === ")") {
-      depth -= 1;
-      if (depth === 0) return false;
-    }
-  }
-  return depth > 0;
+export function rangeContains(range: SharedRange, line: number, character: number): boolean {
+  const { start, end } = range;
+  if (line < start.line || line > end.line) return false;
+  if (line === start.line && character < start.character) return false;
+  if (line === end.line && character > end.character) return false;
+  return true;
 }
 
 function findCallAtCursor(
@@ -194,23 +178,5 @@ function findCallAtCursor(
   line: number,
   character: number,
 ): CxCallInfo | null {
-  for (const call of calls) {
-    const { start, end } = call.originRange;
-    if (line < start.line || line > end.line) continue;
-    if (line === start.line && character < start.character) continue;
-    if (line === end.line && character > end.character) continue;
-    return call;
-  }
-  return null;
-}
-
-function matchInfoFor(call: CxCallInfo): string {
-  switch (call.kind) {
-    case "static":
-      return `static: ${call.className}`;
-    case "template":
-      return `prefix: ${call.staticPrefix}`;
-    case "variable":
-      return `variable: ${call.variableName}`;
-  }
+  return calls.find((call) => rangeContains(call.originRange, line, character)) ?? null;
 }

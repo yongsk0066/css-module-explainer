@@ -1,7 +1,7 @@
 import { CompletionItemKind, type CompletionItem } from "vscode-languageserver/node";
 import type { CxBinding, SelectorInfo } from "@css-module-explainer/shared";
 import { getLineAt } from "../core/util/text-utils.js";
-import { isInsideCxCall, type CursorParams, type ProviderDeps } from "./provider-utils.js";
+import { hasCxBindImport, type CursorParams, type ProviderDeps } from "./provider-utils.js";
 
 /**
  * Handle `textDocument/completion` inside a `cx()` call.
@@ -32,7 +32,7 @@ export function handleCompletion(
 
 function computeCompletion(params: CursorParams, deps: ProviderDeps): CompletionItem[] | null {
   // Fast path 1 — no classnames/bind import.
-  if (!params.content.includes("classnames/bind")) return null;
+  if (!hasCxBindImport(params.content)) return null;
 
   // Fast path 2 — cursor line has no `(`.
   const line = getLineAt(params.content, params.line);
@@ -85,7 +85,34 @@ function toCompletionItem(info: SelectorInfo): CompletionItem {
 }
 
 /**
- * Trigger characters for the completion provider. Spec §4.4
- * lists `'`, `"`, `` ` ``, and `,` (controlled by config).
+ * Trigger characters for the completion provider: `'`, `"`,
+ * `` ` ``, and `,`.
  */
 export const COMPLETION_TRIGGER_CHARACTERS = ["'", '"', "`", ","] as const;
+
+/**
+ * Return true when the last `<cxVarName>(` on `textBefore` is
+ * still open — i.e. the cursor sits inside the argument list of
+ * a cx call. Exported for the Tier 1 unit tests; the completion
+ * provider is the only consumer.
+ *
+ * The walker is naive: it counts bare `(`/`)` without understanding
+ * string or comment context. Edge cases like `cx(')')` return
+ * approximate answers. Low impact in practice.
+ */
+export function isInsideCxCall(textBefore: string, cxVarName: string): boolean {
+  const needle = `${cxVarName}(`;
+  const callIdx = textBefore.lastIndexOf(needle);
+  if (callIdx === -1) return false;
+
+  let depth = 1;
+  for (let i = callIdx + needle.length; i < textBefore.length; i += 1) {
+    const ch = textBefore[i];
+    if (ch === "(") depth += 1;
+    else if (ch === ")") {
+      depth -= 1;
+      if (depth === 0) return false;
+    }
+  }
+  return depth > 0;
+}

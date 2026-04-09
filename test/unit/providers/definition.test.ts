@@ -81,6 +81,7 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   return {
     analysisCache,
     scssClassMapFor: () => new Map([["indicator", info("indicator", 2)]]) as ScssClassMap,
+    scssClassMapForPath: () => null,
     typeResolver: new FakeTypeResolver(),
     reverseIndex: new NullReverseIndex(),
     workspaceRoot: "/fake",
@@ -163,6 +164,7 @@ describe("handleDefinition", () => {
           ["btn-secondary", info("btn-secondary", 2)],
           ["indicator", info("indicator", 2)],
         ]) as ScssClassMap,
+      scssClassMapForPath: () => null,
       typeResolver: new FakeTypeResolver(),
       reverseIndex: new NullReverseIndex(),
       workspaceRoot: "/fake",

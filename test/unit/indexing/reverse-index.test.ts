@@ -20,8 +20,7 @@ function makeCallSite(): CallSite {
     uri: "file:///fake/a.tsx",
     range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
     binding: makeBinding(),
-    kind: "static",
-    matchInfo: "static: indicator",
+    match: { kind: "static", className: "indicator" },
   };
 }
 
@@ -67,8 +66,7 @@ function siteAt(uri: string, className: string, line: number, scssPath?: string)
       classNamesImportName: "classNames",
       scope: { startLine: 0, endLine: 100 },
     },
-    kind: "static",
-    matchInfo: `static: ${className}`,
+    match: { kind: "static", className },
   };
 }
 
@@ -119,8 +117,7 @@ describe("WorkspaceReverseIndex", () => {
     const index = new WorkspaceReverseIndex();
     const templateSite: CallSite = {
       ...siteAt("file:///a.tsx", "btn-", 3),
-      kind: "template",
-      matchInfo: "prefix: btn-",
+      match: { kind: "template", staticPrefix: "btn-" },
     };
     index.record("file:///a.tsx", [templateSite]);
     expect(index.count("/fake/a.module.scss", "btn-")).toBe(0);

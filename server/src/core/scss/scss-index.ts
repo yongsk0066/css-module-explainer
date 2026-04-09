@@ -138,14 +138,10 @@ function recordRule(rule: Rule, parentSelector: string, classMap: Map<string, Se
  */
 function collectDeclarations(nodes: ChildNode[] | undefined): string {
   if (!nodes) return "";
-  const parts: string[] = [];
-  for (const child of nodes) {
-    if (child.type === "decl") {
-      const d = child as Declaration;
-      parts.push(`${d.prop}: ${d.value}`);
-    }
-  }
-  return parts.join("; ");
+  return nodes
+    .filter((node): node is Declaration => node.type === "decl")
+    .map((decl) => `${decl.prop}: ${decl.value}`)
+    .join("; ");
 }
 
 /**

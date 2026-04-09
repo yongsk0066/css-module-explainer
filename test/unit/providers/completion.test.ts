@@ -70,6 +70,7 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
         ["indicator", info("indicator")],
         ["active", info("active")],
       ]) as ScssClassMap,
+    scssClassMapForPath: () => null,
     typeResolver: new FakeTypeResolver(),
     reverseIndex: new NullReverseIndex(),
     workspaceRoot: "/fake/ws",

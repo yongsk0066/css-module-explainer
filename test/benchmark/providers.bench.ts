@@ -98,6 +98,7 @@ function makeDeps(): ProviderDeps {
       max: 10,
     }),
     scssClassMapFor: () => makeClassMap(),
+    scssClassMapForPath: () => null,
     typeResolver: new FakeTypeResolver(),
     reverseIndex: new NullReverseIndex(),
     workspaceRoot: "/bench",

@@ -26,18 +26,14 @@ import { WorkspaceTypeResolver, type TypeResolver } from "./core/ts/type-resolve
 import { DocumentAnalysisCache } from "./core/indexing/document-analysis-cache.js";
 import { scssFileSupplier } from "./core/indexing/file-supplier.js";
 import { IndexerWorker, type FileTask } from "./core/indexing/indexer-worker.js";
-import { WorkspaceReverseIndex } from "./core/indexing/reverse-index.js";
+import { collectCallSites, WorkspaceReverseIndex } from "./core/indexing/reverse-index.js";
 import { fileUrlToPath } from "./core/util/text-utils.js";
 import { handleCodeAction } from "./providers/code-actions.js";
 import { COMPLETION_TRIGGER_CHARACTERS, handleCompletion } from "./providers/completion.js";
 import { handleDefinition } from "./providers/definition.js";
 import { computeDiagnostics } from "./providers/diagnostics.js";
 import { handleHover } from "./providers/hover.js";
-import {
-  collectCallSites,
-  type CursorParams,
-  type ProviderDeps,
-} from "./providers/provider-utils.js";
+import type { CursorParams, ProviderDeps } from "./providers/provider-utils.js";
 import { handleCodeLens } from "./providers/reference-lens.js";
 import { handleReferences } from "./providers/references.js";
 
@@ -56,8 +52,8 @@ export interface CreateServerOptions {
   /** Override ts.Program creation (test injection for the real resolver). */
   readonly createProgram?: (workspaceRoot: string) => ts.Program;
   /**
-   * Override the background file supplier (Phase 10). Production
-   * uses `scssFileSupplier(workspaceRoot)`; tests pass an in-memory
+   * Override the background file supplier. Production uses
+   * `scssFileSupplier(workspaceRoot)`; tests pass an in-memory
    * iterable so no filesystem walk is triggered.
    */
   readonly fileSupplier?: () => AsyncIterable<FileTask>;
@@ -104,8 +100,8 @@ export function createServer(options: CreateServerOptions): CreatedServer {
     return {
       capabilities: {
         textDocumentSync: TextDocumentSyncKind.Incremental,
-        // Phase 6/7/8 hardcode; Plan 10/12 wires these to
-        // config.features.* (see spec §4.8).
+        // Hardcoded for now; config.features.* wiring tracked
+        // in spec §4.8.
         definitionProvider: true,
         hoverProvider: true,
         completionProvider: {
@@ -131,8 +127,8 @@ export function createServer(options: CreateServerOptions): CreatedServer {
     if (!bundle) return;
     // Fire-and-forget: the indexer pre-warms the StyleIndexCache
     // by walking the workspace and reading every style module.
-    // `setImmediate` yield inside the worker keeps LSP requests
-    // preempted (spec §2.6).
+    // The worker yields between files so LSP requests preempt
+    // the walk.
     bundle.indexerWorker.start().catch((err: unknown) => {
       connection.console.error(
         `[${SERVER_NAME}] indexer worker crashed: ${
@@ -146,7 +142,7 @@ export function createServer(options: CreateServerOptions): CreatedServer {
     // test harness does not advertise the capability, so the
     // registration is skipped entirely — no spurious rejections.
     // The returned Disposable is retained so `onShutdown` can
-    // release it cleanly (Agent 5 F12).
+    // release it cleanly.
     if (clientSupportsDynamicWatchers) {
       watchedFilesDisposable = connection.client
         .register(DidChangeWatchedFilesNotification.type, {
@@ -187,16 +183,18 @@ export function createServer(options: CreateServerOptions): CreatedServer {
   });
 
   connection.onReferences((p) => {
-    if (!bundle) return null;
-    return handleReferences(p, bundle.readStyleFile, bundle.scssClassMapForPath, bundle.deps);
+    const deps = getDeps();
+    if (!deps) return null;
+    return handleReferences(p, deps);
   });
 
   connection.onCodeLens((p) => {
-    if (!bundle) return null;
-    return handleCodeLens(p, bundle.scssClassMapForPath, bundle.readStyleFile, bundle.deps);
+    const deps = getDeps();
+    if (!deps) return null;
+    return handleCodeLens(p, deps);
   });
 
-  // Push-based diagnostics with 200ms debounce (spec §4.5).
+  // Push-based diagnostics with 200ms debounce.
   const diagTimers = new Map<string, NodeJS.Timeout>();
   const scheduleDiagnostics = (uri: string): void => {
     const existing = diagTimers.get(uri);
@@ -204,7 +202,7 @@ export function createServer(options: CreateServerOptions): CreatedServer {
     const timer = setTimeout(() => {
       // Fetch state BEFORE deleting the timer handle so a
       // concurrent onDidChangeContent can't see an empty
-      // diagTimers entry mid-flight (Agent 3 H1 race fix).
+      // diagTimers entry mid-flight.
       const deps = getDeps();
       const doc = documents.get(uri);
       diagTimers.delete(uri);
@@ -237,8 +235,8 @@ export function createServer(options: CreateServerOptions): CreatedServer {
     connection.sendDiagnostics({ uri: change.document.uri, diagnostics: [] });
   });
 
-  // Phase 10 — file watcher. Invalidate StyleIndexCache + re-push
-  // the changed file through the indexer so the next provider
+  // File watcher: invalidate StyleIndexCache + re-push the
+  // changed file through the indexer so the next provider
   // request sees fresh data. Deletions just drop cache entries.
   connection.onDidChangeWatchedFiles((params: DidChangeWatchedFilesParams) => {
     if (!bundle) return;
@@ -288,8 +286,6 @@ interface CompositionBundle {
   readonly deps: ProviderDeps;
   readonly styleIndexCache: StyleIndexCache;
   readonly indexerWorker: IndexerWorker;
-  readonly scssClassMapForPath: (path: string) => ScssClassMap | null;
-  readonly readStyleFile: (path: string) => string | null;
 }
 
 function buildBundle(
@@ -305,9 +301,8 @@ function buildBundle(
     detectCxBindings,
     parseCxCalls,
     max: 200,
-    // Plan Final: index cx() call sites exactly once per
-    // (uri, version). Handoff invariant 3.6 moved this write
-    // off the provider hot path and into the cache.
+    // Index cx() call sites exactly once per (uri, version) —
+    // keeps the reverse-index write off the provider hot path.
     onAnalyze: (uri, entry) => {
       reverseIndex.record(uri, collectCallSites(uri, entry));
     },
@@ -347,6 +342,7 @@ function buildBundle(
   const deps: ProviderDeps = {
     analysisCache,
     scssClassMapFor,
+    scssClassMapForPath,
     typeResolver,
     reverseIndex,
     workspaceRoot,
@@ -367,12 +363,12 @@ function buildBundle(
       styleIndexCache.get(path, content);
     },
     onTsxFile: () => {
-      // Phase Final hook — Phase 10 only indexes SCSS.
+      // Intentional no-op: SCSS is the only indexed file kind today.
     },
     logger: indexerLogger,
   });
 
-  return { deps, styleIndexCache, indexerWorker, scssClassMapForPath, readStyleFile };
+  return { deps, styleIndexCache, indexerWorker };
 }
 
 async function defaultReadStyleFileAsync(path: string): Promise<string | null> {
@@ -392,11 +388,9 @@ function defaultReadStyleFile(path: string): string | null {
 }
 
 /**
- * Minimal production ts.Program builder for Phase 6.
- *
- * Parses tsconfig.json relative to the workspace root, falls back
- * to an empty program when missing. Phase 10 refines this with a
- * cached CompilerHost and proper watch-mode plumbing.
+ * Minimal production ts.Program builder. Parses tsconfig.json
+ * relative to the workspace root, falls back to an empty program
+ * when missing.
  */
 export function createDefaultProgram(workspaceRoot: string): ts.Program {
   const configPath = ts.findConfigFile(workspaceRoot, ts.sys.fileExists, "tsconfig.json");

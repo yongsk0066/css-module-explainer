@@ -4,11 +4,9 @@ import type { FileTask } from "./indexer-worker.js";
 
 /**
  * Walk the workspace and yield one `FileTask` per style module
- * file. Backed by `fast-glob`'s streaming API: `fast-glob` does
- * parallel directory enumeration ahead of the consumer up to its
- * internal highWaterMark (16 chunks), so memory stays bounded
- * for large workspaces (Agent 3 review M4 — documented here so
- * the "sequential" claim stays accurate).
+ * file. Backed by `fast-glob`'s streaming API: `fast-glob`
+ * pre-enumerates directories up to its internal highWaterMark
+ * (~16 chunks) so memory stays bounded for large workspaces.
  *
  * Errors inside fast-glob are caught at the `for await` boundary
  * so a single unreadable directory does not abort the entire

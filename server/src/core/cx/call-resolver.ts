@@ -22,8 +22,8 @@ export interface ResolveArgs {
  *     multi-candidate hover card.
  *
  * The function is pure — no I/O, no caching, no AST walking. It
- * is the single place where Phase 1 (ScssClassMap), Phase 3
- * (CxCallInfo), and Phase 4 (TypeResolver) meet.
+ * is the single place where ScssClassMap, CxCallInfo, and
+ * TypeResolver meet.
  */
 export function resolveCxCallToSelectorInfos(args: ResolveArgs): SelectorInfo[] {
   const { call, classMap, typeResolver, filePath, workspaceRoot } = args;
