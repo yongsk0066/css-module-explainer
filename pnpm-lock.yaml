@@ -44,6 +44,12 @@ importers:
       '@css-module-explainer/shared':
         specifier: workspace:*
         version: link:../shared
+      postcss:
+        specifier: ^8.5.9
+        version: 8.5.9
+      postcss-scss:
+        specifier: ^4.0.9
+        version: 4.0.9(postcss@8.5.9)
       vscode-languageserver:
         specifier: ^9.0.1
         version: 9.0.1
@@ -1454,6 +1460,12 @@ packages:
   pluralize@8.0.0:
     resolution: {integrity: sha512-Nc3IT5yHzflTfbjgqWcCPpo7DaKy4FnpB0l/zCAW0Tc7jxAiuqSxHasntB3D7887LSrA93kDJ9IXovxJYxyLCA==}
     engines: {node: '>=4'}
+
+  postcss-scss@4.0.9:
+    resolution: {integrity: sha512-AjKOeiwAitL/MXxQW2DliT28EKukvvbEWx3LBmJIRN8KfBGZbRTxNYW0kSqi1COiTZ57nZ9NW06S6ux//N1c9A==}
+    engines: {node: '>=12.0'}
+    peerDependencies:
+      postcss: ^8.4.29
 
   postcss@8.5.9:
     resolution: {integrity: sha512-7a70Nsot+EMX9fFU3064K/kdHWZqGVY+BADLyXc8Dfv+mTLLVl6JzJpPaCZ2kQL9gIJvKXSLMHhqdRRjwQeFtw==}
@@ -3248,6 +3260,10 @@ snapshots:
   pluralize@2.0.0: {}
 
   pluralize@8.0.0: {}
+
+  postcss-scss@4.0.9(postcss@8.5.9):
+    dependencies:
+      postcss: 8.5.9
 
   postcss@8.5.9:
     dependencies:
