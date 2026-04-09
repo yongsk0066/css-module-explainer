@@ -3,14 +3,16 @@ import ts from "typescript";
 import { WorkspaceTypeResolver } from "../../../server/src/core/ts/type-resolver.js";
 
 /**
- * Build a WorkspaceTypeResolver backed by an in-memory CompilerHost.
- * The resolver treats `workspaceRoot` as an opaque key; tests hand
- * it a synthetic root and inject a pre-built program so the
- * resolver never touches disk.
+ * Build an in-memory ts.CompilerHost backed by a file map.
+ *
+ * IMPORTANT: every test using this helper MUST set `noLib: true`
+ * in its CompilerOptions. The host intentionally does NOT serve
+ * `lib.d.ts`; if a test forgets noLib, the checker silently falls
+ * back to `any` for built-in types and skews extractStringLiterals
+ * results.
  */
-function makeResolver(files: Record<string, string>): WorkspaceTypeResolver {
-  const rootNames = Object.keys(files);
-  const host: ts.CompilerHost = {
+function makeHost(files: Record<string, string>): ts.CompilerHost {
+  return {
     fileExists: (p) => p in files,
     readFile: (p) => files[p],
     getSourceFile: (fileName, languageVersion) => {
@@ -27,9 +29,15 @@ function makeResolver(files: Record<string, string>): WorkspaceTypeResolver {
     directoryExists: () => true,
     getDirectories: () => [],
   };
+}
+
+function makeResolver(files: Record<string, string>, onCreate?: () => void): WorkspaceTypeResolver {
+  const rootNames = Object.keys(files);
+  const host = makeHost(files);
   return new WorkspaceTypeResolver({
-    createProgram: () =>
-      ts.createProgram({
+    createProgram: () => {
+      onCreate?.();
+      return ts.createProgram({
         rootNames,
         options: {
           target: ts.ScriptTarget.Latest,
@@ -40,7 +48,8 @@ function makeResolver(files: Record<string, string>): WorkspaceTypeResolver {
           skipLibCheck: true,
         },
         host,
-      }),
+      });
+    },
   });
 }
 
@@ -80,6 +89,29 @@ describe("WorkspaceTypeResolver.resolve", () => {
     expect(result.values.toSorted()).toEqual(["primary", "secondary"]);
   });
 
+  it("resolves a generic parameter via its base constraint", () => {
+    // Exercises the `getBaseConstraintOfType` recursion branch in
+    // extractStringLiterals. Without this test, lines 155-158 of
+    // type-resolver.ts have zero coverage.
+    const resolver = makeResolver({
+      "/ws/a.tsx": `
+        function pick<T extends "small" | "medium" | "large">(value: T): T {
+          return value;
+        }
+        function App() {
+          const size = pick("small" as const);
+          return size;
+        }
+        export {};
+      `,
+    });
+    const result = resolver.resolve("/ws/a.tsx", "value", "/ws");
+    // `value: T extends "small" | "medium" | "large"` — resolver
+    // recurses on the base constraint and returns the union.
+    expect(result.kind).toBe("union");
+    expect(result.values.toSorted()).toEqual(["large", "medium", "small"]);
+  });
+
   it("returns unresolvable when the identifier cannot be found", () => {
     const resolver = makeResolver({
       "/ws/a.tsx": `const a = 1; export {};`,
@@ -115,39 +147,10 @@ describe("WorkspaceTypeResolver.resolve", () => {
 });
 
 describe("WorkspaceTypeResolver / program caching", () => {
-  function makeHost(files: Record<string, string>): ts.CompilerHost {
-    return {
-      fileExists: (p) => p in files,
-      readFile: (p) => files[p],
-      getSourceFile: (fileName, languageVersion) => {
-        const text = files[fileName];
-        if (text === undefined) return undefined;
-        return ts.createSourceFile(fileName, text, languageVersion, true, ts.ScriptKind.TSX);
-      },
-      getDefaultLibFileName: () => "lib.d.ts",
-      writeFile: () => {},
-      getCurrentDirectory: () => "/ws",
-      getCanonicalFileName: (f) => f,
-      useCaseSensitiveFileNames: () => true,
-      getNewLine: () => "\n",
-      directoryExists: () => true,
-      getDirectories: () => [],
-    };
-  }
-
   it("builds the ts.Program only once per workspaceRoot", () => {
-    const files = { "/ws/a.tsx": `const size = "s" as const; export {};` };
-    const host = makeHost(files);
     let calls = 0;
-    const resolver = new WorkspaceTypeResolver({
-      createProgram: () => {
-        calls += 1;
-        return ts.createProgram({
-          rootNames: Object.keys(files),
-          options: { noLib: true, skipLibCheck: true },
-          host,
-        });
-      },
+    const resolver = makeResolver({ "/ws/a.tsx": `const size = "s" as const; export {};` }, () => {
+      calls += 1;
     });
     resolver.resolve("/ws/a.tsx", "size", "/ws");
     resolver.resolve("/ws/a.tsx", "size", "/ws");
@@ -155,18 +158,9 @@ describe("WorkspaceTypeResolver / program caching", () => {
   });
 
   it("invalidate(workspaceRoot) forces the next resolve to rebuild", () => {
-    const files = { "/ws/a.tsx": `const size = "s" as const; export {};` };
-    const host = makeHost(files);
     let calls = 0;
-    const resolver = new WorkspaceTypeResolver({
-      createProgram: () => {
-        calls += 1;
-        return ts.createProgram({
-          rootNames: Object.keys(files),
-          options: { noLib: true, skipLibCheck: true },
-          host,
-        });
-      },
+    const resolver = makeResolver({ "/ws/a.tsx": `const size = "s" as const; export {};` }, () => {
+      calls += 1;
     });
     resolver.resolve("/ws/a.tsx", "size", "/ws");
     resolver.invalidate("/ws");
@@ -175,18 +169,9 @@ describe("WorkspaceTypeResolver / program caching", () => {
   });
 
   it("clear() drops every cached program", () => {
-    const files = { "/ws/a.tsx": `const size = "s" as const; export {};` };
-    const host = makeHost(files);
     let calls = 0;
-    const resolver = new WorkspaceTypeResolver({
-      createProgram: () => {
-        calls += 1;
-        return ts.createProgram({
-          rootNames: Object.keys(files),
-          options: { noLib: true, skipLibCheck: true },
-          host,
-        });
-      },
+    const resolver = makeResolver({ "/ws/a.tsx": `const size = "s" as const; export {};` }, () => {
+      calls += 1;
     });
     resolver.resolve("/ws/a.tsx", "size", "/ws");
     resolver.clear();

@@ -1,4 +1,3 @@
-import * as crypto from "node:crypto";
 import type { Range, SelectorInfo, ScssClassMap } from "@css-module-explainer/shared";
 import postcss, {
   type Rule,
@@ -7,6 +6,7 @@ import postcss, {
   type AtRule,
   type Syntax,
 } from "postcss";
+import { contentHash } from "../util/hash.js";
 import { findLangForPath } from "./lang-registry.js";
 
 /**
@@ -346,14 +346,4 @@ export class StyleIndexCache {
     }
     this.entries.set(filePath, entry);
   }
-}
-
-/**
- * Stable content hash used as the cache key suffix. md5 is used for
- * speed (not cryptographic security). Swapping to xxhash in the
- * future requires changing only this function; callers treat the
- * result as opaque.
- */
-function contentHash(content: string): string {
-  return crypto.createHash("md5").update(content).digest("hex");
 }
