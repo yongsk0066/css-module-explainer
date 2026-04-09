@@ -1,1 +1,1 @@
-export type { Position, Range } from './types.js';
+export type { Position, Range } from "./types.js";

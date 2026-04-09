@@ -13,7 +13,7 @@ coverage/
 
 # Editor / OS
 .DS_Store
-.vscode/
+.vscode/*
 !.vscode/launch.json
 !.vscode/tasks.json
 !.vscode/extensions.json

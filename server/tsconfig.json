@@ -3,18 +3,8 @@
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",
-    "tsBuildInfoFile": "./dist/.tsbuildinfo",
-
-    // Override the NodeNext base: vscode-languageserver and its
-    // subpath exports (e.g. 'vscode-languageserver/node') ship as
-    // CommonJS with classic resolution. NodeNext resolution fights
-    // with their exports map. Classic Node resolution is the
-    // documented, battle-tested setting for LSP server bundles.
-    "module": "CommonJS",
-    "moduleResolution": "Node"
+    "tsBuildInfoFile": "./dist/.tsbuildinfo"
   },
   "include": ["src/**/*.ts"],
-  "references": [
-    { "path": "../shared" }
-  ]
+  "references": [{ "path": "../shared" }]
 }
