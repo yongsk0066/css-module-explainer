@@ -1,0 +1,137 @@
+:root {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: light dark;
+  color: #1f2937;
+  background: #f6f7f9;
+}
+
+body,
+html,
+#root {
+  margin: 0;
+  height: 100%;
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  min-height: 100vh;
+}
+
+.sidebar {
+  border-right: 1px solid #e5e7eb;
+  background: white;
+  padding: 24px 20px;
+  overflow-y: auto;
+}
+
+.sidebar h1 {
+  margin: 0 0 4px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.sidebar .subtitle {
+  margin: 0 0 20px;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.sidebar nav ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sidebar nav button {
+  width: 100%;
+  text-align: left;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: inherit;
+  font: inherit;
+}
+
+.sidebar nav button:hover {
+  background: #f3f4f6;
+}
+
+.sidebar nav button[data-active] {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+}
+
+.sidebar nav button[data-stub] strong::after {
+  content: " · stub";
+  color: #9ca3af;
+  font-weight: 400;
+}
+
+.sidebar nav button strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.sidebar nav button small {
+  font-size: 11px;
+  color: #6b7280;
+  line-height: 1.4;
+}
+
+.stage {
+  padding: 32px 40px;
+  overflow-y: auto;
+}
+
+.stage header {
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 16px;
+  margin-bottom: 24px;
+}
+
+.stage header h2 {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.stage header p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color: #e5e7eb;
+    background: #0f172a;
+  }
+  .sidebar {
+    background: #1e293b;
+    border-right-color: #334155;
+  }
+  .sidebar nav button:hover {
+    background: #334155;
+  }
+  .sidebar nav button[data-active] {
+    background: #312e81;
+    border-color: #6366f1;
+  }
+  .stage header {
+    border-bottom-color: #334155;
+  }
+  .stage header p,
+  .sidebar .subtitle,
+  .sidebar nav button small {
+    color: #94a3b8;
+  }
+}

@@ -2,11 +2,23 @@
   "name": "css-module-explainer-examples",
   "private": true,
   "version": "0.0.0",
-  "description": "Manual dogfood sandbox for css-module-explainer. Not shipped in the marketplace VSIX.",
+  "type": "module",
+  "description": "Single-app dogfood sandbox for css-module-explainer. Each scenario is a React component that exercises one cx() pattern. Not shipped in the marketplace VSIX.",
   "scripts": {
-    "dev:01-basic": "pnpm -C scenarios/01-basic dev",
-    "dev:02-multi-binding": "pnpm -C scenarios/02-multi-binding dev",
-    "install:all": "pnpm -r --filter './scenarios/*' install"
+    "dev": "vp dev",
+    "build": "vp build",
+    "preview": "vp preview"
   },
-  "workspaces": ["scenarios/*"]
+  "dependencies": {
+    "classnames": "^2.5.1",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react-oxc": "^0.4.3",
+    "sass": "^1.99.0",
+    "vite-plus": "^0.1.16"
+  }
 }
