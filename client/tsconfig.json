@@ -4,8 +4,15 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "tsBuildInfoFile": "./dist/.tsbuildinfo",
+
+    // Override the NodeNext base: VS Code extension host loads the
+    // extension as a CommonJS module (require-based) and the
+    // vscode-languageclient subpath exports (e.g.
+    // 'vscode-languageclient/node') are published as CJS. Classic
+    // Node resolution + CJS emission matches what the host expects.
     "module": "CommonJS",
     "moduleResolution": "Node",
+
     "types": ["node", "vscode"]
   },
   "include": ["src/**/*.ts"]
