@@ -1,19 +1,36 @@
 {
   "name": "css-module-explainer",
   "displayName": "CSS Module Explainer",
-  "version": "0.0.1",
+  "version": "1.0.0-rc.1",
   "private": true,
-  "description": "Go to Definition, Hover, Autocomplete and Diagnostics for classnames/bind cx() patterns with CSS Modules.",
+  "description": "Go to Definition, Hover, Autocomplete, Diagnostics, Quick Fixes, and Find References for classnames/bind cx() patterns with CSS Modules.",
   "categories": [
     "Linters",
     "Programming Languages",
     "Visualization"
   ],
+  "keywords": [
+    "autocomplete",
+    "classnames",
+    "classnames-bind",
+    "css-modules",
+    "cx",
+    "hover",
+    "intellisense",
+    "lsp",
+    "react",
+    "scss"
+  ],
+  "homepage": "https://github.com/yongsk0066/css-module-explainer#readme",
+  "bugs": {
+    "url": "https://github.com/yongsk0066/css-module-explainer/issues"
+  },
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/yongsk0066/css-module-explainer"
   },
+  "qna": "marketplace",
   "publisher": "yongsk0066",
   "main": "./dist/client/extension.js",
   "scripts": {
@@ -54,6 +71,10 @@
     "onLanguage:typescript",
     "onLanguage:typescriptreact"
   ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "preview": false,
   "engines": {
     "vscode": "^1.115.0"
   },
