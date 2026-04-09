@@ -5,11 +5,11 @@ import {
   TextDocumentSyncKind,
   type InitializeParams,
   type InitializeResult,
-} from 'vscode-languageserver/node';
-import { TextDocument } from 'vscode-languageserver-textdocument';
+} from "vscode-languageserver/node";
+import { TextDocument } from "vscode-languageserver-textdocument";
 
-const SERVER_NAME = 'css-module-explainer';
-const SERVER_VERSION = '0.0.1';
+const SERVER_NAME = "css-module-explainer";
+const SERVER_VERSION = "0.0.1";
 
 const connection = createConnection(ProposedFeatures.all);
 const documents = new TextDocuments<TextDocument>(TextDocument);
