@@ -95,6 +95,42 @@ describe("handleHover", () => {
     });
   });
 
+  it("resolves hover on a continuation line of a multi-line cx() call", () => {
+    const multiLineTsx = `
+import classNames from 'classnames/bind';
+import styles from './Button.module.scss';
+const cx = classNames.bind(styles);
+const el = cx(
+  'indicator',
+  { active: true },
+);
+`;
+    const multiLineCalls = (_sf: ts.SourceFile, binding: CxBinding): CxCallInfo[] => [
+      {
+        kind: "static",
+        className: "indicator",
+        // 'indicator' is on line 5 (0-indexed), chars 2-13
+        originRange: { start: { line: 5, character: 2 }, end: { line: 5, character: 13 } },
+        binding,
+      },
+    ];
+    const deps = makeDeps({
+      analysisCache: new DocumentAnalysisCache({
+        sourceFileCache: new SourceFileCache({ max: 10 }),
+        detectCxBindings,
+        parseCxCalls: multiLineCalls,
+        max: 10,
+      }),
+    });
+    // Cursor on line 5 (the 'indicator' line) — no "(" on this line
+    const hover = handleHover(
+      { ...baseParams, content: multiLineTsx, line: 5, character: 5, version: 2 },
+      deps,
+    );
+    expect(hover).not.toBeNull();
+    expect((hover!.contents as { value: string }).value).toContain("`.indicator`");
+  });
+
   it("returns null when the classMap has no match", () => {
     const hover = handleHover(
       baseParams,

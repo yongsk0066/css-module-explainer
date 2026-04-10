@@ -1,6 +1,5 @@
 import { CompletionItemKind, type CompletionItem } from "vscode-languageserver/node";
 import type { CxBinding, SelectorInfo } from "@css-module-explainer/shared";
-import { getLineAt } from "../core/util/text-utils";
 import { hasCxBindImport, type CursorParams, type ProviderDeps } from "./cursor-dispatch";
 
 /**
@@ -31,12 +30,7 @@ export function handleCompletion(
 }
 
 function computeCompletion(params: CursorParams, deps: ProviderDeps): CompletionItem[] | null {
-  // Fast path 1 — no classnames/bind import.
   if (!hasCxBindImport(params.content)) return null;
-
-  // Fast path 2 — cursor line has no `(`.
-  const line = getLineAt(params.content, params.line);
-  if (line === undefined || !line.includes("(")) return null;
 
   const entry = deps.analysisCache.get(
     params.documentUri,
@@ -46,7 +40,7 @@ function computeCompletion(params: CursorParams, deps: ProviderDeps): Completion
   );
   if (entry.bindings.length === 0) return null;
 
-  const textBefore = line.slice(0, params.character);
+  const textBefore = getTextBefore(params.content, params.line, params.character);
   const matchingBinding = findBindingInsideCall(entry.bindings, params.line, textBefore);
   if (!matchingBinding) return null;
 
@@ -125,4 +119,15 @@ export function isInsideCxCall(textBefore: string, cxVarName: string): boolean {
     }
   }
   return depth > 0;
+}
+
+/** All text from file start to (line, character). */
+function getTextBefore(content: string, line: number, character: number): string {
+  let offset = 0;
+  for (let i = 0; i < line; i++) {
+    const nl = content.indexOf("\n", offset);
+    if (nl === -1) return content;
+    offset = nl + 1;
+  }
+  return content.slice(0, offset + character);
 }

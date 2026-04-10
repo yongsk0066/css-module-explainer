@@ -12,7 +12,6 @@ import type {
 } from "../core/indexing/document-analysis-cache";
 import type { ReverseIndex } from "../core/indexing/reverse-index";
 import type { TypeResolver } from "../core/ts/type-resolver";
-import { getLineAt } from "../core/util/text-utils";
 
 /**
  * Identity + content of a single open document. Used by
@@ -95,23 +94,9 @@ export interface CxCallContext {
 }
 
 /**
- * Front stage for every cursor-based cx() provider (definition,
- * hover, completion).
- *
- * Three fast paths are checked before any AST work:
- *
- *   1. `hasCxBindImport(content)` — skip files that import
- *      nothing relevant.
- *   2. Cursor line has no `(` — no cx call can possibly be open
- *      at the cursor.
- *   3. `analysisCache.get()` returns empty bindings → skip.
- *
- * Only then does the function iterate the cached `CxCallInfo`
- * list looking for one whose `originRange` contains the cursor.
- * If found, the transform is invoked with a fully-populated
- * CxCallContext including the resolved SCSS class map.
- *
- * The function never throws — transform exceptions bubble.
+ * Front stage for cursor-based cx() providers (definition, hover).
+ * Fast-paths on `hasCxBindImport` and empty bindings, then
+ * finds the CxCallInfo whose originRange contains the cursor.
  */
 export function withCxCallAtCursor<T>(
   params: CursorParams,
@@ -123,15 +108,6 @@ export function withCxCallAtCursor<T>(
     return null;
   }
 
-  // Fast path 2 — the cursor line has no `(`, so no cx call can
-  // span it. Note: getLineAt is cheap (O(line length)), not
-  // O(file length), so this is safe to run on every request.
-  const line = getLineAt(params.content, params.line);
-  if (line === undefined || !line.includes("(")) {
-    return null;
-  }
-
-  // Slow path — parse and walk.
   const entry = deps.analysisCache.get(
     params.documentUri,
     params.content,

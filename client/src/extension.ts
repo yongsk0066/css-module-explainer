@@ -7,6 +7,14 @@ import {
   type ServerOptions,
 } from "vscode-languageclient/node";
 
+interface LspLocationJson {
+  uri: string;
+  range: {
+    start: { line: number; character: number };
+    end: { line: number; character: number };
+  };
+}
+
 let client: LanguageClient | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -34,12 +42,40 @@ export function activate(context: vscode.ExtensionContext): void {
     progressOnInitialization: true,
   };
 
-  client = new LanguageClient(
-    "cssModuleExplainer",
-    "CSS Module Explainer",
-    serverOptions,
-    clientOptions,
-  );
+  client = new LanguageClient("cssModuleExplainer", "CSS Module Explainer", serverOptions, {
+    ...clientOptions,
+    middleware: {
+      provideCodeLenses: async (document, token, next) => {
+        const lenses = await next(document, token);
+        if (!lenses) return lenses;
+        for (const lens of lenses) {
+          if (lens.command?.command !== "editor.action.showReferences") continue;
+          const args = lens.command.arguments;
+          if (!args || args.length < 3) continue;
+          try {
+            args[0] = vscode.Uri.parse(args[0] as string);
+            const pos = args[1] as { line: number; character: number };
+            args[1] = new vscode.Position(pos.line, pos.character);
+            args[2] = (args[2] as LspLocationJson[]).map(
+              (loc) =>
+                new vscode.Location(
+                  vscode.Uri.parse(loc.uri),
+                  new vscode.Range(
+                    loc.range.start.line,
+                    loc.range.start.character,
+                    loc.range.end.line,
+                    loc.range.end.character,
+                  ),
+                ),
+            );
+          } catch {
+            // Conversion failed — leave args as-is.
+          }
+        }
+        return lenses;
+      },
+    },
+  });
 
   void client.start().catch((err) => {
     void vscode.window.showErrorMessage(

@@ -51,14 +51,12 @@ describe("handleCodeLens", () => {
     expect(result).toBeNull();
   });
 
-  it("returns one CodeLens per class in the classMap", () => {
+  it("returns null when no class has references", () => {
     const result = handleCodeLens(
       { textDocument: { uri: "file:///fake/src/Button.module.scss" } },
       makeDeps(),
     );
-    expect(result).not.toBeNull();
-    expect(result).toHaveLength(2);
-    expect(result![0]!.command?.title).toBe("no references");
+    expect(result).toBeNull();
   });
 
   it("shows reference count when sites exist", () => {

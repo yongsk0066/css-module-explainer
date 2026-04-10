@@ -22,9 +22,12 @@ export function handleCodeLens(params: CodeLensParams, deps: ProviderDeps): Code
     const classMap = deps.scssClassMapForPath(filePath);
     if (!classMap) return null;
 
-    return Array.from(classMap.values(), (info) =>
-      buildLens(params.textDocument.uri, filePath, info, deps),
-    );
+    const lenses: CodeLens[] = [];
+    for (const info of classMap.values()) {
+      const lens = buildLens(params.textDocument.uri, filePath, info, deps);
+      if (lens) lenses.push(lens);
+    }
+    return lenses.length > 0 ? lenses : null;
   } catch (err) {
     deps.logError("code-lens handler failed", err);
     return null;
@@ -36,10 +39,10 @@ function buildLens(
   filePath: string,
   info: SelectorInfo,
   deps: ProviderDeps,
-): CodeLens {
+): CodeLens | null {
   const sites = deps.reverseIndex.find(filePath, info.name);
-  const count = sites.length;
-  const title = count === 0 ? "no references" : `${count} reference${count === 1 ? "" : "s"}`;
+  if (sites.length === 0) return null;
+  const title = `${sites.length} reference${sites.length === 1 ? "" : "s"}`;
   const locations: Location[] = sites.map((site) => ({
     uri: site.uri,
     range: toLspRange(site.range),

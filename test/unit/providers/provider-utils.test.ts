@@ -135,7 +135,7 @@ describe("withCxCallAtCursor / fast paths", () => {
     expect(transform).not.toHaveBeenCalled();
   });
 
-  it("returns null when the cursor line has no parenthesis", () => {
+  it("returns null when cursor is outside any cx() call range", () => {
     const deps = makeDeps();
     const transform = vi.fn();
     const result = withCxCallAtCursor(
