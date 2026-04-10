@@ -4,6 +4,7 @@ import { toLspRange } from "./lsp-adapters.js";
 import { renderHover } from "./hover-renderer.js";
 import {
   withCxCallAtCursor,
+  withStyleRefAtCursor,
   type CursorParams,
   type CxCallContext,
   type ProviderDeps,
@@ -19,7 +20,41 @@ import {
  */
 export function handleHover(params: CursorParams, deps: ProviderDeps): Hover | null {
   try {
-    return withCxCallAtCursor(params, deps, (ctx) => buildHover(ctx, params, deps));
+    // Try cx() pipeline first, then fall back to styles.x direct access.
+    return (
+      withCxCallAtCursor(params, deps, (ctx) => buildHover(ctx, params, deps)) ??
+      withStyleRefAtCursor(params, deps, (ctx) => {
+        if (!ctx.info) return null;
+        const markdown = renderHover({
+          call: {
+            kind: "static",
+            className: ctx.ref.className,
+            originRange: ctx.ref.originRange,
+            binding: {
+              cxVarName: ctx.ref.stylesVarName,
+              stylesVarName: ctx.ref.stylesVarName,
+              scssModulePath: ctx.ref.scssModulePath,
+              classNamesImportName: ctx.ref.stylesVarName,
+              scope: { startLine: 0, endLine: 99999 },
+            },
+          },
+          binding: {
+            cxVarName: ctx.ref.stylesVarName,
+            stylesVarName: ctx.ref.stylesVarName,
+            scssModulePath: ctx.ref.scssModulePath,
+            classNamesImportName: ctx.ref.stylesVarName,
+            scope: { startLine: 0, endLine: 99999 },
+          },
+          infos: [ctx.info],
+          workspaceRoot: deps.workspaceRoot,
+        });
+        if (!markdown) return null;
+        return {
+          range: toLspRange(ctx.ref.originRange),
+          contents: { kind: "markdown", value: markdown },
+        };
+      })
+    );
   } catch (err) {
     deps.logError("hover handler failed", err);
     return null;

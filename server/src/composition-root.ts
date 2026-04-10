@@ -18,6 +18,7 @@ import { buildStyleFileWatcherGlob, findLangForPath } from "./core/scss/lang-reg
 import { StyleIndexCache } from "./core/scss/scss-index.js";
 import { detectCxBindings } from "./core/cx/binding-detector.js";
 import { parseCxCalls } from "./core/cx/call-parser.js";
+import { parseStylePropertyAccesses } from "./core/cx/style-access-parser.js";
 import { SourceFileCache } from "./core/ts/source-file-cache.js";
 import { WorkspaceTypeResolver, type TypeResolver } from "./core/ts/type-resolver.js";
 import { DocumentAnalysisCache } from "./core/indexing/document-analysis-cache.js";
@@ -179,6 +180,7 @@ function buildBundle(
     sourceFileCache,
     detectCxBindings,
     parseCxCalls,
+    parseStyleAccesses: parseStylePropertyAccesses,
     max: 200,
     onAnalyze: (uri, entry) => {
       reverseIndex.record(uri, collectCallSites(uri, entry));

@@ -5,6 +5,7 @@ import { pathToFileUrl } from "../core/util/text-utils.js";
 import { toLspRange } from "./lsp-adapters.js";
 import {
   withCxCallAtCursor,
+  withStyleRefAtCursor,
   type CursorParams,
   type CxCallContext,
   type ProviderDeps,
@@ -32,11 +33,22 @@ import {
  */
 export function handleDefinition(params: CursorParams, deps: ProviderDeps): LocationLink[] | null {
   try {
-    return withCxCallAtCursor(params, deps, (ctx) => buildLinks(ctx, params, deps));
+    return (
+      withCxCallAtCursor(params, deps, (ctx) => buildLinks(ctx, params, deps)) ??
+      withStyleRefAtCursor(params, deps, (ctx) => {
+        if (!ctx.info) return null;
+        const targetUri = pathToFileUrl(ctx.ref.scssModulePath);
+        return [
+          {
+            originSelectionRange: toLspRange(ctx.ref.originRange),
+            targetUri,
+            targetRange: toLspRange(ctx.info.ruleRange),
+            targetSelectionRange: toLspRange(ctx.info.range),
+          },
+        ];
+      })
+    );
   } catch (err) {
-    // Spec §2.8 — "log + return empty result". The logger is
-    // wired to connection.console.error in production and
-    // defaults to a no-op in unit tests.
     deps.logError("definition handler failed", err);
     return null;
   }

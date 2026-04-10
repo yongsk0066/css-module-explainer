@@ -1,6 +1,6 @@
 import * as nodeUrl from "node:url";
 import type ts from "typescript";
-import type { CxBinding, CxCallInfo } from "@css-module-explainer/shared";
+import type { CxBinding, CxCallInfo, StylePropertyRef } from "@css-module-explainer/shared";
 import { contentHash } from "../util/hash.js";
 import type { SourceFileCache } from "../ts/source-file-cache.js";
 
@@ -19,12 +19,18 @@ export interface AnalysisEntry {
   readonly sourceFile: ts.SourceFile;
   readonly bindings: readonly CxBinding[];
   readonly calls: readonly CxCallInfo[];
+  /** Direct `styles.className` property accesses (non-cx pattern). */
+  readonly styleRefs: readonly StylePropertyRef[];
 }
 
 export interface DocumentAnalysisCacheDeps {
   readonly sourceFileCache: SourceFileCache;
   readonly detectCxBindings: (sourceFile: ts.SourceFile, filePath: string) => CxBinding[];
   readonly parseCxCalls: (sourceFile: ts.SourceFile, binding: CxBinding) => CxCallInfo[];
+  readonly parseStyleAccesses?: (
+    sourceFile: ts.SourceFile,
+    stylesBindings: ReadonlyMap<string, string>,
+  ) => StylePropertyRef[];
   readonly max: number;
   /**
    * Callback fired exactly once per (uri, version) when the cache
@@ -110,7 +116,16 @@ export class DocumentAnalysisCache {
     const sourceFile = this.deps.sourceFileCache.get(filePath, content);
     const bindings = this.deps.detectCxBindings(sourceFile, filePath);
     const calls = bindings.flatMap((binding) => this.deps.parseCxCalls(sourceFile, binding));
-    return { version, contentHash: hash, sourceFile, bindings, calls };
+
+    // Build the varName→scssPath map from bindings so the style-
+    // access parser can detect `styles.className` references.
+    const stylesBindings = new Map<string, string>();
+    for (const b of bindings) {
+      stylesBindings.set(b.stylesVarName, b.scssModulePath);
+    }
+    const styleRefs = this.deps.parseStyleAccesses?.(sourceFile, stylesBindings) ?? [];
+
+    return { version, contentHash: hash, sourceFile, bindings, calls, styleRefs };
   }
 
   private touch(uri: string, entry: AnalysisEntry): void {

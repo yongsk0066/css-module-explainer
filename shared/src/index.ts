@@ -12,4 +12,5 @@ export type {
   VariableRefCall,
   ResolvedType,
   CallSite,
+  StylePropertyRef,
 } from "./types.js";

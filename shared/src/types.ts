@@ -142,6 +142,26 @@ export interface VariableRefCall extends CxCallBase {
 export type CxCallInfo = StaticClassCall | TemplateLiteralCall | VariableRefCall;
 
 // ──────────────────────────────────────────────────────────────
+// Direct style property access (`styles.button`)
+// ──────────────────────────────────────────────────────────────
+
+/**
+ * A direct property access on a style module default import:
+ *   `styles.button` → PropertyAccessExpression
+ *
+ * This is the non-cx pattern: no `classnames/bind`, no `.bind()`,
+ * just a raw `styles.x` reference. Detected by a separate AST
+ * walker (`style-access-parser`) alongside the cx binding detector.
+ */
+export interface StylePropertyRef {
+  readonly kind: "style-access";
+  readonly className: string;
+  readonly scssModulePath: string;
+  readonly stylesVarName: string;
+  readonly originRange: Range;
+}
+
+// ──────────────────────────────────────────────────────────────
 // Type resolution
 // ──────────────────────────────────────────────────────────────
 
