@@ -13,8 +13,10 @@ import { computeDiagnostics } from "./providers/diagnostics";
 import { handleHover } from "./providers/hover";
 import { handleCodeLens } from "./providers/reference-lens";
 import { handleReferences } from "./providers/references";
+import { computeScssUnusedDiagnostics } from "./providers/scss-diagnostics";
 import type { CursorParams, ProviderDeps } from "./providers/cursor-dispatch";
 import { fileUrlToPath } from "./core/util/text-utils";
+import { findLangForPath } from "./core/scss/lang-registry";
 import type { StyleIndexCache } from "./core/scss/scss-index";
 import type { IndexerWorker } from "./core/indexing/indexer-worker";
 import type { FileTask } from "./core/indexing/indexer-worker";
@@ -130,8 +132,58 @@ export function registerHandlers(ctx: HandlerContext): HandlerCleanup {
     diagTimers.set(uri, timer);
   };
 
+  // ── SCSS unused-selector diagnostics ────────────────────────
+
+  let indexReady = false;
+  let readySubscribed = false;
+
+  function ensureReadySubscribed(): void {
+    if (readySubscribed) return;
+    const bundle = getBundle();
+    if (!bundle) return;
+    readySubscribed = true;
+    bundle.indexerWorker.ready.then(() => {
+      indexReady = true;
+      // Re-trigger SCSS diagnostics for all open SCSS documents.
+      for (const doc of documents.all()) {
+        const filePath = fileUrlToPath(doc.uri);
+        if (findLangForPath(filePath)) {
+          scheduleSccssDiagnostics(doc.uri);
+        }
+      }
+    });
+  }
+
+  const scssDiagTimers = new Map<string, NodeJS.Timeout>();
+
+  const scheduleSccssDiagnostics = (uri: string): void => {
+    ensureReadySubscribed();
+    if (!indexReady) return; // Gate: do not diagnose before index walk finishes.
+    if (!settings.diagnostics.unusedSelector) return; // Gate: setting from Task 4.
+    const existing = scssDiagTimers.get(uri);
+    if (existing) clearTimeout(existing);
+    const timer = setTimeout(() => {
+      const deps = getDeps();
+      const doc = documents.get(uri);
+      scssDiagTimers.delete(uri);
+      if (!deps || !doc) return;
+      const filePath = fileUrlToPath(uri);
+      const classMap = deps.scssClassMapForPath(filePath);
+      if (!classMap) return;
+      const diagnostics = computeScssUnusedDiagnostics(filePath, classMap, deps.reverseIndex);
+      connection.sendDiagnostics({ uri, diagnostics });
+    }, DIAGNOSTICS_DEBOUNCE_MS);
+    scssDiagTimers.set(uri, timer);
+  };
+
   documents.onDidChangeContent((change) => {
-    scheduleDiagnostics(change.document.uri);
+    ensureReadySubscribed();
+    const filePath = fileUrlToPath(change.document.uri);
+    if (findLangForPath(filePath)) {
+      scheduleSccssDiagnostics(change.document.uri);
+    } else {
+      scheduleDiagnostics(change.document.uri);
+    }
   });
 
   documents.onDidClose((change) => {
@@ -139,6 +191,11 @@ export function registerHandlers(ctx: HandlerContext): HandlerCleanup {
     if (existing) {
       clearTimeout(existing);
       diagTimers.delete(change.document.uri);
+    }
+    const scssTimer = scssDiagTimers.get(change.document.uri);
+    if (scssTimer) {
+      clearTimeout(scssTimer);
+      scssDiagTimers.delete(change.document.uri);
     }
     connection.sendDiagnostics({ uri: change.document.uri, diagnostics: [] });
   });
@@ -167,6 +224,8 @@ export function registerHandlers(ctx: HandlerContext): HandlerCleanup {
       bundle?.indexerWorker.stop();
       for (const timer of diagTimers.values()) clearTimeout(timer);
       diagTimers.clear();
+      for (const timer of scssDiagTimers.values()) clearTimeout(timer);
+      scssDiagTimers.clear();
     },
     refreshSettings() {
       fetchSettings(connection)
