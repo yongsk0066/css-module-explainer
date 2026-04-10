@@ -11,7 +11,9 @@ import {
   HoverRequest,
   InitializedNotification,
   InitializeRequest,
+  PrepareRenameRequest,
   PublishDiagnosticsNotification,
+  RenameRequest,
   ShutdownRequest,
   type CodeAction,
   type CodeActionParams,
@@ -30,8 +32,12 @@ import {
   type InitializeResult,
   type Location,
   type LocationLink,
+  type PrepareRenameParams,
   type ProtocolConnection,
   type PublishDiagnosticsParams,
+  type Range as LspRange,
+  type RenameParams,
+  type WorkspaceEdit,
 } from "vscode-languageserver-protocol/node";
 import { StreamMessageReader, StreamMessageWriter } from "vscode-jsonrpc/node";
 import ts from "typescript";
@@ -70,6 +76,10 @@ export interface LspTestClient {
    * debounced push-based diagnostics pipeline .
    */
   waitForDiagnostics(uri: string, timeoutMs?: number): Promise<Diagnostic[]>;
+  prepareRename(
+    params: PrepareRenameParams,
+  ): Promise<{ range: LspRange; placeholder: string } | null>;
+  rename(params: RenameParams): Promise<WorkspaceEdit | null>;
   didChangeWatchedFiles(params: DidChangeWatchedFilesParams): void;
   shutdown(): Promise<void>;
   exit(): void;
@@ -181,6 +191,12 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
     },
     async codeAction(params) {
       return client.sendRequest(CodeActionRequest.type, params);
+    },
+    async prepareRename(params) {
+      return client.sendRequest(PrepareRenameRequest.type, params);
+    },
+    async rename(params) {
+      return client.sendRequest(RenameRequest.type, params);
     },
     didChangeWatchedFiles(params) {
       client.sendNotification(DidChangeWatchedFilesNotification.type, params);
