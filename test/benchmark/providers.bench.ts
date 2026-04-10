@@ -97,7 +97,7 @@ function makeDeps(): ProviderDeps {
   };
 }
 
-describe("provider cold hover (Agent 3 H3 budget = ~18ms)", () => {
+describe("provider cold hover", () => {
   bench("handleHover cold", () => {
     const deps = makeDeps();
     handleHover(

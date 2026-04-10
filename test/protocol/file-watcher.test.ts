@@ -62,8 +62,8 @@ describe("file watcher", () => {
     // invalidated, so readStyleFile is called again. The call
     // returns null → classMap is null → provider skips the
     // call rather than reporting; empty diagnostics is correct
-    // (a user-visible "missing file" diagnostic is a Plan
-    // Release enhancement, not a Phase 10 contract).
+    // (a user-visible "missing file" diagnostic is a future
+    // enhancement, not a current contract).
     await client.waitForDiagnostics("file:///fake/workspace/src/Button.tsx");
     expect(readCount).toBeGreaterThan(readsBeforeDelete);
   });

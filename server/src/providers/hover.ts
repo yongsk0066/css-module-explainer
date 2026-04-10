@@ -25,26 +25,21 @@ export function handleHover(params: CursorParams, deps: ProviderDeps): Hover | n
       withCxCallAtCursor(params, deps, (ctx) => buildHover(ctx, params, deps)) ??
       withStyleRefAtCursor(params, deps, (ctx) => {
         if (!ctx.info) return null;
+        const syntheticBinding = {
+          cxVarName: ctx.ref.stylesVarName,
+          stylesVarName: ctx.ref.stylesVarName,
+          scssModulePath: ctx.ref.scssModulePath,
+          classNamesImportName: ctx.ref.stylesVarName,
+          scope: { startLine: 0, endLine: Number.MAX_SAFE_INTEGER },
+        };
         const markdown = renderHover({
           call: {
-            kind: "static",
+            kind: "static" as const,
             className: ctx.ref.className,
             originRange: ctx.ref.originRange,
-            binding: {
-              cxVarName: ctx.ref.stylesVarName,
-              stylesVarName: ctx.ref.stylesVarName,
-              scssModulePath: ctx.ref.scssModulePath,
-              classNamesImportName: ctx.ref.stylesVarName,
-              scope: { startLine: 0, endLine: 99999 },
-            },
+            binding: syntheticBinding,
           },
-          binding: {
-            cxVarName: ctx.ref.stylesVarName,
-            stylesVarName: ctx.ref.stylesVarName,
-            scssModulePath: ctx.ref.scssModulePath,
-            classNamesImportName: ctx.ref.stylesVarName,
-            scope: { startLine: 0, endLine: 99999 },
-          },
+          binding: syntheticBinding,
           infos: [ctx.info],
           workspaceRoot: deps.workspaceRoot,
         });

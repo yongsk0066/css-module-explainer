@@ -113,7 +113,7 @@ describe("WorkspaceReverseIndex", () => {
     expect(remaining[0]!.uri).toBe("file:///b.tsx");
   });
 
-  it("skips non-static call kinds (Phase Final scope decision)", () => {
+  it("skips non-static call kinds without resolver context", () => {
     const index = new WorkspaceReverseIndex();
     const templateSite: CallSite = {
       ...siteAt("file:///a.tsx", "btn-", 3),

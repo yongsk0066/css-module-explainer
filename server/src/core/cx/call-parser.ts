@@ -81,7 +81,7 @@ function extractFromArgument(
       // Intentional: computed-property keys (`{ [dynamicKey]: x }`)
       // and numeric literal keys cannot be resolved to a class name
       // at static analysis time, so they are skipped without
-      // warning. A future Phase could emit a diagnostic for these.
+      // warning. A future enhancement could emit a diagnostic for these.
     }
     return;
   }

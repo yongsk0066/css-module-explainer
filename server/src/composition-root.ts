@@ -32,7 +32,7 @@ import { registerHandlers } from "./handler-registration.js";
 import type { FileTask } from "./core/indexing/indexer-worker.js";
 
 const SERVER_NAME = "css-module-explainer";
-const SERVER_VERSION = "0.0.1";
+const SERVER_VERSION = "1.1.0";
 
 export interface CreateServerOptions {
   /**

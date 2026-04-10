@@ -12,7 +12,7 @@ function parse(source: string, filePath = "/fake/src/Button.tsx"): ts.SourceFile
   );
 }
 
-describe("detectCxBindings / standard pattern (Q7 B #1)", () => {
+describe("detectCxBindings / standard pattern", () => {
   it("detects a plain top-level binding", () => {
     const src = parse(`
       import classNames from 'classnames/bind';
@@ -49,7 +49,7 @@ describe("detectCxBindings / standard pattern (Q7 B #1)", () => {
   });
 });
 
-describe("detectCxBindings / free variable names (Q7 B #2)", () => {
+describe("detectCxBindings / free variable names", () => {
   it("honors a non-'cx' variable name", () => {
     const src = parse(`
       import classNames from 'classnames/bind';
@@ -61,7 +61,7 @@ describe("detectCxBindings / free variable names (Q7 B #2)", () => {
   });
 });
 
-describe("detectCxBindings / aliased classnames import (Q7 B #3)", () => {
+describe("detectCxBindings / aliased classnames import", () => {
   it("detects 'cn.bind(styles)' when classnames/bind is imported as 'cn'", () => {
     const src = parse(`
       import cn from 'classnames/bind';
@@ -84,7 +84,7 @@ describe("detectCxBindings / aliased classnames import (Q7 B #3)", () => {
   });
 });
 
-describe("detectCxBindings / free styles name (Q7 B #5)", () => {
+describe("detectCxBindings / free styles name", () => {
   it("honors a non-'styles' variable name", () => {
     const src = parse(`
       import classNames from 'classnames/bind';
@@ -96,7 +96,7 @@ describe("detectCxBindings / free styles name (Q7 B #5)", () => {
   });
 });
 
-describe("detectCxBindings / multiple bindings per file (Q7 B #6)", () => {
+describe("detectCxBindings / multiple bindings per file", () => {
   it("detects two bindings to different style imports", () => {
     const src = parse(`
       import classNames from 'classnames/bind';
@@ -112,7 +112,7 @@ describe("detectCxBindings / multiple bindings per file (Q7 B #6)", () => {
   });
 });
 
-describe("detectCxBindings / function-scoped binding (Q7 B #7)", () => {
+describe("detectCxBindings / function-scoped binding", () => {
   it("detects a binding declared inside a function body", () => {
     const src = parse(`
       import classNames from 'classnames/bind';

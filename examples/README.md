@@ -31,7 +31,7 @@ through the sidebar.
 ### Option B — Install the extension locally
 
 ```bash
-cd /Users/yongseok/dev/css-module-explainer
+# from the repository root
 pnpm build
 pnpm exec vsce package --no-dependencies
 code --install-extension css-module-explainer-*.vsix
@@ -82,5 +82,5 @@ same React plugin, just without the `vp` wrapper.
 
 ## Design decisions
 
-Full rationale in the plan document:
-`docs/superpowers/plans/2026-04-10-plan-11.5-examples-sandbox.md`.
+Each scenario isolates a single `cx()` pattern so regressions
+are immediately visible during manual QA.

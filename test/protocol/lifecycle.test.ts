@@ -8,9 +8,7 @@ test("returns capabilities including definitionProvider on initialize", async ({
   expect(result.serverInfo?.name).toBe("css-module-explainer");
 });
 
-test("advertises completionProvider with every Plan 08 trigger character", async ({
-  makeClient,
-}) => {
+test("advertises completionProvider with every trigger character", async ({ makeClient }) => {
   const client = makeClient();
   const result = await client.initialize();
   const provider = result.capabilities.completionProvider;

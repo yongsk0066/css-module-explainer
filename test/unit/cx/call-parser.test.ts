@@ -160,7 +160,7 @@ describe("parseCxCalls / spread element", () => {
   });
 });
 
-describe("parseCxCalls / multi-line call (Q3 B)", () => {
+describe("parseCxCalls / multi-line call", () => {
   it("handles a cx call spanning multiple lines", () => {
     const src = `
       const x = cx(

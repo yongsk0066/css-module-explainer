@@ -2,6 +2,7 @@ import * as nodeUrl from "node:url";
 import type ts from "typescript";
 import type { CxBinding, CxCallInfo, StylePropertyRef } from "@css-module-explainer/shared";
 import { contentHash } from "../util/hash.js";
+import { LruMap } from "../util/lru-map.js";
 import type { SourceFileCache } from "../ts/source-file-cache.js";
 
 /**
@@ -57,18 +58,19 @@ export interface DocumentAnalysisCacheDeps {
  * analysis goes through this cache.
  */
 export class DocumentAnalysisCache {
-  private readonly entries = new Map<string, AnalysisEntry>();
+  private readonly lru: LruMap<string, AnalysisEntry>;
   private readonly deps: DocumentAnalysisCacheDeps;
 
   constructor(deps: DocumentAnalysisCacheDeps) {
     this.deps = deps;
+    this.lru = new LruMap(deps.max);
   }
 
   get(uri: string, content: string, filePath: string, version: number): AnalysisEntry {
-    const cached = this.entries.get(uri);
+    const cached = this.lru.get(uri);
     if (cached && cached.version === version) {
       // Exact version match — cheapest hit.
-      this.touch(uri, cached);
+      this.lru.touch(uri, cached);
       return cached;
     }
     const hash = contentHash(content);
@@ -77,11 +79,11 @@ export class DocumentAnalysisCache {
       // entry's version in place so subsequent exact-version hits
       // stay cheap, and keep the reference identity.
       const upgraded: AnalysisEntry = { ...cached, version };
-      this.touch(uri, upgraded);
+      this.lru.touch(uri, upgraded);
       return upgraded;
     }
     const entry = this.analyze(content, filePath, version, hash);
-    this.put(uri, entry);
+    this.lru.set(uri, entry);
     // Single write point into the reverse index.
     this.deps.onAnalyze?.(uri, entry);
     return entry;
@@ -91,9 +93,9 @@ export class DocumentAnalysisCache {
     // Grab the path BEFORE deleting the entry so we can propagate
     // the invalidation to the SourceFileCache (which keys by
     // filePath, not uri).
-    const cached = this.entries.get(uri);
+    const cached = this.lru.get(uri);
     const filePath = cached?.sourceFile.fileName;
-    this.entries.delete(uri);
+    this.lru.delete(uri);
     if (filePath !== undefined) {
       this.deps.sourceFileCache.invalidate(filePath);
       return;
@@ -108,7 +110,7 @@ export class DocumentAnalysisCache {
   }
 
   clear(): void {
-    this.entries.clear();
+    this.lru.clear();
     this.deps.sourceFileCache.clear();
   }
 
@@ -126,22 +128,5 @@ export class DocumentAnalysisCache {
     const styleRefs = this.deps.parseStyleAccesses?.(sourceFile, stylesBindings) ?? [];
 
     return { version, contentHash: hash, sourceFile, bindings, calls, styleRefs };
-  }
-
-  private touch(uri: string, entry: AnalysisEntry): void {
-    this.entries.delete(uri);
-    this.entries.set(uri, entry);
-  }
-
-  private put(uri: string, entry: AnalysisEntry): void {
-    if (this.entries.has(uri)) {
-      this.entries.delete(uri);
-    } else if (this.entries.size >= this.deps.max) {
-      const oldest = this.entries.keys().next().value;
-      if (oldest !== undefined) {
-        this.entries.delete(oldest);
-      }
-    }
-    this.entries.set(uri, entry);
   }
 }

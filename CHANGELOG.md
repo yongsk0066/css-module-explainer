@@ -8,6 +8,29 @@ The format is based on
 this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] — 2026-04-10
+
+### Changed
+
+- **LRU cache refactor** — `StyleIndexCache`, `SourceFileCache`,
+  and `DocumentAnalysisCache` now delegate eviction logic to a
+  shared `LruMap<K, V>` utility, removing three identical
+  `private put()` methods.
+- **hover.ts cleanup** — duplicated synthetic binding object
+  extracted to a local variable; `kind: "static" as const`
+  added for type safety.
+- **CI pipeline** — `dist/` build artifact is uploaded in the
+  `check` job and downloaded in `package`, eliminating a
+  redundant `pnpm build`. Added `concurrency` (cancel
+  in-progress), top-level `permissions: { contents: read }`,
+  and `if-no-files-found: error` on both artifact uploads.
+
+### Fixed
+
+- Removed internal planning references (Q6, Q7, Plan, Phase,
+  Agent) from test describe blocks, comments, and
+  documentation.
+
 ## [1.0.0] — 2026-04-10
 
 First marketplace-ready release. Everything below was built
@@ -49,21 +72,19 @@ hot paths stay under 1 ms):
 **Parsing and indexing**:
 
 - **SCSS index** — `parseStyleModule` + `StyleIndexCache`
-  cover the Q6 B edge-case list: `:global`/`:local`
-  selectors, `&` ampersand nesting, group selectors,
-  cascade last-wins duplicate handling, `@keyframes` /
-  `@font-face` exclusion, `@media`/`@at-root` unwrapping.
+  cover edge cases: `:global`/`:local` selectors, `&`
+  ampersand nesting, group selectors, cascade last-wins
+  duplicate handling, `@keyframes` / `@font-face` exclusion,
+  `@media`/`@at-root` unwrapping.
 - **`cx` binding detector** — AST-based two-pass scanner
-  over the TypeScript `ts.SourceFile`; recognizes every
-  Q7 B pattern: free identifier names, aliased imports
+  over the TypeScript `ts.SourceFile`; recognizes free
+  identifier names, aliased imports
   (`import cn from 'classnames/bind'`), multi-binding per
-  file, function-scoped bindings with tracked scope
-  ranges.
+  file, function-scoped bindings with tracked scope ranges.
 - **`cx` call parser** — seven-branch AST dispatch (string
   literal, object literal, `&&` / `?:` conditionals,
-  template literal, identifier, array literal, spread),
-  Q3 B+D decision. Multi-line is free (AST is
-  line-agnostic).
+  template literal, identifier, array literal, spread).
+  Multi-line is free (AST is line-agnostic).
 - **Call resolver** — pure dispatch by call kind: static →
   `classMap.get`; template → prefix filter; variable →
   `TypeResolver.resolve` + union member filter.
@@ -79,7 +100,7 @@ hot paths stay under 1 ms):
   index write exactly once per (uri, version) — never on
   provider hot paths.
 - **Workspace reverse index** — `(scssPath, className) →
-CallSite[]` forward map plus a `uri → keys` back
+  CallSite[]` forward map plus a `uri → keys` back
   pointer for O(|callSites|) `forget(uri)` on document
   close. Static call kinds only; template/variable are
   explicitly skipped for this release.
@@ -119,13 +140,9 @@ CallSite[]` forward map plus a `uri → keys` back
 
 **Quality gates**:
 
-- 232+ Tier 1 + Tier 2 tests, 0 lint warnings, 0
-  eslint-disables, build clean.
-- Seven independent review agents (three 3-agent cycles
-  - one 5-agent cycle) applied between plans.
+- 253 Tier 1 + Tier 2 tests, 0 lint warnings, build clean.
 - Cold hover ~0.029 ms, cold definition ~0.028 ms, cold
-  completion ~0.013 ms — three orders of magnitude under
-  the 18 ms spec §7 target.
+  completion ~0.013 ms.
 
 ### Known limitations
 
@@ -142,9 +159,9 @@ CallSite[]` forward map plus a `uri → keys` back
   comment context. Edge cases like `cx(')')` return
   slightly wrong answers.
 - Tier 3 E2E (real VS Code via `@vscode/test-electron`)
-  is deferred to Plan 10.5; 1.0 relies on manual
-  dogfooding via `examples/`.
+  is deferred; the release relies on manual dogfooding
+  via `examples/`.
 
 ## [0.0.1] — 2026-04-09
 
-Repository scaffolding (Plan 01). Not published.
+Repository scaffolding. Not published.

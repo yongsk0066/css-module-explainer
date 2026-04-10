@@ -1,5 +1,6 @@
 import ts from "typescript";
 import { contentHash } from "../util/hash.js";
+import { LruMap } from "../util/lru-map.js";
 
 interface SourceFileCacheEntry {
   hash: string;
@@ -19,20 +20,18 @@ interface SourceFileCacheEntry {
  * relies on this).
  */
 export class SourceFileCache {
-  private readonly entries = new Map<string, SourceFileCacheEntry>();
-  private readonly max: number;
+  private readonly lru: LruMap<string, SourceFileCacheEntry>;
 
   constructor(options: { max: number }) {
-    this.max = options.max;
+    this.lru = new LruMap(options.max);
   }
 
   get(filePath: string, content: string): ts.SourceFile {
     const hash = contentHash(content);
-    const cached = this.entries.get(filePath);
+    const cached = this.lru.get(filePath);
     if (cached && cached.hash === hash) {
       // Touch: move to the end so frequently-used files stay warm.
-      this.entries.delete(filePath);
-      this.entries.set(filePath, cached);
+      this.lru.touch(filePath, cached);
       return cached.sourceFile;
     }
     const sourceFile = ts.createSourceFile(
@@ -42,28 +41,16 @@ export class SourceFileCache {
       /*setParentNodes*/ true,
       scriptKindFor(filePath),
     );
-    this.put(filePath, { hash, sourceFile });
+    this.lru.set(filePath, { hash, sourceFile });
     return sourceFile;
   }
 
   invalidate(filePath: string): void {
-    this.entries.delete(filePath);
+    this.lru.delete(filePath);
   }
 
   clear(): void {
-    this.entries.clear();
-  }
-
-  private put(filePath: string, entry: SourceFileCacheEntry): void {
-    if (this.entries.has(filePath)) {
-      this.entries.delete(filePath);
-    } else if (this.entries.size >= this.max) {
-      const oldest = this.entries.keys().next().value;
-      if (oldest !== undefined) {
-        this.entries.delete(oldest);
-      }
-    }
-    this.entries.set(filePath, entry);
+    this.lru.clear();
   }
 }
 

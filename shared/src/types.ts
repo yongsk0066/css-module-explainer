@@ -56,7 +56,7 @@ export interface SelectorInfo {
 export type ScssClassMap = ReadonlyMap<string, SelectorInfo>;
 
 // ──────────────────────────────────────────────────────────────
-// Cx binding + call types (Phases 2 + 3)
+// Cx binding + call types
 // ──────────────────────────────────────────────────────────────
 
 /**

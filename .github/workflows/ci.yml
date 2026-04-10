@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: [master]
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -20,6 +27,12 @@ jobs:
       - run: pnpm check
       - run: pnpm test
       - run: pnpm build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: dist/
+          retention-days: 1
+          if-no-files-found: error
 
   package:
     runs-on: ubuntu-latest
@@ -32,7 +45,10 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-output
+          path: dist/
       - run: pnpm exec vsce package --no-dependencies
       - name: VSIX size gate (max 5 MB)
         run: |
@@ -46,3 +62,4 @@ jobs:
         with:
           name: vsix
           path: "*.vsix"
+          if-no-files-found: error

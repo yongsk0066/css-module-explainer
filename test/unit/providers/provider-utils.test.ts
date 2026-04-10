@@ -213,10 +213,10 @@ describe("withCxCallAtCursor / call dispatch", () => {
     expect((result as { bindings: unknown[] }).bindings).toHaveLength(1);
   });
 
-  it("no longer records into the reverse index on every call (Plan Final invariant 3.6)", () => {
-    // Plan Final moved the reverse-index write off the provider
-    // hot path and into `DocumentAnalysisCache.onAnalyze` — see
-    // composition-root.ts. withCxCallAtCursor must not touch the
+  it("does not record into the reverse index on every call", () => {
+    // The reverse-index write lives in `DocumentAnalysisCache.onAnalyze`,
+    // not in the provider hot path — see composition-root.ts.
+    // withCxCallAtCursor must not touch the
     // reverseIndex at all. A recording subclass would stay at
     // zero calls if the invariant holds.
     const records: Array<[string, readonly unknown[]]> = [];

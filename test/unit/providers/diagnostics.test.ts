@@ -138,9 +138,8 @@ describe("computeDiagnostics", () => {
     );
     // Both cx() calls throw, so we get no diagnostics but TWO
     // isolated log entries — NOT a single "abort everything"
-    // entry. This is the key Plan 06 5-agent review fix: a
-    // single bad call must not silently drop every other
-    // diagnostic in the same document.
+    // entry. A single bad call must not silently drop every
+    // other diagnostic in the same document.
     expect(result).toEqual([]);
     expect(logError).toHaveBeenCalledTimes(2);
     expect(logError).toHaveBeenCalledWith(

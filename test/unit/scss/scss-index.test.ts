@@ -56,8 +56,8 @@ describe("parseStyleModule / flat classes", () => {
   });
 });
 
-describe("parseStyleModule / Q6 B edge cases", () => {
-  describe(":global() wrapping (Q6 B #1)", () => {
+describe("parseStyleModule / edge cases", () => {
+  describe(":global() wrapping", () => {
     it("excludes :global(.foo) from the class map", () => {
       const map = parseStyleModule(`:global(.btn) { color: red; }`, "/fake/a.module.scss");
       expect(map.has("btn")).toBe(false);
@@ -73,14 +73,14 @@ describe("parseStyleModule / Q6 B edge cases", () => {
     });
   });
 
-  describe(":local() wrapping (Q6 B #2)", () => {
+  describe(":local() wrapping", () => {
     it("includes :local(.foo) as 'foo'", () => {
       const map = parseStyleModule(`:local(.btn) { color: red; }`, "/fake/a.module.scss");
       expect(map.has("btn")).toBe(true);
     });
   });
 
-  describe("& nesting (Q6 B #4)", () => {
+  describe("& nesting", () => {
     it("resolves .button { &--primary { ... } } to button--primary", () => {
       const map = parseStyleModule(
         `.button { color: red; &--primary { background: blue; } }`,
@@ -105,7 +105,7 @@ describe("parseStyleModule / Q6 B edge cases", () => {
     });
   });
 
-  describe("group selectors (Q6 B #6)", () => {
+  describe("group selectors", () => {
     it("indexes each class in '.a, .b'", () => {
       const map = parseStyleModule(`.primary, .secondary { color: red; }`, "/fake/a.module.scss");
       expect(map.has("primary")).toBe(true);
@@ -174,7 +174,7 @@ describe("parseStyleModule / Q6 B edge cases", () => {
     });
   });
 
-  describe("CSS variables (Q6 B #7)", () => {
+  describe("CSS variables", () => {
     it("includes --var-name declarations in the declarations text", () => {
       const map = parseStyleModule(`.theme { --bg: red; --fg: white; }`, "/fake/a.module.scss");
       expect(map.get("theme")!.declarations).toContain("--bg: red");
@@ -182,7 +182,7 @@ describe("parseStyleModule / Q6 B edge cases", () => {
     });
   });
 
-  describe("cascade last-wins (Q6 B #8)", () => {
+  describe("cascade last-wins", () => {
     it("uses the last declaration when a class is defined multiple times", () => {
       const map = parseStyleModule(
         `.btn { color: red; }\n.btn { color: blue; }`,
@@ -194,7 +194,7 @@ describe("parseStyleModule / Q6 B edge cases", () => {
     });
   });
 
-  describe("@keyframes / @font-face exclusion (Q6 B #9)", () => {
+  describe("@keyframes / @font-face exclusion", () => {
     it("does not index identifiers inside @keyframes", () => {
       const map = parseStyleModule(
         `@keyframes fade { from { opacity: 0; } to { opacity: 1; } }`,
@@ -214,7 +214,7 @@ describe("parseStyleModule / Q6 B edge cases", () => {
     });
   });
 
-  describe("@media / @at-root unwrapping (Q6 B #10)", () => {
+  describe("@media / @at-root unwrapping", () => {
     it("indexes classes inside @media", () => {
       const map = parseStyleModule(
         `@media (min-width: 600px) { .wide { padding: 16px; } }`,

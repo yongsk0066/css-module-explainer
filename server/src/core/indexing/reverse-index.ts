@@ -139,7 +139,7 @@ export interface CallSiteResolverContext {
  * When `ctx` is provided, template and variable calls are EXPANDED
  * into individual static-keyed entries so Find References can
  * locate them. Without `ctx`, only static calls are indexed (the
- * Phase 5 behavior).
+ * default behavior).
  */
 export function collectCallSites(
   uri: string,

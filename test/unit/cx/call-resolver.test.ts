@@ -177,7 +177,7 @@ describe("resolveCxCallToSelectorInfos / variable", () => {
   it("drops union members that are missing from the class map", () => {
     // Partial mismatch: the resolver returns a superset of what
     // the class map has. call-resolver filters undefined lookups
-    // silently; Phase 9's diagnostic layer handles reporting when
+    // silently; the diagnostic layer handles reporting when
     // reportPartialUnionMismatch is enabled.
     const classMap = makeClassMap(["small", "medium"]);
     const call: CxCallInfo = {
