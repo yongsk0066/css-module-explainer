@@ -157,3 +157,60 @@ const el = cx(
     expect(logError).toHaveBeenCalledWith("hover handler failed", expect.any(Error));
   });
 });
+
+describe("handleHover / styles.x without classnames/bind (L8 fix)", () => {
+  it("returns hover for styles.indicator in a clsx-only file", () => {
+    const clsxTsx = `
+import clsx from 'clsx';
+import styles from './Button.module.scss';
+const el = <div className={clsx(styles.indicator)} />;
+`;
+    const sourceFileCache = new SourceFileCache({ max: 10 });
+    const indicatorInfo = info("indicator");
+    const analysisCache = new DocumentAnalysisCache({
+      sourceFileCache,
+      collectStyleImports: () => new Map([["styles", "/fake/ws/src/Button.module.scss"]]),
+      detectCxBindings: () => [],
+      parseCxCalls: () => [],
+      parseStyleAccesses: (sf, bindings) => {
+        if (bindings.has("styles")) {
+          return [
+            {
+              kind: "style-access" as const,
+              className: "indicator",
+              scssModulePath: "/fake/ws/src/Button.module.scss",
+              stylesVarName: "styles",
+              originRange: { start: { line: 3, character: 39 }, end: { line: 3, character: 48 } },
+            },
+          ];
+        }
+        return [];
+      },
+      max: 10,
+    });
+    const deps = makeDeps({
+      analysisCache,
+      scssClassMapForPath: (path: string) => {
+        if (path === "/fake/ws/src/Button.module.scss") {
+          return new Map([["indicator", indicatorInfo]]) as ScssClassMap;
+        }
+        return null;
+      },
+    });
+
+    const hover = handleHover(
+      {
+        documentUri: "file:///fake/ws/src/Button.tsx",
+        content: clsxTsx,
+        filePath: "/fake/ws/src/Button.tsx",
+        line: 3,
+        character: 42,
+        version: 1,
+      },
+      deps,
+    );
+
+    expect(hover).not.toBeNull();
+    expect((hover!.contents as { value: string }).value).toContain("`.indicator`");
+  });
+});

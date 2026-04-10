@@ -139,6 +139,17 @@ export function hasCxBindImport(content: string): boolean {
 }
 
 /**
+ * Fast-path predicate: does this document contain any `.module.`
+ * style import? Broader than `hasCxBindImport` — catches files
+ * that use styles.x directly or via clsx without classnames/bind.
+ *
+ * Consumed by Plan 2 (clsx completion) as a fast-path gate.
+ */
+export function hasStyleModuleImport(content: string): boolean {
+  return content.includes(".module.");
+}
+
+/**
  * Does `(line, character)` fall inside `range`? Inclusive on
  * both ends, matching the LSP convention used throughout the
  * codebase. Shared between the cursor-based providers.
