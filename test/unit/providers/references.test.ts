@@ -44,13 +44,7 @@ describe("handleReferences", () => {
       {
         uri: "file:///fake/src/App.tsx",
         range: { start: { line: 10, character: 5 }, end: { line: 10, character: 14 } },
-        binding: {
-          cxVarName: "cx",
-          stylesVarName: "s",
-          scssModulePath: "/fake/src/Button.module.scss",
-          classNamesImportName: "classNames",
-          scope: { startLine: 0, endLine: 100 },
-        },
+        scssModulePath: "/fake/src/Button.module.scss",
         match: { kind: "static", className: "indicator" },
       },
     ]);

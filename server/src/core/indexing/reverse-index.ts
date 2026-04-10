@@ -1,7 +1,6 @@
 import type { CallSite, ScssClassMap } from "@css-module-explainer/shared";
 import type { AnalysisEntry } from "./document-analysis-cache";
 import type { TypeResolver } from "../ts/type-resolver";
-import { syntheticBindingFromRef } from "../util/synthetic-binding";
 
 /**
  * Reverse index of cx() call sites, keyed by (scssPath, className).
@@ -76,7 +75,7 @@ export class WorkspaceReverseIndex implements ReverseIndex {
     if (callSites.length === 0) return;
     const keys = new Set<string>();
     for (const site of callSites) {
-      const scssPath = site.binding.scssModulePath;
+      const scssPath = site.scssModulePath;
       const key = site.match.kind === "static" ? site.match.className : "__non_static__";
       const classMap = this.forward.get(scssPath) ?? new Map<string, CallSite[]>();
       const list = classMap.get(key) ?? [];
@@ -155,7 +154,7 @@ export function collectCallSites(
 ): CallSite[] {
   const sites: CallSite[] = [];
   for (const call of entry.calls) {
-    const base = { uri, range: call.originRange, binding: call.binding };
+    const base = { uri, range: call.originRange, scssModulePath: call.binding.scssModulePath };
     switch (call.kind) {
       case "static":
         sites.push({ ...base, match: { kind: "static", className: call.className } });
@@ -200,7 +199,7 @@ export function collectCallSites(
     sites.push({
       uri,
       range: ref.originRange,
-      binding: syntheticBindingFromRef(ref),
+      scssModulePath: ref.scssModulePath,
       match: { kind: "static", className: ref.className },
     });
   }

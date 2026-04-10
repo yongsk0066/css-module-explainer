@@ -8,21 +8,11 @@ import {
 import type { AnalysisEntry } from "../../../server/src/core/indexing/document-analysis-cache";
 import ts from "typescript";
 
-function makeBinding(): CxBinding {
-  return {
-    cxVarName: "cx",
-    stylesVarName: "styles",
-    scssModulePath: "/fake/a.module.scss",
-    classNamesImportName: "classNames",
-    scope: { startLine: 0, endLine: 100 },
-  };
-}
-
 function makeCallSite(): CallSite {
   return {
     uri: "file:///fake/a.tsx",
     range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
-    binding: makeBinding(),
+    scssModulePath: "/fake/a.module.scss",
     match: { kind: "static", className: "indicator" },
   };
 }
@@ -68,13 +58,7 @@ function siteAt(uri: string, className: string, line: number, scssPath?: string)
       start: { line, character: 10 },
       end: { line, character: 10 + className.length },
     },
-    binding: {
-      cxVarName: "cx",
-      stylesVarName: "styles",
-      scssModulePath: scssPath ?? "/fake/a.module.scss",
-      classNamesImportName: "classNames",
-      scope: { startLine: 0, endLine: 100 },
-    },
+    scssModulePath: scssPath ?? "/fake/a.module.scss",
     match: { kind: "static", className },
   };
 }
@@ -166,13 +150,7 @@ describe("WorkspaceReverseIndex", () => {
     const templateSite: CallSite = {
       uri: "file:///a.tsx",
       range: { start: { line: 3, character: 10 }, end: { line: 3, character: 14 } },
-      binding: {
-        cxVarName: "cx",
-        stylesVarName: "styles",
-        scssModulePath: "/fake/a.module.scss",
-        classNamesImportName: "classNames",
-        scope: { startLine: 0, endLine: 100 },
-      },
+      scssModulePath: "/fake/a.module.scss",
       match: { kind: "template", staticPrefix: "btn-" },
     };
     index.record("file:///a.tsx", [siteAt("file:///a.tsx", "indicator", 5), templateSite]);
@@ -188,6 +166,21 @@ describe("WorkspaceReverseIndex", () => {
     ]);
     expect(index.count("/fake/a.module.scss", "indicator")).toBe(1);
     expect(index.count("/fake/b.module.scss", "indicator")).toBe(1);
+  });
+});
+
+describe("CallSite carries scssModulePath directly", () => {
+  it("CallSite carries scssModulePath directly (no binding wrapper)", () => {
+    const site: CallSite = {
+      uri: "file:///a.tsx",
+      range: { start: { line: 0, character: 0 }, end: { line: 0, character: 5 } },
+      scssModulePath: "/fake/a.module.scss",
+      match: { kind: "static", className: "btn" },
+    };
+    const index = new WorkspaceReverseIndex();
+    index.record(site.uri, [site]);
+    expect(index.find("/fake/a.module.scss", "btn")).toHaveLength(1);
+    expect(index.find("/fake/a.module.scss", "btn")[0]!.scssModulePath).toBe("/fake/a.module.scss");
   });
 });
 
@@ -222,7 +215,7 @@ describe("collectCallSites / StylePropertyRef entries", () => {
       range: { start: { line: 5, character: 10 }, end: { line: 5, character: 19 } },
       match: { kind: "static", className: "indicator" },
     });
-    expect(sites[0]!.binding.scssModulePath).toBe("/fake/a.module.scss");
+    expect(sites[0]!.scssModulePath).toBe("/fake/a.module.scss");
   });
 
   it("merges cx call sites and styleRef sites", () => {

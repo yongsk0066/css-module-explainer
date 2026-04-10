@@ -52,13 +52,7 @@ export function siteAt(
   return {
     uri,
     range: { start: { line, character: 10 }, end: { line, character: 10 + className.length } },
-    binding: {
-      cxVarName: "cx",
-      stylesVarName: "styles",
-      scssModulePath: scssPath,
-      classNamesImportName: "classNames",
-      scope: { startLine: 0, endLine: 100 },
-    },
+    scssModulePath: scssPath,
     match: { kind: "static" as const, className },
   };
 }

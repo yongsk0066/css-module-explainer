@@ -207,8 +207,8 @@ export interface CallSite {
   readonly uri: string;
   /** Range covering the class token the user wrote. */
   readonly range: Range;
-  /** Binding through which the call was made. */
-  readonly binding: CxBinding;
+  /** Absolute path of the `.module.scss|css` file this site references. */
+  readonly scssModulePath: string;
   /** Structured discriminator describing the matched pattern. */
   readonly match: CallSiteMatch;
 }

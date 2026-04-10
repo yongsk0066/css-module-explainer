@@ -48,13 +48,7 @@ describe("computeScssUnusedDiagnostics", () => {
       {
         uri: "file:///a.tsx",
         range: { start: { line: 5, character: 10 }, end: { line: 5, character: 14 } },
-        binding: {
-          cxVarName: "cx",
-          stylesVarName: "styles",
-          scssModulePath: SCSS_PATH,
-          classNamesImportName: "classNames",
-          scope: { startLine: 0, endLine: 100 },
-        },
+        scssModulePath: SCSS_PATH,
         match: { kind: "variable", variableName: "someVar" },
       },
     ]);
@@ -72,13 +66,7 @@ describe("computeScssUnusedDiagnostics", () => {
       {
         uri: "file:///a.tsx",
         range: { start: { line: 5, character: 10 }, end: { line: 5, character: 14 } },
-        binding: {
-          cxVarName: "cx",
-          stylesVarName: "styles",
-          scssModulePath: SCSS_PATH,
-          classNamesImportName: "classNames",
-          scope: { startLine: 0, endLine: 100 },
-        },
+        scssModulePath: SCSS_PATH,
         match: { kind: "template", staticPrefix: "btn-" },
       },
     ]);
