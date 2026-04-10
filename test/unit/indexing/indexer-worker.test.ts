@@ -86,6 +86,20 @@ describe("IndexerWorker", () => {
     expect(onScssFile).toHaveBeenCalledWith("/incremental.module.scss", "");
   });
 
+  it("ready resolves after start() completes", async () => {
+    const worker = new IndexerWorker({
+      supplier: () => tasks([{ kind: "scss", path: "/a.module.scss" }]),
+      readFile: async () => "",
+      onScssFile: () => {},
+      onTsxFile: () => {},
+      logger: { info: () => {}, error: () => {} },
+    });
+    expect(worker.ready).toBeInstanceOf(Promise);
+    const startPromise = worker.start();
+    await worker.ready;
+    await startPromise;
+  });
+
   it("stop() prevents further tasks from being processed", async () => {
     const onScssFile = vi.fn();
     const worker = new IndexerWorker({
@@ -102,5 +116,37 @@ describe("IndexerWorker", () => {
     worker.stop();
     await worker.start();
     expect(onScssFile).not.toHaveBeenCalled();
+  });
+
+  it("ready resolves even when stop() is called before supplier finishes", async () => {
+    const worker = new IndexerWorker({
+      supplier: () =>
+        tasks([
+          { kind: "scss", path: "/a.module.scss" },
+          { kind: "scss", path: "/b.module.scss" },
+        ]),
+      readFile: async () => "",
+      onScssFile: () => {},
+      onTsxFile: () => {},
+      logger: { info: () => {}, error: () => {} },
+    });
+    worker.stop();
+    const startPromise = worker.start();
+    await worker.ready;
+    await startPromise;
+  });
+
+  it("ready resolves only once even with multiple start/stop cycles", async () => {
+    const worker = new IndexerWorker({
+      supplier: () => tasks([]),
+      readFile: async () => "",
+      onScssFile: () => {},
+      onTsxFile: () => {},
+      logger: { info: () => {}, error: () => {} },
+    });
+    await worker.start();
+    await worker.ready;
+    worker.stop();
+    await worker.ready; // Must not hang or throw.
   });
 });

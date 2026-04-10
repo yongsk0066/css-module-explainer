@@ -41,6 +41,12 @@ export class IndexerWorker {
   private stopped = false;
   private readonly pending: FileTask[] = [];
 
+  // Ready promise that resolves when the initial supplier walk completes.
+  private readyResolve!: () => void;
+  readonly ready: Promise<void> = new Promise((resolve) => {
+    this.readyResolve = resolve;
+  });
+
   constructor(deps: IndexerWorkerDeps) {
     this.deps = deps;
   }
@@ -52,6 +58,7 @@ export class IndexerWorker {
       if (this.stopped) return;
       await this.process(task);
     }
+    this.readyResolve();
   }
 
   pushFile(task: FileTask): void {
@@ -61,6 +68,7 @@ export class IndexerWorker {
   stop(): void {
     this.stopped = true;
     this.pending.length = 0;
+    this.readyResolve(); // Prevent deadlock if stop() is called before supplier finishes
   }
 
   /**
