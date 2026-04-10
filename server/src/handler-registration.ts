@@ -13,6 +13,7 @@ import { computeDiagnostics } from "./providers/diagnostics";
 import { handleHover } from "./providers/hover";
 import { handleCodeLens } from "./providers/reference-lens";
 import { handleReferences } from "./providers/references";
+import { handlePrepareRename, handleRename } from "./providers/rename";
 import { computeScssUnusedDiagnostics } from "./providers/scss-diagnostics";
 import type { CursorParams, ProviderDeps } from "./providers/cursor-dispatch";
 import { fileUrlToPath } from "./core/util/text-utils";
@@ -104,6 +105,22 @@ export function registerHandlers(ctx: HandlerContext): HandlerCleanup {
     const deps = getDeps();
     if (!deps) return null;
     return handleCodeLens(p, deps);
+  });
+
+  connection.onPrepareRename((p) => {
+    if (!settings.features.rename) return null;
+    const deps = getDeps();
+    if (!deps) return null;
+    const cursor = toCursorParams(p, documents);
+    return handlePrepareRename(p, deps, cursor ?? undefined);
+  });
+
+  connection.onRenameRequest((p) => {
+    if (!settings.features.rename) return null;
+    const deps = getDeps();
+    if (!deps) return null;
+    const cursor = toCursorParams(p, documents);
+    return handleRename(p, deps, cursor ?? undefined);
   });
 
   const diagTimers = new Map<string, NodeJS.Timeout>();

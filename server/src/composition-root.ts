@@ -105,6 +105,7 @@ export function createServer(options: CreateServerOptions): CreatedServer {
         },
         referencesProvider: true,
         codeLensProvider: { resolveProvider: false },
+        renameProvider: { prepareProvider: true },
       },
       serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
     };

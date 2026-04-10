@@ -88,6 +88,11 @@
           "default": true,
           "description": "Enable Find References for CSS class selectors."
         },
+        "cssModuleExplainer.features.rename": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Rename Symbol for CSS class selectors across SCSS and TS/TSX files."
+        },
         "cssModuleExplainer.diagnostics.severity": {
           "type": "string",
           "enum": [

@@ -6,6 +6,7 @@ export interface Settings {
     readonly hover: boolean;
     readonly completion: boolean;
     readonly references: boolean;
+    readonly rename: boolean;
   };
   readonly diagnostics: {
     readonly severity: "error" | "warning" | "information" | "hint";
@@ -17,7 +18,7 @@ export interface Settings {
 }
 
 const DEFAULTS: Settings = {
-  features: { definition: true, hover: true, completion: true, references: true },
+  features: { definition: true, hover: true, completion: true, references: true, rename: true },
   diagnostics: { severity: "warning", unusedSelector: true },
   hover: { maxCandidates: 10 },
 };
@@ -31,6 +32,7 @@ export async function fetchSettings(connection: Connection): Promise<Settings> {
       hover: raw.features?.hover ?? DEFAULTS.features.hover,
       completion: raw.features?.completion ?? DEFAULTS.features.completion,
       references: raw.features?.references ?? DEFAULTS.features.references,
+      rename: raw.features?.rename ?? DEFAULTS.features.rename,
     },
     diagnostics: {
       severity: raw.diagnostics?.severity ?? DEFAULTS.diagnostics.severity,
