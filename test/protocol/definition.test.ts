@@ -31,6 +31,55 @@ function openButton(client: LspTestClient): void {
   });
 }
 
+describe("definition protocol / clsx", () => {
+  let client: LspTestClient | null = null;
+
+  afterEach(() => {
+    client?.dispose();
+    client = null;
+  });
+
+  const CLSX_TSX = `import clsx from 'clsx';
+import styles from './Button.module.scss';
+export function Button() {
+  return <div className={clsx(styles.indicator)}>hi</div>;
+}
+`;
+
+  const CLSX_SCSS = `
+.indicator {
+  color: red;
+}
+`;
+
+  it("returns a LocationLink for styles.indicator inside clsx()", async () => {
+    client = createInProcessServer({
+      readStyleFile: (path) => (path.endsWith("Button.module.scss") ? CLSX_SCSS : null),
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/Button.tsx",
+        languageId: "typescriptreact",
+        version: 1,
+        text: CLSX_TSX,
+      },
+    });
+    // Line 3: "  return <div className={clsx(styles.indicator)}>hi</div>;"
+    const result = await client.definition({
+      textDocument: { uri: "file:///fake/workspace/src/Button.tsx" },
+      position: { line: 3, character: 42 },
+    });
+    expect(result).not.toBeNull();
+    expect(Array.isArray(result)).toBe(true);
+    const links = result as Array<{ targetUri: string; originSelectionRange: unknown }>;
+    expect(links).toHaveLength(1);
+    expect(links[0]!.targetUri).toMatch(/Button\.module\.scss$/);
+  });
+});
+
 describe("definition protocol", () => {
   let client: LspTestClient | null = null;
 

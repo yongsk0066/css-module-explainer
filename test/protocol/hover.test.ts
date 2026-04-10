@@ -17,6 +17,56 @@ const BUTTON_SCSS = `
 }
 `;
 
+describe("hover protocol / clsx", () => {
+  let client: LspTestClient | null = null;
+
+  afterEach(() => {
+    client?.dispose();
+    client = null;
+  });
+
+  const CLSX_TSX = `import clsx from 'clsx';
+import styles from './Button.module.scss';
+export function Button() {
+  return <div className={clsx(styles.indicator)}>hi</div>;
+}
+`;
+
+  const CLSX_SCSS = `
+.indicator {
+  color: red;
+  font-size: 14px;
+}
+`;
+
+  it("returns a markdown Hover for styles.indicator inside clsx()", async () => {
+    client = createInProcessServer({
+      readStyleFile: (path) => (path.endsWith("Button.module.scss") ? CLSX_SCSS : null),
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/Button.tsx",
+        languageId: "typescriptreact",
+        version: 1,
+        text: CLSX_TSX,
+      },
+    });
+    // Line 3: "  return <div className={clsx(styles.indicator)}>hi</div>;"
+    // "indicator" starts at character 38 (after "styles.")
+    const hover = await client.hover({
+      textDocument: { uri: "file:///fake/workspace/src/Button.tsx" },
+      position: { line: 3, character: 42 },
+    });
+    expect(hover).not.toBeNull();
+    const value = (hover!.contents as { value: string }).value;
+    expect(value).toContain("`.indicator`");
+    expect(value).toContain("color: red;");
+  });
+});
+
 describe("hover protocol", () => {
   let client: LspTestClient | null = null;
 
