@@ -9,6 +9,7 @@ export interface Settings {
   };
   readonly diagnostics: {
     readonly severity: "error" | "warning" | "information" | "hint";
+    readonly unusedSelector: boolean;
   };
   readonly hover: {
     readonly maxCandidates: number;
@@ -17,7 +18,7 @@ export interface Settings {
 
 const DEFAULTS: Settings = {
   features: { definition: true, hover: true, completion: true, references: true },
-  diagnostics: { severity: "warning" },
+  diagnostics: { severity: "warning", unusedSelector: true },
   hover: { maxCandidates: 10 },
 };
 
@@ -33,6 +34,7 @@ export async function fetchSettings(connection: Connection): Promise<Settings> {
     },
     diagnostics: {
       severity: raw.diagnostics?.severity ?? DEFAULTS.diagnostics.severity,
+      unusedSelector: raw.diagnostics?.unusedSelector ?? DEFAULTS.diagnostics.unusedSelector,
     },
     hover: {
       maxCandidates: raw.hover?.maxCandidates ?? DEFAULTS.hover.maxCandidates,

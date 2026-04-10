@@ -99,6 +99,11 @@
           "default": "warning",
           "description": "Severity level for unresolved class diagnostics."
         },
+        "cssModuleExplainer.diagnostics.unusedSelector": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show hints for CSS class selectors that are declared but never referenced in any TS/TSX file."
+        },
         "cssModuleExplainer.hover.maxCandidates": {
           "type": "number",
           "default": 10,
