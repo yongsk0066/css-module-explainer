@@ -243,12 +243,13 @@ describe("parseCxCalls / zero-arg and empty-collection edges (post-review)", () 
   });
 });
 
-describe("parseCxCalls / explicit non-goal — property access (Q3 B limit)", () => {
-  it("silently skips `cx(props.variant)` — PropertyAccessExpression is not a variable ref", () => {
-    // The parser's variable branch accepts bare identifiers only.
-    // Deeper analysis (dataflow through props, destructuring) would
-    // require the Phase 4 type-resolver and is out of scope.
+describe("parseCxCalls / property access", () => {
+  it("captures `cx(props.variant)` as a variable call with the full expression text", () => {
     const calls = run(`const x = cx(props.variant);`);
-    expect(calls).toEqual([]);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.kind).toBe("variable");
+    if (calls[0]!.kind === "variable") {
+      expect(calls[0]!.variableName).toBe("props.variant");
+    }
   });
 });

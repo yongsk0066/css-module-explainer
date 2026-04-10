@@ -108,12 +108,23 @@ function extractFromArgument(
     return;
   }
 
-  // 6. Identifier → one variable call. Intentional: PropertyAccess
-  // (e.g. `cx(props.variant)`) is NOT captured as a variable
-  // reference because we cannot resolve a property path against a
-  // string-literal union type without more TS Compiler API work.
-  // Such calls are silently skipped — resolving property paths
-  // can weigh in.
+  // 6a. Property access → variable call with the full expression
+  // text. `cx(props.variant)` is captured as a variable reference
+  // with `variableName: "props.variant"`. The type resolver
+  // currently only handles bare identifiers, so this produces
+  // `unresolvable` for now — but the call is still recorded
+  // so diagnostics can see it.
+  if (ts.isPropertyAccessExpression(arg)) {
+    out.push({
+      kind: "variable",
+      variableName: arg.getText(sourceFile),
+      originRange: rangeOfNode(arg, sourceFile),
+      binding,
+    });
+    return;
+  }
+
+  // 6b. Bare identifier → variable call.
   if (ts.isIdentifier(arg)) {
     out.push({
       kind: "variable",
