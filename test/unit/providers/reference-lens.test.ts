@@ -24,6 +24,7 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   return {
     analysisCache: new DocumentAnalysisCache({
       sourceFileCache: new SourceFileCache({ max: 10 }),
+      collectStyleImports: () => new Map(),
       detectCxBindings: () => [],
       parseCxCalls: () => [],
       max: 10,

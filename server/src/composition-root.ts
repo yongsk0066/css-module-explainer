@@ -16,7 +16,7 @@ import ts from "typescript";
 import type { CxBinding, ScssClassMap } from "@css-module-explainer/shared";
 import { buildStyleFileWatcherGlob, findLangForPath } from "./core/scss/lang-registry";
 import { StyleIndexCache } from "./core/scss/scss-index";
-import { detectCxBindings } from "./core/cx/binding-detector";
+import { collectStyleImports, detectCxBindings } from "./core/cx/binding-detector";
 import { parseCxCalls } from "./core/cx/call-parser";
 import { parseStylePropertyAccesses } from "./core/cx/style-access-parser";
 import { SourceFileCache } from "./core/ts/source-file-cache";
@@ -194,6 +194,7 @@ function buildBundle(
 
   const analysisCache = new DocumentAnalysisCache({
     sourceFileCache,
+    collectStyleImports,
     detectCxBindings,
     parseCxCalls,
     parseStyleAccesses: parseStylePropertyAccesses,

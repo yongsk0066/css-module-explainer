@@ -22,10 +22,16 @@ export interface AnalysisEntry {
   readonly calls: readonly CxCallInfo[];
   /** Direct `styles.className` property accesses (non-cx pattern). */
   readonly styleRefs: readonly StylePropertyRef[];
+  /** Map of style-import local name → resolved absolute SCSS path. */
+  readonly stylesBindings: ReadonlyMap<string, string>;
 }
 
 export interface DocumentAnalysisCacheDeps {
   readonly sourceFileCache: SourceFileCache;
+  readonly collectStyleImports: (
+    sourceFile: ts.SourceFile,
+    filePath: string,
+  ) => ReadonlyMap<string, string>;
   readonly detectCxBindings: (sourceFile: ts.SourceFile, filePath: string) => CxBinding[];
   readonly parseCxCalls: (sourceFile: ts.SourceFile, binding: CxBinding) => CxCallInfo[];
   readonly parseStyleAccesses?: (
@@ -119,14 +125,11 @@ export class DocumentAnalysisCache {
     const bindings = this.deps.detectCxBindings(sourceFile, filePath);
     const calls = bindings.flatMap((binding) => this.deps.parseCxCalls(sourceFile, binding));
 
-    // Build the varName→scssPath map from bindings so the style-
-    // access parser can detect `styles.className` references.
-    const stylesBindings = new Map<string, string>();
-    for (const b of bindings) {
-      stylesBindings.set(b.stylesVarName, b.scssModulePath);
-    }
+    // L8 fix: collect style imports independently of cx bindings.
+    // Files without classnames/bind now get styles.x support.
+    const stylesBindings = this.deps.collectStyleImports(sourceFile, filePath);
     const styleRefs = this.deps.parseStyleAccesses?.(sourceFile, stylesBindings) ?? [];
 
-    return { version, contentHash: hash, sourceFile, bindings, calls, styleRefs };
+    return { version, contentHash: hash, sourceFile, bindings, calls, styleRefs, stylesBindings };
   }
 }

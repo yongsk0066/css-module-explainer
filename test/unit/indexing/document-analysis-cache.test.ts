@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import type ts from "typescript";
-import type { CxBinding, CxCallInfo } from "@css-module-explainer/shared";
+import type { CxBinding, CxCallInfo, StylePropertyRef } from "@css-module-explainer/shared";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
 
@@ -30,6 +30,7 @@ function makeCache() {
   const parseSpy = vi.fn((_sourceFile: ts.SourceFile, _binding: CxBinding): CxCallInfo[] => []);
   const cache = new DocumentAnalysisCache({
     sourceFileCache,
+    collectStyleImports: () => new Map(),
     detectCxBindings: detectSpy,
     parseCxCalls: parseSpy,
     max: 10,
@@ -99,6 +100,7 @@ describe("DocumentAnalysisCache", () => {
     const parseSpy = vi.fn((): CxCallInfo[] => []);
     const cache = new DocumentAnalysisCache({
       sourceFileCache,
+      collectStyleImports: () => new Map(),
       detectCxBindings: detectSpy,
       parseCxCalls: parseSpy,
       max: 2,
@@ -121,6 +123,7 @@ describe("DocumentAnalysisCache", () => {
     const parseSpy = vi.fn((): CxCallInfo[] => []);
     const cache = new DocumentAnalysisCache({
       sourceFileCache,
+      collectStyleImports: () => new Map(),
       detectCxBindings: detectSpy,
       parseCxCalls: parseSpy,
       max: 2,
@@ -146,6 +149,7 @@ describe("DocumentAnalysisCache", () => {
     const parseSpy = vi.fn((): CxCallInfo[] => []);
     const cache = new DocumentAnalysisCache({
       sourceFileCache,
+      collectStyleImports: () => new Map(),
       detectCxBindings: detectSpy,
       parseCxCalls: parseSpy,
       max: 10,
@@ -159,10 +163,68 @@ describe("DocumentAnalysisCache", () => {
     const sourceFileCache = new SourceFileCache({ max: 10 });
     const cache = new DocumentAnalysisCache({
       sourceFileCache,
+      collectStyleImports: () => new Map(),
       detectCxBindings: (): CxBinding[] => [],
       parseCxCalls: (): CxCallInfo[] => [],
       max: 10,
     });
     expect(() => cache.invalidate("not::a::uri")).not.toThrow();
+  });
+});
+
+describe("DocumentAnalysisCache / L8 fix: styleRefs without classnames/bind", () => {
+  it("populates styleRefs for a file with style imports but no classnames/bind", () => {
+    const clsxSource = `
+      import clsx from 'clsx';
+      import styles from './Button.module.scss';
+      const el = <div className={clsx(styles.indicator)} />;
+    `;
+    const sourceFileCache = new SourceFileCache({ max: 10 });
+    const detectSpy = vi.fn((): CxBinding[] => []);
+    const parseSpy = vi.fn((): CxCallInfo[] => []);
+    const styleRef: StylePropertyRef = {
+      kind: "style-access",
+      className: "indicator",
+      scssModulePath: "/fake/src/Button.module.scss",
+      stylesVarName: "styles",
+      originRange: { start: { line: 3, character: 42 }, end: { line: 3, character: 51 } },
+    };
+    const parseStyleAccessesSpy = vi.fn(
+      (_sf: ts.SourceFile, bindings: ReadonlyMap<string, string>): StylePropertyRef[] => {
+        if (bindings.size > 0 && bindings.has("styles")) return [styleRef];
+        return [];
+      },
+    );
+    const collectStyleImportsSpy = vi.fn(
+      (_sf: ts.SourceFile, _filePath: string): ReadonlyMap<string, string> => {
+        return new Map([["styles", "/fake/src/Button.module.scss"]]);
+      },
+    );
+
+    const cache = new DocumentAnalysisCache({
+      sourceFileCache,
+      collectStyleImports: collectStyleImportsSpy,
+      detectCxBindings: detectSpy,
+      parseCxCalls: parseSpy,
+      parseStyleAccesses: parseStyleAccessesSpy,
+      max: 10,
+    });
+
+    const entry = cache.get("file:///fake/a.tsx", clsxSource, "/fake/a.tsx", 1);
+
+    // L8 fix: styleRefs must be populated even though detectCxBindings returned []
+    expect(entry.bindings).toHaveLength(0);
+    expect(entry.styleRefs).toHaveLength(1);
+    expect(entry.styleRefs[0]).toMatchObject({
+      kind: "style-access",
+      className: "indicator",
+      scssModulePath: "/fake/src/Button.module.scss",
+    });
+    expect(collectStyleImportsSpy).toHaveBeenCalledTimes(1);
+    expect(parseStyleAccessesSpy).toHaveBeenCalledTimes(1);
+    // Verify parseStyleAccesses received the map from collectStyleImports
+    expect(parseStyleAccessesSpy.mock.calls[0]![1].get("styles")).toBe(
+      "/fake/src/Button.module.scss",
+    );
   });
 });
