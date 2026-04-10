@@ -1,10 +1,7 @@
 import * as path from "node:path";
 import ts from "typescript";
 import type { CxBinding } from "@css-module-explainer/shared";
-// lang-registry is the single source of truth for style extensions;
-// importing it here is a deliberate cross-domain read of neutral
-// config data, not a logic dependency. When LESS joins the registry
-// this file needs zero changes.
+// Source of truth for supported style extensions (.scss, .css, .less).
 import { getAllStyleExtensions } from "../scss/lang-registry";
 
 /**
@@ -105,12 +102,8 @@ function tryParseCxBinding(
   if (!init || !ts.isCallExpression(init)) return null;
 
   // `initializer` must be `<classNamesName>.bind(<stylesName>)`.
-  // Intentional limitation: we do not unwrap ParenthesizedExpression
-  // or AsExpression wrappers, so `(classNames as typeof cn).bind(...)`
-  // fails this identifier check and is silently skipped. That
-  // pattern is vanishingly rare in real TSX using classnames/bind;
-  // handling it would require walking through arbitrary type
-  // assertions for minimal benefit.
+  // Does not unwrap ParenthesizedExpression or AsExpression,
+  // so `(classNames as typeof cn).bind(...)` is silently skipped.
   const callee = init.expression;
   if (!ts.isPropertyAccessExpression(callee)) return null;
   if (callee.name.text !== "bind") return null;

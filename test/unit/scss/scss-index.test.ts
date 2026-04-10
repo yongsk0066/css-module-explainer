@@ -162,10 +162,8 @@ describe("parseStyleModule / edge cases", () => {
 
   describe("partial parse recovery", () => {
     it("returns an empty map when a late syntax error breaks the whole file", () => {
-      // postcss throws on the broken trailing rule; we catch at the
-      // file boundary and never surface the earlier valid rules.
-      // Pinning this all-or-nothing behavior so future streaming
-      // refactors do not silently change it.
+      // postcss throws on the broken trailing rule; parse failure
+      // returns an empty map — no partial results.
       const map = parseStyleModule(
         `.valid { color: red; }\n.broken { color: `,
         "/fake/a.module.scss",

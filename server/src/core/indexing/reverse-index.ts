@@ -48,27 +48,12 @@ export class NullReverseIndex implements ReverseIndex {
 }
 
 /**
- * Production reverse index.
+ * Two-level map (scssPath → className → CallSite[]) with
+ * back-pointers for O(1) `forget(uri)` on document close.
  *
- * Storage:
- *   `forward`  Map<scssPath, Map<className, CallSite[]>>
- *   `back`     Map<uri, Set<{ scssPath, className }>>
- *
- * `record(uri, callSites)` is idempotent: the back-pointer lets
- * `forget(uri)` find every (scssPath, className) bucket the uri
- * previously contributed to and drop only its entries, without
- * a full-forward-scan. This keeps incremental document updates
- * O(|callSites|), not O(|workspace|).
- *
- * `find` and `count` are O(1) amortised — both walk at most
- * one flat array.
- *
- * Only `CallSite.match.kind === "static"` contributes entries.
- * Template and variable kinds are deliberately skipped — they
- * cover a range of possible classes and resolving each member
- * to a concrete CallSite would need the classMap at index time,
- * which the reverse index does not hold. A future extension can
- * emit one CallSite per resolved member before recording.
+ * Only static call kinds are indexed. Template and variable
+ * kinds are skipped — resolving them would require the classMap
+ * at index time, which this layer does not hold.
  */
 export class WorkspaceReverseIndex implements ReverseIndex {
   private readonly forward = new Map<string, Map<string, CallSite[]>>();

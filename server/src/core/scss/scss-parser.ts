@@ -50,21 +50,9 @@ export function parseStyleModule(content: string, filePath: string): ScssClassMa
 }
 
 /**
- * Walk postcss child nodes — both rules and transparent at-rules —
- * and record every class that CSS Modules would expose on the
- * `styles` object.
- *
- * - `parentSelector` carries the resolved selector chain for SCSS
- *   `&` nesting. Empty at the top level.
- * - `@media` / `@at-root` (block form) / `@supports` are transparent
- *   wrappers: we recurse into their bodies with the current parent
- *   intact.
- * - `@at-root <selector>` inline form is special-cased (see branch
- *   below) because postcss-scss puts its selector in `params` and
- *   declarations as direct children.
- * - `@keyframes`, `@font-face`, and any other at-rule are NOT
- *   transparent — their children are not class selectors in the
- *   CSS-Modules sense.
+ * Recurse through postcss nodes, recording classes that CSS Modules
+ * exposes on the `styles` object. Transparent at-rules (@media,
+ * @supports, @at-root) are unwrapped; @keyframes/@font-face are skipped.
  */
 function walkStyleNodes(
   nodes: ChildNode[] | undefined,
@@ -241,23 +229,9 @@ function resolveSelector(raw: string, parent: string): string {
 }
 
 /**
- * Extract class names that CSS Modules would expose on the styles
- * object for a resolved selector.
- *
- * Rules applied in order:
- *   1. `:global(.x)` wraps are stripped **and** their inner class
- *      is dropped — :global classes never appear on the styles
- *      object.
- *   2. `:local(.x)` wraps are stripped but the inner class stays.
- *   3. Other pseudo-classes/elements (:hover, ::before, :nth-child)
- *      are stripped so they do not interfere with class matching.
- *   4. What remains is a descendant selector like `.a .b .c.d`;
- *      CSS Modules exposes every class in the **rightmost
- *      compound segment** (`.c.d` → both `c` and `d`). The earlier
- *      segments exist as ancestors but are not keys.
- *
- * This returns every class from that rightmost compound, so
- * `.a .b.c` yields `["b", "c"]` and `.btn` yields `["btn"]`.
+ * Extract class names from a resolved selector. Strips :global
+ * (dropped), :local (unwrapped), and pseudos, then returns every
+ * class in the rightmost compound segment.
  */
 function extractClassNames(resolvedSelector: string): string[] {
   // (1) + (2) + (3) — strip wrappers and pseudos.

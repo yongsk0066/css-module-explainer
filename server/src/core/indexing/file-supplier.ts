@@ -2,16 +2,7 @@ import fastGlob from "fast-glob";
 import { buildStyleFileWatcherGlob } from "../scss/lang-registry";
 import type { FileTask } from "./indexer-worker";
 
-/**
- * Walk the workspace and yield one `FileTask` per style module
- * file. Backed by `fast-glob`'s streaming API: `fast-glob`
- * pre-enumerates directories up to its internal highWaterMark
- * (~16 chunks) so memory stays bounded for large workspaces.
- *
- * Errors inside fast-glob are caught at the `for await` boundary
- * so a single unreadable directory does not abort the entire
- * walk. The caller gets a partial result and a logged error.
- */
+/** Yields one FileTask per style module file in the workspace. */
 export function scssFileSupplier(
   workspaceRoot: string,
   logger: { error: (msg: string) => void },

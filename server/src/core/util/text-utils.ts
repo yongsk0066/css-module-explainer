@@ -1,13 +1,6 @@
 import * as nodeUrl from "node:url";
 
-/**
- * Return the 0-indexed line at `lineNumber` from `content`,
- * excluding the trailing `\n` (and `\r` if present). Returns
- * `undefined` when the line is out of range.
- *
- * Implementation walks `indexOf('\n')` to avoid allocating a
- * full `split('\n')` array on every hover/definition call.
- */
+/** Return the 0-indexed line, or undefined if out of range. */
 export function getLineAt(content: string, lineNumber: number): string | undefined {
   if (lineNumber < 0) return undefined;
 
