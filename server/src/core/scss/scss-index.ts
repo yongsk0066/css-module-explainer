@@ -1,5 +1,6 @@
 import type { Range, SelectorInfo, ScssClassMap } from "@css-module-explainer/shared";
-import postcss, {
+import {
+  parse as postcssParse,
   type Rule,
   type Declaration,
   type ChildNode,
@@ -31,8 +32,8 @@ export function parseStyleModule(content: string, filePath: string): ScssClassMa
     // `syntax` must only be present when non-undefined under
     // exactOptionalPropertyTypes; build the options object
     // conditionally so we do not pass `syntax: undefined`.
-    const processOptions = syntax ? { from: filePath, syntax } : { from: filePath };
-    root = postcss().process(content, processOptions).root;
+    const parseOptions = syntax ? { from: filePath, syntax } : { from: filePath };
+    root = postcssParse(content, parseOptions);
   } catch {
     // Parse failure → empty map; contract is documented on the
     // parseStyleModule JSDoc above. We intentionally do not log
@@ -74,10 +75,24 @@ function walkStyleNodes(
   if (!nodes) return;
   for (const node of nodes) {
     if (node.type === "rule") {
+      // :global block form — `rule.selector === ":global"` means
+      // every child class is global-scoped and must be excluded.
+      if (isGlobalBlockRule(node.selector)) continue;
+      // :local block form — passthrough (CSS Modules default is
+      // local, so these are already correctly indexed).
+      if (isLocalBlockRule(node.selector)) {
+        walkStyleNodes(node.nodes, parentSelector, classMap);
+        continue;
+      }
       recordRule(node, parentSelector, classMap);
     } else if (node.type === "atrule" && isTransparentAtRule(node.name)) {
       if (node.name === "at-root" && isInlineAtRoot(node)) {
         recordAtRootInlineRule(node, classMap);
+      } else if (node.name === "at-root") {
+        // Block form `@at-root { .escaped {} }` — resets the
+        // parent selector so nested rules escape all enclosing
+        // nesting, which is the entire point of @at-root.
+        walkStyleNodes(node.nodes, "", classMap);
       } else {
         walkStyleNodes(node.nodes, parentSelector, classMap);
       }
@@ -86,7 +101,15 @@ function walkStyleNodes(
 }
 
 function isTransparentAtRule(name: string): boolean {
-  return name === "media" || name === "at-root" || name === "supports";
+  return name === "media" || name === "at-root" || name === "supports" || name === "layer";
+}
+
+function isGlobalBlockRule(selector: string): boolean {
+  return /^:global\s*$/.test(selector.trim());
+}
+
+function isLocalBlockRule(selector: string): boolean {
+  return /^:local\s*$/.test(selector.trim());
 }
 
 function isInlineAtRoot(atrule: AtRule): boolean {

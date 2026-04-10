@@ -52,5 +52,9 @@ export function resolveCxCallToSelectorInfos(args: ResolveArgs): SelectorInfo[] 
       }
       return results;
     }
+    default: {
+      const _exhaustive: never = call;
+      return _exhaustive;
+    }
   }
 }

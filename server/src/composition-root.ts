@@ -407,27 +407,34 @@ function defaultReadStyleFile(path: string): string | null {
 /**
  * Minimal production ts.Program builder. Parses tsconfig.json
  * relative to the workspace root, falls back to an empty program
- * when missing.
+ * when missing or malformed. The entire body is wrapped in
+ * try/catch so a corrupt tsconfig never crashes the initialize
+ * handshake.
  */
 export function createDefaultProgram(workspaceRoot: string): ts.Program {
-  const configPath = ts.findConfigFile(workspaceRoot, ts.sys.fileExists, "tsconfig.json");
-  if (!configPath) {
-    return ts.createProgram({
-      rootNames: [],
-      options: { allowJs: true, jsx: ts.JsxEmit.Preserve },
+  const EMPTY = ts.createProgram({
+    rootNames: [],
+    options: { allowJs: true, jsx: ts.JsxEmit.Preserve },
+  });
+
+  try {
+    const configPath = ts.findConfigFile(workspaceRoot, ts.sys.fileExists, "tsconfig.json");
+    if (!configPath) return EMPTY;
+
+    const parsed = ts.getParsedCommandLineOfConfigFile(configPath, undefined, {
+      ...ts.sys,
+      onUnRecoverableConfigFileDiagnostic: () => {},
     });
+    if (!parsed) return EMPTY;
+
+    return ts.createProgram({
+      rootNames: parsed.fileNames,
+      options: parsed.options,
+      projectReferences: parsed.projectReferences ?? [],
+    });
+  } catch {
+    return EMPTY;
   }
-  const parsed = ts.getParsedCommandLineOfConfigFile(configPath, undefined, {
-    ...ts.sys,
-    onUnRecoverableConfigFileDiagnostic: () => {},
-  });
-  if (!parsed) {
-    return ts.createProgram({ rootNames: [], options: {} });
-  }
-  return ts.createProgram({
-    rootNames: parsed.fileNames,
-    options: parsed.options,
-  });
 }
 
 function toCursorParams(

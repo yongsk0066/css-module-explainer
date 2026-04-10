@@ -73,11 +73,10 @@ export class SourceFileCache {
  */
 function scriptKindFor(filePath: string): ts.ScriptKind {
   if (filePath.endsWith(".tsx")) return ts.ScriptKind.TSX;
-  if (filePath.endsWith(".ts")) return ts.ScriptKind.TS;
+  if (filePath.endsWith(".mts") || filePath.endsWith(".cts") || filePath.endsWith(".ts"))
+    return ts.ScriptKind.TS;
   if (filePath.endsWith(".jsx")) return ts.ScriptKind.JSX;
-  if (filePath.endsWith(".js")) return ts.ScriptKind.JS;
-  // Unknown extensions (e.g. .mts/.cts): fall back to TSX because
-  // it is the most permissive parser. Worth revisiting when the
-  // first real .mts/.cts fixture lands.
+  if (filePath.endsWith(".mjs") || filePath.endsWith(".cjs") || filePath.endsWith(".js"))
+    return ts.ScriptKind.JS;
   return ts.ScriptKind.TSX;
 }
