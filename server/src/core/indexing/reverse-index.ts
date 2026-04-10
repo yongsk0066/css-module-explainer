@@ -1,5 +1,6 @@
-import type { CallSite } from "@css-module-explainer/shared";
+import type { CallSite, ScssClassMap } from "@css-module-explainer/shared";
 import type { AnalysisEntry } from "./document-analysis-cache.js";
+import type { TypeResolver } from "../ts/type-resolver.js";
 
 /**
  * Reverse index of cx() call sites, keyed by (scssPath, className).
@@ -125,29 +126,68 @@ export class WorkspaceReverseIndex implements ReverseIndex {
   }
 }
 
-/**
- * Build the `CallSite[]` list the reverse index consumes from
- * an AnalysisEntry. Co-located with `WorkspaceReverseIndex` — the
- * projection and its consumer change together.
- */
-export function collectCallSites(uri: string, entry: AnalysisEntry): CallSite[] {
-  return entry.calls.map((call) => ({
-    uri,
-    range: call.originRange,
-    binding: call.binding,
-    match: matchOf(call),
-  }));
+export interface CallSiteResolverContext {
+  readonly classMapForPath: (path: string) => ScssClassMap | null;
+  readonly typeResolver: TypeResolver;
+  readonly workspaceRoot: string;
+  readonly filePath: string;
 }
 
-function matchOf(call: AnalysisEntry["calls"][number]): CallSite["match"] {
-  switch (call.kind) {
-    case "static":
-      return { kind: "static", className: call.className };
-    case "template":
-      return { kind: "template", staticPrefix: call.staticPrefix };
-    case "variable":
-      return { kind: "variable", variableName: call.variableName };
+/**
+ * Build the `CallSite[]` list the reverse index consumes.
+ *
+ * When `ctx` is provided, template and variable calls are EXPANDED
+ * into individual static-keyed entries so Find References can
+ * locate them. Without `ctx`, only static calls are indexed (the
+ * Phase 5 behavior).
+ */
+export function collectCallSites(
+  uri: string,
+  entry: AnalysisEntry,
+  ctx?: CallSiteResolverContext,
+): CallSite[] {
+  const sites: CallSite[] = [];
+  for (const call of entry.calls) {
+    const base = { uri, range: call.originRange, binding: call.binding };
+    switch (call.kind) {
+      case "static":
+        sites.push({ ...base, match: { kind: "static", className: call.className } });
+        break;
+      case "template": {
+        // Always record the template match for display purposes.
+        sites.push({ ...base, match: { kind: "template", staticPrefix: call.staticPrefix } });
+        // If resolver context available, expand to individual static entries.
+        if (ctx) {
+          const classMap = ctx.classMapForPath(call.binding.scssModulePath);
+          if (classMap) {
+            for (const name of classMap.keys()) {
+              if (name.startsWith(call.staticPrefix)) {
+                sites.push({ ...base, match: { kind: "static", className: name } });
+              }
+            }
+          }
+        }
+        break;
+      }
+      case "variable": {
+        sites.push({ ...base, match: { kind: "variable", variableName: call.variableName } });
+        if (ctx) {
+          const resolved = ctx.typeResolver.resolve(
+            ctx.filePath,
+            call.variableName,
+            ctx.workspaceRoot,
+          );
+          if (resolved.kind === "union") {
+            for (const value of resolved.values) {
+              sites.push({ ...base, match: { kind: "static", className: value } });
+            }
+          }
+        }
+        break;
+      }
+    }
   }
+  return sites;
 }
 
 const BACK_KEY_SEP = "\u0000";
