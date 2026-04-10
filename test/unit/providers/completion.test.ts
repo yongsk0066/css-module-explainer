@@ -229,3 +229,197 @@ describe("detectClassUtilImports", () => {
     expect(detectClassUtilImports(sf)).toEqual(["clsx"]);
   });
 });
+
+describe("handleCompletion / clsx path", () => {
+  const CLSX_TSX = `
+import clsx from 'clsx';
+import styles from './Button.module.scss';
+const el = clsx(styles.
+`;
+
+  function clsxMakeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
+    const sourceFileCache = new SourceFileCache({ max: 10 });
+    const analysisCache = new DocumentAnalysisCache({
+      sourceFileCache,
+      detectCxBindings: () => [],
+      parseCxCalls: () => [],
+      parseStyleAccesses: () => [],
+      // After L8 fix: collectStyleImports is wired and populates stylesBindings
+      collectStyleImports: (_sf: ts.SourceFile, _fp: string) =>
+        new Map([["styles", "/fake/ws/src/Button.module.scss"]]),
+      max: 10,
+    });
+    return {
+      analysisCache,
+      scssClassMapFor: () => null,
+      scssClassMapForPath: (path: string) =>
+        path === "/fake/ws/src/Button.module.scss"
+          ? (new Map([
+              ["btn", info("btn")],
+              ["active", info("active")],
+            ]) as ScssClassMap)
+          : null,
+      typeResolver: new FakeTypeResolver(),
+      reverseIndex: new NullReverseIndex(),
+      workspaceRoot: "/fake/ws",
+      logError: NOOP_LOG_ERROR,
+      ...overrides,
+    };
+  }
+
+  it("returns class completions inside clsx(styles.|)", () => {
+    const result = handleCompletion(
+      {
+        documentUri: "file:///fake/ws/src/Button.tsx",
+        content: CLSX_TSX,
+        filePath: "/fake/ws/src/Button.tsx",
+        line: 3,
+        character: 23, // after "styles."
+        version: 1,
+      },
+      clsxMakeDeps(),
+    );
+    expect(result).not.toBeNull();
+    expect(result).toHaveLength(2);
+    expect(result!.map((r) => r.label).toSorted()).toEqual(["active", "btn"]);
+  });
+
+  it("returns class completions with aliased import (cn from 'clsx')", () => {
+    const CN_TSX = `
+import cn from 'clsx';
+import styles from './Button.module.scss';
+const el = cn(styles.
+`;
+    const result = handleCompletion(
+      {
+        documentUri: "file:///fake/ws/src/Button.tsx",
+        content: CN_TSX,
+        filePath: "/fake/ws/src/Button.tsx",
+        line: 3,
+        character: 21, // after "styles."
+        version: 1,
+      },
+      clsxMakeDeps(),
+    );
+    expect(result).not.toBeNull();
+    expect(result!.map((r) => r.label).toSorted()).toEqual(["active", "btn"]);
+  });
+
+  it("returns class completions with classnames (not /bind)", () => {
+    const CLASSNAMES_TSX = `
+import classNames from 'classnames';
+import styles from './Button.module.scss';
+const el = classNames(styles.
+`;
+    const result = handleCompletion(
+      {
+        documentUri: "file:///fake/ws/src/Button.tsx",
+        content: CLASSNAMES_TSX,
+        filePath: "/fake/ws/src/Button.tsx",
+        line: 3,
+        character: 29, // after "styles."
+        version: 1,
+      },
+      clsxMakeDeps(),
+    );
+    expect(result).not.toBeNull();
+    expect(result!.map((r) => r.label).toSorted()).toEqual(["active", "btn"]);
+  });
+
+  it("returns class completions with partial prefix (styles.ac)", () => {
+    const PARTIAL_TSX = `
+import clsx from 'clsx';
+import styles from './Button.module.scss';
+const el = clsx(styles.ac
+`;
+    const result = handleCompletion(
+      {
+        documentUri: "file:///fake/ws/src/Button.tsx",
+        content: PARTIAL_TSX,
+        filePath: "/fake/ws/src/Button.tsx",
+        line: 3,
+        character: 25, // after "styles.ac"
+        version: 1,
+      },
+      clsxMakeDeps(),
+    );
+    // Returns all items; VS Code filters by prefix client-side
+    expect(result).not.toBeNull();
+    expect(result!.map((r) => r.label).toSorted()).toEqual(["active", "btn"]);
+  });
+
+  it("returns null when cursor is outside clsx() call", () => {
+    const OUTSIDE_TSX = `
+import clsx from 'clsx';
+import styles from './Button.module.scss';
+const x = styles.
+`;
+    const result = handleCompletion(
+      {
+        documentUri: "file:///fake/ws/src/Button.tsx",
+        content: OUTSIDE_TSX,
+        filePath: "/fake/ws/src/Button.tsx",
+        line: 3,
+        character: 18,
+        version: 1,
+      },
+      clsxMakeDeps(),
+    );
+    expect(result).toBeNull();
+  });
+
+  it("returns null when no clsx/classnames import exists", () => {
+    const NO_CLSX_TSX = `
+import styles from './Button.module.scss';
+const el = someFunc(styles.
+`;
+    const result = handleCompletion(
+      {
+        documentUri: "file:///fake/ws/src/Button.tsx",
+        content: NO_CLSX_TSX,
+        filePath: "/fake/ws/src/Button.tsx",
+        line: 2,
+        character: 28,
+        version: 1,
+      },
+      clsxMakeDeps(),
+    );
+    expect(result).toBeNull();
+  });
+
+  it("returns null when classMap is empty", () => {
+    const result = handleCompletion(
+      {
+        documentUri: "file:///fake/ws/src/Button.tsx",
+        content: CLSX_TSX,
+        filePath: "/fake/ws/src/Button.tsx",
+        line: 3,
+        character: 23,
+        version: 1,
+      },
+      clsxMakeDeps({ scssClassMapForPath: () => new Map() as ScssClassMap }),
+    );
+    expect(result).toBeNull();
+  });
+
+  it("returns null quickly for files with no clsx/classnames import (fast-path)", () => {
+    const PLAIN_TSX = `
+import React from 'react';
+const el = <div className="foo">
+`;
+    const result = handleCompletion(
+      {
+        documentUri: "file:///fake/ws/src/Plain.tsx",
+        content: PLAIN_TSX,
+        filePath: "/fake/ws/src/Plain.tsx",
+        line: 2,
+        character: 30,
+        version: 1,
+      },
+      clsxMakeDeps(),
+    );
+    // hasClassUtilImport returns false, so computeCompletion exits
+    // before touching the AST or analysis cache.
+    expect(result).toBeNull();
+  });
+});

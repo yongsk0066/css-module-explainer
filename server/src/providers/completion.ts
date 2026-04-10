@@ -31,7 +31,28 @@ export function handleCompletion(
 }
 
 function computeCompletion(params: CursorParams, deps: ProviderDeps): CompletionItem[] | null {
-  if (!hasCxBindImport(params.content)) return null;
+  // ── Pipeline 1: cx (classnames/bind) ──────────────────────
+  if (hasCxBindImport(params.content)) {
+    const entry = deps.analysisCache.get(
+      params.documentUri,
+      params.content,
+      params.filePath,
+      params.version,
+    );
+    if (entry.bindings.length > 0) {
+      const textBefore = getTextBefore(params.content, params.line, params.character);
+      const matchingBinding = findBindingInsideCall(entry.bindings, params.line, textBefore);
+      if (matchingBinding) {
+        const classMap = deps.scssClassMapFor(matchingBinding);
+        if (classMap && classMap.size > 0) {
+          return Array.from(classMap.values(), (info) => toCompletionItem(info));
+        }
+      }
+    }
+  }
+
+  // ── Pipeline 2: clsx / classnames (no /bind) ─────────────
+  if (!hasClassUtilImport(params.content)) return null;
 
   const entry = deps.analysisCache.get(
     params.documentUri,
@@ -39,16 +60,35 @@ function computeCompletion(params: CursorParams, deps: ProviderDeps): Completion
     params.filePath,
     params.version,
   );
-  if (entry.bindings.length === 0) return null;
+
+  const classUtilNames = detectClassUtilImports(entry.sourceFile);
+  if (classUtilNames.length === 0) return null;
 
   const textBefore = getTextBefore(params.content, params.line, params.character);
-  const matchingBinding = findBindingInsideCall(entry.bindings, params.line, textBefore);
-  if (!matchingBinding) return null;
 
-  const classMap = deps.scssClassMapFor(matchingBinding);
-  if (!classMap || classMap.size === 0) return null;
+  // Check if cursor is inside any class-util call
+  for (const utilName of classUtilNames) {
+    if (!isInsideCxCall(textBefore, utilName)) continue;
 
-  return Array.from(classMap.values(), (info) => toCompletionItem(info));
+    // Check if textBefore ends with `<varName>.` or `<varName>.<partial>`
+    // for any known style import. Uses simple string check instead of
+    // regex to avoid allocation in the hot completion path.
+    for (const [varName, scssPath] of entry.stylesBindings) {
+      const dotPrefix = varName + ".";
+      // Find the last occurrence of `varName.` in textBefore
+      const idx = textBefore.lastIndexOf(dotPrefix);
+      if (idx < 0) continue;
+      // Everything after `varName.` must be a partial identifier (word chars only)
+      const afterDot = textBefore.slice(idx + dotPrefix.length);
+      if (afterDot.length > 0 && !/^\w+$/.test(afterDot)) continue;
+      const classMap = deps.scssClassMapForPath(scssPath);
+      if (classMap && classMap.size > 0) {
+        return Array.from(classMap.values(), (info) => toCompletionItem(info));
+      }
+    }
+  }
+
+  return null;
 }
 
 function findBindingInsideCall(
@@ -81,9 +121,12 @@ function toCompletionItem(info: SelectorInfo): CompletionItem {
 
 /**
  * Trigger characters for the completion provider: `'`, `"`,
- * `` ` ``, and `,`.
+ * `` ` ``, `,`, and `.`.
+ *
+ * The `.` trigger is needed for `styles.` inside clsx/classnames
+ * calls where completion must fire on the dot.
  */
-export const COMPLETION_TRIGGER_CHARACTERS = ["'", '"', "`", ","] as const;
+export const COMPLETION_TRIGGER_CHARACTERS = ["'", '"', "`", ",", "."] as const;
 
 /**
  * Return true when the last `<cxVarName>(` on `textBefore` is
@@ -131,6 +174,22 @@ function getTextBefore(content: string, line: number, character: number): string
     offset = nl + 1;
   }
   return content.slice(0, offset + character);
+}
+
+/**
+ * Fast-path predicate: does this document import `clsx`,
+ * `clsx/lite`, or `classnames` (not `/bind`)? Used before
+ * touching the AST.
+ */
+function hasClassUtilImport(content: string): boolean {
+  return (
+    content.includes("'clsx'") ||
+    content.includes('"clsx"') ||
+    content.includes("'clsx/lite'") ||
+    content.includes('"clsx/lite"') ||
+    content.includes("'classnames'") ||
+    content.includes('"classnames"')
+  );
 }
 
 /**
