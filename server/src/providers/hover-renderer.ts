@@ -67,14 +67,22 @@ function buildMultiHeader(args: RenderArgs): string {
 }
 
 function buildRule(info: SelectorInfo): string {
+  const lines: string[] = [];
+  // Show composes references as comments at the top.
+  if (info.composes && info.composes.length > 0) {
+    for (const ref of info.composes) {
+      const names = ref.classNames.join(" ");
+      const source = ref.fromGlobal ? "global" : ref.from ? `'${ref.from}'` : "this file";
+      lines.push(`  /* composes: ${names} from ${source} */`);
+    }
+  }
   const decls = info.declarations.trim();
-  if (decls.length === 0) return `.${info.name} {}`;
+  if (decls.length === 0 && lines.length === 0) return `.${info.name} {}`;
   const formatted = decls
     .split(/;\s*/)
     .filter((d) => d.length > 0)
-    .map((d) => `  ${d.trim()};`)
-    .join("\n");
-  return `.${info.name} {\n${formatted}\n}`;
+    .map((d) => `  ${d.trim()};`);
+  return `.${info.name} {\n${[...lines, ...formatted].join("\n")}\n}`;
 }
 
 function formatLocation(scssPath: string, line: number, workspaceRoot: string): string {

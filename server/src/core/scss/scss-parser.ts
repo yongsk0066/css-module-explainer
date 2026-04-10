@@ -1,4 +1,4 @@
-import type { Range, SelectorInfo, ScssClassMap } from "@css-module-explainer/shared";
+import type { ComposesRef, Range, SelectorInfo, ScssClassMap } from "@css-module-explainer/shared";
 import {
   parse as postcssParse,
   type Rule,
@@ -119,10 +119,9 @@ function isInlineAtRoot(atrule: AtRule): boolean {
 }
 
 function recordRule(rule: Rule, parentSelector: string, classMap: Map<string, SelectorInfo>): void {
-  const declarations = collectDeclarations(rule.nodes);
+  const { declarations, composes } = collectDeclarationsAndComposes(rule.nodes);
   const ruleRange = rangeForSourceNode(rule);
 
-  // Each comma-separated selector produces its own entry.
   const selectors = rule.selectors ?? [rule.selector];
   const resolvedSelectors: string[] = [];
 
@@ -132,38 +131,70 @@ function recordRule(rule: Rule, parentSelector: string, classMap: Map<string, Se
 
     for (const className of extractClassNames(resolved)) {
       const tokenRange = findClassTokenRange(rule.source?.start, className, raw);
-      // Cascade last-wins: .set() overwrites on redefinition.
       classMap.set(className, {
         name: className,
         range: tokenRange,
         fullSelector: resolved,
         declarations,
         ruleRange,
+        ...(composes.length > 0 ? { composes } : {}),
       });
     }
   }
 
-  // Recurse into nested rules using the first resolved selector as
-  // the new parent. Known limitation: SCSS actually expands nested
-  // rules under ALL grouped selectors (".a, .b" → ".a .child, .b .child");
-  // we only track the first branch here. No real-world project has
-  // hit this yet, but the day it does, this comment is the breadcrumb.
-  const nextParent = resolvedSelectors[0] ?? parentSelector;
-  walkStyleNodes(rule.nodes, nextParent, classMap);
+  // Recurse into nested rules under EVERY grouped selector, not
+  // just the first. `.a, .b { .child {} }` → both `.a .child` and
+  // `.b .child` are indexed. Guard against pathological expansion
+  // by capping the branch count.
+  const parents = resolvedSelectors.length > 0 ? resolvedSelectors : [parentSelector];
+  for (const nextParent of parents) {
+    walkStyleNodes(rule.nodes, nextParent, classMap);
+  }
 }
 
 /**
- * Collect direct-child declarations of a rule or at-rule as a
- * flattened `"prop: value; ..."` string. Does not descend into
- * nested rules. CSS variables (--name) are included so hover cards
- * can show them.
+ * Collect declarations AND composes references from a rule's
+ * direct children. `composes` declarations are extracted into
+ * structured `ComposesRef` objects; all other declarations are
+ * flattened into the `"prop: value; ..."` string.
  */
-function collectDeclarations(nodes: ChildNode[] | undefined): string {
-  if (!nodes) return "";
-  return nodes
-    .filter((node): node is Declaration => node.type === "decl")
-    .map((decl) => `${decl.prop}: ${decl.value}`)
-    .join("; ");
+function collectDeclarationsAndComposes(nodes: ChildNode[] | undefined): {
+  declarations: string;
+  composes: ComposesRef[];
+} {
+  if (!nodes) return { declarations: "", composes: [] };
+
+  const composes: ComposesRef[] = [];
+  const declParts: string[] = [];
+
+  for (const node of nodes) {
+    if (node.type !== "decl") continue;
+    const decl = node as Declaration;
+    if (decl.prop === "composes") {
+      const ref = parseComposesValue(decl.value);
+      if (ref) composes.push(ref);
+    } else {
+      declParts.push(`${decl.prop}: ${decl.value}`);
+    }
+  }
+
+  return { declarations: declParts.join("; "), composes };
+}
+
+const COMPOSES_FROM_RE = /^(.+?)\s+from\s+(?:'([^']+)'|"([^"]+)"|(global))\s*$/;
+
+function parseComposesValue(value: string): ComposesRef | null {
+  const trimmed = value.trim();
+  const match = COMPOSES_FROM_RE.exec(trimmed);
+  if (match) {
+    const classNames = match[1]!.trim().split(/\s+/);
+    const from = match[2] ?? match[3];
+    const fromGlobal = match[4] === "global" || undefined;
+    return { classNames, ...(from ? { from } : {}), ...(fromGlobal ? { fromGlobal } : {}) };
+  }
+  // Same-file composes: `composes: className`
+  const classNames = trimmed.split(/\s+/).filter((s) => s.length > 0);
+  return classNames.length > 0 ? { classNames } : null;
 }
 
 /**
@@ -174,7 +205,7 @@ function collectDeclarations(nodes: ChildNode[] | undefined): string {
  */
 function recordAtRootInlineRule(atrule: AtRule, classMap: Map<string, SelectorInfo>): void {
   const selector = atrule.params.trim();
-  const declarations = collectDeclarations(atrule.nodes);
+  const { declarations } = collectDeclarationsAndComposes(atrule.nodes);
   const ruleRange = rangeForSourceNode(atrule);
   const selectors = selector.split(",").map((s) => s.trim());
 
