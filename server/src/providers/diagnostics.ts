@@ -7,7 +7,7 @@ import type { CxCallInfo, ScssClassMap } from "@css-module-explainer/shared";
 import { resolveCxCallToSelectorInfos } from "../core/cx/call-resolver.js";
 import { findClosestMatch } from "../core/util/text-utils.js";
 import { toLspRange } from "./lsp-adapters.js";
-import type { DocumentParams, ProviderDeps } from "./provider-utils.js";
+import type { DocumentParams, ProviderDeps } from "./cursor-dispatch.js";
 
 /**
  * Compute diagnostics for an open document.

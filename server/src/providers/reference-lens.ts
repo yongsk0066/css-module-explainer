@@ -3,7 +3,7 @@ import type { SelectorInfo } from "@css-module-explainer/shared";
 import { findLangForPath } from "../core/scss/lang-registry.js";
 import { fileUrlToPath } from "../core/util/text-utils.js";
 import { toLspRange } from "./lsp-adapters.js";
-import type { ProviderDeps } from "./provider-utils.js";
+import type { ProviderDeps } from "./cursor-dispatch.js";
 
 /**
  * Handle `textDocument/codeLens` on `.module.{scss,css}` files.

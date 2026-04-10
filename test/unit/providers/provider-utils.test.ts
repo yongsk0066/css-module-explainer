@@ -15,7 +15,7 @@ import {
   NOOP_LOG_ERROR,
   withCxCallAtCursor,
   type ProviderDeps,
-} from "../../../server/src/providers/provider-utils.js";
+} from "../../../server/src/providers/cursor-dispatch.js";
 import { isInsideCxCall } from "../../../server/src/providers/completion.js";
 
 const TSX = `

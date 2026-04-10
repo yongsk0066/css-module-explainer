@@ -5,7 +5,7 @@ import {
   type Diagnostic,
   type WorkspaceEdit,
 } from "vscode-languageserver/node";
-import type { ProviderDeps } from "./provider-utils.js";
+import type { ProviderDeps } from "./cursor-dispatch.js";
 
 /**
  * Handle `textDocument/codeAction` by emitting quickfixes from

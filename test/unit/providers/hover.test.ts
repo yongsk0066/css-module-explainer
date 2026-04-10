@@ -11,7 +11,10 @@ import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache.j
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache.js";
 import { NullReverseIndex } from "../../../server/src/core/indexing/reverse-index.js";
 import type { TypeResolver } from "../../../server/src/core/ts/type-resolver.js";
-import { NOOP_LOG_ERROR, type ProviderDeps } from "../../../server/src/providers/provider-utils.js";
+import {
+  NOOP_LOG_ERROR,
+  type ProviderDeps,
+} from "../../../server/src/providers/cursor-dispatch.js";
 import { handleHover } from "../../../server/src/providers/hover.js";
 
 const TSX = `

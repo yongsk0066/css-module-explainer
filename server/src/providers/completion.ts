@@ -1,7 +1,7 @@
 import { CompletionItemKind, type CompletionItem } from "vscode-languageserver/node";
 import type { CxBinding, SelectorInfo } from "@css-module-explainer/shared";
 import { getLineAt } from "../core/util/text-utils.js";
-import { hasCxBindImport, type CursorParams, type ProviderDeps } from "./provider-utils.js";
+import { hasCxBindImport, type CursorParams, type ProviderDeps } from "./cursor-dispatch.js";
 
 /**
  * Handle `textDocument/completion` inside a `cx()` call.

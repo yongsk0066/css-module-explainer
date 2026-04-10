@@ -26,7 +26,7 @@ import { IndexerWorker } from "./core/indexing/indexer-worker.js";
 import { collectCallSites, WorkspaceReverseIndex } from "./core/indexing/reverse-index.js";
 import { fileUrlToPath } from "./core/util/text-utils.js";
 import { COMPLETION_TRIGGER_CHARACTERS } from "./providers/completion.js";
-import type { ProviderDeps } from "./providers/provider-utils.js";
+import type { ProviderDeps } from "./providers/cursor-dispatch.js";
 import { registerHandlers } from "./handler-registration.js";
 import type { FileTask } from "./core/indexing/indexer-worker.js";
 

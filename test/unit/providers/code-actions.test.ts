@@ -10,7 +10,10 @@ import { DocumentAnalysisCache } from "../../../server/src/core/indexing/documen
 import { NullReverseIndex } from "../../../server/src/core/indexing/reverse-index.js";
 import type { TypeResolver } from "../../../server/src/core/ts/type-resolver.js";
 import type { ResolvedType, ScssClassMap } from "@css-module-explainer/shared";
-import { NOOP_LOG_ERROR, type ProviderDeps } from "../../../server/src/providers/provider-utils.js";
+import {
+  NOOP_LOG_ERROR,
+  type ProviderDeps,
+} from "../../../server/src/providers/cursor-dispatch.js";
 import { handleCodeAction } from "../../../server/src/providers/code-actions.js";
 
 class FakeTypeResolver implements TypeResolver {

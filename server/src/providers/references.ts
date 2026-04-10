@@ -3,7 +3,7 @@ import type { ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
 import { findLangForPath } from "../core/scss/lang-registry.js";
 import { fileUrlToPath } from "../core/util/text-utils.js";
 import { toLspRange } from "./lsp-adapters.js";
-import { rangeContains, type ProviderDeps } from "./provider-utils.js";
+import { rangeContains, type ProviderDeps } from "./cursor-dispatch.js";
 
 /**
  * Handle `textDocument/references` for a class selector inside a
