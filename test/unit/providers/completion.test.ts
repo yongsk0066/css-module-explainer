@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type ts from "typescript";
+import ts from "typescript";
 import { CompletionItemKind } from "vscode-languageserver-protocol/node";
 import type {
   CxBinding,
@@ -11,7 +11,7 @@ import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
 import { NullReverseIndex } from "../../../server/src/core/indexing/reverse-index";
 import { NOOP_LOG_ERROR, type ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
-import { handleCompletion } from "../../../server/src/providers/completion";
+import { handleCompletion, detectClassUtilImports } from "../../../server/src/providers/completion";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
 
 const TSX = `
@@ -155,5 +155,77 @@ describe("handleCompletion", () => {
     );
     expect(result).toBeNull();
     expect(logError).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("detectClassUtilImports", () => {
+  function parse(source: string): ts.SourceFile {
+    return ts.createSourceFile(
+      "/fake/src/App.tsx",
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
+    );
+  }
+
+  it("detects default import from 'clsx'", () => {
+    const sf = parse(`import clsx from 'clsx';`);
+    expect(detectClassUtilImports(sf)).toEqual(["clsx"]);
+  });
+
+  it("detects default import from 'clsx/lite'", () => {
+    const sf = parse(`import clsx from 'clsx/lite';`);
+    expect(detectClassUtilImports(sf)).toEqual(["clsx"]);
+  });
+
+  it("detects default import from 'classnames'", () => {
+    const sf = parse(`import classNames from 'classnames';`);
+    expect(detectClassUtilImports(sf)).toEqual(["classNames"]);
+  });
+
+  it("detects aliased default import", () => {
+    const sf = parse(`import cn from 'clsx';`);
+    expect(detectClassUtilImports(sf)).toEqual(["cn"]);
+  });
+
+  it("detects named import { clsx } from 'clsx'", () => {
+    const sf = parse(`import { clsx } from 'clsx';`);
+    expect(detectClassUtilImports(sf)).toEqual(["clsx"]);
+  });
+
+  it("detects renamed named import { clsx as cx } from 'clsx'", () => {
+    const sf = parse(`import { clsx as cx } from 'clsx';`);
+    expect(detectClassUtilImports(sf)).toEqual(["cx"]);
+  });
+
+  it("detects named import from 'clsx/lite'", () => {
+    const sf = parse(`import { clsx } from 'clsx/lite';`);
+    expect(detectClassUtilImports(sf)).toEqual(["clsx"]);
+  });
+
+  it("does NOT detect 'classnames/bind' (existing pipeline)", () => {
+    const sf = parse(`import classNames from 'classnames/bind';`);
+    expect(detectClassUtilImports(sf)).toEqual([]);
+  });
+
+  it("returns [] for unrelated imports", () => {
+    const sf = parse(`import React from 'react';`);
+    expect(detectClassUtilImports(sf)).toEqual([]);
+  });
+
+  it("collects multiple util imports", () => {
+    const sf = parse(`
+      import clsx from 'clsx';
+      import cn from 'classnames';
+    `);
+    expect(detectClassUtilImports(sf)).toEqual(["clsx", "cn"]);
+  });
+
+  it("collects both default and named from the same specifier", () => {
+    // Unusual but valid TS: import clsx, { clsx as cx2 } from 'clsx';
+    // In practice this would be a TS error, but the detector should not crash.
+    const sf = parse(`import clsx from 'clsx';`);
+    expect(detectClassUtilImports(sf)).toEqual(["clsx"]);
   });
 });

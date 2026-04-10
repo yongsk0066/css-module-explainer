@@ -1,3 +1,4 @@
+import ts from "typescript";
 import { CompletionItemKind, type CompletionItem } from "vscode-languageserver/node";
 import type { CxBinding, SelectorInfo } from "@css-module-explainer/shared";
 import { hasCxBindImport, type CursorParams, type ProviderDeps } from "./cursor-dispatch";
@@ -130,4 +131,32 @@ function getTextBefore(content: string, line: number, character: number): string
     offset = nl + 1;
   }
   return content.slice(0, offset + character);
+}
+
+/**
+ * Scan `sourceFile` for default/named imports from `'clsx'`,
+ * `'clsx/lite'`, or `'classnames'` (NOT `'classnames/bind'`).
+ * Returns the local identifier names (e.g., `["clsx"]`, `["cn"]`).
+ *
+ * Used by the completion provider to detect clsx-style calls.
+ * Cheap: walks only top-level statements (imports are always
+ * top-level in valid TS/JS).
+ */
+export function detectClassUtilImports(sourceFile: ts.SourceFile): string[] {
+  const names: string[] = [];
+  const targets = new Set(["clsx", "clsx/lite", "classnames"]);
+  for (const stmt of sourceFile.statements) {
+    if (!ts.isImportDeclaration(stmt)) continue;
+    if (!ts.isStringLiteral(stmt.moduleSpecifier)) continue;
+    if (!targets.has(stmt.moduleSpecifier.text)) continue;
+    const defaultName = stmt.importClause?.name?.text;
+    if (defaultName) names.push(defaultName);
+    const namedBindings = stmt.importClause?.namedBindings;
+    if (namedBindings && ts.isNamedImports(namedBindings)) {
+      for (const spec of namedBindings.elements) {
+        names.push(spec.name.text);
+      }
+    }
+  }
+  return names;
 }
