@@ -1,8 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { CodeActionKind, DiagnosticSeverity } from "vscode-languageserver-protocol/node";
-import type { ResolvedType } from "@css-module-explainer/shared";
-import type { TypeResolver } from "../../server/src/core/ts/type-resolver.js";
 import { createInProcessServer, type LspTestClient } from "./_harness/in-process-server.js";
+import { FakeTypeResolver } from "../_fixtures/fake-type-resolver.js";
 
 const BUTTON_TSX = `import classNames from 'classnames/bind';
 import styles from './Button.module.scss';
@@ -15,14 +14,6 @@ export function Button() {
 const BUTTON_SCSS = `
 .indicator { color: red; }
 `;
-
-class FakeTypeResolver implements TypeResolver {
-  resolve(): ResolvedType {
-    return { kind: "unresolvable", values: [] };
-  }
-  invalidate(): void {}
-  clear(): void {}
-}
 
 describe("code-action protocol", () => {
   let client: LspTestClient | null = null;

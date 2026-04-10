@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
-import type { ResolvedType } from "@css-module-explainer/shared";
-import type { TypeResolver } from "../../server/src/core/ts/type-resolver.js";
 import { createInProcessServer, type LspTestClient } from "./_harness/in-process-server.js";
+import { FakeTypeResolver } from "../_fixtures/fake-type-resolver.js";
 
 const BUTTON_TSX = `import classNames from 'classnames/bind';
 import styles from './Button.module.scss';
@@ -20,23 +19,6 @@ const BUTTON_SCSS = `
   color: blue;
 }
 `;
-
-class FakeTypeResolver implements TypeResolver {
-  private readonly values: readonly string[];
-
-  constructor(values: readonly string[] = []) {
-    this.values = values;
-  }
-
-  resolve(): ResolvedType {
-    return this.values.length > 0
-      ? { kind: "union", values: this.values }
-      : { kind: "unresolvable", values: [] };
-  }
-
-  invalidate(): void {}
-  clear(): void {}
-}
 
 function openButton(client: LspTestClient): void {
   client.didOpen({

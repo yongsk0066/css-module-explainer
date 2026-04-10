@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
-import type { ResolvedType } from "@css-module-explainer/shared";
-import type { TypeResolver } from "../../server/src/core/ts/type-resolver.js";
 import { createInProcessServer, type LspTestClient } from "./_harness/in-process-server.js";
+import { FakeTypeResolver } from "../_fixtures/fake-type-resolver.js";
 
 const BUTTON_TSX_V1 = `import classNames from 'classnames/bind';
 import styles from './Button.module.scss';
@@ -10,14 +9,6 @@ export function Button() {
   return <div className={cx('indicaror')}>hi</div>;
 }
 `;
-
-class FakeTypeResolver implements TypeResolver {
-  resolve(): ResolvedType {
-    return { kind: "unresolvable", values: [] };
-  }
-  invalidate(): void {}
-  clear(): void {}
-}
 
 describe("diagnostics debounce", () => {
   let client: LspTestClient | null = null;
