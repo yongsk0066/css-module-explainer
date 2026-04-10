@@ -56,7 +56,7 @@ const parseCxCalls = (_sf: ts.SourceFile, binding: CxBinding): CxCallInfo[] => [
       start: { line: 4, character: 15 },
       end: { line: 4, character: 24 },
     },
-    binding,
+    scssModulePath: binding.scssModulePath,
   },
 ];
 
@@ -71,7 +71,7 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   });
   return makeBaseDeps({
     analysisCache,
-    scssClassMapFor: () => new Map([["indicator", makeInfo("indicator")]]) as ScssClassMap,
+    scssClassMapForPath: () => new Map([["indicator", makeInfo("indicator")]]) as ScssClassMap,
     workspaceRoot: "/fake",
     ...overrides,
   });

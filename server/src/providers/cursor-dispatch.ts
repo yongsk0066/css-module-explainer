@@ -1,5 +1,4 @@
 import type {
-  CxBinding,
   CxCallInfo,
   Range as SharedRange,
   ScssClassMap,
@@ -47,16 +46,7 @@ export interface CursorParams extends DocumentParams {
 export interface ProviderDeps {
   readonly analysisCache: DocumentAnalysisCache;
   /**
-   * Look up the ScssClassMap for a binding the cursor is inside.
-   * Wired to `StyleIndexCache.get` reading from disk in
-   * production; tests pass an in-memory function.
-   */
-  readonly scssClassMapFor: (binding: CxBinding) => ScssClassMap | null;
-  /**
-   * Look up the ScssClassMap for a raw file path. Used by the
-   * references + reference-lens providers whose cursor lives
-   * inside the style file itself, where no CxBinding is
-   * available.
+   * Look up the ScssClassMap for a style module file path.
    */
   readonly scssClassMapForPath: (path: string) => ScssClassMap | null;
   readonly typeResolver: TypeResolver;
@@ -77,9 +67,9 @@ export const NOOP_LOG_ERROR: (message: string, err: unknown) => void = () => {};
 /**
  * The data every `withCxCallAtCursor` transform receives.
  *
- * Kept to the four fields the design spec (section 4.1) defines.
+ * Kept to the three fields the design spec (section 4.1) defines.
  * Providers access `deps` (typeResolver, reverseIndex, workspaceRoot,
- * scssClassMapFor) and `params` (filePath, documentUri, version) via
+ * scssClassMapForPath) and `params` (filePath, documentUri, version) via
  * closure in the outer provider function — no pass-throughs.
  *
  * `entry` carries the already-parsed AnalysisEntry so providers can
@@ -88,7 +78,6 @@ export const NOOP_LOG_ERROR: (message: string, err: unknown) => void = () => {};
  */
 export interface CxCallContext {
   readonly call: CxCallInfo;
-  readonly binding: CxBinding;
   readonly classMap: ScssClassMap;
   readonly entry: AnalysisEntry;
 }
@@ -121,12 +110,12 @@ export function withCxCallAtCursor<T>(
   const call = findCallAtCursor(entry.calls, params.line, params.character);
   if (!call) return null;
 
-  const classMap = deps.scssClassMapFor(call.binding);
+  const classMap = deps.scssClassMapForPath(call.scssModulePath);
   if (!classMap) return null;
 
   // Normalize `undefined` → `null` so a transform with a missing
   // return branch still yields a strict nullable.
-  return transform({ call, binding: call.binding, classMap, entry }) ?? null;
+  return transform({ call, classMap, entry }) ?? null;
 }
 
 /**

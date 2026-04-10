@@ -61,7 +61,7 @@ function extractFromArgument(
 ): void {
   // 1. String literal or no-substitution template → static
   if (ts.isStringLiteral(arg) || ts.isNoSubstitutionTemplateLiteral(arg)) {
-    out.push(makeStatic(arg.text, innerStringRange(arg, sourceFile), binding));
+    out.push(makeStatic(arg.text, innerStringRange(arg, sourceFile), binding.scssModulePath));
     return;
   }
 
@@ -74,9 +74,9 @@ function extractFromArgument(
       const name = prop.name;
       if (!name) continue;
       if (ts.isIdentifier(name)) {
-        out.push(makeStatic(name.text, rangeOfNode(name, sourceFile), binding));
+        out.push(makeStatic(name.text, rangeOfNode(name, sourceFile), binding.scssModulePath));
       } else if (ts.isStringLiteral(name)) {
-        out.push(makeStatic(name.text, innerStringRange(name, sourceFile), binding));
+        out.push(makeStatic(name.text, innerStringRange(name, sourceFile), binding.scssModulePath));
       }
       // Intentional: computed-property keys (`{ [dynamicKey]: x }`)
       // and numeric literal keys cannot be resolved to a class name
@@ -104,7 +104,7 @@ function extractFromArgument(
 
   // 5. Template literal with substitutions → one template call.
   if (ts.isTemplateExpression(arg)) {
-    out.push(makeTemplate(arg, sourceFile, binding));
+    out.push(makeTemplate(arg, sourceFile, binding.scssModulePath));
     return;
   }
 
@@ -119,7 +119,7 @@ function extractFromArgument(
       kind: "variable",
       variableName: arg.getText(sourceFile),
       originRange: rangeOfNode(arg, sourceFile),
-      binding,
+      scssModulePath: binding.scssModulePath,
     });
     return;
   }
@@ -130,7 +130,7 @@ function extractFromArgument(
       kind: "variable",
       variableName: arg.text,
       originRange: rangeOfNode(arg, sourceFile),
-      binding,
+      scssModulePath: binding.scssModulePath,
     });
     return;
   }
@@ -152,14 +152,18 @@ function extractFromArgument(
   }
 }
 
-function makeStatic(className: string, originRange: Range, binding: CxBinding): StaticClassCall {
-  return { kind: "static", className, originRange, binding };
+function makeStatic(
+  className: string,
+  originRange: Range,
+  scssModulePath: string,
+): StaticClassCall {
+  return { kind: "static", className, originRange, scssModulePath };
 }
 
 function makeTemplate(
   expr: ts.TemplateExpression,
   sourceFile: ts.SourceFile,
-  binding: CxBinding,
+  scssModulePath: string,
 ): TemplateLiteralCall {
   const rawTemplate = expr.getText(sourceFile);
   const staticPrefix = expr.head.text;
@@ -168,7 +172,7 @@ function makeTemplate(
     rawTemplate,
     staticPrefix,
     originRange: rangeOfNode(expr, sourceFile),
-    binding,
+    scssModulePath,
   };
 }
 

@@ -12,7 +12,7 @@ import { makeBaseDeps } from "../../_fixtures/test-helpers";
 
 function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   return makeBaseDeps({
-    scssClassMapFor: () => new Map() as ScssClassMap,
+    scssClassMapForPath: () => new Map() as ScssClassMap,
     workspaceRoot: "/fake",
     ...overrides,
   });

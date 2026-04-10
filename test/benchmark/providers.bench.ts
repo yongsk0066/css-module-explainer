@@ -66,7 +66,7 @@ const parseCxCalls = (_sf: ts.SourceFile, binding: CxBinding): CxCallInfo[] => [
     kind: "static",
     className: "indicator",
     originRange: { start: { line: 4, character: 26 }, end: { line: 4, character: 35 } },
-    binding,
+    scssModulePath: binding.scssModulePath,
   },
 ];
 
@@ -88,8 +88,7 @@ function makeDeps(): ProviderDeps {
       parseCxCalls,
       max: 10,
     }),
-    scssClassMapFor: () => makeClassMap(),
-    scssClassMapForPath: () => null,
+    scssClassMapForPath: () => makeClassMap(),
     typeResolver: new FakeTypeResolver(),
     reverseIndex: new NullReverseIndex(),
     workspaceRoot: "/bench",
@@ -186,7 +185,7 @@ describe("diagnostics document-wide scan", () => {
               start: { line: 5 + i, character: 30 },
               end: { line: 5 + i, character: 40 },
             },
-            binding,
+            scssModulePath: binding.scssModulePath,
           })),
         max: 10,
       }),

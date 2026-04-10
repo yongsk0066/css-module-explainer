@@ -154,7 +154,7 @@ export function collectCallSites(
 ): CallSite[] {
   const sites: CallSite[] = [];
   for (const call of entry.calls) {
-    const base = { uri, range: call.originRange, scssModulePath: call.binding.scssModulePath };
+    const base = { uri, range: call.originRange, scssModulePath: call.scssModulePath };
     switch (call.kind) {
       case "static":
         sites.push({ ...base, match: { kind: "static", className: call.className } });
@@ -164,7 +164,7 @@ export function collectCallSites(
         sites.push({ ...base, match: { kind: "template", staticPrefix: call.staticPrefix } });
         // If resolver context available, expand to individual static entries.
         if (ctx) {
-          const classMap = ctx.classMapForPath(call.binding.scssModulePath);
+          const classMap = ctx.classMapForPath(call.scssModulePath);
           if (classMap) {
             for (const name of classMap.keys()) {
               if (name.startsWith(call.staticPrefix)) {

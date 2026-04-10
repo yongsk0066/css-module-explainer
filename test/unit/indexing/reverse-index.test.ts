@@ -237,7 +237,7 @@ describe("collectCallSites / StylePropertyRef entries", () => {
           kind: "static",
           className: "active",
           originRange: { start: { line: 3, character: 4 }, end: { line: 3, character: 10 } },
-          binding,
+          scssModulePath: binding.scssModulePath,
         },
       ],
       styleRefs: [

@@ -43,7 +43,7 @@ function computeCompletion(params: CursorParams, deps: ProviderDeps): Completion
       const textBefore = getTextBefore(params.content, params.line, params.character);
       const matchingBinding = findBindingInsideCall(entry.bindings, params.line, textBefore);
       if (matchingBinding) {
-        const classMap = deps.scssClassMapFor(matchingBinding);
+        const classMap = deps.scssClassMapForPath(matchingBinding.scssModulePath);
         if (classMap && classMap.size > 0) {
           return Array.from(classMap.values(), (info) => toCompletionItem(info));
         }

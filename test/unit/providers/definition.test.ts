@@ -35,7 +35,7 @@ const parseCxCalls = (_sf: ts.SourceFile, binding: CxBinding): CxCallInfo[] => [
       start: { line: 4, character: 15 },
       end: { line: 4, character: 24 },
     },
-    binding,
+    scssModulePath: binding.scssModulePath,
   },
 ];
 
@@ -50,7 +50,7 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   });
   return makeBaseDeps({
     analysisCache,
-    scssClassMapFor: () => new Map([["indicator", info("indicator")]]) as ScssClassMap,
+    scssClassMapForPath: () => new Map([["indicator", info("indicator")]]) as ScssClassMap,
     workspaceRoot: "/fake",
     ...overrides,
   });
@@ -96,7 +96,7 @@ describe("handleDefinition", () => {
 
   it("returns null when classMap has no match for the class name", () => {
     const deps = makeDeps({
-      scssClassMapFor: () => new Map() as ScssClassMap,
+      scssClassMapForPath: () => new Map() as ScssClassMap,
     });
     const result = handleDefinition(baseParams, deps);
     expect(result).toBeNull();
@@ -117,14 +117,14 @@ describe("handleDefinition", () => {
             start: { line: 4, character: 15 },
             end: { line: 4, character: 28 },
           },
-          binding,
+          scssModulePath: binding.scssModulePath,
         },
       ],
       max: 10,
     });
     const deps: ProviderDeps = makeBaseDeps({
       analysisCache,
-      scssClassMapFor: () =>
+      scssClassMapForPath: () =>
         new Map([
           ["btn", info("btn")],
           ["btn-primary", info("btn-primary")],
@@ -142,7 +142,7 @@ describe("handleDefinition", () => {
   it("logs and returns null when the underlying transform raises", () => {
     const logError = vi.fn();
     const deps = makeDeps({
-      scssClassMapFor: () => {
+      scssClassMapForPath: () => {
         throw new Error("boom");
       },
       logError,

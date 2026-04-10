@@ -37,13 +37,13 @@ const parseCxCalls = (_sf: ts.SourceFile, binding: CxBinding): CxCallInfo[] => [
     kind: "static",
     className: "indicator",
     originRange: { start: { line: 4, character: 14 }, end: { line: 4, character: 23 } },
-    binding,
+    scssModulePath: binding.scssModulePath,
   },
   {
     kind: "static",
     className: "unknonw",
     originRange: { start: { line: 5, character: 14 }, end: { line: 5, character: 21 } },
-    binding,
+    scssModulePath: binding.scssModulePath,
   },
 ];
 
@@ -58,7 +58,7 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   });
   return makeBaseDeps({
     analysisCache,
-    scssClassMapFor: () =>
+    scssClassMapForPath: () =>
       new Map([
         ["indicator", info("indicator")],
         ["unknown", info("unknown")], // nearby typo target
@@ -77,7 +77,7 @@ describe("computeDiagnostics", () => {
 
   it("returns an empty array when all classes resolve", () => {
     const deps = makeDeps({
-      scssClassMapFor: () =>
+      scssClassMapForPath: () =>
         new Map([
           ["indicator", info("indicator")],
           ["unknonw", info("unknonw")],
@@ -110,7 +110,7 @@ describe("computeDiagnostics", () => {
     const result = computeDiagnostics(
       baseParams,
       makeDeps({
-        scssClassMapFor: () => {
+        scssClassMapForPath: () => {
           throw new Error("boom");
         },
         logError,
@@ -140,19 +140,18 @@ describe("computeDiagnostics", () => {
           rawTemplate: "prefix-${x}",
           staticPrefix: "prefix-",
           originRange: { start: { line: 4, character: 14 }, end: { line: 4, character: 28 } },
-          binding,
+          scssModulePath: binding.scssModulePath,
         },
       ],
       max: 10,
     });
     const deps: ProviderDeps = {
       analysisCache,
-      scssClassMapFor: () =>
+      scssClassMapForPath: () =>
         new Map([
           ["indicator", info("indicator")],
           ["active", info("active")],
         ]) as ScssClassMap,
-      scssClassMapForPath: () => null,
       typeResolver: new FakeTypeResolver(),
       reverseIndex: new NullReverseIndex(),
       workspaceRoot: "/fake/ws",
@@ -174,7 +173,7 @@ describe("computeDiagnostics", () => {
           kind: "variable",
           variableName: "size",
           originRange: { start: { line: 4, character: 14 }, end: { line: 4, character: 18 } },
-          binding,
+          scssModulePath: binding.scssModulePath,
         },
       ],
       max: 10,
@@ -189,12 +188,11 @@ describe("computeDiagnostics", () => {
     }
     const deps: ProviderDeps = {
       analysisCache,
-      scssClassMapFor: () =>
+      scssClassMapForPath: () =>
         new Map([
           ["small", info("small")],
           ["medium", info("medium")],
         ]) as ScssClassMap,
-      scssClassMapForPath: () => null,
       typeResolver: new UnionResolver(),
       reverseIndex: new NullReverseIndex(),
       workspaceRoot: "/fake/ws",
@@ -217,15 +215,14 @@ describe("computeDiagnostics", () => {
           kind: "variable",
           variableName: "unknown",
           originRange: { start: { line: 4, character: 14 }, end: { line: 4, character: 21 } },
-          binding,
+          scssModulePath: binding.scssModulePath,
         },
       ],
       max: 10,
     });
     const deps: ProviderDeps = {
       analysisCache,
-      scssClassMapFor: () => new Map([["indicator", info("indicator")]]) as ScssClassMap,
-      scssClassMapForPath: () => null,
+      scssClassMapForPath: () => new Map([["indicator", info("indicator")]]) as ScssClassMap,
       typeResolver: new FakeTypeResolver(), // always unresolvable
       reverseIndex: new NullReverseIndex(),
       workspaceRoot: "/fake/ws",
@@ -242,7 +239,7 @@ describe("computeDiagnostics", () => {
     const result = computeDiagnostics(
       baseParams,
       makeDeps({
-        scssClassMapFor: () => {
+        scssClassMapForPath: () => {
           callCount += 1;
           if (callCount === 2) throw new Error("only the second one");
           return new Map([["indicator", info("indicator")]]) as ScssClassMap;

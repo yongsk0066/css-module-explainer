@@ -67,7 +67,7 @@ function buildLinks(
     workspaceRoot: deps.workspaceRoot,
   });
   if (infos.length === 0) return null;
-  const targetUri = pathToFileUrl(ctx.binding.scssModulePath);
+  const targetUri = pathToFileUrl(ctx.call.scssModulePath);
   return infos.map<LocationLink>((info) => toLocationLink(ctx.call.originRange, targetUri, info));
 }
 

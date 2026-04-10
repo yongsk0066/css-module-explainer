@@ -28,6 +28,15 @@ function run(source: string, binding = makeBinding()): CxCallInfo[] {
   return parseCxCalls(parse(source), binding);
 }
 
+describe("parseCxCalls / scssModulePath output shape", () => {
+  it("CxCallInfo carries scssModulePath directly instead of full binding", () => {
+    const binding = makeBinding();
+    const calls = run(`const x = cx('indicator');`, binding);
+    expect(calls[0]!.scssModulePath).toBe(binding.scssModulePath);
+    expect((calls[0] as any).binding).toBeUndefined();
+  });
+});
+
 describe("parseCxCalls / string literal", () => {
   it("extracts a single string argument", () => {
     const calls = run(`const x = cx('indicator');`);

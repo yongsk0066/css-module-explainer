@@ -41,7 +41,7 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   });
   return makeBaseDeps({
     analysisCache,
-    scssClassMapFor: () =>
+    scssClassMapForPath: () =>
       new Map([
         ["indicator", info("indicator")],
         ["active", info("active")],
@@ -109,7 +109,7 @@ describe("handleCompletion", () => {
         character: 16,
         version: 1,
       },
-      makeDeps({ scssClassMapFor: () => new Map() as ScssClassMap }),
+      makeDeps({ scssClassMapForPath: () => new Map() as ScssClassMap }),
     );
     expect(result).toBeNull();
   });
@@ -126,7 +126,7 @@ describe("handleCompletion", () => {
         version: 1,
       },
       makeDeps({
-        scssClassMapFor: () => {
+        scssClassMapForPath: () => {
           throw new Error("boom");
         },
         logError,

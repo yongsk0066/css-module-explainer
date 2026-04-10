@@ -74,7 +74,6 @@ export function makeBaseDeps(overrides: Partial<ProviderDeps> = {}): ProviderDep
   });
   return {
     analysisCache,
-    scssClassMapFor: () => null,
     scssClassMapForPath: () => null,
     typeResolver: new FakeTypeResolver(),
     reverseIndex: new NullReverseIndex(),

@@ -104,8 +104,8 @@ interface CxCallBase {
    * the `indicator` text, not the surrounding apostrophes.
    */
   readonly originRange: Range;
-  /** The binding whose `cxVarName` was called at this site. */
-  readonly binding: CxBinding;
+  /** Absolute path of the `.module.scss|css` file this call references. */
+  readonly scssModulePath: string;
 }
 
 /** A static class name: `cx('indicator')` or `cx({ active: isActive })`. */

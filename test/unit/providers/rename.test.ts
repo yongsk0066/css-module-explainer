@@ -203,14 +203,13 @@ function makeTsxDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
         kind: "static",
         className: "indicator",
         originRange: { start: { line: 3, character: 14 }, end: { line: 3, character: 23 } },
-        binding,
+        scssModulePath: binding.scssModulePath,
       },
     ],
     max: 10,
   });
   return makeBaseDeps({
     analysisCache,
-    scssClassMapFor: () => new Map([["indicator", info("indicator", 1)]]) as ScssClassMap,
     scssClassMapForPath: () => new Map([["indicator", info("indicator", 1)]]) as ScssClassMap,
     workspaceRoot: "/fake",
     ...overrides,

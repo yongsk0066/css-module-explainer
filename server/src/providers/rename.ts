@@ -89,7 +89,7 @@ export function handleRename(
     // Try cx('class')
     const cxResult = withCxCallAtCursor(cursorParams, deps, (ctx) => {
       if (ctx.call.kind !== "static") return null;
-      const scssPath = ctx.call.binding.scssModulePath;
+      const scssPath = ctx.call.scssModulePath;
       const classMap = deps.scssClassMapForPath(scssPath);
       if (!classMap) return null;
       const selectorInfo = classMap.get(ctx.call.className);

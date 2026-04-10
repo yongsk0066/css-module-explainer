@@ -60,7 +60,7 @@ describe("resolveCxCallToSelectorInfos / static", () => {
       kind: "static",
       className: "btn",
       originRange: ZERO,
-      binding: makeBinding(),
+      scssModulePath: makeBinding().scssModulePath,
     };
     const result = resolveCxCallToSelectorInfos({
       call,
@@ -78,7 +78,7 @@ describe("resolveCxCallToSelectorInfos / static", () => {
       kind: "static",
       className: "nope",
       originRange: ZERO,
-      binding: makeBinding(),
+      scssModulePath: makeBinding().scssModulePath,
     };
     const result = resolveCxCallToSelectorInfos({
       call,
@@ -99,7 +99,7 @@ describe("resolveCxCallToSelectorInfos / template", () => {
       rawTemplate: "`weight-${w}`",
       staticPrefix: "weight-",
       originRange: ZERO,
-      binding: makeBinding(),
+      scssModulePath: makeBinding().scssModulePath,
     };
     const result = resolveCxCallToSelectorInfos({
       call,
@@ -119,7 +119,7 @@ describe("resolveCxCallToSelectorInfos / template", () => {
       rawTemplate: "`size-${s}`",
       staticPrefix: "size-",
       originRange: ZERO,
-      binding: makeBinding(),
+      scssModulePath: makeBinding().scssModulePath,
     };
     const result = resolveCxCallToSelectorInfos({
       call,
@@ -140,7 +140,7 @@ describe("resolveCxCallToSelectorInfos / template", () => {
       rawTemplate: "`${name}-suffix`",
       staticPrefix: "",
       originRange: ZERO,
-      binding: makeBinding(),
+      scssModulePath: makeBinding().scssModulePath,
     };
     const result = resolveCxCallToSelectorInfos({
       call,
@@ -160,7 +160,7 @@ describe("resolveCxCallToSelectorInfos / variable", () => {
       kind: "variable",
       variableName: "size",
       originRange: ZERO,
-      binding: makeBinding(),
+      scssModulePath: makeBinding().scssModulePath,
     };
     const result = resolveCxCallToSelectorInfos({
       call,
@@ -184,7 +184,7 @@ describe("resolveCxCallToSelectorInfos / variable", () => {
       kind: "variable",
       variableName: "size",
       originRange: ZERO,
-      binding: makeBinding(),
+      scssModulePath: makeBinding().scssModulePath,
     };
     const result = resolveCxCallToSelectorInfos({
       call,
@@ -204,7 +204,7 @@ describe("resolveCxCallToSelectorInfos / variable", () => {
       kind: "variable",
       variableName: "x",
       originRange: ZERO,
-      binding: makeBinding(),
+      scssModulePath: makeBinding().scssModulePath,
     };
     const result = resolveCxCallToSelectorInfos({
       call,

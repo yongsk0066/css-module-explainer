@@ -32,7 +32,7 @@ const parseCxCalls = (_sf: ts.SourceFile, binding: CxBinding): CxCallInfo[] => [
     kind: "static",
     className: "indicator",
     originRange: { start: { line: 4, character: 15 }, end: { line: 4, character: 24 } },
-    binding,
+    scssModulePath: binding.scssModulePath,
   },
 ];
 
@@ -47,7 +47,7 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   });
   return makeBaseDeps({
     analysisCache,
-    scssClassMapFor: () => new Map([["indicator", info("indicator")]]) as ScssClassMap,
+    scssClassMapForPath: () => new Map([["indicator", info("indicator")]]) as ScssClassMap,
     ...overrides,
   });
 }
@@ -91,7 +91,7 @@ const el = cx(
         className: "indicator",
         // 'indicator' is on line 5 (0-indexed), chars 2-13
         originRange: { start: { line: 5, character: 2 }, end: { line: 5, character: 13 } },
-        binding,
+        scssModulePath: binding.scssModulePath,
       },
     ];
     const deps = makeDeps({
@@ -115,7 +115,7 @@ const el = cx(
   it("returns null when the classMap has no match", () => {
     const hover = handleHover(
       baseParams,
-      makeDeps({ scssClassMapFor: () => new Map() as ScssClassMap }),
+      makeDeps({ scssClassMapForPath: () => new Map() as ScssClassMap }),
     );
     expect(hover).toBeNull();
   });
@@ -125,7 +125,7 @@ const el = cx(
     const hover = handleHover(
       baseParams,
       makeDeps({
-        scssClassMapFor: () => {
+        scssClassMapForPath: () => {
           throw new Error("boom");
         },
         logError,

@@ -1,9 +1,9 @@
 import { relative } from "node:path";
-import type { CxBinding, CxCallInfo, SelectorInfo } from "@css-module-explainer/shared";
+import type { CxCallInfo, SelectorInfo } from "@css-module-explainer/shared";
 
 export interface RenderArgs {
   readonly call: CxCallInfo;
-  readonly binding: CxBinding;
+  readonly scssModulePath: string;
   readonly infos: readonly SelectorInfo[];
   readonly workspaceRoot: string;
   readonly maxCandidates?: number;
@@ -27,11 +27,7 @@ export function renderHover(args: RenderArgs): string | null {
 }
 
 function renderSingle(args: RenderArgs, info: SelectorInfo): string {
-  const location = formatLocation(
-    args.binding.scssModulePath,
-    info.range.start.line,
-    args.workspaceRoot,
-  );
+  const location = formatLocation(args.scssModulePath, info.range.start.line, args.workspaceRoot);
   const body = buildRule(info);
   return `**\`.${info.name}\`** — _${location}_\n\n\`\`\`scss\n${body}\n\`\`\``;
 }
@@ -41,11 +37,7 @@ function renderMulti(args: RenderArgs): string {
   const header = buildMultiHeader(args);
   const shown = args.infos.slice(0, max);
   const sections = shown.map((info) => {
-    const location = formatLocation(
-      args.binding.scssModulePath,
-      info.range.start.line,
-      args.workspaceRoot,
-    );
+    const location = formatLocation(args.scssModulePath, info.range.start.line, args.workspaceRoot);
     return `**\`.${info.name}\`** — _${location}_\n\n\`\`\`scss\n${buildRule(info)}\n\`\`\``;
   });
   const tail = args.infos.length > max ? `\n\n_…and ${args.infos.length - max} more_` : "";

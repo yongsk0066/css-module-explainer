@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import type {
-  CxBinding,
   StaticClassCall,
   TemplateLiteralCall,
   VariableRefCall,
@@ -8,13 +7,7 @@ import type {
 import { renderHover } from "../../../server/src/providers/hover-renderer";
 import { infoWithDeclarations as info } from "../../_fixtures/test-helpers";
 
-const binding: CxBinding = {
-  cxVarName: "cx",
-  stylesVarName: "styles",
-  scssModulePath: "/fake/ws/src/Button.module.scss",
-  classNamesImportName: "classNames",
-  scope: { startLine: 0, endLine: 100 },
-};
+const SCSS_PATH = "/fake/ws/src/Button.module.scss";
 
 const staticCall: StaticClassCall = {
   kind: "static",
@@ -23,7 +16,7 @@ const staticCall: StaticClassCall = {
     start: { line: 4, character: 15 },
     end: { line: 4, character: 24 },
   },
-  binding,
+  scssModulePath: SCSS_PATH,
 };
 
 const templateCall: TemplateLiteralCall = {
@@ -34,7 +27,7 @@ const templateCall: TemplateLiteralCall = {
     start: { line: 4, character: 15 },
     end: { line: 4, character: 28 },
   },
-  binding,
+  scssModulePath: SCSS_PATH,
 };
 
 const variableCall: VariableRefCall = {
@@ -44,20 +37,25 @@ const variableCall: VariableRefCall = {
     start: { line: 4, character: 15 },
     end: { line: 4, character: 19 },
   },
-  binding,
+  scssModulePath: SCSS_PATH,
 };
 
 describe("renderHover", () => {
   it("returns null when no infos match", () => {
     expect(
-      renderHover({ call: staticCall, binding, infos: [], workspaceRoot: "/fake/ws" }),
+      renderHover({
+        call: staticCall,
+        scssModulePath: SCSS_PATH,
+        infos: [],
+        workspaceRoot: "/fake/ws",
+      }),
     ).toBeNull();
   });
 
   it("renders a single-match card with workspace-relative location", () => {
     const markdown = renderHover({
       call: staticCall,
-      binding,
+      scssModulePath: SCSS_PATH,
       infos: [info("indicator", 11, "color: red; font-size: 14px")],
       workspaceRoot: "/fake/ws",
     });
@@ -71,7 +69,7 @@ describe("renderHover", () => {
   it("renders a multi-match template card", () => {
     const markdown = renderHover({
       call: templateCall,
-      binding,
+      scssModulePath: SCSS_PATH,
       infos: [info("btn-primary", 10, "color: white"), info("btn-secondary", 14, "color: gray")],
       workspaceRoot: "/fake/ws",
     });
@@ -85,7 +83,7 @@ describe("renderHover", () => {
   it("renders a multi-match variable card", () => {
     const markdown = renderHover({
       call: variableCall,
-      binding,
+      scssModulePath: SCSS_PATH,
       infos: [info("small", 10, "font-size: 12px"), info("medium", 14, "font-size: 16px")],
       workspaceRoot: "/fake/ws",
     });
@@ -96,7 +94,7 @@ describe("renderHover", () => {
     const many = Array.from({ length: 15 }, (_, i) => info(`item-${i}`, i + 1, "color: red"));
     const markdown = renderHover({
       call: templateCall,
-      binding,
+      scssModulePath: SCSS_PATH,
       infos: many,
       workspaceRoot: "/fake/ws",
     });
@@ -111,7 +109,7 @@ describe("renderHover", () => {
   it("falls back to the raw scss path when workspaceRoot equals scssModulePath", () => {
     const markdown = renderHover({
       call: staticCall,
-      binding: { ...binding, scssModulePath: "/same" },
+      scssModulePath: "/same",
       infos: [info("only", 3, "color: red")],
       workspaceRoot: "/same",
     });
@@ -122,7 +120,7 @@ describe("renderHover", () => {
   it("handles an empty declarations string with empty braces", () => {
     const markdown = renderHover({
       call: staticCall,
-      binding,
+      scssModulePath: SCSS_PATH,
       infos: [info("empty", 5, "")],
       workspaceRoot: "/fake/ws",
     });

@@ -13,7 +13,7 @@ import {
 } from "vscode-languageserver/node";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import ts from "typescript";
-import type { CxBinding, ScssClassMap } from "@css-module-explainer/shared";
+import type { ScssClassMap } from "@css-module-explainer/shared";
 import { buildStyleFileWatcherGlob, findLangForPath } from "./core/scss/lang-registry";
 import { StyleIndexCache } from "./core/scss/scss-index";
 import { collectStyleImports, detectCxBindings } from "./core/cx/binding-detector";
@@ -220,7 +220,6 @@ function buildBundle(
 
   const deps: ProviderDeps = {
     analysisCache,
-    scssClassMapFor: (binding: CxBinding) => classMapForPath(binding.scssModulePath),
     scssClassMapForPath: classMapForPath,
     typeResolver,
     reverseIndex,

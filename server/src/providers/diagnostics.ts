@@ -50,7 +50,7 @@ export function computeDiagnostics(
   const diagnostics: Diagnostic[] = [];
   for (const call of entry.calls) {
     try {
-      const classMap = deps.scssClassMapFor(call.binding);
+      const classMap = deps.scssClassMapForPath(call.scssModulePath);
       if (!classMap) continue;
       const d = validateCall(call, classMap, params, deps, severity);
       if (d) diagnostics.push(d);
@@ -80,7 +80,7 @@ function validateCall(
         range,
         severity,
         source,
-        message: `Class '.${call.className}' not found in ${relativeScss(call.binding.scssModulePath, deps.workspaceRoot)}.${hint}`,
+        message: `Class '.${call.className}' not found in ${relativeScss(call.scssModulePath, deps.workspaceRoot)}.${hint}`,
         data: suggestion ? { suggestion } : undefined,
       };
     }
@@ -91,7 +91,7 @@ function validateCall(
         range,
         severity,
         source,
-        message: `No class starting with '${call.staticPrefix}' found in ${relativeScss(call.binding.scssModulePath, deps.workspaceRoot)}.`,
+        message: `No class starting with '${call.staticPrefix}' found in ${relativeScss(call.scssModulePath, deps.workspaceRoot)}.`,
       };
     }
     case "variable": {
