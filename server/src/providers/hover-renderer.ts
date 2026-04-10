@@ -15,7 +15,7 @@ export interface RenderArgs {
  * SelectorInfo list.
  *
  * - 0 infos → null (caller turns into a null Hover result)
- * - 1 info → single-match card (spec §4.3)
+ * - 1 info → single-match card
  * - >1 infos → multi-match card, capped at MAX_CANDIDATES
  *
  * No LSP types leak in or out — this function is a pure string

@@ -67,7 +67,7 @@ export interface LspTestClient {
   /**
    * Wait for the next publishDiagnostics notification matching
    * `uri`, or reject after `timeoutMs`. Use this to test the
-   * debounced push-based diagnostics pipeline (Plan 09).
+   * debounced push-based diagnostics pipeline .
    */
   waitForDiagnostics(uri: string, timeoutMs?: number): Promise<Diagnostic[]>;
   didChangeWatchedFiles(params: DidChangeWatchedFilesParams): void;
@@ -84,8 +84,8 @@ export interface LspTestClient {
  *   clientOut ──► serverIn  (client → server)
  *
  * The server is started immediately. The returned client exposes
- * typed request helpers for the handful of LSP methods Plans 06–09
- * exercise; additional helpers can be added as plans land.
+ * typed request helpers for the LSP methods the protocol tests
+ * exercise.
  *
  * `dispose()` ends both streams and disposes both connections.
  * Tests MUST call it in afterEach to avoid resource leaks.
@@ -214,7 +214,7 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
       client.sendNotification(ExitNotification.type);
     },
     dispose() {
-      // TODO(plan-10.5): revisit if Tier 3 E2E surfaces stream
+      // TODO: revisit if Tier 3 E2E surfaces stream
       // leaks. For now we deliberately do NOT destroy the
       // PassThrough pair to avoid ERR_STREAM_WRITE_AFTER_END on
       // racing shutdown acks. Each test owns a fresh pair, so GC

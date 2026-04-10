@@ -112,7 +112,7 @@ function extractFromArgument(
   // (e.g. `cx(props.variant)`) is NOT captured as a variable
   // reference because we cannot resolve a property path against a
   // string-literal union type without more TS Compiler API work.
-  // Such calls are silently skipped until Phase 4's type-resolver
+  // Such calls are silently skipped — resolving property paths
   // can weigh in.
   if (ts.isIdentifier(arg)) {
     out.push({

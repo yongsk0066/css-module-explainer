@@ -60,7 +60,7 @@ export interface CxBinding {
   /**
    * Scope in which this binding is visible. Top-level bindings have
    * `{ startLine: 0, endLine: sourceFileLastLine }`. Function-scoped
-   * bindings (Q7 B #7) carry the enclosing function's line range.
+   * bindings carry the enclosing function's line range.
    */
   readonly scope: {
     readonly startLine: number;
@@ -68,7 +68,7 @@ export interface CxBinding {
   };
   /**
    * Identifier the `classnames/bind` default import was bound to
-   * in this file. Usually `"classNames"`, but Q7 B #3 allows any
+   * in this file. Usually `"classNames"`, but aliased imports allow any
    * name (e.g. `"cn"`).
    */
   readonly classNamesImportName: string;
@@ -117,7 +117,7 @@ export interface TemplateLiteralCall extends CxCallBase {
 /**
  * A bare identifier reference: `cx(size)` where `size` has a
  * TypeScript union-of-string-literal type. The actual resolution
- * to concrete class names is deferred to `type-resolver` (Phase 4).
+ * to concrete class names is deferred to `type-resolver`.
  */
 export interface VariableRefCall extends CxCallBase {
   readonly kind: "variable";
@@ -128,7 +128,7 @@ export interface VariableRefCall extends CxCallBase {
 export type CxCallInfo = StaticClassCall | TemplateLiteralCall | VariableRefCall;
 
 // ──────────────────────────────────────────────────────────────
-// Type resolution (Phase 4)
+// Type resolution
 // ──────────────────────────────────────────────────────────────
 
 /**
