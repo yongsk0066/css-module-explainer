@@ -37,7 +37,9 @@ Multi-binding files, aliased imports, namespace imports, function-scoped binding
 
 ## Install
 
-Not yet published — build from source:
+Search **"CSS Module Explainer"** in the VS Code Extensions panel, or install from the [Marketplace](https://marketplace.visualstudio.com/items?itemName=yongsk0066.css-module-explainer).
+
+From source:
 
 ```bash
 pnpm build

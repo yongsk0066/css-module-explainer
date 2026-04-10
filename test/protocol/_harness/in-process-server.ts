@@ -135,6 +135,9 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
     string,
     Array<{ resolve: (d: Diagnostic[]) => void; reject: (e: unknown) => void }>
   >();
+  // Handle workspace/configuration requests from the server.
+  client.onRequest("workspace/configuration", () => [{}]);
+
   client.onNotification(PublishDiagnosticsNotification.type, (params) => {
     const waiters = diagnosticsWaiters.get(params.uri);
     if (waiters && waiters.length > 0) {

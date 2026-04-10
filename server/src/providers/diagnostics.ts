@@ -21,7 +21,11 @@ import type { DocumentParams, ProviderDeps } from "./cursor-dispatch";
  * / missing class names. Returns [] for clean documents — caller
  * MUST still publish to clear prior warnings.
  */
-export function computeDiagnostics(params: DocumentParams, deps: ProviderDeps): Diagnostic[] {
+export function computeDiagnostics(
+  params: DocumentParams,
+  deps: ProviderDeps,
+  severity: DiagnosticSeverity = DiagnosticSeverity.Warning,
+): Diagnostic[] {
   // Fast path: if the file has no binding at all, nothing to diagnose.
   if (!params.content.includes("classnames/bind")) return [];
 
@@ -48,7 +52,7 @@ export function computeDiagnostics(params: DocumentParams, deps: ProviderDeps): 
     try {
       const classMap = deps.scssClassMapFor(call.binding);
       if (!classMap) continue;
-      const d = validateCall(call, classMap, params, deps);
+      const d = validateCall(call, classMap, params, deps, severity);
       if (d) diagnostics.push(d);
     } catch (err) {
       deps.logError("diagnostics per-call validation failed", err);
@@ -63,6 +67,7 @@ function validateCall(
   classMap: ScssClassMap,
   params: Pick<DocumentParams, "filePath">,
   deps: ProviderDeps,
+  severity: DiagnosticSeverity,
 ): Diagnostic | null {
   const range: LspRange = toLspRange(call.originRange);
   const source = "css-module-explainer";
@@ -73,7 +78,7 @@ function validateCall(
       const hint = suggestion ? ` Did you mean '${suggestion}'?` : "";
       return {
         range,
-        severity: DiagnosticSeverity.Warning,
+        severity,
         source,
         message: `Class '.${call.className}' not found in ${relativeScss(call.binding.scssModulePath, deps.workspaceRoot)}.${hint}`,
         data: suggestion ? { suggestion } : undefined,
@@ -84,7 +89,7 @@ function validateCall(
       if (hasPrefix) return null;
       return {
         range,
-        severity: DiagnosticSeverity.Warning,
+        severity,
         source,
         message: `No class starting with '${call.staticPrefix}' found in ${relativeScss(call.binding.scssModulePath, deps.workspaceRoot)}.`,
       };
@@ -108,7 +113,7 @@ function validateCall(
       if (missing.length === 0) return null;
       return {
         range,
-        severity: DiagnosticSeverity.Warning,
+        severity,
         source,
         message: `Missing class for union member${missing.length > 1 ? "s" : ""}: ${missing.map((m) => `'${m}'`).join(", ")}.`,
       };

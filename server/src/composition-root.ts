@@ -110,7 +110,19 @@ export function createServer(options: CreateServerOptions): CreatedServer {
     };
   });
 
-  connection.onInitialized(() => {
+  // ── Request routing (delegated to handler-registration.ts) ─
+
+  const handlers = registerHandlers({
+    connection,
+    documents,
+    getDeps: () => bundle?.deps ?? null,
+    getBundle: () =>
+      bundle
+        ? { styleIndexCache: bundle.styleIndexCache, indexerWorker: bundle.indexerWorker }
+        : null,
+  });
+
+  connection.onInitialized(async () => {
     connection.console.info(`[${SERVER_NAME}] initialized`);
     if (!bundle) return;
     bundle.indexerWorker.start().catch((err: unknown) => {
@@ -127,18 +139,7 @@ export function createServer(options: CreateServerOptions): CreatedServer {
         })
         .catch(() => ({ dispose: () => {} }));
     }
-  });
-
-  // ── Request routing (delegated to handler-registration.ts) ─
-
-  const handlers = registerHandlers({
-    connection,
-    documents,
-    getDeps: () => bundle?.deps ?? null,
-    getBundle: () =>
-      bundle
-        ? { styleIndexCache: bundle.styleIndexCache, indexerWorker: bundle.indexerWorker }
-        : null,
+    handlers.refreshSettings();
   });
 
   connection.onShutdown(() => {

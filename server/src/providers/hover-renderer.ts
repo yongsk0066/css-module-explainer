@@ -1,13 +1,12 @@
 import { relative } from "node:path";
 import type { CxBinding, CxCallInfo, SelectorInfo } from "@css-module-explainer/shared";
 
-const MAX_CANDIDATES = 10;
-
 export interface RenderArgs {
   readonly call: CxCallInfo;
   readonly binding: CxBinding;
   readonly infos: readonly SelectorInfo[];
   readonly workspaceRoot: string;
+  readonly maxCandidates?: number;
 }
 
 /**
@@ -38,8 +37,9 @@ function renderSingle(args: RenderArgs, info: SelectorInfo): string {
 }
 
 function renderMulti(args: RenderArgs): string {
+  const max = args.maxCandidates ?? 10;
   const header = buildMultiHeader(args);
-  const shown = args.infos.slice(0, MAX_CANDIDATES);
+  const shown = args.infos.slice(0, max);
   const sections = shown.map((info) => {
     const location = formatLocation(
       args.binding.scssModulePath,
@@ -48,10 +48,7 @@ function renderMulti(args: RenderArgs): string {
     );
     return `**\`.${info.name}\`** — _${location}_\n\n\`\`\`scss\n${buildRule(info)}\n\`\`\``;
   });
-  const tail =
-    args.infos.length > MAX_CANDIDATES
-      ? `\n\n_…and ${args.infos.length - MAX_CANDIDATES} more_`
-      : "";
+  const tail = args.infos.length > max ? `\n\n_…and ${args.infos.length - max} more_` : "";
   return `${header}\n\n${sections.join("\n\n---\n\n")}${tail}`;
 }
 

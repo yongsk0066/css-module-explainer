@@ -18,11 +18,14 @@ import {
  * `renderHover` markdown builder. Empty match → null Hover;
  * exception → logged and null (error isolation).
  */
-export function handleHover(params: CursorParams, deps: ProviderDeps): Hover | null {
+export function handleHover(
+  params: CursorParams,
+  deps: ProviderDeps,
+  maxCandidates = 10,
+): Hover | null {
   try {
-    // Try cx() pipeline first, then fall back to styles.x direct access.
     return (
-      withCxCallAtCursor(params, deps, (ctx) => buildHover(ctx, params, deps)) ??
+      withCxCallAtCursor(params, deps, (ctx) => buildHover(ctx, params, deps, maxCandidates)) ??
       withStyleRefAtCursor(params, deps, (ctx) => {
         if (!ctx.info) return null;
         const syntheticBinding = {
@@ -56,7 +59,12 @@ export function handleHover(params: CursorParams, deps: ProviderDeps): Hover | n
   }
 }
 
-function buildHover(ctx: CxCallContext, params: CursorParams, deps: ProviderDeps): Hover | null {
+function buildHover(
+  ctx: CxCallContext,
+  params: CursorParams,
+  deps: ProviderDeps,
+  maxCandidates: number,
+): Hover | null {
   const infos = resolveCxCallToSelectorInfos({
     call: ctx.call,
     classMap: ctx.classMap,
@@ -69,6 +77,7 @@ function buildHover(ctx: CxCallContext, params: CursorParams, deps: ProviderDeps
     binding: ctx.binding,
     infos,
     workspaceRoot: deps.workspaceRoot,
+    maxCandidates,
   });
   if (!markdown) return null;
   return {

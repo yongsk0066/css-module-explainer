@@ -1,5 +1,9 @@
 import type { Connection, TextDocumentPositionParams } from "vscode-languageserver/node";
-import { FileChangeType, type DidChangeWatchedFilesParams } from "vscode-languageserver/node";
+import {
+  DiagnosticSeverity,
+  FileChangeType,
+  type DidChangeWatchedFilesParams,
+} from "vscode-languageserver/node";
 import type { TextDocument } from "vscode-languageserver-textdocument";
 import type { TextDocuments } from "vscode-languageserver/node";
 import { handleCodeAction } from "./providers/code-actions";
@@ -14,6 +18,7 @@ import { fileUrlToPath } from "./core/util/text-utils";
 import type { StyleIndexCache } from "./core/scss/scss-index";
 import type { IndexerWorker } from "./core/indexing/indexer-worker";
 import type { FileTask } from "./core/indexing/indexer-worker";
+import { fetchSettings, DEFAULT_SETTINGS, type Settings } from "./settings";
 
 const DIAGNOSTICS_DEBOUNCE_MS = 200;
 
@@ -25,8 +30,8 @@ export interface HandlerContext {
 }
 
 export interface HandlerCleanup {
-  /** Call from onShutdown to clear timers and stop the indexer. */
   shutdown(): void;
+  refreshSettings(): void;
 }
 
 /**
@@ -42,7 +47,18 @@ export interface HandlerCleanup {
 export function registerHandlers(ctx: HandlerContext): HandlerCleanup {
   const { connection, documents, getDeps, getBundle } = ctx;
 
+  let settings: Settings = DEFAULT_SETTINGS;
+
+  connection.onDidChangeConfiguration(() => {
+    fetchSettings(connection)
+      .then((s) => {
+        settings = s;
+      })
+      .catch(() => {});
+  });
+
   connection.onDefinition((p: TextDocumentPositionParams) => {
+    if (!settings.features.definition) return null;
     const deps = getDeps();
     if (!deps) return null;
     const cursor = toCursorParams(p, documents);
@@ -51,14 +67,16 @@ export function registerHandlers(ctx: HandlerContext): HandlerCleanup {
   });
 
   connection.onHover((p: TextDocumentPositionParams) => {
+    if (!settings.features.hover) return null;
     const deps = getDeps();
     if (!deps) return null;
     const cursor = toCursorParams(p, documents);
     if (!cursor) return null;
-    return handleHover(cursor, deps);
+    return handleHover(cursor, deps, settings.hover.maxCandidates);
   });
 
   connection.onCompletion((p) => {
+    if (!settings.features.completion) return null;
     const deps = getDeps();
     if (!deps) return null;
     const cursor = toCursorParams(p, documents);
@@ -73,12 +91,14 @@ export function registerHandlers(ctx: HandlerContext): HandlerCleanup {
   });
 
   connection.onReferences((p) => {
+    if (!settings.features.references) return null;
     const deps = getDeps();
     if (!deps) return null;
     return handleReferences(p, deps);
   });
 
   connection.onCodeLens((p) => {
+    if (!settings.features.references) return null;
     const deps = getDeps();
     if (!deps) return null;
     return handleCodeLens(p, deps);
@@ -94,6 +114,7 @@ export function registerHandlers(ctx: HandlerContext): HandlerCleanup {
       const doc = documents.get(uri);
       diagTimers.delete(uri);
       if (!deps || !doc) return;
+      const severity = parseSeverity(settings.diagnostics.severity);
       const diagnostics = computeDiagnostics(
         {
           documentUri: uri,
@@ -102,6 +123,7 @@ export function registerHandlers(ctx: HandlerContext): HandlerCleanup {
           version: doc.version,
         },
         deps,
+        severity,
       );
       connection.sendDiagnostics({ uri, diagnostics });
     }, DIAGNOSTICS_DEBOUNCE_MS);
@@ -146,6 +168,13 @@ export function registerHandlers(ctx: HandlerContext): HandlerCleanup {
       for (const timer of diagTimers.values()) clearTimeout(timer);
       diagTimers.clear();
     },
+    refreshSettings() {
+      fetchSettings(connection)
+        .then((s) => {
+          settings = s;
+        })
+        .catch(() => {});
+    },
   };
 }
 
@@ -163,4 +192,15 @@ function toCursorParams(
     character: p.position.character,
     version: doc.version,
   };
+}
+
+const SEVERITY_MAP: Record<string, DiagnosticSeverity> = {
+  error: DiagnosticSeverity.Error,
+  warning: DiagnosticSeverity.Warning,
+  information: DiagnosticSeverity.Information,
+  hint: DiagnosticSeverity.Hint,
+};
+
+function parseSeverity(value: string): DiagnosticSeverity {
+  return SEVERITY_MAP[value] ?? DiagnosticSeverity.Warning;
 }
