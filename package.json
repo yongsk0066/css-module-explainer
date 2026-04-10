@@ -67,7 +67,46 @@
   "contributes": {
     "configuration": {
       "title": "CSS Module Explainer",
-      "properties": {}
+      "properties": {
+        "cssModuleExplainer.features.definition": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Go to Definition for cx() class names."
+        },
+        "cssModuleExplainer.features.hover": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable hover information for cx() class names."
+        },
+        "cssModuleExplainer.features.completion": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable autocomplete inside cx() calls."
+        },
+        "cssModuleExplainer.features.references": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Find References for CSS class selectors."
+        },
+        "cssModuleExplainer.diagnostics.severity": {
+          "type": "string",
+          "enum": [
+            "error",
+            "warning",
+            "information",
+            "hint"
+          ],
+          "default": "warning",
+          "description": "Severity level for unresolved class diagnostics."
+        },
+        "cssModuleExplainer.hover.maxCandidates": {
+          "type": "number",
+          "default": 10,
+          "minimum": 1,
+          "maximum": 50,
+          "description": "Maximum template/variable candidates shown in hover."
+        }
+      }
     }
   },
   "activationEvents": [
