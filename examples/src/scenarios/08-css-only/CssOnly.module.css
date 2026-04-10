@@ -1,0 +1,12 @@
+.box {
+  padding: 16px;
+  border: 2px dashed #9ca3af;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.text {
+  margin: 0;
+  font-size: 14px;
+  color: #374151;
+}

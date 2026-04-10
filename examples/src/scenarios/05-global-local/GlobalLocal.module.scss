@@ -1,0 +1,22 @@
+.container {
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+:local(.localOnly) {
+  color: green;
+  font-weight: 600;
+}
+
+:global(.globalReset) {
+  margin: 0;
+  padding: 8px;
+  color: gray;
+}
+
+:global {
+  .anotherGlobal {
+    font-style: italic;
+  }
+}
