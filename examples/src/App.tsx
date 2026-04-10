@@ -1,7 +1,13 @@
 import { useState, type ReactNode } from "react";
 import { BasicScenario } from "./scenarios/01-basic/BasicScenario";
 import { MultiBindingScenario } from "./scenarios/02-multi-binding/MultiBindingScenario";
-import { StubScenario } from "./scenarios/_stub/StubScenario";
+import { MultilineScenario } from "./scenarios/03-multiline/MultilineScenario";
+import { DynamicScenario } from "./scenarios/04-dynamic/DynamicScenario";
+import { GlobalLocalScenario } from "./scenarios/05-global-local/GlobalLocalScenario";
+import { AliasScenario } from "./scenarios/06-alias/AliasScenario";
+import { FunctionScopedScenario } from "./scenarios/07-function-scoped/FunctionScopedScenario";
+import { CssOnlyScenario } from "./scenarios/08-css-only/CssOnlyScenario";
+import { LargeScenario } from "./scenarios/09-large/LargeScenario";
 
 interface Scenario {
   readonly id: string;
@@ -25,53 +31,46 @@ const SCENARIOS: readonly Scenario[] = [
     render: () => <MultiBindingScenario />,
   },
   {
-    id: "03-multiline-heavy",
+    id: "03-multiline",
     title: "03 · multiline heavy",
-    description: "Multi-line cx call with conditionals + spreads.",
-    render: () => <StubScenario id="03-multiline-heavy" />,
-    stub: true,
+    description: "Multi-line cx call with conditionals, ternary, object map.",
+    render: () => <MultilineScenario />,
   },
   {
-    id: "04-dynamic-keys",
+    id: "04-dynamic",
     title: "04 · dynamic keys",
     description: "Template literal `cx(`btn-${variant}`)`.",
-    render: () => <StubScenario id="04-dynamic-keys" />,
-    stub: true,
+    render: () => <DynamicScenario />,
   },
   {
     id: "05-global-local",
     title: "05 · :global / :local",
     description: ":global() and :local() selectors in SCSS.",
-    render: () => <StubScenario id="05-global-local" />,
-    stub: true,
+    render: () => <GlobalLocalScenario />,
   },
   {
-    id: "06-alias-imports",
+    id: "06-alias",
     title: "06 · alias imports",
-    description: "`import cn from 'classnames/bind'`.",
-    render: () => <StubScenario id="06-alias-imports" />,
-    stub: true,
+    description: "`import cn from 'classnames/bind'`, `const classes = cn.bind(s)`.",
+    render: () => <AliasScenario />,
   },
   {
     id: "07-function-scoped",
     title: "07 · function-scoped",
     description: "cx binding declared inside a function body.",
-    render: () => <StubScenario id="07-function-scoped" />,
-    stub: true,
+    render: () => <FunctionScopedScenario />,
   },
   {
     id: "08-css-only",
     title: "08 · .module.css only",
     description: "Plain .module.css instead of .module.scss.",
-    render: () => <StubScenario id="08-css-only" />,
-    stub: true,
+    render: () => <CssOnlyScenario />,
   },
   {
-    id: "09-large-component",
+    id: "09-large",
     title: "09 · large component",
     description: "100+ cx() calls — perf smoke test.",
-    render: () => <StubScenario id="09-large-component" />,
-    stub: true,
+    render: () => <LargeScenario />,
   },
 ];
 

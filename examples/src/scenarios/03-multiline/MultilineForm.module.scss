@@ -1,0 +1,32 @@
+.container {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+  transition: all 0.2s;
+}
+
+.padded {
+  padding: 24px;
+}
+
+.active {
+  border-color: #4f46e5;
+  background: #eef2ff;
+}
+
+.error {
+  border-color: #ef4444;
+  background: #fef2f2;
+}
+
+.ok {
+  border-color: #22c55e;
+}
+
+.highlighted {
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.3);
+}
+
+.sm { font-size: 12px; }
+.md { font-size: 14px; }
+.lg { font-size: 18px; }

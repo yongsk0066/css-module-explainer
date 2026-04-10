@@ -1,0 +1,19 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 4px;
+  max-width: 600px;
+}
+
+.cell {
+  padding: 8px;
+  text-align: center;
+  font-size: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+}
+
+.even { background: #f0f9ff; }
+.odd { background: #fefce8; }
+.top { font-weight: 700; }
+.bottom { opacity: 0.5; }
