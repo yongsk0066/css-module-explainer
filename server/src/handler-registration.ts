@@ -50,7 +50,7 @@ export function registerHandlers(ctx: HandlerContext): HandlerCleanup {
     settings,
   );
 
-  connection.onDidChangeConfiguration(() => {
+  function reloadSettings(): void {
     fetchSettings(connection)
       .then((s) => {
         settings = s;
@@ -65,6 +65,10 @@ export function registerHandlers(ctx: HandlerContext): HandlerCleanup {
           // Connection already disposed — nothing to log to.
         }
       });
+  }
+
+  connection.onDidChangeConfiguration(() => {
+    reloadSettings();
   });
 
   connection.onDefinition((p: TextDocumentPositionParams) => {
@@ -169,20 +173,7 @@ export function registerHandlers(ctx: HandlerContext): HandlerCleanup {
       scheduler.shutdown();
     },
     refreshSettings() {
-      fetchSettings(connection)
-        .then((s) => {
-          settings = s;
-          scheduler.refreshSettings(s);
-        })
-        .catch((err: unknown) => {
-          try {
-            connection.console.error(
-              `[css-module-explainer] settings fetch failed: ${err instanceof Error ? err.message : String(err)}`,
-            );
-          } catch {
-            // Connection already disposed — nothing to log to.
-          }
-        });
+      reloadSettings();
     },
   };
 }

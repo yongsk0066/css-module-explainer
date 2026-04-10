@@ -4,25 +4,9 @@ import type {
   StaticClassCall,
   TemplateLiteralCall,
   VariableRefCall,
-  SelectorInfo,
 } from "@css-module-explainer/shared";
 import { renderHover } from "../../../server/src/providers/hover-renderer";
-
-function info(name: string, line: number, declarations: string): SelectorInfo {
-  return {
-    name,
-    range: {
-      start: { line, character: 2 },
-      end: { line, character: 2 + name.length },
-    },
-    fullSelector: `.${name}`,
-    declarations,
-    ruleRange: {
-      start: { line, character: 0 },
-      end: { line: line + 3, character: 1 },
-    },
-  };
-}
+import { infoWithDeclarations as info } from "../../_fixtures/test-helpers";
 
 const binding: CxBinding = {
   cxVarName: "cx",

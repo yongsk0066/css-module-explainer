@@ -90,15 +90,21 @@ export function createDiagnosticsScheduler(
     const bundle = getBundle();
     if (!bundle) return;
     readySubscribed = true;
-    bundle.indexerWorker.ready.then(() => {
-      indexReady = true;
-      for (const doc of documents.all()) {
-        const filePath = fileUrlToPath(doc.uri);
-        if (findLangForPath(filePath)) {
-          scheduleScss(doc.uri);
+    bundle.indexerWorker.ready
+      .then(() => {
+        indexReady = true;
+        for (const doc of documents.all()) {
+          const filePath = fileUrlToPath(doc.uri);
+          if (findLangForPath(filePath)) {
+            scheduleScss(doc.uri);
+          }
         }
-      }
-    });
+      })
+      .catch((err: unknown) => {
+        connection.console.error(
+          `[css-module-explainer] indexer readiness failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
   }
 
   const scheduleScss = (uri: string): void => {

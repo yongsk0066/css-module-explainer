@@ -10,12 +10,11 @@ import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
 import { NullReverseIndex } from "../../../server/src/core/indexing/reverse-index";
 import {
-  NOOP_LOG_ERROR,
   withCxCallAtCursor,
   type ProviderDeps,
 } from "../../../server/src/providers/cursor-dispatch";
 import { isInsideCxCall } from "../../../server/src/providers/completion";
-import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
+import { makeBaseDeps } from "../../_fixtures/test-helpers";
 
 const TSX = `
 import classNames from 'classnames/bind';
@@ -70,16 +69,12 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     parseCxCalls,
     max: 10,
   });
-  return {
+  return makeBaseDeps({
     analysisCache,
     scssClassMapFor: () => new Map([["indicator", makeInfo("indicator")]]) as ScssClassMap,
-    scssClassMapForPath: () => null,
-    typeResolver: new FakeTypeResolver(),
-    reverseIndex: new NullReverseIndex(),
     workspaceRoot: "/fake",
-    logError: NOOP_LOG_ERROR,
     ...overrides,
-  };
+  });
 }
 
 describe("isInsideCxCall", () => {

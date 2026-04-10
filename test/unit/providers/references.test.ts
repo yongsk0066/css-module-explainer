@@ -1,42 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
-import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
-import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
-import {
-  NullReverseIndex,
-  WorkspaceReverseIndex,
-} from "../../../server/src/core/indexing/reverse-index";
-import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
-import { NOOP_LOG_ERROR, type ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
+import type { ScssClassMap } from "@css-module-explainer/shared";
+import { WorkspaceReverseIndex } from "../../../server/src/core/indexing/reverse-index";
+import type { ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
 import { handleReferences } from "../../../server/src/providers/references";
-
-function info(name: string, line: number): SelectorInfo {
-  return {
-    name,
-    range: { start: { line, character: 1 }, end: { line, character: 1 + name.length } },
-    fullSelector: `.${name}`,
-    declarations: "color: red",
-    ruleRange: { start: { line, character: 0 }, end: { line: line + 2, character: 1 } },
-  };
-}
+import { infoAtLine, makeBaseDeps } from "../../_fixtures/test-helpers";
 
 function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
-  return {
-    analysisCache: new DocumentAnalysisCache({
-      sourceFileCache: new SourceFileCache({ max: 10 }),
-      collectStyleImports: () => new Map(),
-      detectCxBindings: () => [],
-      parseCxCalls: () => [],
-      max: 10,
-    }),
-    scssClassMapFor: () => null,
-    scssClassMapForPath: () => new Map([["indicator", info("indicator", 5)]]) as ScssClassMap,
-    typeResolver: new FakeTypeResolver(),
-    reverseIndex: new NullReverseIndex(),
+  return makeBaseDeps({
+    scssClassMapForPath: () => new Map([["indicator", infoAtLine("indicator", 5)]]) as ScssClassMap,
     workspaceRoot: "/fake",
-    logError: NOOP_LOG_ERROR,
     ...overrides,
-  };
+  });
 }
 
 describe("handleReferences", () => {

@@ -1,17 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import type ts from "typescript";
-import type {
-  CxBinding,
-  CxCallInfo,
-  ScssClassMap,
-  SelectorInfo,
-} from "@css-module-explainer/shared";
+import type { CxBinding, CxCallInfo, ScssClassMap } from "@css-module-explainer/shared";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
-import { NullReverseIndex } from "../../../server/src/core/indexing/reverse-index";
-import { NOOP_LOG_ERROR, type ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
+import type { ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
 import { handleDefinition } from "../../../server/src/providers/definition";
-import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
+import { info, makeBaseDeps } from "../../_fixtures/test-helpers";
 
 const TSX = `
 import classNames from 'classnames/bind';
@@ -19,22 +13,6 @@ import styles from './Button.module.scss';
 const cx = classNames.bind(styles);
 const el = cx('indicator');
 `;
-
-function info(name: string, startChar = 0): SelectorInfo {
-  return {
-    name,
-    range: {
-      start: { line: 11, character: startChar },
-      end: { line: 11, character: startChar + name.length },
-    },
-    fullSelector: `.${name}`,
-    declarations: "color: red",
-    ruleRange: {
-      start: { line: 10, character: 0 },
-      end: { line: 13, character: 1 },
-    },
-  };
-}
 
 const detectCxBindings = (sourceFile: ts.SourceFile): CxBinding[] => [
   {
@@ -70,16 +48,12 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     parseCxCalls,
     max: 10,
   });
-  return {
+  return makeBaseDeps({
     analysisCache,
-    scssClassMapFor: () => new Map([["indicator", info("indicator", 2)]]) as ScssClassMap,
-    scssClassMapForPath: () => null,
-    typeResolver: new FakeTypeResolver(),
-    reverseIndex: new NullReverseIndex(),
+    scssClassMapFor: () => new Map([["indicator", info("indicator")]]) as ScssClassMap,
     workspaceRoot: "/fake",
-    logError: NOOP_LOG_ERROR,
     ...overrides,
-  };
+  });
 }
 
 describe("handleDefinition", () => {
@@ -148,21 +122,17 @@ describe("handleDefinition", () => {
       ],
       max: 10,
     });
-    const deps: ProviderDeps = {
+    const deps: ProviderDeps = makeBaseDeps({
       analysisCache,
       scssClassMapFor: () =>
         new Map([
-          ["btn", info("btn", 2)],
-          ["btn-primary", info("btn-primary", 2)],
-          ["btn-secondary", info("btn-secondary", 2)],
-          ["indicator", info("indicator", 2)],
+          ["btn", info("btn")],
+          ["btn-primary", info("btn-primary")],
+          ["btn-secondary", info("btn-secondary")],
+          ["indicator", info("indicator")],
         ]) as ScssClassMap,
-      scssClassMapForPath: () => null,
-      typeResolver: new FakeTypeResolver(),
-      reverseIndex: new NullReverseIndex(),
       workspaceRoot: "/fake",
-      logError: NOOP_LOG_ERROR,
-    };
+    });
     const result = handleDefinition(baseParams, deps);
     expect(result).not.toBeNull();
     expect(result).toHaveLength(2);

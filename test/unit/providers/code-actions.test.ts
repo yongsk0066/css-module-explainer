@@ -5,31 +5,17 @@ import {
   type CodeActionParams,
   type Diagnostic,
 } from "vscode-languageserver-protocol/node";
-import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
-import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
-import { NullReverseIndex } from "../../../server/src/core/indexing/reverse-index";
-import { NOOP_LOG_ERROR, type ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
+import type { ScssClassMap } from "@css-module-explainer/shared";
+import type { ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
 import { handleCodeAction } from "../../../server/src/providers/code-actions";
-import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
+import { makeBaseDeps } from "../../_fixtures/test-helpers";
 
 function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
-  const sourceFileCache = new SourceFileCache({ max: 10 });
-  return {
-    analysisCache: new DocumentAnalysisCache({
-      sourceFileCache,
-      collectStyleImports: () => new Map(),
-      detectCxBindings: () => [],
-      parseCxCalls: () => [],
-      max: 10,
-    }),
+  return makeBaseDeps({
     scssClassMapFor: () => new Map() as ScssClassMap,
-    scssClassMapForPath: () => null,
-    typeResolver: new FakeTypeResolver(),
-    reverseIndex: new NullReverseIndex(),
     workspaceRoot: "/fake",
-    logError: NOOP_LOG_ERROR,
     ...overrides,
-  };
+  });
 }
 
 function diagnostic(suggestion: string | undefined, message = "foo"): Diagnostic {

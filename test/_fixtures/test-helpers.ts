@@ -27,6 +27,21 @@ export function infoAtLine(name: string, line: number): SelectorInfo {
   };
 }
 
+/** Create a SelectorInfo at a specific line with custom declarations. */
+export function infoWithDeclarations(
+  name: string,
+  line: number,
+  declarations: string,
+): SelectorInfo {
+  return {
+    name,
+    range: { start: { line, character: 2 }, end: { line, character: 2 + name.length } },
+    fullSelector: `.${name}`,
+    declarations,
+    ruleRange: { start: { line, character: 0 }, end: { line: line + 3, character: 1 } },
+  };
+}
+
 /** Create a minimal static CallSite for testing. */
 export function siteAt(
   uri: string,

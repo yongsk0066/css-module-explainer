@@ -3,43 +3,24 @@ import type { CxBinding, CxCallInfo, ScssClassMap } from "@css-module-explainer/
 import type ts from "typescript";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
-import {
-  NullReverseIndex,
-  WorkspaceReverseIndex,
-} from "../../../server/src/core/indexing/reverse-index";
-import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
-import {
-  NOOP_LOG_ERROR,
-  type CursorParams,
-  type ProviderDeps,
-} from "../../../server/src/providers/cursor-dispatch";
+import { WorkspaceReverseIndex } from "../../../server/src/core/indexing/reverse-index";
+import type { CursorParams, ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
 import { handlePrepareRename, handleRename } from "../../../server/src/providers/rename";
-import { infoAtLine as info, siteAt } from "../../_fixtures/test-helpers";
+import { infoAtLine as info, makeBaseDeps, siteAt } from "../../_fixtures/test-helpers";
 
 const SCSS_PATH = "/fake/src/Button.module.scss";
 const SCSS_URI = "file:///fake/src/Button.module.scss";
 
 function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
-  return {
-    analysisCache: new DocumentAnalysisCache({
-      sourceFileCache: new SourceFileCache({ max: 10 }),
-      collectStyleImports: () => new Map(),
-      detectCxBindings: () => [],
-      parseCxCalls: () => [],
-      max: 10,
-    }),
-    scssClassMapFor: () => null,
+  return makeBaseDeps({
     scssClassMapForPath: () =>
       new Map([
         ["indicator", info("indicator", 1)],
         ["active", info("active", 3)],
       ]) as ScssClassMap,
-    typeResolver: new FakeTypeResolver(),
-    reverseIndex: new NullReverseIndex(),
     workspaceRoot: "/fake",
-    logError: NOOP_LOG_ERROR,
     ...overrides,
-  };
+  });
 }
 
 describe("handlePrepareRename", () => {
@@ -227,16 +208,13 @@ function makeTsxDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     ],
     max: 10,
   });
-  return {
+  return makeBaseDeps({
     analysisCache,
     scssClassMapFor: () => new Map([["indicator", info("indicator", 1)]]) as ScssClassMap,
     scssClassMapForPath: () => new Map([["indicator", info("indicator", 1)]]) as ScssClassMap,
-    typeResolver: new FakeTypeResolver(),
-    reverseIndex: new NullReverseIndex(),
     workspaceRoot: "/fake",
-    logError: NOOP_LOG_ERROR,
     ...overrides,
-  };
+  });
 }
 
 describe("handlePrepareRename from TS/TSX", () => {
