@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import ts from "typescript";
-import { detectCxBindings } from "../../../server/src/core/cx/binding-detector";
+import {
+  collectStyleImports,
+  detectCxBindings,
+} from "../../../server/src/core/cx/binding-detector";
 
 function parse(source: string, filePath = "/fake/src/Button.tsx"): ts.SourceFile {
   return ts.createSourceFile(
@@ -172,5 +175,82 @@ describe("detectCxBindings / negative cases", () => {
     `);
     const bindings = detectCxBindings(src, "/fake/src/Button.tsx");
     expect(bindings).toHaveLength(1);
+  });
+});
+
+describe("collectStyleImports", () => {
+  it("collects a default import of a .module.scss file", () => {
+    const src = parse(`
+      import styles from './Button.module.scss';
+    `);
+    const result = collectStyleImports(src, "/fake/src/Button.tsx");
+    expect(result.size).toBe(1);
+    expect(result.get("styles")).toBe("/fake/src/Button.module.scss");
+  });
+
+  it("collects a namespace import of a .module.scss file", () => {
+    const src = parse(`
+      import * as styles from './Button.module.scss';
+    `);
+    const result = collectStyleImports(src, "/fake/src/Button.tsx");
+    expect(result.size).toBe(1);
+    expect(result.get("styles")).toBe("/fake/src/Button.module.scss");
+  });
+
+  it("collects multiple style module imports", () => {
+    const src = parse(`
+      import btnStyles from './Button.module.scss';
+      import formStyles from './Form.module.css';
+    `);
+    const result = collectStyleImports(src, "/fake/src/Button.tsx");
+    expect(result.size).toBe(2);
+    expect(result.get("btnStyles")).toBe("/fake/src/Button.module.scss");
+    expect(result.get("formStyles")).toBe("/fake/src/Form.module.css");
+  });
+
+  it("handles .module.less extensions", () => {
+    const src = parse(`
+      import styles from './Button.module.less';
+    `);
+    const result = collectStyleImports(src, "/fake/src/Button.tsx");
+    expect(result.size).toBe(1);
+    expect(result.get("styles")).toBe("/fake/src/Button.module.less");
+  });
+
+  it("resolves ../ paths correctly", () => {
+    const src = parse(`
+      import styles from '../styles/Button.module.scss';
+    `);
+    const result = collectStyleImports(src, "/fake/src/components/Button.tsx");
+    expect(result.get("styles")).toBe("/fake/src/styles/Button.module.scss");
+  });
+
+  it("ignores named imports (no default or namespace)", () => {
+    const src = parse(`
+      import { something } from './Button.module.scss';
+    `);
+    const result = collectStyleImports(src, "/fake/src/Button.tsx");
+    expect(result.size).toBe(0);
+  });
+
+  it("ignores non-style-module imports", () => {
+    const src = parse(`
+      import React from 'react';
+      import clsx from 'clsx';
+      import styles from './Button.module.scss';
+    `);
+    const result = collectStyleImports(src, "/fake/src/Button.tsx");
+    expect(result.size).toBe(1);
+    expect(result.has("React")).toBe(false);
+    expect(result.has("clsx")).toBe(false);
+  });
+
+  it("returns an empty map when there are no style module imports", () => {
+    const src = parse(`
+      import React from 'react';
+      import clsx from 'clsx';
+    `);
+    const result = collectStyleImports(src, "/fake/src/Button.tsx");
+    expect(result.size).toBe(0);
   });
 });

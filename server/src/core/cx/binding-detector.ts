@@ -19,6 +19,52 @@ import { getAllStyleExtensions } from "../scss/lang-registry";
  * styles name, alias imports for classnames/bind, multiple
  * bindings per file, and function-scoped bindings.
  */
+/**
+ * Scan top-level import declarations for `.module.<ext>` default/namespace
+ * imports and return a map of local identifier -> resolved absolute path.
+ *
+ * This is the same logic as the style-import branch inside `collectImports`,
+ * extracted so `DocumentAnalysisCache.analyze()` can call it independently
+ * of `detectCxBindings`. Fixes L8: files without classnames/bind now get
+ * a populated `stylesBindings` map for `parseStylePropertyAccesses`.
+ */
+export function collectStyleImports(
+  sourceFile: ts.SourceFile,
+  filePath: string,
+): ReadonlyMap<string, string> {
+  const stylesBindings = new Map<string, string>();
+  const styleExtensions = getAllStyleExtensions();
+  const sourceDir = path.dirname(filePath);
+
+  for (const stmt of sourceFile.statements) {
+    if (!ts.isImportDeclaration(stmt)) continue;
+    const moduleSpecifier = stmt.moduleSpecifier;
+    if (!ts.isStringLiteral(moduleSpecifier)) continue;
+    const specifier = moduleSpecifier.text;
+
+    const defaultName = stmt.importClause?.name?.text;
+    const namespaceName =
+      stmt.importClause?.namedBindings && ts.isNamespaceImport(stmt.importClause.namedBindings)
+        ? stmt.importClause.namedBindings.name.text
+        : undefined;
+    const importName = defaultName ?? namespaceName;
+    if (!importName) continue;
+
+    // Skip non-relative specifiers (bare module names like 'design-system/Button.module.scss').
+    // path.resolve() would produce nonsense for these. The existing collectImports
+    // has this implicit behavior because non-relative specifiers never match
+    // classnames/bind and non-relative style imports are uncommon.
+    if (!specifier.startsWith(".")) continue;
+
+    if (styleExtensions.some((ext) => specifier.endsWith(ext))) {
+      const resolved = path.resolve(sourceDir, specifier);
+      stylesBindings.set(importName, resolved);
+    }
+  }
+
+  return stylesBindings;
+}
+
 export function detectCxBindings(sourceFile: ts.SourceFile, filePath: string): CxBinding[] {
   // Two-pass design: Pass 1 is a linear scan of top-level statements
   // for the two import sets we care about. If either set is empty,
@@ -41,9 +87,7 @@ interface ImportScan {
 
 function collectImports(sourceFile: ts.SourceFile, filePath: string): ImportScan {
   const classNamesNames = new Set<string>();
-  const stylesBindings = new Map<string, string>();
-  const styleExtensions = getAllStyleExtensions();
-  const sourceDir = path.dirname(filePath);
+  const stylesBindings = collectStyleImports(sourceFile, filePath);
 
   for (const stmt of sourceFile.statements) {
     if (!ts.isImportDeclaration(stmt)) continue;
@@ -51,9 +95,6 @@ function collectImports(sourceFile: ts.SourceFile, filePath: string): ImportScan
     if (!ts.isStringLiteral(moduleSpecifier)) continue;
     const specifier = moduleSpecifier.text;
 
-    // Default import (`import styles from '...'`) or namespace
-    // import (`import * as styles from '...'`). Named imports
-    // (`import { bind } from 'classnames'`) are not tracked.
     const defaultName = stmt.importClause?.name?.text;
     const namespaceName =
       stmt.importClause?.namedBindings && ts.isNamespaceImport(stmt.importClause.namedBindings)
@@ -64,12 +105,6 @@ function collectImports(sourceFile: ts.SourceFile, filePath: string): ImportScan
 
     if (specifier === "classnames/bind") {
       classNamesNames.add(importName);
-      continue;
-    }
-
-    if (styleExtensions.some((ext) => specifier.endsWith(ext))) {
-      const resolved = path.resolve(sourceDir, specifier);
-      stylesBindings.set(importName, resolved);
     }
   }
 
