@@ -26,6 +26,14 @@ export interface ReverseIndex {
   /** Fast count for reference-lens rendering. */
   count(scssPath: string, className: string): number;
 
+  /**
+   * Return every CallSite recorded for the given SCSS file path,
+   * across all class names. Used by unused-selector detection to
+   * check for unresolvable variable/template references that
+   * suppress false positives at the module level.
+   */
+  findAllForScssPath(scssPath: string): readonly CallSite[];
+
   /** Drop every contribution across every uri. */
   clear(): void;
 }
@@ -43,6 +51,9 @@ export class NullReverseIndex implements ReverseIndex {
   }
   count(_scssPath: string, _className: string): number {
     return 0;
+  }
+  findAllForScssPath(_scssPath: string): readonly CallSite[] {
+    return [];
   }
   clear(): void {}
 }
@@ -64,15 +75,14 @@ export class WorkspaceReverseIndex implements ReverseIndex {
     if (callSites.length === 0) return;
     const keys = new Set<string>();
     for (const site of callSites) {
-      if (site.match.kind !== "static") continue;
       const scssPath = site.binding.scssModulePath;
-      const className = site.match.className;
+      const key = site.match.kind === "static" ? site.match.className : "__non_static__";
       const classMap = this.forward.get(scssPath) ?? new Map<string, CallSite[]>();
-      const list = classMap.get(className) ?? [];
+      const list = classMap.get(key) ?? [];
       list.push(site);
-      classMap.set(className, list);
+      classMap.set(key, list);
       this.forward.set(scssPath, classMap);
-      keys.add(backKey(scssPath, className));
+      keys.add(backKey(scssPath, key));
     }
     this.back.set(uri, keys);
   }
@@ -103,6 +113,17 @@ export class WorkspaceReverseIndex implements ReverseIndex {
 
   count(scssPath: string, className: string): number {
     return this.find(scssPath, className).length;
+  }
+
+  findAllForScssPath(scssPath: string): readonly CallSite[] {
+    const result: CallSite[] = [];
+    const classMap = this.forward.get(scssPath);
+    if (classMap) {
+      for (const list of classMap.values()) {
+        result.push(...list);
+      }
+    }
+    return result;
   }
 
   clear(): void {

@@ -53,6 +53,12 @@ describe("NullReverseIndex", () => {
     index.clear();
     expect(index.find("/fake/a.module.scss", "indicator")).toEqual([]);
   });
+
+  it("findAllForScssPath() always returns []", () => {
+    const index = new NullReverseIndex();
+    index.record("file:///fake/a.tsx", [makeCallSite()]);
+    expect(index.findAllForScssPath("/fake/a.module.scss")).toEqual([]);
+  });
 });
 
 function siteAt(uri: string, className: string, line: number, scssPath?: string): CallSite {
@@ -131,6 +137,47 @@ describe("WorkspaceReverseIndex", () => {
     index.record("file:///a.tsx", [siteAt("file:///a.tsx", "indicator", 5)]);
     index.clear();
     expect(index.count("/fake/a.module.scss", "indicator")).toBe(0);
+  });
+
+  it("findAllForScssPath returns all sites for a given scssPath across class names", () => {
+    const index = new WorkspaceReverseIndex();
+    index.record("file:///a.tsx", [
+      siteAt("file:///a.tsx", "indicator", 5),
+      siteAt("file:///a.tsx", "active", 7),
+    ]);
+    index.record("file:///b.tsx", [siteAt("file:///b.tsx", "indicator", 9)]);
+    const all = index.findAllForScssPath("/fake/a.module.scss");
+    expect(all).toHaveLength(3);
+    const classNames = all.map((s) => {
+      if (s.match.kind === "static") return s.match.className;
+      return s.match.kind;
+    });
+    expect(classNames.toSorted()).toEqual(["active", "indicator", "indicator"]);
+  });
+
+  it("findAllForScssPath returns [] for unknown scssPath", () => {
+    const index = new WorkspaceReverseIndex();
+    index.record("file:///a.tsx", [siteAt("file:///a.tsx", "indicator", 5)]);
+    expect(index.findAllForScssPath("/fake/nonexistent.module.scss")).toEqual([]);
+  });
+
+  it("findAllForScssPath includes non-static call kinds", () => {
+    const index = new WorkspaceReverseIndex();
+    const templateSite: CallSite = {
+      uri: "file:///a.tsx",
+      range: { start: { line: 3, character: 10 }, end: { line: 3, character: 14 } },
+      binding: {
+        cxVarName: "cx",
+        stylesVarName: "styles",
+        scssModulePath: "/fake/a.module.scss",
+        classNamesImportName: "classNames",
+        scope: { startLine: 0, endLine: 100 },
+      },
+      match: { kind: "template", staticPrefix: "btn-" },
+    };
+    index.record("file:///a.tsx", [siteAt("file:///a.tsx", "indicator", 5), templateSite]);
+    const all = index.findAllForScssPath("/fake/a.module.scss");
+    expect(all.some((s) => s.match.kind === "static")).toBe(true);
   });
 
   it("partitions call sites by scssModulePath", () => {
