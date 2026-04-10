@@ -3,6 +3,8 @@ import type {
   CxCallInfo,
   Range as SharedRange,
   ScssClassMap,
+  SelectorInfo,
+  StylePropertyRef,
 } from "@css-module-explainer/shared";
 import type {
   AnalysisEntry,
@@ -179,4 +181,53 @@ function findCallAtCursor(
   character: number,
 ): CxCallInfo | null {
   return calls.find((call) => rangeContains(call.originRange, line, character)) ?? null;
+}
+
+// ──────────────────────────────────────────────────────────────
+// styles.className direct reference dispatcher
+// ──────────────────────────────────────────────────────────────
+
+export interface StyleRefContext {
+  readonly ref: StylePropertyRef;
+  readonly classMap: ScssClassMap;
+  readonly info: SelectorInfo | null;
+  readonly entry: AnalysisEntry;
+}
+
+/**
+ * Front stage for `styles.className` direct references (non-cx).
+ *
+ * Searches the cached `styleRefs` for one whose `originRange`
+ * contains the cursor, then resolves it against the classMap.
+ * If no match, returns null — letting the cx pipeline handle it.
+ *
+ * Use as a FALLBACK after `withCxCallAtCursor`: each provider
+ * calls both dispatchers and returns whichever hits first.
+ */
+export function withStyleRefAtCursor<T>(
+  params: CursorParams,
+  deps: ProviderDeps,
+  transform: (ctx: StyleRefContext) => T | null,
+): T | null {
+  // Fast path: check if the file imports any .module.* files.
+  if (!params.content.includes(".module.")) return null;
+
+  const entry = deps.analysisCache.get(
+    params.documentUri,
+    params.content,
+    params.filePath,
+    params.version,
+  );
+  if (entry.styleRefs.length === 0) return null;
+
+  const ref = entry.styleRefs.find((r) =>
+    rangeContains(r.originRange, params.line, params.character),
+  );
+  if (!ref) return null;
+
+  const classMap = deps.scssClassMapForPath(ref.scssModulePath);
+  if (!classMap) return null;
+
+  const info = classMap.get(ref.className) ?? null;
+  return transform({ ref, classMap, info, entry }) ?? null;
 }
