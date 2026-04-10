@@ -7,6 +7,10 @@ settings:
 importers:
 
   .:
+    dependencies:
+      postcss-less:
+        specifier: ^6.0.0
+        version: 6.0.0(postcss@8.5.9)
     devDependencies:
       '@types/node':
         specifier: ^25.5.0
@@ -56,6 +60,9 @@ importers:
       postcss:
         specifier: ^8.5.9
         version: 8.5.9
+      postcss-less:
+        specifier: ^6.0.0
+        version: 6.0.0(postcss@8.5.9)
       postcss-scss:
         specifier: ^4.0.9
         version: 4.0.9(postcss@8.5.9)
@@ -1506,6 +1513,12 @@ packages:
   pluralize@8.0.0:
     resolution: {integrity: sha512-Nc3IT5yHzflTfbjgqWcCPpo7DaKy4FnpB0l/zCAW0Tc7jxAiuqSxHasntB3D7887LSrA93kDJ9IXovxJYxyLCA==}
     engines: {node: '>=4'}
+
+  postcss-less@6.0.0:
+    resolution: {integrity: sha512-FPX16mQLyEjLzEuuJtxA8X3ejDLNGGEG503d2YGZR5Ask1SpDN8KmZUMpzCvyalWRywAn1n1VOA5dcqfCLo5rg==}
+    engines: {node: '>=12'}
+    peerDependencies:
+      postcss: ^8.3.5
 
   postcss-scss@4.0.9:
     resolution: {integrity: sha512-AjKOeiwAitL/MXxQW2DliT28EKukvvbEWx3LBmJIRN8KfBGZbRTxNYW0kSqi1COiTZ57nZ9NW06S6ux//N1c9A==}
@@ -3335,6 +3348,10 @@ snapshots:
   pluralize@2.0.0: {}
 
   pluralize@8.0.0: {}
+
+  postcss-less@6.0.0(postcss@8.5.9):
+    dependencies:
+      postcss: 8.5.9
 
   postcss-scss@4.0.9(postcss@8.5.9):
     dependencies:

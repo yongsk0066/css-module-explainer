@@ -1,4 +1,5 @@
 import type { StyleLang } from "@css-module-explainer/shared";
+import postcssLess from "postcss-less";
 import postcssScss from "postcss-scss";
 
 /**
@@ -21,6 +22,12 @@ export const STYLE_LANGS: readonly StyleLang[] = [
     extensions: [".module.css"],
     syntax: null, // vanilla postcss handles plain CSS
     displayName: "CSS",
+  },
+  {
+    id: "less",
+    extensions: [".module.less"],
+    syntax: postcssLess,
+    displayName: "LESS",
   },
 ] as const;
 

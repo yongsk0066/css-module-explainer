@@ -54,25 +54,25 @@ function collectImports(sourceFile: ts.SourceFile, filePath: string): ImportScan
     if (!ts.isStringLiteral(moduleSpecifier)) continue;
     const specifier = moduleSpecifier.text;
 
-    // Intentional limitation: only DEFAULT imports are tracked.
-    //   import styles from './Button.module.scss';     ← handled
-    //   import classNames from 'classnames/bind';      ← handled
-    //   import * as styles from './Button.module.scss'; ← silently skipped (rare)
-    //   import { bind } from 'classnames';              ← silently skipped
-    // Adding namespace-import support would require distinguishing
-    // the binding shape downstream; CSS-Modules-with-classnames/bind
-    // uses default imports as the canonical pattern.
+    // Default import (`import styles from '...'`) or namespace
+    // import (`import * as styles from '...'`). Named imports
+    // (`import { bind } from 'classnames'`) are not tracked.
     const defaultName = stmt.importClause?.name?.text;
-    if (!defaultName) continue;
+    const namespaceName =
+      stmt.importClause?.namedBindings && ts.isNamespaceImport(stmt.importClause.namedBindings)
+        ? stmt.importClause.namedBindings.name.text
+        : undefined;
+    const importName = defaultName ?? namespaceName;
+    if (!importName) continue;
 
     if (specifier === "classnames/bind") {
-      classNamesNames.add(defaultName);
+      classNamesNames.add(importName);
       continue;
     }
 
     if (styleExtensions.some((ext) => specifier.endsWith(ext))) {
       const resolved = path.resolve(sourceDir, specifier);
-      stylesBindings.set(defaultName, resolved);
+      stylesBindings.set(importName, resolved);
     }
   }
 
