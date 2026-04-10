@@ -8,21 +8,12 @@ import {
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache.js";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache.js";
 import { NullReverseIndex } from "../../../server/src/core/indexing/reverse-index.js";
-import type { TypeResolver } from "../../../server/src/core/ts/type-resolver.js";
-import type { ResolvedType, ScssClassMap } from "@css-module-explainer/shared";
 import {
   NOOP_LOG_ERROR,
   type ProviderDeps,
 } from "../../../server/src/providers/cursor-dispatch.js";
 import { handleCodeAction } from "../../../server/src/providers/code-actions.js";
-
-class FakeTypeResolver implements TypeResolver {
-  resolve(): ResolvedType {
-    return { kind: "unresolvable", values: [] };
-  }
-  invalidate(): void {}
-  clear(): void {}
-}
+import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver.js";
 
 function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });

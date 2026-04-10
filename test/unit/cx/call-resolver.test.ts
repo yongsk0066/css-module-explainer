@@ -3,12 +3,29 @@ import type {
   CxBinding,
   CxCallInfo,
   Range,
-  ResolvedType,
   ScssClassMap,
   SelectorInfo,
 } from "@css-module-explainer/shared";
+import type { ResolvedType } from "@css-module-explainer/shared";
 import type { TypeResolver } from "../../../server/src/core/ts/type-resolver.js";
 import { resolveCxCallToSelectorInfos } from "../../../server/src/core/cx/call-resolver.js";
+
+/**
+ * Per-variable FakeTypeResolver: resolves specific variable names
+ * to specific types. Used only by call-resolver tests where each
+ * test needs a different resolve() result per variable name.
+ */
+class FakeTypeResolver implements TypeResolver {
+  private readonly map: Record<string, ResolvedType>;
+  constructor(map: Record<string, ResolvedType> = {}) {
+    this.map = map;
+  }
+  resolve(_filePath: string, variableName: string): ResolvedType {
+    return this.map[variableName] ?? { kind: "unresolvable", values: [] };
+  }
+  invalidate(): void {}
+  clear(): void {}
+}
 
 const ZERO: Range = { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } };
 
@@ -34,15 +51,6 @@ function makeBinding(): CxBinding {
     classNamesImportName: "classNames",
     scope: { startLine: 0, endLine: 100 },
   };
-}
-
-class FakeTypeResolver implements TypeResolver {
-  constructor(private readonly table: Record<string, ResolvedType>) {}
-  resolve(_filePath: string, variableName: string): ResolvedType {
-    return this.table[variableName] ?? { kind: "unresolvable", values: [] };
-  }
-  invalidate(): void {}
-  clear(): void {}
 }
 
 describe("resolveCxCallToSelectorInfos / static", () => {
