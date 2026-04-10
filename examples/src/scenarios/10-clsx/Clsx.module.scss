@@ -1,0 +1,37 @@
+.btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 16px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  background: #fff;
+  transition: all 0.15s ease;
+}
+
+.primary {
+  background: #0070f3;
+  color: #fff;
+  border-color: #0070f3;
+}
+
+.secondary {
+  background: #f5f5f5;
+  color: #333;
+}
+
+.active {
+  box-shadow: 0 0 0 2px rgba(0, 112, 243, 0.4);
+}
+
+.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.lg {
+  padding: 12px 24px;
+  font-size: 16px;
+}

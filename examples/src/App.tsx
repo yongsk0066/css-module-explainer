@@ -8,6 +8,7 @@ import { AliasScenario } from "./scenarios/06-alias/AliasScenario";
 import { FunctionScopedScenario } from "./scenarios/07-function-scoped/FunctionScopedScenario";
 import { CssOnlyScenario } from "./scenarios/08-css-only/CssOnlyScenario";
 import { LargeScenario } from "./scenarios/09-large/LargeScenario";
+import { ClsxScenario } from "./scenarios/10-clsx/ClsxScenario";
 
 interface Scenario {
   readonly id: string;
@@ -71,6 +72,12 @@ const SCENARIOS: readonly Scenario[] = [
     title: "09 · large component",
     description: "100+ cx() calls — perf smoke test.",
     render: () => <LargeScenario />,
+  },
+  {
+    id: "10-clsx",
+    title: "10 · clsx",
+    description: "clsx(styles.btn, cond && styles.active) - no classnames/bind.",
+    render: () => <ClsxScenario />,
   },
 ];
 
