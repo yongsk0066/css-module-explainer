@@ -210,7 +210,7 @@ describe("parseCxCalls / negative cases", () => {
   });
 });
 
-describe("parseCxCalls / zero-arg and empty-collection edges (post-review)", () => {
+describe("parseCxCalls / zero-arg and empty-collection edges", () => {
   it("handles `cx()` with no arguments", () => {
     // `cx()` is a legal no-op; the parser must not crash and must
     // return an empty array so diagnostics/hover silently do nothing.

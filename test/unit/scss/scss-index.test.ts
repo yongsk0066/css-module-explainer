@@ -122,7 +122,7 @@ describe("parseStyleModule / edge cases", () => {
     });
   });
 
-  describe("compound selectors (post-review correctness fix)", () => {
+  describe("compound selectors", () => {
     it("indexes every class in '.foo.bar { ... }'", () => {
       const map = parseStyleModule(`.foo.bar { color: red; }`, "/fake/a.module.scss");
       expect(map.has("foo")).toBe(true);
@@ -140,7 +140,7 @@ describe("parseStyleModule / edge cases", () => {
     });
   });
 
-  describe("token range word-boundary (post-review correctness fix)", () => {
+  describe("token range word-boundary", () => {
     it("points to the standalone '.btn' in '.btn-primary .btn'", () => {
       const map = parseStyleModule(`.btn-primary .btn { color: red; }`, "/fake/a.module.scss");
       const btnInfo = map.get("btn")!;
@@ -160,7 +160,7 @@ describe("parseStyleModule / edge cases", () => {
     });
   });
 
-  describe("partial parse recovery (post-review test pin)", () => {
+  describe("partial parse recovery", () => {
     it("returns an empty map when a late syntax error breaks the whole file", () => {
       // postcss throws on the broken trailing rule; we catch at the
       // file boundary and never surface the earlier valid rules.
