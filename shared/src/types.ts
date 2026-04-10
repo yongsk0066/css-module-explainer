@@ -18,7 +18,7 @@ export interface Range {
  * The server narrows it back to `postcss.Syntax | null` at the boundary.
  */
 export interface StyleLang {
-  readonly id: "scss" | "css";
+  readonly id: "scss" | "css" | "less";
   readonly extensions: readonly string[];
   readonly syntax: unknown;
   readonly displayName: string;

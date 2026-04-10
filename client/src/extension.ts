@@ -24,6 +24,7 @@ export function activate(context: vscode.ExtensionContext): void {
       { scheme: "file", language: "typescript" },
       { scheme: "file", language: "javascript" },
       { scheme: "file", language: "scss" },
+      { scheme: "file", language: "less" },
       { scheme: "file", language: "css" },
     ],
     synchronize: {

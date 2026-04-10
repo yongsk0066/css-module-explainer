@@ -74,6 +74,7 @@
     "onLanguage:css",
     "onLanguage:javascript",
     "onLanguage:javascriptreact",
+    "onLanguage:less",
     "onLanguage:scss",
     "onLanguage:typescript",
     "onLanguage:typescriptreact"

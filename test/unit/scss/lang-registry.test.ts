@@ -8,8 +8,8 @@ import {
 } from "../../../server/src/core/scss/lang-registry.js";
 
 describe("STYLE_LANGS registry", () => {
-  it("contains exactly scss and css in 1.0", () => {
-    expect(STYLE_LANGS.map((l) => l.id)).toEqual(["scss", "css"]);
+  it("contains scss, css, and less", () => {
+    expect(STYLE_LANGS.map((l) => l.id)).toEqual(["scss", "css", "less"]);
   });
 
   it("each entry has at least one extension starting with .module.", () => {

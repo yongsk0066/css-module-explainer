@@ -93,12 +93,11 @@ export const COMPLETION_TRIGGER_CHARACTERS = ["'", '"', "`", ","] as const;
 /**
  * Return true when the last `<cxVarName>(` on `textBefore` is
  * still open — i.e. the cursor sits inside the argument list of
- * a cx call. Exported for the Tier 1 unit tests; the completion
- * provider is the only consumer.
+ * a cx call.
  *
- * The walker is naive: it counts bare `(`/`)` without understanding
- * string or comment context. Edge cases like `cx(')')` return
- * approximate answers. Low impact in practice.
+ * String-aware: parentheses inside `'…'`, `"…"`, or `` `…` ``
+ * are ignored. Escaped quotes (backslash) are handled. This
+ * means `cx(')')` correctly remains "inside" the call.
  */
 export function isInsideCxCall(textBefore: string, cxVarName: string): boolean {
   const needle = `${cxVarName}(`;
@@ -106,8 +105,19 @@ export function isInsideCxCall(textBefore: string, cxVarName: string): boolean {
   if (callIdx === -1) return false;
 
   let depth = 1;
+  let quote: string | null = null;
   for (let i = callIdx + needle.length; i < textBefore.length; i += 1) {
-    const ch = textBefore[i];
+    const ch = textBefore[i]!;
+    // Inside a quoted string — skip until the matching close quote.
+    if (quote) {
+      if (ch === quote && textBefore[i - 1] !== "\\") quote = null;
+      continue;
+    }
+    // Opening a string literal.
+    if (ch === "'" || ch === '"' || ch === "`") {
+      quote = ch;
+      continue;
+    }
     if (ch === "(") depth += 1;
     else if (ch === ")") {
       depth -= 1;

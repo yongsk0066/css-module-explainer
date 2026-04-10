@@ -10,6 +10,7 @@
     "@css-module-explainer/shared": "workspace:*",
     "fast-glob": "^3.3.3",
     "postcss": "^8.5.9",
+    "postcss-less": "^6.0.0",
     "postcss-scss": "^4.0.9",
     "typescript": "^6.0.2",
     "vscode-languageserver": "^9.0.1",
