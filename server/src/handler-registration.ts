@@ -9,7 +9,7 @@ import { computeDiagnostics } from "./providers/diagnostics.js";
 import { handleHover } from "./providers/hover.js";
 import { handleCodeLens } from "./providers/reference-lens.js";
 import { handleReferences } from "./providers/references.js";
-import type { CursorParams, ProviderDeps } from "./providers/provider-utils.js";
+import type { CursorParams, ProviderDeps } from "./providers/cursor-dispatch.js";
 import { fileUrlToPath } from "./core/util/text-utils.js";
 import type { StyleIndexCache } from "./core/scss/scss-index.js";
 import type { IndexerWorker } from "./core/indexing/indexer-worker.js";

@@ -7,7 +7,7 @@ import {
   type CursorParams,
   type CxCallContext,
   type ProviderDeps,
-} from "./provider-utils.js";
+} from "./cursor-dispatch.js";
 
 /**
  * Handle `textDocument/hover` for a `cx()` call.

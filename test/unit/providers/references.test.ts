@@ -7,7 +7,10 @@ import {
   WorkspaceReverseIndex,
 } from "../../../server/src/core/indexing/reverse-index.js";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver.js";
-import { NOOP_LOG_ERROR, type ProviderDeps } from "../../../server/src/providers/provider-utils.js";
+import {
+  NOOP_LOG_ERROR,
+  type ProviderDeps,
+} from "../../../server/src/providers/cursor-dispatch.js";
 import { handleReferences } from "../../../server/src/providers/references.js";
 
 function info(name: string, line: number): SelectorInfo {
