@@ -4,15 +4,12 @@ import type { MessageReader, MessageWriter } from "vscode-languageserver/node";
 import {
   createConnection,
   DidChangeWatchedFilesNotification,
-  FileChangeType,
   ProposedFeatures,
   TextDocuments,
   TextDocumentSyncKind,
   type Connection,
-  type DidChangeWatchedFilesParams,
   type InitializeParams,
   type InitializeResult,
-  type TextDocumentPositionParams,
 } from "vscode-languageserver/node";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import ts from "typescript";
@@ -25,19 +22,13 @@ import { SourceFileCache } from "./core/ts/source-file-cache.js";
 import { WorkspaceTypeResolver, type TypeResolver } from "./core/ts/type-resolver.js";
 import { DocumentAnalysisCache } from "./core/indexing/document-analysis-cache.js";
 import { scssFileSupplier } from "./core/indexing/file-supplier.js";
-import { IndexerWorker, type FileTask } from "./core/indexing/indexer-worker.js";
+import { IndexerWorker } from "./core/indexing/indexer-worker.js";
 import { collectCallSites, WorkspaceReverseIndex } from "./core/indexing/reverse-index.js";
 import { fileUrlToPath } from "./core/util/text-utils.js";
-import { handleCodeAction } from "./providers/code-actions.js";
-import { COMPLETION_TRIGGER_CHARACTERS, handleCompletion } from "./providers/completion.js";
-import { handleDefinition } from "./providers/definition.js";
-import { computeDiagnostics } from "./providers/diagnostics.js";
-import { handleHover } from "./providers/hover.js";
-import type { CursorParams, ProviderDeps } from "./providers/provider-utils.js";
-import { handleCodeLens } from "./providers/reference-lens.js";
-import { handleReferences } from "./providers/references.js";
-
-const DIAGNOSTICS_DEBOUNCE_MS = 200;
+import { COMPLETION_TRIGGER_CHARACTERS } from "./providers/completion.js";
+import type { ProviderDeps } from "./providers/provider-utils.js";
+import { registerHandlers } from "./handler-registration.js";
+import type { FileTask } from "./core/indexing/indexer-worker.js";
 
 const SERVER_NAME = "css-module-explainer";
 const SERVER_VERSION = "0.0.1";
@@ -49,26 +40,13 @@ export interface CreateServerOptions {
    * When OMITTED, `createConnection(ProposedFeatures.all)` auto-
    * detects the transport from process.argv flags set by the
    * LanguageClient: `--node-ipc` → IPC, `--stdio` → stdin/stdout.
-   *
-   * The production entrypoint (server.ts) does NOT pass these so
-   * the transport matches whatever `TransportKind` the client
-   * extension specifies.
    */
   readonly reader?: MessageReader | NodeJS.ReadableStream;
   readonly writer?: MessageWriter | NodeJS.WritableStream;
-  /** Override the workspace TypeResolver (tests pass a Fake). */
   readonly typeResolver?: TypeResolver;
-  /** Override disk read for SCSS files (tests pass an in-memory map). */
   readonly readStyleFile?: (path: string) => string | null;
-  /** Override ts.Program creation (test injection for the real resolver). */
   readonly createProgram?: (workspaceRoot: string) => ts.Program;
-  /**
-   * Override the background file supplier. Production uses
-   * `scssFileSupplier(workspaceRoot)`; tests pass an in-memory
-   * iterable so no filesystem walk is triggered.
-   */
   readonly fileSupplier?: () => AsyncIterable<FileTask>;
-  /** Async disk read used by the indexer worker. */
   readonly readStyleFileAsync?: (path: string) => Promise<string | null>;
 }
 
@@ -82,17 +60,13 @@ export interface CreatedServer {
  * optional dependency overrides.
  *
  * Does NOT call `connection.listen()` — the caller decides when
- * the event loop starts. Production wiring calls it immediately;
- * the Tier 2 harness calls it after attaching its client side.
+ * the event loop starts.
  *
- * `ProviderDeps` is built inside `onInitialize` because
- * `workspaceRoot` comes from the client's initialize params.
- * Tests that only exercise lifecycle never touch the deps bag.
+ * Responsibilities are split:
+ *   - THIS file: DI assembly (buildBundle) + lifecycle (init/initialized)
+ *   - handler-registration.ts: LSP request routing + diagnostics scheduler
  */
 export function createServer(options: CreateServerOptions): CreatedServer {
-  // When reader/writer are provided (Tier 2 harness), use them.
-  // When omitted (production), auto-detect from process.argv flags
-  // set by the LanguageClient (--node-ipc / --stdio / --pipe).
   const connection =
     options.reader && options.writer
       ? createConnection(
@@ -106,7 +80,8 @@ export function createServer(options: CreateServerOptions): CreatedServer {
   let bundle: CompositionBundle | null = null;
   let watchedFilesDisposable: Promise<{ dispose(): void }> | null = null;
   let clientSupportsDynamicWatchers = false;
-  const getDeps = (): ProviderDeps | null => bundle?.deps ?? null;
+
+  // ── Lifecycle ──────────────────────────────────────────────
 
   connection.onInitialize((params: InitializeParams): InitializeResult => {
     connection.console.info(`[${SERVER_NAME}] initialize received`);
@@ -117,7 +92,6 @@ export function createServer(options: CreateServerOptions): CreatedServer {
     return {
       capabilities: {
         textDocumentSync: TextDocumentSyncKind.Incremental,
-        // Hardcoded; feature toggles not yet implemented.
         definitionProvider: true,
         hoverProvider: true,
         completionProvider: {
@@ -131,20 +105,13 @@ export function createServer(options: CreateServerOptions): CreatedServer {
         referencesProvider: true,
         codeLensProvider: { resolveProvider: false },
       },
-      serverInfo: {
-        name: SERVER_NAME,
-        version: SERVER_VERSION,
-      },
+      serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
     };
   });
 
   connection.onInitialized(() => {
     connection.console.info(`[${SERVER_NAME}] initialized`);
     if (!bundle) return;
-    // Fire-and-forget: the indexer pre-warms the StyleIndexCache
-    // by walking the workspace and reading every style module.
-    // The worker yields between files so LSP requests preempt
-    // the walk.
     bundle.indexerWorker.start().catch((err: unknown) => {
       connection.console.error(
         `[${SERVER_NAME}] indexer worker crashed: ${
@@ -152,13 +119,6 @@ export function createServer(options: CreateServerOptions): CreatedServer {
         }`,
       );
     });
-    // Register dynamic file watcher for .module.{scss,css} change
-    // events when the client supports it (checked during
-    // initialize). Production VS Code always does; the in-process
-    // test harness does not advertise the capability, so the
-    // registration is skipped entirely — no spurious rejections.
-    // The returned Disposable is retained so `onShutdown` can
-    // release it cleanly.
     if (clientSupportsDynamicWatchers) {
       watchedFilesDisposable = connection.client
         .register(DidChangeWatchedFilesNotification.type, {
@@ -168,119 +128,20 @@ export function createServer(options: CreateServerOptions): CreatedServer {
     }
   });
 
-  connection.onDefinition((p: TextDocumentPositionParams) => {
-    const deps = getDeps();
-    if (!deps) return null;
-    const cursor = toCursorParams(p, documents);
-    if (!cursor) return null;
-    return handleDefinition(cursor, deps);
-  });
+  // ── Request routing (delegated to handler-registration.ts) ─
 
-  connection.onHover((p: TextDocumentPositionParams) => {
-    const deps = getDeps();
-    if (!deps) return null;
-    const cursor = toCursorParams(p, documents);
-    if (!cursor) return null;
-    return handleHover(cursor, deps);
-  });
-
-  connection.onCompletion((p) => {
-    const deps = getDeps();
-    if (!deps) return null;
-    const cursor = toCursorParams(p, documents);
-    if (!cursor) return null;
-    return handleCompletion(cursor, deps);
-  });
-
-  connection.onCodeAction((p) => {
-    const deps = getDeps();
-    if (!deps) return null;
-    return handleCodeAction(p, deps);
-  });
-
-  connection.onReferences((p) => {
-    const deps = getDeps();
-    if (!deps) return null;
-    return handleReferences(p, deps);
-  });
-
-  connection.onCodeLens((p) => {
-    const deps = getDeps();
-    if (!deps) return null;
-    return handleCodeLens(p, deps);
-  });
-
-  // Push-based diagnostics with 200ms debounce.
-  const diagTimers = new Map<string, NodeJS.Timeout>();
-  const scheduleDiagnostics = (uri: string): void => {
-    const existing = diagTimers.get(uri);
-    if (existing) clearTimeout(existing);
-    const timer = setTimeout(() => {
-      // Fetch state BEFORE deleting the timer handle so a
-      // concurrent onDidChangeContent can't see an empty
-      // diagTimers entry mid-flight.
-      const deps = getDeps();
-      const doc = documents.get(uri);
-      diagTimers.delete(uri);
-      if (!deps || !doc) return;
-      const diagnostics = computeDiagnostics(
-        {
-          documentUri: uri,
-          content: doc.getText(),
-          filePath: fileUrlToPath(uri),
-          version: doc.version,
-        },
-        deps,
-      );
-      connection.sendDiagnostics({ uri, diagnostics });
-    }, DIAGNOSTICS_DEBOUNCE_MS);
-    diagTimers.set(uri, timer);
-  };
-
-  documents.onDidChangeContent((change) => {
-    scheduleDiagnostics(change.document.uri);
-  });
-
-  documents.onDidClose((change) => {
-    const existing = diagTimers.get(change.document.uri);
-    if (existing) {
-      clearTimeout(existing);
-      diagTimers.delete(change.document.uri);
-    }
-    // Clear lingering warnings on close.
-    connection.sendDiagnostics({ uri: change.document.uri, diagnostics: [] });
-  });
-
-  // File watcher: invalidate StyleIndexCache + re-push the
-  // changed file through the indexer so the next provider
-  // request sees fresh data. Deletions just drop cache entries.
-  connection.onDidChangeWatchedFiles((params: DidChangeWatchedFilesParams) => {
-    if (!bundle) return;
-    for (const change of params.changes) {
-      const filePath = fileUrlToPath(change.uri);
-      if (change.type === FileChangeType.Deleted) {
-        bundle.styleIndexCache.invalidate(filePath);
-        continue;
-      }
-      bundle.styleIndexCache.invalidate(filePath);
-      const task: FileTask = { kind: "scss", path: filePath };
-      bundle.indexerWorker.pushFile(task);
-    }
-    // Re-run diagnostics on every open document since style
-    // changes can turn warnings on or off.
-    for (const doc of documents.all()) {
-      scheduleDiagnostics(doc.uri);
-    }
+  const handlers = registerHandlers({
+    connection,
+    documents,
+    getDeps: () => bundle?.deps ?? null,
+    getBundle: () =>
+      bundle
+        ? { styleIndexCache: bundle.styleIndexCache, indexerWorker: bundle.indexerWorker }
+        : null,
   });
 
   connection.onShutdown(() => {
-    bundle?.indexerWorker.stop();
-    // Clear any pending debounced diagnostic publishes so they
-    // don't fire after shutdown (keeps handles out of the event
-    // loop and drops closures referencing documents/connection).
-    for (const timer of diagTimers.values()) clearTimeout(timer);
-    diagTimers.clear();
-    // Unregister dynamic file watcher if the client accepted it.
+    handlers.shutdown();
     void watchedFilesDisposable?.then((d) => d.dispose()).catch(() => {});
     watchedFilesDisposable = null;
     bundle = null;
@@ -289,6 +150,8 @@ export function createServer(options: CreateServerOptions): CreatedServer {
   documents.listen(connection);
   return { connection, documents };
 }
+
+// ── Helpers ────────────────────────────────────────────────────
 
 function resolveWorkspaceRoot(params: InitializeParams): string {
   const folder = params.workspaceFolders?.[0];
@@ -317,8 +180,6 @@ function buildBundle(
     detectCxBindings,
     parseCxCalls,
     max: 200,
-    // Index cx() call sites exactly once per (uri, version) —
-    // keeps the reverse-index write off the provider hot path.
     onAnalyze: (uri, entry) => {
       reverseIndex.record(uri, collectCallSites(uri, entry));
     },
@@ -337,7 +198,6 @@ function buildBundle(
     if (content === null) return null;
     return styleIndexCache.get(path, content);
   };
-  const scssClassMapFor = (binding: CxBinding) => classMapForPath(binding.scssModulePath);
 
   const indexerLogger = {
     info: (msg: string) => connection.console.info(`[${SERVER_NAME}:indexer] ${msg}`),
@@ -346,7 +206,7 @@ function buildBundle(
 
   const deps: ProviderDeps = {
     analysisCache,
-    scssClassMapFor,
+    scssClassMapFor: (binding: CxBinding) => classMapForPath(binding.scssModulePath),
     scssClassMapForPath: classMapForPath,
     typeResolver,
     reverseIndex,
@@ -363,13 +223,9 @@ function buildBundle(
     supplier,
     readFile: asyncReadFile,
     onScssFile: (path, content) => {
-      // Pre-warm the style index so the next provider request on
-      // this file's classMap hits in-memory instead of parsing.
       styleIndexCache.get(path, content);
     },
-    onTsxFile: () => {
-      // Intentional no-op: SCSS is the only indexed file kind today.
-    },
+    onTsxFile: () => {},
     logger: indexerLogger,
   });
 
@@ -393,11 +249,8 @@ function defaultReadStyleFile(path: string): string | null {
 }
 
 /**
- * Minimal production ts.Program builder. Parses tsconfig.json
- * relative to the workspace root, falls back to an empty program
- * when missing or malformed. The entire body is wrapped in
- * try/catch so a corrupt tsconfig never crashes the initialize
- * handshake.
+ * Minimal production ts.Program builder. Falls back to an empty
+ * program when tsconfig is missing or malformed.
  */
 export function createDefaultProgram(workspaceRoot: string): ts.Program {
   const EMPTY = ts.createProgram({
@@ -423,20 +276,4 @@ export function createDefaultProgram(workspaceRoot: string): ts.Program {
   } catch {
     return EMPTY;
   }
-}
-
-function toCursorParams(
-  p: TextDocumentPositionParams,
-  documents: TextDocuments<TextDocument>,
-): CursorParams | null {
-  const doc = documents.get(p.textDocument.uri);
-  if (!doc) return null;
-  return {
-    documentUri: p.textDocument.uri,
-    content: doc.getText(),
-    filePath: fileUrlToPath(p.textDocument.uri),
-    line: p.position.line,
-    character: p.position.character,
-    version: doc.version,
-  };
 }

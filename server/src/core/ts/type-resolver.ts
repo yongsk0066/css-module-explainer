@@ -58,6 +58,10 @@ export class WorkspaceTypeResolver implements TypeResolver {
       return UNRESOLVABLE;
     }
     const checker = program.getTypeChecker();
+    // DFS finds the first variable/parameter/binding matching by
+    // name. Not scope-aware (a shadowed top-level `size` wins over
+    // a function-parameter `size`). Full scope resolution requires
+    // the call-site AST node, which is a future API extension.
     const symbol = findIdentifierSymbol(sourceFile, variableName, checker);
     if (!symbol) {
       return UNRESOLVABLE;
@@ -88,16 +92,11 @@ const UNRESOLVABLE: ResolvedType = { kind: "unresolvable", values: [] };
 /**
  * Walk the source file for an identifier matching `variableName`
  * and return its checker symbol. Looks at variable declarations,
- * function parameters, and destructuring binding elements — all
- * three places a `cx(x)` argument typically comes from.
+ * function parameters, and destructuring binding elements.
  *
- * Known limitation: this is a document-order DFS that matches by
- * name only, NOT by lexical scope. If a file has both a top-level
- * `const size = "outer"` and a nested `function f({ size }: Props)`,
- * the outer binding wins. Acceptable today because test fixtures
- * use unique names within a file. Fix when a shadowing reproducer
- * surfaces: walk up from the call site via `ts.findAncestor` +
- * per-node symbol lookup instead of global DFS.
+ * Document-order DFS — returns the first match by name, NOT by
+ * lexical scope. Full scope-aware resolution requires carrying
+ * the call-site node into the resolver (future work).
  */
 function findIdentifierSymbol(
   sourceFile: ts.SourceFile,
@@ -105,15 +104,12 @@ function findIdentifierSymbol(
   checker: ts.TypeChecker,
 ): ts.Symbol | null {
   let found: ts.Symbol | null = null;
-
   function visit(node: ts.Node): void {
     if (found) return;
-
     const nameNode =
       ts.isVariableDeclaration(node) || ts.isParameter(node) || ts.isBindingElement(node)
         ? node.name
         : null;
-
     if (nameNode && ts.isIdentifier(nameNode) && nameNode.text === variableName) {
       const symbol = checker.getSymbolAtLocation(nameNode);
       if (symbol) {
@@ -121,10 +117,8 @@ function findIdentifierSymbol(
         return;
       }
     }
-
     ts.forEachChild(node, visit);
   }
-
   visit(sourceFile);
   return found;
 }
