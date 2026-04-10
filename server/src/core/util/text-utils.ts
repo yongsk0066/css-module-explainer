@@ -30,14 +30,24 @@ export function getLineAt(content: string, lineNumber: number): string | undefin
 }
 
 /**
- * Classic dynamic-programming Levenshtein distance.
- * Used only for "Did you mean?" suggestions where inputs are
- * short class names; O(n*m) is fine.
+ * Levenshtein distance with optional early termination.
+ *
+ * When `maxDistance` is provided:
+ *   - Strings whose length difference exceeds the bound are
+ *     rejected in O(1).
+ *   - After each DP row, the row minimum is checked; if it
+ *     already exceeds the bound, computation aborts early.
+ *
+ * Returns `maxDistance + 1` when the distance exceeds the bound.
  */
-export function levenshteinDistance(a: string, b: string): number {
+export function levenshteinDistance(a: string, b: string, maxDistance?: number): number {
   if (a === b) return 0;
   if (a.length === 0) return b.length;
   if (b.length === 0) return a.length;
+
+  if (maxDistance !== undefined && Math.abs(a.length - b.length) > maxDistance) {
+    return maxDistance + 1;
+  }
 
   const rows = a.length + 1;
   const cols = b.length + 1;
@@ -48,13 +58,14 @@ export function levenshteinDistance(a: string, b: string): number {
 
   for (let i = 1; i < rows; i += 1) {
     curr[0] = i;
+    let rowMin = i;
     for (let j = 1; j < cols; j += 1) {
       const cost = a.charCodeAt(i - 1) === b.charCodeAt(j - 1) ? 0 : 1;
-      curr[j] = Math.min(
-        curr[j - 1]! + 1, // insertion
-        prev[j]! + 1, // deletion
-        prev[j - 1]! + cost, // substitution
-      );
+      curr[j] = Math.min(curr[j - 1]! + 1, prev[j]! + 1, prev[j - 1]! + cost);
+      if (curr[j]! < rowMin) rowMin = curr[j]!;
+    }
+    if (maxDistance !== undefined && rowMin > maxDistance) {
+      return maxDistance + 1;
     }
     for (let j = 0; j < cols; j += 1) prev[j] = curr[j]!;
   }
@@ -66,6 +77,9 @@ export function levenshteinDistance(a: string, b: string): number {
  * Return the candidate with the smallest Levenshtein distance to
  * `target`, or null when none is within `maxDistance` (default 3).
  * Ties are broken by iteration order — first match wins.
+ *
+ * Passes `maxDistance` through to the bounded Levenshtein so each
+ * comparison is O(n * maxDistance) instead of O(n²).
  */
 export function findClosestMatch(
   target: string,
@@ -75,7 +89,7 @@ export function findClosestMatch(
   let best: string | null = null;
   let bestDistance = maxDistance + 1;
   for (const candidate of candidates) {
-    const distance = levenshteinDistance(target, candidate);
+    const distance = levenshteinDistance(target, candidate, bestDistance - 1);
     if (distance < bestDistance) {
       best = candidate;
       bestDistance = distance;
