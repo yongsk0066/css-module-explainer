@@ -42,7 +42,7 @@ export function handleReferences(params: ReferenceParams, deps: ProviderDeps): L
   }
 }
 
-function findSelectorAtCursor(
+export function findSelectorAtCursor(
   classMap: ScssClassMap,
   line: number,
   character: number,
