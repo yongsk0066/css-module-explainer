@@ -124,7 +124,7 @@
   "preview": false,
   "engines": {
     "node": ">=22",
-    "vscode": "^1.85.0"
+    "vscode": "^1.115.0"
   },
   "packageManager": "pnpm@10.30.3"
 }
