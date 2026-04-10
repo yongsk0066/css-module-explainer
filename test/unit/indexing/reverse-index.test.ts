@@ -1,9 +1,12 @@
 import { describe, it, expect } from "vitest";
-import type { CallSite, CxBinding } from "@css-module-explainer/shared";
+import type { CallSite, CxBinding, StylePropertyRef } from "@css-module-explainer/shared";
 import {
+  collectCallSites,
   NullReverseIndex,
   WorkspaceReverseIndex,
 } from "../../../server/src/core/indexing/reverse-index";
+import type { AnalysisEntry } from "../../../server/src/core/indexing/document-analysis-cache";
+import ts from "typescript";
 
 function makeBinding(): CxBinding {
   return {
@@ -138,5 +141,115 @@ describe("WorkspaceReverseIndex", () => {
     ]);
     expect(index.count("/fake/a.module.scss", "indicator")).toBe(1);
     expect(index.count("/fake/b.module.scss", "indicator")).toBe(1);
+  });
+});
+
+describe("collectCallSites / StylePropertyRef entries", () => {
+  it("creates static CallSite entries from entry.styleRefs", () => {
+    const sourceFile = ts.createSourceFile("test.tsx", "", ts.ScriptTarget.Latest, true);
+    const styleRef: StylePropertyRef = {
+      kind: "style-access",
+      className: "indicator",
+      scssModulePath: "/fake/a.module.scss",
+      stylesVarName: "styles",
+      originRange: {
+        start: { line: 5, character: 10 },
+        end: { line: 5, character: 19 },
+      },
+    };
+    const entry: AnalysisEntry = {
+      version: 1,
+      contentHash: "abc",
+      sourceFile,
+      bindings: [],
+      calls: [],
+      styleRefs: [styleRef],
+      stylesBindings: new Map(),
+    };
+
+    const sites = collectCallSites("file:///fake/a.tsx", entry);
+
+    expect(sites).toHaveLength(1);
+    expect(sites[0]).toMatchObject({
+      uri: "file:///fake/a.tsx",
+      range: { start: { line: 5, character: 10 }, end: { line: 5, character: 19 } },
+      match: { kind: "static", className: "indicator" },
+    });
+    expect(sites[0]!.binding.scssModulePath).toBe("/fake/a.module.scss");
+  });
+
+  it("merges cx call sites and styleRef sites", () => {
+    const sourceFile = ts.createSourceFile("test.tsx", "", ts.ScriptTarget.Latest, true);
+    const binding: CxBinding = {
+      cxVarName: "cx",
+      stylesVarName: "styles",
+      scssModulePath: "/fake/a.module.scss",
+      classNamesImportName: "classNames",
+      scope: { startLine: 0, endLine: 100 },
+    };
+    const entry: AnalysisEntry = {
+      version: 1,
+      contentHash: "abc",
+      sourceFile,
+      bindings: [binding],
+      calls: [
+        {
+          kind: "static",
+          className: "active",
+          originRange: { start: { line: 3, character: 4 }, end: { line: 3, character: 10 } },
+          binding,
+        },
+      ],
+      styleRefs: [
+        {
+          kind: "style-access",
+          className: "indicator",
+          scssModulePath: "/fake/a.module.scss",
+          stylesVarName: "styles",
+          originRange: { start: { line: 7, character: 10 }, end: { line: 7, character: 19 } },
+        },
+      ],
+      stylesBindings: new Map(),
+    };
+
+    const sites = collectCallSites("file:///fake/a.tsx", entry);
+
+    expect(sites).toHaveLength(2);
+    const classNames = sites
+      .filter((s) => s.match.kind === "static")
+      .map((s) => (s.match as { className: string }).className)
+      .toSorted();
+    expect(classNames).toEqual(["active", "indicator"]);
+  });
+
+  it("reverse index find() returns styleRef sites", () => {
+    const sourceFile = ts.createSourceFile("test.tsx", "", ts.ScriptTarget.Latest, true);
+    const entry: AnalysisEntry = {
+      version: 1,
+      contentHash: "abc",
+      sourceFile,
+      bindings: [],
+      calls: [],
+      styleRefs: [
+        {
+          kind: "style-access",
+          className: "btn",
+          scssModulePath: "/fake/a.module.scss",
+          stylesVarName: "styles",
+          originRange: { start: { line: 2, character: 5 }, end: { line: 2, character: 8 } },
+        },
+      ],
+      stylesBindings: new Map(),
+    };
+
+    const sites = collectCallSites("file:///fake/a.tsx", entry);
+    const index = new WorkspaceReverseIndex();
+    index.record("file:///fake/a.tsx", sites);
+
+    expect(index.count("/fake/a.module.scss", "btn")).toBe(1);
+    const found = index.find("/fake/a.module.scss", "btn");
+    expect(found).toHaveLength(1);
+    expect(found[0]!.uri).toBe("file:///fake/a.tsx");
+    expect(found[0]!.range.start.line).toBe(2);
   });
 });

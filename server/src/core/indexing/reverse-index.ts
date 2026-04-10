@@ -1,4 +1,4 @@
-import type { CallSite, ScssClassMap } from "@css-module-explainer/shared";
+import type { CallSite, CxBinding, ScssClassMap } from "@css-module-explainer/shared";
 import type { AnalysisEntry } from "./document-analysis-cache";
 import type { TypeResolver } from "../ts/type-resolver";
 
@@ -172,6 +172,26 @@ export function collectCallSites(
       }
     }
   }
+
+  // Process styles.x direct references (L8 reverse-index extension).
+  // Synthetic CxBinding satisfies the CallSite.binding field -- acknowledged
+  // tech debt until CallSite.binding is replaced with CallSite.scssModulePath.
+  for (const ref of entry.styleRefs) {
+    const syntheticBinding: CxBinding = {
+      cxVarName: ref.stylesVarName,
+      stylesVarName: ref.stylesVarName,
+      scssModulePath: ref.scssModulePath,
+      classNamesImportName: "",
+      scope: { startLine: 0, endLine: Number.MAX_SAFE_INTEGER },
+    };
+    sites.push({
+      uri,
+      range: ref.originRange,
+      binding: syntheticBinding,
+      match: { kind: "static", className: ref.className },
+    });
+  }
+
   return sites;
 }
 
