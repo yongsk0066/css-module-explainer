@@ -24,6 +24,18 @@ export interface StyleLang {
   readonly displayName: string;
 }
 
+/**
+ * A `composes` reference found inside a CSS Module rule.
+ * e.g. `composes: base lg from './base.module.css'`
+ */
+export interface ComposesRef {
+  readonly classNames: readonly string[];
+  /** Relative path to the source module. Undefined = same file. */
+  readonly from?: string;
+  /** `composes: x from global` — global (non-module) scope. */
+  readonly fromGlobal?: boolean;
+}
+
 /** A single class selector recovered from a CSS Module. */
 export interface SelectorInfo {
   /** Resolved class name (e.g. `button--primary` after `&` nesting). */
@@ -36,6 +48,8 @@ export interface SelectorInfo {
   readonly declarations: string;
   /** Full `{ ... }` rule block, used by peek views. */
   readonly ruleRange: Range;
+  /** CSS Modules `composes` references, if any. */
+  readonly composes?: readonly ComposesRef[];
 }
 
 /** Immutable map from class name to its info, produced per style file. */

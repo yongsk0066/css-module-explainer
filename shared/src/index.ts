@@ -2,6 +2,7 @@ export type {
   Position,
   Range,
   StyleLang,
+  ComposesRef,
   SelectorInfo,
   ScssClassMap,
   CxBinding,
