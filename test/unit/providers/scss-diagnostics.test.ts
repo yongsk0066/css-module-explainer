@@ -3,7 +3,7 @@ import { DiagnosticSeverity, DiagnosticTag } from "vscode-languageserver-protoco
 import type { ScssClassMap } from "@css-module-explainer/shared";
 import { WorkspaceReverseIndex } from "../../../server/src/core/indexing/reverse-index";
 import { computeScssUnusedDiagnostics } from "../../../server/src/providers/scss-diagnostics";
-import { info, siteAt } from "../../_fixtures/test-helpers";
+import { infoAtLine as info, siteAt } from "../../_fixtures/test-helpers";
 
 const SCSS_PATH = "/fake/Button.module.scss";
 

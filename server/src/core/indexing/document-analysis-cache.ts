@@ -125,7 +125,7 @@ export class DocumentAnalysisCache {
     const bindings = this.deps.detectCxBindings(sourceFile, filePath);
     const calls = bindings.flatMap((binding) => this.deps.parseCxCalls(sourceFile, binding));
 
-    // L8 fix: collect style imports independently of cx bindings.
+    // Independent style-import scanning: collect style imports independently of cx bindings.
     // Files without classnames/bind now get styles.x support.
     const stylesBindings = this.deps.collectStyleImports(sourceFile, filePath);
     const styleRefs = this.deps.parseStyleAccesses?.(sourceFile, stylesBindings) ?? [];

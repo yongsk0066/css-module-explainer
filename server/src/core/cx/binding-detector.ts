@@ -25,7 +25,7 @@ import { getAllStyleExtensions } from "../scss/lang-registry";
  *
  * This is the same logic as the style-import branch inside `collectImports`,
  * extracted so `DocumentAnalysisCache.analyze()` can call it independently
- * of `detectCxBindings`. Fixes L8: files without classnames/bind now get
+ * of `detectCxBindings`. Independent style-import scanning: files without classnames/bind now get
  * a populated `stylesBindings` map for `parseStylePropertyAccesses`.
  */
 export function collectStyleImports(

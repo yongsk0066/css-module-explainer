@@ -1,20 +1,14 @@
 import type { Connection, TextDocumentPositionParams } from "vscode-languageserver/node";
-import {
-  DiagnosticSeverity,
-  FileChangeType,
-  type DidChangeWatchedFilesParams,
-} from "vscode-languageserver/node";
+import { FileChangeType, type DidChangeWatchedFilesParams } from "vscode-languageserver/node";
 import type { TextDocument } from "vscode-languageserver-textdocument";
 import type { TextDocuments } from "vscode-languageserver/node";
 import { handleCodeAction } from "./providers/code-actions";
 import { handleCompletion } from "./providers/completion";
 import { handleDefinition } from "./providers/definition";
-import { computeDiagnostics } from "./providers/diagnostics";
 import { handleHover } from "./providers/hover";
 import { handleCodeLens } from "./providers/reference-lens";
 import { handleReferences } from "./providers/references";
 import { handlePrepareRename, handleRename } from "./providers/rename";
-import { computeScssUnusedDiagnostics } from "./providers/scss-diagnostics";
 import type { CursorParams, ProviderDeps } from "./providers/cursor-dispatch";
 import { fileUrlToPath } from "./core/util/text-utils";
 import { findLangForPath } from "./core/scss/lang-registry";
@@ -22,8 +16,7 @@ import type { StyleIndexCache } from "./core/scss/scss-index";
 import type { IndexerWorker } from "./core/indexing/indexer-worker";
 import type { FileTask } from "./core/indexing/indexer-worker";
 import { fetchSettings, DEFAULT_SETTINGS, type Settings } from "./settings";
-
-const DIAGNOSTICS_DEBOUNCE_MS = 200;
+import { createDiagnosticsScheduler } from "./diagnostics-scheduler";
 
 export interface HandlerContext {
   readonly connection: Connection;
@@ -52,12 +45,26 @@ export function registerHandlers(ctx: HandlerContext): HandlerCleanup {
 
   let settings: Settings = DEFAULT_SETTINGS;
 
+  const scheduler = createDiagnosticsScheduler(
+    { connection, documents, getDeps, getBundle },
+    settings,
+  );
+
   connection.onDidChangeConfiguration(() => {
     fetchSettings(connection)
       .then((s) => {
         settings = s;
+        scheduler.refreshSettings(s);
       })
-      .catch(() => {});
+      .catch((err: unknown) => {
+        try {
+          connection.console.error(
+            `[css-module-explainer] settings fetch failed: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        } catch {
+          // Connection already disposed — nothing to log to.
+        }
+      });
   });
 
   connection.onDefinition((p: TextDocumentPositionParams) => {
@@ -123,98 +130,18 @@ export function registerHandlers(ctx: HandlerContext): HandlerCleanup {
     return handleRename(p, deps, cursor ?? undefined);
   });
 
-  const diagTimers = new Map<string, NodeJS.Timeout>();
-
-  const scheduleDiagnostics = (uri: string): void => {
-    const existing = diagTimers.get(uri);
-    if (existing) clearTimeout(existing);
-    const timer = setTimeout(() => {
-      const deps = getDeps();
-      const doc = documents.get(uri);
-      diagTimers.delete(uri);
-      if (!deps || !doc) return;
-      const severity = parseSeverity(settings.diagnostics.severity);
-      const diagnostics = computeDiagnostics(
-        {
-          documentUri: uri,
-          content: doc.getText(),
-          filePath: fileUrlToPath(uri),
-          version: doc.version,
-        },
-        deps,
-        severity,
-      );
-      connection.sendDiagnostics({ uri, diagnostics });
-    }, DIAGNOSTICS_DEBOUNCE_MS);
-    diagTimers.set(uri, timer);
-  };
-
-  // ── SCSS unused-selector diagnostics ────────────────────────
-
-  let indexReady = false;
-  let readySubscribed = false;
-
-  function ensureReadySubscribed(): void {
-    if (readySubscribed) return;
-    const bundle = getBundle();
-    if (!bundle) return;
-    readySubscribed = true;
-    bundle.indexerWorker.ready.then(() => {
-      indexReady = true;
-      // Re-trigger SCSS diagnostics for all open SCSS documents.
-      for (const doc of documents.all()) {
-        const filePath = fileUrlToPath(doc.uri);
-        if (findLangForPath(filePath)) {
-          scheduleSccssDiagnostics(doc.uri);
-        }
-      }
-    });
-  }
-
-  const scssDiagTimers = new Map<string, NodeJS.Timeout>();
-
-  const scheduleSccssDiagnostics = (uri: string): void => {
-    ensureReadySubscribed();
-    if (!indexReady) return; // Gate: do not diagnose before index walk finishes.
-    if (!settings.diagnostics.unusedSelector) return; // Gate: setting from Task 4.
-    const existing = scssDiagTimers.get(uri);
-    if (existing) clearTimeout(existing);
-    const timer = setTimeout(() => {
-      const deps = getDeps();
-      const doc = documents.get(uri);
-      scssDiagTimers.delete(uri);
-      if (!deps || !doc) return;
-      const filePath = fileUrlToPath(uri);
-      const classMap = deps.scssClassMapForPath(filePath);
-      if (!classMap) return;
-      const diagnostics = computeScssUnusedDiagnostics(filePath, classMap, deps.reverseIndex);
-      connection.sendDiagnostics({ uri, diagnostics });
-    }, DIAGNOSTICS_DEBOUNCE_MS);
-    scssDiagTimers.set(uri, timer);
-  };
-
   documents.onDidChangeContent((change) => {
-    ensureReadySubscribed();
+    scheduler.ensureReadySubscribed();
     const filePath = fileUrlToPath(change.document.uri);
     if (findLangForPath(filePath)) {
-      scheduleSccssDiagnostics(change.document.uri);
+      scheduler.scheduleScss(change.document.uri);
     } else {
-      scheduleDiagnostics(change.document.uri);
+      scheduler.scheduleTsx(change.document.uri);
     }
   });
 
   documents.onDidClose((change) => {
-    const existing = diagTimers.get(change.document.uri);
-    if (existing) {
-      clearTimeout(existing);
-      diagTimers.delete(change.document.uri);
-    }
-    const scssTimer = scssDiagTimers.get(change.document.uri);
-    if (scssTimer) {
-      clearTimeout(scssTimer);
-      scssDiagTimers.delete(change.document.uri);
-    }
-    connection.sendDiagnostics({ uri: change.document.uri, diagnostics: [] });
+    scheduler.handleDocumentClose(change.document.uri);
   });
 
   connection.onDidChangeWatchedFiles((params: DidChangeWatchedFilesParams) => {
@@ -231,7 +158,7 @@ export function registerHandlers(ctx: HandlerContext): HandlerCleanup {
       bundle.indexerWorker.pushFile(task);
     }
     for (const doc of documents.all()) {
-      scheduleDiagnostics(doc.uri);
+      scheduler.scheduleTsx(doc.uri);
     }
   });
 
@@ -239,17 +166,23 @@ export function registerHandlers(ctx: HandlerContext): HandlerCleanup {
     shutdown() {
       const bundle = getBundle();
       bundle?.indexerWorker.stop();
-      for (const timer of diagTimers.values()) clearTimeout(timer);
-      diagTimers.clear();
-      for (const timer of scssDiagTimers.values()) clearTimeout(timer);
-      scssDiagTimers.clear();
+      scheduler.shutdown();
     },
     refreshSettings() {
       fetchSettings(connection)
         .then((s) => {
           settings = s;
+          scheduler.refreshSettings(s);
         })
-        .catch(() => {});
+        .catch((err: unknown) => {
+          try {
+            connection.console.error(
+              `[css-module-explainer] settings fetch failed: ${err instanceof Error ? err.message : String(err)}`,
+            );
+          } catch {
+            // Connection already disposed — nothing to log to.
+          }
+        });
     },
   };
 }
@@ -268,15 +201,4 @@ function toCursorParams(
     character: p.position.character,
     version: doc.version,
   };
-}
-
-const SEVERITY_MAP: Record<string, DiagnosticSeverity> = {
-  error: DiagnosticSeverity.Error,
-  warning: DiagnosticSeverity.Warning,
-  information: DiagnosticSeverity.Information,
-  hint: DiagnosticSeverity.Hint,
-};
-
-function parseSeverity(value: string): DiagnosticSeverity {
-  return SEVERITY_MAP[value] ?? DiagnosticSeverity.Warning;
 }

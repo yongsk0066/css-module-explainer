@@ -12,7 +12,6 @@ import { NullReverseIndex } from "../../../server/src/core/indexing/reverse-inde
 import {
   NOOP_LOG_ERROR,
   withCxCallAtCursor,
-  hasStyleModuleImport,
   type ProviderDeps,
 } from "../../../server/src/providers/cursor-dispatch";
 import { isInsideCxCall } from "../../../server/src/providers/completion";
@@ -241,23 +240,5 @@ describe("withCxCallAtCursor / call dispatch", () => {
       () => "hit",
     );
     expect(records).toHaveLength(0);
-  });
-});
-
-describe("hasStyleModuleImport", () => {
-  it("returns true when content contains .module.scss", () => {
-    expect(hasStyleModuleImport("import styles from './Button.module.scss';")).toBe(true);
-  });
-
-  it("returns true when content contains .module.css", () => {
-    expect(hasStyleModuleImport("import styles from './Button.module.css';")).toBe(true);
-  });
-
-  it("returns true when content contains .module.less", () => {
-    expect(hasStyleModuleImport("import styles from './Button.module.less';")).toBe(true);
-  });
-
-  it("returns false for plain content", () => {
-    expect(hasStyleModuleImport("const x = 1;")).toBe(false);
   });
 });

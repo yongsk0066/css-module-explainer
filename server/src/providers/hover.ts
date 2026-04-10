@@ -1,5 +1,6 @@
 import type { Hover } from "vscode-languageserver/node";
 import { resolveCxCallToSelectorInfos } from "../core/cx/call-resolver";
+import { syntheticBindingFromRef } from "../core/util/synthetic-binding";
 import { toLspRange } from "./lsp-adapters";
 import { renderHover } from "./hover-renderer";
 import {
@@ -28,13 +29,7 @@ export function handleHover(
       withCxCallAtCursor(params, deps, (ctx) => buildHover(ctx, params, deps, maxCandidates)) ??
       withStyleRefAtCursor(params, deps, (ctx) => {
         if (!ctx.info) return null;
-        const syntheticBinding = {
-          cxVarName: ctx.ref.stylesVarName,
-          stylesVarName: ctx.ref.stylesVarName,
-          scssModulePath: ctx.ref.scssModulePath,
-          classNamesImportName: ctx.ref.stylesVarName,
-          scope: { startLine: 0, endLine: Number.MAX_SAFE_INTEGER },
-        };
+        const syntheticBinding = syntheticBindingFromRef(ctx.ref);
         const markdown = renderHover({
           call: {
             kind: "static" as const,

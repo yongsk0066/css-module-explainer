@@ -14,7 +14,7 @@ import {
   type ProviderDeps,
 } from "../../../server/src/providers/cursor-dispatch";
 import { handlePrepareRename, handleRename } from "../../../server/src/providers/rename";
-import { info, siteAt } from "../../_fixtures/test-helpers";
+import { infoAtLine as info, siteAt } from "../../_fixtures/test-helpers";
 
 const SCSS_PATH = "/fake/src/Button.module.scss";
 const SCSS_URI = "file:///fake/src/Button.module.scss";

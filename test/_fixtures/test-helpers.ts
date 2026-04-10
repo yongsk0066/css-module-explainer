@@ -1,7 +1,23 @@
 import type { CallSite, SelectorInfo } from "@css-module-explainer/shared";
+import { SourceFileCache } from "../../server/src/core/ts/source-file-cache";
+import { DocumentAnalysisCache } from "../../server/src/core/indexing/document-analysis-cache";
+import { NullReverseIndex } from "../../server/src/core/indexing/reverse-index";
+import { NOOP_LOG_ERROR, type ProviderDeps } from "../../server/src/providers/cursor-dispatch";
+import { FakeTypeResolver } from "./fake-type-resolver";
 
-/** Create a minimal SelectorInfo for testing. */
-export function info(name: string, line: number): SelectorInfo {
+/** Create a minimal SelectorInfo for testing (fixed line 11 position). */
+export function info(name: string): SelectorInfo {
+  return {
+    name,
+    range: { start: { line: 11, character: 2 }, end: { line: 11, character: 2 + name.length } },
+    fullSelector: `.${name}`,
+    declarations: "color: red",
+    ruleRange: { start: { line: 10, character: 0 }, end: { line: 13, character: 1 } },
+  };
+}
+
+/** Create a minimal SelectorInfo at a specific line. */
+export function infoAtLine(name: string, line: number): SelectorInfo {
   return {
     name,
     range: { start: { line, character: 1 }, end: { line, character: 1 + name.length } },
@@ -29,5 +45,32 @@ export function siteAt(
       scope: { startLine: 0, endLine: 100 },
     },
     match: { kind: "static" as const, className },
+  };
+}
+
+/**
+ * Build a default ProviderDeps with sensible empty defaults.
+ *
+ * Callers override individual fields via the `overrides` argument.
+ * Keeps test setup DRY across hover, completion, and diagnostics tests.
+ */
+export function makeBaseDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
+  const sourceFileCache = new SourceFileCache({ max: 10 });
+  const analysisCache = new DocumentAnalysisCache({
+    sourceFileCache,
+    collectStyleImports: () => new Map(),
+    detectCxBindings: () => [],
+    parseCxCalls: () => [],
+    max: 10,
+  });
+  return {
+    analysisCache,
+    scssClassMapFor: () => null,
+    scssClassMapForPath: () => null,
+    typeResolver: new FakeTypeResolver(),
+    reverseIndex: new NullReverseIndex(),
+    workspaceRoot: "/fake/ws",
+    logError: NOOP_LOG_ERROR,
+    ...overrides,
   };
 }

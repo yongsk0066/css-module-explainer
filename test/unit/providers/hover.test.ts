@@ -1,17 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import type ts from "typescript";
-import type {
-  CxBinding,
-  CxCallInfo,
-  ScssClassMap,
-  SelectorInfo,
-} from "@css-module-explainer/shared";
+import type { CxBinding, CxCallInfo, ScssClassMap } from "@css-module-explainer/shared";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
-import { NullReverseIndex } from "../../../server/src/core/indexing/reverse-index";
-import { NOOP_LOG_ERROR, type ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
+import type { ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
 import { handleHover } from "../../../server/src/providers/hover";
-import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
+import { info, makeBaseDeps } from "../../_fixtures/test-helpers";
 
 const TSX = `
 import classNames from 'classnames/bind';
@@ -19,16 +13,6 @@ import styles from './Button.module.scss';
 const cx = classNames.bind(styles);
 const el = cx('indicator');
 `;
-
-function info(name: string): SelectorInfo {
-  return {
-    name,
-    range: { start: { line: 11, character: 2 }, end: { line: 11, character: 2 + name.length } },
-    fullSelector: `.${name}`,
-    declarations: "color: red; font-size: 14px",
-    ruleRange: { start: { line: 10, character: 0 }, end: { line: 13, character: 1 } },
-  };
-}
 
 const detectCxBindings = (sourceFile: ts.SourceFile): CxBinding[] => [
   {
@@ -61,16 +45,11 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     parseCxCalls,
     max: 10,
   });
-  return {
+  return makeBaseDeps({
     analysisCache,
     scssClassMapFor: () => new Map([["indicator", info("indicator")]]) as ScssClassMap,
-    scssClassMapForPath: () => null,
-    typeResolver: new FakeTypeResolver(),
-    reverseIndex: new NullReverseIndex(),
-    workspaceRoot: "/fake/ws",
-    logError: NOOP_LOG_ERROR,
     ...overrides,
-  };
+  });
 }
 
 describe("handleHover", () => {
