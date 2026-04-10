@@ -38,7 +38,7 @@ export function parseStyleModule(content: string, filePath: string): ScssClassMa
     // Parse failure → empty map; contract is documented on the
     // parseStyleModule JSDoc above. We intentionally do not log
     // here because StyleIndexCache will retry on the next content
-    // change, and diagnostics for broken CSS modules are Phase 2's
+    // change, and diagnostics for broken CSS modules are the diagnostics provider's
     // responsibility (via a dedicated diagnostic category).
     return classMap;
   }
@@ -133,7 +133,7 @@ function recordRule(rule: Rule, parentSelector: string, classMap: Map<string, Se
 
     for (const className of extractClassNames(resolved)) {
       const tokenRange = findClassTokenRange(rule.source?.start, className, raw);
-      // Q6 B #8 — cascade last-wins: .set() overwrites on redefinition.
+      // Cascade last-wins: .set() overwrites on redefinition.
       classMap.set(className, {
         name: className,
         range: tokenRange,

@@ -6,7 +6,7 @@ import { hasCxBindImport, type CursorParams, type ProviderDeps } from "./provide
 /**
  * Handle `textDocument/completion` inside a `cx()` call.
  *
- * Pipeline (spec §4.4):
+ * Pipeline:
  * 1. Fast-path on `classnames/bind` import.
  * 2. Analyze document → bindings.
  * 3. For each binding whose scope contains the cursor: check
@@ -14,7 +14,7 @@ import { hasCxBindImport, type CursorParams, type ProviderDeps } from "./provide
  * 4. If inside, pull the classMap for that binding and emit
  *    one CompletionItem per class.
  *
- * Multiple bindings in one file (Q7 B #4 — multi-binding) are
+ * Multiple bindings in one file (multi-binding) are
  * handled by iterating every in-scope binding and merging
  * results. Typical files have 1 binding so this is O(n) tiny.
  */

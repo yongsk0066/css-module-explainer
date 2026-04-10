@@ -15,7 +15,7 @@ import {
  * Dispatches through `withCxCallAtCursor`, resolves the call to
  * its SelectorInfo list, then delegates to the pure
  * `renderHover` markdown builder. Empty match → null Hover;
- * exception → logged and null (spec §2.8 error isolation).
+ * exception → logged and null (error isolation).
  */
 export function handleHover(params: CursorParams, deps: ProviderDeps): Hover | null {
   try {

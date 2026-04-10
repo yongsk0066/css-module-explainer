@@ -18,7 +18,7 @@ import { getAllStyleExtensions } from "../scss/lang-registry.js";
  * — including those inside function bodies — and keeps the ones
  * whose initializer is `<classNamesImport>.bind(<knownStylesVar>)`.
  *
- * Design follows Q7 B #1/#2/#3/#5/#6/#7: free cxVarName, free
+ * Design covers: free cxVarName, free
  * styles name, alias imports for classnames/bind, multiple
  * bindings per file, and function-scoped bindings.
  */
@@ -58,7 +58,7 @@ function collectImports(sourceFile: ts.SourceFile, filePath: string): ImportScan
     //   import styles from './Button.module.scss';     ← handled
     //   import classNames from 'classnames/bind';      ← handled
     //   import * as styles from './Button.module.scss'; ← silently skipped (rare)
-    //   import { bind } from 'classnames';              ← silently skipped (Q7 B #4, rejected)
+    //   import { bind } from 'classnames';              ← silently skipped
     // Adding namespace-import support would require distinguishing
     // the binding shape downstream; CSS-Modules-with-classnames/bind
     // uses default imports as the canonical pattern.

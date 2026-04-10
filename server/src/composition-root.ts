@@ -117,8 +117,7 @@ export function createServer(options: CreateServerOptions): CreatedServer {
     return {
       capabilities: {
         textDocumentSync: TextDocumentSyncKind.Incremental,
-        // Hardcoded for now; config.features.* wiring tracked
-        // in spec §4.8.
+        // Hardcoded; feature toggles not yet implemented.
         definitionProvider: true,
         hoverProvider: true,
         completionProvider: {
@@ -332,24 +331,13 @@ function buildBundle(
     });
 
   const readStyleFile = options.readStyleFile ?? defaultReadStyleFile;
-  const scssClassMapFor = (binding: CxBinding): ScssClassMap | null => {
-    const lang = findLangForPath(binding.scssModulePath);
-    if (!lang) return null;
-    const content = readStyleFile(binding.scssModulePath);
-    if (content === null) return null;
-    return styleIndexCache.get(binding.scssModulePath, content);
-  };
-
-  // Path-keyed classMap lookup used by references + code-lens
-  // (they don't have a CxBinding to key off of — the cursor is in
-  // the SCSS file itself).
-  const scssClassMapForPath = (path: string): ScssClassMap | null => {
-    const lang = findLangForPath(path);
-    if (!lang) return null;
+  const classMapForPath = (path: string): ScssClassMap | null => {
+    if (!findLangForPath(path)) return null;
     const content = readStyleFile(path);
     if (content === null) return null;
     return styleIndexCache.get(path, content);
   };
+  const scssClassMapFor = (binding: CxBinding) => classMapForPath(binding.scssModulePath);
 
   const indexerLogger = {
     info: (msg: string) => connection.console.info(`[${SERVER_NAME}:indexer] ${msg}`),
@@ -359,7 +347,7 @@ function buildBundle(
   const deps: ProviderDeps = {
     analysisCache,
     scssClassMapFor,
-    scssClassMapForPath,
+    scssClassMapForPath: classMapForPath,
     typeResolver,
     reverseIndex,
     workspaceRoot,
