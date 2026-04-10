@@ -1,5 +1,5 @@
 import { bench, describe } from "vitest";
-import { parseStyleModule, StyleIndexCache } from "../../server/src/core/scss/scss-index.js";
+import { parseStyleModule, StyleIndexCache } from "../../server/src/core/scss/scss-index";
 
 const SMALL_SCSS = `
 .button { color: red; padding: 8px 16px; border-radius: 4px; }

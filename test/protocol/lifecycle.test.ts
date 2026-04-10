@@ -1,4 +1,4 @@
-import { test, expect } from "../_fixtures/protocol.js";
+import { test, expect } from "../_fixtures/protocol";
 
 test("returns capabilities including definitionProvider on initialize", async ({ makeClient }) => {
   const client = makeClient();

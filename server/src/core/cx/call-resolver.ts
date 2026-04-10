@@ -1,5 +1,5 @@
 import type { CxCallInfo, ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
-import type { TypeResolver } from "../ts/type-resolver.js";
+import type { TypeResolver } from "../ts/type-resolver";
 
 export interface ResolveArgs {
   readonly call: CxCallInfo;

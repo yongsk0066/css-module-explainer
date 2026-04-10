@@ -3,7 +3,7 @@ import {
   createInProcessServer,
   type InProcessServerOptions,
   type LspTestClient,
-} from "../protocol/_harness/in-process-server.js";
+} from "../protocol/_harness/in-process-server";
 
 /**
  * `test.extend` fixture for every Tier 2 protocol test.

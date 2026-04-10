@@ -2,9 +2,9 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { scssFileSupplier } from "../../../server/src/core/indexing/file-supplier.js";
-import { buildStyleFileWatcherGlob } from "../../../server/src/core/scss/lang-registry.js";
-import type { FileTask } from "../../../server/src/core/indexing/indexer-worker.js";
+import { scssFileSupplier } from "../../../server/src/core/indexing/file-supplier";
+import { buildStyleFileWatcherGlob } from "../../../server/src/core/scss/lang-registry";
+import type { FileTask } from "../../../server/src/core/indexing/indexer-worker";
 
 const noopLogger = { error: () => {} };
 

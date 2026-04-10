@@ -1,15 +1,15 @@
 import type { LocationLink } from "vscode-languageserver/node";
 import type { Range, SelectorInfo } from "@css-module-explainer/shared";
-import { resolveCxCallToSelectorInfos } from "../core/cx/call-resolver.js";
-import { pathToFileUrl } from "../core/util/text-utils.js";
-import { toLspRange } from "./lsp-adapters.js";
+import { resolveCxCallToSelectorInfos } from "../core/cx/call-resolver";
+import { pathToFileUrl } from "../core/util/text-utils";
+import { toLspRange } from "./lsp-adapters";
 import {
   withCxCallAtCursor,
   withStyleRefAtCursor,
   type CursorParams,
   type CxCallContext,
   type ProviderDeps,
-} from "./cursor-dispatch.js";
+} from "./cursor-dispatch";
 
 /**
  * Handle `textDocument/definition` for a `cx()` call.

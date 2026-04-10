@@ -7,8 +7,8 @@ import type {
   SelectorInfo,
 } from "@css-module-explainer/shared";
 import type { ResolvedType } from "@css-module-explainer/shared";
-import type { TypeResolver } from "../../../server/src/core/ts/type-resolver.js";
-import { resolveCxCallToSelectorInfos } from "../../../server/src/core/cx/call-resolver.js";
+import type { TypeResolver } from "../../../server/src/core/ts/type-resolver";
+import { resolveCxCallToSelectorInfos } from "../../../server/src/core/cx/call-resolver";
 
 /**
  * Per-variable FakeTypeResolver: resolves specific variable names

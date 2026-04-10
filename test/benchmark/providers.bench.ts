@@ -6,15 +6,15 @@ import type {
   ScssClassMap,
   SelectorInfo,
 } from "@css-module-explainer/shared";
-import { SourceFileCache } from "../../server/src/core/ts/source-file-cache.js";
-import { DocumentAnalysisCache } from "../../server/src/core/indexing/document-analysis-cache.js";
-import { NullReverseIndex } from "../../server/src/core/indexing/reverse-index.js";
-import { NOOP_LOG_ERROR, type ProviderDeps } from "../../server/src/providers/cursor-dispatch.js";
-import { handleDefinition } from "../../server/src/providers/definition.js";
-import { handleHover } from "../../server/src/providers/hover.js";
-import { handleCompletion } from "../../server/src/providers/completion.js";
-import { computeDiagnostics } from "../../server/src/providers/diagnostics.js";
-import { FakeTypeResolver } from "../_fixtures/fake-type-resolver.js";
+import { SourceFileCache } from "../../server/src/core/ts/source-file-cache";
+import { DocumentAnalysisCache } from "../../server/src/core/indexing/document-analysis-cache";
+import { NullReverseIndex } from "../../server/src/core/indexing/reverse-index";
+import { NOOP_LOG_ERROR, type ProviderDeps } from "../../server/src/providers/cursor-dispatch";
+import { handleDefinition } from "../../server/src/providers/definition";
+import { handleHover } from "../../server/src/providers/hover";
+import { handleCompletion } from "../../server/src/providers/completion";
+import { computeDiagnostics } from "../../server/src/providers/diagnostics";
+import { FakeTypeResolver } from "../_fixtures/fake-type-resolver";
 
 const BUTTON_TSX = `
 import classNames from 'classnames/bind';

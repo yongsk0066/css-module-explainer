@@ -1,9 +1,9 @@
 import * as nodeUrl from "node:url";
 import type ts from "typescript";
 import type { CxBinding, CxCallInfo, StylePropertyRef } from "@css-module-explainer/shared";
-import { contentHash } from "../util/hash.js";
-import { LruMap } from "../util/lru-map.js";
-import type { SourceFileCache } from "../ts/source-file-cache.js";
+import { contentHash } from "../util/hash";
+import { LruMap } from "../util/lru-map";
+import type { SourceFileCache } from "../ts/source-file-cache";
 
 /**
  * Single-parse analysis result for one TS/JS source file.

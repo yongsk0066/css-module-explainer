@@ -1,10 +1,10 @@
 import type { ScssClassMap } from "@css-module-explainer/shared";
-import { contentHash } from "../util/hash.js";
-import { LruMap } from "../util/lru-map.js";
-import { parseStyleModule } from "./scss-parser.js";
+import { contentHash } from "../util/hash";
+import { LruMap } from "../util/lru-map";
+import { parseStyleModule } from "./scss-parser";
 
 // Re-export so existing consumers don't break.
-export { parseStyleModule } from "./scss-parser.js";
+export { parseStyleModule } from "./scss-parser";
 
 // ──────────────────────────────────────────────────────────────
 // StyleIndexCache

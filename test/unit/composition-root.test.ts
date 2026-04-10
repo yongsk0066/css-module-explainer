@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createDefaultProgram } from "../../server/src/composition-root.js";
+import { createDefaultProgram } from "../../server/src/composition-root";
 
 describe("createDefaultProgram", () => {
   it("returns a program with an empty rootNames list when no tsconfig.json is found", () => {

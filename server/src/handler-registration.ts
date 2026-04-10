@@ -2,18 +2,18 @@ import type { Connection, TextDocumentPositionParams } from "vscode-languageserv
 import { FileChangeType, type DidChangeWatchedFilesParams } from "vscode-languageserver/node";
 import type { TextDocument } from "vscode-languageserver-textdocument";
 import type { TextDocuments } from "vscode-languageserver/node";
-import { handleCodeAction } from "./providers/code-actions.js";
-import { handleCompletion } from "./providers/completion.js";
-import { handleDefinition } from "./providers/definition.js";
-import { computeDiagnostics } from "./providers/diagnostics.js";
-import { handleHover } from "./providers/hover.js";
-import { handleCodeLens } from "./providers/reference-lens.js";
-import { handleReferences } from "./providers/references.js";
-import type { CursorParams, ProviderDeps } from "./providers/cursor-dispatch.js";
-import { fileUrlToPath } from "./core/util/text-utils.js";
-import type { StyleIndexCache } from "./core/scss/scss-index.js";
-import type { IndexerWorker } from "./core/indexing/indexer-worker.js";
-import type { FileTask } from "./core/indexing/indexer-worker.js";
+import { handleCodeAction } from "./providers/code-actions";
+import { handleCompletion } from "./providers/completion";
+import { handleDefinition } from "./providers/definition";
+import { computeDiagnostics } from "./providers/diagnostics";
+import { handleHover } from "./providers/hover";
+import { handleCodeLens } from "./providers/reference-lens";
+import { handleReferences } from "./providers/references";
+import type { CursorParams, ProviderDeps } from "./providers/cursor-dispatch";
+import { fileUrlToPath } from "./core/util/text-utils";
+import type { StyleIndexCache } from "./core/scss/scss-index";
+import type { IndexerWorker } from "./core/indexing/indexer-worker";
+import type { FileTask } from "./core/indexing/indexer-worker";
 
 const DIAGNOSTICS_DEBOUNCE_MS = 200;
 

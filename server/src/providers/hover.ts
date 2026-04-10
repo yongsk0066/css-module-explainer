@@ -1,14 +1,14 @@
 import type { Hover } from "vscode-languageserver/node";
-import { resolveCxCallToSelectorInfos } from "../core/cx/call-resolver.js";
-import { toLspRange } from "./lsp-adapters.js";
-import { renderHover } from "./hover-renderer.js";
+import { resolveCxCallToSelectorInfos } from "../core/cx/call-resolver";
+import { toLspRange } from "./lsp-adapters";
+import { renderHover } from "./hover-renderer";
 import {
   withCxCallAtCursor,
   withStyleRefAtCursor,
   type CursorParams,
   type CxCallContext,
   type ProviderDeps,
-} from "./cursor-dispatch.js";
+} from "./cursor-dispatch";
 
 /**
  * Handle `textDocument/hover` for a `cx()` call.

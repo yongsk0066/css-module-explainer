@@ -35,8 +35,8 @@ import {
 } from "vscode-languageserver-protocol/node";
 import { StreamMessageReader, StreamMessageWriter } from "vscode-jsonrpc/node";
 import ts from "typescript";
-import { createServer, type CreateServerOptions } from "../../../server/src/composition-root.js";
-import type { FileTask } from "../../../server/src/core/indexing/indexer-worker.js";
+import { createServer, type CreateServerOptions } from "../../../server/src/composition-root";
+import type { FileTask } from "../../../server/src/core/indexing/indexer-worker";
 
 /**
  * An exhausted AsyncIterable — yields nothing and completes

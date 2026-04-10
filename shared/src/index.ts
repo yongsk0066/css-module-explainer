@@ -13,4 +13,4 @@ export type {
   ResolvedType,
   CallSite,
   StylePropertyRef,
-} from "./types.js";
+} from "./types";

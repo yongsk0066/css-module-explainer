@@ -1,9 +1,9 @@
 import type { CodeLens, CodeLensParams, Location } from "vscode-languageserver/node";
 import type { SelectorInfo } from "@css-module-explainer/shared";
-import { findLangForPath } from "../core/scss/lang-registry.js";
-import { fileUrlToPath } from "../core/util/text-utils.js";
-import { toLspRange } from "./lsp-adapters.js";
-import type { ProviderDeps } from "./cursor-dispatch.js";
+import { findLangForPath } from "../core/scss/lang-registry";
+import { fileUrlToPath } from "../core/util/text-utils";
+import { toLspRange } from "./lsp-adapters";
+import type { ProviderDeps } from "./cursor-dispatch";
 
 /**
  * Handle `textDocument/codeLens` on `.module.{scss,css}` files.

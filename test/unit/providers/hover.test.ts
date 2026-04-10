@@ -6,15 +6,12 @@ import type {
   ScssClassMap,
   SelectorInfo,
 } from "@css-module-explainer/shared";
-import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache.js";
-import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache.js";
-import { NullReverseIndex } from "../../../server/src/core/indexing/reverse-index.js";
-import {
-  NOOP_LOG_ERROR,
-  type ProviderDeps,
-} from "../../../server/src/providers/cursor-dispatch.js";
-import { handleHover } from "../../../server/src/providers/hover.js";
-import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver.js";
+import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
+import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
+import { NullReverseIndex } from "../../../server/src/core/indexing/reverse-index";
+import { NOOP_LOG_ERROR, type ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
+import { handleHover } from "../../../server/src/providers/hover";
+import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
 
 const TSX = `
 import classNames from 'classnames/bind';

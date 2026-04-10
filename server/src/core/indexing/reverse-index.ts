@@ -1,6 +1,6 @@
 import type { CallSite, ScssClassMap } from "@css-module-explainer/shared";
-import type { AnalysisEntry } from "./document-analysis-cache.js";
-import type { TypeResolver } from "../ts/type-resolver.js";
+import type { AnalysisEntry } from "./document-analysis-cache";
+import type { TypeResolver } from "../ts/type-resolver";
 
 /**
  * Reverse index of cx() call sites, keyed by (scssPath, className).

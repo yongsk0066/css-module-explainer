@@ -4,10 +4,10 @@ import {
   type Range as LspRange,
 } from "vscode-languageserver/node";
 import type { CxCallInfo, ScssClassMap } from "@css-module-explainer/shared";
-import { resolveCxCallToSelectorInfos } from "../core/cx/call-resolver.js";
-import { findClosestMatch } from "../core/util/text-utils.js";
-import { toLspRange } from "./lsp-adapters.js";
-import type { DocumentParams, ProviderDeps } from "./cursor-dispatch.js";
+import { resolveCxCallToSelectorInfos } from "../core/cx/call-resolver";
+import { findClosestMatch } from "../core/util/text-utils";
+import { toLspRange } from "./lsp-adapters";
+import type { DocumentParams, ProviderDeps } from "./cursor-dispatch";
 
 /**
  * Compute diagnostics for an open document.

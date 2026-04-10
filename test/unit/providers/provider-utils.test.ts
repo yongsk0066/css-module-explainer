@@ -6,16 +6,16 @@ import type {
   ScssClassMap,
   SelectorInfo,
 } from "@css-module-explainer/shared";
-import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache.js";
-import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache.js";
-import { NullReverseIndex } from "../../../server/src/core/indexing/reverse-index.js";
+import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
+import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
+import { NullReverseIndex } from "../../../server/src/core/indexing/reverse-index";
 import {
   NOOP_LOG_ERROR,
   withCxCallAtCursor,
   type ProviderDeps,
-} from "../../../server/src/providers/cursor-dispatch.js";
-import { isInsideCxCall } from "../../../server/src/providers/completion.js";
-import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver.js";
+} from "../../../server/src/providers/cursor-dispatch";
+import { isInsideCxCall } from "../../../server/src/providers/completion";
+import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
 
 const TSX = `
 import classNames from 'classnames/bind';

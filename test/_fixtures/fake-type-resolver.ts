@@ -1,5 +1,5 @@
 import type { ResolvedType } from "@css-module-explainer/shared";
-import type { TypeResolver } from "../../server/src/core/ts/type-resolver.js";
+import type { TypeResolver } from "../../server/src/core/ts/type-resolver";
 
 /**
  * Shared test double for `TypeResolver`. Defaults to

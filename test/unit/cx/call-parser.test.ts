@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import ts from "typescript";
 import type { CxBinding, CxCallInfo } from "@css-module-explainer/shared";
-import { parseCxCalls } from "../../../server/src/core/cx/call-parser.js";
+import { parseCxCalls } from "../../../server/src/core/cx/call-parser";
 
 function parse(source: string, filePath = "/fake/src/Button.tsx"): ts.SourceFile {
   return ts.createSourceFile(

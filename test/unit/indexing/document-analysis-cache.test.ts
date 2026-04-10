@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import type ts from "typescript";
 import type { CxBinding, CxCallInfo } from "@css-module-explainer/shared";
-import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache.js";
-import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache.js";
+import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
+import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
 
 const SOURCE = `
   import classNames from 'classnames/bind';

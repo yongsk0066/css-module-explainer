@@ -5,7 +5,7 @@ import {
   getAllStyleExtensions,
   buildStyleImportRegex,
   buildStyleFileWatcherGlob,
-} from "../../../server/src/core/scss/lang-registry.js";
+} from "../../../server/src/core/scss/lang-registry";
 
 describe("STYLE_LANGS registry", () => {
   it("contains scss, css, and less", () => {

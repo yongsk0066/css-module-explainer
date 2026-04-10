@@ -1,17 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
-import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache.js";
-import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache.js";
+import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
+import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
 import {
   NullReverseIndex,
   WorkspaceReverseIndex,
-} from "../../../server/src/core/indexing/reverse-index.js";
-import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver.js";
-import {
-  NOOP_LOG_ERROR,
-  type ProviderDeps,
-} from "../../../server/src/providers/cursor-dispatch.js";
-import { handleCodeLens } from "../../../server/src/providers/reference-lens.js";
+} from "../../../server/src/core/indexing/reverse-index";
+import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
+import { NOOP_LOG_ERROR, type ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
+import { handleCodeLens } from "../../../server/src/providers/reference-lens";
 
 function info(name: string, line: number): SelectorInfo {
   return {

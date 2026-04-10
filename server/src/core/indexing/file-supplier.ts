@@ -1,6 +1,6 @@
 import fastGlob from "fast-glob";
-import { buildStyleFileWatcherGlob } from "../scss/lang-registry.js";
-import type { FileTask } from "./indexer-worker.js";
+import { buildStyleFileWatcherGlob } from "../scss/lang-registry";
+import type { FileTask } from "./indexer-worker";
 
 /**
  * Walk the workspace and yield one `FileTask` per style module

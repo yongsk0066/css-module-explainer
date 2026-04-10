@@ -6,7 +6,7 @@ import type {
   VariableRefCall,
   SelectorInfo,
 } from "@css-module-explainer/shared";
-import { renderHover } from "../../../server/src/providers/hover-renderer.js";
+import { renderHover } from "../../../server/src/providers/hover-renderer";
 
 function info(name: string, line: number, declarations: string): SelectorInfo {
   return {

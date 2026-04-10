@@ -5,15 +5,12 @@ import {
   type CodeActionParams,
   type Diagnostic,
 } from "vscode-languageserver-protocol/node";
-import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache.js";
-import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache.js";
-import { NullReverseIndex } from "../../../server/src/core/indexing/reverse-index.js";
-import {
-  NOOP_LOG_ERROR,
-  type ProviderDeps,
-} from "../../../server/src/providers/cursor-dispatch.js";
-import { handleCodeAction } from "../../../server/src/providers/code-actions.js";
-import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver.js";
+import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
+import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
+import { NullReverseIndex } from "../../../server/src/core/indexing/reverse-index";
+import { NOOP_LOG_ERROR, type ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
+import { handleCodeAction } from "../../../server/src/providers/code-actions";
+import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
 
 function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });

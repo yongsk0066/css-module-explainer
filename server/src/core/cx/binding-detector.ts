@@ -5,7 +5,7 @@ import type { CxBinding } from "@css-module-explainer/shared";
 // importing it here is a deliberate cross-domain read of neutral
 // config data, not a logic dependency. When LESS joins the registry
 // this file needs zero changes.
-import { getAllStyleExtensions } from "../scss/lang-registry.js";
+import { getAllStyleExtensions } from "../scss/lang-registry";
 
 /**
  * Walk a source file and return every active `cx` binding:

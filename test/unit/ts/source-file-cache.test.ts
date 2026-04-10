@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache.js";
+import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 
 describe("SourceFileCache", () => {
   it("returns the same SourceFile for identical content", () => {

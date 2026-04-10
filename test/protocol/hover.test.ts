@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { createInProcessServer, type LspTestClient } from "./_harness/in-process-server.js";
-import { FakeTypeResolver } from "../_fixtures/fake-type-resolver.js";
+import { createInProcessServer, type LspTestClient } from "./_harness/in-process-server";
+import { FakeTypeResolver } from "../_fixtures/fake-type-resolver";
 
 const BUTTON_TSX = `import classNames from 'classnames/bind';
 import styles from './Button.module.scss';

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import ts from "typescript";
-import { WorkspaceTypeResolver } from "../../../server/src/core/ts/type-resolver.js";
+import { WorkspaceTypeResolver } from "../../../server/src/core/ts/type-resolver";
 
 /**
  * Build an in-memory ts.CompilerHost backed by a file map.

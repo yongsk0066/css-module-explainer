@@ -9,10 +9,10 @@ import type {
 import type {
   AnalysisEntry,
   DocumentAnalysisCache,
-} from "../core/indexing/document-analysis-cache.js";
-import type { ReverseIndex } from "../core/indexing/reverse-index.js";
-import type { TypeResolver } from "../core/ts/type-resolver.js";
-import { getLineAt } from "../core/util/text-utils.js";
+} from "../core/indexing/document-analysis-cache";
+import type { ReverseIndex } from "../core/indexing/reverse-index";
+import type { TypeResolver } from "../core/ts/type-resolver";
+import { getLineAt } from "../core/util/text-utils";
 
 /**
  * Identity + content of a single open document. Used by

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import type { FileTask } from "../../../server/src/core/indexing/indexer-worker.js";
-import { IndexerWorker } from "../../../server/src/core/indexing/indexer-worker.js";
+import type { FileTask } from "../../../server/src/core/indexing/indexer-worker";
+import { IndexerWorker } from "../../../server/src/core/indexing/indexer-worker";
 
 async function* tasks(items: FileTask[]): AsyncIterable<FileTask> {
   for (const item of items) {

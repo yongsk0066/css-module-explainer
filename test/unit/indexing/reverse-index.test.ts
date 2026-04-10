@@ -3,7 +3,7 @@ import type { CallSite, CxBinding } from "@css-module-explainer/shared";
 import {
   NullReverseIndex,
   WorkspaceReverseIndex,
-} from "../../../server/src/core/indexing/reverse-index.js";
+} from "../../../server/src/core/indexing/reverse-index";
 
 function makeBinding(): CxBinding {
   return {

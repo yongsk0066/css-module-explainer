@@ -1,4 +1,4 @@
-import { createServer } from "./composition-root.js";
+import { createServer } from "./composition-root";
 
 // No reader/writer — createServer auto-detects transport from
 // process.argv flags set by the LanguageClient (TransportKind.ipc

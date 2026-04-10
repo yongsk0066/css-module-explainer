@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import ts from "typescript";
-import { detectCxBindings } from "../../../server/src/core/cx/binding-detector.js";
+import { detectCxBindings } from "../../../server/src/core/cx/binding-detector";
 
 function parse(source: string, filePath = "/fake/src/Button.tsx"): ts.SourceFile {
   return ts.createSourceFile(

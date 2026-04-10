@@ -1,6 +1,6 @@
 import ts from "typescript";
-import { contentHash } from "../util/hash.js";
-import { LruMap } from "../util/lru-map.js";
+import { contentHash } from "../util/hash";
+import { LruMap } from "../util/lru-map";
 
 interface SourceFileCacheEntry {
   hash: string;

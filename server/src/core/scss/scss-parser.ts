@@ -7,7 +7,7 @@ import {
   type AtRule,
   type Syntax,
 } from "postcss";
-import { findLangForPath } from "./lang-registry.js";
+import { findLangForPath } from "./lang-registry";
 
 /**
  * Parse a CSS Module file into a map of class name → SelectorInfo.
