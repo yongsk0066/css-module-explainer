@@ -176,16 +176,6 @@ function buildBundle(
   const sourceFileCache = new SourceFileCache({ max: 200 });
   const styleIndexCache = new StyleIndexCache({ max: 500 });
   const reverseIndex = new WorkspaceReverseIndex();
-  const analysisCache = new DocumentAnalysisCache({
-    sourceFileCache,
-    detectCxBindings,
-    parseCxCalls,
-    parseStyleAccesses: parseStylePropertyAccesses,
-    max: 200,
-    onAnalyze: (uri, entry) => {
-      reverseIndex.record(uri, collectCallSites(uri, entry));
-    },
-  });
 
   const typeResolver: TypeResolver =
     options.typeResolver ??
@@ -200,6 +190,25 @@ function buildBundle(
     if (content === null) return null;
     return styleIndexCache.get(path, content);
   };
+
+  const analysisCache = new DocumentAnalysisCache({
+    sourceFileCache,
+    detectCxBindings,
+    parseCxCalls,
+    parseStyleAccesses: parseStylePropertyAccesses,
+    max: 200,
+    onAnalyze: (uri, entry) => {
+      reverseIndex.record(
+        uri,
+        collectCallSites(uri, entry, {
+          classMapForPath,
+          typeResolver,
+          workspaceRoot,
+          filePath: fileUrlToPath(uri),
+        }),
+      );
+    },
+  });
 
   const indexerLogger = {
     info: (msg: string) => connection.console.info(`[${SERVER_NAME}:indexer] ${msg}`),
