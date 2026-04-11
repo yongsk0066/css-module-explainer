@@ -41,8 +41,5 @@ describe("scssFileSupplier", () => {
     expect(sorted).toHaveLength(2);
     expect(sorted[0]).toMatch(/Button\.module\.scss$/);
     expect(sorted[1]).toMatch(/Form\.module\.css$/);
-    for (const task of tasks) {
-      expect(task.kind).toBe("scss");
-    }
   });
 });

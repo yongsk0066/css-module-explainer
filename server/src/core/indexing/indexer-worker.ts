@@ -1,7 +1,6 @@
 import { setImmediate as yieldToEventLoop } from "node:timers/promises";
 
 export interface FileTask {
-  readonly kind: "scss" | "tsx";
   readonly path: string;
 }
 
@@ -12,8 +11,6 @@ export interface IndexerWorkerDeps {
   readonly readFile: (path: string) => Promise<string | null>;
   /** Callback for every successfully read SCSS/CSS module file. */
   readonly onScssFile: (path: string, content: string) => void;
-  /** Callback for every successfully read TSX/JSX/TS/JS file. */
-  readonly onTsxFile: (path: string, content: string) => void;
   readonly logger: {
     info: (msg: string) => void;
     error: (msg: string) => void;
@@ -190,11 +187,7 @@ export class IndexerWorker {
     // the entire walk. Per-file isolation — the worker logs and
     // moves on.
     try {
-      if (task.kind === "scss") {
-        this.deps.onScssFile(task.path, content);
-      } else {
-        this.deps.onTsxFile(task.path, content);
-      }
+      this.deps.onScssFile(task.path, content);
     } catch (err) {
       this.deps.logger.error(
         `[indexer] onFile callback failed for ${task.path}: ${errMessage(err)}`,

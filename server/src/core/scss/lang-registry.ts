@@ -49,24 +49,6 @@ export function findLangForPath(filePath: string): StyleLang | null {
 }
 
 /**
- * Build the regex used by cx-binding-detector to spot style imports:
- *   import styles from './Button.module.scss';
- *
- * Capture groups:
- *   [1] → the default-import identifier ('styles')
- *   [2] → the module specifier ('./Button.module.scss')
- *
- * Returns a fresh regex per call so callers are not exposed to
- * stateful `lastIndex` sharing from `/g` flag leaks.
- */
-export function buildStyleImportRegex(): RegExp {
-  const exts = getAllStyleExtensions()
-    .map((ext) => ext.replace(/\./g, "\\."))
-    .join("|");
-  return new RegExp(String.raw`import\s+(\w+)\s+from\s+['"]([^'"]+(?:${exts}))['"]`);
-}
-
-/**
  * Build the `workspace/didChangeWatchedFiles` glob pattern.
  * Example output: `**\/\*.module.{scss,css}`
  */

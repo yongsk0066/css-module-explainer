@@ -18,7 +18,7 @@ export function scssFileSupplier(
       });
       try {
         for await (const entry of stream) {
-          yield { kind: "scss", path: String(entry) };
+          yield { path: String(entry) };
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);

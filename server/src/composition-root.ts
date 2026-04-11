@@ -220,7 +220,6 @@ function buildBundle(
     onScssFile: (path, content) => {
       styleIndexCache.get(path, content);
     },
-    onTsxFile: () => {},
     logger: indexerLogger,
   });
 
@@ -243,7 +242,7 @@ function buildBundle(
       connection.console.error(`[${SERVER_NAME}] ${message}: ${detail}`);
     },
     invalidateStyle: (path) => styleIndexCache.invalidate(path),
-    pushStyleFile: (path) => indexerWorker.pushFile({ kind: "scss", path }),
+    pushStyleFile: (path) => indexerWorker.pushFile({ path }),
     indexerReady: indexerWorker.ready,
     stopIndexer: () => indexerWorker.stop(),
   };

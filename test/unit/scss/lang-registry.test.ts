@@ -3,7 +3,6 @@ import {
   STYLE_LANGS,
   findLangForPath,
   getAllStyleExtensions,
-  buildStyleImportRegex,
   buildStyleFileWatcherGlob,
 } from "../../../server/src/core/scss/lang-registry";
 
@@ -54,35 +53,6 @@ describe("findLangForPath", () => {
 
   it("returns null for unrelated files", () => {
     expect(findLangForPath("/abs/path/Button.tsx")).toBeNull();
-  });
-});
-
-describe("buildStyleImportRegex", () => {
-  it("matches an scss module import", () => {
-    const re = buildStyleImportRegex();
-    const match = re.exec(`import styles from './Button.module.scss';`);
-    expect(match).not.toBeNull();
-    expect(match?.[1]).toBe("styles");
-    expect(match?.[2]).toBe("./Button.module.scss");
-  });
-
-  it("matches a css module import", () => {
-    const re = buildStyleImportRegex();
-    const match = re.exec(`import css from "../styles/Form.module.css";`);
-    expect(match).not.toBeNull();
-    expect(match?.[1]).toBe("css");
-    expect(match?.[2]).toBe("../styles/Form.module.css");
-  });
-
-  it("does not match a non-module style import", () => {
-    const re = buildStyleImportRegex();
-    expect(re.exec(`import './reset.css';`)).toBeNull();
-  });
-
-  it("is a fresh regex on every call (no lastIndex leaking)", () => {
-    const a = buildStyleImportRegex();
-    const b = buildStyleImportRegex();
-    expect(a).not.toBe(b);
   });
 });
 
