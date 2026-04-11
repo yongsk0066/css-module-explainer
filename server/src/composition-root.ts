@@ -23,6 +23,7 @@ import {
   detectCxBindings,
 } from "./core/cx/binding-detector";
 import { parseClassRefs } from "./core/cx/class-ref-parser";
+import { AliasResolver } from "./core/cx/alias-resolver";
 import { SourceFileCache } from "./core/ts/source-file-cache";
 import { WorkspaceTypeResolver, type TypeResolver } from "./core/ts/type-resolver";
 import { DocumentAnalysisCache } from "./core/indexing/document-analysis-cache";
@@ -195,12 +196,19 @@ function buildBundle(
   const readStyleFile = options.readStyleFile ?? defaultReadStyleFile;
   const fileExists = options.fileExists ?? existsSync;
   const classMapForPath = buildClassMapForPath(caches.styleIndexCache, documents, readStyleFile);
+  // Shared closure variable for the path-alias resolver. Both
+  // ProviderDeps (below) and DocumentAnalysisCacheDeps (buildAnalysisCache)
+  // read this via getter; rebuildAliasResolver mutates it in place
+  // and both deps objects observe the change on their next read.
+  let currentResolver = new AliasResolver(workspaceRoot, DEFAULT_SETTINGS.pathAlias);
+  const getAliasResolver = () => currentResolver;
   const analysisCache = buildAnalysisCache({
     caches,
     classMapForPath,
     workspaceRoot,
     typeResolver,
     fileExists,
+    getAliasResolver,
   });
   const indexerWorker = buildIndexerWorker(
     options,
@@ -279,10 +287,12 @@ interface AnalysisCacheArgs {
   readonly workspaceRoot: string;
   readonly typeResolver: TypeResolver;
   readonly fileExists: (path: string) => boolean;
+  readonly getAliasResolver: () => AliasResolver;
 }
 
 function buildAnalysisCache(args: AnalysisCacheArgs): DocumentAnalysisCache {
-  const { caches, classMapForPath, workspaceRoot, typeResolver, fileExists } = args;
+  const { caches, classMapForPath, workspaceRoot, typeResolver, fileExists, getAliasResolver } =
+    args;
   return new DocumentAnalysisCache({
     sourceFileCache: caches.sourceFileCache,
     collectStyleImports,
@@ -290,6 +300,12 @@ function buildAnalysisCache(args: AnalysisCacheArgs): DocumentAnalysisCache {
     parseClassRefs,
     detectClassUtilImports,
     fileExists,
+    // getter-over-closure: reads currentResolver at analyze() time,
+    // so mode changes via rebuildAliasResolver propagate on the next
+    // analyze call without cache invalidation.
+    get aliasResolver() {
+      return getAliasResolver();
+    },
     max: 200,
     onAnalyze: (uri, entry) => {
       caches.reverseIndex.record(

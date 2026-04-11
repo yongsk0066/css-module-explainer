@@ -7,7 +7,7 @@ import { DocumentAnalysisCache } from "../../../server/src/core/indexing/documen
 import type { ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
 import { handleCompletion } from "../../../server/src/providers/completion";
 import { detectClassUtilImports } from "../../../server/src/core/cx/binding-detector";
-import { info, makeBaseDeps } from "../../_fixtures/test-helpers";
+import { EMPTY_ALIAS_RESOLVER, info, makeBaseDeps } from "../../_fixtures/test-helpers";
 
 const TSX = `
 import classNames from 'classnames/bind';
@@ -35,6 +35,7 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     sourceFileCache,
     collectStyleImports: () => new Map(),
     fileExists: () => true,
+    aliasResolver: EMPTY_ALIAS_RESOLVER,
     detectCxBindings,
     detectClassUtilImports,
     max: 10,

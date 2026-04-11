@@ -4,6 +4,9 @@ import {
   collectStyleImports,
   detectCxBindings,
 } from "../../../server/src/core/cx/binding-detector";
+import { AliasResolver } from "../../../server/src/core/cx/alias-resolver";
+
+const EMPTY_ALIAS_RESOLVER = new AliasResolver("/fake", {});
 
 function parse(source: string, filePath = "/fake/src/Button.tsx"): ts.SourceFile {
   return ts.createSourceFile(
@@ -22,7 +25,7 @@ describe("detectCxBindings / standard pattern", () => {
       import styles from './Button.module.scss';
       const cx = classNames.bind(styles);
     `);
-    const bindings = detectCxBindings(src, "/fake/src/Button.tsx");
+    const bindings = detectCxBindings(src, "/fake/src/Button.tsx", EMPTY_ALIAS_RESOLVER);
     expect(bindings).toHaveLength(1);
     expect(bindings[0]).toMatchObject({
       cxVarName: "cx",
@@ -37,7 +40,7 @@ describe("detectCxBindings / standard pattern", () => {
       import styles from './Button.module.scss';
       const cx = classNames.bind(styles);
     `);
-    const bindings = detectCxBindings(src, "/fake/src/Button.tsx");
+    const bindings = detectCxBindings(src, "/fake/src/Button.tsx", EMPTY_ALIAS_RESOLVER);
     expect(bindings[0]!.scssModulePath).toBe("/fake/src/Button.module.scss");
   });
 
@@ -47,7 +50,7 @@ describe("detectCxBindings / standard pattern", () => {
       import styles from '../styles/Button.module.scss';
       const cx = classNames.bind(styles);
     `);
-    const bindings = detectCxBindings(src, "/fake/src/components/Button.tsx");
+    const bindings = detectCxBindings(src, "/fake/src/components/Button.tsx", EMPTY_ALIAS_RESOLVER);
     expect(bindings[0]!.scssModulePath).toBe("/fake/src/styles/Button.module.scss");
   });
 });
@@ -59,7 +62,7 @@ describe("detectCxBindings / free variable names", () => {
       import styles from './Button.module.scss';
       const classes = classNames.bind(styles);
     `);
-    const bindings = detectCxBindings(src, "/fake/src/Button.tsx");
+    const bindings = detectCxBindings(src, "/fake/src/Button.tsx", EMPTY_ALIAS_RESOLVER);
     expect(bindings[0]!.cxVarName).toBe("classes");
   });
 });
@@ -71,7 +74,7 @@ describe("detectCxBindings / aliased classnames import", () => {
       import styles from './Button.module.scss';
       const cx = cn.bind(styles);
     `);
-    const bindings = detectCxBindings(src, "/fake/src/Button.tsx");
+    const bindings = detectCxBindings(src, "/fake/src/Button.tsx", EMPTY_ALIAS_RESOLVER);
     expect(bindings).toHaveLength(1);
     expect(bindings[0]!.classNamesImportName).toBe("cn");
   });
@@ -82,7 +85,7 @@ describe("detectCxBindings / aliased classnames import", () => {
       import styles from './Button.module.scss';
       const cx = cn.bind(styles);
     `);
-    const bindings = detectCxBindings(src, "/fake/src/Button.tsx");
+    const bindings = detectCxBindings(src, "/fake/src/Button.tsx", EMPTY_ALIAS_RESOLVER);
     expect(bindings).toHaveLength(0);
   });
 });
@@ -94,7 +97,7 @@ describe("detectCxBindings / free styles name", () => {
       import btnStyles from './Button.module.scss';
       const cx = classNames.bind(btnStyles);
     `);
-    const bindings = detectCxBindings(src, "/fake/src/Button.tsx");
+    const bindings = detectCxBindings(src, "/fake/src/Button.tsx", EMPTY_ALIAS_RESOLVER);
     expect(bindings[0]!.stylesVarName).toBe("btnStyles");
   });
 });
@@ -108,7 +111,7 @@ describe("detectCxBindings / multiple bindings per file", () => {
       const cxBtn = classNames.bind(btnStyles);
       const cxForm = classNames.bind(formStyles);
     `);
-    const bindings = detectCxBindings(src, "/fake/src/Button.tsx");
+    const bindings = detectCxBindings(src, "/fake/src/Button.tsx", EMPTY_ALIAS_RESOLVER);
     expect(bindings).toHaveLength(2);
     const names = bindings.map((b) => b.cxVarName).toSorted();
     expect(names).toEqual(["cxBtn", "cxForm"]);
@@ -126,7 +129,7 @@ describe("detectCxBindings / function-scoped binding", () => {
         return null;
       }
     `);
-    const bindings = detectCxBindings(src, "/fake/src/Button.tsx");
+    const bindings = detectCxBindings(src, "/fake/src/Button.tsx", EMPTY_ALIAS_RESOLVER);
     expect(bindings).toHaveLength(1);
     const b = bindings[0]!;
     expect(b.cxVarName).toBe("cx");
@@ -141,7 +144,7 @@ describe("detectCxBindings / function-scoped binding", () => {
       import styles from './Button.module.scss';
       const cx = classNames.bind(styles);
     `);
-    const bindings = detectCxBindings(src, "/fake/src/Button.tsx");
+    const bindings = detectCxBindings(src, "/fake/src/Button.tsx", EMPTY_ALIAS_RESOLVER);
     const b = bindings[0]!;
     expect(b.scope.startLine).toBe(0);
     // End line should be close to the last line of source.
@@ -155,7 +158,7 @@ describe("detectCxBindings / negative cases", () => {
       import styles from './Button.module.scss';
       const cx = {};
     `);
-    expect(detectCxBindings(src, "/fake/src/Button.tsx")).toEqual([]);
+    expect(detectCxBindings(src, "/fake/src/Button.tsx", EMPTY_ALIAS_RESOLVER)).toEqual([]);
   });
 
   it("returns [] when there is no CSS module import", () => {
@@ -163,7 +166,7 @@ describe("detectCxBindings / negative cases", () => {
       import classNames from 'classnames/bind';
       const cx = classNames.bind({});
     `);
-    expect(detectCxBindings(src, "/fake/src/Button.tsx")).toEqual([]);
+    expect(detectCxBindings(src, "/fake/src/Button.tsx", EMPTY_ALIAS_RESOLVER)).toEqual([]);
   });
 
   it("ignores a .bind() call on a different object", () => {
@@ -173,7 +176,7 @@ describe("detectCxBindings / negative cases", () => {
       const fn = console.log.bind(console);
       const cx = classNames.bind(styles);
     `);
-    const bindings = detectCxBindings(src, "/fake/src/Button.tsx");
+    const bindings = detectCxBindings(src, "/fake/src/Button.tsx", EMPTY_ALIAS_RESOLVER);
     expect(bindings).toHaveLength(1);
   });
 });
@@ -194,7 +197,7 @@ describe("detectCxBindings / single-walk consolidation (4.2.c)", () => {
       const cxBtn = classNames.bind(btnStyles);
       const cxForm = classNames.bind(formStyles);
     `);
-    const bindings = detectCxBindings(src, "/fake/src/Button.tsx");
+    const bindings = detectCxBindings(src, "/fake/src/Button.tsx", EMPTY_ALIAS_RESOLVER);
     // Same walk must still discover both bindings with correct
     // classNamesImportName AND correct scssModulePath.
     expect(bindings).toHaveLength(2);
@@ -222,7 +225,7 @@ describe("detectCxBindings / single-walk consolidation (4.2.c)", () => {
       import formStyles from './Form.module.scss';
       const cx = cn.bind(formStyles);
     `);
-    const bindings = detectCxBindings(src, "/fake/src/Button.tsx");
+    const bindings = detectCxBindings(src, "/fake/src/Button.tsx", EMPTY_ALIAS_RESOLVER);
     expect(bindings).toHaveLength(1);
     expect(bindings[0]).toMatchObject({
       cxVarName: "cx",
@@ -238,7 +241,12 @@ describe("collectStyleImports", () => {
     const src = parse(`
       import styles from './Button.module.scss';
     `);
-    const result = collectStyleImports(src, "/fake/src/Button.tsx", () => true);
+    const result = collectStyleImports(
+      src,
+      "/fake/src/Button.tsx",
+      () => true,
+      EMPTY_ALIAS_RESOLVER,
+    );
     expect(result.size).toBe(1);
     expect(result.get("styles")).toEqual({
       kind: "resolved",
@@ -250,7 +258,12 @@ describe("collectStyleImports", () => {
     const src = parse(`
       import * as styles from './Button.module.scss';
     `);
-    const result = collectStyleImports(src, "/fake/src/Button.tsx", () => true);
+    const result = collectStyleImports(
+      src,
+      "/fake/src/Button.tsx",
+      () => true,
+      EMPTY_ALIAS_RESOLVER,
+    );
     expect(result.size).toBe(1);
     expect(result.get("styles")).toEqual({
       kind: "resolved",
@@ -263,7 +276,12 @@ describe("collectStyleImports", () => {
       import btnStyles from './Button.module.scss';
       import formStyles from './Form.module.css';
     `);
-    const result = collectStyleImports(src, "/fake/src/Button.tsx", () => true);
+    const result = collectStyleImports(
+      src,
+      "/fake/src/Button.tsx",
+      () => true,
+      EMPTY_ALIAS_RESOLVER,
+    );
     expect(result.size).toBe(2);
     expect(result.get("btnStyles")).toEqual({
       kind: "resolved",
@@ -279,7 +297,12 @@ describe("collectStyleImports", () => {
     const src = parse(`
       import styles from './Button.module.less';
     `);
-    const result = collectStyleImports(src, "/fake/src/Button.tsx", () => true);
+    const result = collectStyleImports(
+      src,
+      "/fake/src/Button.tsx",
+      () => true,
+      EMPTY_ALIAS_RESOLVER,
+    );
     expect(result.size).toBe(1);
     expect(result.get("styles")).toEqual({
       kind: "resolved",
@@ -291,7 +314,12 @@ describe("collectStyleImports", () => {
     const src = parse(`
       import styles from '../styles/Button.module.scss';
     `);
-    const result = collectStyleImports(src, "/fake/src/components/Button.tsx", () => true);
+    const result = collectStyleImports(
+      src,
+      "/fake/src/components/Button.tsx",
+      () => true,
+      EMPTY_ALIAS_RESOLVER,
+    );
     expect(result.get("styles")).toEqual({
       kind: "resolved",
       absolutePath: "/fake/src/styles/Button.module.scss",
@@ -302,7 +330,12 @@ describe("collectStyleImports", () => {
     const src = parse(`
       import { something } from './Button.module.scss';
     `);
-    const result = collectStyleImports(src, "/fake/src/Button.tsx", () => true);
+    const result = collectStyleImports(
+      src,
+      "/fake/src/Button.tsx",
+      () => true,
+      EMPTY_ALIAS_RESOLVER,
+    );
     expect(result.size).toBe(0);
   });
 
@@ -312,7 +345,12 @@ describe("collectStyleImports", () => {
       import clsx from 'clsx';
       import styles from './Button.module.scss';
     `);
-    const result = collectStyleImports(src, "/fake/src/Button.tsx", () => true);
+    const result = collectStyleImports(
+      src,
+      "/fake/src/Button.tsx",
+      () => true,
+      EMPTY_ALIAS_RESOLVER,
+    );
     expect(result.size).toBe(1);
     expect(result.has("React")).toBe(false);
     expect(result.has("clsx")).toBe(false);
@@ -323,7 +361,12 @@ describe("collectStyleImports", () => {
       import React from 'react';
       import clsx from 'clsx';
     `);
-    const result = collectStyleImports(src, "/fake/src/Button.tsx", () => true);
+    const result = collectStyleImports(
+      src,
+      "/fake/src/Button.tsx",
+      () => true,
+      EMPTY_ALIAS_RESOLVER,
+    );
     expect(result.size).toBe(0);
   });
 
@@ -331,7 +374,12 @@ describe("collectStyleImports", () => {
 
   it("emits missing variant when fileExists returns false", () => {
     const src = parse(`import s from './foo.module.scss';`);
-    const result = collectStyleImports(src, "/fake/src/Button.tsx", () => false);
+    const result = collectStyleImports(
+      src,
+      "/fake/src/Button.tsx",
+      () => false,
+      EMPTY_ALIAS_RESOLVER,
+    );
     expect(result.size).toBe(1);
     const entry = result.get("s");
     expect(entry?.kind).toBe("missing");
@@ -348,7 +396,12 @@ describe("collectStyleImports", () => {
 
   it("emits resolved variant when fileExists returns true", () => {
     const src = parse(`import s from './foo.module.scss';`);
-    const result = collectStyleImports(src, "/fake/src/Button.tsx", () => true);
+    const result = collectStyleImports(
+      src,
+      "/fake/src/Button.tsx",
+      () => true,
+      EMPTY_ALIAS_RESOLVER,
+    );
     expect(result.get("s")).toEqual({
       kind: "resolved",
       absolutePath: "/fake/src/foo.module.scss",
@@ -365,7 +418,7 @@ describe("collectStyleImports", () => {
       calls.push(p);
       return true;
     };
-    collectStyleImports(src, "/fake/src/Button.tsx", spy);
+    collectStyleImports(src, "/fake/src/Button.tsx", spy, EMPTY_ALIAS_RESOLVER);
     expect(calls).toContain("/fake/src/a.module.scss");
     expect(calls).toContain("/fake/src/b.module.scss");
     expect(calls.length).toBeGreaterThanOrEqual(2);
@@ -376,8 +429,11 @@ describe("collectStyleImports", () => {
       import good from './good.module.scss';
       import bad from './bad.module.scss';
     `);
-    const result = collectStyleImports(src, "/fake/src/Button.tsx", (p) =>
-      p.endsWith("good.module.scss"),
+    const result = collectStyleImports(
+      src,
+      "/fake/src/Button.tsx",
+      (p) => p.endsWith("good.module.scss"),
+      EMPTY_ALIAS_RESOLVER,
     );
     expect(result.size).toBe(2);
     expect(result.get("good")?.kind).toBe("resolved");
@@ -387,10 +443,15 @@ describe("collectStyleImports", () => {
   it("does not call fileExists for non-style imports", () => {
     const src = parse(`import data from './data.json';`);
     let called = false;
-    collectStyleImports(src, "/fake/src/Button.tsx", () => {
-      called = true;
-      return true;
-    });
+    collectStyleImports(
+      src,
+      "/fake/src/Button.tsx",
+      () => {
+        called = true;
+        return true;
+      },
+      EMPTY_ALIAS_RESOLVER,
+    );
     expect(called).toBe(false);
   });
 
@@ -399,8 +460,45 @@ describe("collectStyleImports", () => {
       import cn from 'classnames/bind';
       import s from './x.module.scss';
     `);
-    const result = collectStyleImports(src, "/fake/src/Button.tsx", () => true);
+    const result = collectStyleImports(
+      src,
+      "/fake/src/Button.tsx",
+      () => true,
+      EMPTY_ALIAS_RESOLVER,
+    );
     expect(result.has("cn")).toBe(false);
     expect(result.get("s")?.kind).toBe("resolved");
+  });
+
+  // ── Wave 2B item #13: alias-aware import resolution ──
+
+  it("resolves aliased imports via AliasResolver", () => {
+    const src = parse(`import s from '@styles/button.module.scss';`);
+    const resolver = new AliasResolver("/fake", { "@styles": "src/styles" });
+    const result = collectStyleImports(src, "/fake/src/Button.tsx", () => true, resolver);
+    expect(result.size).toBe(1);
+    expect(result.get("s")?.kind).toBe("resolved");
+    if (result.get("s")?.kind === "resolved") {
+      // AliasResolver resolves @styles/button.module.scss against workspace root.
+      const entry = result.get("s")!;
+      expect(entry.absolutePath).toMatch(/fake\/src\/styles\/button\.module\.scss$/);
+    }
+  });
+
+  it("drops aliased imports with no matching alias (fallthrough)", () => {
+    const src = parse(`import s from '@nope/button.module.scss';`);
+    const resolver = new AliasResolver("/fake", { "@styles": "src/styles" });
+    const result = collectStyleImports(src, "/fake/src/Button.tsx", () => true, resolver);
+    expect(result.size).toBe(0);
+  });
+
+  it("relative specifier wins over alias (order-independent)", () => {
+    const src = parse(`import s from './Button.module.scss';`);
+    const resolver = new AliasResolver("/fake", { ".": "/wrong" });
+    const result = collectStyleImports(src, "/fake/src/Button.tsx", () => true, resolver);
+    expect(result.get("s")?.kind).toBe("resolved");
+    if (result.get("s")?.kind === "resolved") {
+      expect(result.get("s")!.absolutePath).toBe("/fake/src/Button.module.scss");
+    }
   });
 });

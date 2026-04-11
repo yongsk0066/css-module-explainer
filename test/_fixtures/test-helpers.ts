@@ -4,7 +4,10 @@ import { DocumentAnalysisCache } from "../../server/src/core/indexing/document-a
 import { NullReverseIndex } from "../../server/src/core/indexing/reverse-index";
 import { NOOP_LOG_ERROR, type ProviderDeps } from "../../server/src/providers/cursor-dispatch";
 import { DEFAULT_SETTINGS } from "../../server/src/settings";
+import { AliasResolver } from "../../server/src/core/cx/alias-resolver";
 import { FakeTypeResolver } from "./fake-type-resolver";
+
+export const EMPTY_ALIAS_RESOLVER = new AliasResolver("/fake/ws", {});
 
 /** Create a minimal SelectorInfo for testing (fixed line 11 position). */
 export function info(name: string): SelectorInfo {
@@ -72,6 +75,7 @@ export function makeBaseDeps(overrides: Partial<ProviderDeps> = {}): ProviderDep
     collectStyleImports: () => new Map(),
     detectCxBindings: () => [],
     fileExists: () => true,
+    aliasResolver: EMPTY_ALIAS_RESOLVER,
     max: 10,
   });
   return {

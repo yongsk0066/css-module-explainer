@@ -5,7 +5,7 @@ import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
 import type { ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
 import { handleDefinition } from "../../../server/src/providers/definition";
-import { info, makeBaseDeps } from "../../_fixtures/test-helpers";
+import { EMPTY_ALIAS_RESOLVER, info, makeBaseDeps } from "../../_fixtures/test-helpers";
 
 const TSX = `
 import classNames from 'classnames/bind';
@@ -49,6 +49,7 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     sourceFileCache,
     collectStyleImports: () => new Map(),
     fileExists: () => true,
+    aliasResolver: EMPTY_ALIAS_RESOLVER,
     detectCxBindings,
     parseClassRefs,
     max: 10,
@@ -113,6 +114,7 @@ describe("handleDefinition", () => {
       sourceFileCache,
       collectStyleImports: () => new Map(),
       fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
       detectCxBindings,
       parseClassRefs: (_sf, bindings) =>
         bindings.length === 0

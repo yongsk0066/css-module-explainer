@@ -9,7 +9,7 @@ import {
   withClassRefAtCursor,
   type ProviderDeps,
 } from "../../../server/src/providers/cursor-dispatch";
-import { makeBaseDeps } from "../../_fixtures/test-helpers";
+import { EMPTY_ALIAS_RESOLVER, makeBaseDeps } from "../../_fixtures/test-helpers";
 
 const TSX = `
 import classNames from 'classnames/bind';
@@ -131,6 +131,7 @@ describe("withClassRefAtCursor / fast paths", () => {
       sourceFileCache,
       collectStyleImports: () => new Map(),
       fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
       detectCxBindings: () => [],
       parseClassRefs: () => [],
       max: 10,

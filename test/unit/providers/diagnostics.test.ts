@@ -10,7 +10,7 @@ import { computeDiagnostics } from "../../../server/src/providers/diagnostics";
 import { DEFAULT_SETTINGS } from "../../../server/src/settings";
 import type { TypeResolver } from "../../../server/src/core/ts/type-resolver";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
-import { info, makeBaseDeps } from "../../_fixtures/test-helpers";
+import { EMPTY_ALIAS_RESOLVER, info, makeBaseDeps } from "../../_fixtures/test-helpers";
 
 const TSX = `
 import classNames from 'classnames/bind';
@@ -59,6 +59,7 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     sourceFileCache,
     collectStyleImports: () => new Map(),
     fileExists: () => true,
+    aliasResolver: EMPTY_ALIAS_RESOLVER,
     detectCxBindings,
     parseClassRefs,
     max: 10,
@@ -154,6 +155,7 @@ describe("computeDiagnostics", () => {
       sourceFileCache,
       collectStyleImports: () => new Map(),
       fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
       detectCxBindings,
       parseClassRefs: localParseClassRefs,
       max: 10,
@@ -198,6 +200,7 @@ describe("computeDiagnostics", () => {
       sourceFileCache,
       collectStyleImports: () => new Map(),
       fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
       detectCxBindings,
       parseClassRefs: localParseClassRefs,
       max: 10,
@@ -251,6 +254,7 @@ describe("computeDiagnostics", () => {
       sourceFileCache,
       collectStyleImports: () => new Map(),
       fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
       detectCxBindings,
       parseClassRefs: localParseClassRefs,
       max: 10,
@@ -381,6 +385,7 @@ describe("missing-module diagnostics", () => {
         ]),
       detectCxBindings: () => [],
       fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
       max: 10,
     });
     const deps = makeBaseDeps({ analysisCache });
@@ -425,6 +430,7 @@ describe("missing-module diagnostics", () => {
       collectStyleImports: () => new Map(),
       detectCxBindings: () => [],
       fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
       max: 10,
     });
     const deps = makeBaseDeps({ analysisCache });

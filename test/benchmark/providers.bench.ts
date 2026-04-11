@@ -5,11 +5,14 @@ import { SourceFileCache } from "../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../server/src/core/indexing/document-analysis-cache";
 import { NullReverseIndex } from "../../server/src/core/indexing/reverse-index";
 import { NOOP_LOG_ERROR, type ProviderDeps } from "../../server/src/providers/cursor-dispatch";
+import { AliasResolver } from "../../server/src/core/cx/alias-resolver";
 import { handleDefinition } from "../../server/src/providers/definition";
 import { handleHover } from "../../server/src/providers/hover";
 import { handleCompletion } from "../../server/src/providers/completion";
 import { computeDiagnostics } from "../../server/src/providers/diagnostics";
 import { FakeTypeResolver } from "../_fixtures/fake-type-resolver";
+
+const EMPTY_ALIAS_RESOLVER = new AliasResolver("/fake/ws", {});
 
 const BUTTON_TSX = `
 import classNames from 'classnames/bind';
@@ -85,6 +88,7 @@ function makeDeps(): ProviderDeps {
       sourceFileCache,
       collectStyleImports: () => new Map(),
       fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
       detectCxBindings,
       parseClassRefs,
       max: 10,
@@ -183,6 +187,7 @@ describe("diagnostics document-wide scan", () => {
         sourceFileCache: new SourceFileCache({ max: 10 }),
         collectStyleImports: () => new Map(),
         fileExists: () => true,
+        aliasResolver: EMPTY_ALIAS_RESOLVER,
         detectCxBindings,
         parseClassRefs: (_sf, bindings): ClassRef[] =>
           bindings.length === 0

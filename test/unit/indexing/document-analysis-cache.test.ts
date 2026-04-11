@@ -3,6 +3,7 @@ import type ts from "typescript";
 import type { ClassRef, CxBinding, StyleImport } from "@css-module-explainer/shared";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
+import { EMPTY_ALIAS_RESOLVER } from "../../_fixtures/test-helpers";
 
 const SOURCE = `
   import classNames from 'classnames/bind';
@@ -34,6 +35,7 @@ function makeCache() {
     sourceFileCache,
     collectStyleImports: () => new Map(),
     fileExists: () => true,
+    aliasResolver: EMPTY_ALIAS_RESOLVER,
     detectCxBindings: detectSpy,
     parseClassRefs: parseSpy,
     max: 10,
@@ -105,6 +107,7 @@ describe("DocumentAnalysisCache", () => {
       sourceFileCache,
       collectStyleImports: () => new Map(),
       fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
       detectCxBindings: detectSpy,
       parseClassRefs: parseSpy,
       max: 2,
@@ -129,6 +132,7 @@ describe("DocumentAnalysisCache", () => {
       sourceFileCache,
       collectStyleImports: () => new Map(),
       fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
       detectCxBindings: detectSpy,
       parseClassRefs: parseSpy,
       max: 2,
@@ -156,6 +160,7 @@ describe("DocumentAnalysisCache", () => {
       sourceFileCache,
       collectStyleImports: () => new Map(),
       fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
       detectCxBindings: detectSpy,
       parseClassRefs: parseSpy,
       max: 10,
@@ -171,6 +176,7 @@ describe("DocumentAnalysisCache", () => {
       sourceFileCache,
       collectStyleImports: () => new Map(),
       fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
       detectCxBindings: (): CxBinding[] => [],
       parseClassRefs: (): ClassRef[] => [],
       max: 10,

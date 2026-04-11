@@ -1,6 +1,7 @@
 import * as path from "node:path";
 import ts from "typescript";
 import type { CxBinding, Range, StyleImport } from "@css-module-explainer/shared";
+import type { AliasResolver } from "./alias-resolver";
 // Source of truth for supported style extensions (.scss, .css, .less).
 import { getAllStyleExtensions } from "../scss/lang-registry";
 
@@ -47,10 +48,11 @@ export function collectStyleImports(
   sourceFile: ts.SourceFile,
   filePath: string,
   fileExists: (p: string) => boolean,
+  aliasResolver: AliasResolver,
 ): ReadonlyMap<string, StyleImport> {
   const stylesBindings = new Map<string, StyleImport>();
   for (const stmt of sourceFile.statements) {
-    const resolved = tryResolveImportStatement(stmt, sourceFile, filePath);
+    const resolved = tryResolveImportStatement(stmt, sourceFile, filePath, aliasResolver);
     if (resolved?.kind !== "style") continue;
     stylesBindings.set(
       resolved.importName,
@@ -84,13 +86,17 @@ export function collectStyleImports(
  * imports for `classnames/bind`, multiple bindings per file, and
  * function-scoped bindings.
  */
-export function detectCxBindings(sourceFile: ts.SourceFile, filePath: string): CxBinding[] {
+export function detectCxBindings(
+  sourceFile: ts.SourceFile,
+  filePath: string,
+  aliasResolver: AliasResolver,
+): CxBinding[] {
   // Two-pass design: Pass 1 is a linear scan of top-level statements
   // for the two import sets we care about. If either set is empty,
   // we skip the full recursive AST walk in Pass 2 entirely — a real
   // short-circuit, not a micro-optimization, because Pass 2 descends
   // into every function body via ts.forEachChild.
-  const imports = collectImports(sourceFile, filePath);
+  const imports = collectImports(sourceFile, filePath, aliasResolver);
   if (imports.classNamesNames.size === 0 || imports.stylesBindings.size === 0) {
     return [];
   }
@@ -104,7 +110,11 @@ interface ImportScan {
   readonly stylesBindings: ReadonlyMap<string, StyleImport>;
 }
 
-function collectImports(sourceFile: ts.SourceFile, filePath: string): ImportScan {
+function collectImports(
+  sourceFile: ts.SourceFile,
+  filePath: string,
+  aliasResolver: AliasResolver,
+): ImportScan {
   // Single walk over top-level statements that produces both outputs
   // (classnames/bind identifiers and style-import bindings). Used
   // only by `detectCxBindings`, which does not care whether a style
@@ -118,7 +128,7 @@ function collectImports(sourceFile: ts.SourceFile, filePath: string): ImportScan
   const stylesBindings = new Map<string, StyleImport>();
 
   for (const stmt of sourceFile.statements) {
-    const resolved = tryResolveImportStatement(stmt, sourceFile, filePath);
+    const resolved = tryResolveImportStatement(stmt, sourceFile, filePath, aliasResolver);
     if (!resolved) continue;
     if (resolved.kind === "classnamesBind") {
       classNamesNames.add(resolved.importName);
@@ -157,6 +167,7 @@ function tryResolveImportStatement(
   stmt: ts.Statement,
   sourceFile: ts.SourceFile,
   filePath: string,
+  aliasResolver: AliasResolver,
 ): ResolvedImport | null {
   if (!ts.isImportDeclaration(stmt)) return null;
   const moduleSpecifier = stmt.moduleSpecifier;
@@ -175,16 +186,23 @@ function tryResolveImportStatement(
     return { kind: "classnamesBind", importName };
   }
 
-  // Skip non-relative specifiers (bare module names like
-  // 'design-system/Button.module.scss'): `path.resolve()` would
-  // produce nonsense for those.
-  if (!specifier.startsWith(".")) return null;
+  // Resolve the specifier to an absolute path — relative first,
+  // alias second, drop otherwise. Matches clinyong's precedence
+  // (relative always wins over alias).
+  let absolutePath: string | null = null;
+  if (specifier.startsWith(".")) {
+    absolutePath = path.resolve(path.dirname(filePath), specifier);
+  } else {
+    absolutePath = aliasResolver.resolve(specifier);
+    if (!absolutePath) return null;
+  }
 
+  // Extension filter applies to the resolved path, not the raw
+  // specifier — an aliased `@styles/button.module.scss` maps to
+  // `/abs/src/styles/button.module.scss` which still ends in
+  // `.scss`, passing the gate.
   const styleExtensions = getAllStyleExtensions();
-  if (!styleExtensions.some((ext) => specifier.endsWith(ext))) return null;
-
-  const sourceDir = path.dirname(filePath);
-  const absolutePath = path.resolve(sourceDir, specifier);
+  if (!styleExtensions.some((ext) => absolutePath!.endsWith(ext))) return null;
 
   // String literal range excluding the quotes: getStart() points at
   // the opening quote, getEnd() points just past the closing quote.

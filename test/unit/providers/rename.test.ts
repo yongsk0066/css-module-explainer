@@ -12,7 +12,12 @@ import { DocumentAnalysisCache } from "../../../server/src/core/indexing/documen
 import { WorkspaceReverseIndex } from "../../../server/src/core/indexing/reverse-index";
 import type { CursorParams, ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
 import { handlePrepareRename, handleRename } from "../../../server/src/providers/rename";
-import { infoAtLine as info, makeBaseDeps, siteAt } from "../../_fixtures/test-helpers";
+import {
+  EMPTY_ALIAS_RESOLVER,
+  infoAtLine as info,
+  makeBaseDeps,
+  siteAt,
+} from "../../_fixtures/test-helpers";
 
 const SCSS_PATH = "/fake/src/Button.module.scss";
 const SCSS_URI = "file:///fake/src/Button.module.scss";
@@ -196,6 +201,7 @@ function makeTsxDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     sourceFileCache,
     collectStyleImports: () => new Map(),
     fileExists: () => true,
+    aliasResolver: EMPTY_ALIAS_RESOLVER,
     detectCxBindings: (sourceFile: ts.SourceFile): CxBinding[] => [
       {
         ...BINDING,
@@ -673,10 +679,10 @@ describe("&-nested BEM suffix rename", () => {
   it("rejects grouped parent `.a, .b { &--c {} }`", async () => {
     const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
     const classMap = parseStyleModule(`.a, .b {\n  &--c {}\n}`, "/f.module.scss");
-    const info = classMap.get("a--c") ?? classMap.get("b--c");
-    expect(info).toBeDefined();
+    const entry = classMap.get("a--c") ?? classMap.get("b--c");
+    expect(entry).toBeDefined();
     // bemSuffix undefined because parentCtx.isGrouped === true
-    expect(info!.bemSuffix).toBeUndefined();
+    expect(entry!.bemSuffix).toBeUndefined();
     // prepareRename must refuse
     const deps = makeBaseDeps({ scssClassMapForPath: () => classMap, workspaceRoot: "/fake" });
     const result = handlePrepareRename(
@@ -703,9 +709,9 @@ describe("&-nested BEM suffix rename", () => {
   it("rejects multi-`&` `.btn { & + &--x {} }`", async () => {
     const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
     const classMap = parseStyleModule(`.btn {\n  & + &--x {}\n}`, "/f.module.scss");
-    const info = classMap.get("btn--x");
-    if (info !== undefined) {
-      expect(info.bemSuffix).toBeUndefined();
+    const entry = classMap.get("btn--x");
+    if (entry !== undefined) {
+      expect(entry.bemSuffix).toBeUndefined();
       const deps = makeBaseDeps({ scssClassMapForPath: () => classMap, workspaceRoot: "/fake" });
       const result = handlePrepareRename(
         { textDocument: { uri: SCSS_URI }, position: { line: 1, character: 3 } },

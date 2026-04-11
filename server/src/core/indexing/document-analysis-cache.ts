@@ -4,6 +4,7 @@ import type { ClassRef, CxBinding, StyleImport } from "@css-module-explainer/sha
 import { contentHash } from "../util/hash";
 import { LruMap } from "../util/lru-map";
 import type { SourceFileCache } from "../ts/source-file-cache";
+import type { AliasResolver } from "../cx/alias-resolver";
 
 /**
  * Single-parse analysis result for one TS/JS source file.
@@ -47,14 +48,26 @@ export interface DocumentAnalysisCacheDeps {
     sourceFile: ts.SourceFile,
     filePath: string,
     fileExists: (p: string) => boolean,
+    aliasResolver: AliasResolver,
   ) => ReadonlyMap<string, StyleImport>;
-  readonly detectCxBindings: (sourceFile: ts.SourceFile, filePath: string) => CxBinding[];
+  readonly detectCxBindings: (
+    sourceFile: ts.SourceFile,
+    filePath: string,
+    aliasResolver: AliasResolver,
+  ) => CxBinding[];
   /**
    * Returns true iff `path` exists on disk. Injected so tests can
    * stub the check and the analysis cache stays free of `node:fs`.
    * Composition root wires `fs.existsSync`.
    */
   readonly fileExists: (path: string) => boolean;
+  /**
+   * Read-only accessor for the current workspace-scoped path-alias
+   * resolver. Returns the latest resolver — `rebuildAliasResolver`
+   * in composition root replaces the shared closure variable, so
+   * `analyze()` always observes fresh alias config.
+   */
+  readonly aliasResolver: AliasResolver;
   /**
    * Unified ClassRef producer. Optional so test helpers that
    * construct a cache without wiring the class-ref parser still
@@ -155,7 +168,7 @@ export class DocumentAnalysisCache {
 
   private analyze(content: string, filePath: string, version: number, hash: string): AnalysisEntry {
     const sourceFile = this.deps.sourceFileCache.get(filePath, content);
-    const bindings = this.deps.detectCxBindings(sourceFile, filePath);
+    const bindings = this.deps.detectCxBindings(sourceFile, filePath, this.deps.aliasResolver);
 
     // Independent style-import scanning: collect style imports independently of cx bindings.
     // Files without classnames/bind still get styles.x support. `fileExists` is consulted
@@ -165,6 +178,7 @@ export class DocumentAnalysisCache {
       sourceFile,
       filePath,
       this.deps.fileExists,
+      this.deps.aliasResolver,
     );
 
     // Unified class-ref parser — covers both cx() arguments and styles.x accesses.
