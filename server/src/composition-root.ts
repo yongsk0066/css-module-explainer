@@ -192,10 +192,10 @@ function buildBundle(
   const readStyleFile = options.readStyleFile ?? defaultReadStyleFile;
   const fileExists = options.fileExists ?? existsSync;
   const classMapForPath = buildClassMapForPath(caches.styleIndexCache, documents, readStyleFile);
-  // Shared closure variable for the path-alias resolver. Both
-  // ProviderDeps (below) and DocumentAnalysisCacheDeps (buildAnalysisCache)
-  // read this via getter; rebuildAliasResolver mutates it in place
-  // and both deps objects observe the change on their next read.
+  // Closure variable for the path-alias resolver. `DocumentAnalysisCache`
+  // reads it via the `getAliasResolver` getter below; `rebuildAliasResolver`
+  // mutates it in place so a settings change propagates to the cache
+  // on its next analyze call without rewiring the cache instance.
   let currentResolver = new AliasResolver(workspaceRoot, DEFAULT_SETTINGS.pathAlias);
   const getAliasResolver = () => currentResolver;
   const analysisCache = buildAnalysisCache({
@@ -231,13 +231,6 @@ function buildBundle(
     // Initial value is DEFAULT_SETTINGS; the real config is fetched on
     // onInitialized and overwrites this via `deps.settings = s`.
     settings: DEFAULT_SETTINGS,
-    // Getter backed by the `currentResolver` shared closure — both
-    // this field and DocumentAnalysisCacheDeps.aliasResolver read
-    // through the same variable, so a single rebuildAliasResolver
-    // assignment propagates to both deps objects.
-    get aliasResolver() {
-      return currentResolver;
-    },
     rebuildAliasResolver(pathAlias) {
       currentResolver = new AliasResolver(workspaceRoot, pathAlias);
       // Caller (reloadSettings) is responsible for invalidating the

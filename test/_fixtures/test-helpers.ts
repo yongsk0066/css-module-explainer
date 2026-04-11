@@ -95,7 +95,6 @@ export function makeBaseDeps(overrides: Partial<ProviderDeps> = {}): ProviderDep
     indexerReady: Promise.resolve(),
     stopIndexer: () => {},
     settings: DEFAULT_SETTINGS,
-    aliasResolver: EMPTY_ALIAS_RESOLVER,
     rebuildAliasResolver: () => {},
     setClassnameTransform: () => {},
     ...overrides,

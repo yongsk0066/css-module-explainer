@@ -1,5 +1,4 @@
 import type { ScssClassMap } from "@css-module-explainer/shared";
-import type { AliasResolver } from "../core/cx/alias-resolver";
 import type { ClassnameTransformMode } from "../core/scss/classname-transform";
 import type { DocumentAnalysisCache } from "../core/indexing/document-analysis-cache";
 import type { ReverseIndex } from "../core/indexing/reverse-index";
@@ -79,25 +78,15 @@ export interface ProviderDeps {
    * replaces this on every `didChangeConfiguration`. Providers read
    * the field at call time so a config change between analyze calls
    * is observed on the next request.
-   *
-   * Only consumed by `ProviderDeps`, so the shared-closure pattern
-   * used for `aliasResolver` below isn't needed here — a plain
-   * field write is enough.
    */
   settings: Settings;
   /**
-   * Current workspace-scoped path-alias resolver. Read-only getter
-   * backed by a shared closure variable owned by composition root.
-   * `rebuildAliasResolver` replaces the underlying variable so both
-   * `ProviderDeps.aliasResolver` and `DocumentAnalysisCacheDeps.aliasResolver`
-   * observe the fresh resolver via their getters.
-   */
-  readonly aliasResolver: AliasResolver;
-  /**
-   * Replace the current alias resolver. Callers (handler-registration's
-   * reloadSettings) MUST also call `analysisCache.clear()` after
-   * invoking this to discard stale entries that referenced the old
-   * resolver's output.
+   * Rebuild the workspace-scoped path-alias resolver against a new
+   * `pathAlias` map. Callers (handler-registration's reloadSettings)
+   * MUST also call `analysisCache.clear()` after invoking this to
+   * discard stale entries that referenced the old resolver's output.
+   * The resolver itself lives inside `DocumentAnalysisCache` — no
+   * provider reads it directly.
    */
   rebuildAliasResolver(pathAlias: Readonly<Record<string, string>>): void;
   /**
