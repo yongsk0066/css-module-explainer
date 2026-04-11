@@ -36,6 +36,10 @@ export const handleReferences = wrapHandler<ReferenceParams, [], Location[] | nu
     const sites = deps.reverseIndex.find(filePath, info.name);
     if (sites.length === 0) return null;
 
+    // No expansion filter here — expanded sites are valid Find Refs
+    // results (they represent where a rename WOULD edit if the user
+    // changed the template/variable resolution). Rename is the only
+    // provider that filters `expansion === "expanded"`; see rename.ts.
     return sites.map<Location>((site) => ({
       uri: site.uri,
       range: toLspRange(site.range),

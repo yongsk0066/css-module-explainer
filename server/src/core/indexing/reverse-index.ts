@@ -157,8 +157,7 @@ export function collectCallSites(
     const base = { uri, range: call.originRange, scssModulePath: call.scssModulePath };
     switch (call.kind) {
       case "static":
-        // Stage 1: every native push is `expansion: "direct"`.
-        // Stage 3.1 (Commit 6) will flip synthesized expansions to "expanded".
+        // Native static token: the user literally wrote this class name.
         sites.push({
           ...base,
           match: { kind: "static", className: call.className },
@@ -166,13 +165,18 @@ export function collectCallSites(
         });
         break;
       case "template": {
-        // Always record the template match for display purposes.
+        // The template ref itself is a direct site (the literal the user wrote).
         sites.push({
           ...base,
           match: { kind: "template", staticPrefix: call.staticPrefix },
           expansion: "direct",
         });
         // If resolver context available, expand to individual static entries.
+        // These entries carry the template's origin range, not a literal
+        // token — they are synthesized from a class-map lookup, so they
+        // are flagged "expanded" and rename must filter them out (otherwise
+        // the whole template expression would be rewritten with the new
+        // class name, destroying the template literal source).
         if (ctx) {
           const classMap = ctx.classMapForPath(call.scssModulePath);
           if (classMap) {
@@ -181,7 +185,7 @@ export function collectCallSites(
                 sites.push({
                   ...base,
                   match: { kind: "static", className: name },
-                  expansion: "direct",
+                  expansion: "expanded",
                 });
               }
             }
@@ -190,11 +194,15 @@ export function collectCallSites(
         break;
       }
       case "variable": {
+        // The variable ref itself is a direct site (the identifier the user wrote).
         sites.push({
           ...base,
           match: { kind: "variable", variableName: call.variableName },
           expansion: "direct",
         });
+        // Union-type resolution synthesizes one static entry per union
+        // value. Like template expansion, each entry carries the
+        // variable's origin range and must be flagged "expanded".
         if (ctx) {
           const resolved = ctx.typeResolver.resolve(
             ctx.filePath,
@@ -206,7 +214,7 @@ export function collectCallSites(
               sites.push({
                 ...base,
                 match: { kind: "static", className: value },
-                expansion: "direct",
+                expansion: "expanded",
               });
             }
           }

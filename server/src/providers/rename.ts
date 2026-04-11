@@ -107,6 +107,21 @@ function prepareRenameFromScss(
     params.position.character,
   );
   if (!selectorInfo) return null;
+
+  // Reject if any reverse-index site for this class is a synthesized
+  // expansion of a template/variable ref. Rewriting those entries
+  // would destroy the dynamic expression source (Bug 3.1). Find
+  // References still surfaces expanded sites — only rename filters.
+  const expandedSites = deps.reverseIndex
+    .findAllForScssPath(filePath)
+    .filter(
+      (s) =>
+        s.match.kind === "static" &&
+        s.match.className === selectorInfo.name &&
+        s.expansion !== "direct",
+    );
+  if (expandedSites.length > 0) return null;
+
   return { range: toLspRange(selectorInfo.range), placeholder: selectorInfo.name };
 }
 
@@ -138,9 +153,17 @@ function buildRenameEdit(
   // 1. SCSS selector edit
   changes[scssUri] = [{ range: toLspRange(selectorInfo.range), newText: newName }];
 
-  // 2. TS/TSX reference edits from the reverse index
+  // 2. TS/TSX reference edits from the reverse index.
+  //
+  // Filter out `expansion: "expanded"` sites (Bug 3.1). Those are
+  // synthesized from template/variable refs and carry the whole
+  // dynamic expression's range — rewriting them would destroy the
+  // template literal or variable identifier source. Find References
+  // still returns expanded sites (see references.ts); only rename
+  // refuses to touch them.
   const sites = deps.reverseIndex.find(scssPath, selectorInfo.name);
   for (const site of sites) {
+    if (site.expansion !== "direct") continue;
     if (!changes[site.uri]) changes[site.uri] = [];
     changes[site.uri]!.push({
       range: toLspRange(site.range),

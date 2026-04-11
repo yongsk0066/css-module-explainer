@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ClassRef, CxBinding, CxCallInfo, ScssClassMap } from "@css-module-explainer/shared";
+import type {
+  CallSite,
+  ClassRef,
+  CxBinding,
+  CxCallInfo,
+  ScssClassMap,
+} from "@css-module-explainer/shared";
 import type ts from "typescript";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
@@ -304,33 +310,79 @@ describe("handleRename from TS/TSX", () => {
 // Stage 3 un-skips them in the same commit as each fix.
 // ──────────────────────────────────────────────────────────────
 
-describe("Wave 1 Stage 3.1 — rename template corruption (red regression)", () => {
-  // TODO(wave1-stage3): un-skip after fix lands
-  it.skip("rename template-literal class does NOT rewrite the template range (wave1-stage3.1)", () => {
-    // Fixture: `cx(\`btn-${weight}\`)` + SCSS with `.btn-small`.
-    // Rename `btn-small` → `btn-tiny`.
-    // Expectation (post-fix): the template-literal originRange
-    // is NOT included in the WorkspaceEdit. Current buggy code
-    // rewrites the entire template range, corrupting the source.
-    expect.fail("red placeholder — wave1-stage3.1");
+describe("Wave 1 Stage 3.1 — rename template corruption (regression)", () => {
+  // Shared fixture: `cx(`btn-${weight}`)` at range R in App.tsx, where
+  // `btn-` resolves against SCSS class map containing `btn-small` and
+  // `btn-large`. The reverse index holds:
+  //   - one "direct" template site at R (kind: "template")
+  //   - two "expanded" static sites at R (one per class name)
+  // This is exactly the shape `collectCallSites` emits with a
+  // CallSiteResolverContext available.
+  const TEMPLATE_URI = "file:///fake/src/App.tsx";
+  const TEMPLATE_RANGE = {
+    start: { line: 5, character: 14 },
+    end: { line: 5, character: 30 },
+  };
+
+  function buildTemplateReverseIndex(): WorkspaceReverseIndex {
+    const idx = new WorkspaceReverseIndex();
+    const base = { uri: TEMPLATE_URI, range: TEMPLATE_RANGE, scssModulePath: SCSS_PATH };
+    const sites: CallSite[] = [
+      { ...base, match: { kind: "template", staticPrefix: "btn-" }, expansion: "direct" },
+      { ...base, match: { kind: "static", className: "btn-small" }, expansion: "expanded" },
+      { ...base, match: { kind: "static", className: "btn-large" }, expansion: "expanded" },
+    ];
+    idx.record(TEMPLATE_URI, sites);
+    return idx;
+  }
+
+  function btnScssDeps(idx: WorkspaceReverseIndex): ProviderDeps {
+    return makeBaseDeps({
+      scssClassMapForPath: () =>
+        new Map([
+          ["btn-small", info("btn-small", 1)],
+          ["btn-large", info("btn-large", 3)],
+        ]) as ScssClassMap,
+      workspaceRoot: "/fake",
+      reverseIndex: idx,
+    });
+  }
+
+  it("rename template-literal class does NOT rewrite the template range (wave1-stage3.1)", () => {
+    const idx = buildTemplateReverseIndex();
+    const result = handleRename(
+      {
+        textDocument: { uri: SCSS_URI },
+        position: { line: 1, character: 3 },
+        newName: "btn-tiny",
+      },
+      btnScssDeps(idx),
+    );
+    expect(result).not.toBeNull();
+    const changes = result!.changes!;
+
+    // The SCSS selector must still be edited.
+    expect(changes[SCSS_URI]).toHaveLength(1);
+    expect(changes[SCSS_URI]![0]!.newText).toBe("btn-tiny");
+
+    // The template range R must NOT appear in the App.tsx edits.
+    // With the bug, this key would exist and point at TEMPLATE_RANGE,
+    // destroying `btn-${weight}`. With the fix, no App.tsx edits.
+    expect(changes[TEMPLATE_URI]).toBeUndefined();
   });
 
-  // TODO(wave1-stage3): un-skip after fix lands
-  it.skip("SCSS-side prepareRename rejects class with template/variable references (wave1-stage3.1)", () => {
-    // Fixture: same template-literal + SCSS with `.btn-small`.
-    // Cursor on `.btn-small` in SCSS. `handlePrepareRename`
-    // must return null because one call site is an EXPANDED
-    // template — renaming would destroy the template source.
-    expect.fail("red placeholder — wave1-stage3.1");
-  });
-
-  // TODO(wave1-stage3): un-skip after fix lands
-  it.skip("find-references STILL surfaces template-expanded sites (wave1-stage3.1 regression guard)", () => {
-    // Regression guard. After the fix lands, Find References
-    // must continue to include template-expanded sites —
-    // expanded entries are "where you COULD rename if the
-    // template resolved" and stay visible to the user.
-    expect.fail("red placeholder — wave1-stage3.1");
+  it("SCSS-side prepareRename rejects class with template/variable references (wave1-stage3.1)", () => {
+    const idx = buildTemplateReverseIndex();
+    const result = handlePrepareRename(
+      {
+        textDocument: { uri: SCSS_URI },
+        position: { line: 1, character: 3 },
+      },
+      btnScssDeps(idx),
+    );
+    // Cursor is on `.btn-small`, which has an expanded reverse-index
+    // entry from the template. prepareRename must refuse.
+    expect(result).toBeNull();
   });
 });
 
