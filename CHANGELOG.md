@@ -8,6 +8,30 @@ The format is based on
 this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] — 2026-04-11
+
+### Added
+
+- **clsx / classnames support** — Autocomplete, hover, and go-to-definition for `clsx(styles.btn)` and `classNames(styles.btn)` patterns, alongside the existing `classnames/bind` support.
+- **Unused selector detection** — CSS class selectors in `.module.scss` files with zero references are flagged with `DiagnosticTag.Unnecessary` (faded text). Template and variable call sites suppress false positives; `composes` references are honored.
+- **Rename Symbol** — Bidirectional rename between `.module.scss` selectors and `cx('className')` / `styles.className` references across the workspace. `&`-nested SCSS selectors are rejected in this release.
+- **Example scenario 10-clsx** — New sandbox scenario demonstrating `clsx(styles.btn, isActive && styles.active)`.
+
+### Fixed
+
+- **styles.x now works in files without classnames/bind** — Extracted style-import scanning from the cx binding detector so `styles.className` hover and go-to-definition work in any file with a `.module.*` import, regardless of whether `classnames/bind` is used.
+
+### Changed
+
+- **CallSite type narrowed** — Internal `CallSite.binding: CxBinding` and `CxCallBase.binding: CxBinding` replaced with `scssModulePath: string`. Eliminates synthetic binding objects and narrows the dependency graph.
+- **Diagnostics scheduler extracted** — Debounce and index-readiness gating moved out of `handler-registration.ts` into a dedicated module.
+- **Test fixtures consolidated** — `test/_fixtures/test-helpers.ts` exposes shared `makeBaseDeps`, `info`, `infoAtLine`, and `siteAt` helpers. All provider test files migrated.
+
+### Configuration
+
+- Added `cssModuleExplainer.diagnostics.unusedSelector` (default: `true`).
+- Added `cssModuleExplainer.features.rename` (default: `true`).
+
 ## [1.1.0] — 2026-04-10
 
 ### Changed
