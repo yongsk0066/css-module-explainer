@@ -192,6 +192,10 @@ export function collectCallSites(
         });
         if (ctx) expandVariableRef(ref, base, ctx, sites);
         break;
+      default: {
+        const _exhaustive: never = ref;
+        return _exhaustive;
+      }
     }
   }
 

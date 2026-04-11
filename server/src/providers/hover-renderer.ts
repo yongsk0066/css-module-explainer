@@ -46,13 +46,18 @@ function renderMulti(args: RenderArgs): string {
 
 function buildMultiHeader(args: RenderArgs): string {
   const ref = args.ref;
-  if (ref.kind === "variable") {
-    return `**${args.infos.length} matches** for \`cx(${ref.variableName})\``;
+  switch (ref.kind) {
+    case "variable":
+      return `**${args.infos.length} matches** for \`cx(${ref.variableName})\``;
+    case "template":
+      return `**${args.infos.length} matches** for \`cx(\\\`${ref.staticPrefix}\${...}\\\`)\``;
+    case "static":
+      return `**${args.infos.length} matches** for \`cx(...)\``;
+    default: {
+      const _exhaustive: never = ref;
+      return _exhaustive;
+    }
   }
-  if (ref.kind === "template") {
-    return `**${args.infos.length} matches** for \`cx(\\\`${ref.staticPrefix}\${...}\\\`)\``;
-  }
-  return `**${args.infos.length} matches** for \`cx(...)\``;
 }
 
 function buildRule(info: SelectorInfo): string {

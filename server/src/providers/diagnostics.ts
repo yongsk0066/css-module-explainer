@@ -113,6 +113,10 @@ function validateCall(
       return validateTemplateRef(ref, classMap, deps, range, severity);
     case "variable":
       return validateVariableRef(ref, classMap, params, deps, range, severity);
+    default: {
+      const _exhaustive: never = ref;
+      return _exhaustive;
+    }
   }
 }
 
