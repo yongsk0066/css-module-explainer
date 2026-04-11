@@ -80,11 +80,20 @@ function registerSettingsHandler(state: HandlerState): () => void {
         if (modeChanged) deps.setClassnameTransform(s.scss.classnameTransform);
 
         // Shared invalidation + reschedule fires once regardless of
-        // which branch triggered.
+        // which branch triggered. Route each open document to the
+        // scheduler method that matches its language — sending a
+        // SCSS URI through `scheduleTsx` would run TSX class-token
+        // validation on the SCSS file and leave the real SCSS
+        // unused-selector diagnostic stale under the prior mode.
         if (aliasChanged || modeChanged) {
           deps.analysisCache.clear();
           for (const doc of state.ctx.documents.all()) {
-            state.scheduler.scheduleTsx(doc.uri);
+            const filePath = fileUrlToPath(doc.uri);
+            if (findLangForPath(filePath)) {
+              state.scheduler.scheduleScss(doc.uri);
+            } else {
+              state.scheduler.scheduleTsx(doc.uri);
+            }
           }
         }
       })

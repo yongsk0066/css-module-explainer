@@ -4,6 +4,7 @@ import {
   CompletionRequest,
   createProtocolConnection,
   DefinitionRequest,
+  DidChangeConfigurationNotification,
   DidChangeTextDocumentNotification,
   DidChangeWatchedFilesNotification,
   DidOpenTextDocumentNotification,
@@ -87,6 +88,14 @@ export interface LspTestClient {
   references(params: ReferenceParams): Promise<Location[] | null>;
   rename(params: RenameParams): Promise<WorkspaceEdit | null>;
   didChangeWatchedFiles(params: DidChangeWatchedFilesParams): void;
+  /**
+   * Replace the workspace configuration the server will see on the
+   * next `workspace/configuration` request. The server triggers
+   * such a request via `fetchSettings` after a
+   * `workspace/didChangeConfiguration` notification.
+   */
+  setConfiguration(section: string, value: unknown): void;
+  didChangeConfiguration(): void;
   shutdown(): Promise<void>;
   exit(): void;
   dispose(): void;
@@ -158,8 +167,17 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
     string,
     Array<{ resolve: (d: Diagnostic[]) => void; reject: (e: unknown) => void }>
   >();
-  // Handle workspace/configuration requests from the server.
-  client.onRequest("workspace/configuration", () => [{}]);
+  // Handle workspace/configuration requests from the server. The
+  // server's `fetchSettings` asks for two sections
+  // (`cssModuleExplainer` + `cssModules`) in separate requests, so
+  // we return a per-section object that tests can swap out between
+  // didChangeConfiguration reloads.
+  const configBySection: Record<string, unknown> = {};
+  client.onRequest("workspace/configuration", (params: { items: Array<{ section?: string }> }) => {
+    return params.items.map((item) =>
+      item.section && item.section in configBySection ? configBySection[item.section] : {},
+    );
+  });
 
   client.onNotification(PublishDiagnosticsNotification.type, (params) => {
     const waiters = diagnosticsWaiters.get(params.uri);
@@ -216,6 +234,12 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
     },
     didChangeWatchedFiles(params) {
       client.sendNotification(DidChangeWatchedFilesNotification.type, params);
+    },
+    setConfiguration(section, value) {
+      configBySection[section] = value;
+    },
+    didChangeConfiguration() {
+      client.sendNotification(DidChangeConfigurationNotification.type, { settings: null });
     },
     async waitForDiagnostics(uri, timeoutMs = 1500) {
       const queue = pendingDiagnostics.get(uri);
