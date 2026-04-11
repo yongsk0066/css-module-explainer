@@ -32,9 +32,19 @@ export const handleCodeLens = wrapHandler<CodeLensParams, [], CodeLens[] | null>
     const classMap = deps.scssClassMapForPath(filePath);
     if (!classMap) return null;
 
+    // Under `classnameTransform` modes that expose an alias view,
+    // the class map can carry both the original and the alias entry
+    // for the same logical class. Iterate once per canonical name
+    // so we emit exactly one lens per class regardless of how many
+    // views point at it, and so the lookup always hits the
+    // canonical-keyed reverse-index bucket.
     const lenses: CodeLens[] = [];
+    const emittedCanonical = new Set<string>();
     for (const info of classMap.values()) {
-      const lens = buildLens(params.textDocument.uri, filePath, info, deps);
+      const canonicalName = info.originalName ?? info.name;
+      if (emittedCanonical.has(canonicalName)) continue;
+      emittedCanonical.add(canonicalName);
+      const lens = buildLens(params.textDocument.uri, filePath, info, canonicalName, deps);
       if (lens) lenses.push(lens);
     }
     return lenses.length > 0 ? lenses : null;
@@ -46,9 +56,10 @@ function buildLens(
   uri: string,
   filePath: string,
   info: SelectorInfo,
+  canonicalName: string,
   deps: ProviderDeps,
 ): CodeLens | null {
-  const sites = deps.reverseIndex.find(filePath, info.name);
+  const sites = deps.reverseIndex.find(filePath, canonicalName);
   if (sites.length === 0) return null;
   const title = `${sites.length} reference${sites.length === 1 ? "" : "s"}`;
   const locations: ShowReferencesLocation[] = sites.map((site) => ({

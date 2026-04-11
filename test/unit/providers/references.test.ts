@@ -3,7 +3,7 @@ import type { CallSite, ScssClassMap, SelectorInfo } from "@css-module-explainer
 import { WorkspaceReverseIndex } from "../../../server/src/core/indexing/reverse-index";
 import type { ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
 import { findSelectorAtCursor, handleReferences } from "../../../server/src/providers/references";
-import { infoAtLine, makeBaseDeps } from "../../_fixtures/test-helpers";
+import { infoAtLine, makeBaseDeps, siteAt } from "../../_fixtures/test-helpers";
 
 function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   return makeBaseDeps({
@@ -171,6 +171,89 @@ describe("handleReferences", () => {
     // codebase's rangeContains convention). Character 13 is past.
     const miss = findSelectorAtCursor(classMap, 1, 13);
     expect(miss).toBeNull();
+  });
+
+  it("classnameTransform: finds alias-form TSX access from SCSS cursor on original selector", async () => {
+    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
+    const { expandClassMapWithTransform } =
+      await import("../../../server/src/core/scss/classname-transform");
+    const SCSS_PATH = "/fake/Button.module.scss";
+    const SCSS_URI = "file:///fake/Button.module.scss";
+    const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);
+    const classMap = expandClassMapWithTransform(base, "camelCase");
+
+    const idx = new WorkspaceReverseIndex();
+    idx.record("file:///fake/App.tsx", [
+      siteAt("file:///fake/App.tsx", "btnPrimary", 5, SCSS_PATH, "btn-primary"),
+    ]);
+
+    // Cursor sits on `.btn-primary` in the SCSS file. Under camelCase
+    // mode the class map holds both `btn-primary` (original) and
+    // `btnPrimary` (alias) entries — the reverse index bucket lives
+    // under the canonical `btn-primary` key regardless. The provider
+    // must route through `originalName` so the lookup hits the bucket.
+    const origInfo = classMap.get("btn-primary")!;
+    const cursor = {
+      line: origInfo.range.start.line,
+      character: origInfo.range.start.character,
+    };
+    const result = handleReferences(
+      {
+        textDocument: { uri: SCSS_URI },
+        position: cursor,
+        context: { includeDeclaration: true },
+      },
+      makeBaseDeps({
+        scssClassMapForPath: () => classMap,
+        workspaceRoot: "/fake",
+        reverseIndex: idx,
+      }),
+    );
+
+    expect(result).not.toBeNull();
+    expect(result).toHaveLength(1);
+    expect(result![0]!.uri).toBe("file:///fake/App.tsx");
+  });
+
+  it("classnameTransform (camelCaseOnly): alias-only entry still resolves to canonical reverse-index bucket", async () => {
+    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
+    const { expandClassMapWithTransform } =
+      await import("../../../server/src/core/scss/classname-transform");
+    const SCSS_PATH = "/fake/Button.module.scss";
+    const SCSS_URI = "file:///fake/Button.module.scss";
+    const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);
+    const classMap = expandClassMapWithTransform(base, "camelCaseOnly");
+    // Under `camelCaseOnly` only the alias entry remains in the map;
+    // the cursor falls on the alias entry's range but its
+    // `originalName` still points at `btn-primary`.
+    expect(classMap.has("btn-primary")).toBe(false);
+    expect(classMap.has("btnPrimary")).toBe(true);
+
+    const idx = new WorkspaceReverseIndex();
+    idx.record("file:///fake/App.tsx", [
+      siteAt("file:///fake/App.tsx", "btnPrimary", 7, SCSS_PATH, "btn-primary"),
+    ]);
+
+    const aliasInfo = classMap.get("btnPrimary")!;
+    const result = handleReferences(
+      {
+        textDocument: { uri: SCSS_URI },
+        position: {
+          line: aliasInfo.range.start.line,
+          character: aliasInfo.range.start.character,
+        },
+        context: { includeDeclaration: true },
+      },
+      makeBaseDeps({
+        scssClassMapForPath: () => classMap,
+        workspaceRoot: "/fake",
+        reverseIndex: idx,
+      }),
+    );
+
+    expect(result).not.toBeNull();
+    expect(result).toHaveLength(1);
+    expect(result![0]!.uri).toBe("file:///fake/App.tsx");
   });
 
   it("logs and returns null on exception", () => {

@@ -3,7 +3,7 @@ import type { ScssClassMap } from "@css-module-explainer/shared";
 import { WorkspaceReverseIndex } from "../../../server/src/core/indexing/reverse-index";
 import type { ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
 import { handleCodeLens } from "../../../server/src/providers/reference-lens";
-import { infoAtLine, makeBaseDeps } from "../../_fixtures/test-helpers";
+import { infoAtLine, makeBaseDeps, siteAt } from "../../_fixtures/test-helpers";
 
 function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   return makeBaseDeps({
@@ -51,6 +51,72 @@ describe("handleCodeLens", () => {
     expect(result).not.toBeNull();
     const indicatorLens = result!.find((l) => l.command?.title.includes("1 reference"));
     expect(indicatorLens).toBeDefined();
+  });
+
+  it("classnameTransform (camelCaseOnly): emits a lens for an alias-only entry whose bucket lives under canonical", async () => {
+    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
+    const { expandClassMapWithTransform } =
+      await import("../../../server/src/core/scss/classname-transform");
+    const SCSS_PATH = "/fake/src/Button.module.scss";
+    const SCSS_URI = "file:///fake/src/Button.module.scss";
+    const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);
+    const classMap = expandClassMapWithTransform(base, "camelCaseOnly");
+    // Under camelCaseOnly the original key is gone; only the alias
+    // entry remains, keyed by `btnPrimary` with `originalName`
+    // pointing at `btn-primary`.
+    expect(classMap.has("btn-primary")).toBe(false);
+    expect(classMap.has("btnPrimary")).toBe(true);
+
+    const idx = new WorkspaceReverseIndex();
+    idx.record("file:///fake/src/App.tsx", [
+      siteAt("file:///fake/src/App.tsx", "btnPrimary", 5, SCSS_PATH, "btn-primary"),
+    ]);
+
+    const result = handleCodeLens(
+      { textDocument: { uri: SCSS_URI } },
+      makeBaseDeps({
+        scssClassMapForPath: () => classMap,
+        workspaceRoot: "/fake",
+        reverseIndex: idx,
+      }),
+    );
+
+    expect(result).not.toBeNull();
+    expect(result).toHaveLength(1);
+    expect(result![0]!.command?.title).toBe("1 reference");
+  });
+
+  it("classnameTransform: dedups alias + original class-map entries into one lens per canonical class", async () => {
+    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
+    const { expandClassMapWithTransform } =
+      await import("../../../server/src/core/scss/classname-transform");
+    const SCSS_PATH = "/fake/src/Button.module.scss";
+    const SCSS_URI = "file:///fake/src/Button.module.scss";
+    const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);
+    const classMap = expandClassMapWithTransform(base, "camelCase");
+    // Under camelCase the map holds both views of the same class.
+    expect(classMap.has("btn-primary")).toBe(true);
+    expect(classMap.has("btnPrimary")).toBe(true);
+
+    const idx = new WorkspaceReverseIndex();
+    idx.record("file:///fake/src/App.tsx", [
+      siteAt("file:///fake/src/App.tsx", "btnPrimary", 5, SCSS_PATH, "btn-primary"),
+    ]);
+
+    const result = handleCodeLens(
+      { textDocument: { uri: SCSS_URI } },
+      makeBaseDeps({
+        scssClassMapForPath: () => classMap,
+        workspaceRoot: "/fake",
+        reverseIndex: idx,
+      }),
+    );
+
+    expect(result).not.toBeNull();
+    // Exactly one lens — not two — and its count reflects the
+    // canonical bucket, not an empty alias-keyed bucket.
+    expect(result).toHaveLength(1);
+    expect(result![0]!.command?.title).toBe("1 reference");
   });
 
   it("logs and returns null on exception", () => {

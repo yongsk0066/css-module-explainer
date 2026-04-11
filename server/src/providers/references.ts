@@ -33,7 +33,12 @@ export const handleReferences = wrapHandler<ReferenceParams, [], Location[] | nu
     const info = findSelectorAtCursor(classMap, params.position.line, params.position.character);
     if (!info) return null;
 
-    const sites = deps.reverseIndex.find(filePath, info.name);
+    // The reverse index keys sites by the original SCSS selector
+    // name. Under `classnameTransform` modes that expose an alias
+    // view (e.g. `btnPrimary` for `.btn-primary`), `info.name` is
+    // the alias token and the bucket lives under `originalName`.
+    const canonicalName = info.originalName ?? info.name;
+    const sites = deps.reverseIndex.find(filePath, canonicalName);
     if (sites.length === 0) return null;
 
     // No expansion filter here — expanded sites are valid Find Refs
