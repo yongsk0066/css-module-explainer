@@ -370,7 +370,7 @@ describe("collectStyleImports", () => {
     expect(result.size).toBe(0);
   });
 
-  // ── Wave 2B item #11: missing-module detection via fileExists DI ──
+  // ── missing-module detection via fileExists DI ──
 
   it("emits missing variant when fileExists returns false", () => {
     const src = parse(`import s from './foo.module.scss';`);
@@ -470,7 +470,7 @@ describe("collectStyleImports", () => {
     expect(result.get("s")?.kind).toBe("resolved");
   });
 
-  // ── Wave 2B item #13: alias-aware import resolution ──
+  // ── alias-aware import resolution ──
 
   it("resolves aliased imports via AliasResolver", () => {
     const src = parse(`import s from '@styles/button.module.scss';`);

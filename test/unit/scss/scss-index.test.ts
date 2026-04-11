@@ -317,7 +317,7 @@ describe("StyleIndexCache", () => {
     expect(bAgain.has("b")).toBe(true);
   });
 
-  // ── Wave 2B item #12: classnameTransform integration ──
+  // ── classnameTransform integration ──
 
   it("setMode('camelCase') clears the cache and next get() returns expanded map", () => {
     const cache = new StyleIndexCache({ max: 10 });
@@ -483,9 +483,10 @@ describe("findBemSuffixSpan", () => {
   });
 
   it("rejects immediate-compound prefix `.a&--x` / `#id&--x` / `[data-x]&--x` / `tag&--x`", () => {
-    // Without the step 3 "nothing before the &" check, the resolved
-    // selector would be `.a.parent--x` which extractClassNames turns
-    // into TWO classes, violating the §2.4 single-class invariant.
+    // Without the step 3 "nothing before the &" check, the
+    // resolved selector would be `.a.parent--x` which
+    // extractClassNames turns into TWO classes — violating the
+    // single-class invariant the BEM suffix rename depends on.
     expect(findBemSuffixSpan(mockRule(".a&--x"), 0, ".a&--x")).toBeNull();
     expect(findBemSuffixSpan(mockRule("#id&--x"), 0, "#id&--x")).toBeNull();
     expect(findBemSuffixSpan(mockRule("[data-x]&--x"), 0, "[data-x]&--x")).toBeNull();

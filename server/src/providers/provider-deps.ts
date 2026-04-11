@@ -81,8 +81,8 @@ export interface ProviderDeps {
    * is observed on the next request.
    *
    * Only consumed by `ProviderDeps`, so the shared-closure pattern
-   * used for `aliasResolver` (§3.5 of plan-wave2b.md) isn't needed
-   * here — a plain field write is enough.
+   * used for `aliasResolver` below isn't needed here — a plain
+   * field write is enough.
    */
   settings: Settings;
   /**

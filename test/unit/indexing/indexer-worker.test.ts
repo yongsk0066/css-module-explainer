@@ -133,17 +133,15 @@ describe("IndexerWorker", () => {
 });
 
 // ──────────────────────────────────────────────────────────────
-// Wave 1 Stage 3.2 — IndexerWorker.pushFile dead post-startup
-// (red regression tests)
-//
-// All four tests encode the Bug 3.2 behavior documented in
-// §plan Stage 3. Each has been manually verified RED against
-// pre-fix code. Stage 3 un-skips them alongside the PushSignal
-// refactor in `indexer-worker.ts`.
+// IndexerWorker.pushFile lifecycle — ensures pushed tasks keep
+// processing after the initial supplier drains. Each test
+// encodes a lifecycle stage (post-exhaustion, concurrent push,
+// ready barrier, repeat-push) that must remain green as the
+// PushSignal wiring evolves.
 // ──────────────────────────────────────────────────────────────
 
-describe("Wave 1 Stage 3.2 — pushFile lifecycle (red regression)", () => {
-  it("pushFile after supplier exhaustion processes the task (wave1-stage3.2)", async () => {
+describe("IndexerWorker pushFile lifecycle", () => {
+  it("pushFile after supplier exhaustion processes the task", async () => {
     const onScssFile = vi.fn();
     const worker = new IndexerWorker({
       supplier: () => tasks([]),
@@ -163,7 +161,7 @@ describe("Wave 1 Stage 3.2 — pushFile lifecycle (red regression)", () => {
     await startPromise;
   });
 
-  it("consecutive pushFile calls all get processed (wave1-stage3.2)", async () => {
+  it("consecutive pushFile calls all get processed", async () => {
     const processed: string[] = [];
     const worker = new IndexerWorker({
       supplier: () => tasks([]),
@@ -193,7 +191,7 @@ describe("Wave 1 Stage 3.2 — pushFile lifecycle (red regression)", () => {
     await startPromise;
   });
 
-  it("stop() during pushSignal wait exits cleanly (wave1-stage3.2)", async () => {
+  it("stop() during pushSignal wait exits cleanly", async () => {
     const worker = new IndexerWorker({
       supplier: () => tasks([]),
       readFile: async () => "",
@@ -213,7 +211,7 @@ describe("Wave 1 Stage 3.2 — pushFile lifecycle (red regression)", () => {
     ).resolves.toBe("ok");
   });
 
-  it("ready promise resolves AT supplier exhaustion (wave1-stage3.2)", async () => {
+  it("ready promise resolves AT supplier exhaustion", async () => {
     let processedCount = 0;
     let readyResolvedAtCount = -1;
     const worker = new IndexerWorker({

@@ -83,10 +83,11 @@ function toCamelCase(name: string): string {
  * — zero cost, and downstream memoized structures stay valid).
  * For the other four modes it walks the base map and, for each
  * entry whose transform produces a name different from the
- * original, adds an alias entry with `originalName` set. Wave 2A's
- * `bemSuffix`, `isNested`, `range`, and `ruleRange` are copied
- * via `...info` spread — reference-identical to the original so
- * rename's suffix-math operates on the ORIGINAL source token.
+ * original, adds an alias entry with `originalName` set. The
+ * `bemSuffix`, `isNested`, `range`, and `ruleRange` fields are
+ * copied via `...info` spread — reference-identical to the
+ * original so the rename provider's suffix-math operates on the
+ * ORIGINAL source token.
  */
 export function expandClassMapWithTransform(
   base: ScssClassMap,

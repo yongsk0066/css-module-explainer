@@ -35,9 +35,9 @@ export const computeDiagnostics = wrapHandler<
   "diagnostics",
   (params, deps, severity: DiagnosticSeverity = DiagnosticSeverity.Warning) => {
     // Fast path 1: file has no style import of any kind → nothing
-    // to diagnose. Widened from the v1.5.1 `classnames/bind`-only
-    // check because Wave 2B's missing-module loop must fire for
-    // pure `styles.x` users too.
+    // to diagnose. The `.module.` check keeps files that only use
+    // `styles.x` (no `classnames/bind` helpers) in scope so they
+    // still receive the missing-module diagnostic below.
     if (!params.content.includes(".module.") && !params.content.includes("classnames/bind")) {
       return [];
     }
@@ -51,10 +51,10 @@ export const computeDiagnostics = wrapHandler<
 
     const diagnostics: Diagnostic[] = [];
 
-    // Wave 2B item #11: missing-module diagnostics fire for any
-    // file with a style import, independent of whether the file
-    // uses cx() helpers. Emits one diagnostic per unresolved
-    // specifier, underlining the string literal only.
+    // Missing-module diagnostics fire for any file with a style
+    // import, independent of whether the file uses cx() helpers.
+    // Emits one diagnostic per unresolved specifier, underlining
+    // the string literal only.
     if (deps.settings.diagnostics.missingModule) {
       for (const imp of entry.stylesBindings.values()) {
         if (imp.kind !== "missing") continue;

@@ -301,7 +301,7 @@ describe("computeDiagnostics", () => {
   });
 });
 
-// ── Wave 2B item #11 — missing-module diagnostics ───────────────
+// ── missing-module diagnostics ───────────────────────────────
 
 describe("missing-module diagnostics", () => {
   const MISSING_TSX = `import styles from './typo.module.scss';\nconst a = styles.foo;\n`;

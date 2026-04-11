@@ -121,7 +121,7 @@ describe("rename protocol", () => {
     expect(prep).toBeNull();
   });
 
-  // Wave 2A — end-to-end BEM suffix rename across SCSS + TSX.
+  // End-to-end BEM suffix rename across SCSS + TSX.
   it("rename &-nested BEM suffix rewrites only the suffix in SCSS and the full class in TSX", async () => {
     const BEM_SCSS = `.button {
   padding: 8px;

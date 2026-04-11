@@ -304,16 +304,14 @@ describe("handleRename from TS/TSX", () => {
 });
 
 // ──────────────────────────────────────────────────────────────
-// Wave 1 Stage 1 — RED regression tests
-//
-// These tests encode the five critical bugs Stage 3 will fix.
-// They are skipped on Stage 1 commit so the suite stays green,
-// but each has been manually verified RED against pre-fix code
-// (un-skip, run, confirm failure, re-skip) before landing.
-// Stage 3 un-skips them in the same commit as each fix.
+// Rename must not corrupt template/variable reverse-index sites.
+// When a rename rewrites a class whose reverse index also contains
+// "expanded" template/variable entries at the same range, those
+// synthesized entries must be skipped — rewriting them would
+// destroy the dynamic expression source.
 // ──────────────────────────────────────────────────────────────
 
-describe("Wave 1 Stage 3.1 — rename template corruption (regression)", () => {
+describe("rename template corruption guard", () => {
   // Shared fixture: `cx(`btn-${weight}`)` at range R in App.tsx, where
   // `btn-` resolves against SCSS class map containing `btn-small` and
   // `btn-large`. The reverse index holds:
@@ -351,7 +349,7 @@ describe("Wave 1 Stage 3.1 — rename template corruption (regression)", () => {
     });
   }
 
-  it("rename template-literal class does NOT rewrite the template range (wave1-stage3.1)", () => {
+  it("rename template-literal class does NOT rewrite the template range", () => {
     const idx = buildTemplateReverseIndex();
     const result = handleRename(
       {
@@ -374,7 +372,7 @@ describe("Wave 1 Stage 3.1 — rename template corruption (regression)", () => {
     expect(changes[TEMPLATE_URI]).toBeUndefined();
   });
 
-  it("SCSS-side prepareRename rejects class with template/variable references (wave1-stage3.1)", () => {
+  it("SCSS-side prepareRename rejects class with template/variable references", () => {
     const idx = buildTemplateReverseIndex();
     const result = handlePrepareRename(
       {
@@ -436,9 +434,10 @@ describe("prepareRename through real parseStyleModule (regression)", () => {
     expect(flat).not.toBeNull();
     expect(flat).toHaveProperty("placeholder", "button");
 
-    // Cursor on the nested `&--primary` — now ACCEPTED in Wave 2A.
-    // Placeholder is the resolved class name `"button--primary"`;
-    // range covers the `&--primary` slice (10 chars) on its line.
+    // Cursor on the nested `&--primary` — accepted via BEM suffix
+    // rename. Placeholder is the resolved class name
+    // `"button--primary"`; range covers the `&--primary` slice
+    // (10 chars) on its line.
     const nestedInfo = classMap.get("button--primary")!;
     const rawRange = nestedInfo.bemSuffix!.rawTokenRange;
     const nested = handlePrepareRename(
@@ -773,7 +772,7 @@ describe("&-nested BEM suffix rename", () => {
     expect(result).toBeNull();
   });
 
-  it("Wave 1 Bug 3.1 regression: nested `&--primary` + template `cx(\\`button--${x}\\`)` still rejects via expanded-sites", async () => {
+  it("regression: nested `&--primary` + template `cx(\\`button--${x}\\`)` still rejects via expanded-sites", async () => {
     const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
     const classMap = parseStyleModule(
       `.button {\n  &--primary {}\n}`,
@@ -816,7 +815,7 @@ describe("&-nested BEM suffix rename", () => {
 });
 
 // ──────────────────────────────────────────────────────────────
-// Wave 2B — classnameTransform alias-aware rename
+// classnameTransform — alias-aware rename
 // ──────────────────────────────────────────────────────────────
 
 /**
@@ -856,7 +855,7 @@ function withTransformMode(mode: Settings["scss"]["classnameTransform"]): Settin
   };
 }
 
-describe("Wave 2B — classnameTransform alias-aware rename", () => {
+describe("classnameTransform alias-aware rename", () => {
   it("camelCase: alias cursor rewrites SCSS via original entry's range", async () => {
     const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
     const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);
@@ -1136,7 +1135,7 @@ describe("Wave 2B — classnameTransform alias-aware rename", () => {
     expect(hit!.originalName).toBeUndefined();
   });
 
-  it("Bug 3.1 alias regression: expanded site on original key rejects rename via alias cursor", async () => {
+  it("regression: expanded site on original key rejects rename via alias cursor", async () => {
     const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
     const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);
     const classMap = aliasFirstCamelCaseMap(base);

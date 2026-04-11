@@ -26,8 +26,10 @@ export interface Settings {
    * prefixes (e.g. `"@styles"`), values are workspace-relative
    * or absolute target paths. Defaults to `{}`.
    *
-   * Native `cssModuleExplainer.pathAlias` key is deferred to a
-   * later wave. See `.personal_docs/research/2026-04-11-wave2b-path-resolution.md`.
+   * A native `cssModuleExplainer.pathAlias` key is intentionally
+   * not exposed yet — the compat read covers the zero-config
+   * migration path until real user feedback justifies a separate
+   * key.
    */
   readonly pathAlias: Readonly<Record<string, string>>;
 }

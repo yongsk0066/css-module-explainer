@@ -132,9 +132,10 @@ describe("expandClassMapWithTransform", () => {
     const out = expandClassMapWithTransform(base, "camelCase");
     const btnA = out.get("btn--a");
     const btnAAlias = out.get("btnA");
-    // Base parser marks the grouped-nested children with bemSuffix
-    // undefined (Wave 2A invariant). Expansion copies that undefined
-    // state via ...info spread — alias also has no bemSuffix.
+    // Base parser marks the grouped-nested children with
+    // bemSuffix undefined because the group rejects BEM-safe
+    // rename. Expansion copies that undefined state via ...info
+    // spread — alias also has no bemSuffix.
     expect(btnA?.bemSuffix).toBeUndefined();
     expect(btnAAlias?.bemSuffix).toBeUndefined();
   });

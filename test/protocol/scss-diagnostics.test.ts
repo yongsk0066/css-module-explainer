@@ -71,16 +71,16 @@ describe("SCSS unused selector diagnostics protocol", () => {
   });
 
   // ──────────────────────────────────────────────────────────
-  // Wave 1 Stage 3.3 — SCSS buffer-first read (red regression)
+  // SCSS buffer-first read for unused diagnostics.
   //
-  // Bug: unused-selector diagnostics read SCSS source from disk
-  // even when the file is open in an unsaved buffer. Classes
-  // added to the buffer but not yet saved are reported as
-  // unused. Fix: `classMapForPath` reads from the analysis
-  // buffer first, falling back to disk.
+  // Without this, unused-selector diagnostics read SCSS source
+  // from disk even when the file is open in an unsaved buffer.
+  // Classes added to the buffer but not yet saved would be
+  // reported as unused. `classMapForPath` reads from the
+  // analysis buffer first, falling back to disk.
   // ──────────────────────────────────────────────────────────
 
-  it("unused diagnostics use buffered SCSS content, NOT disk content (wave1-stage3.3)", async () => {
+  it("unused diagnostics use buffered SCSS content, NOT disk content", async () => {
     // Disk content has only `.a`. Buffer content has `.a` and
     // `.b`. TSX references `styles.b`. Pre-fix (disk read):
     // classMapForPath returns `{a}` → TSX validation emits

@@ -113,13 +113,14 @@ function resolveRenameTarget(
   const selectorInfo = findSelectorAtCursor(classMap, line, character);
   if (!selectorInfo) return null;
 
-  // Alias unwrap: Wave 2B's classnameTransform may expose an alias
-  // entry at the cursor (e.g. `styles.btnPrimary` when the SCSS
-  // has `.btn-primary`). The gate evaluates against the ORIGINAL
-  // entry because its `bemSuffix` / `isNested` are the authoritative
-  // source — the alias copies them via `...info` spread, so either
-  // works in practice, but routing through originalName makes the
-  // intent explicit and survives future schema changes.
+  // Alias unwrap: `classnameTransform` may expose an alias entry
+  // at the cursor (e.g. `styles.btnPrimary` when the SCSS has
+  // `.btn-primary`). The BEM-safe gate evaluates against the
+  // ORIGINAL entry because its `bemSuffix` / `isNested` are the
+  // authoritative source — the alias copies them via `...info`
+  // spread, so either works in practice, but routing through
+  // `originalName` makes the intent explicit and survives future
+  // schema changes.
   const gateTarget = selectorInfo.originalName
     ? (classMap.get(selectorInfo.originalName) ?? selectorInfo)
     : selectorInfo;
@@ -190,11 +191,10 @@ function prepareRenameFromScss(
   // not re-check: if a client forces the call anyway,
   // `buildRenameEdit` still filters expanded sites per-edit.
   //
-  // classnameTransform extension: the reject must fire against
-  // the UNION of alias name + original name. A `cx(`btn-${x}`)`
-  // template produces an expanded entry for the original
-  // `btn-primary` key; the alias `btnPrimary` has no entry of
-  // its own, so checking only the alias would miss it.
+  // The reject walks BOTH the alias key and the original key. A
+  // `cx(`btn-${x}`)` template produces an expanded entry for the
+  // original `btn-primary` key; the alias `btnPrimary` has no
+  // entry of its own, so checking only the alias would miss it.
   const keysToCheck: readonly string[] = selectorInfo.originalName
     ? [selectorInfo.name, selectorInfo.originalName]
     : [selectorInfo.name];
@@ -271,7 +271,7 @@ function buildRenameEdit(
   };
   // Reference edits union over [primaryName, aliasName]. When the
   // cursor is on a flat/non-alias entry, aliasName is null and the
-  // call collapses to the Wave 2A single-key behavior.
+  // call collapses to a single-key lookup.
   const aliasName =
     selectorInfo.originalName && selectorInfo.name !== scssBase.name ? selectorInfo.name : null;
   collectReferenceEdits(deps, scssPath, scssBase.name, aliasName, newName, changes);
@@ -286,12 +286,12 @@ function buildRenameEdit(
  * source. Find References still surfaces expanded sites; only
  * rename filters.
  *
- * classnameTransform extension: when `aliasName` is non-null, the
- * union over [primaryName, aliasName] is walked and the `seen`
- * Set dedups any site that shows up under both lookups. In the
- * common case where the same TS file uses both `styles.btnPrimary`
- * (alias key) and `cx('btn-primary')` (original key), each site
- * rewrites exactly once with the caller-supplied `newName`.
+ * When `aliasName` is non-null, the union over [primaryName,
+ * aliasName] is walked and the `seen` Set dedups any site that
+ * shows up under both lookups. In the common case where a TS
+ * file uses both `styles.btnPrimary` (alias key) and
+ * `cx('btn-primary')` (original key), each site rewrites exactly
+ * once with the caller-supplied `newName`.
  */
 function collectReferenceEdits(
   deps: ProviderDeps,

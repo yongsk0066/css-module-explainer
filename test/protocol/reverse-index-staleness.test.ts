@@ -4,9 +4,9 @@ import { createInProcessServer, type LspTestClient } from "./_harness/in-process
 import { FakeTypeResolver } from "../_fixtures/fake-type-resolver";
 
 // ──────────────────────────────────────────────────────────────
-// Wave 1 Stage 3.5 — reverse-index TSX staleness regression
+// Reverse-index TSX staleness on watched-file change.
 //
-// Bug: when a class is ADDED to a .module.scss file, cached TSX
+// When a class is added to a `.module.scss` file, cached TSX
 // analysis entries still carry the pre-change classRefs
 // expansions. `analysisCache.get(uri, content, filePath, version)`
 // keys on the TSX buffer's version — if the user hasn't typed,
@@ -15,7 +15,7 @@ import { FakeTypeResolver } from "../_fixtures/fake-type-resolver";
 // template/variable "expanded" sites stay frozen against the
 // previous classMap.
 //
-// Fix: `onDidChangeWatchedFiles` walks
+// `onDidChangeWatchedFiles` walks
 // `reverseIndex.findAllForScssPath(filePath)` and calls
 // `analysisCache.invalidate(uri)` for every TSX URI that had a
 // site pointing at the changed SCSS file. The next debounced
@@ -32,7 +32,7 @@ export function App() {
 }
 `;
 
-describe("Wave 1 Stage 3.5 — reverse-index staleness (regression)", () => {
+describe("reverse-index staleness on watched SCSS change", () => {
   let client: LspTestClient | null = null;
 
   afterEach(() => {

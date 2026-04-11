@@ -62,12 +62,12 @@ describe("handleReferences", () => {
   });
 
   // ──────────────────────────────────────────────────────────────
-  // Wave 1 Stage 3.1 regression guard — find-references keeps
-  // expanded template/variable sites. Rename filters them; Find
-  // Refs does not. This test prevents future "simplification"
-  // from dropping expanded entries at collectCallSites.
+  // Find-references keeps expanded template/variable sites. The
+  // rename provider filters them; Find Refs does not. This test
+  // prevents future "simplification" from dropping expanded
+  // entries at `collectCallSites`.
   // ──────────────────────────────────────────────────────────────
-  it("find-references STILL surfaces template-expanded sites (wave1-stage3.1)", () => {
+  it("find-references STILL surfaces template-expanded sites", () => {
     const SCSS_PATH = "/fake/src/Button.module.scss";
     const SCSS_URI = "file:///fake/src/Button.module.scss";
     const TEMPLATE_URI = "file:///fake/src/App.tsx";
