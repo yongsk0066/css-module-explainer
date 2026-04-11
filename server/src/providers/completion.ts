@@ -1,13 +1,14 @@
 import { CompletionItemKind, type CompletionItem } from "vscode-languageserver/node";
 import type { SelectorInfo } from "@css-module-explainer/shared";
 import type { AnalysisEntry } from "../core/indexing/document-analysis-cache";
-import { hasAnyStyleImport, type CursorParams, type ProviderDeps } from "./cursor-dispatch";
+import { hasAnyStyleImport } from "./cursor-dispatch";
+import type { CursorParams, ProviderDeps } from "./provider-deps";
 import { wrapHandler } from "./_wrap-handler";
 
 /**
  * Handle `textDocument/completion` inside a class-util call.
  *
- * Pipeline (unified, Wave 1 Stage 2c):
+ * Pipeline:
  * 1. Fast-path on `hasAnyStyleImport` — file imports something
  *    we care about (`.module.*` or `classnames/bind`).
  * 2. Fetch the single AnalysisEntry. Bail if it has neither
@@ -16,11 +17,6 @@ import { wrapHandler } from "./_wrap-handler";
  *    classMap should feed completions at the cursor. It walks
  *    cx bindings first, then class-util imports.
  * 4. Convert every class in that classMap to a CompletionItem.
- *
- * Before Stage 2c this ran as two sequential pipelines (cx + clsx)
- * with duplicated `textBefore` scanning. The two paths now share
- * one branching helper — the only difference is which call the
- * cursor must sit inside.
  */
 export const handleCompletion = wrapHandler<CursorParams, [], CompletionItem[] | null>(
   "completion",

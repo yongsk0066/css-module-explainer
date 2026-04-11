@@ -52,10 +52,10 @@ export interface SelectorInfo {
   readonly composes?: readonly ComposesRef[];
   /**
    * True if this selector was produced from a SCSS `&`-nested rule
-   * whose raw source contained `&`. Wave 1 uses this purely as a
-   * defensive-reject signal in rename (range is synthesized and
-   * unsafe to rewrite). Wave 2 ampersand support will expand the
-   * nested-selector data model with `rawToken` / `parentResolvedName`.
+   * whose raw source contained `&`. Used as a defensive-reject
+   * signal in rename because `range` is synthesized from the
+   * resolved class name and is unsafe to rewrite. A future
+   * structured raw-token range will lift this restriction.
    */
   readonly isNested?: boolean;
 }
@@ -97,14 +97,14 @@ export interface CxBinding {
 }
 
 // ──────────────────────────────────────────────────────────────
-// ClassRef — unified class-reference model (Wave 1)
+// ClassRef — unified class-reference model
 // ──────────────────────────────────────────────────────────────
 
 /**
  * Which source syntax produced a class reference.
- * Deliberately a string literal union (no payload) — Wave 4 can
- * widen to a discriminated union without changing consumers that
- * only read the discriminator.
+ * Deliberately a string literal union (no payload); this can be
+ * widened to a discriminated union later without breaking
+ * consumers that only read the discriminator.
  */
 export type ClassRefOrigin = "cxCall" | "styleAccess";
 

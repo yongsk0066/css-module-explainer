@@ -9,7 +9,7 @@ import { handleHover } from "./providers/hover";
 import { handleCodeLens } from "./providers/reference-lens";
 import { handleReferences } from "./providers/references";
 import { handlePrepareRename, handleRename } from "./providers/rename";
-import type { CursorParams, ProviderDeps } from "./providers/cursor-dispatch";
+import type { CursorParams, ProviderDeps } from "./providers/provider-deps";
 import { fileUrlToPath } from "./core/util/text-utils";
 import { findLangForPath } from "./core/scss/lang-registry";
 import { fetchSettings, DEFAULT_SETTINGS, type Settings } from "./settings";
@@ -150,8 +150,8 @@ export function registerHandlers(ctx: HandlerContext): HandlerCleanup {
       if (change.type !== FileChangeType.Deleted) {
         deps.pushStyleFile(filePath);
       }
-      // Bug 3.5 — invalidate cached TSX analysis entries whose reverse
-      // index expansions depended on this SCSS file. Without this, the
+      // Invalidate cached TSX analysis entries whose reverse-index
+      // expansions depended on this SCSS file. Without this, the
       // debounced scheduleTsx hits `analysisCache.get`, finds the
       // version unchanged, and reuses the stale AnalysisEntry — so
       // `onAnalyze` never re-fires, and expanded template/variable

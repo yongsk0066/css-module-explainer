@@ -9,7 +9,7 @@ import type {
 } from "@css-module-explainer/shared";
 
 /**
- * Unified ClassRef producer (Wave 1).
+ * Unified ClassRef producer.
  *
  * Single AST walk that emits `ClassRef[]` covering both cx() call
  * arguments and direct `styles.x` property access. Each cx() call
@@ -68,35 +68,14 @@ function extractFromArgument(
   sourceFile: ts.SourceFile,
   out: ClassRef[],
 ): void {
-  // 1. String literal or no-substitution template → static
   if (ts.isStringLiteral(arg) || ts.isNoSubstitutionTemplateLiteral(arg)) {
-    out.push(makeStaticCxRef(arg.text, innerStringRange(arg, sourceFile), binding.scssModulePath));
+    extractStaticLiteral(arg, binding, sourceFile, out);
     return;
   }
-
-  // 2. Object literal → each property name as a static class
   if (ts.isObjectLiteralExpression(arg)) {
-    for (const prop of arg.properties) {
-      if (!ts.isPropertyAssignment(prop) && !ts.isShorthandPropertyAssignment(prop)) {
-        continue;
-      }
-      const name = prop.name;
-      if (!name) continue;
-      if (ts.isIdentifier(name)) {
-        out.push(makeStaticCxRef(name.text, rangeOfNode(name, sourceFile), binding.scssModulePath));
-      } else if (ts.isStringLiteral(name)) {
-        out.push(
-          makeStaticCxRef(name.text, innerStringRange(name, sourceFile), binding.scssModulePath),
-        );
-      }
-      // Intentional: computed-property keys and numeric literal
-      // keys cannot be resolved statically and are skipped
-      // without warning.
-    }
+    extractObjectLiteral(arg, binding, sourceFile, out);
     return;
   }
-
-  // 3. Logical && → recurse on the right branch only.
   if (
     ts.isBinaryExpression(arg) &&
     arg.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken
@@ -104,61 +83,89 @@ function extractFromArgument(
     extractFromArgument(arg.right, binding, sourceFile, out);
     return;
   }
-
-  // 4. Ternary → recurse on both branches.
   if (ts.isConditionalExpression(arg)) {
     extractFromArgument(arg.whenTrue, binding, sourceFile, out);
     extractFromArgument(arg.whenFalse, binding, sourceFile, out);
     return;
   }
-
-  // 5. Template literal with substitutions → one template ref.
   if (ts.isTemplateExpression(arg)) {
     out.push(makeTemplateCxRef(arg, sourceFile, binding.scssModulePath));
     return;
   }
-
-  // 6a. Property access → variable ref with full expression text.
-  if (ts.isPropertyAccessExpression(arg)) {
-    const ref: VariableClassRef = {
-      kind: "variable",
-      origin: "cxCall",
-      variableName: arg.getText(sourceFile),
-      originRange: rangeOfNode(arg, sourceFile),
-      scssModulePath: binding.scssModulePath,
-    };
-    out.push(ref);
+  if (ts.isPropertyAccessExpression(arg) || ts.isIdentifier(arg)) {
+    out.push(makeVariableCxRef(arg, binding, sourceFile));
     return;
   }
-
-  // 6b. Bare identifier → variable ref.
-  if (ts.isIdentifier(arg)) {
-    const ref: VariableClassRef = {
-      kind: "variable",
-      origin: "cxCall",
-      variableName: arg.text,
-      originRange: rangeOfNode(arg, sourceFile),
-      scssModulePath: binding.scssModulePath,
-    };
-    out.push(ref);
-    return;
-  }
-
-  // 7. Array literal → recurse on each element.
   if (ts.isArrayLiteralExpression(arg)) {
     for (const el of arg.elements) {
       extractFromArgument(el, binding, sourceFile, out);
     }
     return;
   }
-
-  // 8. Spread element → if inner is array literal, recurse.
   if (ts.isSpreadElement(arg) && ts.isArrayLiteralExpression(arg.expression)) {
     for (const el of arg.expression.elements) {
       extractFromArgument(el, binding, sourceFile, out);
     }
     return;
   }
+}
+
+/** String literal or no-substitution template → single static ref. */
+function extractStaticLiteral(
+  arg: ts.StringLiteral | ts.NoSubstitutionTemplateLiteral,
+  binding: CxBinding,
+  sourceFile: ts.SourceFile,
+  out: ClassRef[],
+): void {
+  out.push(makeStaticCxRef(arg.text, innerStringRange(arg, sourceFile), binding.scssModulePath));
+}
+
+/**
+ * Object literal `cx({ foo: cond, 'bar-baz': other })` → one static
+ * ref per property name. Computed-property keys and numeric literal
+ * keys cannot be resolved statically and are skipped silently.
+ */
+function extractObjectLiteral(
+  arg: ts.ObjectLiteralExpression,
+  binding: CxBinding,
+  sourceFile: ts.SourceFile,
+  out: ClassRef[],
+): void {
+  for (const prop of arg.properties) {
+    if (!ts.isPropertyAssignment(prop) && !ts.isShorthandPropertyAssignment(prop)) {
+      continue;
+    }
+    const name = prop.name;
+    if (!name) continue;
+    if (ts.isIdentifier(name)) {
+      out.push(makeStaticCxRef(name.text, rangeOfNode(name, sourceFile), binding.scssModulePath));
+    } else if (ts.isStringLiteral(name)) {
+      out.push(
+        makeStaticCxRef(name.text, innerStringRange(name, sourceFile), binding.scssModulePath),
+      );
+    }
+  }
+}
+
+/**
+ * Property access (`cx(sizes.large)`) or bare identifier
+ * (`cx(size)`) → one variable ref. Property access keeps the full
+ * expression text as its `variableName` so the type resolver can
+ * match it.
+ */
+function makeVariableCxRef(
+  arg: ts.PropertyAccessExpression | ts.Identifier,
+  binding: CxBinding,
+  sourceFile: ts.SourceFile,
+): VariableClassRef {
+  const variableName = ts.isIdentifier(arg) ? arg.text : arg.getText(sourceFile);
+  return {
+    kind: "variable",
+    origin: "cxCall",
+    variableName,
+    originRange: rangeOfNode(arg, sourceFile),
+    scssModulePath: binding.scssModulePath,
+  };
 }
 
 // ── styles.className walker ───────────────────────────────────

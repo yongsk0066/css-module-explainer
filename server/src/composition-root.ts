@@ -30,7 +30,7 @@ import { IndexerWorker } from "./core/indexing/indexer-worker";
 import { collectCallSites, WorkspaceReverseIndex } from "./core/indexing/reverse-index";
 import { fileUrlToPath, pathToFileUrl } from "./core/util/text-utils";
 import { COMPLETION_TRIGGER_CHARACTERS } from "./providers/completion";
-import type { ProviderDeps } from "./providers/cursor-dispatch";
+import type { ProviderDeps } from "./providers/provider-deps";
 import { registerHandlers } from "./handler-registration";
 import type { FileTask } from "./core/indexing/indexer-worker";
 
@@ -179,23 +179,74 @@ function buildBundle(
   connection: Connection,
   documents: TextDocuments<TextDocument>,
 ): ProviderDeps {
-  const sourceFileCache = new SourceFileCache({ max: 200 });
-  const styleIndexCache = new StyleIndexCache({ max: 500 });
-  const reverseIndex = new WorkspaceReverseIndex();
+  const caches = buildCaches();
+  const typeResolver = buildTypeResolver(options);
+  const readStyleFile = options.readStyleFile ?? defaultReadStyleFile;
+  const classMapForPath = buildClassMapForPath(caches.styleIndexCache, documents, readStyleFile);
+  const analysisCache = buildAnalysisCache({
+    caches,
+    classMapForPath,
+    workspaceRoot,
+    typeResolver,
+  });
+  const indexerWorker = buildIndexerWorker(
+    options,
+    caches.styleIndexCache,
+    workspaceRoot,
+    connection,
+  );
 
-  const typeResolver: TypeResolver =
+  return {
+    analysisCache,
+    scssClassMapForPath: classMapForPath,
+    typeResolver,
+    reverseIndex: caches.reverseIndex,
+    workspaceRoot,
+    logError: (message, err) => {
+      const detail = err instanceof Error ? `${err.message}\n${err.stack ?? ""}` : String(err);
+      connection.console.error(`[${SERVER_NAME}] ${message}: ${detail}`);
+    },
+    invalidateStyle: (path) => caches.styleIndexCache.invalidate(path),
+    pushStyleFile: (path) => indexerWorker.pushFile({ path }),
+    indexerReady: indexerWorker.ready,
+    stopIndexer: () => indexerWorker.stop(),
+  };
+}
+
+interface BundleCaches {
+  readonly sourceFileCache: SourceFileCache;
+  readonly styleIndexCache: StyleIndexCache;
+  readonly reverseIndex: WorkspaceReverseIndex;
+}
+
+function buildCaches(): BundleCaches {
+  return {
+    sourceFileCache: new SourceFileCache({ max: 200 }),
+    styleIndexCache: new StyleIndexCache({ max: 500 }),
+    reverseIndex: new WorkspaceReverseIndex(),
+  };
+}
+
+function buildTypeResolver(options: CreateServerOptions): TypeResolver {
+  return (
     options.typeResolver ??
     new WorkspaceTypeResolver({
       createProgram: options.createProgram ?? createDefaultProgram,
-    });
+    })
+  );
+}
 
-  const readStyleFile = options.readStyleFile ?? defaultReadStyleFile;
+function buildClassMapForPath(
+  styleIndexCache: StyleIndexCache,
+  documents: TextDocuments<TextDocument>,
+  readStyleFile: (path: string) => string | null,
+): (path: string) => ScssClassMap | null {
   const readOpenStyleDocument = (path: string): string | null => {
     const uri = pathToFileUrl(path);
     const doc = documents.get(uri);
     return doc?.getText() ?? null;
   };
-  const classMapForPath = (path: string): ScssClassMap | null => {
+  return (path: string): ScssClassMap | null => {
     if (!findLangForPath(path)) return null;
     const buffered = readOpenStyleDocument(path);
     if (buffered !== null) return styleIndexCache.get(path, buffered);
@@ -203,16 +254,26 @@ function buildBundle(
     if (content === null) return null;
     return styleIndexCache.get(path, content);
   };
+}
 
-  const analysisCache = new DocumentAnalysisCache({
-    sourceFileCache,
+interface AnalysisCacheArgs {
+  readonly caches: BundleCaches;
+  readonly classMapForPath: (path: string) => ScssClassMap | null;
+  readonly workspaceRoot: string;
+  readonly typeResolver: TypeResolver;
+}
+
+function buildAnalysisCache(args: AnalysisCacheArgs): DocumentAnalysisCache {
+  const { caches, classMapForPath, workspaceRoot, typeResolver } = args;
+  return new DocumentAnalysisCache({
+    sourceFileCache: caches.sourceFileCache,
     collectStyleImports,
     detectCxBindings,
     parseClassRefs,
     detectClassUtilImports,
     max: 200,
     onAnalyze: (uri, entry) => {
-      reverseIndex.record(
+      caches.reverseIndex.record(
         uri,
         collectCallSites(uri, entry, {
           classMapForPath,
@@ -223,15 +284,21 @@ function buildBundle(
       );
     },
   });
+}
 
+function buildIndexerWorker(
+  options: CreateServerOptions,
+  styleIndexCache: StyleIndexCache,
+  workspaceRoot: string,
+  connection: Connection,
+): IndexerWorker {
   const indexerLogger = {
     info: (msg: string) => connection.console.info(`[${SERVER_NAME}:indexer] ${msg}`),
     error: (msg: string) => connection.console.error(`[${SERVER_NAME}:indexer] ${msg}`),
   };
-
   const supplier = options.fileSupplier ?? (() => scssFileSupplier(workspaceRoot, indexerLogger));
   const asyncReadFile = options.readStyleFileAsync ?? defaultReadStyleFileAsync;
-  const indexerWorker = new IndexerWorker({
+  const worker = new IndexerWorker({
     supplier,
     readFile: asyncReadFile,
     onScssFile: (path, content) => {
@@ -239,32 +306,14 @@ function buildBundle(
     },
     logger: indexerLogger,
   });
-
-  indexerWorker.start().catch((err: unknown) => {
+  worker.start().catch((err: unknown) => {
     connection.console.error(
       `[${SERVER_NAME}] indexer worker crashed: ${
         err instanceof Error ? err.message : String(err)
       }`,
     );
   });
-
-  const deps: ProviderDeps = {
-    analysisCache,
-    scssClassMapForPath: classMapForPath,
-    typeResolver,
-    reverseIndex,
-    workspaceRoot,
-    logError: (message, err) => {
-      const detail = err instanceof Error ? `${err.message}\n${err.stack ?? ""}` : String(err);
-      connection.console.error(`[${SERVER_NAME}] ${message}: ${detail}`);
-    },
-    invalidateStyle: (path) => styleIndexCache.invalidate(path),
-    pushStyleFile: (path) => indexerWorker.pushFile({ path }),
-    indexerReady: indexerWorker.ready,
-    stopIndexer: () => indexerWorker.stop(),
-  };
-
-  return deps;
+  return worker;
 }
 
 async function defaultReadStyleFileAsync(path: string): Promise<string | null> {

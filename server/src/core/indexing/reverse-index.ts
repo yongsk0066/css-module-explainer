@@ -156,79 +156,88 @@ export function collectCallSites(
 ): CallSite[] {
   const sites: CallSite[] = [];
   for (const ref of entry.classRefs) {
-    const base = { uri, range: ref.originRange, scssModulePath: ref.scssModulePath };
+    const base: CallSiteBase = { uri, range: ref.originRange, scssModulePath: ref.scssModulePath };
     switch (ref.kind) {
       case "static":
-        // Native static token: the user literally wrote this class name.
-        // Applies to both cxCall origin (`cx('btn')`) and styleAccess
-        // origin (`styles.btn`) — both are direct references.
+        // Native static token: the user literally wrote this class
+        // name. Applies to both cxCall (`cx('btn')`) and styleAccess
+        // (`styles.btn`) origins.
         sites.push({
           ...base,
           match: { kind: "static", className: ref.className },
           expansion: "direct",
         });
         break;
-      case "template": {
-        // The template ref itself is a direct site (the literal the user wrote).
+      case "template":
         sites.push({
           ...base,
           match: { kind: "template", staticPrefix: ref.staticPrefix },
           expansion: "direct",
         });
-        // If resolver context available, expand to individual static entries.
-        // These entries carry the template's origin range, not a literal
-        // token — they are synthesized from a class-map lookup, so they
-        // are flagged "expanded" and rename must filter them out (otherwise
-        // the whole template expression would be rewritten with the new
-        // class name, destroying the template literal source).
-        if (ctx) {
-          const classMap = ctx.classMapForPath(ref.scssModulePath);
-          if (classMap) {
-            for (const name of classMap.keys()) {
-              if (name.startsWith(ref.staticPrefix)) {
-                sites.push({
-                  ...base,
-                  match: { kind: "static", className: name },
-                  expansion: "expanded",
-                });
-              }
-            }
-          }
-        }
+        if (ctx) expandTemplateRef(ref, base, ctx, sites);
         break;
-      }
-      case "variable": {
-        // The variable ref itself is a direct site (the identifier the user wrote).
+      case "variable":
         sites.push({
           ...base,
           match: { kind: "variable", variableName: ref.variableName },
           expansion: "direct",
         });
-        // Union-type resolution synthesizes one static entry per union
-        // value. Like template expansion, each entry carries the
-        // variable's origin range and must be flagged "expanded".
-        if (ctx) {
-          const resolved = ctx.typeResolver.resolve(
-            ctx.filePath,
-            ref.variableName,
-            ctx.workspaceRoot,
-          );
-          if (resolved.kind === "union") {
-            for (const value of resolved.values) {
-              sites.push({
-                ...base,
-                match: { kind: "static", className: value },
-                expansion: "expanded",
-              });
-            }
-          }
-        }
+        if (ctx) expandVariableRef(ref, base, ctx, sites);
         break;
-      }
     }
   }
 
   return sites;
+}
+
+type CallSiteBase = Pick<CallSite, "uri" | "range" | "scssModulePath">;
+
+/**
+ * Push one synthesized static CallSite per class name whose
+ * identifier starts with the template's static prefix. The
+ * synthesized sites carry the template's origin range, not the
+ * literal class token, so rename filters them out.
+ */
+function expandTemplateRef(
+  ref: { readonly staticPrefix: string; readonly scssModulePath: string },
+  base: CallSiteBase,
+  ctx: CallSiteResolverContext,
+  out: CallSite[],
+): void {
+  const classMap = ctx.classMapForPath(ref.scssModulePath);
+  if (!classMap) return;
+  for (const name of classMap.keys()) {
+    if (name.startsWith(ref.staticPrefix)) {
+      out.push({
+        ...base,
+        match: { kind: "static", className: name },
+        expansion: "expanded",
+      });
+    }
+  }
+}
+
+/**
+ * Push one synthesized static CallSite per union member when the
+ * variable's type resolves to a string-literal union. Like template
+ * expansion, each synthesized entry carries the variable's origin
+ * range and is flagged `"expanded"`.
+ */
+function expandVariableRef(
+  ref: { readonly variableName: string },
+  base: CallSiteBase,
+  ctx: CallSiteResolverContext,
+  out: CallSite[],
+): void {
+  const resolved = ctx.typeResolver.resolve(ctx.filePath, ref.variableName, ctx.workspaceRoot);
+  if (resolved.kind !== "union") return;
+  for (const value of resolved.values) {
+    out.push({
+      ...base,
+      match: { kind: "static", className: value },
+      expansion: "expanded",
+    });
+  }
 }
 
 const BACK_KEY_SEP = "\u0000";

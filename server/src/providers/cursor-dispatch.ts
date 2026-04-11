@@ -1,83 +1,16 @@
 import type { ClassRef, Range as SharedRange, ScssClassMap } from "@css-module-explainer/shared";
-import type {
-  AnalysisEntry,
-  DocumentAnalysisCache,
-} from "../core/indexing/document-analysis-cache";
-import type { ReverseIndex } from "../core/indexing/reverse-index";
-import type { TypeResolver } from "../core/ts/type-resolver";
+import type { AnalysisEntry } from "../core/indexing/document-analysis-cache";
+import type { CursorParams, ProviderDeps } from "./provider-deps";
 
-/**
- * Identity + content of a single open document. Used by
- * document-wide computations (diagnostics) that do not care
- * about a cursor position.
- */
-export interface DocumentParams {
-  readonly documentUri: string;
-  readonly content: string;
-  readonly filePath: string;
-  readonly version: number;
-}
-
-/**
- * One request's cursor location, plus the document context the
- * provider needs to resolve it. Extends `DocumentParams` so
- * cursor providers can be passed to document-wide helpers
- * without an explicit narrowing step.
- */
-export interface CursorParams extends DocumentParams {
-  readonly line: number;
-  readonly character: number;
-}
-
-/**
- * The dependency bag every provider handler accepts.
- *
- * Composition root (server/src/server.ts) builds this once at
- * startup; provider unit tests build a stub via `makeDeps()` in
- * test helpers. Keeping this a plain interface with no methods
- * keeps provider tests trivial.
- */
-export interface ProviderDeps {
-  readonly analysisCache: DocumentAnalysisCache;
-  /**
-   * Look up the ScssClassMap for a style module file path.
-   */
-  readonly scssClassMapForPath: (path: string) => ScssClassMap | null;
-  readonly typeResolver: TypeResolver;
-  readonly reverseIndex: ReverseIndex;
-  readonly workspaceRoot: string;
-  /**
-   * Log a provider-level exception. Wired to
-   * `connection.console.error` in production; tests pass
-   * `NOOP_LOG_ERROR`. Required so the "log + return empty
-   * result" contract is explicit at every call site.
-   */
-  readonly logError: (message: string, err: unknown) => void;
-  /**
-   * Invalidate the cached style-index entry for a single file path.
-   * Used by the file-watcher when a `.module.*` file changes.
-   */
-  readonly invalidateStyle: (path: string) => void;
-  /**
-   * Queue a single style file for incremental re-indexing by the
-   * background indexer worker. Used by the file-watcher alongside
-   * `invalidateStyle`.
-   */
-  readonly pushStyleFile: (path: string) => void;
-  /**
-   * Resolves when the initial indexer walk completes. Diagnostics
-   * subscribers await this before running SCSS diagnostics that
-   * depend on the workspace-wide reverse index.
-   */
-  readonly indexerReady: Promise<void>;
-  /**
-   * Stop the background indexer worker. Called from `onShutdown`.
-   */
-  readonly stopIndexer: () => void;
-}
-
-/** No-op logError stub for tests — keeps `ProviderDeps.logError` required. */
-export const NOOP_LOG_ERROR: (message: string, err: unknown) => void = () => {};
+// Re-export the provider dependency bag types so the many
+// existing `from "./cursor-dispatch"` imports keep resolving
+// without every consumer having to change their import path.
+export {
+  NOOP_LOG_ERROR,
+  type CursorParams,
+  type DocumentParams,
+  type ProviderDeps,
+} from "./provider-deps";
 
 /**
  * Does `(line, character)` fall inside `range`? Inclusive on
@@ -91,10 +24,6 @@ export function rangeContains(range: SharedRange, line: number, character: numbe
   if (line === end.line && character > end.character) return false;
   return true;
 }
-
-// ──────────────────────────────────────────────────────────────
-// Unified ClassRef dispatcher (Wave 1)
-// ──────────────────────────────────────────────────────────────
 
 /**
  * The data every `withClassRefAtCursor` transform receives.
@@ -115,7 +44,7 @@ export function hasAnyStyleImport(content: string): boolean {
 }
 
 /**
- * Unified front stage for every cursor-based provider in Wave 1.
+ * Unified front stage for every cursor-based provider.
  *
  * Searches `entry.classRefs` for the ref whose `originRange`
  * contains the cursor, resolves the backing classMap, and hands

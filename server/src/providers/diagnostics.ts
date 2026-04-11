@@ -4,18 +4,18 @@ import {
   type Range as LspRange,
 } from "vscode-languageserver/node";
 import type { ClassRef, ScssClassMap } from "@css-module-explainer/shared";
-import { resolveCxCallToSelectorInfos } from "../core/cx/call-resolver";
+import { resolveClassRefToSelectorInfos } from "../core/cx/call-resolver";
 import { findClosestMatch } from "../core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
 import { wrapHandler } from "./_wrap-handler";
-import type { DocumentParams, ProviderDeps } from "./cursor-dispatch";
+import type { DocumentParams, ProviderDeps } from "./provider-deps";
 
 /**
  * Compute diagnostics for an open document.
  *
- * Spec §4.5. Push-based: the composition root calls this on
- * `onDidChangeContent` (debounced to 200ms) and pipes the result
- * into `connection.sendDiagnostics(...)`.
+ * Push-based: the composition root calls this on
+ * `onDidChangeContent` (debounced) and pipes the result into
+ * `connection.sendDiagnostics(...)`.
  *
  * Iterates every cached ClassRef whose origin is `cxCall` in the
  * document's analysis entry, classifies each, and emits a
@@ -51,8 +51,8 @@ export const computeDiagnostics = wrapHandler<
 
     // Per-ref isolation: a single throwing ref (e.g. a malformed
     // binding or a misbehaving TypeResolver entry) must NOT erase
-    // every other diagnostic in the same document. Spec §2.8 —
-    // "log + return empty result" applies per-ref, not per-file.
+    // every other diagnostic in the same document. The "log +
+    // return empty result" boundary applies per-ref, not per-file.
     const diagnostics: Diagnostic[] = [];
     for (const ref of cxRefs) {
       try {
@@ -103,8 +103,8 @@ function validateCall(
       };
     }
     case "variable": {
-      const infos = resolveCxCallToSelectorInfos({
-        call: ref,
+      const infos = resolveClassRefToSelectorInfos({
+        ref,
         classMap,
         typeResolver: deps.typeResolver,
         filePath: params.filePath,

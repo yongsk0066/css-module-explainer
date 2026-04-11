@@ -8,7 +8,7 @@ import { findLangForPath } from "../core/scss/lang-registry";
 import { fileUrlToPath } from "../core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
 import { wrapHandler } from "./_wrap-handler";
-import type { ProviderDeps } from "./cursor-dispatch";
+import type { ProviderDeps } from "./provider-deps";
 
 /**
  * Handle `textDocument/codeLens` on `.module.{scss,css}` files.
@@ -20,9 +20,8 @@ import type { ProviderDeps } from "./cursor-dispatch";
  * invokes VS Code's built-in `editor.action.showReferences`.
  *
  * This handler does not dispatch on a cursor position — it
- * iterates the SCSS-side classMap only. The unified
- * `wrapHandler` boundary (Wave 1 Stage 2) captures sync
- * exceptions.
+ * iterates the SCSS-side classMap only. The `wrapHandler`
+ * boundary captures sync exceptions.
  */
 export const handleCodeLens = wrapHandler<CodeLensParams, [], CodeLens[] | null>(
   "codeLens",

@@ -1,4 +1,4 @@
-import type { ProviderDeps } from "./cursor-dispatch";
+import type { ProviderDeps } from "./provider-deps";
 
 /**
  * Positional-contract error boundary for provider handlers.

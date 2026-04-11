@@ -112,6 +112,14 @@ function recordRule(rule: Rule, parentSelector: string, classMap: Map<string, Se
     const isNested = raw.includes("&");
 
     for (const className of extractClassNames(resolved)) {
+      // If a non-nested entry already exists for this class name,
+      // do not downgrade it by overwriting with a nested variant.
+      // Prevents `.button { &:hover {} }` from flipping `.button`'s
+      // isNested flag to true and silently rejecting rename on the
+      // flat parent.
+      const existing = classMap.get(className);
+      if (existing && existing.isNested !== true && isNested) continue;
+
       const tokenRange = findClassTokenRange(rule.source?.start, className, raw);
       classMap.set(className, {
         name: className,

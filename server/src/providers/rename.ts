@@ -9,7 +9,8 @@ import { findLangForPath } from "../core/scss/lang-registry";
 import { fileUrlToPath, pathToFileUrl } from "../core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
 import { wrapHandler } from "./_wrap-handler";
-import { withClassRefAtCursor, type CursorParams, type ProviderDeps } from "./cursor-dispatch";
+import { withClassRefAtCursor } from "./cursor-dispatch";
+import type { CursorParams, ProviderDeps } from "./provider-deps";
 import { findSelectorAtCursor } from "./references";
 
 /**
@@ -18,11 +19,10 @@ import { findSelectorAtCursor } from "./references";
  * Returns `{ range, placeholder }` if the cursor sits on a renameable
  * class token, or `null` to reject the rename.
  *
- * Dispatches through the unified `withClassRefAtCursor` front stage
- * (Wave 1 Stage 2). Only `static` refs are renameable — template and
- * variable refs are rejected here so VS Code falls back to its
- * default word-rename behavior instead of editing a dynamic
- * expression.
+ * Dispatches through the unified `withClassRefAtCursor` front stage.
+ * Only `static` refs are renameable — template and variable refs are
+ * rejected here so VS Code falls back to its default word-rename
+ * behavior instead of editing a dynamic expression.
  */
 export const handlePrepareRename = wrapHandler<
   PrepareRenameParams,
@@ -108,17 +108,17 @@ function prepareRenameFromScss(
   );
   if (!selectorInfo) return null;
 
-  // Bug 3.4 — defensively reject `&`-nested selectors. Their range
-  // is synthesized from the resolved class name and may span past
+  // Defensively reject `&`-nested selectors. Their range is
+  // synthesized from the resolved class name and may span past
   // the `&--primary` source into whitespace, silently corrupting
-  // the rename. Wave 2 will add full support via a parser-tracked
-  // raw token range; Wave 1 only closes the silent corruption.
+  // the rewrite. A future structured raw-token range will lift
+  // this restriction.
   if (isNestedSelector(selectorInfo)) return null;
 
   // Reject if any reverse-index site for this class is a synthesized
   // expansion of a template/variable ref. Rewriting those entries
-  // would destroy the dynamic expression source (Bug 3.1). Find
-  // References still surfaces expanded sites — only rename filters.
+  // would destroy the dynamic expression source. Find References
+  // still surfaces expanded sites — only rename filters.
   const expandedSites = deps.reverseIndex
     .findAllForScssPath(filePath)
     .filter(
@@ -154,9 +154,9 @@ function renameFromScss(
  * The parser sets `isNested: true` when the raw source contained `&`;
  * in that case `SelectorInfo.range` is a synthesized fallback that
  * points at the `&` column with the resolved class name's length and
- * is unsafe to rewrite. Wave 1 rejects these outright. Wave 2
- * ampersand support will add `rawToken` / `rawTokenRange` for proper
- * suffix-targeted edits.
+ * is unsafe to rewrite. These rules are currently rejected outright;
+ * proper support will require a structured raw-token range in the
+ * parser output.
  */
 function isNestedSelector(info: SelectorInfo): boolean {
   return info.isNested === true;
@@ -176,17 +176,16 @@ function buildRenameEdit(
 
   // 2. TS/TSX reference edits from the reverse index.
   //
-  // Filter out `expansion: "expanded"` sites (Bug 3.1). Those are
-  // synthesized from template/variable refs and carry the whole
-  // dynamic expression's range — rewriting them would destroy the
-  // template literal or variable identifier source. Find References
-  // still returns expanded sites (see references.ts); only rename
-  // refuses to touch them.
+  // Filter out `expansion: "expanded"` sites. Those are synthesized
+  // from template/variable refs and carry the whole dynamic
+  // expression's range — rewriting them would destroy the template
+  // literal or variable identifier source. Find References still
+  // returns expanded sites (see references.ts); only rename refuses
+  // to touch them.
   const sites = deps.reverseIndex.find(scssPath, selectorInfo.name);
   for (const site of sites) {
     if (site.expansion !== "direct") continue;
-    if (!changes[site.uri]) changes[site.uri] = [];
-    changes[site.uri]!.push({
+    (changes[site.uri] ??= []).push({
       range: toLspRange(site.range),
       newText: newName,
     });

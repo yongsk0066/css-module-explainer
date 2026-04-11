@@ -6,7 +6,7 @@ export type {
   SelectorInfo,
   ScssClassMap,
   CxBinding,
-  // Wave 1: unified ClassRef model
+  // Unified ClassRef model
   ClassRef,
   ClassRefOrigin,
   StaticClassRef,

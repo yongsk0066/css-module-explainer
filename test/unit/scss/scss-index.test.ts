@@ -103,6 +103,37 @@ describe("parseStyleModule / edge cases", () => {
       // Only 'inner' is exposed on the styles object (last class wins).
       expect(map.has("inner")).toBe(true);
     });
+
+    it("does not flip the flat parent's isNested flag when nested is '&:hover'", () => {
+      const map = parseStyleModule(
+        `.button { color: red; &:hover { color: blue; } }`,
+        "/fake/a.module.scss",
+      );
+      expect(map.has("button")).toBe(true);
+      // `.button { &:hover {} }` must keep `.button` as a flat entry
+      // so rename is not silently rejected on this BEM+SCSS shape.
+      expect(map.get("button")!.isNested).not.toBe(true);
+    });
+
+    it("&--suffix: flat parent stays flat, BEM variant is nested", () => {
+      const map = parseStyleModule(
+        `.button { color: red; &--primary { background: blue; } }`,
+        "/fake/a.module.scss",
+      );
+      expect(map.get("button")!.isNested).not.toBe(true);
+      expect(map.get("button--primary")!.isNested).toBe(true);
+    });
+
+    it("&.active: flat parent stays flat, compound sibling is nested", () => {
+      const map = parseStyleModule(
+        `.button { color: red; &.active { color: blue; } }`,
+        "/fake/a.module.scss",
+      );
+      expect(map.get("button")!.isNested).not.toBe(true);
+      // `active` is a brand-new class introduced inside the nested rule,
+      // so it inherits the nested flag.
+      expect(map.get("active")!.isNested).toBe(true);
+    });
   });
 
   describe("group selectors", () => {

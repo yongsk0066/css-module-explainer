@@ -4,7 +4,7 @@ import type { TextDocuments } from "vscode-languageserver/node";
 import { DiagnosticSeverity } from "vscode-languageserver/node";
 import { computeDiagnostics } from "./providers/diagnostics";
 import { computeScssUnusedDiagnostics } from "./providers/scss-diagnostics";
-import type { ProviderDeps } from "./providers/cursor-dispatch";
+import type { ProviderDeps } from "./providers/provider-deps";
 import { fileUrlToPath } from "./core/util/text-utils";
 import { findLangForPath } from "./core/scss/lang-registry";
 import type { Settings } from "./settings";

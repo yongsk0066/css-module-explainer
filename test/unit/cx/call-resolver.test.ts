@@ -8,7 +8,7 @@ import type {
 } from "@css-module-explainer/shared";
 import type { ResolvedType } from "@css-module-explainer/shared";
 import type { TypeResolver } from "../../../server/src/core/ts/type-resolver";
-import { resolveCxCallToSelectorInfos } from "../../../server/src/core/cx/call-resolver";
+import { resolveClassRefToSelectorInfos } from "../../../server/src/core/cx/call-resolver";
 
 /**
  * Per-variable FakeTypeResolver: resolves specific variable names
@@ -53,7 +53,7 @@ function makeBinding(): CxBinding {
   };
 }
 
-describe("resolveCxCallToSelectorInfos / static", () => {
+describe("resolveClassRefToSelectorInfos / static", () => {
   it("returns the matching class for a static call", () => {
     const classMap = makeClassMap(["btn", "active"]);
     const call: ClassRef = {
@@ -63,8 +63,8 @@ describe("resolveCxCallToSelectorInfos / static", () => {
       originRange: ZERO,
       scssModulePath: makeBinding().scssModulePath,
     };
-    const result = resolveCxCallToSelectorInfos({
-      call,
+    const result = resolveClassRefToSelectorInfos({
+      ref: call,
       classMap,
       typeResolver: new FakeTypeResolver({}),
       filePath: "/fake/a.tsx",
@@ -82,8 +82,8 @@ describe("resolveCxCallToSelectorInfos / static", () => {
       originRange: ZERO,
       scssModulePath: makeBinding().scssModulePath,
     };
-    const result = resolveCxCallToSelectorInfos({
-      call,
+    const result = resolveClassRefToSelectorInfos({
+      ref: call,
       classMap,
       typeResolver: new FakeTypeResolver({}),
       filePath: "/fake/a.tsx",
@@ -93,7 +93,7 @@ describe("resolveCxCallToSelectorInfos / static", () => {
   });
 });
 
-describe("resolveCxCallToSelectorInfos / template", () => {
+describe("resolveClassRefToSelectorInfos / template", () => {
   it("returns every class whose name starts with the static prefix", () => {
     const classMap = makeClassMap(["weight-light", "weight-normal", "weight-bold", "unrelated"]);
     const call: ClassRef = {
@@ -104,8 +104,8 @@ describe("resolveCxCallToSelectorInfos / template", () => {
       originRange: ZERO,
       scssModulePath: makeBinding().scssModulePath,
     };
-    const result = resolveCxCallToSelectorInfos({
-      call,
+    const result = resolveClassRefToSelectorInfos({
+      ref: call,
       classMap,
       typeResolver: new FakeTypeResolver({}),
       filePath: "/fake/a.tsx",
@@ -125,8 +125,8 @@ describe("resolveCxCallToSelectorInfos / template", () => {
       originRange: ZERO,
       scssModulePath: makeBinding().scssModulePath,
     };
-    const result = resolveCxCallToSelectorInfos({
-      call,
+    const result = resolveClassRefToSelectorInfos({
+      ref: call,
       classMap,
       typeResolver: new FakeTypeResolver({}),
       filePath: "/fake/a.tsx",
@@ -147,8 +147,8 @@ describe("resolveCxCallToSelectorInfos / template", () => {
       originRange: ZERO,
       scssModulePath: makeBinding().scssModulePath,
     };
-    const result = resolveCxCallToSelectorInfos({
-      call,
+    const result = resolveClassRefToSelectorInfos({
+      ref: call,
       classMap,
       typeResolver: new FakeTypeResolver({}),
       filePath: "/fake/a.tsx",
@@ -158,7 +158,7 @@ describe("resolveCxCallToSelectorInfos / template", () => {
   });
 });
 
-describe("resolveCxCallToSelectorInfos / variable", () => {
+describe("resolveClassRefToSelectorInfos / variable", () => {
   it("resolves a union variable to each existing class", () => {
     const classMap = makeClassMap(["small", "medium", "large"]);
     const call: ClassRef = {
@@ -168,8 +168,8 @@ describe("resolveCxCallToSelectorInfos / variable", () => {
       originRange: ZERO,
       scssModulePath: makeBinding().scssModulePath,
     };
-    const result = resolveCxCallToSelectorInfos({
-      call,
+    const result = resolveClassRefToSelectorInfos({
+      ref: call,
       classMap,
       typeResolver: new FakeTypeResolver({
         size: { kind: "union", values: ["small", "medium", "large"] },
@@ -193,8 +193,8 @@ describe("resolveCxCallToSelectorInfos / variable", () => {
       originRange: ZERO,
       scssModulePath: makeBinding().scssModulePath,
     };
-    const result = resolveCxCallToSelectorInfos({
-      call,
+    const result = resolveClassRefToSelectorInfos({
+      ref: call,
       classMap,
       typeResolver: new FakeTypeResolver({
         size: { kind: "union", values: ["small", "medium", "large"] },
@@ -214,8 +214,8 @@ describe("resolveCxCallToSelectorInfos / variable", () => {
       originRange: ZERO,
       scssModulePath: makeBinding().scssModulePath,
     };
-    const result = resolveCxCallToSelectorInfos({
-      call,
+    const result = resolveClassRefToSelectorInfos({
+      ref: call,
       classMap,
       typeResolver: new FakeTypeResolver({}),
       filePath: "/fake/a.tsx",

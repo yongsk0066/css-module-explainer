@@ -6,7 +6,11 @@ import {
   type WorkspaceEdit,
 } from "vscode-languageserver/node";
 import { wrapHandler } from "./_wrap-handler";
-import type { ProviderDeps } from "./cursor-dispatch";
+import type { ProviderDeps } from "./provider-deps";
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
 
 /**
  * Handle `textDocument/codeAction` by emitting quickfixes from
@@ -37,8 +41,8 @@ export const handleCodeAction = wrapHandler<CodeActionParams, [], CodeAction[] |
 
 function extractSuggestion(diagnostic: Diagnostic): string | null {
   const data = diagnostic.data;
-  if (data === null || typeof data !== "object") return null;
-  const suggestion = (data as { suggestion?: unknown }).suggestion;
+  if (!isRecord(data)) return null;
+  const suggestion = data.suggestion;
   return typeof suggestion === "string" && suggestion.length > 0 ? suggestion : null;
 }
 

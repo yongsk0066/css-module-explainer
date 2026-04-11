@@ -42,7 +42,7 @@ export function getAllStyleExtensions(): readonly string[] {
  * package so the shared layer stays runtime-free and does not
  * import postcss) to postcss `Syntax | null` at the
  * server/runtime boundary. This is the single documented
- * `as` cast in the codebase (see plan §5.2).
+ * `as` cast in the codebase.
  */
 export function getRuntimeSyntax(lang: StyleLang): Syntax | null {
   return lang.syntax as Syntax | null;

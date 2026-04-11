@@ -378,6 +378,66 @@ describe("Wave 1 Stage 3.1 — rename template corruption (regression)", () => {
   });
 });
 
+describe("prepareRename through real parseStyleModule (regression)", () => {
+  // These tests exercise prepareRenameFromScss against ScssClassMaps
+  // built by the real `parseStyleModule`, to catch regressions where
+  // a nested rule silently flips a flat parent's `isNested` flag and
+  // causes rename to be rejected on the flat parent.
+  it("`.button { &:hover {} }` — rename is accepted on the flat .button", async () => {
+    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
+    const classMap = parseStyleModule(
+      `.button {\n  color: red;\n  &:hover { color: blue; }\n}`,
+      "/fake/src/Button.module.scss",
+    );
+    const deps = makeBaseDeps({
+      scssClassMapForPath: () => classMap,
+      workspaceRoot: "/fake",
+    });
+    const result = handlePrepareRename(
+      {
+        textDocument: { uri: SCSS_URI },
+        position: { line: 0, character: 3 },
+      },
+      deps,
+    );
+    expect(result).not.toBeNull();
+    expect(result).toHaveProperty("placeholder", "button");
+  });
+
+  it("`.button { &--primary {} }` — flat .button is renameable, &--primary is not", async () => {
+    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
+    const classMap = parseStyleModule(
+      `.button {\n  color: red;\n  &--primary { background: blue; }\n}`,
+      "/fake/src/Button.module.scss",
+    );
+    const deps = makeBaseDeps({
+      scssClassMapForPath: () => classMap,
+      workspaceRoot: "/fake",
+    });
+    // Cursor on `.button` at the flat rule — accepted.
+    const flat = handlePrepareRename(
+      {
+        textDocument: { uri: SCSS_URI },
+        position: { line: 0, character: 3 },
+      },
+      deps,
+    );
+    expect(flat).not.toBeNull();
+    expect(flat).toHaveProperty("placeholder", "button");
+
+    // Cursor on the nested `button--primary` — rejected (isNested is true).
+    const nestedRange = classMap.get("button--primary")!.range;
+    const nested = handlePrepareRename(
+      {
+        textDocument: { uri: SCSS_URI },
+        position: { line: nestedRange.start.line, character: nestedRange.start.character + 1 },
+      },
+      deps,
+    );
+    expect(nested).toBeNull();
+  });
+});
+
 describe("Wave 1 Stage 3.4 — &-nested prepareRename reject", () => {
   it("prepareRename rejects cursor on a &-nested selector (wave1-stage3.4)", () => {
     // Fixture: SCSS with `.button { &--primary { ... } }`.

@@ -20,10 +20,9 @@ export interface AnalysisEntry {
   readonly sourceFile: ts.SourceFile;
   readonly bindings: readonly CxBinding[];
   /**
-   * Unified class-reference list (Wave 1). Produced by
-   * `parseClassRefs` — covers both cx() call arguments
-   * (`origin: "cxCall"`) and direct `styles.x` property access
-   * (`origin: "styleAccess"`).
+   * Unified class-reference list. Produced by `parseClassRefs` —
+   * covers both cx() call arguments (`origin: "cxCall"`) and
+   * direct `styles.x` property access (`origin: "styleAccess"`).
    */
   readonly classRefs: readonly ClassRef[];
   /** Map of style-import local name → resolved absolute SCSS path. */
@@ -45,9 +44,9 @@ export interface DocumentAnalysisCacheDeps {
   ) => ReadonlyMap<string, string>;
   readonly detectCxBindings: (sourceFile: ts.SourceFile, filePath: string) => CxBinding[];
   /**
-   * Unified ClassRef producer (Wave 1). Optional so test helpers
-   * that construct a cache without wiring Wave 1 still work — the
-   * cache falls back to `[]`.
+   * Unified ClassRef producer. Optional so test helpers that
+   * construct a cache without wiring the class-ref parser still
+   * work — the cache falls back to `[]`.
    */
   readonly parseClassRefs?: (
     sourceFile: ts.SourceFile,
@@ -150,7 +149,7 @@ export class DocumentAnalysisCache {
     // Files without classnames/bind still get styles.x support.
     const stylesBindings = this.deps.collectStyleImports(sourceFile, filePath);
 
-    // Unified Wave 1 parser — covers both cx() arguments and styles.x accesses.
+    // Unified class-ref parser — covers both cx() arguments and styles.x accesses.
     const classRefs = this.deps.parseClassRefs?.(sourceFile, bindings, stylesBindings) ?? [];
 
     const classUtilNames = this.deps.detectClassUtilImports?.(sourceFile) ?? [];
