@@ -8,6 +8,16 @@ The format is based on
 this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.1] — 2026-04-11
+
+### Added
+
+- **`&`-nested BEM rename** — `.button { &--primary {} }` and `.button { &__icon {} }` can now be renamed directly from the SCSS selector. Only the `--primary` / `__icon` suffix slice is rewritten in the SCSS file; every `cx('button--primary')` reference in the workspace updates in lockstep. Compound nested forms (`&.active`), pseudo (`&:hover`), grouped parents, non-bare parents (`.card:hover { &--x }`), grouped-nested children (`&--a, &--b`), and multi-`&` tokens remain safely rejected.
+
+### Fixed
+
+- **Latent corruption in `&`-nested range fallback** — previously, `SelectorInfo.range` for `&`-nested entries was a synthesized column that could span past the nested token into whitespace. Wave 1 defensively rejected rename on those entries; 1.5.1 computes the correct raw-token range using postcss absolute source offsets, eliminating the fallback path entirely.
+
 ## [1.5.0] — 2026-04-11
 
 ### Fixed
