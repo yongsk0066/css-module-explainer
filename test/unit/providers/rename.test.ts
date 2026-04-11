@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { CxBinding, CxCallInfo, ScssClassMap } from "@css-module-explainer/shared";
+import type { ClassRef, CxBinding, CxCallInfo, ScssClassMap } from "@css-module-explainer/shared";
 import type ts from "typescript";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
@@ -206,6 +206,21 @@ function makeTsxDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
         scssModulePath: binding.scssModulePath,
       },
     ],
+    parseClassRefs: (_sf: ts.SourceFile, bindings: readonly CxBinding[]): ClassRef[] =>
+      bindings.length === 0
+        ? []
+        : [
+            {
+              kind: "static",
+              origin: "cxCall",
+              className: "indicator",
+              originRange: {
+                start: { line: 3, character: 14 },
+                end: { line: 3, character: 23 },
+              },
+              scssModulePath: bindings[0]!.scssModulePath,
+            },
+          ],
     max: 10,
   });
   return makeBaseDeps({

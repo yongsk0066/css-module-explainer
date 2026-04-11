@@ -8,12 +8,8 @@ import type { SelectorInfo } from "@css-module-explainer/shared";
 import { findLangForPath } from "../core/scss/lang-registry";
 import { fileUrlToPath, pathToFileUrl } from "../core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
-import {
-  withCxCallAtCursor,
-  withStyleRefAtCursor,
-  type CursorParams,
-  type ProviderDeps,
-} from "./cursor-dispatch";
+import { wrapHandler } from "./_wrap-handler";
+import { withClassRefAtCursor, type CursorParams, type ProviderDeps } from "./cursor-dispatch";
 import { findSelectorAtCursor } from "./references";
 
 /**
@@ -21,13 +17,20 @@ import { findSelectorAtCursor } from "./references";
  *
  * Returns `{ range, placeholder }` if the cursor sits on a renameable
  * class token, or `null` to reject the rename.
+ *
+ * Dispatches through the unified `withClassRefAtCursor` front stage
+ * (Wave 1 Stage 2). Only `static` refs are renameable — template and
+ * variable refs are rejected here so VS Code falls back to its
+ * default word-rename behavior instead of editing a dynamic
+ * expression.
  */
-export function handlePrepareRename(
-  params: PrepareRenameParams,
-  deps: ProviderDeps,
-  cursorParams?: CursorParams,
-): { range: LspRange; placeholder: string } | null {
-  try {
+export const handlePrepareRename = wrapHandler<
+  PrepareRenameParams,
+  [cursorParams?: CursorParams],
+  { range: LspRange; placeholder: string } | null
+>(
+  "prepareRename",
+  (params, deps, cursorParams) => {
     const filePath = fileUrlToPath(params.textDocument.uri);
 
     // -- SCSS-side: cursor on a selector --
@@ -38,44 +41,31 @@ export function handlePrepareRename(
     // -- TS/TSX-side: needs document content --
     if (!cursorParams) return null;
 
-    // Try cx('class') first
-    const cxResult = withCxCallAtCursor(cursorParams, deps, (ctx) => {
-      if (ctx.call.kind !== "static") return null;
-      return {
-        range: toLspRange(ctx.call.originRange),
-        placeholder: ctx.call.className,
-      };
-    });
-    if (cxResult) return cxResult;
-
-    // Try styles.class
-    const styleRefResult = withStyleRefAtCursor(cursorParams, deps, (ctx) => {
+    return withClassRefAtCursor(cursorParams, deps, (ctx) => {
+      if (ctx.ref.kind !== "static") return null;
       return {
         range: toLspRange(ctx.ref.originRange),
         placeholder: ctx.ref.className,
       };
     });
-    if (styleRefResult) return styleRefResult;
-
-    return null;
-  } catch (err) {
-    deps.logError("prepareRename handler failed", err);
-    return null;
-  }
-}
+  },
+  null,
+);
 
 /**
  * Handle `textDocument/rename`.
  *
  * Builds a WorkspaceEdit with text edits across the SCSS file and
- * all referencing TS/TSX files.
+ * all referencing TS/TSX files. Only `static` class refs are
+ * renameable — dynamic (template/variable) refs are skipped.
  */
-export function handleRename(
-  params: RenameParams,
-  deps: ProviderDeps,
-  cursorParams?: CursorParams,
-): WorkspaceEdit | null {
-  try {
+export const handleRename = wrapHandler<
+  RenameParams,
+  [cursorParams?: CursorParams],
+  WorkspaceEdit | null
+>(
+  "rename",
+  (params, deps, cursorParams) => {
     const filePath = fileUrlToPath(params.textDocument.uri);
 
     // -- SCSS-side --
@@ -86,35 +76,21 @@ export function handleRename(
     // -- TS/TSX-side --
     if (!cursorParams) return null;
 
-    // Try cx('class')
-    const cxResult = withCxCallAtCursor(cursorParams, deps, (ctx) => {
-      if (ctx.call.kind !== "static") return null;
-      const scssPath = ctx.call.scssModulePath;
-      const classMap = deps.scssClassMapForPath(scssPath);
-      if (!classMap) return null;
-      const selectorInfo = classMap.get(ctx.call.className);
+    return withClassRefAtCursor(cursorParams, deps, (ctx) => {
+      if (ctx.ref.kind !== "static") return null;
+      const selectorInfo = ctx.classMap.get(ctx.ref.className);
       if (!selectorInfo) return null;
-      return buildRenameEdit(pathToFileUrl(scssPath), scssPath, selectorInfo, deps, params.newName);
+      return buildRenameEdit(
+        pathToFileUrl(ctx.ref.scssModulePath),
+        ctx.ref.scssModulePath,
+        selectorInfo,
+        deps,
+        params.newName,
+      );
     });
-    if (cxResult) return cxResult;
-
-    // Try styles.class
-    const styleRefResult = withStyleRefAtCursor(cursorParams, deps, (ctx) => {
-      const scssPath = ctx.ref.scssModulePath;
-      const classMap = deps.scssClassMapForPath(scssPath);
-      if (!classMap) return null;
-      const selectorInfo = classMap.get(ctx.ref.className);
-      if (!selectorInfo) return null;
-      return buildRenameEdit(pathToFileUrl(scssPath), scssPath, selectorInfo, deps, params.newName);
-    });
-    if (styleRefResult) return styleRefResult;
-
-    return null;
-  } catch (err) {
-    deps.logError("rename handler failed", err);
-    return null;
-  }
-}
+  },
+  null,
+);
 
 // -- SCSS-side helpers --
 
