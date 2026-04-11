@@ -1,6 +1,6 @@
 import * as path from "node:path";
 import ts from "typescript";
-import type { CxBinding, StyleImport } from "@css-module-explainer/shared";
+import type { CxBinding, Range, StyleImport } from "@css-module-explainer/shared";
 // Source of truth for supported style extensions (.scss, .css, .less).
 import { getAllStyleExtensions } from "../scss/lang-registry";
 
@@ -46,16 +46,23 @@ export function detectClassUtilImports(sourceFile: ts.SourceFile): string[] {
 export function collectStyleImports(
   sourceFile: ts.SourceFile,
   filePath: string,
+  fileExists: (p: string) => boolean,
 ): ReadonlyMap<string, StyleImport> {
   const stylesBindings = new Map<string, StyleImport>();
   for (const stmt of sourceFile.statements) {
-    const resolved = tryResolveImportStatement(stmt, filePath);
-    if (resolved?.kind === "style") {
-      stylesBindings.set(resolved.importName, {
-        kind: "resolved",
-        absolutePath: resolved.absolutePath,
-      });
-    }
+    const resolved = tryResolveImportStatement(stmt, sourceFile, filePath);
+    if (resolved?.kind !== "style") continue;
+    stylesBindings.set(
+      resolved.importName,
+      fileExists(resolved.absolutePath)
+        ? { kind: "resolved", absolutePath: resolved.absolutePath }
+        : {
+            kind: "missing",
+            absolutePath: resolved.absolutePath,
+            specifier: resolved.specifier,
+            range: resolved.range,
+          },
+    );
   }
   return stylesBindings;
 }
@@ -99,15 +106,19 @@ interface ImportScan {
 
 function collectImports(sourceFile: ts.SourceFile, filePath: string): ImportScan {
   // Single walk over top-level statements that produces both outputs
-  // (classnames/bind identifiers and style-import bindings). The
-  // exported `collectStyleImports` is a thin wrapper that returns
-  // only the `stylesBindings` half for callers that do not need the
-  // classnames/bind information.
+  // (classnames/bind identifiers and style-import bindings). Used
+  // only by `detectCxBindings`, which does not care whether a style
+  // module exists on disk — it only needs the resolved path to wire
+  // cx bindings. Therefore this internal walker never emits `missing`
+  // variants; it treats every style import as `resolved` regardless
+  // of filesystem state. The exported `collectStyleImports` (which
+  // takes a `fileExists` DI) is the authoritative path that emits
+  // the two-variant union for diagnostics.
   const classNamesNames = new Set<string>();
   const stylesBindings = new Map<string, StyleImport>();
 
   for (const stmt of sourceFile.statements) {
-    const resolved = tryResolveImportStatement(stmt, filePath);
+    const resolved = tryResolveImportStatement(stmt, sourceFile, filePath);
     if (!resolved) continue;
     if (resolved.kind === "classnamesBind") {
       classNamesNames.add(resolved.importName);
@@ -124,7 +135,13 @@ function collectImports(sourceFile: ts.SourceFile, filePath: string): ImportScan
 
 type ResolvedImport =
   | { readonly kind: "classnamesBind"; readonly importName: string }
-  | { readonly kind: "style"; readonly importName: string; readonly absolutePath: string };
+  | {
+      readonly kind: "style";
+      readonly importName: string;
+      readonly absolutePath: string;
+      readonly specifier: string;
+      readonly range: Range;
+    };
 
 /**
  * Classify a single top-level statement. Returns `null` for anything
@@ -132,9 +149,15 @@ type ResolvedImport =
  * `.module.<ext>` import. Shared by `collectImports` and
  * `collectStyleImports` so the walking rule (default/namespace
  * identifiers, `.`-prefixed specifiers, known extensions) lives in
- * exactly one place.
+ * exactly one place. For style imports, also computes the LSP range
+ * covering the string literal (excluding the enclosing quotes) so
+ * diagnostics can underline the specifier on a missing-module error.
  */
-function tryResolveImportStatement(stmt: ts.Statement, filePath: string): ResolvedImport | null {
+function tryResolveImportStatement(
+  stmt: ts.Statement,
+  sourceFile: ts.SourceFile,
+  filePath: string,
+): ResolvedImport | null {
   if (!ts.isImportDeclaration(stmt)) return null;
   const moduleSpecifier = stmt.moduleSpecifier;
   if (!ts.isStringLiteral(moduleSpecifier)) return null;
@@ -162,7 +185,21 @@ function tryResolveImportStatement(stmt: ts.Statement, filePath: string): Resolv
 
   const sourceDir = path.dirname(filePath);
   const absolutePath = path.resolve(sourceDir, specifier);
-  return { kind: "style", importName, absolutePath };
+
+  // String literal range excluding the quotes: getStart() points at
+  // the opening quote, getEnd() points just past the closing quote.
+  // Step past the quote chars so the diagnostic underlines only the
+  // specifier text, matching how TS underlines TS2307.
+  const startPos = sourceFile.getLineAndCharacterOfPosition(
+    moduleSpecifier.getStart(sourceFile) + 1,
+  );
+  const endPos = sourceFile.getLineAndCharacterOfPosition(moduleSpecifier.getEnd() - 1);
+  const range: Range = {
+    start: { line: startPos.line, character: startPos.character },
+    end: { line: endPos.line, character: endPos.character },
+  };
+
+  return { kind: "style", importName, absolutePath, specifier, range };
 }
 
 function collectBindings(sourceFile: ts.SourceFile, imports: ImportScan): CxBinding[] {

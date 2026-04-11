@@ -84,6 +84,7 @@ function makeDeps(): ProviderDeps {
     analysisCache: new DocumentAnalysisCache({
       sourceFileCache,
       collectStyleImports: () => new Map(),
+      fileExists: () => true,
       detectCxBindings,
       parseClassRefs,
       max: 10,
@@ -181,6 +182,7 @@ describe("diagnostics document-wide scan", () => {
       analysisCache: new DocumentAnalysisCache({
         sourceFileCache: new SourceFileCache({ max: 10 }),
         collectStyleImports: () => new Map(),
+        fileExists: () => true,
         detectCxBindings,
         parseClassRefs: (_sf, bindings): ClassRef[] =>
           bindings.length === 0

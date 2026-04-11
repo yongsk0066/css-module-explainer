@@ -46,8 +46,15 @@ export interface DocumentAnalysisCacheDeps {
   readonly collectStyleImports: (
     sourceFile: ts.SourceFile,
     filePath: string,
+    fileExists: (p: string) => boolean,
   ) => ReadonlyMap<string, StyleImport>;
   readonly detectCxBindings: (sourceFile: ts.SourceFile, filePath: string) => CxBinding[];
+  /**
+   * Returns true iff `path` exists on disk. Injected so tests can
+   * stub the check and the analysis cache stays free of `node:fs`.
+   * Composition root wires `fs.existsSync`.
+   */
+  readonly fileExists: (path: string) => boolean;
   /**
    * Unified ClassRef producer. Optional so test helpers that
    * construct a cache without wiring the class-ref parser still
@@ -151,8 +158,14 @@ export class DocumentAnalysisCache {
     const bindings = this.deps.detectCxBindings(sourceFile, filePath);
 
     // Independent style-import scanning: collect style imports independently of cx bindings.
-    // Files without classnames/bind still get styles.x support.
-    const stylesBindings = this.deps.collectStyleImports(sourceFile, filePath);
+    // Files without classnames/bind still get styles.x support. `fileExists` is consulted
+    // per resolved import so missing targets become `{ kind: "missing" }` entries for the
+    // diagnostics provider.
+    const stylesBindings = this.deps.collectStyleImports(
+      sourceFile,
+      filePath,
+      this.deps.fileExists,
+    );
 
     // Unified class-ref parser — covers both cx() arguments and styles.x accesses.
     const classRefs = this.deps.parseClassRefs?.(sourceFile, bindings, stylesBindings) ?? [];

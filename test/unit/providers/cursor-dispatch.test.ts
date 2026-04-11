@@ -130,6 +130,7 @@ describe("withClassRefAtCursor / fast paths", () => {
     const analysisCache = new DocumentAnalysisCache({
       sourceFileCache,
       collectStyleImports: () => new Map(),
+      fileExists: () => true,
       detectCxBindings: () => [],
       parseClassRefs: () => [],
       max: 10,

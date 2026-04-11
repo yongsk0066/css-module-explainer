@@ -33,6 +33,7 @@ function makeCache() {
   const cache = new DocumentAnalysisCache({
     sourceFileCache,
     collectStyleImports: () => new Map(),
+    fileExists: () => true,
     detectCxBindings: detectSpy,
     parseClassRefs: parseSpy,
     max: 10,
@@ -103,6 +104,7 @@ describe("DocumentAnalysisCache", () => {
     const cache = new DocumentAnalysisCache({
       sourceFileCache,
       collectStyleImports: () => new Map(),
+      fileExists: () => true,
       detectCxBindings: detectSpy,
       parseClassRefs: parseSpy,
       max: 2,
@@ -126,6 +128,7 @@ describe("DocumentAnalysisCache", () => {
     const cache = new DocumentAnalysisCache({
       sourceFileCache,
       collectStyleImports: () => new Map(),
+      fileExists: () => true,
       detectCxBindings: detectSpy,
       parseClassRefs: parseSpy,
       max: 2,
@@ -152,6 +155,7 @@ describe("DocumentAnalysisCache", () => {
     const cache = new DocumentAnalysisCache({
       sourceFileCache,
       collectStyleImports: () => new Map(),
+      fileExists: () => true,
       detectCxBindings: detectSpy,
       parseClassRefs: parseSpy,
       max: 10,
@@ -166,6 +170,7 @@ describe("DocumentAnalysisCache", () => {
     const cache = new DocumentAnalysisCache({
       sourceFileCache,
       collectStyleImports: () => new Map(),
+      fileExists: () => true,
       detectCxBindings: (): CxBinding[] => [],
       parseClassRefs: (): ClassRef[] => [],
       max: 10,

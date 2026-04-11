@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import type { MessageReader, MessageWriter } from "vscode-languageserver/node";
 import {
@@ -59,6 +59,12 @@ export interface CreateServerAutoOptions {
   readonly createProgram?: (workspaceRoot: string) => ts.Program;
   readonly fileSupplier?: () => AsyncIterable<FileTask>;
   readonly readStyleFileAsync?: (path: string) => Promise<string | null>;
+  /**
+   * Filesystem existence check used by the analysis cache to tag
+   * style imports as resolved or missing. Defaults to
+   * `fs.existsSync`. Test harnesses inject a stub.
+   */
+  readonly fileExists?: (path: string) => boolean;
 }
 
 /**
@@ -186,12 +192,14 @@ function buildBundle(
   const caches = buildCaches();
   const typeResolver = buildTypeResolver(options);
   const readStyleFile = options.readStyleFile ?? defaultReadStyleFile;
+  const fileExists = options.fileExists ?? existsSync;
   const classMapForPath = buildClassMapForPath(caches.styleIndexCache, documents, readStyleFile);
   const analysisCache = buildAnalysisCache({
     caches,
     classMapForPath,
     workspaceRoot,
     typeResolver,
+    fileExists,
   });
   const indexerWorker = buildIndexerWorker(
     options,
@@ -265,16 +273,18 @@ interface AnalysisCacheArgs {
   readonly classMapForPath: (path: string) => ScssClassMap | null;
   readonly workspaceRoot: string;
   readonly typeResolver: TypeResolver;
+  readonly fileExists: (path: string) => boolean;
 }
 
 function buildAnalysisCache(args: AnalysisCacheArgs): DocumentAnalysisCache {
-  const { caches, classMapForPath, workspaceRoot, typeResolver } = args;
+  const { caches, classMapForPath, workspaceRoot, typeResolver, fileExists } = args;
   return new DocumentAnalysisCache({
     sourceFileCache: caches.sourceFileCache,
     collectStyleImports,
     detectCxBindings,
     parseClassRefs,
     detectClassUtilImports,
+    fileExists,
     max: 200,
     onAnalyze: (uri, entry) => {
       caches.reverseIndex.record(

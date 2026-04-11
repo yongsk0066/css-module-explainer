@@ -48,6 +48,7 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   const analysisCache = new DocumentAnalysisCache({
     sourceFileCache,
     collectStyleImports: () => new Map(),
+    fileExists: () => true,
     detectCxBindings,
     parseClassRefs,
     max: 10,
@@ -111,6 +112,7 @@ describe("handleDefinition", () => {
     const analysisCache = new DocumentAnalysisCache({
       sourceFileCache,
       collectStyleImports: () => new Map(),
+      fileExists: () => true,
       detectCxBindings,
       parseClassRefs: (_sf, bindings) =>
         bindings.length === 0

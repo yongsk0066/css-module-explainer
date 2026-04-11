@@ -57,6 +57,7 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   const analysisCache = new DocumentAnalysisCache({
     sourceFileCache,
     collectStyleImports: () => new Map(),
+    fileExists: () => true,
     detectCxBindings,
     parseClassRefs,
     max: 10,
@@ -151,6 +152,7 @@ describe("computeDiagnostics", () => {
     const analysisCache = new DocumentAnalysisCache({
       sourceFileCache,
       collectStyleImports: () => new Map(),
+      fileExists: () => true,
       detectCxBindings,
       parseClassRefs: localParseClassRefs,
       max: 10,
@@ -193,6 +195,7 @@ describe("computeDiagnostics", () => {
     const analysisCache = new DocumentAnalysisCache({
       sourceFileCache,
       collectStyleImports: () => new Map(),
+      fileExists: () => true,
       detectCxBindings,
       parseClassRefs: localParseClassRefs,
       max: 10,
@@ -244,6 +247,7 @@ describe("computeDiagnostics", () => {
     const analysisCache = new DocumentAnalysisCache({
       sourceFileCache,
       collectStyleImports: () => new Map(),
+      fileExists: () => true,
       detectCxBindings,
       parseClassRefs: localParseClassRefs,
       max: 10,

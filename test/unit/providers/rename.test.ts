@@ -195,6 +195,7 @@ function makeTsxDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   const analysisCache = new DocumentAnalysisCache({
     sourceFileCache,
     collectStyleImports: () => new Map(),
+    fileExists: () => true,
     detectCxBindings: (sourceFile: ts.SourceFile): CxBinding[] => [
       {
         ...BINDING,

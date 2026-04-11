@@ -238,7 +238,7 @@ describe("collectStyleImports", () => {
     const src = parse(`
       import styles from './Button.module.scss';
     `);
-    const result = collectStyleImports(src, "/fake/src/Button.tsx");
+    const result = collectStyleImports(src, "/fake/src/Button.tsx", () => true);
     expect(result.size).toBe(1);
     expect(result.get("styles")).toEqual({
       kind: "resolved",
@@ -250,7 +250,7 @@ describe("collectStyleImports", () => {
     const src = parse(`
       import * as styles from './Button.module.scss';
     `);
-    const result = collectStyleImports(src, "/fake/src/Button.tsx");
+    const result = collectStyleImports(src, "/fake/src/Button.tsx", () => true);
     expect(result.size).toBe(1);
     expect(result.get("styles")).toEqual({
       kind: "resolved",
@@ -263,7 +263,7 @@ describe("collectStyleImports", () => {
       import btnStyles from './Button.module.scss';
       import formStyles from './Form.module.css';
     `);
-    const result = collectStyleImports(src, "/fake/src/Button.tsx");
+    const result = collectStyleImports(src, "/fake/src/Button.tsx", () => true);
     expect(result.size).toBe(2);
     expect(result.get("btnStyles")).toEqual({
       kind: "resolved",
@@ -279,7 +279,7 @@ describe("collectStyleImports", () => {
     const src = parse(`
       import styles from './Button.module.less';
     `);
-    const result = collectStyleImports(src, "/fake/src/Button.tsx");
+    const result = collectStyleImports(src, "/fake/src/Button.tsx", () => true);
     expect(result.size).toBe(1);
     expect(result.get("styles")).toEqual({
       kind: "resolved",
@@ -291,7 +291,7 @@ describe("collectStyleImports", () => {
     const src = parse(`
       import styles from '../styles/Button.module.scss';
     `);
-    const result = collectStyleImports(src, "/fake/src/components/Button.tsx");
+    const result = collectStyleImports(src, "/fake/src/components/Button.tsx", () => true);
     expect(result.get("styles")).toEqual({
       kind: "resolved",
       absolutePath: "/fake/src/styles/Button.module.scss",
@@ -302,7 +302,7 @@ describe("collectStyleImports", () => {
     const src = parse(`
       import { something } from './Button.module.scss';
     `);
-    const result = collectStyleImports(src, "/fake/src/Button.tsx");
+    const result = collectStyleImports(src, "/fake/src/Button.tsx", () => true);
     expect(result.size).toBe(0);
   });
 
@@ -312,7 +312,7 @@ describe("collectStyleImports", () => {
       import clsx from 'clsx';
       import styles from './Button.module.scss';
     `);
-    const result = collectStyleImports(src, "/fake/src/Button.tsx");
+    const result = collectStyleImports(src, "/fake/src/Button.tsx", () => true);
     expect(result.size).toBe(1);
     expect(result.has("React")).toBe(false);
     expect(result.has("clsx")).toBe(false);
@@ -323,7 +323,84 @@ describe("collectStyleImports", () => {
       import React from 'react';
       import clsx from 'clsx';
     `);
-    const result = collectStyleImports(src, "/fake/src/Button.tsx");
+    const result = collectStyleImports(src, "/fake/src/Button.tsx", () => true);
     expect(result.size).toBe(0);
+  });
+
+  // ── Wave 2B item #11: missing-module detection via fileExists DI ──
+
+  it("emits missing variant when fileExists returns false", () => {
+    const src = parse(`import s from './foo.module.scss';`);
+    const result = collectStyleImports(src, "/fake/src/Button.tsx", () => false);
+    expect(result.size).toBe(1);
+    const entry = result.get("s");
+    expect(entry?.kind).toBe("missing");
+    if (entry?.kind === "missing") {
+      expect(entry.specifier).toBe("./foo.module.scss");
+      expect(entry.absolutePath).toBe("/fake/src/foo.module.scss");
+      // `import s from '` is 15 chars — `.` lands at 0-based LSP char 15.
+      expect(entry.range.start.line).toBe(0);
+      expect(entry.range.start.character).toBe(15);
+      // start 15 + `./foo.module.scss`.length 17 = exclusive end 32.
+      expect(entry.range.end.character).toBe(32);
+    }
+  });
+
+  it("emits resolved variant when fileExists returns true", () => {
+    const src = parse(`import s from './foo.module.scss';`);
+    const result = collectStyleImports(src, "/fake/src/Button.tsx", () => true);
+    expect(result.get("s")).toEqual({
+      kind: "resolved",
+      absolutePath: "/fake/src/foo.module.scss",
+    });
+  });
+
+  it("calls fileExists at least once per unique import path", () => {
+    const src = parse(`
+      import a from './a.module.scss';
+      import b from './b.module.scss';
+    `);
+    const calls: string[] = [];
+    const spy = (p: string): boolean => {
+      calls.push(p);
+      return true;
+    };
+    collectStyleImports(src, "/fake/src/Button.tsx", spy);
+    expect(calls).toContain("/fake/src/a.module.scss");
+    expect(calls).toContain("/fake/src/b.module.scss");
+    expect(calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("emits a missing and a resolved variant for mixed fixture", () => {
+    const src = parse(`
+      import good from './good.module.scss';
+      import bad from './bad.module.scss';
+    `);
+    const result = collectStyleImports(src, "/fake/src/Button.tsx", (p) =>
+      p.endsWith("good.module.scss"),
+    );
+    expect(result.size).toBe(2);
+    expect(result.get("good")?.kind).toBe("resolved");
+    expect(result.get("bad")?.kind).toBe("missing");
+  });
+
+  it("does not call fileExists for non-style imports", () => {
+    const src = parse(`import data from './data.json';`);
+    let called = false;
+    collectStyleImports(src, "/fake/src/Button.tsx", () => {
+      called = true;
+      return true;
+    });
+    expect(called).toBe(false);
+  });
+
+  it("classnames/bind import is handled separately and never appears in stylesBindings", () => {
+    const src = parse(`
+      import cn from 'classnames/bind';
+      import s from './x.module.scss';
+    `);
+    const result = collectStyleImports(src, "/fake/src/Button.tsx", () => true);
+    expect(result.has("cn")).toBe(false);
+    expect(result.get("s")?.kind).toBe("resolved");
   });
 });

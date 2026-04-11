@@ -70,6 +70,7 @@ export function makeBaseDeps(overrides: Partial<ProviderDeps> = {}): ProviderDep
     sourceFileCache,
     collectStyleImports: () => new Map(),
     detectCxBindings: () => [],
+    fileExists: () => true,
     max: 10,
   });
   return {
