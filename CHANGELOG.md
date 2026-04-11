@@ -8,6 +8,13 @@ The format is based on
 this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Missing CSS Module diagnostic** — `import styles from './typo.module.scss'` now emits a `missing-module` warning when the target file does not exist on disk. Fires for any file with a CSS Module import, including pure `styles.x` access without `classnames/bind`. Configurable via `cssModuleExplainer.diagnostics.missingModule` (default `true`).
+- **Path alias compat — `cssModules.pathAlias`** — the clinyong/vscode-cssmodules `cssModules.pathAlias` config is read as-is, so `import styles from '@styles/button.module.scss'` resolves when the workspace has `"cssModules.pathAlias": { "@styles": "src/styles" }` in its settings. Zero-config migration for clinyong users. **One intentional divergence**: we use longest-prefix matching instead of clinyong's insertion-order first-match, so `{ "@": "src", "@styles": "src/styles" }` correctly routes `@styles/button` to `src/styles/button` regardless of config key order. `${workspaceFolder}` substitution is supported. Wildcards and tsconfig.json `compilerOptions.paths` auto-detection are not yet supported — tracked for a future release.
+
 ## [1.5.1] — 2026-04-11
 
 ### Added
