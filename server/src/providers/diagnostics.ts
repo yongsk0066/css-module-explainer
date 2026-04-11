@@ -70,6 +70,8 @@ export const computeDiagnostics = wrapHandler<
   [],
 );
 
+const DIAGNOSTIC_SOURCE = "css-module-explainer";
+
 function validateCall(
   ref: ClassRef,
   classMap: ScssClassMap,
@@ -77,56 +79,78 @@ function validateCall(
   deps: ProviderDeps,
   severity: DiagnosticSeverity,
 ): Diagnostic | null {
-  const range: LspRange = toLspRange(ref.originRange);
-  const source = "css-module-explainer";
+  const range = toLspRange(ref.originRange);
   switch (ref.kind) {
-    case "static": {
-      if (classMap.has(ref.className)) return null;
-      const suggestion = findClosestMatch(ref.className, classMap.keys());
-      const hint = suggestion ? ` Did you mean '${suggestion}'?` : "";
-      return {
-        range,
-        severity,
-        source,
-        message: `Class '.${ref.className}' not found in ${relativeScss(ref.scssModulePath, deps.workspaceRoot)}.${hint}`,
-        data: suggestion ? { suggestion } : undefined,
-      };
-    }
-    case "template": {
-      const hasPrefix = anyValueStartsWith(classMap, ref.staticPrefix);
-      if (hasPrefix) return null;
-      return {
-        range,
-        severity,
-        source,
-        message: `No class starting with '${ref.staticPrefix}' found in ${relativeScss(ref.scssModulePath, deps.workspaceRoot)}.`,
-      };
-    }
-    case "variable": {
-      const infos = resolveClassRefToSelectorInfos({
-        ref,
-        classMap,
-        typeResolver: deps.typeResolver,
-        filePath: params.filePath,
-        workspaceRoot: deps.workspaceRoot,
-      });
-      const resolved = deps.typeResolver.resolve(
-        params.filePath,
-        ref.variableName,
-        deps.workspaceRoot,
-      );
-      if (resolved.kind !== "union") return null; // ignoreUnresolvableUnions = true
-      if (infos.length === resolved.values.length) return null;
-      const missing = resolved.values.filter((v) => !classMap.has(v));
-      if (missing.length === 0) return null;
-      return {
-        range,
-        severity,
-        source,
-        message: `Missing class for union member${missing.length > 1 ? "s" : ""}: ${missing.map((m) => `'${m}'`).join(", ")}.`,
-      };
-    }
+    case "static":
+      return validateStaticRef(ref, classMap, deps, range, severity);
+    case "template":
+      return validateTemplateRef(ref, classMap, deps, range, severity);
+    case "variable":
+      return validateVariableRef(ref, classMap, params, deps, range, severity);
   }
+}
+
+function validateStaticRef(
+  ref: Extract<ClassRef, { kind: "static" }>,
+  classMap: ScssClassMap,
+  deps: ProviderDeps,
+  range: LspRange,
+  severity: DiagnosticSeverity,
+): Diagnostic | null {
+  if (classMap.has(ref.className)) return null;
+  const suggestion = findClosestMatch(ref.className, classMap.keys());
+  const hint = suggestion ? ` Did you mean '${suggestion}'?` : "";
+  return {
+    range,
+    severity,
+    source: DIAGNOSTIC_SOURCE,
+    message: `Class '.${ref.className}' not found in ${relativeScss(ref.scssModulePath, deps.workspaceRoot)}.${hint}`,
+    data: suggestion ? { suggestion } : undefined,
+  };
+}
+
+function validateTemplateRef(
+  ref: Extract<ClassRef, { kind: "template" }>,
+  classMap: ScssClassMap,
+  deps: ProviderDeps,
+  range: LspRange,
+  severity: DiagnosticSeverity,
+): Diagnostic | null {
+  if (anyValueStartsWith(classMap, ref.staticPrefix)) return null;
+  return {
+    range,
+    severity,
+    source: DIAGNOSTIC_SOURCE,
+    message: `No class starting with '${ref.staticPrefix}' found in ${relativeScss(ref.scssModulePath, deps.workspaceRoot)}.`,
+  };
+}
+
+function validateVariableRef(
+  ref: Extract<ClassRef, { kind: "variable" }>,
+  classMap: ScssClassMap,
+  params: Pick<DocumentParams, "filePath">,
+  deps: ProviderDeps,
+  range: LspRange,
+  severity: DiagnosticSeverity,
+): Diagnostic | null {
+  const infos = resolveClassRefToSelectorInfos({
+    ref,
+    classMap,
+    typeResolver: deps.typeResolver,
+    filePath: params.filePath,
+    workspaceRoot: deps.workspaceRoot,
+  });
+  const resolved = deps.typeResolver.resolve(params.filePath, ref.variableName, deps.workspaceRoot);
+  if (resolved.kind !== "union") return null;
+  if (infos.length === resolved.values.length) return null;
+  const missing = resolved.values.filter((v) => !classMap.has(v));
+  if (missing.length === 0) return null;
+  return {
+    range,
+    severity,
+    source: DIAGNOSTIC_SOURCE,
+    message: `Missing class for union member${missing.length > 1 ? "s" : ""}: ${missing.map((m) => `'${m}'`).join(", ")}.`,
+  };
 }
 
 function anyValueStartsWith(classMap: ScssClassMap, prefix: string): boolean {

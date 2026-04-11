@@ -111,22 +111,7 @@ export function createServer(options: CreateServerOptions): CreatedServer {
       params.capabilities.workspace?.didChangeWatchedFiles?.dynamicRegistration ?? false;
     bundle = buildBundle(workspaceRoot, options, connection, documents);
     return {
-      capabilities: {
-        textDocumentSync: TextDocumentSyncKind.Incremental,
-        definitionProvider: true,
-        hoverProvider: true,
-        completionProvider: {
-          triggerCharacters: [...COMPLETION_TRIGGER_CHARACTERS],
-          resolveProvider: false,
-        },
-        codeActionProvider: {
-          codeActionKinds: ["quickfix"],
-          resolveProvider: false,
-        },
-        referencesProvider: true,
-        codeLensProvider: { resolveProvider: false },
-        renameProvider: { prepareProvider: true },
-      },
+      capabilities: buildCapabilities(),
       serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
     };
   });
@@ -164,6 +149,25 @@ export function createServer(options: CreateServerOptions): CreatedServer {
 }
 
 // ── Helpers ────────────────────────────────────────────────────
+
+function buildCapabilities(): InitializeResult["capabilities"] {
+  return {
+    textDocumentSync: TextDocumentSyncKind.Incremental,
+    definitionProvider: true,
+    hoverProvider: true,
+    completionProvider: {
+      triggerCharacters: [...COMPLETION_TRIGGER_CHARACTERS],
+      resolveProvider: false,
+    },
+    codeActionProvider: {
+      codeActionKinds: ["quickfix"],
+      resolveProvider: false,
+    },
+    referencesProvider: true,
+    codeLensProvider: { resolveProvider: false },
+    renameProvider: { prepareProvider: true },
+  };
+}
 
 function resolveWorkspaceRoot(params: InitializeParams): string {
   const folder = params.workspaceFolders?.[0];

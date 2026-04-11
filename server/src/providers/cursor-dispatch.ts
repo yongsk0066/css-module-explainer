@@ -2,16 +2,6 @@ import type { ClassRef, Range as SharedRange, ScssClassMap } from "@css-module-e
 import type { AnalysisEntry } from "../core/indexing/document-analysis-cache";
 import type { CursorParams, ProviderDeps } from "./provider-deps";
 
-// Re-export the provider dependency bag types so the many
-// existing `from "./cursor-dispatch"` imports keep resolving
-// without every consumer having to change their import path.
-export {
-  NOOP_LOG_ERROR,
-  type CursorParams,
-  type DocumentParams,
-  type ProviderDeps,
-} from "./provider-deps";
-
 /**
  * Does `(line, character)` fall inside `range`? Inclusive on
  * both ends, matching the LSP convention used throughout the

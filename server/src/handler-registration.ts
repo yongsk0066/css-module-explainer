@@ -13,7 +13,7 @@ import type { CursorParams, ProviderDeps } from "./providers/provider-deps";
 import { fileUrlToPath } from "./core/util/text-utils";
 import { findLangForPath } from "./core/scss/lang-registry";
 import { fetchSettings, DEFAULT_SETTINGS, type Settings } from "./settings";
-import { createDiagnosticsScheduler } from "./diagnostics-scheduler";
+import { createDiagnosticsScheduler, type DiagnosticsScheduler } from "./diagnostics-scheduler";
 
 export interface HandlerContext {
   readonly connection: Connection;
@@ -26,70 +26,86 @@ export interface HandlerCleanup {
   refreshSettings(): void;
 }
 
+interface HandlerState {
+  readonly ctx: HandlerContext;
+  readonly scheduler: DiagnosticsScheduler;
+  settings: Settings;
+}
+
 /**
  * Wire every LSP request/notification handler onto the connection.
  *
- * Separated from the composition root so createServer stays a
- * thin DI shell and this file owns the "what happens when VS Code
- * sends a request" routing table.
- *
- * Returns a cleanup handle so the composition root's single
- * `onShutdown` handler can invoke timer + indexer cleanup.
+ * Split into feature-group registrars so this file owns routing
+ * only — the composition root stays a thin DI shell.
  */
 export function registerHandlers(ctx: HandlerContext): HandlerCleanup {
-  const { connection, documents, getDeps } = ctx;
+  const state: HandlerState = {
+    ctx,
+    scheduler: createDiagnosticsScheduler(ctx, DEFAULT_SETTINGS),
+    settings: DEFAULT_SETTINGS,
+  };
 
-  let settings: Settings = DEFAULT_SETTINGS;
+  const reloadSettings = registerSettingsHandler(state);
+  registerCursorHandlers(state);
+  registerDocumentHandlers(state);
+  registerWatchedFilesHandler(state);
 
-  const scheduler = createDiagnosticsScheduler({ connection, documents, getDeps }, settings);
+  return {
+    shutdown() {
+      state.ctx.getDeps()?.stopIndexer();
+      state.scheduler.shutdown();
+    },
+    refreshSettings: reloadSettings,
+  };
+}
+
+function registerSettingsHandler(state: HandlerState): () => void {
+  const { connection } = state.ctx;
 
   function reloadSettings(): void {
     fetchSettings(connection)
       .then((s) => {
-        settings = s;
-        scheduler.refreshSettings(s);
+        state.settings = s;
+        state.scheduler.refreshSettings(s);
       })
-      .catch((err: unknown) => {
-        try {
-          connection.console.error(
-            `[css-module-explainer] settings fetch failed: ${err instanceof Error ? err.message : String(err)}`,
-          );
-        } catch {
-          // Connection already disposed — nothing to log to.
-        }
-      });
+      .catch((err: unknown) => safeLogError(connection, "settings fetch failed", err));
   }
 
-  connection.onDidChangeConfiguration(() => {
-    reloadSettings();
-  });
+  connection.onDidChangeConfiguration(reloadSettings);
+  return reloadSettings;
+}
 
-  connection.onDefinition((p: TextDocumentPositionParams) => {
-    if (!settings.features.definition) return null;
+function registerCursorHandlers(state: HandlerState): void {
+  const { connection, documents, getDeps } = state.ctx;
+
+  const withCursor = <T>(
+    featureOn: () => boolean,
+    p: TextDocumentPositionParams,
+    run: (cursor: CursorParams, deps: ProviderDeps) => T | null,
+  ): T | null => {
+    if (!featureOn()) return null;
     const deps = getDeps();
     if (!deps) return null;
     const cursor = toCursorParams(p, documents);
     if (!cursor) return null;
-    return handleDefinition(cursor, deps);
-  });
+    return run(cursor, deps);
+  };
 
-  connection.onHover((p: TextDocumentPositionParams) => {
-    if (!settings.features.hover) return null;
-    const deps = getDeps();
-    if (!deps) return null;
-    const cursor = toCursorParams(p, documents);
-    if (!cursor) return null;
-    return handleHover(cursor, deps, settings.hover.maxCandidates);
-  });
+  connection.onDefinition((p) =>
+    withCursor(() => state.settings.features.definition, p, handleDefinition),
+  );
 
-  connection.onCompletion((p) => {
-    if (!settings.features.completion) return null;
-    const deps = getDeps();
-    if (!deps) return null;
-    const cursor = toCursorParams(p, documents);
-    if (!cursor) return null;
-    return handleCompletion(cursor, deps);
-  });
+  connection.onHover((p) =>
+    withCursor(
+      () => state.settings.features.hover,
+      p,
+      (cursor, deps) => handleHover(cursor, deps, state.settings.hover.maxCandidates),
+    ),
+  );
+
+  connection.onCompletion((p) =>
+    withCursor(() => state.settings.features.completion, p, handleCompletion),
+  );
 
   connection.onCodeAction((p) => {
     const deps = getDeps();
@@ -98,21 +114,21 @@ export function registerHandlers(ctx: HandlerContext): HandlerCleanup {
   });
 
   connection.onReferences((p) => {
-    if (!settings.features.references) return null;
+    if (!state.settings.features.references) return null;
     const deps = getDeps();
     if (!deps) return null;
     return handleReferences(p, deps);
   });
 
   connection.onCodeLens((p) => {
-    if (!settings.features.references) return null;
+    if (!state.settings.features.references) return null;
     const deps = getDeps();
     if (!deps) return null;
     return handleCodeLens(p, deps);
   });
 
   connection.onPrepareRename((p) => {
-    if (!settings.features.rename) return null;
+    if (!state.settings.features.rename) return null;
     const deps = getDeps();
     if (!deps) return null;
     const cursor = toCursorParams(p, documents);
@@ -120,26 +136,34 @@ export function registerHandlers(ctx: HandlerContext): HandlerCleanup {
   });
 
   connection.onRenameRequest((p) => {
-    if (!settings.features.rename) return null;
+    if (!state.settings.features.rename) return null;
     const deps = getDeps();
     if (!deps) return null;
     const cursor = toCursorParams(p, documents);
     return handleRename(p, deps, cursor ?? undefined);
   });
+}
+
+function registerDocumentHandlers(state: HandlerState): void {
+  const { documents } = state.ctx;
 
   documents.onDidChangeContent((change) => {
-    scheduler.ensureReadySubscribed();
+    state.scheduler.ensureReadySubscribed();
     const filePath = fileUrlToPath(change.document.uri);
     if (findLangForPath(filePath)) {
-      scheduler.scheduleScss(change.document.uri);
+      state.scheduler.scheduleScss(change.document.uri);
     } else {
-      scheduler.scheduleTsx(change.document.uri);
+      state.scheduler.scheduleTsx(change.document.uri);
     }
   });
 
   documents.onDidClose((change) => {
-    scheduler.handleDocumentClose(change.document.uri);
+    state.scheduler.handleDocumentClose(change.document.uri);
   });
+}
+
+function registerWatchedFilesHandler(state: HandlerState): void {
+  const { connection, documents, getDeps } = state.ctx;
 
   connection.onDidChangeWatchedFiles((params: DidChangeWatchedFilesParams) => {
     const deps = getDeps();
@@ -150,34 +174,38 @@ export function registerHandlers(ctx: HandlerContext): HandlerCleanup {
       if (change.type !== FileChangeType.Deleted) {
         deps.pushStyleFile(filePath);
       }
-      // Invalidate cached TSX analysis entries whose reverse-index
-      // expansions depended on this SCSS file. Without this, the
-      // debounced scheduleTsx hits `analysisCache.get`, finds the
-      // version unchanged, and reuses the stale AnalysisEntry — so
-      // `onAnalyze` never re-fires, and expanded template/variable
-      // reverse-index sites stay frozen against the old classMap.
-      const affectedUris = new Set(
-        deps.reverseIndex.findAllForScssPath(filePath).map((site) => site.uri),
-      );
-      for (const uri of affectedUris) {
-        deps.analysisCache.invalidate(uri);
-      }
+      invalidateDependentTsxEntries(deps, filePath);
     }
     for (const doc of documents.all()) {
-      scheduler.scheduleTsx(doc.uri);
+      state.scheduler.scheduleTsx(doc.uri);
     }
   });
+}
 
-  return {
-    shutdown() {
-      const deps = getDeps();
-      deps?.stopIndexer();
-      scheduler.shutdown();
-    },
-    refreshSettings() {
-      reloadSettings();
-    },
-  };
+/**
+ * Invalidate cached TSX analysis entries whose reverse-index
+ * expansions depended on this SCSS file. Without this, the
+ * debounced scheduleTsx hits `analysisCache.get`, finds the
+ * version unchanged, and reuses the stale AnalysisEntry — so
+ * `onAnalyze` never re-fires and expanded template/variable
+ * reverse-index sites stay frozen against the old classMap.
+ */
+function invalidateDependentTsxEntries(deps: ProviderDeps, scssPath: string): void {
+  const affectedUris = new Set(
+    deps.reverseIndex.findAllForScssPath(scssPath).map((site) => site.uri),
+  );
+  for (const uri of affectedUris) {
+    deps.analysisCache.invalidate(uri);
+  }
+}
+
+function safeLogError(connection: Connection, context: string, err: unknown): void {
+  const message = err instanceof Error ? err.message : String(err);
+  try {
+    connection.console.error(`[css-module-explainer] ${context}: ${message}`);
+  } catch {
+    // Connection already disposed — nothing to log to.
+  }
 }
 
 function toCursorParams(
