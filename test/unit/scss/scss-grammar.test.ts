@@ -104,6 +104,30 @@ describe("LESS grammar features reach the LESS parser", () => {
     const m = parseStyleModule(`@color: red;\n.btn { color: @color; }`, "/f.module.less");
     expect([...m.keys()]).toEqual(["btn"]);
   });
+
+  it("selector interpolation `.@{var}`", () => {
+    // The CSS grammar cannot tokenise `@{name}` inside a selector
+    // and would throw. postcss-less accepts it. The interpolated
+    // selector itself is dynamic so it does not surface as a key,
+    // but sibling real classes must still reach the classMap.
+    const m = parseStyleModule(
+      `@name: button;\n.@{name} { color: red; }\n.unrelated { padding: 4px; }`,
+      "/f.module.less",
+    );
+    expect(m.has("unrelated")).toBe(true);
+  });
+
+  it("mixin guard `.mixin() when (...)`", () => {
+    // LESS mixin guards are the headline LESS-only feature that
+    // CSS-side tokenisers never learned. This pins that the
+    // guard expression survives parsing so unrelated rules in the
+    // same file still populate the classMap.
+    const m = parseStyleModule(
+      `.shrink(@s) when (@s < 10) {\n  font-size: @s;\n}\n.btn { .shrink(8); }`,
+      "/f.module.less",
+    );
+    expect(m.has("btn")).toBe(true);
+  });
 });
 
 describe("CSS grammar still routes through the default postcss parser", () => {
