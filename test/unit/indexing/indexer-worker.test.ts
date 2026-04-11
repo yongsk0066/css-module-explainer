@@ -22,7 +22,10 @@ describe("IndexerWorker", () => {
       onTsxFile: () => {},
       logger: { info: () => {}, error: () => {} },
     });
-    await worker.start();
+    const startPromise = worker.start();
+    await worker.ready;
+    worker.stop();
+    await startPromise;
     expect(onScssFile).toHaveBeenCalledTimes(2);
     expect(onScssFile).toHaveBeenNthCalledWith(1, "/a.module.scss", "/* /a.module.scss */");
     expect(onScssFile).toHaveBeenNthCalledWith(2, "/b.module.scss", "/* /b.module.scss */");
@@ -37,7 +40,10 @@ describe("IndexerWorker", () => {
       onTsxFile,
       logger: { info: () => {}, error: () => {} },
     });
-    await worker.start();
+    const startPromise = worker.start();
+    await worker.ready;
+    worker.stop();
+    await startPromise;
     expect(onTsxFile).toHaveBeenCalledWith("/a.tsx", "const x = 1;");
   });
 
@@ -50,7 +56,10 @@ describe("IndexerWorker", () => {
       onTsxFile: () => {},
       logger: { info: () => {}, error: () => {} },
     });
-    await worker.start();
+    const startPromise = worker.start();
+    await worker.ready;
+    worker.stop();
+    await startPromise;
     expect(onScssFile).not.toHaveBeenCalled();
   });
 
@@ -66,7 +75,10 @@ describe("IndexerWorker", () => {
       onTsxFile: () => {},
       logger: { info: () => {}, error: (msg) => errors.push(msg) },
     });
-    await worker.start();
+    const startPromise = worker.start();
+    await worker.ready;
+    worker.stop();
+    await startPromise;
     expect(onScssFile).not.toHaveBeenCalled();
     expect(errors.length).toBe(1);
     expect(errors[0]!).toContain("/boom.module.scss");
@@ -82,11 +94,14 @@ describe("IndexerWorker", () => {
       logger: { info: () => {}, error: () => {} },
     });
     worker.pushFile({ kind: "scss", path: "/incremental.module.scss" });
-    await worker.start();
+    const startPromise = worker.start();
+    await worker.ready;
+    worker.stop();
+    await startPromise;
     expect(onScssFile).toHaveBeenCalledWith("/incremental.module.scss", "");
   });
 
-  it("ready resolves after start() completes", async () => {
+  it("ready resolves after initial supplier walk completes", async () => {
     const worker = new IndexerWorker({
       supplier: () => tasks([{ kind: "scss", path: "/a.module.scss" }]),
       readFile: async () => "",
@@ -97,6 +112,7 @@ describe("IndexerWorker", () => {
     expect(worker.ready).toBeInstanceOf(Promise);
     const startPromise = worker.start();
     await worker.ready;
+    worker.stop();
     await startPromise;
   });
 
@@ -144,9 +160,10 @@ describe("IndexerWorker", () => {
       onTsxFile: () => {},
       logger: { info: () => {}, error: () => {} },
     });
-    await worker.start();
+    const startPromise = worker.start();
     await worker.ready;
     worker.stop();
+    await startPromise;
     await worker.ready; // Must not hang or throw.
   });
 });
@@ -162,38 +179,108 @@ describe("IndexerWorker", () => {
 // ──────────────────────────────────────────────────────────────
 
 describe("Wave 1 Stage 3.2 — pushFile lifecycle (red regression)", () => {
-  // TODO(wave1-stage3): un-skip after fix lands
-  it.skip("pushFile after supplier exhaustion processes the task (wave1-stage3.2)", async () => {
-    // Supplier yields nothing, start() resolves ready, then
-    // pushFile({path: "x"}) is called. Expectation: onScssFile
-    // is invoked with "x". Current code: drain() has exited so
-    // the task sits in `pending` forever and onScssFile is
-    // never called.
-    expect.fail("red placeholder — wave1-stage3.2");
+  it("pushFile after supplier exhaustion processes the task (wave1-stage3.2)", async () => {
+    const onScssFile = vi.fn();
+    const worker = new IndexerWorker({
+      supplier: () => tasks([]),
+      readFile: async (p) => `/* ${p} */`,
+      onScssFile,
+      onTsxFile: () => {},
+      logger: { info: () => {}, error: () => {} },
+    });
+    const startPromise = worker.start();
+    await worker.ready;
+    expect(onScssFile).not.toHaveBeenCalled();
+    worker.pushFile({ kind: "scss", path: "/x.module.scss" });
+    // Allow the drain() wait phase + process() to run.
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(onScssFile).toHaveBeenCalledWith("/x.module.scss", "/* /x.module.scss */");
+    worker.stop();
+    await startPromise;
   });
 
-  // TODO(wave1-stage3): un-skip after fix lands
-  it.skip("consecutive pushFile calls all get processed (wave1-stage3.2)", async () => {
-    // Two pushFile calls back-to-back after ready. Both should
-    // hit onScssFile in order. Current code: neither fires.
-    expect.fail("red placeholder — wave1-stage3.2");
+  it("consecutive pushFile calls all get processed (wave1-stage3.2)", async () => {
+    const processed: string[] = [];
+    const worker = new IndexerWorker({
+      supplier: () => tasks([]),
+      readFile: async (p) => `/* ${p} */`,
+      onScssFile: (path) => {
+        processed.push(path);
+      },
+      onTsxFile: () => {},
+      logger: { info: () => {}, error: () => {} },
+    });
+    const startPromise = worker.start();
+    await worker.ready;
+    worker.pushFile({ kind: "scss", path: "/a.module.scss" });
+    worker.pushFile({ kind: "scss", path: "/b.module.scss" });
+    worker.pushFile({ kind: "scss", path: "/c.module.scss" });
+    // Drain multiple macrotask turns so all three tasks process.
+    // Chained (not a loop) to stay clear of `no-await-in-loop`.
+    await new Promise<void>((resolve) => setImmediate(resolve))
+      .then(() => new Promise<void>((resolve) => setImmediate(resolve)))
+      .then(() => new Promise<void>((resolve) => setImmediate(resolve)))
+      .then(() => new Promise<void>((resolve) => setImmediate(resolve)))
+      .then(() => new Promise<void>((resolve) => setImmediate(resolve)))
+      .then(() => new Promise<void>((resolve) => setImmediate(resolve)))
+      .then(() => new Promise<void>((resolve) => setImmediate(resolve)))
+      .then(() => new Promise<void>((resolve) => setImmediate(resolve)));
+    expect(processed).toEqual(["/a.module.scss", "/b.module.scss", "/c.module.scss"]);
+    worker.stop();
+    await startPromise;
   });
 
-  // TODO(wave1-stage3): un-skip after fix lands
-  it.skip("stop() during pushSignal wait exits cleanly (wave1-stage3.2)", async () => {
-    // After ready, the worker is parked in the pushSignal
-    // await. stop() must flush waiters so start()'s awaited
-    // drain() returns without hanging. Current code: pre-fix
-    // has no pushSignal, so this is a shape test for the new
-    // path.
-    expect.fail("red placeholder — wave1-stage3.2");
+  it("stop() during pushSignal wait exits cleanly (wave1-stage3.2)", async () => {
+    const worker = new IndexerWorker({
+      supplier: () => tasks([]),
+      readFile: async () => "",
+      onScssFile: () => {},
+      onTsxFile: () => {},
+      logger: { info: () => {}, error: () => {} },
+    });
+    const startPromise = worker.start();
+    await worker.ready;
+    // At this point drain() is parked in the pushSignal wait.
+    worker.stop();
+    // The start() promise must resolve without hanging.
+    await expect(
+      Promise.race([
+        startPromise.then(() => "ok" as const),
+        new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), 100)),
+      ]),
+    ).resolves.toBe("ok");
   });
 
-  // TODO(wave1-stage3): un-skip after fix lands
-  it.skip("ready promise resolves AT supplier exhaustion (wave1-stage3.2)", async () => {
-    // ready must resolve exactly at the transition from the
-    // initial walk to the long-running drain phase — not after
-    // the first pushFile, and not when stop() is called.
-    expect.fail("red placeholder — wave1-stage3.2");
+  it("ready promise resolves AT supplier exhaustion (wave1-stage3.2)", async () => {
+    let processedCount = 0;
+    let readyResolvedAtCount = -1;
+    const worker = new IndexerWorker({
+      supplier: () =>
+        tasks([
+          { kind: "scss", path: "/a.module.scss" },
+          { kind: "scss", path: "/b.module.scss" },
+          { kind: "scss", path: "/c.module.scss" },
+        ]),
+      readFile: async () => "",
+      onScssFile: () => {
+        processedCount += 1;
+      },
+      onTsxFile: () => {},
+      logger: { info: () => {}, error: () => {} },
+    });
+    void worker.ready.then(() => {
+      readyResolvedAtCount = processedCount;
+    });
+    const startPromise = worker.start();
+    await worker.ready;
+    // ready must resolve AFTER all 3 supplier tasks processed.
+    expect(readyResolvedAtCount).toBe(3);
+    // And BEFORE any post-exhaustion pushFile processing.
+    worker.pushFile({ kind: "scss", path: "/post.module.scss" });
+    // Ensure readyResolvedAtCount snapshot was not captured after the push.
+    expect(readyResolvedAtCount).toBe(3);
+    worker.stop();
+    await startPromise;
   });
 });
