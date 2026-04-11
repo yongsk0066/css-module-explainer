@@ -44,8 +44,6 @@ const detectCxBindings = (sourceFile: ts.SourceFile): CxBinding[] => [
   },
 ];
 
-const collectStyleImports = (): ReadonlyMap<string, string> => new Map([["styles", SCSS_PATH]]);
-
 const parseClassRefs = (): ClassRef[] => [
   {
     kind: "static",
@@ -73,8 +71,12 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
   const analysisCache = new DocumentAnalysisCache({
     sourceFileCache,
-    collectStyleImports,
-    detectCxBindings,
+    scanCxImports: (sf, fp) => ({
+      stylesBindings: new Map([["styles", { kind: "resolved" as const, absolutePath: SCSS_PATH }]]),
+      bindings: detectCxBindings(sf, fp),
+    }),
+    fileExists: () => true,
+    aliasResolver: EMPTY_ALIAS_RESOLVER,
     parseClassRefs,
     max: 10,
   });
@@ -129,10 +131,9 @@ describe("withClassRefAtCursor / fast paths", () => {
     const sourceFileCache = new SourceFileCache({ max: 10 });
     const analysisCache = new DocumentAnalysisCache({
       sourceFileCache,
-      collectStyleImports: () => new Map(),
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
-      detectCxBindings: () => [],
+      scanCxImports: () => ({ stylesBindings: new Map(), bindings: [] }),
       parseClassRefs: () => [],
       max: 10,
     });

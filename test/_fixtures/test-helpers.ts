@@ -78,8 +78,7 @@ export function makeBaseDeps(overrides: Partial<ProviderDeps> = {}): ProviderDep
   const sourceFileCache = new SourceFileCache({ max: 10 });
   const analysisCache = new DocumentAnalysisCache({
     sourceFileCache,
-    collectStyleImports: () => new Map(),
-    detectCxBindings: () => [],
+    scanCxImports: () => ({ stylesBindings: new Map(), bindings: [] }),
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
     max: 10,

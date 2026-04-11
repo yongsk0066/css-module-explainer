@@ -1,12 +1,32 @@
 import { describe, it, expect } from "vitest";
 import ts from "typescript";
-import {
-  collectStyleImports,
-  detectCxBindings,
-} from "../../../server/src/core/cx/binding-detector";
+import type { CxBinding, StyleImport } from "@css-module-explainer/shared";
+import { scanCxImports } from "../../../server/src/core/cx/binding-detector";
 import { AliasResolver } from "../../../server/src/core/cx/alias-resolver";
 
 const EMPTY_ALIAS_RESOLVER = new AliasResolver("/fake", {});
+
+// Thin adapters over `scanCxImports` that project its single result
+// back to the two outputs these tests pin individually. Keeps every
+// behavioural assertion intact while the production code uses the
+// consolidated single-walk API.
+function detectCxBindings(
+  src: ts.SourceFile,
+  filePath: string,
+  aliasResolver: AliasResolver,
+  fileExists: (p: string) => boolean = () => true,
+): readonly CxBinding[] {
+  return scanCxImports(src, filePath, fileExists, aliasResolver).bindings;
+}
+
+function collectStyleImports(
+  src: ts.SourceFile,
+  filePath: string,
+  fileExists: (p: string) => boolean,
+  aliasResolver: AliasResolver,
+): ReadonlyMap<string, StyleImport> {
+  return scanCxImports(src, filePath, fileExists, aliasResolver).stylesBindings;
+}
 
 function parse(source: string, filePath = "/fake/src/Button.tsx"): ts.SourceFile {
   return ts.createSourceFile(

@@ -17,11 +17,7 @@ import type { ScssClassMap } from "@css-module-explainer/shared";
 import { DEFAULT_SETTINGS } from "./settings";
 import { buildStyleFileWatcherGlob, findLangForPath } from "./core/scss/lang-registry";
 import { StyleIndexCache } from "./core/scss/scss-index";
-import {
-  collectStyleImports,
-  detectClassUtilImports,
-  detectCxBindings,
-} from "./core/cx/binding-detector";
+import { detectClassUtilImports, scanCxImports } from "./core/cx/binding-detector";
 import { parseClassRefs } from "./core/cx/class-ref-parser";
 import { AliasResolver } from "./core/cx/alias-resolver";
 import { SourceFileCache } from "./core/ts/source-file-cache";
@@ -317,8 +313,7 @@ function buildAnalysisCache(args: AnalysisCacheArgs): DocumentAnalysisCache {
     args;
   return new DocumentAnalysisCache({
     sourceFileCache: caches.sourceFileCache,
-    collectStyleImports,
-    detectCxBindings,
+    scanCxImports,
     parseClassRefs,
     detectClassUtilImports,
     fileExists,

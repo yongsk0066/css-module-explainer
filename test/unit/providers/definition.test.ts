@@ -47,10 +47,9 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
   const analysisCache = new DocumentAnalysisCache({
     sourceFileCache,
-    collectStyleImports: () => new Map(),
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
-    detectCxBindings,
+    scanCxImports: (sf, fp) => ({ stylesBindings: new Map(), bindings: detectCxBindings(sf, fp) }),
     parseClassRefs,
     max: 10,
   });
@@ -112,10 +111,12 @@ describe("handleDefinition", () => {
     const sourceFileCache = new SourceFileCache({ max: 10 });
     const analysisCache = new DocumentAnalysisCache({
       sourceFileCache,
-      collectStyleImports: () => new Map(),
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
-      detectCxBindings,
+      scanCxImports: (sf, fp) => ({
+        stylesBindings: new Map(),
+        bindings: detectCxBindings(sf, fp),
+      }),
       parseClassRefs: (_sf, bindings) =>
         bindings.length === 0
           ? []

@@ -57,10 +57,9 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
   const analysisCache = new DocumentAnalysisCache({
     sourceFileCache,
-    collectStyleImports: () => new Map(),
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
-    detectCxBindings,
+    scanCxImports: (sf, fp) => ({ stylesBindings: new Map(), bindings: detectCxBindings(sf, fp) }),
     parseClassRefs,
     max: 10,
   });
@@ -153,10 +152,12 @@ describe("computeDiagnostics", () => {
           ];
     const analysisCache = new DocumentAnalysisCache({
       sourceFileCache,
-      collectStyleImports: () => new Map(),
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
-      detectCxBindings,
+      scanCxImports: (sf, fp) => ({
+        stylesBindings: new Map(),
+        bindings: detectCxBindings(sf, fp),
+      }),
       parseClassRefs: localParseClassRefs,
       max: 10,
     });
@@ -198,10 +199,12 @@ describe("computeDiagnostics", () => {
           ];
     const analysisCache = new DocumentAnalysisCache({
       sourceFileCache,
-      collectStyleImports: () => new Map(),
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
-      detectCxBindings,
+      scanCxImports: (sf, fp) => ({
+        stylesBindings: new Map(),
+        bindings: detectCxBindings(sf, fp),
+      }),
       parseClassRefs: localParseClassRefs,
       max: 10,
     });
@@ -252,10 +255,12 @@ describe("computeDiagnostics", () => {
           ];
     const analysisCache = new DocumentAnalysisCache({
       sourceFileCache,
-      collectStyleImports: () => new Map(),
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
-      detectCxBindings,
+      scanCxImports: (sf, fp) => ({
+        stylesBindings: new Map(),
+        bindings: detectCxBindings(sf, fp),
+      }),
       parseClassRefs: localParseClassRefs,
       max: 10,
     });
@@ -310,8 +315,8 @@ describe("missing-module diagnostics", () => {
     const sourceFileCache = new SourceFileCache({ max: 10 });
     const analysisCache = new DocumentAnalysisCache({
       sourceFileCache,
-      collectStyleImports: () =>
-        new Map([
+      scanCxImports: () => ({
+        stylesBindings: new Map([
           [
             "styles",
             {
@@ -325,8 +330,10 @@ describe("missing-module diagnostics", () => {
             },
           ],
         ]),
-      detectCxBindings: () => [],
+        bindings: [],
+      }),
       fileExists: () => false,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
       max: 10,
     });
     return makeBaseDeps({ analysisCache, workspaceRoot: "/fake/ws", ...overrides });
@@ -376,14 +383,15 @@ describe("missing-module diagnostics", () => {
     const sourceFileCache = new SourceFileCache({ max: 10 });
     const analysisCache = new DocumentAnalysisCache({
       sourceFileCache,
-      collectStyleImports: () =>
-        new Map([
+      scanCxImports: () => ({
+        stylesBindings: new Map([
           [
             "styles",
             { kind: "resolved" as const, absolutePath: "/fake/ws/src/Button.module.scss" },
           ],
         ]),
-      detectCxBindings: () => [],
+        bindings: [],
+      }),
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
       max: 10,
@@ -427,8 +435,7 @@ describe("missing-module diagnostics", () => {
     const sourceFileCache = new SourceFileCache({ max: 10 });
     const analysisCache = new DocumentAnalysisCache({
       sourceFileCache,
-      collectStyleImports: () => new Map(),
-      detectCxBindings: () => [],
+      scanCxImports: () => ({ stylesBindings: new Map(), bindings: [] }),
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
       max: 10,

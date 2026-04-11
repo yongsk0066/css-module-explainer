@@ -203,18 +203,22 @@ function makeTsxDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
   const analysisCache = new DocumentAnalysisCache({
     sourceFileCache,
-    collectStyleImports: () => new Map(),
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
-    detectCxBindings: (sourceFile: ts.SourceFile): CxBinding[] => [
-      {
-        ...BINDING,
-        scope: {
-          startLine: 0,
-          endLine: sourceFile.getLineAndCharacterOfPosition(sourceFile.getEnd()).line,
+    scanCxImports: (sourceFile) => ({
+      stylesBindings: new Map([
+        ["styles", { kind: "resolved" as const, absolutePath: BINDING.scssModulePath }],
+      ]),
+      bindings: [
+        {
+          ...BINDING,
+          scope: {
+            startLine: 0,
+            endLine: sourceFile.getLineAndCharacterOfPosition(sourceFile.getEnd()).line,
+          },
         },
-      },
-    ],
+      ],
+    }),
     parseClassRefs: (_sf: ts.SourceFile, bindings: readonly CxBinding[]): ClassRef[] =>
       bindings.length === 0
         ? []

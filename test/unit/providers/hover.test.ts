@@ -44,10 +44,9 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
   const analysisCache = new DocumentAnalysisCache({
     sourceFileCache,
-    collectStyleImports: () => new Map(),
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
-    detectCxBindings,
+    scanCxImports: (sf, fp) => ({ stylesBindings: new Map(), bindings: detectCxBindings(sf, fp) }),
     parseClassRefs,
     max: 10,
   });
@@ -106,10 +105,12 @@ const el = cx(
     const deps = makeDeps({
       analysisCache: new DocumentAnalysisCache({
         sourceFileCache: new SourceFileCache({ max: 10 }),
-        collectStyleImports: () => new Map(),
         fileExists: () => true,
         aliasResolver: EMPTY_ALIAS_RESOLVER,
-        detectCxBindings,
+        scanCxImports: (sf, fp) => ({
+          stylesBindings: new Map(),
+          bindings: detectCxBindings(sf, fp),
+        }),
         parseClassRefs: multiLineClassRefs,
         max: 10,
       }),
@@ -159,8 +160,17 @@ const el = <div className={clsx(styles.indicator)} />;
     const indicatorInfo = info("indicator");
     const analysisCache = new DocumentAnalysisCache({
       sourceFileCache,
-      collectStyleImports: () => new Map([["styles", "/fake/ws/src/Button.module.scss"]]),
-      detectCxBindings: () => [],
+      scanCxImports: () => ({
+        stylesBindings: new Map([
+          [
+            "styles",
+            { kind: "resolved" as const, absolutePath: "/fake/ws/src/Button.module.scss" },
+          ],
+        ]),
+        bindings: [],
+      }),
+      fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
       parseClassRefs: (_sf, _bindings, stylesBindings) => {
         if (stylesBindings.has("styles")) {
           return [

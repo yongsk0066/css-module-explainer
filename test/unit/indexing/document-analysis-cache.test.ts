@@ -33,10 +33,9 @@ function makeCache() {
   );
   const cache = new DocumentAnalysisCache({
     sourceFileCache,
-    collectStyleImports: () => new Map(),
+    scanCxImports: (sf, fp) => ({ stylesBindings: new Map(), bindings: detectSpy(sf, fp) }),
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
-    detectCxBindings: detectSpy,
     parseClassRefs: parseSpy,
     max: 10,
   });
@@ -105,10 +104,9 @@ describe("DocumentAnalysisCache", () => {
     const parseSpy = vi.fn((): ClassRef[] => []);
     const cache = new DocumentAnalysisCache({
       sourceFileCache,
-      collectStyleImports: () => new Map(),
+      scanCxImports: (sf, fp) => ({ stylesBindings: new Map(), bindings: detectSpy(sf, fp) }),
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
-      detectCxBindings: detectSpy,
       parseClassRefs: parseSpy,
       max: 2,
     });
@@ -130,10 +128,9 @@ describe("DocumentAnalysisCache", () => {
     const parseSpy = vi.fn((): ClassRef[] => []);
     const cache = new DocumentAnalysisCache({
       sourceFileCache,
-      collectStyleImports: () => new Map(),
+      scanCxImports: (sf, fp) => ({ stylesBindings: new Map(), bindings: detectSpy(sf, fp) }),
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
-      detectCxBindings: detectSpy,
       parseClassRefs: parseSpy,
       max: 2,
     });
@@ -158,10 +155,9 @@ describe("DocumentAnalysisCache", () => {
     const parseSpy = vi.fn((): ClassRef[] => []);
     const cache = new DocumentAnalysisCache({
       sourceFileCache,
-      collectStyleImports: () => new Map(),
+      scanCxImports: (sf, fp) => ({ stylesBindings: new Map(), bindings: detectSpy(sf, fp) }),
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
-      detectCxBindings: detectSpy,
       parseClassRefs: parseSpy,
       max: 10,
     });
@@ -174,10 +170,9 @@ describe("DocumentAnalysisCache", () => {
     const sourceFileCache = new SourceFileCache({ max: 10 });
     const cache = new DocumentAnalysisCache({
       sourceFileCache,
-      collectStyleImports: () => new Map(),
+      scanCxImports: () => ({ stylesBindings: new Map(), bindings: [] }),
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
-      detectCxBindings: (): CxBinding[] => [],
       parseClassRefs: (): ClassRef[] => [],
       max: 10,
     });
@@ -193,7 +188,6 @@ describe("DocumentAnalysisCache / styleAccess without classnames/bind", () => {
       const el = <div className={clsx(styles.indicator)} />;
     `;
     const sourceFileCache = new SourceFileCache({ max: 10 });
-    const detectSpy = vi.fn((): CxBinding[] => []);
     const styleRef: ClassRef = {
       kind: "static",
       origin: "styleAccess",
@@ -211,25 +205,28 @@ describe("DocumentAnalysisCache / styleAccess without classnames/bind", () => {
         return [];
       },
     );
-    const collectStyleImportsSpy = vi.fn(
-      (_sf: ts.SourceFile, _filePath: string): ReadonlyMap<string, StyleImport> => {
-        return new Map([
+    const scanSpy = vi.fn(
+      (): { stylesBindings: ReadonlyMap<string, StyleImport>; bindings: CxBinding[] } => ({
+        stylesBindings: new Map([
           ["styles", { kind: "resolved", absolutePath: "/fake/src/Button.module.scss" }],
-        ]);
-      },
+        ]),
+        bindings: [],
+      }),
     );
 
     const cache = new DocumentAnalysisCache({
       sourceFileCache,
-      collectStyleImports: collectStyleImportsSpy,
-      detectCxBindings: detectSpy,
+      scanCxImports: scanSpy,
+      fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
       parseClassRefs: parseClassRefsSpy,
       max: 10,
     });
 
     const entry = cache.get("file:///fake/a.tsx", clsxSource, "/fake/a.tsx", 1);
 
-    // styleAccess refs must be populated even though detectCxBindings returned []
+    // styleAccess refs must be populated even though the scan
+    // returned an empty bindings list.
     expect(entry.bindings).toHaveLength(0);
     expect(entry.classRefs).toHaveLength(1);
     expect(entry.classRefs[0]).toMatchObject({
@@ -238,9 +235,9 @@ describe("DocumentAnalysisCache / styleAccess without classnames/bind", () => {
       className: "indicator",
       scssModulePath: "/fake/src/Button.module.scss",
     });
-    expect(collectStyleImportsSpy).toHaveBeenCalledTimes(1);
+    expect(scanSpy).toHaveBeenCalledTimes(1);
     expect(parseClassRefsSpy).toHaveBeenCalledTimes(1);
-    // Verify parseClassRefs received the map from collectStyleImports
+    // Verify parseClassRefs received the map from scanCxImports.
     expect(parseClassRefsSpy.mock.calls[0]![2].get("styles")).toEqual({
       kind: "resolved",
       absolutePath: "/fake/src/Button.module.scss",

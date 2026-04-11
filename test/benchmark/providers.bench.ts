@@ -86,10 +86,12 @@ function makeDeps(): ProviderDeps {
   return {
     analysisCache: new DocumentAnalysisCache({
       sourceFileCache,
-      collectStyleImports: () => new Map(),
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
-      detectCxBindings,
+      scanCxImports: (sf, fp) => ({
+        stylesBindings: new Map(),
+        bindings: detectCxBindings(sf, fp),
+      }),
       parseClassRefs,
       max: 10,
     }),
@@ -185,10 +187,12 @@ describe("diagnostics document-wide scan", () => {
       ...makeDeps(),
       analysisCache: new DocumentAnalysisCache({
         sourceFileCache: new SourceFileCache({ max: 10 }),
-        collectStyleImports: () => new Map(),
         fileExists: () => true,
         aliasResolver: EMPTY_ALIAS_RESOLVER,
-        detectCxBindings,
+        scanCxImports: (sf, fp) => ({
+          stylesBindings: new Map(),
+          bindings: detectCxBindings(sf, fp),
+        }),
         parseClassRefs: (_sf, bindings): ClassRef[] =>
           bindings.length === 0
             ? []

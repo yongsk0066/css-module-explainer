@@ -33,10 +33,9 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
   const analysisCache = new DocumentAnalysisCache({
     sourceFileCache,
-    collectStyleImports: () => new Map(),
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
-    detectCxBindings,
+    scanCxImports: (sf, fp) => ({ stylesBindings: new Map(), bindings: detectCxBindings(sf, fp) }),
     detectClassUtilImports,
     max: 10,
   });
@@ -221,16 +220,23 @@ const el = clsx(styles.
     const sourceFileCache = new SourceFileCache({ max: 10 });
     const analysisCache = new DocumentAnalysisCache({
       sourceFileCache,
-      detectCxBindings: () => [],
-      // collectStyleImports is wired and populates stylesBindings so
-      // parseClassRefs can see the styles.x access patterns.
-      collectStyleImports: (_sf: ts.SourceFile, _fp: string) =>
-        new Map([
+      // scanCxImports populates stylesBindings so parseClassRefs
+      // can see the styles.x access patterns. No cx bindings in
+      // the clsx path.
+      scanCxImports: () => ({
+        stylesBindings: new Map([
           [
             "styles",
-            { kind: "resolved", absolutePath: "/fake/ws/src/Button.module.scss" } as const,
+            {
+              kind: "resolved" as const,
+              absolutePath: "/fake/ws/src/Button.module.scss",
+            },
           ],
         ]),
+        bindings: [],
+      }),
+      fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
       detectClassUtilImports,
       max: 10,
     });

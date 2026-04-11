@@ -34,26 +34,49 @@ export function detectClassUtilImports(sourceFile: ts.SourceFile): string[] {
 }
 
 /**
- * Scan top-level import declarations for `.module.<ext>` default or
- * namespace imports and return a map of local identifier → resolved
- * absolute path.
- *
- * This is the same logic as the style-import branch inside
- * `collectImports`, exposed so `DocumentAnalysisCache.analyze()` can
- * call it without pulling in the classnames/bind bookkeeping. Files
- * without a `classnames/bind` import still get a populated
- * `stylesBindings` map for `parseClassRefs`.
+ * Product of the cx-pipeline import scan: the resolved style-import
+ * map that `parseClassRefs` consumes, plus the list of active
+ * `cx = classnames.bind(styles)` bindings in the file.
  */
-export function collectStyleImports(
+export interface CxScanResult {
+  readonly stylesBindings: ReadonlyMap<string, StyleImport>;
+  readonly bindings: readonly CxBinding[];
+}
+
+/**
+ * Scan a source file for the cx pipeline's two inputs in a single
+ * pass: resolved `.module.<ext>` style imports and the active
+ * `cx = classnames.bind(styles)` bindings that reference them.
+ *
+ * Pass 1 walks top-level import declarations once, producing both
+ * the classnames/bind identifier set AND the style-import map
+ * (with `missing` variants produced by `fileExists`). Pass 2
+ * descends the full AST for `VariableDeclaration` nodes whose
+ * initializer matches `<classNamesImport>.bind(<knownStylesVar>)`
+ * — but only when both input sets are non-empty, which makes
+ * the pass a real short-circuit for files that use neither
+ * helper.
+ *
+ * The design covers: free `cxVarName`, free styles name, alias
+ * imports for `classnames/bind`, multiple bindings per file, and
+ * function-scoped bindings.
+ */
+export function scanCxImports(
   sourceFile: ts.SourceFile,
   filePath: string,
   fileExists: (p: string) => boolean,
   aliasResolver: AliasResolver,
-): ReadonlyMap<string, StyleImport> {
+): CxScanResult {
+  const classNamesNames = new Set<string>();
   const stylesBindings = new Map<string, StyleImport>();
+
   for (const stmt of sourceFile.statements) {
     const resolved = tryResolveImportStatement(stmt, sourceFile, filePath, aliasResolver);
-    if (resolved?.kind !== "style") continue;
+    if (!resolved) continue;
+    if (resolved.kind === "classnamesBind") {
+      classNamesNames.add(resolved.importName);
+      continue;
+    }
     stylesBindings.set(
       resolved.importName,
       fileExists(resolved.absolutePath)
@@ -66,81 +89,22 @@ export function collectStyleImports(
           },
     );
   }
-  return stylesBindings;
-}
 
-/**
- * Walk a source file and return every active `cx` binding:
- *   const <cxVarName> = <classNamesImport>.bind(<stylesVarName>);
- *
- * The walker runs in two passes. Pass 1 is a single linear scan of
- * top-level import declarations that collects BOTH the
- * `classnames/bind` default-import identifiers AND every
- * `.module.<ext>` style default/namespace import with its resolved
- * absolute path. Pass 2 scans every `VariableDeclaration` node in
- * the file — including those inside function bodies — and keeps the
- * ones whose initializer is
- * `<classNamesImport>.bind(<knownStylesVar>)`.
- *
- * The design covers: free `cxVarName`, free styles name, alias
- * imports for `classnames/bind`, multiple bindings per file, and
- * function-scoped bindings.
- */
-export function detectCxBindings(
-  sourceFile: ts.SourceFile,
-  filePath: string,
-  aliasResolver: AliasResolver,
-): CxBinding[] {
-  // Two-pass design: Pass 1 is a linear scan of top-level statements
-  // for the two import sets we care about. If either set is empty,
-  // we skip the full recursive AST walk in Pass 2 entirely — a real
-  // short-circuit, not a micro-optimization, because Pass 2 descends
-  // into every function body via ts.forEachChild.
-  const imports = collectImports(sourceFile, filePath, aliasResolver);
-  if (imports.classNamesNames.size === 0 || imports.stylesBindings.size === 0) {
-    return [];
+  if (classNamesNames.size === 0 || stylesBindings.size === 0) {
+    return { stylesBindings, bindings: [] };
   }
-  return collectBindings(sourceFile, imports);
+  const bindings = collectBindings(sourceFile, {
+    classNamesNames,
+    stylesBindings,
+  });
+  return { stylesBindings, bindings };
 }
 
 interface ImportScan {
   /** Identifiers bound to `import X from 'classnames/bind'`. */
   readonly classNamesNames: ReadonlySet<string>;
-  /** Identifier → resolved style import (resolved for now; `missing` variant lands with the fileExists DI). */
+  /** Identifier → resolved style import (may include `missing` variants from `fileExists`). */
   readonly stylesBindings: ReadonlyMap<string, StyleImport>;
-}
-
-function collectImports(
-  sourceFile: ts.SourceFile,
-  filePath: string,
-  aliasResolver: AliasResolver,
-): ImportScan {
-  // Single walk over top-level statements that produces both outputs
-  // (classnames/bind identifiers and style-import bindings). Used
-  // only by `detectCxBindings`, which does not care whether a style
-  // module exists on disk — it only needs the resolved path to wire
-  // cx bindings. Therefore this internal walker never emits `missing`
-  // variants; it treats every style import as `resolved` regardless
-  // of filesystem state. The exported `collectStyleImports` (which
-  // takes a `fileExists` DI) is the authoritative path that emits
-  // the two-variant union for diagnostics.
-  const classNamesNames = new Set<string>();
-  const stylesBindings = new Map<string, StyleImport>();
-
-  for (const stmt of sourceFile.statements) {
-    const resolved = tryResolveImportStatement(stmt, sourceFile, filePath, aliasResolver);
-    if (!resolved) continue;
-    if (resolved.kind === "classnamesBind") {
-      classNamesNames.add(resolved.importName);
-    } else {
-      stylesBindings.set(resolved.importName, {
-        kind: "resolved",
-        absolutePath: resolved.absolutePath,
-      });
-    }
-  }
-
-  return { classNamesNames, stylesBindings };
 }
 
 type ResolvedImport =

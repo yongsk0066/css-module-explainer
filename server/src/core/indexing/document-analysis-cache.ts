@@ -44,17 +44,23 @@ export interface AnalysisEntry {
 
 export interface DocumentAnalysisCacheDeps {
   readonly sourceFileCache: SourceFileCache;
-  readonly collectStyleImports: (
+  /**
+   * Single-pass scan of the file's top-level import declarations
+   * and cx binding initializers. Returns both the style-import
+   * map (with `resolved`/`missing` variants derived from
+   * `fileExists`) and the active `cx = classnames.bind(styles)`
+   * bindings in one traversal, eliminating the previous
+   * double-walk pattern.
+   */
+  readonly scanCxImports: (
     sourceFile: ts.SourceFile,
     filePath: string,
     fileExists: (p: string) => boolean,
     aliasResolver: AliasResolver,
-  ) => ReadonlyMap<string, StyleImport>;
-  readonly detectCxBindings: (
-    sourceFile: ts.SourceFile,
-    filePath: string,
-    aliasResolver: AliasResolver,
-  ) => CxBinding[];
+  ) => {
+    readonly stylesBindings: ReadonlyMap<string, StyleImport>;
+    readonly bindings: readonly CxBinding[];
+  };
   /**
    * Returns true iff `path` exists on disk. Injected so tests can
    * stub the check and the analysis cache stays free of `node:fs`.
@@ -168,13 +174,12 @@ export class DocumentAnalysisCache {
 
   private analyze(content: string, filePath: string, version: number, hash: string): AnalysisEntry {
     const sourceFile = this.deps.sourceFileCache.get(filePath, content);
-    const bindings = this.deps.detectCxBindings(sourceFile, filePath, this.deps.aliasResolver);
-
-    // Independent style-import scanning: collect style imports independently of cx bindings.
-    // Files without classnames/bind still get styles.x support. `fileExists` is consulted
-    // per resolved import so missing targets become `{ kind: "missing" }` entries for the
-    // diagnostics provider.
-    const stylesBindings = this.deps.collectStyleImports(
+    // Single-pass scan: resolves style imports (with `missing`
+    // variants via `fileExists`) and collects cx bindings in one
+    // traversal of the source file. Files without `classnames/bind`
+    // still get a populated `stylesBindings` so `parseClassRefs`
+    // can resolve `styles.x` accesses.
+    const { stylesBindings, bindings } = this.deps.scanCxImports(
       sourceFile,
       filePath,
       this.deps.fileExists,
