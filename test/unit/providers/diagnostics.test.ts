@@ -410,12 +410,12 @@ describe("missing-module diagnostics", () => {
     expect(missing).toEqual([]);
   });
 
-  it("CRITICAL placement: fires for pure styles.x file WITHOUT classnames/bind", () => {
-    // This catches the v1.5.1 early-return regression.
-    // The fixture contains styles.x usage but no classnames/bind
-    // — pre-R2-polish the missing-module loop was gated behind
-    // `params.content.includes("classnames/bind")` and never ran
-    // for pure styles.x files.
+  it("missing-module check fires on pure styles.x access without a classnames/bind import", () => {
+    // The fixture deliberately omits `classnames/bind` so the
+    // `styles.x` access is the only hook for the missing-module
+    // loop. An earlier shape of `computeDiagnostics` short-
+    // circuited when the content had no `classnames/bind` token
+    // and skipped these files entirely.
     const PURE_STYLES_TSX = `import styles from './typo.module.scss';\nexport const A = () => styles.a;\n`;
     const deps = makeMissingDeps();
     const result = computeDiagnostics(

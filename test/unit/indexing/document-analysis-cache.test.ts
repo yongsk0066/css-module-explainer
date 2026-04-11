@@ -119,7 +119,7 @@ describe("DocumentAnalysisCache", () => {
     expect(detectSpy).toHaveBeenCalledTimes(1);
   });
 
-  it("re-puts the same uri under LRU pressure without evicting a touched sibling (post-review coverage)", () => {
+  it("re-puts the same uri under LRU pressure without evicting a touched sibling", () => {
     // Exercises the `entries.has(uri)` branch inside put(): when a
     // cached uri is re-analyzed with changed content, we delete+
     // re-insert rather than evict a different key.
@@ -146,7 +146,7 @@ describe("DocumentAnalysisCache", () => {
     expect(detectSpy).not.toHaveBeenCalled();
   });
 
-  it("invalidates an uncached uri via the fileURLToPath fallback (post-review coverage)", () => {
+  it("invalidates an uncached uri via the fileURLToPath fallback", () => {
     // Exercises the fallback branch in invalidate() when no
     // AnalysisEntry exists for the uri. The SourceFileCache might
     // still hold the entry under the derived path.
@@ -166,7 +166,7 @@ describe("DocumentAnalysisCache", () => {
     expect(sfcInvalidate).toHaveBeenCalledWith("/never/seen.tsx");
   });
 
-  it("swallows a malformed uri in invalidate without throwing (post-review coverage)", () => {
+  it("swallows a malformed uri in invalidate without throwing", () => {
     const sourceFileCache = new SourceFileCache({ max: 10 });
     const cache = new DocumentAnalysisCache({
       sourceFileCache,
