@@ -132,14 +132,11 @@ describe("IndexerWorker", () => {
   });
 });
 
-// ──────────────────────────────────────────────────────────────
 // IndexerWorker.pushFile lifecycle — ensures pushed tasks keep
 // processing after the initial supplier drains. Each test
 // encodes a lifecycle stage (post-exhaustion, concurrent push,
 // ready barrier, repeat-push) that must remain green as the
 // PushSignal wiring evolves.
-// ──────────────────────────────────────────────────────────────
-
 describe("IndexerWorker pushFile lifecycle", () => {
   it("pushFile after supplier exhaustion processes the task", async () => {
     const onScssFile = vi.fn();

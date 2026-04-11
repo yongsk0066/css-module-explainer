@@ -61,12 +61,10 @@ describe("handleReferences", () => {
     expect(result![0]!.uri).toBe("file:///fake/src/App.tsx");
   });
 
-  // ──────────────────────────────────────────────────────────────
   // Find-references keeps expanded template/variable sites. The
   // rename provider filters them; Find Refs does not. This test
   // prevents future "simplification" from dropping expanded
   // entries at `collectCallSites`.
-  // ──────────────────────────────────────────────────────────────
   it("find-references STILL surfaces template-expanded sites", () => {
     const SCSS_PATH = "/fake/src/Button.module.scss";
     const SCSS_URI = "file:///fake/src/Button.module.scss";
@@ -122,11 +120,9 @@ describe("handleReferences", () => {
     expect(matched).toBeDefined();
   });
 
-  // ──────────────────────────────────────────────────────────────
   // findSelectorAtCursor prefers the BEM-suffix range when present.
   // Cursor on `&--primary` resolves to the nested class entry that
   // the resolved-name fallback range would miss.
-  // ──────────────────────────────────────────────────────────────
   it("findSelectorAtCursor prefers bemSuffix.rawTokenRange over resolved range", () => {
     // Fixture: `.button { &--primary {} }` on two lines.
     // Line 0: `.button {`

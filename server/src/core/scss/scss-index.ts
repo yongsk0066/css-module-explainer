@@ -13,10 +13,6 @@ export {
   type ParentContext,
 } from "./scss-parser";
 
-// ──────────────────────────────────────────────────────────────
-// StyleIndexCache
-// ──────────────────────────────────────────────────────────────
-
 interface StyleIndexCacheEntry {
   hash: string;
   mode: ClassnameTransformMode;

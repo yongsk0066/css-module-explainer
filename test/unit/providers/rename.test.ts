@@ -307,14 +307,11 @@ describe("handleRename from TS/TSX", () => {
   });
 });
 
-// ──────────────────────────────────────────────────────────────
 // Rename must not corrupt template/variable reverse-index sites.
 // When a rename rewrites a class whose reverse index also contains
 // "expanded" template/variable entries at the same range, those
 // synthesized entries must be skipped — rewriting them would
 // destroy the dynamic expression source.
-// ──────────────────────────────────────────────────────────────
-
 describe("rename template corruption guard", () => {
   // Shared fixture: `cx(`btn-${weight}`)` at range R in App.tsx, where
   // `btn-` resolves against SCSS class map containing `btn-small` and
@@ -825,10 +822,6 @@ describe("&-nested BEM suffix rename", () => {
     expect(result).toBeNull();
   });
 });
-
-// ──────────────────────────────────────────────────────────────
-// classnameTransform — alias-aware rename
-// ──────────────────────────────────────────────────────────────
 
 /**
  * Alias-first iteration order. Production `expandClassMapWithTransform`

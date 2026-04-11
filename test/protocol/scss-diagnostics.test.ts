@@ -70,22 +70,17 @@ describe("SCSS unused selector diagnostics protocol", () => {
     expect(unusedDiag!.tags).toContain(DiagnosticTag.Unnecessary);
   });
 
-  // ──────────────────────────────────────────────────────────
-  // SCSS buffer-first read for unused diagnostics.
-  //
-  // Without this, unused-selector diagnostics read SCSS source
-  // from disk even when the file is open in an unsaved buffer.
-  // Classes added to the buffer but not yet saved would be
-  // reported as unused. `classMapForPath` reads from the
-  // analysis buffer first, falling back to disk.
-  // ──────────────────────────────────────────────────────────
-
+  // SCSS buffer-first read for unused diagnostics. `classMapForPath`
+  // must read from the open-document buffer first and fall back to
+  // disk only when no buffer exists; otherwise classes added to an
+  // unsaved buffer would be reported as unused until the user saves.
   it("unused diagnostics use buffered SCSS content, NOT disk content", async () => {
-    // Disk content has only `.a`. Buffer content has `.a` and
-    // `.b`. TSX references `styles.b`. Pre-fix (disk read):
-    // classMapForPath returns `{a}` → TSX validation emits
-    // "Class '.b' not found" diagnostic. Post-fix (buffer
-    // read): classMapForPath returns `{a, b}` → no diagnostic.
+    // Disk content has only `.a`; buffer content has `.a` and `.b`.
+    // TSX references `styles.b`. When `classMapForPath` reads disk
+    // it returns `{a}` and TSX validation emits "Class '.b' not
+    // found"; when it reads the buffer it returns `{a, b}` and the
+    // diagnostic is suppressed. This test pins the buffer-first
+    // read path by asserting the diagnostic never fires.
     const DISK_SCSS = ".a {}\n";
     const BUFFER_SCSS = ".a {}\n.b {}\n";
     const TSX = `import classNames from 'classnames/bind';

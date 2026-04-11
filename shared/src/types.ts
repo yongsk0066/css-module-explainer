@@ -127,10 +127,6 @@ export type StyleImport =
       readonly range: Range;
     };
 
-// ──────────────────────────────────────────────────────────────
-// Cx binding + call types
-// ──────────────────────────────────────────────────────────────
-
 /**
  * A single `const cx = classNames.bind(styles)` binding detected
  * in one source file. A file may have several bindings (different
@@ -159,10 +155,6 @@ export interface CxBinding {
    */
   readonly classNamesImportName: string;
 }
-
-// ──────────────────────────────────────────────────────────────
-// ClassRef — unified class-reference model
-// ──────────────────────────────────────────────────────────────
 
 /**
  * Which source syntax produced a class reference.
@@ -224,10 +216,6 @@ export interface VariableClassRef extends ClassRefBase {
  */
 export type ClassRef = StaticClassRef | TemplateClassRef | VariableClassRef;
 
-// ──────────────────────────────────────────────────────────────
-// Type resolution
-// ──────────────────────────────────────────────────────────────
-
 /**
  * Result of resolving a TypeScript identifier to its string-literal
  * union type.
@@ -244,10 +232,6 @@ export type ClassRef = StaticClassRef | TemplateClassRef | VariableClassRef;
 export type ResolvedType =
   | { readonly kind: "union"; readonly values: readonly string[] }
   | { readonly kind: "unresolvable"; readonly values: readonly [] };
-
-// ──────────────────────────────────────────────────────────────
-// Reverse index
-// ──────────────────────────────────────────────────────────────
 
 /**
  * Structured classification of what a CallSite matches, used as
@@ -281,10 +265,6 @@ export type CallSiteMatch =
  * the template/variable source). Find References includes them.
  */
 export type CallSiteExpansion = "direct" | "expanded";
-
-// ──────────────────────────────────────────────────────────────
-// Client command argument contracts
-// ──────────────────────────────────────────────────────────────
 
 /**
  * One entry in the `editor.action.showReferences` location list

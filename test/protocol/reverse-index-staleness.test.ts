@@ -3,7 +3,6 @@ import { FileChangeType } from "vscode-languageserver-protocol/node";
 import { createInProcessServer, type LspTestClient } from "./_harness/in-process-server";
 import { FakeTypeResolver } from "../_fixtures/fake-type-resolver";
 
-// ──────────────────────────────────────────────────────────────
 // Reverse-index TSX staleness on watched-file change.
 //
 // When a class is added to a `.module.scss` file, cached TSX
@@ -21,7 +20,6 @@ import { FakeTypeResolver } from "../_fixtures/fake-type-resolver";
 // site pointing at the changed SCSS file. The next debounced
 // `scheduleTsx` cycle cache-misses, re-analyzes, and
 // re-contributes fresh expanded sites.
-// ──────────────────────────────────────────────────────────────
 
 const APP_TSX = `import classNames from 'classnames/bind';
 import styles from './app.module.scss';
@@ -101,12 +99,14 @@ describe("reverse-index staleness on watched SCSS change", () => {
     });
 
     // Wait for the debounced diagnostics pipeline on the TSX file
-    // to fire. This guarantees `analysisCache.get` has been
-    // re-invoked; post-fix it cache-misses (because we invalidated
-    // it) and re-runs `onAnalyze`, refreshing expanded sites.
-    // Pre-fix the TSX cache still hits its pre-change version,
-    // `onAnalyze` is skipped, and the reverse-index entry for
-    // `btn-large` is never recorded.
+    // to fire. `didChangeWatchedFiles` must have invalidated the
+    // TSX analysis entry so this compute cache-misses and re-runs
+    // `onAnalyze`, refreshing the expanded reverse-index sites.
+    // If the invalidation is skipped the TSX cache hits its
+    // pre-change version, `onAnalyze` never re-fires, and the
+    // reverse-index entry for `btn-large` is never recorded —
+    // `handleReferences` then returns `null` on the empty bucket
+    // and the assertion below fails.
     const second = await client.waitForDiagnostics(tsxUri);
     expect(second).toEqual([]);
 
@@ -115,10 +115,7 @@ describe("reverse-index staleness on watched SCSS change", () => {
       position: { line: 1, character: 3 }, // inside `.btn-large`
       context: { includeDeclaration: false },
     });
-    // Post-fix: the template expansion now includes `btn-large`.
-    // Pre-fix: `refsAfter` is null (reverse index has no entry
-    // for `btn-large` on this SCSS path → `handleReferences`
-    // returns null on the empty-sites branch).
+    // The template expansion must now include `btn-large`.
     expect(refsAfter).not.toBeNull();
     expect(refsAfter!.length).toBeGreaterThan(0);
     expect(refsAfter!.some((loc) => loc.uri === tsxUri)).toBe(true);
