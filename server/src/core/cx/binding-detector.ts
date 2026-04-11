@@ -1,6 +1,6 @@
 import * as path from "node:path";
 import ts from "typescript";
-import type { CxBinding } from "@css-module-explainer/shared";
+import type { CxBinding, StyleImport } from "@css-module-explainer/shared";
 // Source of truth for supported style extensions (.scss, .css, .less).
 import { getAllStyleExtensions } from "../scss/lang-registry";
 
@@ -46,12 +46,15 @@ export function detectClassUtilImports(sourceFile: ts.SourceFile): string[] {
 export function collectStyleImports(
   sourceFile: ts.SourceFile,
   filePath: string,
-): ReadonlyMap<string, string> {
-  const stylesBindings = new Map<string, string>();
+): ReadonlyMap<string, StyleImport> {
+  const stylesBindings = new Map<string, StyleImport>();
   for (const stmt of sourceFile.statements) {
     const resolved = tryResolveImportStatement(stmt, filePath);
     if (resolved?.kind === "style") {
-      stylesBindings.set(resolved.importName, resolved.absolutePath);
+      stylesBindings.set(resolved.importName, {
+        kind: "resolved",
+        absolutePath: resolved.absolutePath,
+      });
     }
   }
   return stylesBindings;
@@ -90,8 +93,8 @@ export function detectCxBindings(sourceFile: ts.SourceFile, filePath: string): C
 interface ImportScan {
   /** Identifiers bound to `import X from 'classnames/bind'`. */
   readonly classNamesNames: ReadonlySet<string>;
-  /** Identifier → absolute path of its `.module.<ext>` import. */
-  readonly stylesBindings: ReadonlyMap<string, string>;
+  /** Identifier → resolved style import (resolved for now; `missing` variant lands with the fileExists DI). */
+  readonly stylesBindings: ReadonlyMap<string, StyleImport>;
 }
 
 function collectImports(sourceFile: ts.SourceFile, filePath: string): ImportScan {
@@ -101,7 +104,7 @@ function collectImports(sourceFile: ts.SourceFile, filePath: string): ImportScan
   // only the `stylesBindings` half for callers that do not need the
   // classnames/bind information.
   const classNamesNames = new Set<string>();
-  const stylesBindings = new Map<string, string>();
+  const stylesBindings = new Map<string, StyleImport>();
 
   for (const stmt of sourceFile.statements) {
     const resolved = tryResolveImportStatement(stmt, filePath);
@@ -109,7 +112,10 @@ function collectImports(sourceFile: ts.SourceFile, filePath: string): ImportScan
     if (resolved.kind === "classnamesBind") {
       classNamesNames.add(resolved.importName);
     } else {
-      stylesBindings.set(resolved.importName, resolved.absolutePath);
+      stylesBindings.set(resolved.importName, {
+        kind: "resolved",
+        absolutePath: resolved.absolutePath,
+      });
     }
   }
 
@@ -197,8 +203,8 @@ function tryParseCxBinding(
   const [firstArg] = init.arguments;
   if (!firstArg || !ts.isIdentifier(firstArg)) return null;
   const stylesName = firstArg.text;
-  const scssModulePath = imports.stylesBindings.get(stylesName);
-  if (!scssModulePath) return null;
+  const styleImport = imports.stylesBindings.get(stylesName);
+  if (!styleImport) return null;
 
   // cx variable name comes from the VariableDeclaration name.
   if (!ts.isIdentifier(decl.name)) return null;
@@ -207,7 +213,7 @@ function tryParseCxBinding(
   return {
     cxVarName,
     stylesVarName: stylesName,
-    scssModulePath,
+    scssModulePath: styleImport.absolutePath,
     scope: computeScope(decl, sourceFile),
     classNamesImportName: classNamesName,
   };

@@ -93,6 +93,28 @@ export interface BemSuffixInfo {
 /** Immutable map from class name to its info, produced per style file. */
 export type ScssClassMap = ReadonlyMap<string, SelectorInfo>;
 
+/**
+ * Outcome of resolving a CSS Module `import styles from '...'`
+ * specifier against the filesystem. Every entry in an analysis's
+ * `stylesBindings` map carries one of these variants.
+ *
+ * `resolved`: the target file exists on disk and its class map can
+ * be loaded. `missing`: the target path was computed but the file
+ * does not exist — diagnostics can underline the specifier and
+ * inform the user.
+ */
+export type StyleImport =
+  | {
+      readonly kind: "resolved";
+      readonly absolutePath: string;
+    }
+  | {
+      readonly kind: "missing";
+      readonly absolutePath: string;
+      readonly specifier: string;
+      readonly range: Range;
+    };
+
 // ──────────────────────────────────────────────────────────────
 // Cx binding + call types
 // ──────────────────────────────────────────────────────────────

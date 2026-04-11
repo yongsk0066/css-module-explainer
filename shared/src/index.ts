@@ -6,6 +6,7 @@ export type {
   SelectorInfo,
   BemSuffixInfo,
   ScssClassMap,
+  StyleImport,
   CxBinding,
   // Unified ClassRef model
   ClassRef,

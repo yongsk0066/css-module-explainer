@@ -81,14 +81,14 @@ function findCompletionContext(
     // Check if textBefore ends with `<varName>.` or `<varName>.<partial>`
     // for any known style import. Uses simple string check instead of
     // regex to avoid allocation in the hot completion path.
-    for (const [varName, scssPath] of entry.stylesBindings) {
+    for (const [varName, styleImport] of entry.stylesBindings) {
       const dotPrefix = `${varName}.`;
       const idx = textBefore.lastIndexOf(dotPrefix);
       if (idx < 0) continue;
       // Everything after `varName.` must be a partial identifier (word chars only).
       const afterDot = textBefore.slice(idx + dotPrefix.length);
       if (afterDot.length > 0 && !/^\w+$/.test(afterDot)) continue;
-      return { scssModulePath: scssPath };
+      return { scssModulePath: styleImport.absolutePath };
     }
   }
 

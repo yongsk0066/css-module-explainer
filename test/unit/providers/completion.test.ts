@@ -223,7 +223,12 @@ const el = clsx(styles.
       // collectStyleImports is wired and populates stylesBindings so
       // parseClassRefs can see the styles.x access patterns.
       collectStyleImports: (_sf: ts.SourceFile, _fp: string) =>
-        new Map([["styles", "/fake/ws/src/Button.module.scss"]]),
+        new Map([
+          [
+            "styles",
+            { kind: "resolved", absolutePath: "/fake/ws/src/Button.module.scss" } as const,
+          ],
+        ]),
       detectClassUtilImports,
       max: 10,
     });

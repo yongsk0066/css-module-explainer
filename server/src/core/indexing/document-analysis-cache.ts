@@ -1,6 +1,6 @@
 import * as nodeUrl from "node:url";
 import type ts from "typescript";
-import type { ClassRef, CxBinding } from "@css-module-explainer/shared";
+import type { ClassRef, CxBinding, StyleImport } from "@css-module-explainer/shared";
 import { contentHash } from "../util/hash";
 import { LruMap } from "../util/lru-map";
 import type { SourceFileCache } from "../ts/source-file-cache";
@@ -25,8 +25,13 @@ export interface AnalysisEntry {
    * direct `styles.x` property access (`origin: "styleAccess"`).
    */
   readonly classRefs: readonly ClassRef[];
-  /** Map of style-import local name → resolved absolute SCSS path. */
-  readonly stylesBindings: ReadonlyMap<string, string>;
+  /**
+   * Map of style-import local name → resolution outcome. The
+   * `resolved` variant carries the absolute SCSS path; the
+   * `missing` variant adds the raw specifier + LSP range so the
+   * diagnostics provider can underline the broken import.
+   */
+  readonly stylesBindings: ReadonlyMap<string, StyleImport>;
   /**
    * Local identifiers bound to `clsx`, `clsx/lite`, or `classnames`
    * imports (NOT `classnames/bind`). Used by the completion provider
@@ -41,7 +46,7 @@ export interface DocumentAnalysisCacheDeps {
   readonly collectStyleImports: (
     sourceFile: ts.SourceFile,
     filePath: string,
-  ) => ReadonlyMap<string, string>;
+  ) => ReadonlyMap<string, StyleImport>;
   readonly detectCxBindings: (sourceFile: ts.SourceFile, filePath: string) => CxBinding[];
   /**
    * Unified ClassRef producer. Optional so test helpers that
@@ -51,7 +56,7 @@ export interface DocumentAnalysisCacheDeps {
   readonly parseClassRefs?: (
     sourceFile: ts.SourceFile,
     bindings: readonly CxBinding[],
-    stylesBindings: ReadonlyMap<string, string>,
+    stylesBindings: ReadonlyMap<string, StyleImport>,
   ) => ClassRef[];
   /**
    * Detect `clsx` / `clsx/lite` / `classnames` (not `/bind`) imports

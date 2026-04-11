@@ -4,6 +4,7 @@ import type {
   CxBinding,
   Range,
   StaticClassRef,
+  StyleImport,
   TemplateClassRef,
   VariableClassRef,
 } from "@css-module-explainer/shared";
@@ -19,7 +20,7 @@ import type {
 export function parseClassRefs(
   sourceFile: ts.SourceFile,
   bindings: readonly CxBinding[],
-  stylesBindings: ReadonlyMap<string, string>,
+  stylesBindings: ReadonlyMap<string, StyleImport>,
 ): ClassRef[] {
   const refs: ClassRef[] = [];
 
@@ -172,7 +173,7 @@ function makeVariableCxRef(
 
 function collectStyleAccessRefs(
   sourceFile: ts.SourceFile,
-  stylesBindings: ReadonlyMap<string, string>,
+  stylesBindings: ReadonlyMap<string, StyleImport>,
   out: ClassRef[],
 ): void {
   function visit(node: ts.Node): void {
@@ -182,8 +183,8 @@ function collectStyleAccessRefs(
       ts.isIdentifier(node.name)
     ) {
       const objName = node.expression.text;
-      const scssPath = stylesBindings.get(objName);
-      if (scssPath) {
+      const styleImport = stylesBindings.get(objName);
+      if (styleImport) {
         const propName = node.name;
         const start = sourceFile.getLineAndCharacterOfPosition(propName.getStart(sourceFile));
         const end = sourceFile.getLineAndCharacterOfPosition(propName.getEnd());
@@ -196,7 +197,7 @@ function collectStyleAccessRefs(
           origin: "styleAccess",
           className: propName.text,
           originRange,
-          scssModulePath: scssPath,
+          scssModulePath: styleImport.absolutePath,
         };
         out.push(ref);
       }

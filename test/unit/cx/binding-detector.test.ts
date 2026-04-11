@@ -240,7 +240,10 @@ describe("collectStyleImports", () => {
     `);
     const result = collectStyleImports(src, "/fake/src/Button.tsx");
     expect(result.size).toBe(1);
-    expect(result.get("styles")).toBe("/fake/src/Button.module.scss");
+    expect(result.get("styles")).toEqual({
+      kind: "resolved",
+      absolutePath: "/fake/src/Button.module.scss",
+    });
   });
 
   it("collects a namespace import of a .module.scss file", () => {
@@ -249,7 +252,10 @@ describe("collectStyleImports", () => {
     `);
     const result = collectStyleImports(src, "/fake/src/Button.tsx");
     expect(result.size).toBe(1);
-    expect(result.get("styles")).toBe("/fake/src/Button.module.scss");
+    expect(result.get("styles")).toEqual({
+      kind: "resolved",
+      absolutePath: "/fake/src/Button.module.scss",
+    });
   });
 
   it("collects multiple style module imports", () => {
@@ -259,8 +265,14 @@ describe("collectStyleImports", () => {
     `);
     const result = collectStyleImports(src, "/fake/src/Button.tsx");
     expect(result.size).toBe(2);
-    expect(result.get("btnStyles")).toBe("/fake/src/Button.module.scss");
-    expect(result.get("formStyles")).toBe("/fake/src/Form.module.css");
+    expect(result.get("btnStyles")).toEqual({
+      kind: "resolved",
+      absolutePath: "/fake/src/Button.module.scss",
+    });
+    expect(result.get("formStyles")).toEqual({
+      kind: "resolved",
+      absolutePath: "/fake/src/Form.module.css",
+    });
   });
 
   it("handles .module.less extensions", () => {
@@ -269,7 +281,10 @@ describe("collectStyleImports", () => {
     `);
     const result = collectStyleImports(src, "/fake/src/Button.tsx");
     expect(result.size).toBe(1);
-    expect(result.get("styles")).toBe("/fake/src/Button.module.less");
+    expect(result.get("styles")).toEqual({
+      kind: "resolved",
+      absolutePath: "/fake/src/Button.module.less",
+    });
   });
 
   it("resolves ../ paths correctly", () => {
@@ -277,7 +292,10 @@ describe("collectStyleImports", () => {
       import styles from '../styles/Button.module.scss';
     `);
     const result = collectStyleImports(src, "/fake/src/components/Button.tsx");
-    expect(result.get("styles")).toBe("/fake/src/styles/Button.module.scss");
+    expect(result.get("styles")).toEqual({
+      kind: "resolved",
+      absolutePath: "/fake/src/styles/Button.module.scss",
+    });
   });
 
   it("ignores named imports (no default or namespace)", () => {

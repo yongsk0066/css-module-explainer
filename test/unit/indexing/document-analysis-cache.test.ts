@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import type ts from "typescript";
-import type { ClassRef, CxBinding } from "@css-module-explainer/shared";
+import type { ClassRef, CxBinding, StyleImport } from "@css-module-explainer/shared";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
 
@@ -194,15 +194,17 @@ describe("DocumentAnalysisCache / styleAccess without classnames/bind", () => {
       (
         _sf: ts.SourceFile,
         _bindings: readonly CxBinding[],
-        stylesBindings: ReadonlyMap<string, string>,
+        stylesBindings: ReadonlyMap<string, StyleImport>,
       ): ClassRef[] => {
         if (stylesBindings.size > 0 && stylesBindings.has("styles")) return [styleRef];
         return [];
       },
     );
     const collectStyleImportsSpy = vi.fn(
-      (_sf: ts.SourceFile, _filePath: string): ReadonlyMap<string, string> => {
-        return new Map([["styles", "/fake/src/Button.module.scss"]]);
+      (_sf: ts.SourceFile, _filePath: string): ReadonlyMap<string, StyleImport> => {
+        return new Map([
+          ["styles", { kind: "resolved", absolutePath: "/fake/src/Button.module.scss" }],
+        ]);
       },
     );
 
@@ -228,6 +230,9 @@ describe("DocumentAnalysisCache / styleAccess without classnames/bind", () => {
     expect(collectStyleImportsSpy).toHaveBeenCalledTimes(1);
     expect(parseClassRefsSpy).toHaveBeenCalledTimes(1);
     // Verify parseClassRefs received the map from collectStyleImports
-    expect(parseClassRefsSpy.mock.calls[0]![2].get("styles")).toBe("/fake/src/Button.module.scss");
+    expect(parseClassRefsSpy.mock.calls[0]![2].get("styles")).toEqual({
+      kind: "resolved",
+      absolutePath: "/fake/src/Button.module.scss",
+    });
   });
 });
