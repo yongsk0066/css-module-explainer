@@ -86,7 +86,7 @@ describe("handleCodeLens", () => {
     expect(result![0]!.command?.title).toBe("1 reference");
   });
 
-  it("classnameTransform: dedups alias + original class-map entries into one lens per canonical class", async () => {
+  it("classnameTransform: emits one lens reflecting the canonical bucket across both class-map views", async () => {
     const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
     const { expandClassMapWithTransform } =
       await import("../../../server/src/core/scss/classname-transform");
@@ -98,9 +98,13 @@ describe("handleCodeLens", () => {
     expect(classMap.has("btn-primary")).toBe(true);
     expect(classMap.has("btnPrimary")).toBe(true);
 
+    // Two real references — one via the original-form token, one
+    // via the alias-form — so the canonical bucket holds a
+    // distinguishable count.
     const idx = new WorkspaceReverseIndex();
     idx.record("file:///fake/src/App.tsx", [
-      siteAt("file:///fake/src/App.tsx", "btnPrimary", 5, SCSS_PATH, "btn-primary"),
+      siteAt("file:///fake/src/App.tsx", "btn-primary", 5, SCSS_PATH, "btn-primary"),
+      siteAt("file:///fake/src/App.tsx", "btnPrimary", 9, SCSS_PATH, "btn-primary"),
     ]);
 
     const result = handleCodeLens(
@@ -113,10 +117,20 @@ describe("handleCodeLens", () => {
     );
 
     expect(result).not.toBeNull();
-    // Exactly one lens — not two — and its count reflects the
-    // canonical bucket, not an empty alias-keyed bucket.
+    // Exactly one lens — locks out a future edit that routes every
+    // class-map view through the canonical bucket but forgets to
+    // dedup, producing two lenses with the same count.
     expect(result).toHaveLength(1);
-    expect(result![0]!.command?.title).toBe("1 reference");
+    // Count reflects the canonical bucket holding BOTH sites. An
+    // alias-keyed lookup would have produced `"0 references"` and
+    // returned `null` on the alias entry, or `"1 reference"` off
+    // the single original-form site.
+    expect(result![0]!.command?.title).toBe("2 references");
+    // No stray zero-count lens in the result set — rules out the
+    // "canonical routing forgot dedup" regression path where both
+    // entries emit, one with the real count and one with an
+    // empty-bucket miss.
+    expect(result!.some((l) => l.command?.title === "0 references")).toBe(false);
   });
 
   it("logs and returns null on exception", () => {
