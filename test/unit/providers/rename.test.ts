@@ -12,6 +12,10 @@ import { DocumentAnalysisCache } from "../../../server/src/core/indexing/documen
 import { WorkspaceReverseIndex } from "../../../server/src/core/indexing/reverse-index";
 import type { CursorParams, ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
 import { handlePrepareRename, handleRename } from "../../../server/src/providers/rename";
+import { findSelectorAtCursor } from "../../../server/src/providers/references";
+import { expandClassMapWithTransform } from "../../../server/src/core/scss/classname-transform";
+import { DEFAULT_SETTINGS } from "../../../server/src/settings";
+import type { Settings } from "../../../server/src/settings";
 import {
   EMPTY_ALIAS_RESOLVER,
   infoAtLine as info,
@@ -804,6 +808,378 @@ describe("&-nested BEM suffix rename", () => {
       {
         textDocument: { uri: SCSS_URI },
         position: { line: rawRange.start.line, character: rawRange.start.character + 1 },
+      },
+      deps,
+    );
+    expect(result).toBeNull();
+  });
+});
+
+// ──────────────────────────────────────────────────────────────
+// Wave 2B — classnameTransform alias-aware rename
+// ──────────────────────────────────────────────────────────────
+
+/**
+ * Alias-first iteration order. Production `expandClassMapWithTransform`
+ * puts originals before aliases, which makes SCSS-cursor always hit
+ * the original. To exercise the alias-selectorInfo code path from
+ * the SCSS side, we flip the insertion order. The code under test
+ * must be robust regardless of iteration order — and this helper
+ * forces the alias branch.
+ */
+function aliasFirstCamelCaseMap(base: ScssClassMap): ScssClassMap {
+  const expanded = new Map<string, SelectorInfo>();
+  const camelOf = (name: string): string =>
+    name
+      .split(/[\s_-]+/)
+      .filter(Boolean)
+      .map((p, i) =>
+        i === 0 ? p.charAt(0).toLowerCase() + p.slice(1) : p.charAt(0).toUpperCase() + p.slice(1),
+      )
+      .join("");
+  for (const [name, entry] of base) {
+    const alias = camelOf(name);
+    if (alias !== name && !expanded.has(alias)) {
+      expanded.set(alias, { ...entry, name: alias, originalName: name });
+    }
+  }
+  for (const [name, entry] of base) {
+    expanded.set(name, entry);
+  }
+  return expanded;
+}
+
+function withTransformMode(mode: Settings["scss"]["classnameTransform"]): Settings {
+  return {
+    ...DEFAULT_SETTINGS,
+    scss: { ...DEFAULT_SETTINGS.scss, classnameTransform: mode },
+  };
+}
+
+describe("Wave 2B — classnameTransform alias-aware rename", () => {
+  it("camelCase: alias cursor rewrites SCSS via original entry's range", async () => {
+    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
+    const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);
+    const classMap = aliasFirstCamelCaseMap(base);
+    // sanity: alias iterates first
+    const firstKey = classMap.keys().next().value;
+    expect(firstKey).toBe("btnPrimary");
+    const original = base.get("btn-primary")!;
+
+    const deps = makeBaseDeps({
+      scssClassMapForPath: () => classMap,
+      workspaceRoot: "/fake",
+      settings: withTransformMode("camelCase"),
+    });
+    const result = handleRename(
+      {
+        textDocument: { uri: SCSS_URI },
+        position: {
+          line: original.range.start.line,
+          character: original.range.start.character + 1,
+        },
+        newName: "btn-hero",
+      },
+      deps,
+    );
+    expect(result).not.toBeNull();
+    const scssEdits = result!.changes![SCSS_URI]!;
+    expect(scssEdits).toHaveLength(1);
+    expect(scssEdits[0]!.newText).toBe("btn-hero");
+    // Edit range equals the ORIGINAL entry's range, even though the
+    // cursor resolved to the alias via alias-first iteration.
+    expect(scssEdits[0]!.range).toEqual({
+      start: { line: original.range.start.line, character: original.range.start.character },
+      end: { line: original.range.end.line, character: original.range.end.character },
+    });
+  });
+
+  it("camelCase: alias cursor on deep-nested BEM edits only the suffix slice", async () => {
+    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
+    const base = parseStyleModule(`.btn-primary {\n  &--xl {}\n}`, SCSS_PATH);
+    const classMap = aliasFirstCamelCaseMap(base);
+    // sanity: alias entries exist
+    expect(classMap.has("btnPrimaryXl")).toBe(true);
+    expect(classMap.get("btnPrimaryXl")!.originalName).toBe("btn-primary--xl");
+    const originalNested = base.get("btn-primary--xl")!;
+    const rawRange = originalNested.bemSuffix!.rawTokenRange;
+
+    const deps = makeBaseDeps({
+      scssClassMapForPath: () => classMap,
+      workspaceRoot: "/fake",
+      settings: withTransformMode("camelCase"),
+    });
+    const result = handleRename(
+      {
+        textDocument: { uri: SCSS_URI },
+        position: { line: rawRange.start.line, character: rawRange.start.character + 1 },
+        newName: "btn-primary--huge",
+      },
+      deps,
+    );
+    expect(result).not.toBeNull();
+    const scssEdits = result!.changes![SCSS_URI]!;
+    expect(scssEdits).toHaveLength(1);
+    // Slice edit: `--xl` at offset+1 replaced by `--huge`. Parent
+    // stays untouched; the edit length is the original suffix length.
+    expect(scssEdits[0]!.newText).toBe("--huge");
+    expect(scssEdits[0]!.range.start).toEqual({
+      line: rawRange.start.line,
+      character: rawRange.start.character + 1,
+    });
+    expect(scssEdits[0]!.range.end).toEqual({
+      line: rawRange.start.line,
+      character: rawRange.start.character + 1 + "--xl".length,
+    });
+  });
+
+  it("camelCase: original-name cursor (non-alias path) edits same range", async () => {
+    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
+    const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);
+    // Production expansion (original-first) — findSelectorAtCursor
+    // returns the non-alias entry.
+    const classMap = expandClassMapWithTransform(base, "camelCase");
+    const original = base.get("btn-primary")!;
+
+    const deps = makeBaseDeps({
+      scssClassMapForPath: () => classMap,
+      workspaceRoot: "/fake",
+      settings: withTransformMode("camelCase"),
+    });
+    const result = handleRename(
+      {
+        textDocument: { uri: SCSS_URI },
+        position: {
+          line: original.range.start.line,
+          character: original.range.start.character + 1,
+        },
+        newName: "btn-hero",
+      },
+      deps,
+    );
+    expect(result).not.toBeNull();
+    const scssEdits = result!.changes![SCSS_URI]!;
+    expect(scssEdits).toHaveLength(1);
+    expect(scssEdits[0]!.newText).toBe("btn-hero");
+    expect(scssEdits[0]!.range).toEqual({
+      start: { line: original.range.start.line, character: original.range.start.character },
+      end: { line: original.range.end.line, character: original.range.end.character },
+    });
+  });
+
+  it("camelCaseOnly: alias rename is rejected at prepareRename", async () => {
+    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
+    const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);
+    // camelCaseOnly drops the original; only `btnPrimary` alias remains.
+    const classMap = expandClassMapWithTransform(base, "camelCaseOnly");
+    expect(classMap.has("btn-primary")).toBe(false);
+    expect(classMap.get("btnPrimary")!.originalName).toBe("btn-primary");
+    const alias = classMap.get("btnPrimary")!;
+
+    const deps = makeBaseDeps({
+      scssClassMapForPath: () => classMap,
+      workspaceRoot: "/fake",
+      settings: withTransformMode("camelCaseOnly"),
+    });
+    const result = handlePrepareRename(
+      {
+        textDocument: { uri: SCSS_URI },
+        position: {
+          line: alias.range.start.line,
+          character: alias.range.start.character + 1,
+        },
+      },
+      deps,
+    );
+    expect(result).toBeNull();
+  });
+
+  it("dashesOnly: alias rename is rejected at prepareRename", async () => {
+    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
+    const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);
+    const classMap = expandClassMapWithTransform(base, "dashesOnly");
+    expect(classMap.get("btnPrimary")!.originalName).toBe("btn-primary");
+    const alias = classMap.get("btnPrimary")!;
+
+    const deps = makeBaseDeps({
+      scssClassMapForPath: () => classMap,
+      workspaceRoot: "/fake",
+      settings: withTransformMode("dashesOnly"),
+    });
+    const result = handlePrepareRename(
+      {
+        textDocument: { uri: SCSS_URI },
+        position: {
+          line: alias.range.start.line,
+          character: alias.range.start.character + 1,
+        },
+      },
+      deps,
+    );
+    expect(result).toBeNull();
+  });
+
+  it("camelCase: alias + original keys unioned for reverse-index rewrite", async () => {
+    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
+    const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);
+    const classMap = aliasFirstCamelCaseMap(base);
+    const original = base.get("btn-primary")!;
+
+    const reverseIndex = new WorkspaceReverseIndex();
+    reverseIndex.record("file:///fake/src/App.tsx", [
+      siteAt("file:///fake/src/App.tsx", "btn-primary", 10, SCSS_PATH),
+    ]);
+    reverseIndex.record("file:///fake/src/Other.tsx", [
+      siteAt("file:///fake/src/Other.tsx", "btnPrimary", 20, SCSS_PATH),
+    ]);
+
+    const deps = makeBaseDeps({
+      scssClassMapForPath: () => classMap,
+      workspaceRoot: "/fake",
+      reverseIndex,
+      settings: withTransformMode("camelCase"),
+    });
+    const result = handleRename(
+      {
+        textDocument: { uri: SCSS_URI },
+        position: {
+          line: original.range.start.line,
+          character: original.range.start.character + 1,
+        },
+        newName: "btn-hero",
+      },
+      deps,
+    );
+    expect(result).not.toBeNull();
+    const changes = result!.changes!;
+    // Both TSX files rewritten — union of primary + alias keys.
+    expect(changes["file:///fake/src/App.tsx"]).toHaveLength(1);
+    expect(changes["file:///fake/src/App.tsx"]![0]!.newText).toBe("btn-hero");
+    expect(changes["file:///fake/src/Other.tsx"]).toHaveLength(1);
+    expect(changes["file:///fake/src/Other.tsx"]![0]!.newText).toBe("btn-hero");
+  });
+
+  it("camelCase: `seen` guard dedups a site returned by both primary and alias lookups", async () => {
+    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
+    const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);
+    const classMap = aliasFirstCamelCaseMap(base);
+    const original = base.get("btn-primary")!;
+
+    // Two sites at the same {uri, range} but keyed by different
+    // className. This shape is artificial — production parseClassRefs
+    // never emits it — but the `seen` guard must still dedup so that
+    // a future reverse-index change can't accidentally emit two
+    // edits for one call site.
+    const reverseIndex = new WorkspaceReverseIndex();
+    const sharedRange = { start: { line: 7, character: 10 }, end: { line: 7, character: 21 } };
+    const sharedUri = "file:///fake/src/App.tsx";
+    reverseIndex.record(sharedUri, [
+      {
+        uri: sharedUri,
+        range: sharedRange,
+        scssModulePath: SCSS_PATH,
+        match: { kind: "static", className: "btn-primary" },
+        expansion: "direct",
+      },
+      {
+        uri: sharedUri,
+        range: sharedRange,
+        scssModulePath: SCSS_PATH,
+        match: { kind: "static", className: "btnPrimary" },
+        expansion: "direct",
+      },
+    ]);
+
+    const deps = makeBaseDeps({
+      scssClassMapForPath: () => classMap,
+      workspaceRoot: "/fake",
+      reverseIndex,
+      settings: withTransformMode("camelCase"),
+    });
+    const result = handleRename(
+      {
+        textDocument: { uri: SCSS_URI },
+        position: {
+          line: original.range.start.line,
+          character: original.range.start.character + 1,
+        },
+        newName: "btn-hero",
+      },
+      deps,
+    );
+    expect(result).not.toBeNull();
+    const tsxEdits = result!.changes![sharedUri]!;
+    // Exactly one edit, not two — seen guard collapsed the duplicate.
+    expect(tsxEdits).toHaveLength(1);
+    expect(tsxEdits[0]!.newText).toBe("btn-hero");
+  });
+
+  it("camelCase: SCSS cursor on original-first expansion returns the non-alias entry", async () => {
+    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
+    const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);
+    const classMap = expandClassMapWithTransform(base, "camelCase");
+    // Both keys present.
+    expect(classMap.has("btn-primary")).toBe(true);
+    expect(classMap.has("btnPrimary")).toBe(true);
+    const original = base.get("btn-primary")!;
+
+    const hit = findSelectorAtCursor(
+      classMap,
+      original.range.start.line,
+      original.range.start.character + 1,
+    );
+    expect(hit).not.toBeNull();
+    // Locks in that cursoring through the SCSS source still lands
+    // on the original entry, not the alias copy — regression guard
+    // against a future iteration-order change.
+    expect(hit!.name).toBe("btn-primary");
+    expect(hit!.originalName).toBeUndefined();
+  });
+
+  it("Bug 3.1 alias regression: expanded site on original key rejects rename via alias cursor", async () => {
+    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
+    const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);
+    const classMap = aliasFirstCamelCaseMap(base);
+    const original = base.get("btn-primary")!;
+
+    // Simulate a `cx(`btn-${x}`)` template whose reverse-index
+    // emits one direct template site and one expanded static site
+    // keyed on the ORIGINAL name `btn-primary`.
+    const reverseIndex = new WorkspaceReverseIndex();
+    reverseIndex.record("file:///fake/src/App.tsx", [
+      {
+        uri: "file:///fake/src/App.tsx",
+        range: { start: { line: 5, character: 10 }, end: { line: 5, character: 30 } },
+        scssModulePath: SCSS_PATH,
+        match: { kind: "template", staticPrefix: "btn-" },
+        expansion: "direct",
+      },
+      {
+        uri: "file:///fake/src/App.tsx",
+        range: { start: { line: 5, character: 10 }, end: { line: 5, character: 30 } },
+        scssModulePath: SCSS_PATH,
+        match: { kind: "static", className: "btn-primary" },
+        expansion: "expanded",
+      },
+    ]);
+
+    const deps = makeBaseDeps({
+      scssClassMapForPath: () => classMap,
+      workspaceRoot: "/fake",
+      reverseIndex,
+      settings: withTransformMode("camelCase"),
+    });
+    // Cursor hits the alias first (alias-first iteration). Without
+    // the union, the single-key check against `btnPrimary` would
+    // miss the expanded site keyed on `btn-primary` and allow the
+    // rename — rewriting the template and destroying the source.
+    const result = handlePrepareRename(
+      {
+        textDocument: { uri: SCSS_URI },
+        position: {
+          line: original.range.start.line,
+          character: original.range.start.character + 1,
+        },
       },
       deps,
     );

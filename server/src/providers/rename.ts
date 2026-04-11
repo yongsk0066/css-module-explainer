@@ -4,7 +4,7 @@ import type {
   RenameParams,
   WorkspaceEdit,
 } from "vscode-languageserver/node";
-import type { BemSuffixInfo, SelectorInfo } from "@css-module-explainer/shared";
+import type { BemSuffixInfo, ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
 import { findLangForPath } from "../core/scss/lang-registry";
 import { fileUrlToPath, pathToFileUrl } from "../core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
@@ -113,7 +113,27 @@ function resolveRenameTarget(
   const selectorInfo = findSelectorAtCursor(classMap, line, character);
   if (!selectorInfo) return null;
 
-  if (selectorInfo.isNested && !isBemRenameable(selectorInfo)) return null;
+  // Alias unwrap: Wave 2B's classnameTransform may expose an alias
+  // entry at the cursor (e.g. `styles.btnPrimary` when the SCSS
+  // has `.btn-primary`). The gate evaluates against the ORIGINAL
+  // entry because its `bemSuffix` / `isNested` are the authoritative
+  // source — the alias copies them via `...info` spread, so either
+  // works in practice, but routing through originalName makes the
+  // intent explicit and survives future schema changes.
+  const gateTarget = selectorInfo.originalName
+    ? (classMap.get(selectorInfo.originalName) ?? selectorInfo)
+    : selectorInfo;
+  if (gateTarget.isNested && !isBemRenameable(gateTarget)) return null;
+
+  // camelCaseOnly / dashesOnly alias rename reject — the new name
+  // would need to be reverse-transformed back to the original key
+  // format to rewrite the SCSS source, but the reverse transform
+  // is lossy. Initial release rejects; heuristic / explicit UI
+  // may lift this in a future wave.
+  const mode = deps.settings.scss.classnameTransform;
+  if ((mode === "camelCaseOnly" || mode === "dashesOnly") && selectorInfo.originalName) {
+    return null;
+  }
 
   return selectorInfo;
 }
@@ -169,7 +189,18 @@ function prepareRenameFromScss(
   // destroy the dynamic expression source. `renameFromScss` does
   // not re-check: if a client forces the call anyway,
   // `buildRenameEdit` still filters expanded sites per-edit.
-  if (hasExpandedReverseSite(deps, filePath, selectorInfo.name)) return null;
+  //
+  // classnameTransform extension: the reject must fire against
+  // the UNION of alias name + original name. A `cx(`btn-${x}`)`
+  // template produces an expanded entry for the original
+  // `btn-primary` key; the alias `btnPrimary` has no entry of
+  // its own, so checking only the alias would miss it.
+  const keysToCheck: readonly string[] = selectorInfo.originalName
+    ? [selectorInfo.name, selectorInfo.originalName]
+    : [selectorInfo.name];
+  for (const key of keysToCheck) {
+    if (hasExpandedReverseSite(deps, filePath, key)) return null;
+  }
 
   // Use the narrower raw-token range for nested entries (covers
   // `&--primary` exactly); flat entries keep the resolved range.
@@ -195,6 +226,27 @@ function renameFromScss(
 
 const IDENTIFIER_RE = /^[a-zA-Z_][\w-]*$/;
 
+/**
+ * Alias-aware SCSS edit base resolver. When the cursor landed on
+ * an alias entry (e.g. `btnPrimary` in camelCase mode), the SCSS
+ * edit must operate on the ORIGINAL entry's `range` / `bemSuffix`
+ * — the alias is a view of the original, not an independent
+ * source of truth. `...info` spread in `expandClassMapWithTransform`
+ * preserves both fields by reference, so in practice either entry
+ * works, but routing through the original makes the intent
+ * explicit and survives future schema changes.
+ */
+function resolveScssEditBase(
+  classMap: ScssClassMap,
+  selectorInfo: SelectorInfo,
+): { info: SelectorInfo; name: string } {
+  if (selectorInfo.originalName) {
+    const original = classMap.get(selectorInfo.originalName);
+    if (original) return { info: original, name: original.name };
+  }
+  return { info: selectorInfo, name: selectorInfo.name };
+}
+
 function buildRenameEdit(
   scssUri: string,
   scssPath: string,
@@ -204,15 +256,25 @@ function buildRenameEdit(
 ): WorkspaceEdit | null {
   if (!IDENTIFIER_RE.test(newName)) return null;
 
-  const scssEdit = selectorInfo.bemSuffix
-    ? buildBemSuffixEdit(selectorInfo.bemSuffix, selectorInfo.name, newName)
-    : { range: toLspRange(selectorInfo.range), newText: newName };
+  const classMap = deps.scssClassMapForPath(scssPath);
+  const scssBase = classMap
+    ? resolveScssEditBase(classMap, selectorInfo)
+    : { info: selectorInfo, name: selectorInfo.name };
+
+  const scssEdit = scssBase.info.bemSuffix
+    ? buildBemSuffixEdit(scssBase.info.bemSuffix, scssBase.info.name, newName)
+    : { range: toLspRange(scssBase.info.range), newText: newName };
   if (!scssEdit) return null;
 
   const changes: Record<string, Array<{ range: LspRange; newText: string }>> = {
     [scssUri]: [scssEdit],
   };
-  collectReferenceEdits(deps, scssPath, selectorInfo.name, newName, changes);
+  // Reference edits union over [primaryName, aliasName]. When the
+  // cursor is on a flat/non-alias entry, aliasName is null and the
+  // call collapses to the Wave 2A single-key behavior.
+  const aliasName =
+    selectorInfo.originalName && selectorInfo.name !== scssBase.name ? selectorInfo.name : null;
+  collectReferenceEdits(deps, scssPath, scssBase.name, aliasName, newName, changes);
   return { changes };
 }
 
@@ -223,21 +285,35 @@ function buildRenameEdit(
  * refs and rewriting them would destroy the dynamic expression
  * source. Find References still surfaces expanded sites; only
  * rename filters.
+ *
+ * classnameTransform extension: when `aliasName` is non-null, the
+ * union over [primaryName, aliasName] is walked and the `seen`
+ * Set dedups any site that shows up under both lookups. In the
+ * common case where the same TS file uses both `styles.btnPrimary`
+ * (alias key) and `cx('btn-primary')` (original key), each site
+ * rewrites exactly once with the caller-supplied `newName`.
  */
 function collectReferenceEdits(
   deps: ProviderDeps,
   scssPath: string,
-  className: string,
+  primaryName: string,
+  aliasName: string | null,
   newName: string,
   changes: Record<string, Array<{ range: LspRange; newText: string }>>,
 ): void {
-  const sites = deps.reverseIndex.find(scssPath, className);
-  for (const site of sites) {
-    if (site.expansion !== "direct") continue;
-    (changes[site.uri] ??= []).push({
-      range: toLspRange(site.range),
-      newText: newName,
-    });
+  const keys = aliasName !== null ? [primaryName, aliasName] : [primaryName];
+  const seen = new Set<string>();
+  for (const key of keys) {
+    for (const site of deps.reverseIndex.find(scssPath, key)) {
+      if (site.expansion !== "direct") continue;
+      const sig = `${site.uri}:${site.range.start.line}:${site.range.start.character}`;
+      if (seen.has(sig)) continue;
+      seen.add(sig);
+      (changes[site.uri] ??= []).push({
+        range: toLspRange(site.range),
+        newText: newName,
+      });
+    }
   }
 }
 
