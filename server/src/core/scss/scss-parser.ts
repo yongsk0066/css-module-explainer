@@ -467,7 +467,11 @@ function extractClassNames(resolvedSelector: string): string[] {
   // that split compounds are whitespace, `>`, `+`, `~`.
   const segments = withoutPseudos.trim().split(/\s*[>+~]\s*|\s+/);
   const lastSegment = segments[segments.length - 1] ?? "";
-  const matches = lastSegment.match(/\.[a-zA-Z_][\w-]*/g) ?? [];
+  // Unicode property classes so identifiers outside the ASCII
+  // subset (e.g. `.한글`, `.日本語`, `.español-btn`) survive the
+  // last-compound split. First character: letter or underscore;
+  // remainder: letter, number, underscore, dash.
+  const matches = lastSegment.match(/\.[\p{L}_][\p{L}\p{N}_-]*/gu) ?? [];
   return matches.map((m) => m.slice(1));
 }
 

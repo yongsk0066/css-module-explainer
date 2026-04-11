@@ -159,6 +159,29 @@ describe("parse failure still yields an empty classMap", () => {
   });
 });
 
+describe("Unicode class-name identifiers survive extraction", () => {
+  // CSS Modules accepts Unicode identifiers in class selectors
+  // (e.g. `.한글-버튼`, `.日本語`), and the grammar routes all three
+  // parsers through them fine — but `extractClassNames` used an
+  // ASCII-only regex, so the class map silently dropped any
+  // selector whose identifier was outside the ASCII subset. Lock
+  // the post-fix behaviour with selectors the old regex rejected.
+  it("single-script Unicode class name stays in the class map", () => {
+    const m = parseStyleModule(`.한글 { color: red; }`, "/f.module.scss");
+    expect([...m.keys()]).toEqual(["한글"]);
+  });
+
+  it("mixed ASCII + Unicode class name (ASCII-prefix + Hangul suffix)", () => {
+    const m = parseStyleModule(`.btn-한글 { color: red; }`, "/f.module.scss");
+    expect([...m.keys()]).toEqual(["btn-한글"]);
+  });
+
+  it("multiple Unicode classes, each in its own rule", () => {
+    const m = parseStyleModule(`.日本語 { color: red; }\n.español-btn {}`, "/f.module.scss");
+    expect([...m.keys()]).toEqual(["日本語", "español-btn"]);
+  });
+});
+
 describe("leading byte-order mark does not hide the first class", () => {
   // Files saved by some Windows editors (and copy-pastes through a
   // BOM-preserving path) carry a leading U+FEFF. postcss-scss parses
