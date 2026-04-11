@@ -3,10 +3,11 @@ import {
   type Diagnostic,
   type Range as LspRange,
 } from "vscode-languageserver/node";
-import type { CxCallInfo, ScssClassMap } from "@css-module-explainer/shared";
+import type { ClassRef, ScssClassMap } from "@css-module-explainer/shared";
 import { resolveCxCallToSelectorInfos } from "../core/cx/call-resolver";
 import { findClosestMatch } from "../core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
+import { wrapHandler } from "./_wrap-handler";
 import type { DocumentParams, ProviderDeps } from "./cursor-dispatch";
 
 /**
@@ -16,87 +17,94 @@ import type { DocumentParams, ProviderDeps } from "./cursor-dispatch";
  * `onDidChangeContent` (debounced to 200ms) and pipes the result
  * into `connection.sendDiagnostics(...)`.
  *
- * Iterates every cached CxCallInfo in the document's analysis
- * entry, classifies each, and emits a Diagnostic for unresolved
- * / missing class names. Returns [] for clean documents — caller
- * MUST still publish to clear prior warnings.
+ * Iterates every cached ClassRef whose origin is `cxCall` in the
+ * document's analysis entry, classifies each, and emits a
+ * Diagnostic for unresolved / missing class names. Returns [] for
+ * clean documents — caller MUST still publish to clear prior
+ * warnings.
+ *
+ * Error isolation is owned by `wrapHandler` at the entry level;
+ * per-ref validation failures are caught inside so a single bad
+ * ref cannot erase sibling diagnostics.
  */
-export function computeDiagnostics(
-  params: DocumentParams,
-  deps: ProviderDeps,
-  severity: DiagnosticSeverity = DiagnosticSeverity.Warning,
-): Diagnostic[] {
-  // Fast path: if the file has no binding at all, nothing to diagnose.
-  if (!params.content.includes("classnames/bind")) return [];
+export const computeDiagnostics = wrapHandler<
+  DocumentParams,
+  [severity?: DiagnosticSeverity],
+  Diagnostic[]
+>(
+  "diagnostics",
+  (params, deps, severity: DiagnosticSeverity = DiagnosticSeverity.Warning) => {
+    // Fast path: if the file has no binding at all, nothing to diagnose.
+    // NOTE: do not widen to hasAnyStyleImport — diagnostics scope is
+    // cx-pipeline calls only, and bare styles.x access is covered by TS.
+    if (!params.content.includes("classnames/bind")) return [];
 
-  let entry;
-  try {
-    entry = deps.analysisCache.get(
+    const entry = deps.analysisCache.get(
       params.documentUri,
       params.content,
       params.filePath,
       params.version,
     );
-  } catch (err) {
-    deps.logError("diagnostics analysis failed", err);
-    return [];
-  }
-  if (entry.calls.length === 0) return [];
+    // Diagnostics scope is cx-calls only; styles.x property access is covered by TS.
+    const cxRefs = entry.classRefs.filter((r) => r.origin === "cxCall");
+    if (cxRefs.length === 0) return [];
 
-  // Per-call isolation: a single throwing call (e.g. a malformed
-  // binding or a misbehaving TypeResolver entry) must NOT erase
-  // every other diagnostic in the same document. Spec §2.8 —
-  // "log + return empty result" applies per-call, not per-file.
-  const diagnostics: Diagnostic[] = [];
-  for (const call of entry.calls) {
-    try {
-      const classMap = deps.scssClassMapForPath(call.scssModulePath);
-      if (!classMap) continue;
-      const d = validateCall(call, classMap, params, deps, severity);
-      if (d) diagnostics.push(d);
-    } catch (err) {
-      deps.logError("diagnostics per-call validation failed", err);
-      // continue to the next call
+    // Per-ref isolation: a single throwing ref (e.g. a malformed
+    // binding or a misbehaving TypeResolver entry) must NOT erase
+    // every other diagnostic in the same document. Spec §2.8 —
+    // "log + return empty result" applies per-ref, not per-file.
+    const diagnostics: Diagnostic[] = [];
+    for (const ref of cxRefs) {
+      try {
+        const classMap = deps.scssClassMapForPath(ref.scssModulePath);
+        if (!classMap) continue;
+        const d = validateCall(ref, classMap, params, deps, severity);
+        if (d) diagnostics.push(d);
+      } catch (err) {
+        deps.logError("diagnostics per-call validation failed", err);
+        // continue to the next ref
+      }
     }
-  }
-  return diagnostics;
-}
+    return diagnostics;
+  },
+  [],
+);
 
 function validateCall(
-  call: CxCallInfo,
+  ref: ClassRef,
   classMap: ScssClassMap,
   params: Pick<DocumentParams, "filePath">,
   deps: ProviderDeps,
   severity: DiagnosticSeverity,
 ): Diagnostic | null {
-  const range: LspRange = toLspRange(call.originRange);
+  const range: LspRange = toLspRange(ref.originRange);
   const source = "css-module-explainer";
-  switch (call.kind) {
+  switch (ref.kind) {
     case "static": {
-      if (classMap.has(call.className)) return null;
-      const suggestion = findClosestMatch(call.className, classMap.keys());
+      if (classMap.has(ref.className)) return null;
+      const suggestion = findClosestMatch(ref.className, classMap.keys());
       const hint = suggestion ? ` Did you mean '${suggestion}'?` : "";
       return {
         range,
         severity,
         source,
-        message: `Class '.${call.className}' not found in ${relativeScss(call.scssModulePath, deps.workspaceRoot)}.${hint}`,
+        message: `Class '.${ref.className}' not found in ${relativeScss(ref.scssModulePath, deps.workspaceRoot)}.${hint}`,
         data: suggestion ? { suggestion } : undefined,
       };
     }
     case "template": {
-      const hasPrefix = anyValueStartsWith(classMap, call.staticPrefix);
+      const hasPrefix = anyValueStartsWith(classMap, ref.staticPrefix);
       if (hasPrefix) return null;
       return {
         range,
         severity,
         source,
-        message: `No class starting with '${call.staticPrefix}' found in ${relativeScss(call.scssModulePath, deps.workspaceRoot)}.`,
+        message: `No class starting with '${ref.staticPrefix}' found in ${relativeScss(ref.scssModulePath, deps.workspaceRoot)}.`,
       };
     }
     case "variable": {
       const infos = resolveCxCallToSelectorInfos({
-        call,
+        call: ref,
         classMap,
         typeResolver: deps.typeResolver,
         filePath: params.filePath,
@@ -104,7 +112,7 @@ function validateCall(
       });
       const resolved = deps.typeResolver.resolve(
         params.filePath,
-        call.variableName,
+        ref.variableName,
         deps.workspaceRoot,
       );
       if (resolved.kind !== "union") return null; // ignoreUnresolvableUnions = true

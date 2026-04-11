@@ -5,6 +5,7 @@ import {
   type Diagnostic,
   type WorkspaceEdit,
 } from "vscode-languageserver/node";
+import { wrapHandler } from "./_wrap-handler";
 import type { ProviderDeps } from "./cursor-dispatch";
 
 /**
@@ -18,13 +19,11 @@ import type { ProviderDeps } from "./cursor-dispatch";
  *
  * Pure function over LSP params: no AST, no file I/O, no cache
  * lookups. The heavy lifting already happened at diagnostic
- * publish time.
+ * publish time. Error isolation is owned by `wrapHandler`.
  */
-export function handleCodeAction(
-  params: CodeActionParams,
-  deps: ProviderDeps,
-): CodeAction[] | null {
-  try {
+export const handleCodeAction = wrapHandler<CodeActionParams, [], CodeAction[] | null>(
+  "codeAction",
+  (params, _deps: ProviderDeps) => {
     const actions: CodeAction[] = [];
     for (const diagnostic of params.context.diagnostics) {
       const suggestion = extractSuggestion(diagnostic);
@@ -32,11 +31,9 @@ export function handleCodeAction(
       actions.push(buildQuickFix(params.textDocument.uri, diagnostic, suggestion));
     }
     return actions.length > 0 ? actions : null;
-  } catch (err) {
-    deps.logError("code-action handler failed", err);
-    return null;
-  }
-}
+  },
+  null,
+);
 
 function extractSuggestion(diagnostic: Diagnostic): string | null {
   const data = diagnostic.data;

@@ -94,6 +94,6 @@ describe("handleCodeAction", () => {
     } satisfies CodeActionParams;
     const result = handleCodeAction(poisonedParams, makeDeps({ logError }));
     expect(result).toBeNull();
-    expect(logError).toHaveBeenCalledWith("code-action handler failed", expect.any(Error));
+    expect(logError).toHaveBeenCalledWith("codeAction handler failed", expect.any(Error));
   });
 });

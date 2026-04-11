@@ -3,7 +3,8 @@ import type { ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
 import { findLangForPath } from "../core/scss/lang-registry";
 import { fileUrlToPath } from "../core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
-import { rangeContains, type ProviderDeps } from "./cursor-dispatch";
+import { wrapHandler } from "./_wrap-handler";
+import { rangeContains } from "./cursor-dispatch";
 
 /**
  * Handle `textDocument/references` for a class selector inside a
@@ -17,9 +18,12 @@ import { rangeContains, type ProviderDeps } from "./cursor-dispatch";
  * 4. Ask the ReverseIndex for every CallSite referencing that
  *    (scssPath, className) pair.
  * 5. Convert each CallSite to an LSP `Location`.
+ *
+ * Error isolation is owned by `wrapHandler`.
  */
-export function handleReferences(params: ReferenceParams, deps: ProviderDeps): Location[] | null {
-  try {
+export const handleReferences = wrapHandler<ReferenceParams, [], Location[] | null>(
+  "references",
+  (params, deps) => {
     const filePath = fileUrlToPath(params.textDocument.uri);
     if (!findLangForPath(filePath)) return null;
 
@@ -36,11 +40,9 @@ export function handleReferences(params: ReferenceParams, deps: ProviderDeps): L
       uri: site.uri,
       range: toLspRange(site.range),
     }));
-  } catch (err) {
-    deps.logError("references handler failed", err);
-    return null;
-  }
-}
+  },
+  null,
+);
 
 export function findSelectorAtCursor(
   classMap: ScssClassMap,

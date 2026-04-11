@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type ts from "typescript";
 import { DiagnosticSeverity } from "vscode-languageserver-protocol/node";
-import type { CxBinding, CxCallInfo, ScssClassMap } from "@css-module-explainer/shared";
+import type { ClassRef, CxBinding, CxCallInfo, ScssClassMap } from "@css-module-explainer/shared";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
 import { NullReverseIndex } from "../../../server/src/core/indexing/reverse-index";
@@ -10,6 +10,21 @@ import { computeDiagnostics } from "../../../server/src/providers/diagnostics";
 import type { TypeResolver } from "../../../server/src/core/ts/type-resolver";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
 import { info, makeBaseDeps } from "../../_fixtures/test-helpers";
+
+/**
+ * Mirror the legacy `parseCxCalls` output as a `ClassRef[]` with
+ * `origin: "cxCall"`. Diagnostics (post-Wave 1 Stage 2b) iterates
+ * `entry.classRefs.filter(origin === "cxCall")`, so the test
+ * cache must wire `parseClassRefs` alongside `parseCxCalls` to
+ * keep the dev-only `classRefs.length === calls + styleRefs`
+ * invariant satisfied.
+ */
+const classRefsFromCalls =
+  (calls: (_sf: ts.SourceFile, binding: CxBinding) => CxCallInfo[]) =>
+  (sf: ts.SourceFile, bindings: readonly CxBinding[]): ClassRef[] =>
+    bindings.flatMap((b) =>
+      calls(sf, b).map<ClassRef>((c) => ({ ...c, origin: "cxCall" as const })),
+    );
 
 const TSX = `
 import classNames from 'classnames/bind';
@@ -54,6 +69,7 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     collectStyleImports: () => new Map(),
     detectCxBindings,
     parseCxCalls,
+    parseClassRefs: classRefsFromCalls(parseCxCalls),
     max: 10,
   });
   return makeBaseDeps({
@@ -130,19 +146,21 @@ describe("computeDiagnostics", () => {
 
   it("warns on a template-literal call whose prefix matches nothing", () => {
     const sourceFileCache = new SourceFileCache({ max: 10 });
+    const localParseCxCalls = (_sf: ts.SourceFile, binding: CxBinding): CxCallInfo[] => [
+      {
+        kind: "template",
+        rawTemplate: "prefix-${x}",
+        staticPrefix: "prefix-",
+        originRange: { start: { line: 4, character: 14 }, end: { line: 4, character: 28 } },
+        scssModulePath: binding.scssModulePath,
+      },
+    ];
     const analysisCache = new DocumentAnalysisCache({
       sourceFileCache,
       collectStyleImports: () => new Map(),
       detectCxBindings,
-      parseCxCalls: (_sf, binding) => [
-        {
-          kind: "template",
-          rawTemplate: "prefix-${x}",
-          staticPrefix: "prefix-",
-          originRange: { start: { line: 4, character: 14 }, end: { line: 4, character: 28 } },
-          scssModulePath: binding.scssModulePath,
-        },
-      ],
+      parseCxCalls: localParseCxCalls,
+      parseClassRefs: classRefsFromCalls(localParseCxCalls),
       max: 10,
     });
     const deps: ProviderDeps = {
@@ -164,18 +182,20 @@ describe("computeDiagnostics", () => {
 
   it("warns on a variable call whose union has a missing member", () => {
     const sourceFileCache = new SourceFileCache({ max: 10 });
+    const localParseCxCalls = (_sf: ts.SourceFile, binding: CxBinding): CxCallInfo[] => [
+      {
+        kind: "variable",
+        variableName: "size",
+        originRange: { start: { line: 4, character: 14 }, end: { line: 4, character: 18 } },
+        scssModulePath: binding.scssModulePath,
+      },
+    ];
     const analysisCache = new DocumentAnalysisCache({
       sourceFileCache,
       collectStyleImports: () => new Map(),
       detectCxBindings,
-      parseCxCalls: (_sf, binding) => [
-        {
-          kind: "variable",
-          variableName: "size",
-          originRange: { start: { line: 4, character: 14 }, end: { line: 4, character: 18 } },
-          scssModulePath: binding.scssModulePath,
-        },
-      ],
+      parseCxCalls: localParseCxCalls,
+      parseClassRefs: classRefsFromCalls(localParseCxCalls),
       max: 10,
     });
     // Union has three values but classMap only has two of them.
@@ -206,18 +226,20 @@ describe("computeDiagnostics", () => {
 
   it("skips variable calls with an unresolvable type (ignoreUnresolvableUnions)", () => {
     const sourceFileCache = new SourceFileCache({ max: 10 });
+    const localParseCxCalls = (_sf: ts.SourceFile, binding: CxBinding): CxCallInfo[] => [
+      {
+        kind: "variable",
+        variableName: "unknown",
+        originRange: { start: { line: 4, character: 14 }, end: { line: 4, character: 21 } },
+        scssModulePath: binding.scssModulePath,
+      },
+    ];
     const analysisCache = new DocumentAnalysisCache({
       sourceFileCache,
       collectStyleImports: () => new Map(),
       detectCxBindings,
-      parseCxCalls: (_sf, binding) => [
-        {
-          kind: "variable",
-          variableName: "unknown",
-          originRange: { start: { line: 4, character: 14 }, end: { line: 4, character: 21 } },
-          scssModulePath: binding.scssModulePath,
-        },
-      ],
+      parseCxCalls: localParseCxCalls,
+      parseClassRefs: classRefsFromCalls(localParseCxCalls),
       max: 10,
     });
     const deps: ProviderDeps = {
