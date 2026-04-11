@@ -1,4 +1,5 @@
 import type { StyleLang } from "@css-module-explainer/shared";
+import type { Syntax } from "postcss";
 import postcssLess from "postcss-less";
 import postcssScss from "postcss-scss";
 
@@ -34,6 +35,17 @@ export const STYLE_LANGS: readonly StyleLang[] = [
 /** Flat list of every `.module.<ext>` this project indexes. */
 export function getAllStyleExtensions(): readonly string[] {
   return STYLE_LANGS.flatMap((lang) => lang.extensions);
+}
+
+/**
+ * Narrow `StyleLang.syntax` (typed as `unknown` in the shared
+ * package so the shared layer stays runtime-free and does not
+ * import postcss) to postcss `Syntax | null` at the
+ * server/runtime boundary. This is the single documented
+ * `as` cast in the codebase (see plan §5.2).
+ */
+export function getRuntimeSyntax(lang: StyleLang): Syntax | null {
+  return lang.syntax as Syntax | null;
 }
 
 /** Pick the lang entry for a file path, or null if unrelated. */

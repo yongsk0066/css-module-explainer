@@ -1,13 +1,6 @@
 import type { ComposesRef, Range, SelectorInfo, ScssClassMap } from "@css-module-explainer/shared";
-import {
-  parse as postcssParse,
-  type Rule,
-  type Declaration,
-  type ChildNode,
-  type AtRule,
-  type Syntax,
-} from "postcss";
-import { findLangForPath } from "./lang-registry";
+import { parse as postcssParse, type Rule, type ChildNode, type AtRule } from "postcss";
+import { findLangForPath, getRuntimeSyntax } from "./lang-registry";
 
 /**
  * Parse a CSS Module file into a map of class name → SelectorInfo.
@@ -22,9 +15,9 @@ export function parseStyleModule(content: string, filePath: string): ScssClassMa
 
   const lang = findLangForPath(filePath);
   // shared.StyleLang.syntax is typed as `unknown` so the shared
-  // module stays runtime-free. This is the designed narrowing
-  // boundary — it lives in exactly one place.
-  const syntax = lang?.syntax as Syntax | undefined;
+  // module stays runtime-free. The narrowing cast lives in
+  // `getRuntimeSyntax` (the single documented `as` cast).
+  const syntax = lang ? getRuntimeSyntax(lang) : null;
 
   let root;
   try {
@@ -159,12 +152,11 @@ function collectDeclarationsAndComposes(nodes: ChildNode[] | undefined): {
 
   for (const node of nodes) {
     if (node.type !== "decl") continue;
-    const decl = node as Declaration;
-    if (decl.prop === "composes") {
-      const ref = parseComposesValue(decl.value);
+    if (node.prop === "composes") {
+      const ref = parseComposesValue(node.value);
       if (ref) composes.push(ref);
     } else {
-      declParts.push(`${decl.prop}: ${decl.value}`);
+      declParts.push(`${node.prop}: ${node.value}`);
     }
   }
 
