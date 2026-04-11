@@ -19,6 +19,7 @@ import { StyleIndexCache } from "./core/scss/scss-index";
 import { collectStyleImports, detectCxBindings } from "./core/cx/binding-detector";
 import { parseCxCalls } from "./core/cx/call-parser";
 import { parseStylePropertyAccesses } from "./core/cx/style-access-parser";
+import { parseClassRefs } from "./core/cx/class-ref-parser";
 import { SourceFileCache } from "./core/ts/source-file-cache";
 import { WorkspaceTypeResolver, type TypeResolver } from "./core/ts/type-resolver";
 import { DocumentAnalysisCache } from "./core/indexing/document-analysis-cache";
@@ -199,6 +200,7 @@ function buildBundle(
     detectCxBindings,
     parseCxCalls,
     parseStyleAccesses: parseStylePropertyAccesses,
+    parseClassRefs,
     max: 200,
     onAnalyze: (uri, entry) => {
       reverseIndex.record(

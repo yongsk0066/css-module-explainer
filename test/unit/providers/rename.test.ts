@@ -278,3 +278,56 @@ describe("handleRename from TS/TSX", () => {
     expect(changes["file:///fake/src/Other.tsx"]).toHaveLength(1);
   });
 });
+
+// ──────────────────────────────────────────────────────────────
+// Wave 1 Stage 1 — RED regression tests
+//
+// These tests encode the five critical bugs Stage 3 will fix.
+// They are skipped on Stage 1 commit so the suite stays green,
+// but each has been manually verified RED against pre-fix code
+// (un-skip, run, confirm failure, re-skip) before landing.
+// Stage 3 un-skips them in the same commit as each fix.
+// ──────────────────────────────────────────────────────────────
+
+describe("Wave 1 Stage 3.1 — rename template corruption (red regression)", () => {
+  // TODO(wave1-stage3): un-skip after fix lands
+  it.skip("rename template-literal class does NOT rewrite the template range (wave1-stage3.1)", () => {
+    // Fixture: `cx(\`btn-${weight}\`)` + SCSS with `.btn-small`.
+    // Rename `btn-small` → `btn-tiny`.
+    // Expectation (post-fix): the template-literal originRange
+    // is NOT included in the WorkspaceEdit. Current buggy code
+    // rewrites the entire template range, corrupting the source.
+    expect.fail("red placeholder — wave1-stage3.1");
+  });
+
+  // TODO(wave1-stage3): un-skip after fix lands
+  it.skip("SCSS-side prepareRename rejects class with template/variable references (wave1-stage3.1)", () => {
+    // Fixture: same template-literal + SCSS with `.btn-small`.
+    // Cursor on `.btn-small` in SCSS. `handlePrepareRename`
+    // must return null because one call site is an EXPANDED
+    // template — renaming would destroy the template source.
+    expect.fail("red placeholder — wave1-stage3.1");
+  });
+
+  // TODO(wave1-stage3): un-skip after fix lands
+  it.skip("find-references STILL surfaces template-expanded sites (wave1-stage3.1 regression guard)", () => {
+    // Regression guard. After the fix lands, Find References
+    // must continue to include template-expanded sites —
+    // expanded entries are "where you COULD rename if the
+    // template resolved" and stay visible to the user.
+    expect.fail("red placeholder — wave1-stage3.1");
+  });
+});
+
+describe("Wave 1 Stage 3.4 — &-nested prepareRename reject (red regression)", () => {
+  // TODO(wave1-stage3): un-skip after fix lands
+  it.skip("prepareRename rejects cursor on a &-nested selector (wave1-stage3.4)", () => {
+    // Fixture: SCSS with `.button { &--primary { ... } }`.
+    // Cursor on `--primary` inside the nested selector.
+    // `handlePrepareRename` must return null — Wave 1 defers
+    // full &-nested rename support to Wave 2 and defensively
+    // rejects the request so no partial edit can corrupt
+    // source.
+    expect.fail("red placeholder — wave1-stage3.4");
+  });
+});

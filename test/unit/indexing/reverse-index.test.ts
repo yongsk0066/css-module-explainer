@@ -14,6 +14,7 @@ function makeCallSite(): CallSite {
     range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
     scssModulePath: "/fake/a.module.scss",
     match: { kind: "static", className: "indicator" },
+    expansion: "direct",
   };
 }
 
@@ -60,6 +61,7 @@ function siteAt(uri: string, className: string, line: number, scssPath?: string)
     },
     scssModulePath: scssPath ?? "/fake/a.module.scss",
     match: { kind: "static", className },
+    expansion: "direct",
   };
 }
 
@@ -111,6 +113,7 @@ describe("WorkspaceReverseIndex", () => {
     const templateSite: CallSite = {
       ...siteAt("file:///a.tsx", "btn-", 3),
       match: { kind: "template", staticPrefix: "btn-" },
+      expansion: "direct",
     };
     index.record("file:///a.tsx", [templateSite]);
     expect(index.count("/fake/a.module.scss", "btn-")).toBe(0);
@@ -152,6 +155,7 @@ describe("WorkspaceReverseIndex", () => {
       range: { start: { line: 3, character: 10 }, end: { line: 3, character: 14 } },
       scssModulePath: "/fake/a.module.scss",
       match: { kind: "template", staticPrefix: "btn-" },
+      expansion: "direct",
     };
     index.record("file:///a.tsx", [siteAt("file:///a.tsx", "indicator", 5), templateSite]);
     const all = index.findAllForScssPath("/fake/a.module.scss");
@@ -176,6 +180,7 @@ describe("CallSite carries scssModulePath directly", () => {
       range: { start: { line: 0, character: 0 }, end: { line: 0, character: 5 } },
       scssModulePath: "/fake/a.module.scss",
       match: { kind: "static", className: "btn" },
+      expansion: "direct",
     };
     const index = new WorkspaceReverseIndex();
     index.record(site.uri, [site]);
@@ -204,6 +209,7 @@ describe("collectCallSites / StylePropertyRef entries", () => {
       bindings: [],
       calls: [],
       styleRefs: [styleRef],
+      classRefs: [],
       stylesBindings: new Map(),
     };
 
@@ -249,6 +255,7 @@ describe("collectCallSites / StylePropertyRef entries", () => {
           originRange: { start: { line: 7, character: 10 }, end: { line: 7, character: 19 } },
         },
       ],
+      classRefs: [],
       stylesBindings: new Map(),
     };
 
@@ -279,6 +286,7 @@ describe("collectCallSites / StylePropertyRef entries", () => {
           originRange: { start: { line: 2, character: 5 }, end: { line: 2, character: 8 } },
         },
       ],
+      classRefs: [],
       stylesBindings: new Map(),
     };
 

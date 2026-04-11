@@ -88,14 +88,76 @@ export interface CxBinding {
   readonly classNamesImportName: string;
 }
 
+// ──────────────────────────────────────────────────────────────
+// ClassRef — unified class-reference model (Wave 1)
+// ──────────────────────────────────────────────────────────────
+
 /**
- * Base shape for a single `cx()` argument that resolves (or fails
- * to resolve) to one or more class names.
- *
- * @internal This base is not exported from the shared package. Its
- * fields are inlined into each concrete `CxCallInfo` variant via
- * declaration merging so consumers see a flat discriminated union,
- * not a nested hierarchy.
+ * Which source syntax produced a class reference.
+ * Deliberately a string literal union (no payload) — Wave 4 can
+ * widen to a discriminated union without changing consumers that
+ * only read the discriminator.
+ */
+export type ClassRefOrigin = "cxCall" | "styleAccess";
+
+/**
+ * Common shape of every ClassRef variant. Internal; not exported.
+ */
+interface ClassRefBase {
+  /**
+   * LSP highlight range for the class token, quote characters
+   * excluded. For `cx('indicator')` this covers `indicator` only.
+   */
+  readonly originRange: Range;
+  /** Absolute path of the `.module.scss|css` file this ref targets. */
+  readonly scssModulePath: string;
+  /** Which syntax produced this ref — cx() call or direct styles.x access. */
+  readonly origin: ClassRefOrigin;
+}
+
+/** A static class literal: `cx('button')` or `styles.button`. */
+export interface StaticClassRef extends ClassRefBase {
+  readonly kind: "static";
+  /** Fully-resolved class name as written. */
+  readonly className: string;
+}
+
+/**
+ * A template literal with static prefix and interpolated suffix,
+ * e.g. `` cx(`weight-${weight}`) ``. The literal prefix lets
+ * `call-resolver` match against the class map via `startsWith`.
+ */
+export interface TemplateClassRef extends ClassRefBase {
+  readonly kind: "template";
+  /** Literal prefix before the first `${`. May be empty. */
+  readonly staticPrefix: string;
+  /** Original template source including `${...}` fragments. */
+  readonly rawTemplate: string;
+}
+
+/**
+ * A bare identifier reference: `cx(size)` where `size` has a
+ * TypeScript union-of-string-literal type. Resolved by `type-resolver`.
+ */
+export interface VariableClassRef extends ClassRefBase {
+  readonly kind: "variable";
+  readonly variableName: string;
+}
+
+/**
+ * A reference to a SCSS class at a specific location in source.
+ * The only ref concept in Wave 1+ — replaces legacy `CxCallInfo`
+ * and `StylePropertyRef`.
+ */
+export type ClassRef = StaticClassRef | TemplateClassRef | VariableClassRef;
+
+// ──────────────────────────────────────────────────────────────
+// Legacy cx call types — @deprecated, kept during Wave 1 Stage 1–2
+// migration. Deleted in Stage 4.2.a.
+// ──────────────────────────────────────────────────────────────
+
+/**
+ * @deprecated Wave 1 Stage 4.2.a will delete. Use `ClassRef` instead.
  */
 interface CxCallBase {
   /**
@@ -108,37 +170,26 @@ interface CxCallBase {
   readonly scssModulePath: string;
 }
 
-/** A static class name: `cx('indicator')` or `cx({ active: isActive })`. */
+/** @deprecated Wave 1 Stage 4.2.a will delete. Use `StaticClassRef`. */
 export interface StaticClassCall extends CxCallBase {
   readonly kind: "static";
   readonly className: string;
 }
 
-/**
- * A template literal with static prefix and interpolated suffix:
- *   cx(`weight-${weight}`)
- * The parser records the literal prefix so `call-resolver` can
- * match it against the class map via `startsWith`.
- */
+/** @deprecated Wave 1 Stage 4.2.a will delete. Use `TemplateClassRef`. */
 export interface TemplateLiteralCall extends CxCallBase {
   readonly kind: "template";
-  /** Original template including `${...}` fragments. */
   readonly rawTemplate: string;
-  /** Literal prefix before the first `${`. May be empty. */
   readonly staticPrefix: string;
 }
 
-/**
- * A bare identifier reference: `cx(size)` where `size` has a
- * TypeScript union-of-string-literal type. The actual resolution
- * to concrete class names is deferred to `type-resolver`.
- */
+/** @deprecated Wave 1 Stage 4.2.a will delete. Use `VariableClassRef`. */
 export interface VariableRefCall extends CxCallBase {
   readonly kind: "variable";
   readonly variableName: string;
 }
 
-/** Discriminated union of every `cx()` argument shape we track. */
+/** @deprecated Wave 1 Stage 4.2.a will delete. Use `ClassRef`. */
 export type CxCallInfo = StaticClassCall | TemplateLiteralCall | VariableRefCall;
 
 // ──────────────────────────────────────────────────────────────
@@ -146,12 +197,8 @@ export type CxCallInfo = StaticClassCall | TemplateLiteralCall | VariableRefCall
 // ──────────────────────────────────────────────────────────────
 
 /**
- * A direct property access on a style module default import:
- *   `styles.button` → PropertyAccessExpression
- *
- * This is the non-cx pattern: no `classnames/bind`, no `.bind()`,
- * just a raw `styles.x` reference. Detected by a separate AST
- * walker (`style-access-parser`) alongside the cx binding detector.
+ * @deprecated Wave 1 Stage 4.2.a will delete. Use `StaticClassRef`
+ * with `origin: "styleAccess"` instead.
  */
 export interface StylePropertyRef {
   readonly kind: "style-access";
@@ -197,6 +244,16 @@ export type CallSiteMatch =
   | { readonly kind: "variable"; readonly variableName: string };
 
 /**
+ * Whether a CallSite corresponds to a literal token the user wrote
+ * ("direct") or a synthesized entry produced by expanding a
+ * template/variable ref against a class map ("expanded").
+ *
+ * Rename filters out expanded sites (rewriting them would destroy
+ * the template/variable source). Find References includes them.
+ */
+export type CallSiteExpansion = "direct" | "expanded";
+
+/**
  * One recorded call site of a specific class name. The
  * WorkspaceReverseIndex maps (scssFilePath, className) →
  * CallSite[] using `match.kind === "static"` to pick the
@@ -211,4 +268,6 @@ export interface CallSite {
   readonly scssModulePath: string;
   /** Structured discriminator describing the matched pattern. */
   readonly match: CallSiteMatch;
+  /** Whether this is a direct token or synthesized from a dynamic ref. */
+  readonly expansion: CallSiteExpansion;
 }

@@ -69,4 +69,24 @@ describe("SCSS unused selector diagnostics protocol", () => {
     expect(unusedDiag).toBeDefined();
     expect(unusedDiag!.tags).toContain(DiagnosticTag.Unnecessary);
   });
+
+  // ──────────────────────────────────────────────────────────
+  // Wave 1 Stage 3.3 — SCSS buffer-first read (red regression)
+  //
+  // Bug: unused-selector diagnostics read SCSS source from disk
+  // even when the file is open in an unsaved buffer. Classes
+  // added to the buffer but not yet saved are reported as
+  // unused. Fix: `classMapForPath` reads from the analysis
+  // buffer first, falling back to disk.
+  // ──────────────────────────────────────────────────────────
+
+  // TODO(wave1-stage3): un-skip after fix lands
+  it.skip("unused diagnostics use buffered SCSS content, NOT disk content (wave1-stage3.3)", async () => {
+    // Harness: readStyleFile stub returns `.a {}` (DIFFERENT
+    // from the open-buffer content `.a {} .b {}`). Open a TSX
+    // file referencing `.b`. Assert: no unused-diagnostic on
+    // `.a`, no unused-diagnostic on `.b`. Current code reads
+    // from disk → `.b` appears unused → red.
+    expect.fail("red placeholder — wave1-stage3.3");
+  });
 });

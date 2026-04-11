@@ -1,6 +1,11 @@
 import * as nodeUrl from "node:url";
 import type ts from "typescript";
-import type { CxBinding, CxCallInfo, StylePropertyRef } from "@css-module-explainer/shared";
+import type {
+  ClassRef,
+  CxBinding,
+  CxCallInfo,
+  StylePropertyRef,
+} from "@css-module-explainer/shared";
 import { contentHash } from "../util/hash";
 import { LruMap } from "../util/lru-map";
 import type { SourceFileCache } from "../ts/source-file-cache";
@@ -22,6 +27,14 @@ export interface AnalysisEntry {
   readonly calls: readonly CxCallInfo[];
   /** Direct `styles.className` property accesses (non-cx pattern). */
   readonly styleRefs: readonly StylePropertyRef[];
+  /**
+   * Unified class-reference list (Wave 1). Emitted by
+   * `parseClassRefs` alongside the legacy `calls`/`styleRefs`
+   * arrays during the Stage 1–2 dual-pipeline window. A dev-only
+   * invariant in `analyze()` asserts
+   * `classRefs.length === calls.length + styleRefs.length`.
+   */
+  readonly classRefs: readonly ClassRef[];
   /** Map of style-import local name → resolved absolute SCSS path. */
   readonly stylesBindings: ReadonlyMap<string, string>;
 }
@@ -38,6 +51,16 @@ export interface DocumentAnalysisCacheDeps {
     sourceFile: ts.SourceFile,
     stylesBindings: ReadonlyMap<string, string>,
   ) => StylePropertyRef[];
+  /**
+   * Unified ClassRef producer (Wave 1). Optional so test helpers
+   * that construct a cache without wiring Wave 1 still work — the
+   * cache falls back to `[]` and skips the dev-only invariant.
+   */
+  readonly parseClassRefs?: (
+    sourceFile: ts.SourceFile,
+    bindings: readonly CxBinding[],
+    stylesBindings: ReadonlyMap<string, string>,
+  ) => ClassRef[];
   readonly max: number;
   /**
    * Callback fired exactly once per (uri, version) when the cache
@@ -130,6 +153,28 @@ export class DocumentAnalysisCache {
     const stylesBindings = this.deps.collectStyleImports(sourceFile, filePath);
     const styleRefs = this.deps.parseStyleAccesses?.(sourceFile, stylesBindings) ?? [];
 
-    return { version, contentHash: hash, sourceFile, bindings, calls, styleRefs, stylesBindings };
+    // Wave 1 dual-pipeline window: the unified parser runs
+    // alongside the legacy parsers. Stage 4.2.a deletes the
+    // legacy arrays once providers all read `classRefs`.
+    const classRefs = this.deps.parseClassRefs?.(sourceFile, bindings, stylesBindings) ?? [];
+
+    if (this.deps.parseClassRefs && process.env.NODE_ENV !== "production") {
+      if (classRefs.length !== calls.length + styleRefs.length) {
+        throw new Error(
+          `ClassRef/legacy count mismatch in ${filePath}: classRefs=${classRefs.length}, calls=${calls.length}, styleRefs=${styleRefs.length}`,
+        );
+      }
+    }
+
+    return {
+      version,
+      contentHash: hash,
+      sourceFile,
+      bindings,
+      calls,
+      styleRefs,
+      classRefs,
+      stylesBindings,
+    };
   }
 }

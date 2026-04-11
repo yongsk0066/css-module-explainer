@@ -54,6 +54,7 @@ export function siteAt(
     range: { start: { line, character: 10 }, end: { line, character: 10 + className.length } },
     scssModulePath: scssPath,
     match: { kind: "static" as const, className },
+    expansion: "direct",
   };
 }
 

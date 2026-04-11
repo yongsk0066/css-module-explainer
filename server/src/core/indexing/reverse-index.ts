@@ -157,18 +157,32 @@ export function collectCallSites(
     const base = { uri, range: call.originRange, scssModulePath: call.scssModulePath };
     switch (call.kind) {
       case "static":
-        sites.push({ ...base, match: { kind: "static", className: call.className } });
+        // Stage 1: every native push is `expansion: "direct"`.
+        // Stage 3.1 (Commit 6) will flip synthesized expansions to "expanded".
+        sites.push({
+          ...base,
+          match: { kind: "static", className: call.className },
+          expansion: "direct",
+        });
         break;
       case "template": {
         // Always record the template match for display purposes.
-        sites.push({ ...base, match: { kind: "template", staticPrefix: call.staticPrefix } });
+        sites.push({
+          ...base,
+          match: { kind: "template", staticPrefix: call.staticPrefix },
+          expansion: "direct",
+        });
         // If resolver context available, expand to individual static entries.
         if (ctx) {
           const classMap = ctx.classMapForPath(call.scssModulePath);
           if (classMap) {
             for (const name of classMap.keys()) {
               if (name.startsWith(call.staticPrefix)) {
-                sites.push({ ...base, match: { kind: "static", className: name } });
+                sites.push({
+                  ...base,
+                  match: { kind: "static", className: name },
+                  expansion: "direct",
+                });
               }
             }
           }
@@ -176,7 +190,11 @@ export function collectCallSites(
         break;
       }
       case "variable": {
-        sites.push({ ...base, match: { kind: "variable", variableName: call.variableName } });
+        sites.push({
+          ...base,
+          match: { kind: "variable", variableName: call.variableName },
+          expansion: "direct",
+        });
         if (ctx) {
           const resolved = ctx.typeResolver.resolve(
             ctx.filePath,
@@ -185,7 +203,11 @@ export function collectCallSites(
           );
           if (resolved.kind === "union") {
             for (const value of resolved.values) {
-              sites.push({ ...base, match: { kind: "static", className: value } });
+              sites.push({
+                ...base,
+                match: { kind: "static", className: value },
+                expansion: "direct",
+              });
             }
           }
         }
@@ -201,6 +223,7 @@ export function collectCallSites(
       range: ref.originRange,
       scssModulePath: ref.scssModulePath,
       match: { kind: "static", className: ref.className },
+      expansion: "direct",
     });
   }
 

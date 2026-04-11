@@ -6,11 +6,20 @@ export type {
   SelectorInfo,
   ScssClassMap,
   CxBinding,
+  // Wave 1: unified ClassRef model
+  ClassRef,
+  ClassRefOrigin,
+  StaticClassRef,
+  TemplateClassRef,
+  VariableClassRef,
+  // Legacy — @deprecated, Wave 1 Stage 4.2.a will delete
   CxCallInfo,
   StaticClassCall,
   TemplateLiteralCall,
   VariableRefCall,
   ResolvedType,
   CallSite,
+  CallSiteMatch,
+  CallSiteExpansion,
   StylePropertyRef,
 } from "./types";

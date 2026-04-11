@@ -1,4 +1,5 @@
 import type {
+  ClassRef,
   CxCallInfo,
   Range as SharedRange,
   ScssClassMap,
@@ -75,6 +76,8 @@ export const NOOP_LOG_ERROR: (message: string, err: unknown) => void = () => {};
  * `entry` carries the already-parsed AnalysisEntry so providers can
  * read `entry.sourceFile`, `entry.bindings`, or `entry.calls` without
  * a second cache lookup (the "one parse per file" invariant).
+ *
+ * @deprecated Wave 1 Stage 4.2 will delete. Use `ClassRefContext` instead.
  */
 export interface CxCallContext {
   readonly call: CxCallInfo;
@@ -86,6 +89,8 @@ export interface CxCallContext {
  * Front stage for cursor-based cx() providers (definition, hover).
  * Fast-paths on `hasCxBindImport` and empty bindings, then
  * finds the CxCallInfo whose originRange contains the cursor.
+ *
+ * @deprecated Wave 1 Stage 4.2 will delete. Use `withClassRefAtCursor`.
  */
 export function withCxCallAtCursor<T>(
   params: CursorParams,
@@ -122,6 +127,8 @@ export function withCxCallAtCursor<T>(
  * Fast-path predicate: does this document contain a
  * `classnames/bind` import anywhere? Used by every provider
  * before touching the AST.
+ *
+ * @deprecated Wave 1 Stage 4.2 will delete. Use `hasAnyStyleImport`.
  */
 export function hasCxBindImport(content: string): boolean {
   return content.includes("classnames/bind");
@@ -152,6 +159,9 @@ function findCallAtCursor(
 // styles.className direct reference dispatcher
 // ──────────────────────────────────────────────────────────────
 
+/**
+ * @deprecated Wave 1 Stage 4.2 will delete. Use `ClassRefContext`.
+ */
 export interface StyleRefContext {
   readonly ref: StylePropertyRef;
   readonly classMap: ScssClassMap;
@@ -168,6 +178,8 @@ export interface StyleRefContext {
  *
  * Use as a FALLBACK after `withCxCallAtCursor`: each provider
  * calls both dispatchers and returns whichever hits first.
+ *
+ * @deprecated Wave 1 Stage 4.2 will delete. Use `withClassRefAtCursor`.
  */
 export function withStyleRefAtCursor<T>(
   params: CursorParams,
@@ -195,4 +207,62 @@ export function withStyleRefAtCursor<T>(
 
   const info = classMap.get(ref.className) ?? null;
   return transform({ ref, classMap, info, entry }) ?? null;
+}
+
+// ──────────────────────────────────────────────────────────────
+// Unified ClassRef dispatcher (Wave 1)
+// ──────────────────────────────────────────────────────────────
+
+/**
+ * The data every `withClassRefAtCursor` transform receives.
+ * Unified replacement for `CxCallContext` + `StyleRefContext`.
+ */
+export interface ClassRefContext {
+  readonly ref: ClassRef;
+  readonly classMap: ScssClassMap;
+  readonly entry: AnalysisEntry;
+}
+
+/**
+ * Fast-path predicate: does this document reference any CSS
+ * Module? Matches either `*.module.*` imports or
+ * `classnames/bind` usage. Wider than `hasCxBindImport` so the
+ * unified dispatcher can skip files that contain neither.
+ */
+export function hasAnyStyleImport(content: string): boolean {
+  return content.includes(".module.") || content.includes("classnames/bind");
+}
+
+/**
+ * Unified front stage for every cursor-based provider in Wave 1.
+ *
+ * Searches `entry.classRefs` for the ref whose `originRange`
+ * contains the cursor, resolves the backing classMap, and hands
+ * `{ ref, classMap, entry }` to the transform. Providers branch
+ * on `ctx.ref.kind` and `ctx.ref.origin` as needed.
+ */
+export function withClassRefAtCursor<T>(
+  params: CursorParams,
+  deps: ProviderDeps,
+  transform: (ctx: ClassRefContext) => T | null,
+): T | null {
+  if (!hasAnyStyleImport(params.content)) return null;
+
+  const entry = deps.analysisCache.get(
+    params.documentUri,
+    params.content,
+    params.filePath,
+    params.version,
+  );
+  if (entry.classRefs.length === 0) return null;
+
+  const ref = entry.classRefs.find((r) =>
+    rangeContains(r.originRange, params.line, params.character),
+  );
+  if (!ref) return null;
+
+  const classMap = deps.scssClassMapForPath(ref.scssModulePath);
+  if (!classMap) return null;
+
+  return transform({ ref, classMap, entry }) ?? null;
 }

@@ -150,3 +150,50 @@ describe("IndexerWorker", () => {
     await worker.ready; // Must not hang or throw.
   });
 });
+
+// ──────────────────────────────────────────────────────────────
+// Wave 1 Stage 3.2 — IndexerWorker.pushFile dead post-startup
+// (red regression tests)
+//
+// All four tests encode the Bug 3.2 behavior documented in
+// §plan Stage 3. Each has been manually verified RED against
+// pre-fix code. Stage 3 un-skips them alongside the PushSignal
+// refactor in `indexer-worker.ts`.
+// ──────────────────────────────────────────────────────────────
+
+describe("Wave 1 Stage 3.2 — pushFile lifecycle (red regression)", () => {
+  // TODO(wave1-stage3): un-skip after fix lands
+  it.skip("pushFile after supplier exhaustion processes the task (wave1-stage3.2)", async () => {
+    // Supplier yields nothing, start() resolves ready, then
+    // pushFile({path: "x"}) is called. Expectation: onScssFile
+    // is invoked with "x". Current code: drain() has exited so
+    // the task sits in `pending` forever and onScssFile is
+    // never called.
+    expect.fail("red placeholder — wave1-stage3.2");
+  });
+
+  // TODO(wave1-stage3): un-skip after fix lands
+  it.skip("consecutive pushFile calls all get processed (wave1-stage3.2)", async () => {
+    // Two pushFile calls back-to-back after ready. Both should
+    // hit onScssFile in order. Current code: neither fires.
+    expect.fail("red placeholder — wave1-stage3.2");
+  });
+
+  // TODO(wave1-stage3): un-skip after fix lands
+  it.skip("stop() during pushSignal wait exits cleanly (wave1-stage3.2)", async () => {
+    // After ready, the worker is parked in the pushSignal
+    // await. stop() must flush waiters so start()'s awaited
+    // drain() returns without hanging. Current code: pre-fix
+    // has no pushSignal, so this is a shape test for the new
+    // path.
+    expect.fail("red placeholder — wave1-stage3.2");
+  });
+
+  // TODO(wave1-stage3): un-skip after fix lands
+  it.skip("ready promise resolves AT supplier exhaustion (wave1-stage3.2)", async () => {
+    // ready must resolve exactly at the transition from the
+    // initial walk to the long-running drain phase — not after
+    // the first pushFile, and not when stop() is called.
+    expect.fail("red placeholder — wave1-stage3.2");
+  });
+});
