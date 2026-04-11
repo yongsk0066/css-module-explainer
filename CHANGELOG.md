@@ -72,6 +72,89 @@ this project adheres to
 - Added `cssModuleExplainer.diagnostics.unusedSelector` (default: `true`).
 - Added `cssModuleExplainer.features.rename` (default: `true`).
 
+## [1.3.0] — 2026-04-10
+
+### Fixed
+
+- **Multi-line `cx()` calls now register** — class literals in
+  `cx()` calls spanning more than one line are captured by the
+  AST walker, so every line in a multi-line argument list
+  participates in hover, completion, references, and diagnostics.
+- **Reference CodeLens on class selectors** — the "N references"
+  CodeLens above every `.module.scss` class selector is now
+  wired through `textDocument/codeLens` and opens VS Code's
+  built-in references panel on click.
+- **Empty reference lenses suppressed** — classes with zero
+  references no longer emit a `"0 references"` lens; the lens
+  is omitted entirely so the editor gutter stays clean.
+
+## [1.2.0] — 2026-04-10
+
+### Added
+
+- **LESS support** — `.module.less` files parse through
+  postcss-less; every provider that works on `.module.scss`
+  works on `.module.less`.
+- **Namespace imports** — `import * as styles from './x.module.scss'`
+  is recognised alongside the default-import form.
+- **String-aware completion gating** — completion no longer
+  triggers inside string literals that happen to be passed to a
+  `cx()` call, avoiding spurious popups inside quoted content.
+- **Direct `styles.x` access** — hover, definition, and
+  completion work on `styles.className` property access in any
+  file, independent of whether `classnames/bind` is imported.
+- **Template reverse-index expansion** — template-literal and
+  variable-kind call sites (e.g. `` cx(`btn-${weight}`) ``) are
+  expanded against the class map at index time, so Find
+  References on a selector surfaces every dynamically-referenced
+  site.
+- **`cx(props.variant)` property access** — bare property-
+  access identifiers passed to `cx()` resolve against the same
+  TypeScript string-literal union machinery used for plain
+  variables.
+- **`composes:` declarations** — SCSS classes that compose from
+  a sibling class (same-file or `from '.otherFile.module.scss'`)
+  are treated as used by the unused-selector check, preventing
+  false-positive hints.
+- **Grouped selector support** — `a, b {}` rules now contribute
+  both `a` and `b` to the class map with their own source
+  ranges, so hover and go-to-definition pick the right selector.
+- **Settings schema** — first `contributes.configuration` entry
+  in `package.json` exposes user-facing settings through the VS
+  Code settings UI. Per-feature toggles and diagnostic
+  configuration land in this release.
+
+### Fixed
+
+- **Levenshtein suggestion bounded** — the "did you mean?" hint
+  in diagnostics uses a bounded-edit Levenshtein with early
+  termination so very long class names do not slow the check.
+
+### Changed
+
+- **Module resolution switched to bundler** — server and
+  shared packages compile under `"moduleResolution": "Bundler"`,
+  removing the `.js` extension suffixes from internal imports.
+- **Node engine bumped to 24** — `engines.node` set to `>=24`;
+  `engines.vscode` pinned to `^1.115.0`.
+- **Shared LruMap utility** — `StyleIndexCache`,
+  `SourceFileCache`, and `DocumentAnalysisCache` delegate
+  eviction to a shared `LruMap<K, V>` helper, removing three
+  identical inline implementations.
+- **Shared `FakeTypeResolver` fixture** — fourteen inline copies
+  of a fake `TypeResolver` across provider tests collapsed into
+  a single `test/_fixtures/fake-type-resolver.ts`.
+- **SCSS index module split** — `scss-index.ts` separated from
+  the parser file so `StyleIndexCache` and `parseStyleModule`
+  live in distinct modules.
+- **Composition root split** — the startup factory split out
+  settings, scheduler, indexer, and type-resolver factories so
+  the root stays a thin DI wire-up.
+- **Release workflow** — CI publishes to the VS Code marketplace
+  on tagged releases.
+- **`examples/scenarios/*`** — all nine scenario sub-packages
+  fully implemented with dedicated README walkthroughs.
+
 ## [1.1.0] — 2026-04-10
 
 ### Changed
@@ -91,9 +174,11 @@ this project adheres to
 
 ### Fixed
 
-- Removed internal planning references (Q6, Q7, Plan, Phase,
-  Agent) from test describe blocks, comments, and
-  documentation.
+- **Internal planning references removed** — stale describe-block
+  names, comments, and doc strings that referenced internal
+  project-phase shorthand were rewritten in neutral language so
+  external readers of the test suite are not confronted with
+  workflow jargon.
 
 ## [1.0.0] — 2026-04-10
 
