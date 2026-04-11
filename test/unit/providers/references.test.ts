@@ -115,30 +115,32 @@ describe("handleReferences", () => {
   });
 
   // ──────────────────────────────────────────────────────────────
-  // findSelectorAtCursor prefers rawTokenRange when present — lets
-  // cursor on `&--primary` resolve to the nested class entry that
+  // findSelectorAtCursor prefers the BEM-suffix range when present.
+  // Cursor on `&--primary` resolves to the nested class entry that
   // the resolved-name fallback range would miss.
   // ──────────────────────────────────────────────────────────────
-  it("findSelectorAtCursor prefers rawTokenRange over resolved range", () => {
+  it("findSelectorAtCursor prefers bemSuffix.rawTokenRange over resolved range", () => {
     // Fixture: `.button { &--primary {} }` on two lines.
     // Line 0: `.button {`
     // Line 1: `  &--primary {}`
     // The synthesized resolved `range` points at a fallback column
     // on line 1, but it only covers `button--primary`'s ghost span
     // — the cursor on the `&` column (line 1, char 2) falls INSIDE
-    // `rawTokenRange` {start:{line:1,char:2}, end:{line:1,char:12}}.
+    // bemSuffix.rawTokenRange {start:{line:1,char:2}, end:{line:1,char:12}}.
     const info: SelectorInfo = {
       name: "button--primary",
       range: {
         start: { line: 1, character: 2 },
         end: { line: 1, character: 17 }, // 15 chars for "button--primary"
       },
-      rawTokenRange: {
-        start: { line: 1, character: 2 },
-        end: { line: 1, character: 12 }, // 10 chars for "&--primary"
+      bemSuffix: {
+        rawTokenRange: {
+          start: { line: 1, character: 2 },
+          end: { line: 1, character: 12 }, // 10 chars for "&--primary"
+        },
+        rawToken: "&--primary",
+        parentResolvedName: "button",
       },
-      rawToken: "&--primary",
-      parentResolvedName: "button",
       isNested: true,
       fullSelector: ".button--primary",
       declarations: "",

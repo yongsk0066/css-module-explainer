@@ -1,4 +1,10 @@
-import type { ComposesRef, Range, SelectorInfo, ScssClassMap } from "@css-module-explainer/shared";
+import type {
+  BemSuffixInfo,
+  ComposesRef,
+  Range,
+  ScssClassMap,
+  SelectorInfo,
+} from "@css-module-explainer/shared";
 import { parse as postcssParse, type Rule, type ChildNode, type AtRule } from "postcss";
 import { findLangForPath, getRuntimeSyntax } from "./lang-registry";
 
@@ -17,9 +23,9 @@ import { findLangForPath, getRuntimeSyntax } from "./lang-registry";
  * bare single `.classname`, and `isGrouped` tracks whether the
  * parent rule had `selectors.length > 1`.
  *
- * Wave 2A uses `className` to produce the `parentResolvedName`
- * field on nested child entries. Wave 2A consumers read it via
- * the rename provider to drive suffix-math edits.
+ * `className` flows into `bemSuffix.parentResolvedName` for
+ * BEM-safe nested entries; the rename provider reads it to
+ * drive suffix-math edits.
  */
 export interface ParentContext {
   readonly selector: string;
@@ -248,58 +254,31 @@ function recordRule(
   for (const { raw, offset } of groups) {
     const resolved = resolveSelector(raw, parentCtx.selector);
     resolvedSelectors.push(resolved);
+    const bemSuffix = classifyBemSuffixSite(rule, raw, offset, parentCtx, groups.length);
     const isNested = raw.includes("&");
-    const ampCount = raw.match(/&/g)?.length ?? 0;
-
-    // BEM-suffix safe-rename gate — all six conditions must hold
-    // for the parser to populate the rawToken / rawTokenRange /
-    // parentResolvedName trio:
-    //   1. raw is nested (contains `&`)
-    //   2. exactly one `&` in the group
-    //   3. parent rule is a bare single class
-    //   4. parent rule is not grouped
-    //   5. CURRENT rule is also not grouped (groups.length === 1)
-    //   6. findBemSuffixSpan returns non-null (pure BEM suffix form)
-    const bemGate =
-      isNested &&
-      ampCount === 1 &&
-      parentCtx.className !== undefined &&
-      parentCtx.isGrouped !== true &&
-      groups.length === 1;
-
-    const rawSpan = bemGate ? findBemSuffixSpan(rule, offset, raw) : null;
 
     for (const className of extractClassNames(resolved)) {
-      // If a non-nested entry already exists for this class name,
-      // do not downgrade it by overwriting with a nested variant.
-      // Prevents `.button { &:hover {} }` from flipping `.button`'s
-      // isNested flag to true and silently rejecting rename on the
-      // flat parent.
+      // Dedup guard: don't downgrade a flat parent entry to nested
+      // by overwriting it with a nested variant. Prevents
+      // `.button { &:hover {} }` from flipping `.button`'s isNested
+      // flag and silently rejecting rename on the flat parent.
       const existing = classMap.get(className);
       if (existing && existing.isNested !== true && isNested) continue;
 
-      const tokenRange = findClassTokenRange(rule.source?.start, className, raw);
-
-      // Invariant under bemGate + rawSpan non-null:
-      // extractClassNames(resolved) returns exactly one class equal
-      // to parentCtx.className + rawSpan.rawToken.slice(1). The
-      // trio is written for that single class only.
-      classMap.set(className, {
-        name: className,
-        range: tokenRange,
-        fullSelector: resolved,
-        declarations,
-        ruleRange,
-        ...(composes.length > 0 ? { composes } : {}),
-        ...(isNested ? { isNested: true } : {}),
-        ...(rawSpan && parentCtx.className
-          ? {
-              rawToken: rawSpan.rawToken,
-              rawTokenRange: rawSpan.range,
-              parentResolvedName: parentCtx.className,
-            }
-          : {}),
-      });
+      classMap.set(
+        className,
+        buildSelectorInfoEntry({
+          className,
+          resolved,
+          raw,
+          rule,
+          declarations,
+          composes,
+          ruleRange,
+          isNested,
+          bemSuffix,
+        }),
+      );
     }
   }
 
@@ -310,6 +289,76 @@ function recordRule(
   for (const nextResolved of parents) {
     walkStyleNodes(rule.nodes, buildChildContext(resolvedSelectors, nextResolved), classMap);
   }
+}
+
+/**
+ * Classify whether a raw selector group is a BEM-safe nested
+ * rename target and, if so, return the `BemSuffixInfo` the parser
+ * should attach to the resulting map entry.
+ *
+ * All six conditions must hold:
+ *   1. the group is nested (contains `&`)
+ *   2. it contains exactly one `&`
+ *   3. the parent rule is a bare single class
+ *   4. the parent rule is not grouped
+ *   5. the CURRENT rule is not grouped (groups.length === 1)
+ *   6. `findBemSuffixSpan` returns a non-null span (pure BEM
+ *      suffix form — `&--x` or `&__x`, last token in group,
+ *      nothing before the `&`)
+ *
+ * Returns `null` for any non-BEM-safe shape. The caller still
+ * marks the entry with `isNested: true` when applicable; this
+ * function only decides whether the surgical-rename trio can
+ * be produced.
+ */
+function classifyBemSuffixSite(
+  rule: Rule,
+  raw: string,
+  groupOffset: number,
+  parentCtx: ParentContext,
+  groupsLength: number,
+): BemSuffixInfo | null {
+  if (!raw.includes("&")) return null;
+  const ampCount = raw.match(/&/g)?.length ?? 0;
+  if (ampCount !== 1) return null;
+  if (parentCtx.className === undefined) return null;
+  if (parentCtx.isGrouped === true) return null;
+  if (groupsLength !== 1) return null;
+
+  const span = findBemSuffixSpan(rule, groupOffset, raw);
+  if (!span) return null;
+
+  return {
+    rawToken: span.rawToken,
+    rawTokenRange: span.range,
+    parentResolvedName: parentCtx.className,
+  };
+}
+
+interface BuildEntryArgs {
+  readonly className: string;
+  readonly resolved: string;
+  readonly raw: string;
+  readonly rule: Rule;
+  readonly declarations: string;
+  readonly composes: readonly ComposesRef[];
+  readonly ruleRange: Range;
+  readonly isNested: boolean;
+  readonly bemSuffix: BemSuffixInfo | null;
+}
+
+function buildSelectorInfoEntry(args: BuildEntryArgs): SelectorInfo {
+  const tokenRange = findClassTokenRange(args.rule.source?.start, args.className, args.raw);
+  return {
+    name: args.className,
+    range: tokenRange,
+    fullSelector: args.resolved,
+    declarations: args.declarations,
+    ruleRange: args.ruleRange,
+    ...(args.composes.length > 0 ? { composes: args.composes } : {}),
+    ...(args.isNested ? { isNested: true } : {}),
+    ...(args.bemSuffix ? { bemSuffix: args.bemSuffix } : {}),
+  };
 }
 
 /**

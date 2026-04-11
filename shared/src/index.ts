@@ -4,6 +4,7 @@ export type {
   StyleLang,
   ComposesRef,
   SelectorInfo,
+  BemSuffixInfo,
   ScssClassMap,
   CxBinding,
   // Unified ClassRef model

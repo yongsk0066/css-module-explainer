@@ -4,7 +4,7 @@ import type {
   RenameParams,
   WorkspaceEdit,
 } from "vscode-languageserver/node";
-import type { SelectorInfo } from "@css-module-explainer/shared";
+import type { BemSuffixInfo, SelectorInfo } from "@css-module-explainer/shared";
 import { findLangForPath } from "../core/scss/lang-registry";
 import { fileUrlToPath, pathToFileUrl } from "../core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
@@ -94,55 +94,86 @@ export const handleRename = wrapHandler<
 
 // -- SCSS-side helpers --
 
+/**
+ * Resolve the cursor to a `SelectorInfo` and reject the nested
+ * shapes that are not safe to rename (shapes outside the BEM
+ * suffix set, or whose captured rawToken contains a `#{$var}`
+ * interpolation). Shared by both rename entry points so the
+ * BEM-safe gate exists in exactly one place.
+ */
+function resolveRenameTarget(
+  filePath: string,
+  line: number,
+  character: number,
+  deps: ProviderDeps,
+): SelectorInfo | null {
+  const classMap = deps.scssClassMapForPath(filePath);
+  if (!classMap) return null;
+
+  const selectorInfo = findSelectorAtCursor(classMap, line, character);
+  if (!selectorInfo) return null;
+
+  if (selectorInfo.isNested && !isBemRenameable(selectorInfo)) return null;
+
+  return selectorInfo;
+}
+
+/**
+ * Nested entries are renameable only when the parser attached a
+ * `bemSuffix` trio AND the captured `rawToken` is not part of a
+ * `#{$var}` interpolation. Flat entries skip this check entirely.
+ *
+ * The interpolation branch is defensive — `extractClassNames`
+ * already filters interpolated selector forms before they reach
+ * the class map, so reaching the branch means a future parser
+ * change weakened that filter.
+ */
+function isBemRenameable(info: SelectorInfo): info is SelectorInfo & { bemSuffix: BemSuffixInfo } {
+  if (!info.bemSuffix) return false;
+  if (info.bemSuffix.rawToken.includes("#{")) return false;
+  return true;
+}
+
+/**
+ * True if any reverse-index site for this class is a synthesized
+ * expansion of a template/variable ref. `prepareRenameFromScss`
+ * uses this to signal "unrenameable" to VS Code so the rename UI
+ * is suppressed entirely. `renameFromScss` does not re-check —
+ * `buildRenameEdit` filters individual expanded sites per-edit
+ * so that even a direct rename call produces a safe edit.
+ */
+function hasExpandedReverseSite(deps: ProviderDeps, filePath: string, className: string): boolean {
+  return deps.reverseIndex
+    .findAllForScssPath(filePath)
+    .some(
+      (s) =>
+        s.match.kind === "static" && s.match.className === className && s.expansion !== "direct",
+    );
+}
+
 function prepareRenameFromScss(
   filePath: string,
   params: PrepareRenameParams,
   deps: ProviderDeps,
 ): { range: LspRange; placeholder: string } | null {
-  const classMap = deps.scssClassMapForPath(filePath);
-  if (!classMap) return null;
-  const selectorInfo = findSelectorAtCursor(
-    classMap,
+  const selectorInfo = resolveRenameTarget(
+    filePath,
     params.position.line,
     params.position.character,
+    deps,
   );
   if (!selectorInfo) return null;
 
-  // Nested entries require the full BEM-safe trio to be populated
-  // by the parser. Absence of any one means the parser refused to
-  // classify this as a safe rename (compound `&.x`, pseudo
-  // `&:hover`, multi-`&`, grouped parent, non-bare parent). Fall
-  // back to the Wave 1 reject behavior for those shapes.
-  if (selectorInfo.isNested) {
-    if (!selectorInfo.rawTokenRange || !selectorInfo.rawToken || !selectorInfo.parentResolvedName) {
-      return null;
-    }
-    // Interpolation reject — suffix-math cannot see through
-    // `#{$var}`. In practice extractClassNames already filters
-    // interpolated forms, so this is defensive.
-    if (selectorInfo.rawToken.includes("#{")) return null;
-  }
+  // Suppress the rename UI when the resolved class appears as an
+  // expanded template/variable site — rewriting those would
+  // destroy the dynamic expression source. `renameFromScss` does
+  // not re-check: if a client forces the call anyway,
+  // `buildRenameEdit` still filters expanded sites per-edit.
+  if (hasExpandedReverseSite(deps, filePath, selectorInfo.name)) return null;
 
-  // Reject if any reverse-index site for this class is a synthesized
-  // expansion of a template/variable ref. Rewriting those entries
-  // would destroy the dynamic expression source. Find References
-  // still surfaces expanded sites — only rename filters. This guard
-  // must fire for nested BEM entries too (their resolved class name
-  // may still appear in a template call site that expanded to it).
-  const expandedSites = deps.reverseIndex
-    .findAllForScssPath(filePath)
-    .filter(
-      (s) =>
-        s.match.kind === "static" &&
-        s.match.className === selectorInfo.name &&
-        s.expansion !== "direct",
-    );
-  if (expandedSites.length > 0) return null;
-
-  // Use the narrower raw-token range for the placeholder when the
-  // entry is nested (covers `&--primary` exactly); flat entries keep
-  // their resolved range.
-  const placeholderRange = selectorInfo.rawTokenRange ?? selectorInfo.range;
+  // Use the narrower raw-token range for nested entries (covers
+  // `&--primary` exactly); flat entries keep the resolved range.
+  const placeholderRange = selectorInfo.bemSuffix?.rawTokenRange ?? selectorInfo.range;
   return { range: toLspRange(placeholderRange), placeholder: selectorInfo.name };
 }
 
@@ -151,26 +182,18 @@ function renameFromScss(
   params: RenameParams,
   deps: ProviderDeps,
 ): WorkspaceEdit | null {
-  const classMap = deps.scssClassMapForPath(filePath);
-  if (!classMap) return null;
-  const selectorInfo = findSelectorAtCursor(
-    classMap,
+  const selectorInfo = resolveRenameTarget(
+    filePath,
     params.position.line,
     params.position.character,
+    deps,
   );
   if (!selectorInfo) return null;
 
-  // Same trio gate as prepareRename — defensive parity so renameFromScss
-  // refuses when called out of order.
-  if (selectorInfo.isNested) {
-    if (!selectorInfo.rawTokenRange || !selectorInfo.rawToken || !selectorInfo.parentResolvedName) {
-      return null;
-    }
-    if (selectorInfo.rawToken.includes("#{")) return null;
-  }
-
   return buildRenameEdit(params.textDocument.uri, filePath, selectorInfo, deps, params.newName);
 }
+
+const IDENTIFIER_RE = /^[a-zA-Z_][\w-]*$/;
 
 function buildRenameEdit(
   scssUri: string,
@@ -179,24 +202,24 @@ function buildRenameEdit(
   deps: ProviderDeps,
   newName: string,
 ): WorkspaceEdit | null {
-  const changes: Record<string, Array<{ range: LspRange; newText: string }>> = {};
+  if (!IDENTIFIER_RE.test(newName)) return null;
 
-  // 1. SCSS selector edit — flat uses the resolved range; BEM-safe
-  //    nested uses the suffix sub-range inside rawToken.
-  const scssEdit = selectorInfo.isNested
-    ? buildNestedScssEdit(selectorInfo, newName)
-    : buildFlatScssEdit(selectorInfo, newName);
+  // SCSS edit: BEM-safe nested entries emit a surgical suffix-only
+  // edit; everything else rewrites the full resolved range.
+  const scssEdit = selectorInfo.bemSuffix
+    ? buildBemSuffixEdit(selectorInfo.bemSuffix, selectorInfo.name, newName)
+    : { range: toLspRange(selectorInfo.range), newText: newName };
   if (!scssEdit) return null;
-  changes[scssUri] = [scssEdit];
 
-  // 2. TS/TSX reference edits from the reverse index.
-  //
-  // Filter out `expansion: "expanded"` sites. Those are synthesized
-  // from template/variable refs and carry the whole dynamic
-  // expression's range — rewriting them would destroy the template
-  // literal or variable identifier source. Find References still
-  // returns expanded sites (see references.ts); only rename refuses
-  // to touch them.
+  const changes: Record<string, Array<{ range: LspRange; newText: string }>> = {
+    [scssUri]: [scssEdit],
+  };
+
+  // TS/TSX reference edits: reverse-index sites keyed on the
+  // resolved class name. Skip `expansion !== "direct"` sites so
+  // we never rewrite template-literal or variable-reference
+  // source ranges (Find References still surfaces them; rename
+  // alone filters).
   const sites = deps.reverseIndex.find(scssPath, selectorInfo.name);
   for (const site of sites) {
     if (site.expansion !== "direct") continue;
@@ -209,43 +232,36 @@ function buildRenameEdit(
   return { changes };
 }
 
-const IDENTIFIER_RE = /^[a-zA-Z_][\w-]*$/;
-
-function buildFlatScssEdit(
-  selectorInfo: SelectorInfo,
+/**
+ * Build the surgical SCSS edit for a BEM-suffix nested entry:
+ * rewrites only the `--x` / `__x` slice inside the raw token,
+ * leaving the enclosing `.parent { &` untouched.
+ *
+ * Rejects cross-parent renames (`button--primary → banner--tiny`),
+ * no-op renames, and empty-suffix renames (which would collapse
+ * the nested rule to a bare `&`).
+ */
+function buildBemSuffixEdit(
+  bemSuffix: BemSuffixInfo,
+  oldName: string,
   newName: string,
 ): { range: LspRange; newText: string } | null {
-  if (!IDENTIFIER_RE.test(newName)) return null;
-  return { range: toLspRange(selectorInfo.range), newText: newName };
-}
+  const { parentResolvedName: parent, rawToken, rawTokenRange: rawRange } = bemSuffix;
 
-function buildNestedScssEdit(
-  selectorInfo: SelectorInfo,
-  newName: string,
-): { range: LspRange; newText: string } | null {
-  // Trio is guaranteed non-null by prepareRenameFromScss. The
-  // destructuring narrowing below is TypeScript hygiene, not a
-  // second runtime gate — keeping it avoids propagating `!` asserts.
-  const { parentResolvedName: parent, rawToken, rawTokenRange: rawRange } = selectorInfo;
-  if (!parent || !rawToken || !rawRange) return null;
-
-  if (!IDENTIFIER_RE.test(newName)) return null;
-
-  // Cross-parent rename → reject in MVP.
-  if (!selectorInfo.name.startsWith(parent)) return null;
+  // Cross-parent rename is out of scope — both sides must live
+  // under the same bare-class parent.
+  if (!oldName.startsWith(parent)) return null;
   if (!newName.startsWith(parent)) return null;
 
-  const oldSuffix = selectorInfo.name.slice(parent.length);
+  const oldSuffix = oldName.slice(parent.length);
   const newSuffix = newName.slice(parent.length);
 
-  // Reject no-op (rename-to-same) and empty-suffix (bare `&`).
   if (oldSuffix === newSuffix) return null;
   if (newSuffix.length === 0) return null;
 
-  // Parser invariant: rawToken === "&" + oldSuffix, so suffixOffset
-  // must be 1. The check below is defense-in-depth — if the parser
-  // somehow produced a different shape we'd rather bail than write
-  // wrong bytes.
+  // Parser invariant: rawToken === "&" + oldSuffix, so the suffix
+  // starts at index 1 inside rawToken. The check below preserves
+  // a clean failure if a future parser change violates that.
   const suffixOffset = rawToken.indexOf(oldSuffix);
   if (suffixOffset !== 1) return null;
 

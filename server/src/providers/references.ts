@@ -54,11 +54,10 @@ export function findSelectorAtCursor(
   character: number,
 ): SelectorInfo | null {
   for (const info of classMap.values()) {
-    // Prefer the narrower raw-token range when the parser populated
-    // it for a BEM-safe nested entry; fall back to the resolved-name
-    // range for flat entries and for nested entries that the BEM
-    // gate rejected.
-    const hitRange = info.rawTokenRange ?? info.range;
+    // Prefer the narrower BEM suffix range when present; fall
+    // back to the resolved-name range otherwise. Flat entries
+    // have no bemSuffix, so they use the resolved range directly.
+    const hitRange = info.bemSuffix?.rawTokenRange ?? info.range;
     if (rangeContains(hitRange, line, character)) return info;
   }
   return null;

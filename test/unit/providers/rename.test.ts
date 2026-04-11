@@ -429,7 +429,7 @@ describe("prepareRename through real parseStyleModule (regression)", () => {
     // Placeholder is the resolved class name `"button--primary"`;
     // range covers the `&--primary` slice (10 chars) on its line.
     const nestedInfo = classMap.get("button--primary")!;
-    const rawRange = nestedInfo.rawTokenRange!;
+    const rawRange = nestedInfo.bemSuffix!.rawTokenRange;
     const nested = handlePrepareRename(
       {
         textDocument: { uri: SCSS_URI },
@@ -460,7 +460,7 @@ describe("&-nested BEM suffix rename", () => {
       scssClassMapForPath: () => classMap,
       workspaceRoot: "/fake",
     });
-    const rawRange = classMap.get("button--primary")!.rawTokenRange!;
+    const rawRange = classMap.get("button--primary")!.bemSuffix!.rawTokenRange;
     const result = handlePrepareRename(
       {
         textDocument: { uri: SCSS_URI },
@@ -498,7 +498,7 @@ describe("&-nested BEM suffix rename", () => {
       workspaceRoot: "/fake",
       reverseIndex,
     });
-    const rawRange = classMap.get("button--primary")!.rawTokenRange!;
+    const rawRange = classMap.get("button--primary")!.bemSuffix!.rawTokenRange;
     const result = handleRename(
       {
         textDocument: { uri: SCSS_URI },
@@ -541,7 +541,7 @@ describe("&-nested BEM suffix rename", () => {
       scssClassMapForPath: () => classMap,
       workspaceRoot: "/fake",
     });
-    const rawRange = classMap.get("card__icon")!.rawTokenRange!;
+    const rawRange = classMap.get("card__icon")!.bemSuffix!.rawTokenRange;
     const result = handleRename(
       {
         textDocument: { uri: "file:///fake/src/Card.module.scss" },
@@ -566,7 +566,7 @@ describe("&-nested BEM suffix rename", () => {
       scssClassMapForPath: () => classMap,
       workspaceRoot: "/fake",
     });
-    const rawRange = classMap.get("card__icon--small")!.rawTokenRange!;
+    const rawRange = classMap.get("card__icon--small")!.bemSuffix!.rawTokenRange;
     const result = handleRename(
       {
         textDocument: { uri: "file:///fake/src/Card.module.scss" },
@@ -590,7 +590,7 @@ describe("&-nested BEM suffix rename", () => {
       "/fake/src/Button.module.scss",
     );
     const deps = makeBaseDeps({ scssClassMapForPath: () => classMap, workspaceRoot: "/fake" });
-    const rawRange = classMap.get("button--primary")!.rawTokenRange!;
+    const rawRange = classMap.get("button--primary")!.bemSuffix!.rawTokenRange;
     const result = handleRename(
       {
         textDocument: { uri: SCSS_URI },
@@ -606,7 +606,7 @@ describe("&-nested BEM suffix rename", () => {
     const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
     const classMap = parseStyleModule(`.button {\n  &--primary {}\n}`, "/f.module.scss");
     const deps = makeBaseDeps({ scssClassMapForPath: () => classMap, workspaceRoot: "/fake" });
-    const rawRange = classMap.get("button--primary")!.rawTokenRange!;
+    const rawRange = classMap.get("button--primary")!.bemSuffix!.rawTokenRange;
     const result = handleRename(
       {
         textDocument: { uri: SCSS_URI },
@@ -622,7 +622,7 @@ describe("&-nested BEM suffix rename", () => {
     const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
     const classMap = parseStyleModule(`.button {\n  &--primary {}\n}`, "/f.module.scss");
     const deps = makeBaseDeps({ scssClassMapForPath: () => classMap, workspaceRoot: "/fake" });
-    const rawRange = classMap.get("button--primary")!.rawTokenRange!;
+    const rawRange = classMap.get("button--primary")!.bemSuffix!.rawTokenRange;
     const result = handleRename(
       {
         textDocument: { uri: SCSS_URI },
@@ -640,9 +640,11 @@ describe("&-nested BEM suffix rename", () => {
     const synthetic: SelectorInfo = {
       name: "btn--primary",
       range: { start: { line: 1, character: 2 }, end: { line: 1, character: 16 } },
-      rawTokenRange: { start: { line: 1, character: 2 }, end: { line: 1, character: 14 } },
-      rawToken: "&--#{$mod}",
-      parentResolvedName: "btn",
+      bemSuffix: {
+        rawTokenRange: { start: { line: 1, character: 2 }, end: { line: 1, character: 14 } },
+        rawToken: "&--#{$mod}",
+        parentResolvedName: "btn",
+      },
       isNested: true,
       fullSelector: ".btn--primary",
       declarations: "",
@@ -672,8 +674,8 @@ describe("&-nested BEM suffix rename", () => {
     const classMap = parseStyleModule(`.a, .b {\n  &--c {}\n}`, "/f.module.scss");
     const info = classMap.get("a--c") ?? classMap.get("b--c");
     expect(info).toBeDefined();
-    // Trio undefined because parentCtx.isGrouped === true
-    expect(info!.parentResolvedName).toBeUndefined();
+    // bemSuffix undefined because parentCtx.isGrouped === true
+    expect(info!.bemSuffix).toBeUndefined();
     // prepareRename must refuse
     const deps = makeBaseDeps({ scssClassMapForPath: () => classMap, workspaceRoot: "/fake" });
     const result = handlePrepareRename(
@@ -688,7 +690,7 @@ describe("&-nested BEM suffix rename", () => {
     const classMap = parseStyleModule(`.btn {\n  &--a, &--b {}\n}`, "/f.module.scss");
     const a = classMap.get("btn--a");
     expect(a).toBeDefined();
-    expect(a!.parentResolvedName).toBeUndefined();
+    expect(a!.bemSuffix).toBeUndefined();
     const deps = makeBaseDeps({ scssClassMapForPath: () => classMap, workspaceRoot: "/fake" });
     const result = handlePrepareRename(
       { textDocument: { uri: SCSS_URI }, position: { line: 1, character: 3 } },
@@ -702,7 +704,7 @@ describe("&-nested BEM suffix rename", () => {
     const classMap = parseStyleModule(`.btn {\n  & + &--x {}\n}`, "/f.module.scss");
     const info = classMap.get("btn--x");
     if (info !== undefined) {
-      expect(info.rawTokenRange).toBeUndefined();
+      expect(info.bemSuffix).toBeUndefined();
       const deps = makeBaseDeps({ scssClassMapForPath: () => classMap, workspaceRoot: "/fake" });
       const result = handlePrepareRename(
         { textDocument: { uri: SCSS_URI }, position: { line: 1, character: 3 } },
@@ -717,7 +719,7 @@ describe("&-nested BEM suffix rename", () => {
     const classMap = parseStyleModule(`.button {\n  &.active {}\n}`, "/f.module.scss");
     const active = classMap.get("active")!;
     expect(active.isNested).toBe(true);
-    expect(active.parentResolvedName).toBeUndefined();
+    expect(active.bemSuffix).toBeUndefined();
     const deps = makeBaseDeps({ scssClassMapForPath: () => classMap, workspaceRoot: "/fake" });
     // Cursor on `&.active` → selectorInfo is the `active` entry with
     // trio undefined → reject via nested-trio guard.
@@ -732,7 +734,7 @@ describe("&-nested BEM suffix rename", () => {
     const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
     const classMap = parseStyleModule(`.button {\n  &--primary {}\n}`, "/f.module.scss");
     const deps = makeBaseDeps({ scssClassMapForPath: () => classMap, workspaceRoot: "/fake" });
-    const rawRange = classMap.get("button--primary")!.rawTokenRange!;
+    const rawRange = classMap.get("button--primary")!.bemSuffix!.rawTokenRange;
     const result = handleRename(
       {
         textDocument: { uri: SCSS_URI },
@@ -748,7 +750,7 @@ describe("&-nested BEM suffix rename", () => {
     const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
     const classMap = parseStyleModule(`.button {\n  &--primary {}\n}`, "/f.module.scss");
     const deps = makeBaseDeps({ scssClassMapForPath: () => classMap, workspaceRoot: "/fake" });
-    const rawRange = classMap.get("button--primary")!.rawTokenRange!;
+    const rawRange = classMap.get("button--primary")!.bemSuffix!.rawTokenRange;
     const result = handleRename(
       {
         textDocument: { uri: SCSS_URI },
@@ -790,7 +792,7 @@ describe("&-nested BEM suffix rename", () => {
       workspaceRoot: "/fake",
       reverseIndex,
     });
-    const rawRange = classMap.get("button--primary")!.rawTokenRange!;
+    const rawRange = classMap.get("button--primary")!.bemSuffix!.rawTokenRange;
     const result = handlePrepareRename(
       {
         textDocument: { uri: SCSS_URI },

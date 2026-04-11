@@ -52,35 +52,42 @@ export interface SelectorInfo {
   readonly composes?: readonly ComposesRef[];
   /**
    * True if this selector was produced from a SCSS `&`-nested rule
-   * whose raw source contained `&`. Used as a defensive-reject
-   * signal in rename for the legacy path and to gate the BEM-safe
-   * rename trio below.
+   * whose raw source contained `&`. Flag preserved separately from
+   * `bemSuffix` because some nested shapes (compound `&.active`,
+   * pseudo `&:hover`, grouped children, multi-`&`) are indexed
+   * without the BEM-safe rename information.
    */
   readonly isNested?: boolean;
   /**
-   * Source-accurate range covering the `&`-fragment of a BEM-safe
-   * nested entry (e.g. `&--primary` or `&__icon`). Undefined when
-   * the entry is flat OR when the nested shape is not a pure BEM
-   * suffix (compound `&.active`, pseudo `&:hover`, grouped parent,
-   * multi-`&`, etc.).
-   *
-   * Set together with `rawToken` and `parentResolvedName` as an
-   * all-or-nothing trio — rename reads all three.
+   * Present iff this entry is a pure BEM-suffix nested rule
+   * (`&--x` or `&__x`) under a bare single-class parent. When
+   * present, rename uses it for a surgical suffix-only edit.
+   * When absent (flat entries, or nested shapes outside the
+   * BEM-safe set), rename falls back to flat-path behavior or
+   * rejects via the `isNested` flag.
    */
-  readonly rawTokenRange?: Range;
-  /**
-   * Verbatim slice of the raw selector for the `&`-fragment
-   * (e.g. `"&--primary"`, `"&__icon"`). Used by rename for
-   * suffix-offset math via `indexOf(oldSuffix)`.
-   */
-  readonly rawToken?: string;
-  /**
-   * Resolved class name of the enclosing bare `.classname` rule
-   * (e.g. `"button"` for the `button--primary` entry produced by
-   * `.button { &--primary {} }`). Used by rename to compute the
-   * BEM suffix split `name.slice(parent.length)`.
-   */
-  readonly parentResolvedName?: string;
+  readonly bemSuffix?: BemSuffixInfo;
+}
+
+/**
+ * Information needed to rewrite a BEM-suffix nested selector
+ * (`&--primary`, `&__icon`) as a surgical suffix-only edit.
+ *
+ * The three fields are always produced together by the parser:
+ *   - rawTokenRange: source-accurate span of the `&`-fragment
+ *   - rawToken: verbatim slice (e.g. `"&--primary"`)
+ *   - parentResolvedName: resolved class of the enclosing bare
+ *     `.classname` rule, used for suffix-math via
+ *     `name.slice(parent.length)`
+ *
+ * Typing them as one sub-object (rather than three sibling
+ * optionals on `SelectorInfo`) lets TypeScript narrow the whole
+ * trio with a single `if (!info.bemSuffix)` check.
+ */
+export interface BemSuffixInfo {
+  readonly rawTokenRange: Range;
+  readonly rawToken: string;
+  readonly parentResolvedName: string;
 }
 
 /** Immutable map from class name to its info, produced per style file. */
