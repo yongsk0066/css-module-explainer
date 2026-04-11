@@ -235,6 +235,19 @@ function buildBundle(
     // Initial value is DEFAULT_SETTINGS; the real config is fetched on
     // onInitialized and overwrites this via `deps.settings = s`.
     settings: DEFAULT_SETTINGS,
+    // Getter backed by the `currentResolver` shared closure — both
+    // this field and DocumentAnalysisCacheDeps.aliasResolver read
+    // through the same variable, so a single rebuildAliasResolver
+    // assignment propagates to both deps objects.
+    get aliasResolver() {
+      return currentResolver;
+    },
+    rebuildAliasResolver(pathAlias) {
+      currentResolver = new AliasResolver(workspaceRoot, pathAlias);
+      // Caller (reloadSettings) is responsible for invalidating the
+      // analysis cache and rescheduling affected documents — see
+      // handler-registration.ts::reloadSettings.
+    },
   };
 }
 

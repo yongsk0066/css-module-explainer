@@ -65,15 +65,42 @@ function registerSettingsHandler(state: HandlerState): () => void {
   function reloadSettings(): void {
     fetchSettings(connection)
       .then((s) => {
+        const prev = state.settings;
         state.settings = s;
         state.scheduler.refreshSettings(s);
-        // Mirror to the provider deps bag so providers that read
-        // `deps.settings` (diagnostics missing-module loop, etc.)
-        // observe the latest config without going through state.
+
         const deps = state.ctx.getDeps();
-        if (deps) deps.settings = s;
+        if (!deps) return;
+        deps.settings = s;
+
+        // Per-branch mutators — each owns its specific side effect.
+        const aliasChanged = !shallowEqualPathAlias(prev.pathAlias, s.pathAlias);
+        if (aliasChanged) deps.rebuildAliasResolver(s.pathAlias);
+
+        // Shared invalidation + reschedule fires once regardless of
+        // which branch triggered. Future commit 11 (classnameTransform)
+        // adds `modeChanged` to the OR.
+        if (aliasChanged) {
+          deps.analysisCache.clear();
+          for (const doc of state.ctx.documents.all()) {
+            state.scheduler.scheduleTsx(doc.uri);
+          }
+        }
       })
       .catch((err: unknown) => safeLogError(connection, "settings fetch failed", err));
+  }
+
+  function shallowEqualPathAlias(
+    a: Readonly<Record<string, string>>,
+    b: Readonly<Record<string, string>>,
+  ): boolean {
+    const aKeys = Object.keys(a);
+    const bKeys = Object.keys(b);
+    if (aKeys.length !== bKeys.length) return false;
+    for (const k of aKeys) {
+      if (a[k] !== b[k]) return false;
+    }
+    return true;
   }
 
   connection.onDidChangeConfiguration(reloadSettings);
