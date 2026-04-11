@@ -84,3 +84,26 @@ describe("parsePathAlias", () => {
     expect(result.pathAlias).toEqual({});
   });
 });
+
+describe("classnameTransform settings", () => {
+  it("DEFAULT_SETTINGS.scss.classnameTransform is 'asIs'", () => {
+    expect(DEFAULT_SETTINGS.scss.classnameTransform).toBe("asIs");
+  });
+
+  it("accepts every valid mode", () => {
+    for (const mode of ["asIs", "camelCase", "camelCaseOnly", "dashes", "dashesOnly"] as const) {
+      const result = parseSettings({ scss: { classnameTransform: mode } });
+      expect(result.scss.classnameTransform).toBe(mode);
+    }
+  });
+
+  it("falls back to 'asIs' for invalid mode strings", () => {
+    const result = parseSettings({ scss: { classnameTransform: "snakeCase" } });
+    expect(result.scss.classnameTransform).toBe("asIs");
+  });
+
+  it("falls back to 'asIs' when scss section missing entirely", () => {
+    const result = parseSettings({});
+    expect(result.scss.classnameTransform).toBe("asIs");
+  });
+});

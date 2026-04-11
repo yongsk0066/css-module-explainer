@@ -1,4 +1,5 @@
 import type { Connection } from "vscode-languageserver/node";
+import type { ClassnameTransformMode } from "./core/scss/classname-transform";
 
 export interface Settings {
   readonly features: {
@@ -16,6 +17,9 @@ export interface Settings {
   readonly hover: {
     readonly maxCandidates: number;
   };
+  readonly scss: {
+    readonly classnameTransform: ClassnameTransformMode;
+  };
   /**
    * Path alias map compat-read from the `cssModules.pathAlias`
    * config key (clinyong/vscode-cssmodules). Keys are import
@@ -32,8 +36,21 @@ const DEFAULTS: Settings = {
   features: { definition: true, hover: true, completion: true, references: true, rename: true },
   diagnostics: { severity: "warning", unusedSelector: true, missingModule: true },
   hover: { maxCandidates: 10 },
+  scss: { classnameTransform: "asIs" },
   pathAlias: {},
 };
+
+const CLASSNAME_TRANSFORM_VALUES = [
+  "asIs",
+  "camelCase",
+  "camelCaseOnly",
+  "dashes",
+  "dashesOnly",
+] as const;
+
+function isClassnameTransform(v: unknown): v is ClassnameTransformMode {
+  return typeof v === "string" && (CLASSNAME_TRANSFORM_VALUES as readonly string[]).includes(v);
+}
 
 const SEVERITY_VALUES = ["error", "warning", "information", "hint"] as const;
 type Severity = (typeof SEVERITY_VALUES)[number];
@@ -56,6 +73,7 @@ export function parseSettings(raw: unknown): Settings {
   const features = isRecord(r.features) ? r.features : {};
   const diagnostics = isRecord(r.diagnostics) ? r.diagnostics : {};
   const hover = isRecord(r.hover) ? r.hover : {};
+  const scss = isRecord(r.scss) ? r.scss : {};
   return {
     features: {
       definition: parseBool(features.definition, DEFAULTS.features.definition),
@@ -73,6 +91,11 @@ export function parseSettings(raw: unknown): Settings {
     },
     hover: {
       maxCandidates: parseNumber(hover.maxCandidates, DEFAULTS.hover.maxCandidates),
+    },
+    scss: {
+      classnameTransform: isClassnameTransform(scss.classnameTransform)
+        ? scss.classnameTransform
+        : DEFAULTS.scss.classnameTransform,
     },
     pathAlias: {},
   };

@@ -120,6 +120,18 @@
           "minimum": 1,
           "maximum": 50,
           "description": "Maximum template/variable candidates shown in hover."
+        },
+        "cssModuleExplainer.scss.classnameTransform": {
+          "type": "string",
+          "enum": [
+            "asIs",
+            "camelCase",
+            "camelCaseOnly",
+            "dashes",
+            "dashesOnly"
+          ],
+          "default": "asIs",
+          "markdownDescription": "Mirror of css-loader's `modules.localsConvention`. Controls how CSS class selectors are exposed to JS/TS — e.g. `.btn-primary` is reachable as `styles['btn-primary']` (`asIs`), both that and `styles.btnPrimary` (`camelCase`), or only `styles.btnPrimary` (`camelCaseOnly`). Port your `css-loader` setting verbatim."
         }
       }
     }
