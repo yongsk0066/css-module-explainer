@@ -248,6 +248,15 @@ function buildBundle(
       // analysis cache and rescheduling affected documents — see
       // handler-registration.ts::reloadSettings.
     },
+    setClassnameTransform(mode) {
+      caches.styleIndexCache.setMode(mode);
+      // reverseIndex keys may no longer exist in the new expanded
+      // classMap (e.g., `btnPrimary` was reachable in camelCase mode
+      // but disappears in asIs). analysisCache is cleared by the
+      // caller in reloadSettings — this mutator just handles the
+      // style-index and reverse-index side effects.
+      caches.reverseIndex.clear();
+    },
   };
 }
 

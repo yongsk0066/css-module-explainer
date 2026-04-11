@@ -92,6 +92,7 @@ export function makeBaseDeps(overrides: Partial<ProviderDeps> = {}): ProviderDep
     settings: DEFAULT_SETTINGS,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
     rebuildAliasResolver: () => {},
+    setClassnameTransform: () => {},
     ...overrides,
   };
 }

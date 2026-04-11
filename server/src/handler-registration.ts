@@ -75,12 +75,13 @@ function registerSettingsHandler(state: HandlerState): () => void {
 
         // Per-branch mutators — each owns its specific side effect.
         const aliasChanged = !shallowEqualPathAlias(prev.pathAlias, s.pathAlias);
+        const modeChanged = prev.scss.classnameTransform !== s.scss.classnameTransform;
         if (aliasChanged) deps.rebuildAliasResolver(s.pathAlias);
+        if (modeChanged) deps.setClassnameTransform(s.scss.classnameTransform);
 
         // Shared invalidation + reschedule fires once regardless of
-        // which branch triggered. Future commit 11 (classnameTransform)
-        // adds `modeChanged` to the OR.
-        if (aliasChanged) {
+        // which branch triggered.
+        if (aliasChanged || modeChanged) {
           deps.analysisCache.clear();
           for (const doc of state.ctx.documents.all()) {
             state.scheduler.scheduleTsx(doc.uri);
