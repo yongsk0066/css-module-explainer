@@ -141,4 +141,44 @@ describe("computeScssUnusedDiagnostics", () => {
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0]!.message).toContain("'.base'");
   });
+
+  it("classnameTransform: does not double-count unused alias entries", async () => {
+    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
+    const { expandClassMapWithTransform } =
+      await import("../../../server/src/core/scss/classname-transform");
+    // `.btn-primary` is used via its original name; `.orphan` is unused.
+    const base = parseStyleModule(
+      `.btn-primary { color: red; }\n.orphan { color: blue; }`,
+      SCSS_PATH,
+    );
+    const classMap = expandClassMapWithTransform(base, "camelCase");
+    // Sanity: alias exists for btn-primary; `.orphan` is already a
+    // valid JS identifier so the transform yields no distinct alias.
+    expect(classMap.has("btn-primary")).toBe(true);
+    expect(classMap.has("btnPrimary")).toBe(true);
+
+    const reverseIndex = new WorkspaceReverseIndex();
+    reverseIndex.record("file:///a.tsx", [siteAt("file:///a.tsx", "btn-primary", 10, SCSS_PATH)]);
+    const diagnostics = computeScssUnusedDiagnostics(SCSS_PATH, classMap, reverseIndex);
+    // Exactly one warning — for `.orphan` — not a second copy for
+    // any alias entry.
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]!.message).toContain("'.orphan'");
+  });
+
+  it("classnameTransform: original-is-unused still emits exactly one warning", async () => {
+    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
+    const { expandClassMapWithTransform } =
+      await import("../../../server/src/core/scss/classname-transform");
+    // Consumer references only via the CAMEL alias — the original
+    // `btn-primary` has zero direct refs, but we still want exactly
+    // one warning, not zero (via alias double-count) and not two.
+    const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);
+    const classMap = expandClassMapWithTransform(base, "camelCase");
+
+    const reverseIndex = new WorkspaceReverseIndex();
+    // No references anywhere — both alias and original sit at 0.
+    const diagnostics = computeScssUnusedDiagnostics(SCSS_PATH, classMap, reverseIndex);
+    expect(diagnostics.filter((d) => d.message.includes("btn-primary"))).toHaveLength(1);
+  });
 });

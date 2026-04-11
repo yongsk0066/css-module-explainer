@@ -45,6 +45,11 @@ export function computeScssUnusedDiagnostics(
 
   const diagnostics: Diagnostic[] = [];
   for (const [className, info] of classMap) {
+    // Skip alias entries from classnameTransform expansion — the
+    // original entry is walked separately and owns the diagnostic.
+    // Without this guard, `camelCase` mode would emit two warnings
+    // per unused class (`.orphan` + its `orphan` alias copy).
+    if (info.originalName !== undefined) continue;
     if (composedClasses.has(className)) continue;
     const refCount = reverseIndex.count(scssPath, className);
     if (refCount === 0) {
