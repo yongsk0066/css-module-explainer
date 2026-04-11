@@ -204,8 +204,6 @@ function buildRenameEdit(
 ): WorkspaceEdit | null {
   if (!IDENTIFIER_RE.test(newName)) return null;
 
-  // SCSS edit: BEM-safe nested entries emit a surgical suffix-only
-  // edit; everything else rewrites the full resolved range.
   const scssEdit = selectorInfo.bemSuffix
     ? buildBemSuffixEdit(selectorInfo.bemSuffix, selectorInfo.name, newName)
     : { range: toLspRange(selectorInfo.range), newText: newName };
@@ -214,13 +212,26 @@ function buildRenameEdit(
   const changes: Record<string, Array<{ range: LspRange; newText: string }>> = {
     [scssUri]: [scssEdit],
   };
+  collectReferenceEdits(deps, scssPath, selectorInfo.name, newName, changes);
+  return { changes };
+}
 
-  // TS/TSX reference edits: reverse-index sites keyed on the
-  // resolved class name. Skip `expansion !== "direct"` sites so
-  // we never rewrite template-literal or variable-reference
-  // source ranges (Find References still surfaces them; rename
-  // alone filters).
-  const sites = deps.reverseIndex.find(scssPath, selectorInfo.name);
+/**
+ * Append TS/TSX reference edits to `changes` for every direct
+ * reverse-index site of the given class. `expansion !== "direct"`
+ * sites are skipped — those are synthesized from template/variable
+ * refs and rewriting them would destroy the dynamic expression
+ * source. Find References still surfaces expanded sites; only
+ * rename filters.
+ */
+function collectReferenceEdits(
+  deps: ProviderDeps,
+  scssPath: string,
+  className: string,
+  newName: string,
+  changes: Record<string, Array<{ range: LspRange; newText: string }>>,
+): void {
+  const sites = deps.reverseIndex.find(scssPath, className);
   for (const site of sites) {
     if (site.expansion !== "direct") continue;
     (changes[site.uri] ??= []).push({
@@ -228,8 +239,6 @@ function buildRenameEdit(
       newText: newName,
     });
   }
-
-  return { changes };
 }
 
 /**
