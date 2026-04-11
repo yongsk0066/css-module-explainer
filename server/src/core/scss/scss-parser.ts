@@ -5,7 +5,7 @@ import type {
   ScssClassMap,
   SelectorInfo,
 } from "@css-module-explainer/shared";
-import { parse as postcssParse, type Rule, type ChildNode, type AtRule } from "postcss";
+import { parse as postcssParse, type AtRule, type ChildNode, type Root, type Rule } from "postcss";
 import { findLangForPath, getRuntimeSyntax } from "./lang-registry";
 
 /**
@@ -70,13 +70,17 @@ export function parseStyleModule(content: string, filePath: string): ScssClassMa
   // `getRuntimeSyntax` (the single documented `as` cast).
   const syntax = lang ? getRuntimeSyntax(lang) : null;
 
-  let root;
+  // postcss's top-level `parse` is hardcoded to the CSS grammar
+  // and silently ignores `opts.syntax`. Delegate to the Syntax
+  // object's own `.parse` when one is provided (SCSS, LESS, …)
+  // so non-CSS features — `//` line comments, `#{...}`
+  // interpolation, SASS directives — actually reach the right
+  // grammar. Plain CSS falls back to the top-level postcss parser
+  // because `lang-registry` records `syntax: null` for it.
+  const parse = typeof syntax?.parse === "function" ? syntax.parse.bind(syntax) : postcssParse;
+  let root: Root;
   try {
-    // `syntax` must only be present when non-undefined under
-    // exactOptionalPropertyTypes; build the options object
-    // conditionally so we do not pass `syntax: undefined`.
-    const parseOptions = syntax ? { from: filePath, syntax } : { from: filePath };
-    root = postcssParse(content, parseOptions);
+    root = parse(content, { from: filePath }) as Root;
   } catch {
     // Parse failure → empty map; contract is documented on the
     // parseStyleModule JSDoc above. We intentionally do not log
