@@ -6,13 +6,39 @@ import {
   type LanguageClientOptions,
   type ServerOptions,
 } from "vscode-languageclient/node";
+import type {
+  Position,
+  Range,
+  ShowReferencesArgs,
+  ShowReferencesLocation,
+} from "@css-module-explainer/shared";
 
-interface LspLocationJson {
-  uri: string;
-  range: {
-    start: { line: number; character: number };
-    end: { line: number; character: number };
-  };
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isPosition(value: unknown): value is Position {
+  if (!isRecord(value)) return false;
+  return typeof value.line === "number" && typeof value.character === "number";
+}
+
+function isRange(value: unknown): value is Range {
+  if (!isRecord(value)) return false;
+  return isPosition(value.start) && isPosition(value.end);
+}
+
+function isShowReferencesLocation(value: unknown): value is ShowReferencesLocation {
+  if (!isRecord(value)) return false;
+  return typeof value.uri === "string" && isRange(value.range);
+}
+
+function isShowReferencesArgs(value: readonly unknown[]): value is ShowReferencesArgs {
+  if (value.length !== 3) return false;
+  const [uri, position, locations] = value;
+  if (typeof uri !== "string") return false;
+  if (!isPosition(position)) return false;
+  if (!Array.isArray(locations)) return false;
+  return locations.every((loc) => isShowReferencesLocation(loc));
 }
 
 let client: LanguageClient | undefined;
@@ -51,23 +77,25 @@ export function activate(context: vscode.ExtensionContext): void {
         for (const lens of lenses) {
           if (lens.command?.command !== "editor.action.showReferences") continue;
           const args = lens.command.arguments;
-          if (!args || args.length < 3) continue;
+          if (!args || !isShowReferencesArgs(args)) continue;
           try {
-            args[0] = vscode.Uri.parse(args[0] as string);
-            const pos = args[1] as { line: number; character: number };
-            args[1] = new vscode.Position(pos.line, pos.character);
-            args[2] = (args[2] as LspLocationJson[]).map(
-              (loc) =>
-                new vscode.Location(
-                  vscode.Uri.parse(loc.uri),
-                  new vscode.Range(
-                    loc.range.start.line,
-                    loc.range.start.character,
-                    loc.range.end.line,
-                    loc.range.end.character,
+            const [uri, pos, locations] = args;
+            lens.command.arguments = [
+              vscode.Uri.parse(uri),
+              new vscode.Position(pos.line, pos.character),
+              locations.map(
+                (loc) =>
+                  new vscode.Location(
+                    vscode.Uri.parse(loc.uri),
+                    new vscode.Range(
+                      loc.range.start.line,
+                      loc.range.start.character,
+                      loc.range.end.line,
+                      loc.range.end.character,
+                    ),
                   ),
-                ),
-            );
+              ),
+            ];
           } catch {
             // Conversion failed — leave args as-is.
           }

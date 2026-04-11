@@ -1,5 +1,9 @@
-import type { CodeLens, CodeLensParams, Location } from "vscode-languageserver/node";
-import type { SelectorInfo } from "@css-module-explainer/shared";
+import type { CodeLens, CodeLensParams } from "vscode-languageserver/node";
+import type {
+  SelectorInfo,
+  ShowReferencesArgs,
+  ShowReferencesLocation,
+} from "@css-module-explainer/shared";
 import { findLangForPath } from "../core/scss/lang-registry";
 import { fileUrlToPath } from "../core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
@@ -48,10 +52,16 @@ function buildLens(
   const sites = deps.reverseIndex.find(filePath, info.name);
   if (sites.length === 0) return null;
   const title = `${sites.length} reference${sites.length === 1 ? "" : "s"}`;
-  const locations: Location[] = sites.map((site) => ({
+  const locations: ShowReferencesLocation[] = sites.map((site) => ({
     uri: site.uri,
     range: toLspRange(site.range),
   }));
+  // VS Code's built-in `editor.action.showReferences` command takes
+  // (uri, position, locations) positionally, so the wire arguments
+  // must be a 3-tuple. The `ShowReferencesArgs` contract (shared)
+  // documents this shape for both the server and the client
+  // middleware (see client/src/extension.ts).
+  const args: ShowReferencesArgs = [uri, info.range.start, locations];
   return {
     range: {
       start: { line: info.range.start.line, character: info.range.start.character },
@@ -60,7 +70,7 @@ function buildLens(
     command: {
       title,
       command: "editor.action.showReferences",
-      arguments: [uri, info.range.start, locations],
+      arguments: [...args],
     },
   };
 }

@@ -16,4 +16,6 @@ export type {
   CallSite,
   CallSiteMatch,
   CallSiteExpansion,
+  ShowReferencesArgs,
+  ShowReferencesLocation,
 } from "./types";

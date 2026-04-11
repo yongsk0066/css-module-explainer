@@ -205,6 +205,36 @@ export type CallSiteMatch =
  */
 export type CallSiteExpansion = "direct" | "expanded";
 
+// ──────────────────────────────────────────────────────────────
+// Client command argument contracts
+// ──────────────────────────────────────────────────────────────
+
+/**
+ * One entry in the `editor.action.showReferences` location list
+ * (LSP JSON shape, before the client middleware maps it to
+ * `vscode.Location`).
+ */
+export interface ShowReferencesLocation {
+  readonly uri: string;
+  readonly range: Range;
+}
+
+/**
+ * Tuple contract for `editor.action.showReferences` arguments.
+ *
+ * VS Code's built-in command takes `(uri, position, locations)`
+ * positionally, so the wire shape must be a tuple — not a single
+ * object. This type documents the tuple order and lets the
+ * server (`reference-lens.ts`) and the client middleware
+ * (`extension.ts`) agree on a single authoritative contract,
+ * replacing ad-hoc `as` casts at both ends.
+ */
+export type ShowReferencesArgs = readonly [
+  uri: string,
+  position: Position,
+  locations: readonly ShowReferencesLocation[],
+];
+
 /**
  * One recorded call site of a specific class name. The
  * WorkspaceReverseIndex maps (scssFilePath, className) →
