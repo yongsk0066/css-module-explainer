@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_SETTINGS, parseSettings } from "../../server/src/settings";
+import { DEFAULT_SETTINGS, parsePathAlias, parseSettings } from "../../server/src/settings";
 
 describe("parseSettings", () => {
   it("returns defaults for undefined", () => {
@@ -56,5 +56,31 @@ describe("parseSettings", () => {
     const result = parseSettings({ extraField: "ignored", features: { hover: false } });
     expect(result.features.hover).toBe(false);
     expect(result.features.definition).toBe(true);
+  });
+});
+
+describe("parsePathAlias", () => {
+  it("accepts a well-formed Record<string, string>", () => {
+    expect(parsePathAlias({ "@s": "src/styles" })).toEqual({ "@s": "src/styles" });
+  });
+
+  it("falls back to {} for non-record inputs", () => {
+    expect(parsePathAlias(null)).toEqual({});
+    expect(parsePathAlias(undefined)).toEqual({});
+    expect(parsePathAlias("string")).toEqual({});
+    expect(parsePathAlias(42)).toEqual({});
+  });
+
+  it("drops non-string values from the record", () => {
+    expect(parsePathAlias({ "@s": 42, "@t": true, "@u": "src" })).toEqual({ "@u": "src" });
+  });
+
+  it("DEFAULT_SETTINGS.pathAlias is empty", () => {
+    expect(DEFAULT_SETTINGS.pathAlias).toEqual({});
+  });
+
+  it("parseSettings emits an empty pathAlias — compat read happens in fetchSettings", () => {
+    const result = parseSettings({});
+    expect(result.pathAlias).toEqual({});
   });
 });

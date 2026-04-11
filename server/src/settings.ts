@@ -16,12 +16,23 @@ export interface Settings {
   readonly hover: {
     readonly maxCandidates: number;
   };
+  /**
+   * Path alias map compat-read from the `cssModules.pathAlias`
+   * config key (clinyong/vscode-cssmodules). Keys are import
+   * prefixes (e.g. `"@styles"`), values are workspace-relative
+   * or absolute target paths. Defaults to `{}`.
+   *
+   * Native `cssModuleExplainer.pathAlias` key is deferred to a
+   * later wave. See `.personal_docs/research/2026-04-11-wave2b-path-resolution.md`.
+   */
+  readonly pathAlias: Readonly<Record<string, string>>;
 }
 
 const DEFAULTS: Settings = {
   features: { definition: true, hover: true, completion: true, references: true, rename: true },
   diagnostics: { severity: "warning", unusedSelector: true, missingModule: true },
   hover: { maxCandidates: 10 },
+  pathAlias: {},
 };
 
 const SEVERITY_VALUES = ["error", "warning", "information", "hint"] as const;
@@ -63,12 +74,33 @@ export function parseSettings(raw: unknown): Settings {
     hover: {
       maxCandidates: parseNumber(hover.maxCandidates, DEFAULTS.hover.maxCandidates),
     },
+    pathAlias: {},
   };
 }
 
+/**
+ * Parse the `cssModules.pathAlias` record into a `Record<string, string>`.
+ * Non-record inputs fall back to `{}`; record values that are not strings
+ * are dropped (no coercion). Used only by `fetchSettings` which merges the
+ * result into `Settings.pathAlias`.
+ */
+export function parsePathAlias(v: unknown): Record<string, string> {
+  if (!isRecord(v)) return {};
+  const out: Record<string, string> = {};
+  for (const [k, val] of Object.entries(v)) {
+    if (typeof val === "string") out[k] = val;
+  }
+  return out;
+}
+
 export async function fetchSettings(connection: Connection): Promise<Settings> {
-  const raw: unknown = await connection.workspace.getConfiguration("cssModuleExplainer");
-  return parseSettings(raw);
+  const [raw, compat]: [unknown, unknown] = await Promise.all([
+    connection.workspace.getConfiguration("cssModuleExplainer"),
+    connection.workspace.getConfiguration("cssModules"),
+  ]);
+  const base = parseSettings(raw);
+  const pathAlias = parsePathAlias(isRecord(compat) ? compat.pathAlias : undefined);
+  return { ...base, pathAlias };
 }
 
 export { DEFAULTS as DEFAULT_SETTINGS };
