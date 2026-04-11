@@ -23,25 +23,50 @@ const DEFAULTS: Settings = {
   hover: { maxCandidates: 10 },
 };
 
-export async function fetchSettings(connection: Connection): Promise<Settings> {
-  const raw = await connection.workspace.getConfiguration("cssModuleExplainer");
-  if (!raw) return DEFAULTS;
+const SEVERITY_VALUES = ["error", "warning", "information", "hint"] as const;
+type Severity = (typeof SEVERITY_VALUES)[number];
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+function isSeverity(v: unknown): v is Severity {
+  return typeof v === "string" && (SEVERITY_VALUES as readonly string[]).includes(v);
+}
+function parseBool(v: unknown, fallback: boolean): boolean {
+  return typeof v === "boolean" ? v : fallback;
+}
+function parseNumber(v: unknown, fallback: number): number {
+  return typeof v === "number" && Number.isFinite(v) ? v : fallback;
+}
+
+export function parseSettings(raw: unknown): Settings {
+  const r = isRecord(raw) ? raw : {};
+  const features = isRecord(r.features) ? r.features : {};
+  const diagnostics = isRecord(r.diagnostics) ? r.diagnostics : {};
+  const hover = isRecord(r.hover) ? r.hover : {};
   return {
     features: {
-      definition: raw.features?.definition ?? DEFAULTS.features.definition,
-      hover: raw.features?.hover ?? DEFAULTS.features.hover,
-      completion: raw.features?.completion ?? DEFAULTS.features.completion,
-      references: raw.features?.references ?? DEFAULTS.features.references,
-      rename: raw.features?.rename ?? DEFAULTS.features.rename,
+      definition: parseBool(features.definition, DEFAULTS.features.definition),
+      hover: parseBool(features.hover, DEFAULTS.features.hover),
+      completion: parseBool(features.completion, DEFAULTS.features.completion),
+      references: parseBool(features.references, DEFAULTS.features.references),
+      rename: parseBool(features.rename, DEFAULTS.features.rename),
     },
     diagnostics: {
-      severity: raw.diagnostics?.severity ?? DEFAULTS.diagnostics.severity,
-      unusedSelector: raw.diagnostics?.unusedSelector ?? DEFAULTS.diagnostics.unusedSelector,
+      severity: isSeverity(diagnostics.severity)
+        ? diagnostics.severity
+        : DEFAULTS.diagnostics.severity,
+      unusedSelector: parseBool(diagnostics.unusedSelector, DEFAULTS.diagnostics.unusedSelector),
     },
     hover: {
-      maxCandidates: raw.hover?.maxCandidates ?? DEFAULTS.hover.maxCandidates,
+      maxCandidates: parseNumber(hover.maxCandidates, DEFAULTS.hover.maxCandidates),
     },
   };
+}
+
+export async function fetchSettings(connection: Connection): Promise<Settings> {
+  const raw: unknown = await connection.workspace.getConfiguration("cssModuleExplainer");
+  return parseSettings(raw);
 }
 
 export { DEFAULTS as DEFAULT_SETTINGS };
