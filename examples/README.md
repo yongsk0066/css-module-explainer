@@ -70,6 +70,13 @@ through them whenever you update the provider layer.
   in `02-multi-binding/Button.module.scss`, rename `.button` —
   succeeds and rewrites every call site. Rename on `&:hover`
   is rejected; VS Code falls back to word-rename.
+- **BEM suffix rename on `&--x` / `&__x` nested blocks**: in
+  the same `02-multi-binding/Button.module.scss`, rename
+  `&--primary` under `.button` — only the `--primary` slice of
+  the SCSS file is rewritten; every `cxButton('button--primary')`
+  in the TSX file updates in lockstep. Compound forms like
+  `&.active`, grouped siblings like `&--a, &--b`, and
+  non-bare parents remain rejected as a known limitation.
 - **Rename near a template literal call site**: in `04-dynamic`,
   rename `.btn-primary` — the `` cx(`btn-${variant}`) ``
   template literal is NOT rewritten. Find References still

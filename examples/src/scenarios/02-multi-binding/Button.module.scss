@@ -8,8 +8,23 @@
   &:hover {
     filter: brightness(1.05);
   }
+
+  &--primary {
+    background: #4f46e5;
+    color: white;
+    border-color: #4f46e5;
+  }
+
+  &--secondary {
+    background: transparent;
+    color: #334155;
+    border-color: #cbd5e1;
+  }
 }
 
+// Flat classes kept alongside the BEM-nested form above so you
+// can see the two coexist. `.primary` (flat) and `.button--primary`
+// (nested) are semantically distinct — don't conflate them.
 .primary {
   background: #4f46e5;
   color: white;
