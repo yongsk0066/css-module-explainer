@@ -35,7 +35,7 @@ import { registerHandlers } from "./handler-registration";
 import type { FileTask } from "./core/indexing/indexer-worker";
 
 const SERVER_NAME = "css-module-explainer";
-const SERVER_VERSION = "1.4.0";
+const SERVER_VERSION = "1.5.0";
 
 /**
  * Transport-agnostic shared options consumed by every

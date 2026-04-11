@@ -8,6 +8,28 @@ The format is based on
 this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] — 2026-04-11
+
+### Fixed
+
+- **Rename no longer corrupts template literals** — `cx(\`btn-${weight}\`)` style calls were silently rewritten when a referenced class was renamed, destroying the template source. The reverse index now distinguishes direct and synthesized entries; rename filters out synthesized ones while Find References keeps them. Both the TSX-side and SCSS-side prepareRename now reject classes with template/variable references uniformly.
+- **Incremental file updates no longer dropped after initial indexing** — `IndexerWorker.pushFile()` was inert once the initial workspace walk finished, so file-watcher events silently fell on the floor. A new `PushSignal` async-iterable replaces the old signal so `drain()` parks on incoming push events via `for await` without exiting.
+- **SCSS diagnostics now reflect unsaved edits** — `classMapForPath` consults the in-memory `TextDocuments` buffer before falling back to disk, so unused-selector and unknown-class diagnostics respond immediately to unsaved SCSS changes.
+- **`&`-nested SCSS rename rejected defensively** — the parser now flips `SelectorInfo.isNested = true` when the raw source contained `&`, and `rename` returns `null` for those entries instead of rewriting the synthesized fallback range. Full `&`-nested rename support lands in a later wave.
+- **Reverse-index staleness on SCSS file changes** — when a SCSS module gained or lost a class, cached TSX analysis entries were not invalidated, leaving template/variable expansions stale until the user touched the TSX buffer. `onDidChangeWatchedFiles` now invalidates every TSX entry that referenced the changed SCSS path before rescheduling diagnostics.
+- **Invalid user config values no longer leak through untyped** — the settings loader validates inputs via explicit type guards and falls back to defaults for wrong types, unknown severities, `NaN`, `Infinity`, etc.
+
+### Changed
+
+- **Unified `ClassRef` domain model** — legacy `CxCallInfo` and `StylePropertyRef` types collapsed into a single `ClassRef` discriminated union (`static | template | variable`, tagged with `origin: "cxCall" | "styleAccess"`). Every provider now dispatches through a single `withClassRefAtCursor` front stage; the parallel `withCxCallAtCursor` / `withStyleRefAtCursor` dispatch pattern is gone.
+- **Error boundary at every LSP handler** — new `wrapHandler(name, impl, fallback)` helper (Stylable-inspired) wraps each provider export with a try/catch + `logError` + safe default. The nine hand-rolled try/catch blocks in individual providers are deleted.
+- **Single-source DI** — `HandlerContext.getBundle()` and the `CompositionBundle` interface deleted; the four style-index / indexer capabilities (`invalidateStyle`, `pushStyleFile`, `indexerReady`, `stopIndexer`) are now flat fields on `ProviderDeps`.
+- **Completion pipeline collapsed** — the two parallel pipelines added in v1.4.0 for `classnames/bind` vs `clsx / classnames` are unified into a single `findCompletionContext` helper that iterates once over bindings and style imports. `isInsideCxCall` renamed to `isInsideCall`. `detectClassUtilImports` moved to the binding-detector layer and exposed via `AnalysisEntry.classUtilNames`.
+- **Binding detector single-walk** — `collectImports` now makes exactly one pass over `sourceFile.statements` instead of two.
+- **Dead code removed** — `FileTask.kind`, `IndexerWorkerDeps.onTsxFile`, `buildStyleImportRegex`, and every `@deprecated` legacy type marker deleted.
+- **Type assertions minimized** — zero `as` casts in the server tree outside the documented `getRuntimeSyntax` helper (the single `unknown → postcss.Syntax` narrowing) and the `as const` / `as readonly` widenings. `parseSettings` uses type guards. `scss-parser.ts` relies on postcss's discriminated union directly. `CreateServerOptions` is a discriminated union of `"auto" | "streams"` transports. `ShowReferencesArgs` is a shared tuple type; the client middleware narrows via a single `isShowReferencesArgs` guard instead of three `as` casts.
+- **Incremental release tooling** — new `scripts/release.sh` syncs `SERVER_VERSION` with `package.json` before the build.
+
 ## [1.4.0] — 2026-04-11
 
 ### Added
