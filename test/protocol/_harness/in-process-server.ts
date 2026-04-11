@@ -13,6 +13,7 @@ import {
   InitializeRequest,
   PrepareRenameRequest,
   PublishDiagnosticsNotification,
+  ReferencesRequest,
   RenameRequest,
   ShutdownRequest,
   type CodeAction,
@@ -36,6 +37,7 @@ import {
   type ProtocolConnection,
   type PublishDiagnosticsParams,
   type Range as LspRange,
+  type ReferenceParams,
   type RenameParams,
   type WorkspaceEdit,
 } from "vscode-languageserver-protocol/node";
@@ -79,6 +81,7 @@ export interface LspTestClient {
   prepareRename(
     params: PrepareRenameParams,
   ): Promise<{ range: LspRange; placeholder: string } | null>;
+  references(params: ReferenceParams): Promise<Location[] | null>;
   rename(params: RenameParams): Promise<WorkspaceEdit | null>;
   didChangeWatchedFiles(params: DidChangeWatchedFilesParams): void;
   shutdown(): Promise<void>;
@@ -194,6 +197,9 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
     },
     async prepareRename(params) {
       return client.sendRequest(PrepareRenameRequest.type, params);
+    },
+    async references(params) {
+      return client.sendRequest(ReferencesRequest.type, params);
     },
     async rename(params) {
       return client.sendRequest(RenameRequest.type, params);

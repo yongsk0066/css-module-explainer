@@ -146,12 +146,22 @@ export function registerHandlers(ctx: HandlerContext): HandlerCleanup {
     if (!deps) return;
     for (const change of params.changes) {
       const filePath = fileUrlToPath(change.uri);
-      if (change.type === FileChangeType.Deleted) {
-        deps.invalidateStyle(filePath);
-        continue;
-      }
       deps.invalidateStyle(filePath);
-      deps.pushStyleFile(filePath);
+      if (change.type !== FileChangeType.Deleted) {
+        deps.pushStyleFile(filePath);
+      }
+      // Bug 3.5 — invalidate cached TSX analysis entries whose reverse
+      // index expansions depended on this SCSS file. Without this, the
+      // debounced scheduleTsx hits `analysisCache.get`, finds the
+      // version unchanged, and reuses the stale AnalysisEntry — so
+      // `onAnalyze` never re-fires, and expanded template/variable
+      // reverse-index sites stay frozen against the old classMap.
+      const affectedUris = new Set(
+        deps.reverseIndex.findAllForScssPath(filePath).map((site) => site.uri),
+      );
+      for (const uri of affectedUris) {
+        deps.analysisCache.invalidate(uri);
+      }
     }
     for (const doc of documents.all()) {
       scheduler.scheduleTsx(doc.uri);
