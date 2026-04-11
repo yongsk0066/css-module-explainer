@@ -178,6 +178,61 @@ describe("detectCxBindings / negative cases", () => {
   });
 });
 
+describe("detectCxBindings / single-walk consolidation (4.2.c)", () => {
+  // Golden-equivalence fixture for the 4.2.c refactor. Previously
+  // `collectImports` walked `sourceFile.statements` twice (once via
+  // `collectStyleImports`, once for classnames/bind). The consolidated
+  // version walks once. This test fixes the expected CxBinding[] output
+  // for a file containing BOTH import kinds so any regression in the
+  // combined walk (order, lost entries, misclassified specifiers) fails
+  // here.
+  it("produces the expected CxBinding[] for a fixture with both classnames/bind and .module.scss imports", () => {
+    const src = parse(`
+      import classNames from 'classnames/bind';
+      import btnStyles from './Button.module.scss';
+      import formStyles from './Form.module.css';
+      const cxBtn = classNames.bind(btnStyles);
+      const cxForm = classNames.bind(formStyles);
+    `);
+    const bindings = detectCxBindings(src, "/fake/src/Button.tsx");
+    // Same walk must still discover both bindings with correct
+    // classNamesImportName AND correct scssModulePath.
+    expect(bindings).toHaveLength(2);
+    const byName = new Map(bindings.map((b) => [b.cxVarName, b]));
+    expect(byName.get("cxBtn")).toMatchObject({
+      cxVarName: "cxBtn",
+      stylesVarName: "btnStyles",
+      classNamesImportName: "classNames",
+      scssModulePath: "/fake/src/Button.module.scss",
+    });
+    expect(byName.get("cxForm")).toMatchObject({
+      cxVarName: "cxForm",
+      stylesVarName: "formStyles",
+      classNamesImportName: "classNames",
+      scssModulePath: "/fake/src/Form.module.css",
+    });
+  });
+
+  it("handles interleaved classnames/bind and style imports in a single walk", () => {
+    // Intentional ordering: style import, classnames/bind, another style
+    // import. The single-pass walk must not depend on encounter order.
+    const src = parse(`
+      import btnStyles from './Button.module.scss';
+      import cn from 'classnames/bind';
+      import formStyles from './Form.module.scss';
+      const cx = cn.bind(formStyles);
+    `);
+    const bindings = detectCxBindings(src, "/fake/src/Button.tsx");
+    expect(bindings).toHaveLength(1);
+    expect(bindings[0]).toMatchObject({
+      cxVarName: "cx",
+      stylesVarName: "formStyles",
+      classNamesImportName: "cn",
+      scssModulePath: "/fake/src/Form.module.scss",
+    });
+  });
+});
+
 describe("collectStyleImports", () => {
   it("collects a default import of a .module.scss file", () => {
     const src = parse(`

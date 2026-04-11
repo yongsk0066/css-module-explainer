@@ -8,10 +8,11 @@ import { getAllStyleExtensions } from "../scss/lang-registry";
  * Walk a source file and return every active `cx` binding:
  *   const <cxVarName> = <classNamesImport>.bind(<stylesVarName>);
  *
- * The walker runs in two passes. Pass 1 collects every relevant
- * import (the classnames/bind default import name, and every
- * `.module.<ext>` style default import with its resolved absolute
- * path). Pass 2 scans all `VariableDeclaration` nodes in the file
+ * The walker runs in two passes. Pass 1 is a single linear scan
+ * of top-level import declarations that collects BOTH the
+ * classnames/bind default import identifiers AND every `.module.<ext>`
+ * style default/namespace import with its resolved absolute path.
+ * Pass 2 scans all `VariableDeclaration` nodes in the file
  * — including those inside function bodies — and keeps the ones
  * whose initializer is `<classNamesImport>.bind(<knownStylesVar>)`.
  *
@@ -114,8 +115,17 @@ interface ImportScan {
 }
 
 function collectImports(sourceFile: ts.SourceFile, filePath: string): ImportScan {
+  // Single-walk consolidation (Stage 4.2.c): previously this function called
+  // `collectStyleImports` (one pass) and then walked `sourceFile.statements`
+  // a second time looking for classnames/bind. The style-scan logic is
+  // inlined here so `collectImports` makes ONE pass that produces both
+  // outputs. `collectStyleImports` remains exported as an independent
+  // function for `DocumentAnalysisCache.analyze()`, which scans styles
+  // without needing the classnames/bind information.
   const classNamesNames = new Set<string>();
-  const stylesBindings = collectStyleImports(sourceFile, filePath);
+  const stylesBindings = new Map<string, string>();
+  const styleExtensions = getAllStyleExtensions();
+  const sourceDir = path.dirname(filePath);
 
   for (const stmt of sourceFile.statements) {
     if (!ts.isImportDeclaration(stmt)) continue;
@@ -133,6 +143,17 @@ function collectImports(sourceFile: ts.SourceFile, filePath: string): ImportScan
 
     if (specifier === "classnames/bind") {
       classNamesNames.add(importName);
+      continue;
+    }
+
+    // Skip non-relative specifiers (bare module names like 'design-system/Button.module.scss').
+    // path.resolve() would produce nonsense for these. Matches the behavior
+    // of `collectStyleImports`.
+    if (!specifier.startsWith(".")) continue;
+
+    if (styleExtensions.some((ext) => specifier.endsWith(ext))) {
+      const resolved = path.resolve(sourceDir, specifier);
+      stylesBindings.set(importName, resolved);
     }
   }
 
