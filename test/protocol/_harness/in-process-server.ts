@@ -136,6 +136,12 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
     // is not wanted because it would hit the real filesystem.
     fileSupplier: () => emptySupplier(),
     readStyleFileAsync: async () => null,
+    // Default fileExists to always-true for protocol tests: their
+    // fixtures use fake absolute paths that would fail a real
+    // fs.existsSync check, producing spurious missing-module
+    // diagnostics. Tests that exercise missing-module specifically
+    // override via the `fileExists` option.
+    fileExists: () => true,
     ...options,
     transport: "streams",
     reader: new StreamMessageReader(clientToServer),

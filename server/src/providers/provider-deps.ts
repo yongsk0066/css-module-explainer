@@ -2,6 +2,7 @@ import type { ScssClassMap } from "@css-module-explainer/shared";
 import type { DocumentAnalysisCache } from "../core/indexing/document-analysis-cache";
 import type { ReverseIndex } from "../core/indexing/reverse-index";
 import type { TypeResolver } from "../core/ts/type-resolver";
+import type { Settings } from "../settings";
 
 /**
  * Identity + content of a single open document. Used by
@@ -71,6 +72,17 @@ export interface ProviderDeps {
    * Stop the background indexer worker. Called from `onShutdown`.
    */
   readonly stopIndexer: () => void;
+  /**
+   * Current extension settings. Plain mutable field — `reloadSettings`
+   * replaces this on every `didChangeConfiguration`. Providers read
+   * the field at call time so a config change between analyze calls
+   * is observed on the next request.
+   *
+   * Only consumed by `ProviderDeps`, so the shared-closure pattern
+   * §3.5 uses for `aliasResolver` isn't needed here — a plain field
+   * write is enough.
+   */
+  settings: Settings;
 }
 
 /** No-op logError stub for tests — keeps `ProviderDeps.logError` required. */

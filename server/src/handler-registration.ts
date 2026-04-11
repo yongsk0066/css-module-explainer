@@ -67,6 +67,11 @@ function registerSettingsHandler(state: HandlerState): () => void {
       .then((s) => {
         state.settings = s;
         state.scheduler.refreshSettings(s);
+        // Mirror to the provider deps bag so providers that read
+        // `deps.settings` (diagnostics missing-module loop, etc.)
+        // observe the latest config without going through state.
+        const deps = state.ctx.getDeps();
+        if (deps) deps.settings = s;
       })
       .catch((err: unknown) => safeLogError(connection, "settings fetch failed", err));
   }

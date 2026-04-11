@@ -109,6 +109,11 @@
           "default": true,
           "description": "Show hints for CSS class selectors that are declared but never referenced in any TS/TSX file."
         },
+        "cssModuleExplainer.diagnostics.missingModule": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when 'import styles from ...' for a CSS Module cannot be resolved on disk."
+        },
         "cssModuleExplainer.hover.maxCandidates": {
           "type": "number",
           "default": 10,

@@ -3,6 +3,7 @@ import { SourceFileCache } from "../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../server/src/core/indexing/document-analysis-cache";
 import { NullReverseIndex } from "../../server/src/core/indexing/reverse-index";
 import { NOOP_LOG_ERROR, type ProviderDeps } from "../../server/src/providers/cursor-dispatch";
+import { DEFAULT_SETTINGS } from "../../server/src/settings";
 import { FakeTypeResolver } from "./fake-type-resolver";
 
 /** Create a minimal SelectorInfo for testing (fixed line 11 position). */
@@ -84,6 +85,7 @@ export function makeBaseDeps(overrides: Partial<ProviderDeps> = {}): ProviderDep
     pushStyleFile: () => {},
     indexerReady: Promise.resolve(),
     stopIndexer: () => {},
+    settings: DEFAULT_SETTINGS,
     ...overrides,
   };
 }

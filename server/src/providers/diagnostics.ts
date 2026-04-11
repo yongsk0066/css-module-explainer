@@ -34,10 +34,13 @@ export const computeDiagnostics = wrapHandler<
 >(
   "diagnostics",
   (params, deps, severity: DiagnosticSeverity = DiagnosticSeverity.Warning) => {
-    // Fast path: if the file has no binding at all, nothing to diagnose.
-    // NOTE: do not widen to hasAnyStyleImport — diagnostics scope is
-    // cx-pipeline calls only, and bare styles.x access is covered by TS.
-    if (!params.content.includes("classnames/bind")) return [];
+    // Fast path 1: file has no style import of any kind → nothing
+    // to diagnose. Widened from the v1.5.1 `classnames/bind`-only
+    // check because Wave 2B's missing-module loop must fire for
+    // pure `styles.x` users too.
+    if (!params.content.includes(".module.") && !params.content.includes("classnames/bind")) {
+      return [];
+    }
 
     const entry = deps.analysisCache.get(
       params.documentUri,
@@ -45,15 +48,39 @@ export const computeDiagnostics = wrapHandler<
       params.filePath,
       params.version,
     );
-    // Diagnostics scope is cx-calls only; styles.x property access is covered by TS.
+
+    const diagnostics: Diagnostic[] = [];
+
+    // Wave 2B item #11: missing-module diagnostics fire for any
+    // file with a style import, independent of whether the file
+    // uses cx() helpers. Emits one diagnostic per unresolved
+    // specifier, underlining the string literal only.
+    if (deps.settings.diagnostics.missingModule) {
+      for (const imp of entry.stylesBindings.values()) {
+        if (imp.kind !== "missing") continue;
+        diagnostics.push({
+          range: toLspRange(imp.range),
+          severity,
+          source: DIAGNOSTIC_SOURCE,
+          message: `Cannot resolve CSS Module '${imp.specifier}'. The file does not exist.`,
+          code: "missing-module",
+        });
+      }
+    }
+
+    // Fast path 2 (v1.5.1 scope preserved): cx-pipeline class
+    // diagnostics only fire when `classnames/bind` is present.
+    // Pure `styles.x` access is covered by TypeScript's own type
+    // checker.
+    if (!params.content.includes("classnames/bind")) return diagnostics;
+
     const cxRefs = entry.classRefs.filter((r) => r.origin === "cxCall");
-    if (cxRefs.length === 0) return [];
+    if (cxRefs.length === 0) return diagnostics;
 
     // Per-ref isolation: a single throwing ref (e.g. a malformed
     // binding or a misbehaving TypeResolver entry) must NOT erase
     // every other diagnostic in the same document. The "log +
     // return empty result" boundary applies per-ref, not per-file.
-    const diagnostics: Diagnostic[] = [];
     for (const ref of cxRefs) {
       try {
         const classMap = deps.scssClassMapForPath(ref.scssModulePath);

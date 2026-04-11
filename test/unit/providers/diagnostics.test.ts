@@ -7,6 +7,7 @@ import { DocumentAnalysisCache } from "../../../server/src/core/indexing/documen
 import { NullReverseIndex } from "../../../server/src/core/indexing/reverse-index";
 import { NOOP_LOG_ERROR, type ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
 import { computeDiagnostics } from "../../../server/src/providers/diagnostics";
+import { DEFAULT_SETTINGS } from "../../../server/src/settings";
 import type { TypeResolver } from "../../../server/src/core/ts/type-resolver";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
 import { info, makeBaseDeps } from "../../_fixtures/test-helpers";
@@ -172,6 +173,7 @@ describe("computeDiagnostics", () => {
       pushStyleFile: () => {},
       indexerReady: Promise.resolve(),
       stopIndexer: () => {},
+      settings: DEFAULT_SETTINGS,
     };
     const result = computeDiagnostics(baseParams, deps);
     expect(result).toHaveLength(1);
@@ -223,6 +225,7 @@ describe("computeDiagnostics", () => {
       pushStyleFile: () => {},
       indexerReady: Promise.resolve(),
       stopIndexer: () => {},
+      settings: DEFAULT_SETTINGS,
     };
     const result = computeDiagnostics(baseParams, deps);
     expect(result).toHaveLength(1);
@@ -263,6 +266,7 @@ describe("computeDiagnostics", () => {
       pushStyleFile: () => {},
       indexerReady: Promise.resolve(),
       stopIndexer: () => {},
+      settings: DEFAULT_SETTINGS,
     };
     const result = computeDiagnostics(baseParams, deps);
     expect(result).toEqual([]);
@@ -290,5 +294,149 @@ describe("computeDiagnostics", () => {
     // that the throw didn't propagate outward.
     expect(result).toEqual([]);
     expect(logError).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ── Wave 2B item #11 — missing-module diagnostics ───────────────
+
+describe("missing-module diagnostics", () => {
+  const MISSING_TSX = `import styles from './typo.module.scss';\nconst a = styles.foo;\n`;
+
+  function makeMissingDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
+    const sourceFileCache = new SourceFileCache({ max: 10 });
+    const analysisCache = new DocumentAnalysisCache({
+      sourceFileCache,
+      collectStyleImports: () =>
+        new Map([
+          [
+            "styles",
+            {
+              kind: "missing" as const,
+              absolutePath: "/fake/ws/src/typo.module.scss",
+              specifier: "./typo.module.scss",
+              range: {
+                start: { line: 0, character: 19 },
+                end: { line: 0, character: 38 },
+              },
+            },
+          ],
+        ]),
+      detectCxBindings: () => [],
+      fileExists: () => false,
+      max: 10,
+    });
+    return makeBaseDeps({ analysisCache, workspaceRoot: "/fake/ws", ...overrides });
+  }
+
+  it("emits one diagnostic per missing import with code 'missing-module'", () => {
+    const deps = makeMissingDeps();
+    const result = computeDiagnostics(
+      {
+        documentUri: "file:///fake/ws/src/App.tsx",
+        content: MISSING_TSX,
+        filePath: "/fake/ws/src/App.tsx",
+        version: 1,
+      },
+      deps,
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0]!.code).toBe("missing-module");
+    expect(result[0]!.message).toContain("./typo.module.scss");
+    expect(result[0]!.range.start).toEqual({ line: 0, character: 19 });
+    expect(result[0]!.range.end).toEqual({ line: 0, character: 38 });
+  });
+
+  it("does not emit when diagnostics.missingModule is false", () => {
+    const deps = makeMissingDeps({
+      settings: {
+        ...makeBaseDeps().settings,
+        diagnostics: {
+          ...makeBaseDeps().settings.diagnostics,
+          missingModule: false,
+        },
+      },
+    });
+    const result = computeDiagnostics(
+      {
+        documentUri: "file:///fake/ws/src/App.tsx",
+        content: MISSING_TSX,
+        filePath: "/fake/ws/src/App.tsx",
+        version: 1,
+      },
+      deps,
+    );
+    expect(result).toEqual([]);
+  });
+
+  it("does not emit missing-module for a resolved import", () => {
+    const sourceFileCache = new SourceFileCache({ max: 10 });
+    const analysisCache = new DocumentAnalysisCache({
+      sourceFileCache,
+      collectStyleImports: () =>
+        new Map([
+          [
+            "styles",
+            { kind: "resolved" as const, absolutePath: "/fake/ws/src/Button.module.scss" },
+          ],
+        ]),
+      detectCxBindings: () => [],
+      fileExists: () => true,
+      max: 10,
+    });
+    const deps = makeBaseDeps({ analysisCache });
+    const result = computeDiagnostics(
+      {
+        documentUri: "file:///fake/ws/src/App.tsx",
+        content: "import styles from './Button.module.scss';\n",
+        filePath: "/fake/ws/src/App.tsx",
+        version: 1,
+      },
+      deps,
+    );
+    const missing = result.filter((d) => d.code === "missing-module");
+    expect(missing).toEqual([]);
+  });
+
+  it("CRITICAL placement: fires for pure styles.x file WITHOUT classnames/bind", () => {
+    // This catches the v1.5.1 early-return regression.
+    // The fixture contains styles.x usage but no classnames/bind
+    // — pre-R2-polish the missing-module loop was gated behind
+    // `params.content.includes("classnames/bind")` and never ran
+    // for pure styles.x files.
+    const PURE_STYLES_TSX = `import styles from './typo.module.scss';\nexport const A = () => styles.a;\n`;
+    const deps = makeMissingDeps();
+    const result = computeDiagnostics(
+      {
+        documentUri: "file:///fake/ws/src/App.tsx",
+        content: PURE_STYLES_TSX,
+        filePath: "/fake/ws/src/App.tsx",
+        version: 1,
+      },
+      deps,
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0]!.code).toBe("missing-module");
+  });
+
+  it("returns empty for a file with no style imports at all", () => {
+    const sourceFileCache = new SourceFileCache({ max: 10 });
+    const analysisCache = new DocumentAnalysisCache({
+      sourceFileCache,
+      collectStyleImports: () => new Map(),
+      detectCxBindings: () => [],
+      fileExists: () => true,
+      max: 10,
+    });
+    const deps = makeBaseDeps({ analysisCache });
+    const result = computeDiagnostics(
+      {
+        documentUri: "file:///fake/ws/src/App.tsx",
+        content: "import React from 'react';\nexport const A = () => null;\n",
+        filePath: "/fake/ws/src/App.tsx",
+        version: 1,
+      },
+      deps,
+    );
+    expect(result).toEqual([]);
   });
 });

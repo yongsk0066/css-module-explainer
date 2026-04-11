@@ -11,6 +11,7 @@ export interface Settings {
   readonly diagnostics: {
     readonly severity: "error" | "warning" | "information" | "hint";
     readonly unusedSelector: boolean;
+    readonly missingModule: boolean;
   };
   readonly hover: {
     readonly maxCandidates: number;
@@ -19,7 +20,7 @@ export interface Settings {
 
 const DEFAULTS: Settings = {
   features: { definition: true, hover: true, completion: true, references: true, rename: true },
-  diagnostics: { severity: "warning", unusedSelector: true },
+  diagnostics: { severity: "warning", unusedSelector: true, missingModule: true },
   hover: { maxCandidates: 10 },
 };
 
@@ -57,6 +58,7 @@ export function parseSettings(raw: unknown): Settings {
         ? diagnostics.severity
         : DEFAULTS.diagnostics.severity,
       unusedSelector: parseBool(diagnostics.unusedSelector, DEFAULTS.diagnostics.unusedSelector),
+      missingModule: parseBool(diagnostics.missingModule, DEFAULTS.diagnostics.missingModule),
     },
     hover: {
       maxCandidates: parseNumber(hover.maxCandidates, DEFAULTS.hover.maxCandidates),

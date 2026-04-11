@@ -14,6 +14,7 @@ import {
 import { TextDocument } from "vscode-languageserver-textdocument";
 import ts from "typescript";
 import type { ScssClassMap } from "@css-module-explainer/shared";
+import { DEFAULT_SETTINGS } from "./settings";
 import { buildStyleFileWatcherGlob, findLangForPath } from "./core/scss/lang-registry";
 import { StyleIndexCache } from "./core/scss/scss-index";
 import {
@@ -222,6 +223,10 @@ function buildBundle(
     pushStyleFile: (path) => indexerWorker.pushFile({ path }),
     indexerReady: indexerWorker.ready,
     stopIndexer: () => indexerWorker.stop(),
+    // Plain mutable field, replaced in handler-registration::reloadSettings.
+    // Initial value is DEFAULT_SETTINGS; the real config is fetched on
+    // onInitialized and overwrites this via `deps.settings = s`.
+    settings: DEFAULT_SETTINGS,
   };
 }
 
