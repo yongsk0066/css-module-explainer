@@ -237,13 +237,37 @@ function recordRule(
   const { declarations, composes } = collectDeclarationsAndComposes(rule.nodes);
   const ruleRange = rangeForSourceNode(rule);
 
-  const selectors = rule.selectors ?? [rule.selector];
+  // Use enumerateGroups on the verbatim selector source so each
+  // group carries its offset relative to rule.source.start.
+  // rule.raws.selector?.raw preserves comments/whitespace stripped
+  // from rule.selector.
+  const selectorSource = rule.raws.selector?.raw ?? rule.selector;
+  const groups = enumerateGroups(selectorSource);
   const resolvedSelectors: string[] = [];
 
-  for (const raw of selectors) {
+  for (const { raw, offset } of groups) {
     const resolved = resolveSelector(raw, parentCtx.selector);
     resolvedSelectors.push(resolved);
     const isNested = raw.includes("&");
+    const ampCount = raw.match(/&/g)?.length ?? 0;
+
+    // BEM-suffix safe-rename gate — all six conditions must hold
+    // for the parser to populate the rawToken / rawTokenRange /
+    // parentResolvedName trio:
+    //   1. raw is nested (contains `&`)
+    //   2. exactly one `&` in the group
+    //   3. parent rule is a bare single class
+    //   4. parent rule is not grouped
+    //   5. CURRENT rule is also not grouped (groups.length === 1)
+    //   6. findBemSuffixSpan returns non-null (pure BEM suffix form)
+    const bemGate =
+      isNested &&
+      ampCount === 1 &&
+      parentCtx.className !== undefined &&
+      parentCtx.isGrouped !== true &&
+      groups.length === 1;
+
+    const rawSpan = bemGate ? findBemSuffixSpan(rule, offset, raw) : null;
 
     for (const className of extractClassNames(resolved)) {
       // If a non-nested entry already exists for this class name,
@@ -255,6 +279,11 @@ function recordRule(
       if (existing && existing.isNested !== true && isNested) continue;
 
       const tokenRange = findClassTokenRange(rule.source?.start, className, raw);
+
+      // Invariant under bemGate + rawSpan non-null:
+      // extractClassNames(resolved) returns exactly one class equal
+      // to parentCtx.className + rawSpan.rawToken.slice(1). The
+      // trio is written for that single class only.
       classMap.set(className, {
         name: className,
         range: tokenRange,
@@ -263,14 +292,20 @@ function recordRule(
         ruleRange,
         ...(composes.length > 0 ? { composes } : {}),
         ...(isNested ? { isNested: true } : {}),
+        ...(rawSpan && parentCtx.className
+          ? {
+              rawToken: rawSpan.rawToken,
+              rawTokenRange: rawSpan.range,
+              parentResolvedName: parentCtx.className,
+            }
+          : {}),
       });
     }
   }
 
   // Recurse into nested rules under EVERY grouped selector, not
   // just the first. `.a, .b { .child {} }` → both `.a .child` and
-  // `.b .child` are indexed. Guard against pathological expansion
-  // by capping the branch count.
+  // `.b .child` are indexed.
   const parents = resolvedSelectors.length > 0 ? resolvedSelectors : [parentCtx.selector];
   for (const nextResolved of parents) {
     walkStyleNodes(rule.nodes, buildChildContext(resolvedSelectors, nextResolved), classMap);

@@ -53,11 +53,34 @@ export interface SelectorInfo {
   /**
    * True if this selector was produced from a SCSS `&`-nested rule
    * whose raw source contained `&`. Used as a defensive-reject
-   * signal in rename because `range` is synthesized from the
-   * resolved class name and is unsafe to rewrite. A future
-   * structured raw-token range will lift this restriction.
+   * signal in rename for the legacy path and to gate the BEM-safe
+   * rename trio below.
    */
   readonly isNested?: boolean;
+  /**
+   * Source-accurate range covering the `&`-fragment of a BEM-safe
+   * nested entry (e.g. `&--primary` or `&__icon`). Undefined when
+   * the entry is flat OR when the nested shape is not a pure BEM
+   * suffix (compound `&.active`, pseudo `&:hover`, grouped parent,
+   * multi-`&`, etc.).
+   *
+   * Set together with `rawToken` and `parentResolvedName` as an
+   * all-or-nothing trio — rename reads all three.
+   */
+  readonly rawTokenRange?: Range;
+  /**
+   * Verbatim slice of the raw selector for the `&`-fragment
+   * (e.g. `"&--primary"`, `"&__icon"`). Used by rename for
+   * suffix-offset math via `indexOf(oldSuffix)`.
+   */
+  readonly rawToken?: string;
+  /**
+   * Resolved class name of the enclosing bare `.classname` rule
+   * (e.g. `"button"` for the `button--primary` entry produced by
+   * `.button { &--primary {} }`). Used by rename to compute the
+   * BEM suffix split `name.slice(parent.length)`.
+   */
+  readonly parentResolvedName?: string;
 }
 
 /** Immutable map from class name to its info, produced per style file. */

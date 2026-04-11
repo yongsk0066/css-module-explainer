@@ -470,3 +470,151 @@ describe("findBemSuffixSpan", () => {
     expect(findBemSuffixSpan(mockRule("tag&--x"), 0, "tag&--x")).toBeNull();
   });
 });
+
+describe("BEM-nested raw ranges", () => {
+  // Positive: trio populated
+  it("populates trio for `.button { &--primary {} }`", () => {
+    const map = parseStyleModule(`.button { &--primary {} }`, "/f.module.scss");
+    const info = map.get("button--primary");
+    expect(info).toBeDefined();
+    expect(info!.isNested).toBe(true);
+    expect(info!.rawToken).toBe("&--primary");
+    expect(info!.parentResolvedName).toBe("button");
+    expect(info!.rawTokenRange).toBeDefined();
+    const r = info!.rawTokenRange!;
+    expect(r.end.character - r.start.character).toBe(10);
+  });
+
+  it("populates trio for `.button { &__icon {} }`", () => {
+    const map = parseStyleModule(`.button { &__icon {} }`, "/f.module.scss");
+    const info = map.get("button__icon");
+    expect(info).toBeDefined();
+    expect(info!.rawToken).toBe("&__icon");
+    expect(info!.parentResolvedName).toBe("button");
+    const r = info!.rawTokenRange!;
+    expect(r.end.character - r.start.character).toBe(7);
+  });
+
+  it("populates trio on multi-line source — rawTokenRange lands on the `&` line", () => {
+    const src = `.button {\n  &--primary {}\n}`;
+    const map = parseStyleModule(src, "/f.module.scss");
+    const info = map.get("button--primary");
+    expect(info).toBeDefined();
+    const r = info!.rawTokenRange!;
+    expect(r.start.line).toBe(1);
+    expect(r.start.character).toBe(2);
+    expect(r.end.character - r.start.character).toBe(10);
+  });
+
+  it("handles CRLF source correctly", () => {
+    // CRLF column-shift regression catcher: a handler that counted
+    // \r into line length would drift by 1 character.
+    const src = `.button {\r\n  &--primary {}\r\n}`;
+    const map = parseStyleModule(src, "/f.module.scss");
+    const info = map.get("button--primary");
+    expect(info).toBeDefined();
+    const r = info!.rawTokenRange!;
+    expect(r.start.line).toBe(1);
+    expect(r.start.character).toBe(2);
+    expect(r.end.character - r.start.character).toBe(10);
+  });
+
+  it("populates trio for deep-nested `.card { &__icon { &--small {} } }`", () => {
+    const map = parseStyleModule(`.card { &__icon { &--small {} } }`, "/f.module.scss");
+    const inner = map.get("card__icon--small");
+    expect(inner).toBeDefined();
+    expect(inner!.rawToken).toBe("&--small");
+    expect(inner!.parentResolvedName).toBe("card__icon");
+
+    const middle = map.get("card__icon");
+    expect(middle).toBeDefined();
+    expect(middle!.rawToken).toBe("&__icon");
+    expect(middle!.parentResolvedName).toBe("card");
+  });
+
+  it("populates trio via comment-bearing parent `.a /* x */ { &--b {} }`", () => {
+    const src = `.a /* x */ { &--b {} }`;
+    const map = parseStyleModule(src, "/f.module.scss");
+    const info = map.get("a--b");
+    expect(info).toBeDefined();
+    expect(info!.rawToken).toBe("&--b");
+    expect(info!.parentResolvedName).toBe("a");
+  });
+
+  // Negative: isNested true but trio undefined
+  it("leaves trio undefined for compound `.button { &.active {} }` (reject compound)", () => {
+    const map = parseStyleModule(`.button { &.active {} }`, "/f.module.scss");
+    const active = map.get("active");
+    expect(active).toBeDefined();
+    expect(active!.isNested).toBe(true);
+    expect(active!.rawToken).toBeUndefined();
+    expect(active!.rawTokenRange).toBeUndefined();
+    expect(active!.parentResolvedName).toBeUndefined();
+    // button parent entry must survive unchanged
+    const button = map.get("button");
+    expect(button).toBeDefined();
+    expect(button!.isNested).toBeUndefined();
+  });
+
+  it("preserves flat parent for `.button { &:hover {} }` (dedup guard)", () => {
+    const map = parseStyleModule(`.button { &:hover {} }`, "/f.module.scss");
+    const button = map.get("button");
+    expect(button).toBeDefined();
+    expect(button!.isNested).toBeUndefined();
+    expect(button!.rawTokenRange).toBeUndefined();
+  });
+
+  it("handles non-bare parent `.card:hover { &--primary {} }` safely", () => {
+    // extractClassNames strips `:hover--primary` greedily (pseudo
+    // regex eats the hyphenated suffix), so the nested rule
+    // resolves to class `card`. The Wave 1 dedup guard keeps the
+    // flat `.card:hover` entry from being downgraded. Net result:
+    // no `card--primary` entry exists, and the flat `card` entry
+    // is unchanged — safe.
+    const map = parseStyleModule(`.card:hover { &--primary {} }`, "/f.module.scss");
+    expect(map.has("card--primary")).toBe(false);
+    const card = map.get("card");
+    expect(card).toBeDefined();
+    expect(card!.isNested).toBeUndefined();
+    expect(card!.rawTokenRange).toBeUndefined();
+  });
+
+  it("leaves trio undefined for grouped parent `.a, .b { &--c {} }`", () => {
+    const map = parseStyleModule(`.a, .b { &--c {} }`, "/f.module.scss");
+    const info = map.get("a--c") ?? map.get("b--c");
+    expect(info).toBeDefined();
+    expect(info!.isNested).toBe(true);
+    expect(info!.parentResolvedName).toBeUndefined();
+  });
+
+  it("leaves trio undefined for grouped-nested child `.btn { &--a, &--b {} }`", () => {
+    const map = parseStyleModule(`.btn { &--a, &--b {} }`, "/f.module.scss");
+    const a = map.get("btn--a");
+    const b = map.get("btn--b");
+    expect(a).toBeDefined();
+    expect(b).toBeDefined();
+    expect(a!.parentResolvedName).toBeUndefined();
+    expect(b!.parentResolvedName).toBeUndefined();
+  });
+
+  it("leaves trio undefined for multi-`&` `.btn { & + &--x {} }`", () => {
+    const map = parseStyleModule(`.btn { & + &--x {} }`, "/f.module.scss");
+    const info = map.get("btn--x");
+    if (info !== undefined) {
+      expect(info.rawTokenRange).toBeUndefined();
+    }
+  });
+
+  it("skips interpolated top-level rules `.#{$prefix}--primary {}`", () => {
+    // extractClassNames doesn't match .#{...}, so no entry is
+    // produced. No crash is the goal.
+    const map = parseStyleModule(`.#{$prefix}--primary { color: red; }`, "/f.module.scss");
+    expect(map.size).toBe(0);
+  });
+
+  it("does not crash on `@at-root &--escape {}`", () => {
+    // Invalid SCSS shape — we just don't want a throw.
+    const content = `.btn { @at-root &--escape {} }`;
+    expect(() => parseStyleModule(content, "/f.module.scss")).not.toThrow();
+  });
+});
