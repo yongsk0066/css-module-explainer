@@ -193,10 +193,15 @@ export function collectCallSites(
         });
         if (ctx) expandVariableRef(ref, base, ctx, sites);
         break;
-      default: {
-        const _exhaustive: never = ref;
-        return _exhaustive;
-      }
+      default:
+        // Compile-time exhaustiveness check. `satisfies never`
+        // surfaces a new `ClassRef` kind at build time; the
+        // `break` ensures a runtime-widened kind (e.g. via a
+        // bad JSON deserialization) skips the one bad ref
+        // instead of truncating the whole document's call-site
+        // list with an early return.
+        ref satisfies never;
+        break;
     }
   }
 
