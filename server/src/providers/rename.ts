@@ -108,17 +108,27 @@ function prepareRenameFromScss(
   );
   if (!selectorInfo) return null;
 
-  // Defensively reject `&`-nested selectors. Their range is
-  // synthesized from the resolved class name and may span past
-  // the `&--primary` source into whitespace, silently corrupting
-  // the rewrite. A future structured raw-token range will lift
-  // this restriction.
-  if (isNestedSelector(selectorInfo)) return null;
+  // Nested entries require the full BEM-safe trio to be populated
+  // by the parser. Absence of any one means the parser refused to
+  // classify this as a safe rename (compound `&.x`, pseudo
+  // `&:hover`, multi-`&`, grouped parent, non-bare parent). Fall
+  // back to the Wave 1 reject behavior for those shapes.
+  if (selectorInfo.isNested) {
+    if (!selectorInfo.rawTokenRange || !selectorInfo.rawToken || !selectorInfo.parentResolvedName) {
+      return null;
+    }
+    // Interpolation reject — suffix-math cannot see through
+    // `#{$var}`. In practice extractClassNames already filters
+    // interpolated forms, so this is defensive.
+    if (selectorInfo.rawToken.includes("#{")) return null;
+  }
 
   // Reject if any reverse-index site for this class is a synthesized
   // expansion of a template/variable ref. Rewriting those entries
   // would destroy the dynamic expression source. Find References
-  // still surfaces expanded sites — only rename filters.
+  // still surfaces expanded sites — only rename filters. This guard
+  // must fire for nested BEM entries too (their resolved class name
+  // may still appear in a template call site that expanded to it).
   const expandedSites = deps.reverseIndex
     .findAllForScssPath(filePath)
     .filter(
@@ -129,7 +139,11 @@ function prepareRenameFromScss(
     );
   if (expandedSites.length > 0) return null;
 
-  return { range: toLspRange(selectorInfo.range), placeholder: selectorInfo.name };
+  // Use the narrower raw-token range for the placeholder when the
+  // entry is nested (covers `&--primary` exactly); flat entries keep
+  // their resolved range.
+  const placeholderRange = selectorInfo.rawTokenRange ?? selectorInfo.range;
+  return { range: toLspRange(placeholderRange), placeholder: selectorInfo.name };
 }
 
 function renameFromScss(
@@ -145,21 +159,17 @@ function renameFromScss(
     params.position.character,
   );
   if (!selectorInfo) return null;
-  if (isNestedSelector(selectorInfo)) return null;
-  return buildRenameEdit(params.textDocument.uri, filePath, selectorInfo, deps, params.newName);
-}
 
-/**
- * True if the selector was produced from a `&`-nested SCSS rule.
- * The parser sets `isNested: true` when the raw source contained `&`;
- * in that case `SelectorInfo.range` is a synthesized fallback that
- * points at the `&` column with the resolved class name's length and
- * is unsafe to rewrite. These rules are currently rejected outright;
- * proper support will require a structured raw-token range in the
- * parser output.
- */
-function isNestedSelector(info: SelectorInfo): boolean {
-  return info.isNested === true;
+  // Same trio gate as prepareRename — defensive parity so renameFromScss
+  // refuses when called out of order.
+  if (selectorInfo.isNested) {
+    if (!selectorInfo.rawTokenRange || !selectorInfo.rawToken || !selectorInfo.parentResolvedName) {
+      return null;
+    }
+    if (selectorInfo.rawToken.includes("#{")) return null;
+  }
+
+  return buildRenameEdit(params.textDocument.uri, filePath, selectorInfo, deps, params.newName);
 }
 
 function buildRenameEdit(
@@ -168,11 +178,16 @@ function buildRenameEdit(
   selectorInfo: SelectorInfo,
   deps: ProviderDeps,
   newName: string,
-): WorkspaceEdit {
+): WorkspaceEdit | null {
   const changes: Record<string, Array<{ range: LspRange; newText: string }>> = {};
 
-  // 1. SCSS selector edit
-  changes[scssUri] = [{ range: toLspRange(selectorInfo.range), newText: newName }];
+  // 1. SCSS selector edit — flat uses the resolved range; BEM-safe
+  //    nested uses the suffix sub-range inside rawToken.
+  const scssEdit = selectorInfo.isNested
+    ? buildNestedScssEdit(selectorInfo, newName)
+    : buildFlatScssEdit(selectorInfo, newName);
+  if (!scssEdit) return null;
+  changes[scssUri] = [scssEdit];
 
   // 2. TS/TSX reference edits from the reverse index.
   //
@@ -192,4 +207,57 @@ function buildRenameEdit(
   }
 
   return { changes };
+}
+
+const IDENTIFIER_RE = /^[a-zA-Z_][\w-]*$/;
+
+function buildFlatScssEdit(
+  selectorInfo: SelectorInfo,
+  newName: string,
+): { range: LspRange; newText: string } | null {
+  if (!IDENTIFIER_RE.test(newName)) return null;
+  return { range: toLspRange(selectorInfo.range), newText: newName };
+}
+
+function buildNestedScssEdit(
+  selectorInfo: SelectorInfo,
+  newName: string,
+): { range: LspRange; newText: string } | null {
+  // Trio is guaranteed non-null by prepareRenameFromScss. The
+  // destructuring narrowing below is TypeScript hygiene, not a
+  // second runtime gate — keeping it avoids propagating `!` asserts.
+  const { parentResolvedName: parent, rawToken, rawTokenRange: rawRange } = selectorInfo;
+  if (!parent || !rawToken || !rawRange) return null;
+
+  if (!IDENTIFIER_RE.test(newName)) return null;
+
+  // Cross-parent rename → reject in MVP.
+  if (!selectorInfo.name.startsWith(parent)) return null;
+  if (!newName.startsWith(parent)) return null;
+
+  const oldSuffix = selectorInfo.name.slice(parent.length);
+  const newSuffix = newName.slice(parent.length);
+
+  // Reject no-op (rename-to-same) and empty-suffix (bare `&`).
+  if (oldSuffix === newSuffix) return null;
+  if (newSuffix.length === 0) return null;
+
+  // Parser invariant: rawToken === "&" + oldSuffix, so suffixOffset
+  // must be 1. The check below is defense-in-depth — if the parser
+  // somehow produced a different shape we'd rather bail than write
+  // wrong bytes.
+  const suffixOffset = rawToken.indexOf(oldSuffix);
+  if (suffixOffset !== 1) return null;
+
+  const suffixRange: LspRange = {
+    start: {
+      line: rawRange.start.line,
+      character: rawRange.start.character + suffixOffset,
+    },
+    end: {
+      line: rawRange.start.line,
+      character: rawRange.start.character + suffixOffset + oldSuffix.length,
+    },
+  };
+  return { range: suffixRange, newText: newSuffix };
 }

@@ -120,4 +120,72 @@ describe("rename protocol", () => {
     });
     expect(prep).toBeNull();
   });
+
+  // Wave 2A — end-to-end BEM suffix rename across SCSS + TSX.
+  it("rename &-nested BEM suffix rewrites only the suffix in SCSS and the full class in TSX", async () => {
+    const BEM_SCSS = `.button {
+  padding: 8px;
+  &--primary {
+    color: white;
+  }
+}
+`;
+    const BEM_TSX = `import classNames from 'classnames/bind';
+import styles from './Button.module.scss';
+const cx = classNames.bind(styles);
+export function App() {
+  return <div className={cx('button--primary')}>hi</div>;
+}
+`;
+    client = createInProcessServer({
+      readStyleFile: () => BEM_SCSS,
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/App.tsx",
+        languageId: "typescriptreact",
+        version: 1,
+        text: BEM_TSX,
+      },
+    });
+    await client.waitForDiagnostics("file:///fake/workspace/src/App.tsx");
+
+    // Cursor on the `&` of `&--primary` at line 2, column 2.
+    const cursor = { line: 2, character: 2 };
+
+    // prepareRename: range covers exactly `&--primary` (10 chars),
+    // placeholder is the resolved class name.
+    const prep = await client.prepareRename({
+      textDocument: { uri: "file:///fake/workspace/src/Button.module.scss" },
+      position: cursor,
+    });
+    expect(prep).not.toBeNull();
+    expect(prep!.placeholder).toBe("button--primary");
+    expect(prep!.range.start).toEqual({ line: 2, character: 2 });
+    expect(prep!.range.end).toEqual({ line: 2, character: 12 });
+
+    // rename: SCSS edit is only `--primary → --tiny` (9 chars).
+    // TSX edit is the full `button--primary → button--tiny`.
+    const edit = await client.rename({
+      textDocument: { uri: "file:///fake/workspace/src/Button.module.scss" },
+      position: cursor,
+      newName: "button--tiny",
+    });
+    expect(edit).not.toBeNull();
+    const changes = edit!.changes!;
+
+    const scssEdits = changes["file:///fake/workspace/src/Button.module.scss"]!;
+    expect(scssEdits).toHaveLength(1);
+    expect(scssEdits[0]!.newText).toBe("--tiny");
+    expect(scssEdits[0]!.range.start).toEqual({ line: 2, character: 3 });
+    expect(scssEdits[0]!.range.end).toEqual({ line: 2, character: 12 });
+
+    const tsxEdits = changes["file:///fake/workspace/src/App.tsx"]!;
+    expect(tsxEdits).toHaveLength(1);
+    expect(tsxEdits[0]!.newText).toBe("button--tiny");
+  });
 });

@@ -404,7 +404,7 @@ describe("prepareRename through real parseStyleModule (regression)", () => {
     expect(result).toHaveProperty("placeholder", "button");
   });
 
-  it("`.button { &--primary {} }` — flat .button is renameable, &--primary is not", async () => {
+  it("`.button { &--primary {} }` — both flat .button and nested &--primary are renameable", async () => {
     const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
     const classMap = parseStyleModule(
       `.button {\n  color: red;\n  &--primary { background: blue; }\n}`,
@@ -425,44 +425,376 @@ describe("prepareRename through real parseStyleModule (regression)", () => {
     expect(flat).not.toBeNull();
     expect(flat).toHaveProperty("placeholder", "button");
 
-    // Cursor on the nested `button--primary` — rejected (isNested is true).
-    const nestedRange = classMap.get("button--primary")!.range;
+    // Cursor on the nested `&--primary` — now ACCEPTED in Wave 2A.
+    // Placeholder is the resolved class name `"button--primary"`;
+    // range covers the `&--primary` slice (10 chars) on its line.
+    const nestedInfo = classMap.get("button--primary")!;
+    const rawRange = nestedInfo.rawTokenRange!;
     const nested = handlePrepareRename(
       {
         textDocument: { uri: SCSS_URI },
-        position: { line: nestedRange.start.line, character: nestedRange.start.character + 1 },
+        position: {
+          line: rawRange.start.line,
+          character: rawRange.start.character + 1,
+        },
       },
       deps,
     );
-    expect(nested).toBeNull();
+    expect(nested).not.toBeNull();
+    expect(nested).toHaveProperty("placeholder", "button--primary");
+    expect((nested as { range: { end: { character: number } } }).range.end.character).toBe(
+      rawRange.start.character + 10,
+    );
   });
 });
 
-describe("Wave 1 Stage 3.4 — &-nested prepareRename reject", () => {
-  it("prepareRename rejects cursor on a &-nested selector (wave1-stage3.4)", () => {
-    // Fixture: SCSS with `.button { &--primary { ... } }`.
-    // The parser stores the resolved class name (`button--primary`)
-    // and flips `isNested: true` because the raw source contained
-    // `&`. Wave 1 defensively rejects these — the range in a nested
-    // SelectorInfo is synthesized from the `&` column with the
-    // resolved name's length and is unsafe to rewrite. Wave 2
-    // ampersand support will add structured `rawToken` fields.
-    const nestedInfo: SelectorInfo = {
-      name: "button--primary",
-      range: { start: { line: 1, character: 2 }, end: { line: 1, character: 17 } },
-      fullSelector: ".button--primary",
-      declarations: "color: red",
-      ruleRange: { start: { line: 1, character: 0 }, end: { line: 2, character: 1 } },
-      isNested: true,
-    };
+describe("&-nested BEM suffix rename", () => {
+  // Positive cases (4): strict red→green for BEM-safe shapes.
+  it("prepareRename on `&--primary` returns range covering only `&--primary` (10 chars)", async () => {
+    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
+    const classMap = parseStyleModule(
+      `.button {\n  &--primary { color: white; }\n}`,
+      "/fake/src/Button.module.scss",
+    );
     const deps = makeBaseDeps({
-      scssClassMapForPath: () => new Map([["button--primary", nestedInfo]]) as ScssClassMap,
+      scssClassMapForPath: () => classMap,
       workspaceRoot: "/fake",
     });
+    const rawRange = classMap.get("button--primary")!.rawTokenRange!;
     const result = handlePrepareRename(
       {
         textDocument: { uri: SCSS_URI },
-        position: { line: 1, character: 5 },
+        position: { line: rawRange.start.line, character: rawRange.start.character + 1 },
+      },
+      deps,
+    );
+    expect(result).not.toBeNull();
+    expect(result).toHaveProperty("placeholder", "button--primary");
+    const range = (
+      result as { range: { start: { character: number }; end: { character: number } } }
+    ).range;
+    expect(range.end.character - range.start.character).toBe(10);
+  });
+
+  it("rename `button--primary → button--tiny`: SCSS edits only `--primary` slice, TSX full", async () => {
+    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
+    const classMap = parseStyleModule(
+      `.button {\n  &--primary { color: white; }\n}`,
+      "/fake/src/Button.module.scss",
+    );
+    const reverseIndex = new WorkspaceReverseIndex();
+    const tsxRange = { start: { line: 3, character: 10 }, end: { line: 3, character: 25 } };
+    reverseIndex.record("file:///fake/src/App.tsx", [
+      {
+        uri: "file:///fake/src/App.tsx",
+        range: tsxRange,
+        scssModulePath: SCSS_PATH,
+        match: { kind: "static", className: "button--primary" },
+        expansion: "direct",
+      },
+    ]);
+    const deps = makeBaseDeps({
+      scssClassMapForPath: () => classMap,
+      workspaceRoot: "/fake",
+      reverseIndex,
+    });
+    const rawRange = classMap.get("button--primary")!.rawTokenRange!;
+    const result = handleRename(
+      {
+        textDocument: { uri: SCSS_URI },
+        position: { line: rawRange.start.line, character: rawRange.start.character + 1 },
+        newName: "button--tiny",
+      },
+      deps,
+    );
+    expect(result).not.toBeNull();
+    const edits = (
+      result as {
+        changes: Record<
+          string,
+          Array<{
+            range: { start: { character: number }; end: { character: number } };
+            newText: string;
+          }>
+        >;
+      }
+    ).changes;
+    // SCSS: only the `--primary` slice (9 chars from column +1) becomes `--tiny`.
+    const scssEdits = edits[SCSS_URI]!;
+    expect(scssEdits).toHaveLength(1);
+    expect(scssEdits[0]!.newText).toBe("--tiny");
+    expect(scssEdits[0]!.range.start.character).toBe(rawRange.start.character + 1);
+    expect(scssEdits[0]!.range.end.character).toBe(rawRange.start.character + 1 + 9);
+    // TSX: full `button--primary` → `button--tiny`.
+    const tsxEdits = edits["file:///fake/src/App.tsx"]!;
+    expect(tsxEdits).toHaveLength(1);
+    expect(tsxEdits[0]!.newText).toBe("button--tiny");
+  });
+
+  it("rename `&__icon`: edits only the `__icon` slice", async () => {
+    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
+    const classMap = parseStyleModule(
+      `.card {\n  &__icon { width: 16px; }\n}`,
+      "/fake/src/Card.module.scss",
+    );
+    const deps = makeBaseDeps({
+      scssClassMapForPath: () => classMap,
+      workspaceRoot: "/fake",
+    });
+    const rawRange = classMap.get("card__icon")!.rawTokenRange!;
+    const result = handleRename(
+      {
+        textDocument: { uri: "file:///fake/src/Card.module.scss" },
+        position: { line: rawRange.start.line, character: rawRange.start.character + 1 },
+        newName: "card__glyph",
+      },
+      deps,
+    );
+    expect(result).not.toBeNull();
+    const edits = (result as { changes: Record<string, Array<{ newText: string }>> }).changes;
+    const scssEdits = edits["file:///fake/src/Card.module.scss"]!;
+    expect(scssEdits[0]!.newText).toBe("__glyph");
+  });
+
+  it("double-nested `.card { &__icon { &--small {} } }` edits only innermost `--small`", async () => {
+    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
+    const classMap = parseStyleModule(
+      `.card {\n  &__icon {\n    &--small { font-size: 12px; }\n  }\n}`,
+      "/fake/src/Card.module.scss",
+    );
+    const deps = makeBaseDeps({
+      scssClassMapForPath: () => classMap,
+      workspaceRoot: "/fake",
+    });
+    const rawRange = classMap.get("card__icon--small")!.rawTokenRange!;
+    const result = handleRename(
+      {
+        textDocument: { uri: "file:///fake/src/Card.module.scss" },
+        position: { line: rawRange.start.line, character: rawRange.start.character + 1 },
+        newName: "card__icon--xs",
+      },
+      deps,
+    );
+    expect(result).not.toBeNull();
+    const edits = (result as { changes: Record<string, Array<{ newText: string }>> }).changes;
+    const scssEdits = edits["file:///fake/src/Card.module.scss"]!;
+    expect(scssEdits).toHaveLength(1);
+    expect(scssEdits[0]!.newText).toBe("--xs");
+  });
+
+  // Negative cases (12): new guards in Commit 4.
+  it("rejects cross-parent rename `button--primary → banner--tiny`", async () => {
+    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
+    const classMap = parseStyleModule(
+      `.button {\n  &--primary {}\n}`,
+      "/fake/src/Button.module.scss",
+    );
+    const deps = makeBaseDeps({ scssClassMapForPath: () => classMap, workspaceRoot: "/fake" });
+    const rawRange = classMap.get("button--primary")!.rawTokenRange!;
+    const result = handleRename(
+      {
+        textDocument: { uri: SCSS_URI },
+        position: { line: rawRange.start.line, character: rawRange.start.character + 1 },
+        newName: "banner--tiny",
+      },
+      deps,
+    );
+    expect(result).toBeNull();
+  });
+
+  it("rejects empty-suffix rename `button--primary → button`", async () => {
+    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
+    const classMap = parseStyleModule(`.button {\n  &--primary {}\n}`, "/f.module.scss");
+    const deps = makeBaseDeps({ scssClassMapForPath: () => classMap, workspaceRoot: "/fake" });
+    const rawRange = classMap.get("button--primary")!.rawTokenRange!;
+    const result = handleRename(
+      {
+        textDocument: { uri: SCSS_URI },
+        position: { line: rawRange.start.line, character: rawRange.start.character + 1 },
+        newName: "button",
+      },
+      deps,
+    );
+    expect(result).toBeNull();
+  });
+
+  it("rejects no-op rename `button--primary → button--primary`", async () => {
+    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
+    const classMap = parseStyleModule(`.button {\n  &--primary {}\n}`, "/f.module.scss");
+    const deps = makeBaseDeps({ scssClassMapForPath: () => classMap, workspaceRoot: "/fake" });
+    const rawRange = classMap.get("button--primary")!.rawTokenRange!;
+    const result = handleRename(
+      {
+        textDocument: { uri: SCSS_URI },
+        position: { line: rawRange.start.line, character: rawRange.start.character + 1 },
+        newName: "button--primary",
+      },
+      deps,
+    );
+    expect(result).toBeNull();
+  });
+
+  it("rejects interpolated rawToken (guard test — synthetic SelectorInfo)", () => {
+    // Parser cannot produce this shape, but the guard is load-bearing
+    // if a future parser change weakens interpolation filtering.
+    const synthetic: SelectorInfo = {
+      name: "btn--primary",
+      range: { start: { line: 1, character: 2 }, end: { line: 1, character: 16 } },
+      rawTokenRange: { start: { line: 1, character: 2 }, end: { line: 1, character: 14 } },
+      rawToken: "&--#{$mod}",
+      parentResolvedName: "btn",
+      isNested: true,
+      fullSelector: ".btn--primary",
+      declarations: "",
+      ruleRange: { start: { line: 1, character: 0 }, end: { line: 1, character: 16 } },
+    };
+    const deps = makeBaseDeps({
+      scssClassMapForPath: () => new Map([["btn--primary", synthetic]]) as ScssClassMap,
+      workspaceRoot: "/fake",
+    });
+    const result = handlePrepareRename(
+      { textDocument: { uri: SCSS_URI }, position: { line: 1, character: 3 } },
+      deps,
+    );
+    expect(result).toBeNull();
+  });
+
+  it("rejects non-bare parent `.card:hover { &--primary {} }`", async () => {
+    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
+    const classMap = parseStyleModule(`.card:hover {\n  &--primary {}\n}`, "/f.module.scss");
+    // `card--primary` never exists because extractClassNames strips
+    // `:hover--primary` greedily. Any cursor on line 1 falls through.
+    expect(classMap.has("card--primary")).toBe(false);
+  });
+
+  it("rejects grouped parent `.a, .b { &--c {} }`", async () => {
+    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
+    const classMap = parseStyleModule(`.a, .b {\n  &--c {}\n}`, "/f.module.scss");
+    const info = classMap.get("a--c") ?? classMap.get("b--c");
+    expect(info).toBeDefined();
+    // Trio undefined because parentCtx.isGrouped === true
+    expect(info!.parentResolvedName).toBeUndefined();
+    // prepareRename must refuse
+    const deps = makeBaseDeps({ scssClassMapForPath: () => classMap, workspaceRoot: "/fake" });
+    const result = handlePrepareRename(
+      { textDocument: { uri: SCSS_URI }, position: { line: 1, character: 3 } },
+      deps,
+    );
+    expect(result).toBeNull();
+  });
+
+  it("rejects grouped-nested child `.btn { &--a, &--b {} }`", async () => {
+    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
+    const classMap = parseStyleModule(`.btn {\n  &--a, &--b {}\n}`, "/f.module.scss");
+    const a = classMap.get("btn--a");
+    expect(a).toBeDefined();
+    expect(a!.parentResolvedName).toBeUndefined();
+    const deps = makeBaseDeps({ scssClassMapForPath: () => classMap, workspaceRoot: "/fake" });
+    const result = handlePrepareRename(
+      { textDocument: { uri: SCSS_URI }, position: { line: 1, character: 3 } },
+      deps,
+    );
+    expect(result).toBeNull();
+  });
+
+  it("rejects multi-`&` `.btn { & + &--x {} }`", async () => {
+    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
+    const classMap = parseStyleModule(`.btn {\n  & + &--x {}\n}`, "/f.module.scss");
+    const info = classMap.get("btn--x");
+    if (info !== undefined) {
+      expect(info.rawTokenRange).toBeUndefined();
+      const deps = makeBaseDeps({ scssClassMapForPath: () => classMap, workspaceRoot: "/fake" });
+      const result = handlePrepareRename(
+        { textDocument: { uri: SCSS_URI }, position: { line: 1, character: 3 } },
+        deps,
+      );
+      expect(result).toBeNull();
+    }
+  });
+
+  it("rejects compound `.button { &.active {} }` (active entry has no trio)", async () => {
+    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
+    const classMap = parseStyleModule(`.button {\n  &.active {}\n}`, "/f.module.scss");
+    const active = classMap.get("active")!;
+    expect(active.isNested).toBe(true);
+    expect(active.parentResolvedName).toBeUndefined();
+    const deps = makeBaseDeps({ scssClassMapForPath: () => classMap, workspaceRoot: "/fake" });
+    // Cursor on `&.active` → selectorInfo is the `active` entry with
+    // trio undefined → reject via nested-trio guard.
+    const result = handlePrepareRename(
+      { textDocument: { uri: SCSS_URI }, position: { line: 1, character: 3 } },
+      deps,
+    );
+    expect(result).toBeNull();
+  });
+
+  it("rejects invalid newName (empty string)", async () => {
+    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
+    const classMap = parseStyleModule(`.button {\n  &--primary {}\n}`, "/f.module.scss");
+    const deps = makeBaseDeps({ scssClassMapForPath: () => classMap, workspaceRoot: "/fake" });
+    const rawRange = classMap.get("button--primary")!.rawTokenRange!;
+    const result = handleRename(
+      {
+        textDocument: { uri: SCSS_URI },
+        position: { line: rawRange.start.line, character: rawRange.start.character + 1 },
+        newName: "",
+      },
+      deps,
+    );
+    expect(result).toBeNull();
+  });
+
+  it("rejects invalid newName (numeric start)", async () => {
+    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
+    const classMap = parseStyleModule(`.button {\n  &--primary {}\n}`, "/f.module.scss");
+    const deps = makeBaseDeps({ scssClassMapForPath: () => classMap, workspaceRoot: "/fake" });
+    const rawRange = classMap.get("button--primary")!.rawTokenRange!;
+    const result = handleRename(
+      {
+        textDocument: { uri: SCSS_URI },
+        position: { line: rawRange.start.line, character: rawRange.start.character + 1 },
+        newName: "123xyz",
+      },
+      deps,
+    );
+    expect(result).toBeNull();
+  });
+
+  it("Wave 1 Bug 3.1 regression: nested `&--primary` + template `cx(\\`button--${x}\\`)` still rejects via expanded-sites", async () => {
+    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
+    const classMap = parseStyleModule(
+      `.button {\n  &--primary {}\n}`,
+      "/fake/src/Button.module.scss",
+    );
+    const reverseIndex = new WorkspaceReverseIndex();
+    // Simulate a template-literal call site that expanded to
+    // include `button--primary`. Rename must still reject.
+    reverseIndex.record("file:///fake/src/App.tsx", [
+      {
+        uri: "file:///fake/src/App.tsx",
+        range: { start: { line: 5, character: 10 }, end: { line: 5, character: 30 } },
+        scssModulePath: SCSS_PATH,
+        match: { kind: "template", staticPrefix: "button--" },
+        expansion: "direct",
+      },
+      {
+        uri: "file:///fake/src/App.tsx",
+        range: { start: { line: 5, character: 10 }, end: { line: 5, character: 30 } },
+        scssModulePath: SCSS_PATH,
+        match: { kind: "static", className: "button--primary" },
+        expansion: "expanded",
+      },
+    ]);
+    const deps = makeBaseDeps({
+      scssClassMapForPath: () => classMap,
+      workspaceRoot: "/fake",
+      reverseIndex,
+    });
+    const rawRange = classMap.get("button--primary")!.rawTokenRange!;
+    const result = handlePrepareRename(
+      {
+        textDocument: { uri: SCSS_URI },
+        position: { line: rawRange.start.line, character: rawRange.start.character + 1 },
       },
       deps,
     );
