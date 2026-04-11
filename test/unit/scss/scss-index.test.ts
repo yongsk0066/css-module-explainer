@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
+import type { Rule } from "postcss";
 import {
   buildChildContext,
+  enumerateGroups,
+  findBemSuffixSpan,
   parseStyleModule,
   StyleIndexCache,
 } from "../../../server/src/core/scss/scss-index";
@@ -347,5 +350,123 @@ describe("buildChildContext", () => {
     expect(ctx.selector).toBe(".a .b");
     expect(ctx.className).toBeUndefined();
     expect(ctx.isGrouped).toBeUndefined();
+  });
+});
+
+describe("enumerateGroups", () => {
+  it("splits a simple comma-separated selector", () => {
+    expect(enumerateGroups(".a, .b")).toEqual([
+      { raw: ".a", offset: 0 },
+      { raw: ".b", offset: 3 },
+    ]);
+  });
+
+  it("respects paren depth inside :is(...)", () => {
+    const result = enumerateGroups(":is(.a, .b) .c");
+    expect(result).toHaveLength(1);
+    expect(result[0]!.raw).toBe(":is(.a, .b) .c");
+    expect(result[0]!.offset).toBe(0);
+  });
+
+  it("passes comment text through verbatim", () => {
+    const result = enumerateGroups(".a /* x */ b");
+    expect(result).toHaveLength(1);
+    expect(result[0]!.raw).toBe(".a /* x */ b");
+  });
+});
+
+describe("findBemSuffixSpan", () => {
+  // Helper: build a minimal postcss-Rule-like mock whose
+  // `source.start.offset === 0` and `input.fromOffset` returns a
+  // fake 1-based { line, col } computed from the given content.
+  // Sufficient for exercising the offset math in isolation.
+  function mockRule(content: string): Rule {
+    return {
+      source: {
+        start: { offset: 0, line: 1, column: 1 },
+        input: {
+          fromOffset(offset: number): { line: number; col: number } | null {
+            if (offset < 0 || offset > content.length) return null;
+            let line = 1;
+            let col = 1;
+            for (let i = 0; i < offset; i++) {
+              if (content[i] === "\n") {
+                line++;
+                col = 1;
+              } else {
+                col++;
+              }
+            }
+            return { line, col };
+          },
+        },
+      },
+    } as unknown as Rule;
+  }
+
+  it("accepts `&--primary`", () => {
+    const result = findBemSuffixSpan(mockRule("&--primary"), 0, "&--primary");
+    expect(result).not.toBeNull();
+    expect(result!.rawToken).toBe("&--primary");
+    expect(result!.range.start).toEqual({ line: 0, character: 0 });
+    expect(result!.range.end).toEqual({ line: 0, character: 10 });
+  });
+
+  it("accepts `&__icon`", () => {
+    const result = findBemSuffixSpan(mockRule("&__icon"), 0, "&__icon");
+    expect(result).not.toBeNull();
+    expect(result!.rawToken).toBe("&__icon");
+    expect(result!.range.end.character - result!.range.start.character).toBe(7);
+  });
+
+  it("rejects compound `&.active`", () => {
+    expect(findBemSuffixSpan(mockRule("&.active"), 0, "&.active")).toBeNull();
+  });
+
+  it("rejects pseudo `&:hover`", () => {
+    expect(findBemSuffixSpan(mockRule("&:hover"), 0, "&:hover")).toBeNull();
+  });
+
+  it("rejects combinator-before `.a &--x`", () => {
+    expect(findBemSuffixSpan(mockRule(".a &--x"), 0, ".a &--x")).toBeNull();
+  });
+
+  it("rejects descendant-after `&--x .y`", () => {
+    expect(findBemSuffixSpan(mockRule("&--x .y"), 0, "&--x .y")).toBeNull();
+  });
+
+  it("accepts hyphenated `&--primary-inverse`", () => {
+    const result = findBemSuffixSpan(mockRule("&--primary-inverse"), 0, "&--primary-inverse");
+    expect(result).not.toBeNull();
+    expect(result!.rawToken).toBe("&--primary-inverse");
+    expect(result!.range.end.character - result!.range.start.character).toBe(18);
+  });
+
+  it("returns null when `rule.source.start` is undefined", () => {
+    const rule = { source: {} } as unknown as Rule;
+    expect(findBemSuffixSpan(rule, 0, "&--primary")).toBeNull();
+  });
+
+  it("accepts trailing-whitespace-only `&--primary  ` (off-by-one regression catcher)", () => {
+    // The step 6 slice must be `slice(ampIndex + fragment.length).trim()`,
+    // NOT `... - 1`. An off-by-one implementation would see `"y  "` and
+    // reject — this test locks the correct semantics.
+    const result = findBemSuffixSpan(mockRule("&--primary  "), 0, "&--primary  ");
+    expect(result).not.toBeNull();
+    expect(result!.rawToken).toBe("&--primary");
+  });
+
+  it("rejects descendant-after sibling `&--primary .y`", () => {
+    expect(findBemSuffixSpan(mockRule("&--primary .y"), 0, "&--primary .y")).toBeNull();
+  });
+
+  it("rejects immediate-compound prefix `.a&--x` / `#id&--x` / `[data-x]&--x` / `tag&--x`", () => {
+    // Without the step 3 "nothing before the &" check, the resolved
+    // selector would be `.a.parent--x` which extractClassNames turns
+    // into TWO classes, violating the §2.4 single-class invariant.
+    expect(findBemSuffixSpan(mockRule(".a&--x"), 0, ".a&--x")).toBeNull();
+    expect(findBemSuffixSpan(mockRule("#id&--x"), 0, "#id&--x")).toBeNull();
+    expect(findBemSuffixSpan(mockRule("[data-x]&--x"), 0, "[data-x]&--x")).toBeNull();
+    expect(findBemSuffixSpan(mockRule("tag&--x"), 0, "tag&--x")).toBeNull();
   });
 });

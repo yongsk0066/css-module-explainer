@@ -4,7 +4,13 @@ import { LruMap } from "../util/lru-map";
 import { parseStyleModule } from "./scss-parser";
 
 // Re-export so existing consumers don't break.
-export { parseStyleModule, buildChildContext, type ParentContext } from "./scss-parser";
+export {
+  parseStyleModule,
+  buildChildContext,
+  enumerateGroups,
+  findBemSuffixSpan,
+  type ParentContext,
+} from "./scss-parser";
 
 // ──────────────────────────────────────────────────────────────
 // StyleIndexCache

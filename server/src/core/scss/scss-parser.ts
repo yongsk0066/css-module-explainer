@@ -144,6 +144,91 @@ function isInlineAtRoot(atrule: AtRule): boolean {
   return atrule.params.trim().length > 0;
 }
 
+/**
+ * Split a selector source on top-level commas, tracking the offset
+ * of each group within the original string. Unlike `rule.selectors`
+ * (which loses per-group offsets), this walker respects paren depth
+ * so commas inside `:is(.a, .b)` or `:not(.c, .d)` are preserved.
+ *
+ * Exported for unit testing.
+ */
+export function enumerateGroups(selectorSource: string): Array<{ raw: string; offset: number }> {
+  const groups: Array<{ raw: string; offset: number }> = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < selectorSource.length; i++) {
+    const ch = selectorSource[i];
+    if (ch === "(" || ch === "[") depth++;
+    else if (ch === ")" || ch === "]") depth--;
+    else if (ch === "," && depth === 0) {
+      groups.push({ raw: selectorSource.slice(start, i).trim(), offset: start });
+      start = i + 1;
+    }
+  }
+  groups.push({ raw: selectorSource.slice(start).trim(), offset: start });
+  return groups;
+}
+
+/**
+ * Locate the BEM suffix fragment (`&--x` or `&__x`) inside a
+ * raw nested selector group and convert its source offsets to
+ * a 0-based LSP `Range`.
+ *
+ * Precondition (caller-enforced): called only when the raw group
+ * is known to be nested (contains `&`) and to contain exactly one
+ * `&`. Returns `null` for any shape that is not a safe BEM suffix:
+ * compound (`&.active`), pseudo (`&:hover`), attribute (`&[x]`),
+ * id (`&#foo`), combinator-before (`.a &--x`, `.a&--x`, etc.),
+ * descendant-after (`&--x .y`), trailing compound (`&--x.other`).
+ *
+ * Exported for unit testing.
+ */
+export function findBemSuffixSpan(
+  rule: Rule,
+  groupOffset: number,
+  rawGroup: string,
+): { rawToken: string; range: Range } | null {
+  const src = rule.source;
+  if (!src?.start) return null;
+  const startOffset = src.start.offset;
+
+  const ampIndex = rawGroup.indexOf("&");
+  if (ampIndex < 0) return null;
+  const groupAbsOffset = startOffset + groupOffset;
+
+  // Nothing before the `&`: rejects combinator-before (`.a &--x`),
+  // immediate-compound prefix (`.a&--x`, `#id&--x`, `[x]&--x`),
+  // and any non-whitespace prefix.
+  if (rawGroup.slice(0, ampIndex).trim() !== "") return null;
+
+  // Tail must start with `--<name>` or `__<name>`.
+  const tail = rawGroup.slice(ampIndex + 1);
+  const match = /^(--|__)[a-zA-Z_][\w-]*/.exec(tail);
+  if (!match) return null;
+
+  const fragment = "&" + match[0];
+
+  // Must be the last non-whitespace token in the group. Rejects
+  // descendant-after (`&--x .y`), trailing compound (`&--x.other`),
+  // trailing comments, etc.
+  if (rawGroup.slice(ampIndex + fragment.length).trim() !== "") return null;
+
+  const tokenStartOffset = groupAbsOffset + ampIndex;
+  const tokenEndOffset = tokenStartOffset + fragment.length;
+
+  const startPos = src.input.fromOffset(tokenStartOffset);
+  const endPos = src.input.fromOffset(tokenEndOffset);
+  if (!startPos || !endPos) return null;
+
+  return {
+    rawToken: fragment,
+    range: {
+      start: { line: startPos.line - 1, character: startPos.col - 1 },
+      end: { line: endPos.line - 1, character: endPos.col - 1 },
+    },
+  };
+}
+
 function recordRule(
   rule: Rule,
   parentCtx: ParentContext,
