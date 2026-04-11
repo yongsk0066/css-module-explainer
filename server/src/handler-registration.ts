@@ -203,11 +203,16 @@ function registerDocumentHandlers(state: HandlerState): void {
     state.scheduler.handleDocumentClose(change.document.uri);
     const deps = state.ctx.getDeps();
     if (!deps) return;
-    // Drop every reverse-index contribution this URI owned so a
-    // later SCSS unused-selector check no longer sees the stale
-    // cx() sites. The analysis cache's per-URI entry is cleared
-    // by the cache's own document-close listener; this line
-    // handles the workspace-level reverse index that outlives it.
+    // Three collaborators share one policy on close: drop every
+    // workspace-visible trace of the buffer before the next
+    // analyze or SCSS unused-selector check runs.
+    //  - `reverseIndex.forget` removes the cx() sites the TSX
+    //    buffer contributed; without it the canonical bucket
+    //    would keep treating a closed reference as live.
+    //  - `analysisCache.invalidate` drops the cached AnalysisEntry
+    //    so a later reopen re-runs `scanCxImports` against a
+    //    fresh buffer instead of replaying a cached entry whose
+    //    reverse-index contributions have already been forgotten.
     deps.reverseIndex.forget(change.document.uri);
     deps.analysisCache.invalidate(change.document.uri);
   });

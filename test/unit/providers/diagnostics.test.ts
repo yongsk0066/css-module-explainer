@@ -412,10 +412,10 @@ describe("missing-module diagnostics", () => {
 
   it("missing-module check fires on pure styles.x access without a classnames/bind import", () => {
     // The fixture deliberately omits `classnames/bind` so the
-    // `styles.x` access is the only hook for the missing-module
-    // loop. An earlier shape of `computeDiagnostics` short-
-    // circuited when the content had no `classnames/bind` token
-    // and skipped these files entirely.
+    // only hook for the missing-module loop is the `styles.x`
+    // property access. Pins that the loop does NOT gate on a
+    // `classnames/bind` token being present in the file, so
+    // plain CSS Modules consumers still get diagnostics.
     const PURE_STYLES_TSX = `import styles from './typo.module.scss';\nexport const A = () => styles.a;\n`;
     const deps = makeMissingDeps();
     const result = computeDiagnostics(

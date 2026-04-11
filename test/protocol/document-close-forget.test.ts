@@ -56,9 +56,10 @@ describe("document close forgets reverse-index contributions", () => {
     // NOT flag it.
     expect(scssWhileTsxOpen.find((d) => d.message.includes("'.btn'"))).toBeUndefined();
 
-    // Close the TSX file. Pre-fix, the reverse index still held the
-    // TSX's contribution — a subsequent unused-check on the SCSS
-    // file would treat `.btn` as referenced forever.
+    // Close the TSX file. The close handler must drop the workspace
+    // reverse-index contribution the TSX buffer owned — otherwise
+    // a subsequent unused-selector check on the SCSS file would
+    // keep seeing the closed cx() site and treat `.btn` as referenced.
     client.didClose({ textDocument: { uri: TSX_URI } });
 
     // Touch the SCSS buffer to force a reschedule (onDidChangeContent

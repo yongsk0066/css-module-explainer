@@ -68,9 +68,10 @@ describe("reloadSettings reschedules open documents by language", () => {
     // `btn-primary` and its `btnPrimary` alias, so the reverse
     // index resolves the TSX access to the canonical bucket and
     // the selector is no longer unused — but only if the open
-    // SCSS document gets rescheduled. Pre-fix, `reloadSettings`
-    // routed every open document through `scheduleTsx`, leaving
-    // the SCSS diagnostic frozen against the prior mode.
+    // SCSS document is rescheduled by language. A reload handler
+    // that routes every open document through `scheduleTsx`
+    // never recomputes the SCSS unused-check, so the flag would
+    // stay frozen against the prior mode.
     client.setConfiguration("cssModuleExplainer", {
       scss: { classnameTransform: "camelCase" },
     });
@@ -78,10 +79,11 @@ describe("reloadSettings reschedules open documents by language", () => {
 
     const rescheduledScss = await client.waitForDiagnostics(SCSS_URI);
     // `.orphan` stays unused under both modes — its presence in
-    // the rescheduled publish proves the SCSS unused-selector
-    // check actually ran (as opposed to the pre-fix behaviour,
-    // which routed SCSS docs through `scheduleTsx` and published
-    // an empty diagnostic array from the TSX class-token check).
+    // the rescheduled publish is the positive control that
+    // proves the SCSS unused-selector pipeline actually ran on
+    // this reschedule. Without that anchor a spurious empty
+    // publish from a misrouted scheduler call would look
+    // indistinguishable from the expected clear.
     expect(rescheduledScss.find((d) => d.message.includes("'.orphan'"))).toBeDefined();
     expect(rescheduledScss.find((d) => d.message.includes("'.btn-primary'"))).toBeUndefined();
   });

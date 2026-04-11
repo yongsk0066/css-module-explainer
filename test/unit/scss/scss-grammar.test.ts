@@ -183,12 +183,11 @@ describe("Unicode class-name identifiers survive extraction", () => {
 });
 
 describe("leading byte-order mark does not hide the first class", () => {
-  // Files saved by some Windows editors (and copy-pastes through a
-  // BOM-preserving path) carry a leading U+FEFF. postcss-scss parses
-  // that as stray content and drops the first selector, leaving an
-  // empty class map and the "declared but never used" diagnostic on
-  // every TSX reference. Strip the BOM before handing the buffer to
-  // the parser.
+  // postcss, postcss-scss, and postcss-less all tolerate a leading
+  // U+FEFF natively and produce a class map whose first entry is
+  // the first real selector. Pin that invariant for every grammar
+  // route so a parser swap or a top-level parser rewrite can't
+  // silently regress files saved by BOM-emitting editors.
   it("UTF-8 BOM at the file start keeps the first selector in the class map", () => {
     const m = parseStyleModule("\uFEFF.btn { color: red; }", "/f.module.scss");
     expect([...m.keys()]).toEqual(["btn"]);
