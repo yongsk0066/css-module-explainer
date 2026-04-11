@@ -16,7 +16,11 @@ import ts from "typescript";
 import type { ScssClassMap } from "@css-module-explainer/shared";
 import { buildStyleFileWatcherGlob, findLangForPath } from "./core/scss/lang-registry";
 import { StyleIndexCache } from "./core/scss/scss-index";
-import { collectStyleImports, detectCxBindings } from "./core/cx/binding-detector";
+import {
+  collectStyleImports,
+  detectClassUtilImports,
+  detectCxBindings,
+} from "./core/cx/binding-detector";
 import { parseCxCalls } from "./core/cx/call-parser";
 import { parseStylePropertyAccesses } from "./core/cx/style-access-parser";
 import { parseClassRefs } from "./core/cx/class-ref-parser";
@@ -201,6 +205,7 @@ function buildBundle(
     parseCxCalls,
     parseStyleAccesses: parseStylePropertyAccesses,
     parseClassRefs,
+    detectClassUtilImports,
     max: 200,
     onAnalyze: (uri, entry) => {
       reverseIndex.record(

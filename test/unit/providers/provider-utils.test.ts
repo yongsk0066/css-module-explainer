@@ -13,7 +13,7 @@ import {
   withCxCallAtCursor,
   type ProviderDeps,
 } from "../../../server/src/providers/cursor-dispatch";
-import { isInsideCxCall } from "../../../server/src/providers/completion";
+import { isInsideCall } from "../../../server/src/providers/completion";
 import { makeBaseDeps } from "../../_fixtures/test-helpers";
 
 const TSX = `
@@ -77,37 +77,37 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   });
 }
 
-describe("isInsideCxCall", () => {
+describe("isInsideCall", () => {
   it("returns true when the last cx( is still open on the line", () => {
-    expect(isInsideCxCall("const x = cx('abc", "cx")).toBe(true);
+    expect(isInsideCall("const x = cx('abc", "cx")).toBe(true);
   });
 
   it("returns false when the cx call is already closed", () => {
-    expect(isInsideCxCall("const x = cx('abc')", "cx")).toBe(false);
+    expect(isInsideCall("const x = cx('abc')", "cx")).toBe(false);
   });
 
   it("returns false when there is no cx call on the line", () => {
-    expect(isInsideCxCall("const x = 1", "cx")).toBe(false);
+    expect(isInsideCall("const x = 1", "cx")).toBe(false);
   });
 
   it("handles nested parens correctly", () => {
-    expect(isInsideCxCall("cx(isActive && 'on'", "cx")).toBe(true);
-    expect(isInsideCxCall("cx(isActive && 'on')", "cx")).toBe(false);
+    expect(isInsideCall("cx(isActive && 'on'", "cx")).toBe(true);
+    expect(isInsideCall("cx(isActive && 'on')", "cx")).toBe(false);
   });
 
   it("handles an object literal inside the call", () => {
-    expect(isInsideCxCall("cx({ active", "cx")).toBe(true);
-    expect(isInsideCxCall("cx({ active: true", "cx")).toBe(true);
-    expect(isInsideCxCall("cx({ active: true })", "cx")).toBe(false);
+    expect(isInsideCall("cx({ active", "cx")).toBe(true);
+    expect(isInsideCall("cx({ active: true", "cx")).toBe(true);
+    expect(isInsideCall("cx({ active: true })", "cx")).toBe(false);
   });
 
   it("ignores a cx call from earlier on the same line", () => {
-    expect(isInsideCxCall("const a = cx('b'); const c = cx('d", "cx")).toBe(true);
+    expect(isInsideCall("const a = cx('b'); const c = cx('d", "cx")).toBe(true);
   });
 
   it("respects custom variable names", () => {
-    expect(isInsideCxCall("const x = classes('abc", "classes")).toBe(true);
-    expect(isInsideCxCall("const x = cx('abc", "classes")).toBe(false);
+    expect(isInsideCall("const x = classes('abc", "classes")).toBe(true);
+    expect(isInsideCall("const x = cx('abc", "classes")).toBe(false);
   });
 });
 

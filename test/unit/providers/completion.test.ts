@@ -5,7 +5,8 @@ import type { CxBinding, CxCallInfo, ScssClassMap } from "@css-module-explainer/
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
 import type { ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
-import { handleCompletion, detectClassUtilImports } from "../../../server/src/providers/completion";
+import { handleCompletion } from "../../../server/src/providers/completion";
+import { detectClassUtilImports } from "../../../server/src/core/cx/binding-detector";
 import { info, makeBaseDeps } from "../../_fixtures/test-helpers";
 
 const TSX = `
@@ -37,6 +38,7 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     collectStyleImports: () => new Map(),
     detectCxBindings,
     parseCxCalls,
+    detectClassUtilImports,
     max: 10,
   });
   return makeBaseDeps({
@@ -226,6 +228,7 @@ const el = clsx(styles.
       // After L8 fix: collectStyleImports is wired and populates stylesBindings
       collectStyleImports: (_sf: ts.SourceFile, _fp: string) =>
         new Map([["styles", "/fake/ws/src/Button.module.scss"]]),
+      detectClassUtilImports,
       max: 10,
     });
     return makeBaseDeps({
@@ -392,7 +395,7 @@ const el = <div className="foo">
       },
       clsxMakeDeps(),
     );
-    // hasClassUtilImport returns false, so computeCompletion exits
+    // hasAnyStyleImport returns false, so computeCompletion exits
     // before touching the AST or analysis cache.
     expect(result).toBeNull();
   });

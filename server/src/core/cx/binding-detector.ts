@@ -28,6 +28,34 @@ import { getAllStyleExtensions } from "../scss/lang-registry";
  * of `detectCxBindings`. Independent style-import scanning: files without classnames/bind now get
  * a populated `stylesBindings` map for `parseStylePropertyAccesses`.
  */
+/**
+ * Scan `sourceFile` for default/named imports from `'clsx'`,
+ * `'clsx/lite'`, or `'classnames'` (NOT `'classnames/bind'`).
+ * Returns the local identifier names (e.g., `["clsx"]`, `["cn"]`).
+ *
+ * Used by the completion provider (via `AnalysisEntry.classUtilNames`)
+ * to detect clsx-style calls. Cheap: walks only top-level statements
+ * (imports are always top-level in valid TS/JS).
+ */
+export function detectClassUtilImports(sourceFile: ts.SourceFile): string[] {
+  const names: string[] = [];
+  const targets = new Set(["clsx", "clsx/lite", "classnames"]);
+  for (const stmt of sourceFile.statements) {
+    if (!ts.isImportDeclaration(stmt)) continue;
+    if (!ts.isStringLiteral(stmt.moduleSpecifier)) continue;
+    if (!targets.has(stmt.moduleSpecifier.text)) continue;
+    const defaultName = stmt.importClause?.name?.text;
+    if (defaultName) names.push(defaultName);
+    const namedBindings = stmt.importClause?.namedBindings;
+    if (namedBindings && ts.isNamedImports(namedBindings)) {
+      for (const spec of namedBindings.elements) {
+        names.push(spec.name.text);
+      }
+    }
+  }
+  return names;
+}
+
 export function collectStyleImports(
   sourceFile: ts.SourceFile,
   filePath: string,

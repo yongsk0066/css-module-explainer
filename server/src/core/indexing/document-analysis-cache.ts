@@ -37,6 +37,13 @@ export interface AnalysisEntry {
   readonly classRefs: readonly ClassRef[];
   /** Map of style-import local name → resolved absolute SCSS path. */
   readonly stylesBindings: ReadonlyMap<string, string>;
+  /**
+   * Local identifiers bound to `clsx`, `clsx/lite`, or `classnames`
+   * imports (NOT `classnames/bind`). Used by the completion provider
+   * to detect whether the cursor sits inside a class-util call. Empty
+   * when the file has no such imports.
+   */
+  readonly classUtilNames: readonly string[];
 }
 
 export interface DocumentAnalysisCacheDeps {
@@ -61,6 +68,12 @@ export interface DocumentAnalysisCacheDeps {
     bindings: readonly CxBinding[],
     stylesBindings: ReadonlyMap<string, string>,
   ) => ClassRef[];
+  /**
+   * Detect `clsx` / `clsx/lite` / `classnames` (not `/bind`) imports
+   * and return their local identifier names. Optional for test
+   * helpers that don't care about completion; falls back to `[]`.
+   */
+  readonly detectClassUtilImports?: (sourceFile: ts.SourceFile) => readonly string[];
   readonly max: number;
   /**
    * Callback fired exactly once per (uri, version) when the cache
@@ -166,6 +179,8 @@ export class DocumentAnalysisCache {
       }
     }
 
+    const classUtilNames = this.deps.detectClassUtilImports?.(sourceFile) ?? [];
+
     return {
       version,
       contentHash: hash,
@@ -175,6 +190,7 @@ export class DocumentAnalysisCache {
       styleRefs,
       classRefs,
       stylesBindings,
+      classUtilNames,
     };
   }
 }

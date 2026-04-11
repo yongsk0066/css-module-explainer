@@ -1,58 +1,35 @@
-import ts from "typescript";
 import { CompletionItemKind, type CompletionItem } from "vscode-languageserver/node";
-import type { CxBinding, SelectorInfo } from "@css-module-explainer/shared";
-import { hasCxBindImport, type CursorParams, type ProviderDeps } from "./cursor-dispatch";
+import type { SelectorInfo } from "@css-module-explainer/shared";
+import type { AnalysisEntry } from "../core/indexing/document-analysis-cache";
+import { hasAnyStyleImport, type CursorParams, type ProviderDeps } from "./cursor-dispatch";
+import { wrapHandler } from "./_wrap-handler";
 
 /**
- * Handle `textDocument/completion` inside a `cx()` call.
+ * Handle `textDocument/completion` inside a class-util call.
  *
- * Pipeline:
- * 1. Fast-path on `classnames/bind` import.
- * 2. Analyze document → bindings.
- * 3. For each binding whose scope contains the cursor: check
- *    `isInsideCxCall` on `textBefore`.
- * 4. If inside, pull the classMap for that binding and emit
- *    one CompletionItem per class.
+ * Pipeline (unified, Wave 1 Stage 2c):
+ * 1. Fast-path on `hasAnyStyleImport` — file imports something
+ *    we care about (`.module.*` or `classnames/bind`).
+ * 2. Fetch the single AnalysisEntry. Bail if it has neither
+ *    `bindings` (cx pipeline) nor `stylesBindings` (clsx path).
+ * 3. Ask `findCompletionContext` for the SCSS module whose
+ *    classMap should feed completions at the cursor. It walks
+ *    cx bindings first, then class-util imports.
+ * 4. Convert every class in that classMap to a CompletionItem.
  *
- * Multiple bindings in one file (multi-binding) are
- * handled by iterating every in-scope binding and merging
- * results. Typical files have 1 binding so this is O(n) tiny.
+ * Before Stage 2c this ran as two sequential pipelines (cx + clsx)
+ * with duplicated `textBefore` scanning. The two paths now share
+ * one branching helper — the only difference is which call the
+ * cursor must sit inside.
  */
-export function handleCompletion(
-  params: CursorParams,
-  deps: ProviderDeps,
-): CompletionItem[] | null {
-  try {
-    return computeCompletion(params, deps);
-  } catch (err) {
-    deps.logError("completion handler failed", err);
-    return null;
-  }
-}
+export const handleCompletion = wrapHandler<CursorParams, [], CompletionItem[] | null>(
+  "completion",
+  computeCompletion,
+  null,
+);
 
 function computeCompletion(params: CursorParams, deps: ProviderDeps): CompletionItem[] | null {
-  // ── Pipeline 1: cx (classnames/bind) ──────────────────────
-  if (hasCxBindImport(params.content)) {
-    const entry = deps.analysisCache.get(
-      params.documentUri,
-      params.content,
-      params.filePath,
-      params.version,
-    );
-    if (entry.bindings.length > 0) {
-      const textBefore = getTextBefore(params.content, params.line, params.character);
-      const matchingBinding = findBindingInsideCall(entry.bindings, params.line, textBefore);
-      if (matchingBinding) {
-        const classMap = deps.scssClassMapForPath(matchingBinding.scssModulePath);
-        if (classMap && classMap.size > 0) {
-          return Array.from(classMap.values(), (info) => toCompletionItem(info));
-        }
-      }
-    }
-  }
-
-  // ── Pipeline 2: clsx / classnames (no /bind) ─────────────
-  if (!hasClassUtilImport(params.content)) return null;
+  if (!hasAnyStyleImport(params.content)) return null;
 
   const entry = deps.analysisCache.get(
     params.documentUri,
@@ -60,46 +37,65 @@ function computeCompletion(params: CursorParams, deps: ProviderDeps): Completion
     params.filePath,
     params.version,
   );
-
-  const classUtilNames = detectClassUtilImports(entry.sourceFile);
-  if (classUtilNames.length === 0) return null;
+  if (entry.bindings.length === 0 && entry.stylesBindings.size === 0) return null;
 
   const textBefore = getTextBefore(params.content, params.line, params.character);
+  const ctx = findCompletionContext(entry, textBefore, params.line);
+  if (!ctx) return null;
 
-  // Check if cursor is inside any class-util call
-  for (const utilName of classUtilNames) {
-    if (!isInsideCxCall(textBefore, utilName)) continue;
+  const classMap = deps.scssClassMapForPath(ctx.scssModulePath);
+  if (!classMap || classMap.size === 0) return null;
 
+  return Array.from(classMap.values(), toCompletionItem);
+}
+
+interface CompletionContext {
+  readonly scssModulePath: string;
+}
+
+/**
+ * Locate the SCSS module whose classes the cursor should complete.
+ *
+ * Pass 1 — cx bindings: every `classnames/bind` binding in scope
+ * whose cx call is still open at the cursor.
+ *
+ * Pass 2 — class-util calls: for each `clsx` / `classnames` import,
+ * if the cursor sits inside that call AND `textBefore` ends with
+ * `<stylesVar>.<partial>` for any known style import, that style
+ * import's resolved path wins.
+ *
+ * First hit wins; returns `null` when nothing matches.
+ */
+function findCompletionContext(
+  entry: AnalysisEntry,
+  textBefore: string,
+  line: number,
+): CompletionContext | null {
+  for (const binding of entry.bindings) {
+    if (line < binding.scope.startLine || line > binding.scope.endLine) continue;
+    if (isInsideCall(textBefore, binding.cxVarName)) {
+      return { scssModulePath: binding.scssModulePath };
+    }
+  }
+
+  if (entry.classUtilNames.length === 0 || entry.stylesBindings.size === 0) return null;
+
+  for (const utilName of entry.classUtilNames) {
+    if (!isInsideCall(textBefore, utilName)) continue;
     // Check if textBefore ends with `<varName>.` or `<varName>.<partial>`
     // for any known style import. Uses simple string check instead of
     // regex to avoid allocation in the hot completion path.
     for (const [varName, scssPath] of entry.stylesBindings) {
-      const dotPrefix = varName + ".";
-      // Find the last occurrence of `varName.` in textBefore
+      const dotPrefix = `${varName}.`;
       const idx = textBefore.lastIndexOf(dotPrefix);
       if (idx < 0) continue;
-      // Everything after `varName.` must be a partial identifier (word chars only)
+      // Everything after `varName.` must be a partial identifier (word chars only).
       const afterDot = textBefore.slice(idx + dotPrefix.length);
       if (afterDot.length > 0 && !/^\w+$/.test(afterDot)) continue;
-      const classMap = deps.scssClassMapForPath(scssPath);
-      if (classMap && classMap.size > 0) {
-        return Array.from(classMap.values(), (info) => toCompletionItem(info));
-      }
+      return { scssModulePath: scssPath };
     }
   }
 
-  return null;
-}
-
-function findBindingInsideCall(
-  bindings: readonly CxBinding[],
-  line: number,
-  textBefore: string,
-): CxBinding | null {
-  for (const binding of bindings) {
-    if (line < binding.scope.startLine || line > binding.scope.endLine) continue;
-    if (isInsideCxCall(textBefore, binding.cxVarName)) return binding;
-  }
   return null;
 }
 
@@ -129,16 +125,17 @@ function toCompletionItem(info: SelectorInfo): CompletionItem {
 export const COMPLETION_TRIGGER_CHARACTERS = ["'", '"', "`", ",", "."] as const;
 
 /**
- * Return true when the last `<cxVarName>(` on `textBefore` is
- * still open — i.e. the cursor sits inside the argument list of
- * a cx call.
+ * Return true when the last `<name>(` on `textBefore` is still
+ * open — i.e. the cursor sits inside the argument list of that
+ * call. Used for both `cx(` (classnames/bind) and `clsx(` /
+ * `classnames(` (clsx-style) detection.
  *
  * String-aware: parentheses inside `'…'`, `"…"`, or `` `…` ``
  * are ignored. Escaped quotes (backslash) are handled. This
  * means `cx(')')` correctly remains "inside" the call.
  */
-export function isInsideCxCall(textBefore: string, cxVarName: string): boolean {
-  const needle = `${cxVarName}(`;
+export function isInsideCall(textBefore: string, callName: string): boolean {
+  const needle = `${callName}(`;
   const callIdx = textBefore.lastIndexOf(needle);
   if (callIdx === -1) return false;
 
@@ -174,48 +171,4 @@ function getTextBefore(content: string, line: number, character: number): string
     offset = nl + 1;
   }
   return content.slice(0, offset + character);
-}
-
-/**
- * Fast-path predicate: does this document import `clsx`,
- * `clsx/lite`, or `classnames` (not `/bind`)? Used before
- * touching the AST.
- */
-function hasClassUtilImport(content: string): boolean {
-  return (
-    content.includes("'clsx'") ||
-    content.includes('"clsx"') ||
-    content.includes("'clsx/lite'") ||
-    content.includes('"clsx/lite"') ||
-    content.includes("'classnames'") ||
-    content.includes('"classnames"')
-  );
-}
-
-/**
- * Scan `sourceFile` for default/named imports from `'clsx'`,
- * `'clsx/lite'`, or `'classnames'` (NOT `'classnames/bind'`).
- * Returns the local identifier names (e.g., `["clsx"]`, `["cn"]`).
- *
- * Used by the completion provider to detect clsx-style calls.
- * Cheap: walks only top-level statements (imports are always
- * top-level in valid TS/JS).
- */
-export function detectClassUtilImports(sourceFile: ts.SourceFile): string[] {
-  const names: string[] = [];
-  const targets = new Set(["clsx", "clsx/lite", "classnames"]);
-  for (const stmt of sourceFile.statements) {
-    if (!ts.isImportDeclaration(stmt)) continue;
-    if (!ts.isStringLiteral(stmt.moduleSpecifier)) continue;
-    if (!targets.has(stmt.moduleSpecifier.text)) continue;
-    const defaultName = stmt.importClause?.name?.text;
-    if (defaultName) names.push(defaultName);
-    const namedBindings = stmt.importClause?.namedBindings;
-    if (namedBindings && ts.isNamedImports(namedBindings)) {
-      for (const spec of namedBindings.elements) {
-        names.push(spec.name.text);
-      }
-    }
-  }
-  return names;
 }
