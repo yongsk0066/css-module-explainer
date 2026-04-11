@@ -32,6 +32,22 @@ export type ClassnameTransformMode =
   | "dashes"
   | "dashesOnly";
 
+/**
+ * Resolve a `SelectorInfo` back to its canonical SCSS name — the
+ * original selector source token, regardless of whether `info`
+ * came from the original map entry or from an alias-view entry
+ * produced by `expandClassMapWithTransform`.
+ *
+ * Every place that queries the workspace reverse index, or that
+ * compares selector identity across alias views, has to route
+ * through this function. Aliases carry their source name in
+ * `originalName`; the original entry carries its own name in `name`
+ * and leaves `originalName` undefined.
+ */
+export function canonicalNameOf(info: SelectorInfo): string {
+  return info.originalName ?? info.name;
+}
+
 export function transformClassname(mode: ClassnameTransformMode, name: string): string[] {
   switch (mode) {
     case "asIs":

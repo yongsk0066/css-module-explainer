@@ -1,4 +1,5 @@
 import type { CallSite, ScssClassMap } from "@css-module-explainer/shared";
+import { canonicalNameOf } from "../scss/classname-transform";
 import type { AnalysisEntry } from "./document-analysis-cache";
 import type { TypeResolver } from "../ts/type-resolver";
 
@@ -239,10 +240,9 @@ function expandTemplateRef(
   if (!classMap) return;
   for (const [name, info] of classMap) {
     if (!name.startsWith(ref.staticPrefix)) continue;
-    const canonicalName = info.originalName ?? name;
     out.push({
       ...base,
-      match: { kind: "static", className: name, canonicalName },
+      match: { kind: "static", className: name, canonicalName: canonicalNameOf(info) },
       expansion: "expanded",
     });
   }

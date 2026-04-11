@@ -1,5 +1,6 @@
 import { DiagnosticSeverity, DiagnosticTag, type Diagnostic } from "vscode-languageserver/node";
 import type { ScssClassMap } from "@css-module-explainer/shared";
+import { canonicalNameOf } from "../core/scss/classname-transform";
 import type { ReverseIndex } from "../core/indexing/reverse-index";
 import { toLspRange } from "./lsp-adapters";
 
@@ -45,7 +46,7 @@ export function computeScssUnusedDiagnostics(
 
   const diagnostics: Diagnostic[] = [];
   const emittedCanonical = new Set<string>();
-  for (const [className, info] of classMap) {
+  for (const info of classMap.values()) {
     // Dedup by canonical name. Under `classnameTransform: "camelCase"`
     // both `.btn-primary` and its `btnPrimary` alias share a single
     // logical class; under `camelCaseOnly` only the alias exists.
@@ -53,7 +54,7 @@ export function computeScssUnusedDiagnostics(
     // symmetric — a class used through ANY alias form is not flagged,
     // and a class is warned about exactly once even when multiple
     // view entries point at it.
-    const canonical = info.originalName ?? className;
+    const canonical = canonicalNameOf(info);
     if (emittedCanonical.has(canonical)) continue;
     emittedCanonical.add(canonical);
     if (composedClasses.has(canonical)) continue;

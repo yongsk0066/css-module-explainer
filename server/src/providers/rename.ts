@@ -6,7 +6,11 @@ import type {
 } from "vscode-languageserver/node";
 import type { BemSuffixInfo, ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
 import { findLangForPath } from "../core/scss/lang-registry";
-import { type ClassnameTransformMode, transformClassname } from "../core/scss/classname-transform";
+import {
+  canonicalNameOf,
+  type ClassnameTransformMode,
+  transformClassname,
+} from "../core/scss/classname-transform";
 import { fileUrlToPath, pathToFileUrl } from "../core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
 import { wrapHandler } from "./_wrap-handler";
@@ -192,7 +196,7 @@ function prepareRenameFromScss(
   // destroy the dynamic expression source. `renameFromScss` does
   // not re-check: if a client forces the call anyway,
   // `buildRenameEdit` still filters expanded sites per-edit.
-  const canonicalName = selectorInfo.originalName ?? selectorInfo.name;
+  const canonicalName = canonicalNameOf(selectorInfo);
   if (hasExpandedReverseSite(deps, filePath, canonicalName)) return null;
 
   // Use the narrower raw-token range for nested entries (covers

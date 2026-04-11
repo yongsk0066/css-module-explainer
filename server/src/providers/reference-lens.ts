@@ -4,6 +4,7 @@ import type {
   ShowReferencesArgs,
   ShowReferencesLocation,
 } from "@css-module-explainer/shared";
+import { canonicalNameOf } from "../core/scss/classname-transform";
 import { findLangForPath } from "../core/scss/lang-registry";
 import { fileUrlToPath } from "../core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
@@ -41,10 +42,10 @@ export const handleCodeLens = wrapHandler<CodeLensParams, [], CodeLens[] | null>
     const lenses: CodeLens[] = [];
     const emittedCanonical = new Set<string>();
     for (const info of classMap.values()) {
-      const canonicalName = info.originalName ?? info.name;
-      if (emittedCanonical.has(canonicalName)) continue;
-      emittedCanonical.add(canonicalName);
-      const lens = buildLens(params.textDocument.uri, filePath, info, canonicalName, deps);
+      const canonical = canonicalNameOf(info);
+      if (emittedCanonical.has(canonical)) continue;
+      emittedCanonical.add(canonical);
+      const lens = buildLens(params.textDocument.uri, filePath, info, deps);
       if (lens) lenses.push(lens);
     }
     return lenses.length > 0 ? lenses : null;
@@ -56,10 +57,9 @@ function buildLens(
   uri: string,
   filePath: string,
   info: SelectorInfo,
-  canonicalName: string,
   deps: ProviderDeps,
 ): CodeLens | null {
-  const sites = deps.reverseIndex.find(filePath, canonicalName);
+  const sites = deps.reverseIndex.find(filePath, canonicalNameOf(info));
   if (sites.length === 0) return null;
   const title = `${sites.length} reference${sites.length === 1 ? "" : "s"}`;
   const locations: ShowReferencesLocation[] = sites.map((site) => ({

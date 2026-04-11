@@ -1,5 +1,6 @@
 import type { Location, ReferenceParams } from "vscode-languageserver/node";
 import type { ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
+import { canonicalNameOf } from "../core/scss/classname-transform";
 import { findLangForPath } from "../core/scss/lang-registry";
 import { fileUrlToPath } from "../core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
@@ -36,9 +37,9 @@ export const handleReferences = wrapHandler<ReferenceParams, [], Location[] | nu
     // The reverse index keys sites by the original SCSS selector
     // name. Under `classnameTransform` modes that expose an alias
     // view (e.g. `btnPrimary` for `.btn-primary`), `info.name` is
-    // the alias token and the bucket lives under `originalName`.
-    const canonicalName = info.originalName ?? info.name;
-    const sites = deps.reverseIndex.find(filePath, canonicalName);
+    // the alias token; `canonicalNameOf` routes the lookup to the
+    // bucket stored under the original source name.
+    const sites = deps.reverseIndex.find(filePath, canonicalNameOf(info));
     if (sites.length === 0) return null;
 
     // No expansion filter here — expanded sites are valid Find Refs
