@@ -1,3 +1,5 @@
+import type { ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
+
 /**
  * 5-mode classname transformation for CSS Modules. Mirrors
  * css-loader's `localsConvention` option and the ts-plugin-css-modules
@@ -72,4 +74,44 @@ function toCamelCase(name: string): string {
       i === 0 ? p.charAt(0).toLowerCase() + p.slice(1) : p.charAt(0).toUpperCase() + p.slice(1),
     )
     .join("");
+}
+
+/**
+ * Expand a base class map with classnameTransform aliases.
+ *
+ * For `asIs` mode this is an identity (returns the same reference
+ * — zero cost, and downstream memoized structures stay valid).
+ * For the other four modes it walks the base map and, for each
+ * entry whose transform produces a name different from the
+ * original, adds an alias entry with `originalName` set. Wave 2A's
+ * `bemSuffix`, `isNested`, `range`, and `ruleRange` are copied
+ * via `...info` spread — reference-identical to the original so
+ * rename's suffix-math operates on the ORIGINAL source token.
+ */
+export function expandClassMapWithTransform(
+  base: ScssClassMap,
+  mode: ClassnameTransformMode,
+): ScssClassMap {
+  if (mode === "asIs") return base;
+
+  const expanded = new Map<string, SelectorInfo>();
+  for (const [name, info] of base) {
+    const aliases = transformClassname(mode, name);
+    for (const alias of aliases) {
+      if (alias === name) {
+        expanded.set(name, info);
+        continue;
+      }
+      expanded.set(alias, {
+        ...info,
+        name: alias,
+        originalName: name,
+      });
+    }
+    // camelCaseOnly / dashesOnly: `aliases` does not contain the
+    // original name, so the original entry is dropped from the
+    // expanded map. Consumers that need the original still have
+    // `alias.originalName` as the back-pointer.
+  }
+  return expanded;
 }

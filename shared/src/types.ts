@@ -67,6 +67,18 @@ export interface SelectorInfo {
    * rejects via the `isNested` flag.
    */
   readonly bemSuffix?: BemSuffixInfo;
+  /**
+   * Present iff this entry is an alias produced by
+   * `classnameTransform` (camelCase / dashes modes). Points to
+   * the original SCSS key this alias was derived from.
+   * `asIs`-mode entries never carry this field.
+   *
+   * Rename reads this to locate the original entry for SCSS
+   * edit range and to chain both keys in reverse-index lookups.
+   * `diagnostics.unusedSelector` skips entries with
+   * `originalName !== undefined` so aliases don't double-count.
+   */
+  readonly originalName?: string;
 }
 
 /**

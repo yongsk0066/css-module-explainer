@@ -316,6 +316,28 @@ describe("StyleIndexCache", () => {
     const bAgain = cache.get("/b.module.scss", `.b{}`);
     expect(bAgain.has("b")).toBe(true);
   });
+
+  // ── Wave 2B item #12: classnameTransform integration ──
+
+  it("setMode('camelCase') clears the cache and next get() returns expanded map", () => {
+    const cache = new StyleIndexCache({ max: 10 });
+    const asIsMap = cache.get("/f.module.scss", `.btn-primary { color: red; }`);
+    expect(asIsMap.has("btnPrimary")).toBe(false);
+    cache.setMode("camelCase");
+    const expanded = cache.get("/f.module.scss", `.btn-primary { color: red; }`);
+    expect(expanded).not.toBe(asIsMap); // new reference
+    expect(expanded.has("btn-primary")).toBe(true);
+    expect(expanded.has("btnPrimary")).toBe(true);
+    expect(expanded.get("btnPrimary")?.originalName).toBe("btn-primary");
+  });
+
+  it("setMode idempotent: setting the same mode does not clear", () => {
+    const cache = new StyleIndexCache({ max: 10 });
+    const first = cache.get("/f.module.scss", `.btn-primary { color: red; }`);
+    cache.setMode("asIs"); // no-op
+    const second = cache.get("/f.module.scss", `.btn-primary { color: red; }`);
+    expect(second).toBe(first); // same reference — not cleared
+  });
 });
 
 describe("buildChildContext", () => {

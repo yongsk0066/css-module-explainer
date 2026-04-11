@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { transformClassname } from "../../../server/src/core/scss/classname-transform";
+import {
+  expandClassMapWithTransform,
+  transformClassname,
+} from "../../../server/src/core/scss/classname-transform";
+import { parseStyleModule } from "../../../server/src/core/scss/scss-parser";
 
 // Parity snapshot tests ported from ts-plugin-css-modules
 // src/helpers/__tests__/__snapshots__/classTransforms.test.ts.snap
@@ -63,5 +67,75 @@ describe("transformClassname", () => {
     expect(transformClassname("camelCaseOnly", "a")).toEqual(["a"]);
     expect(transformClassname("dashes", "a")).toEqual(["a"]);
     expect(transformClassname("dashesOnly", "a")).toEqual(["a"]);
+  });
+});
+
+describe("expandClassMapWithTransform", () => {
+  it("asIs short-circuits: returns the same reference", () => {
+    const base = parseStyleModule(`.btn-primary { color: red; }`, "/f.module.scss");
+    const out = expandClassMapWithTransform(base, "asIs");
+    expect(out).toBe(base); // reference identity
+  });
+
+  it("camelCase expands `.btn-primary` into original + alias", () => {
+    const base = parseStyleModule(`.btn-primary { color: red; }`, "/f.module.scss");
+    const out = expandClassMapWithTransform(base, "camelCase");
+    expect(out.size).toBe(2);
+    expect(out.get("btn-primary")?.name).toBe("btn-primary");
+    expect(out.get("btn-primary")?.originalName).toBeUndefined();
+    expect(out.get("btnPrimary")?.name).toBe("btnPrimary");
+    expect(out.get("btnPrimary")?.originalName).toBe("btn-primary");
+  });
+
+  it("camelCaseOnly drops the original entry", () => {
+    const base = parseStyleModule(`.btn-primary { color: red; }`, "/f.module.scss");
+    const out = expandClassMapWithTransform(base, "camelCaseOnly");
+    expect(out.size).toBe(1);
+    expect(out.has("btn-primary")).toBe(false);
+    expect(out.has("btnPrimary")).toBe(true);
+    expect(out.get("btnPrimary")?.originalName).toBe("btn-primary");
+  });
+
+  it("alias entries copy `range` by reference identity", () => {
+    const base = parseStyleModule(`.btn-primary { color: red; }`, "/f.module.scss");
+    const out = expandClassMapWithTransform(base, "camelCase");
+    const original = out.get("btn-primary")!;
+    const alias = out.get("btnPrimary")!;
+    expect(alias.range).toBe(original.range); // same object reference
+  });
+
+  it("alias entries copy `bemSuffix` by reference for nested BEM", () => {
+    const base = parseStyleModule(`.btn-primary { &--xl {} }`, "/f.module.scss");
+    const out = expandClassMapWithTransform(base, "camelCase");
+    const inner = out.get("btn-primary--xl");
+    const alias = out.get("btnPrimaryXl");
+    expect(inner?.bemSuffix).toBeDefined();
+    expect(alias?.bemSuffix).toBe(inner?.bemSuffix); // reference identity
+    expect(alias?.originalName).toBe("btn-primary--xl");
+  });
+
+  it("alias entries copy `isNested` flag", () => {
+    const base = parseStyleModule(`.btn-primary { &--xl {} }`, "/f.module.scss");
+    const out = expandClassMapWithTransform(base, "camelCase");
+    expect(out.get("btnPrimaryXl")?.isNested).toBe(true);
+  });
+
+  it("dedup: `.classNameB` in camelCase produces only the original", () => {
+    const base = parseStyleModule(`.classNameB { color: red; }`, "/f.module.scss");
+    const out = expandClassMapWithTransform(base, "camelCase");
+    expect(out.size).toBe(1);
+    expect(out.has("classNameB")).toBe(true);
+  });
+
+  it("grouped-nested child `.btn { &--a, &--b {} }` preserves bemSuffix=undefined on aliases", () => {
+    const base = parseStyleModule(`.btn { &--a, &--b {} }`, "/f.module.scss");
+    const out = expandClassMapWithTransform(base, "camelCase");
+    const btnA = out.get("btn--a");
+    const btnAAlias = out.get("btnA");
+    // Base parser marks the grouped-nested children with bemSuffix
+    // undefined (Wave 2A invariant). Expansion copies that undefined
+    // state via ...info spread — alias also has no bemSuffix.
+    expect(btnA?.bemSuffix).toBeUndefined();
+    expect(btnAAlias?.bemSuffix).toBeUndefined();
   });
 });
