@@ -7,6 +7,7 @@ import {
   DidChangeConfigurationNotification,
   DidChangeTextDocumentNotification,
   DidChangeWatchedFilesNotification,
+  DidCloseTextDocumentNotification,
   DidOpenTextDocumentNotification,
   ExitNotification,
   HoverRequest,
@@ -27,6 +28,7 @@ import {
   type Diagnostic,
   type DidChangeTextDocumentParams,
   type DidChangeWatchedFilesParams,
+  type DidCloseTextDocumentParams,
   type DidOpenTextDocumentParams,
   type Hover,
   type HoverParams,
@@ -71,6 +73,7 @@ export interface LspTestClient {
   initialize(overrides?: Partial<InitializeParams>): Promise<InitializeResult>;
   initialized(): void;
   didOpen(params: DidOpenTextDocumentParams): void;
+  didClose(params: DidCloseTextDocumentParams): void;
   didChange(params: DidChangeTextDocumentParams): void;
   definition(params: DefinitionParams): Promise<LocationLink[] | Location[] | null>;
   hover(params: HoverParams): Promise<Hover | null>;
@@ -207,6 +210,9 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
     },
     didOpen(params) {
       client.sendNotification(DidOpenTextDocumentNotification.type, params);
+    },
+    didClose(params) {
+      client.sendNotification(DidCloseTextDocumentNotification.type, params);
     },
     didChange(params) {
       client.sendNotification(DidChangeTextDocumentNotification.type, params);

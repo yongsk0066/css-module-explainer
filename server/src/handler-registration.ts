@@ -201,6 +201,15 @@ function registerDocumentHandlers(state: HandlerState): void {
 
   documents.onDidClose((change) => {
     state.scheduler.handleDocumentClose(change.document.uri);
+    const deps = state.ctx.getDeps();
+    if (!deps) return;
+    // Drop every reverse-index contribution this URI owned so a
+    // later SCSS unused-selector check no longer sees the stale
+    // cx() sites. The analysis cache's per-URI entry is cleared
+    // by the cache's own document-close listener; this line
+    // handles the workspace-level reverse index that outlives it.
+    deps.reverseIndex.forget(change.document.uri);
+    deps.analysisCache.invalidate(change.document.uri);
   });
 }
 
