@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type ts from "typescript";
-import type { CxBinding, CxCallInfo, ScssClassMap } from "@css-module-explainer/shared";
+import type { ClassRef, CxBinding, CxCallInfo, ScssClassMap } from "@css-module-explainer/shared";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
 import type { ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
@@ -36,6 +36,19 @@ const parseCxCalls = (_sf: ts.SourceFile, binding: CxBinding): CxCallInfo[] => [
   },
 ];
 
+const parseClassRefs = (_sf: ts.SourceFile, bindings: readonly CxBinding[]): ClassRef[] =>
+  bindings.length === 0
+    ? []
+    : [
+        {
+          kind: "static",
+          origin: "cxCall",
+          className: "indicator",
+          originRange: { start: { line: 4, character: 15 }, end: { line: 4, character: 24 } },
+          scssModulePath: bindings[0]!.scssModulePath,
+        },
+      ];
+
 function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
   const analysisCache = new DocumentAnalysisCache({
@@ -43,6 +56,7 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     collectStyleImports: () => new Map(),
     detectCxBindings,
     parseCxCalls,
+    parseClassRefs,
     max: 10,
   });
   return makeBaseDeps({
@@ -94,12 +108,25 @@ const el = cx(
         scssModulePath: binding.scssModulePath,
       },
     ];
+    const multiLineClassRefs = (_sf: ts.SourceFile, bindings: readonly CxBinding[]): ClassRef[] =>
+      bindings.length === 0
+        ? []
+        : [
+            {
+              kind: "static",
+              origin: "cxCall",
+              className: "indicator",
+              originRange: { start: { line: 5, character: 2 }, end: { line: 5, character: 13 } },
+              scssModulePath: bindings[0]!.scssModulePath,
+            },
+          ];
     const deps = makeDeps({
       analysisCache: new DocumentAnalysisCache({
         sourceFileCache: new SourceFileCache({ max: 10 }),
         collectStyleImports: () => new Map(),
         detectCxBindings,
         parseCxCalls: multiLineCalls,
+        parseClassRefs: multiLineClassRefs,
         max: 10,
       }),
     });
@@ -151,7 +178,7 @@ const el = <div className={clsx(styles.indicator)} />;
       collectStyleImports: () => new Map([["styles", "/fake/ws/src/Button.module.scss"]]),
       detectCxBindings: () => [],
       parseCxCalls: () => [],
-      parseStyleAccesses: (sf, bindings) => {
+      parseStyleAccesses: (_sf, bindings) => {
         if (bindings.has("styles")) {
           return [
             {
@@ -159,6 +186,20 @@ const el = <div className={clsx(styles.indicator)} />;
               className: "indicator",
               scssModulePath: "/fake/ws/src/Button.module.scss",
               stylesVarName: "styles",
+              originRange: { start: { line: 3, character: 39 }, end: { line: 3, character: 48 } },
+            },
+          ];
+        }
+        return [];
+      },
+      parseClassRefs: (_sf, _bindings, stylesBindings) => {
+        if (stylesBindings.has("styles")) {
+          return [
+            {
+              kind: "static",
+              origin: "styleAccess",
+              className: "indicator",
+              scssModulePath: "/fake/ws/src/Button.module.scss",
               originRange: { start: { line: 3, character: 39 }, end: { line: 3, character: 48 } },
             },
           ];

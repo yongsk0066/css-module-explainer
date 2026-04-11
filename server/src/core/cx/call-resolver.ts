@@ -1,8 +1,22 @@
-import type { CxCallInfo, ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
+import type {
+  ClassRef,
+  CxCallInfo,
+  ScssClassMap,
+  SelectorInfo,
+} from "@css-module-explainer/shared";
 import type { TypeResolver } from "../ts/type-resolver";
 
+/**
+ * The resolver accepts either a legacy `CxCallInfo` (still used by
+ * the diagnostics provider during Wave 1) or a unified `ClassRef`
+ * (used by the Stage-2-migrated hover/definition providers). Both
+ * shapes share the discriminator fields this function reads
+ * (`kind`, `className`, `staticPrefix`, `variableName`), so the
+ * function body is identical for both. The union widens in
+ * Stage 4.2.a when `CxCallInfo` is deleted.
+ */
 export interface ResolveArgs {
-  readonly call: CxCallInfo;
+  readonly call: CxCallInfo | ClassRef;
   readonly classMap: ScssClassMap;
   readonly typeResolver: TypeResolver;
   readonly filePath: string;

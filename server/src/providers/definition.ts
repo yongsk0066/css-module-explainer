@@ -3,72 +3,70 @@ import type { Range, SelectorInfo } from "@css-module-explainer/shared";
 import { resolveCxCallToSelectorInfos } from "../core/cx/call-resolver";
 import { pathToFileUrl } from "../core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
+import { wrapHandler } from "./_wrap-handler";
 import {
-  withCxCallAtCursor,
-  withStyleRefAtCursor,
+  withClassRefAtCursor,
+  type ClassRefContext,
   type CursorParams,
-  type CxCallContext,
   type ProviderDeps,
 } from "./cursor-dispatch";
 
 /**
- * Handle `textDocument/definition` for a `cx()` call.
+ * Handle `textDocument/definition` for any ClassRef under the
+ * cursor.
  *
- * Dispatches through `withCxCallAtCursor` (the "one parse per
- * file" front stage), then maps each resolved `SelectorInfo` to a
- * VS Code `LocationLink`:
+ * Dispatches through the unified `withClassRefAtCursor` front
+ * stage (Wave 1 Stage 2) and branches on `ctx.ref.kind`:
  *
+ *   - `static`  — single classMap lookup, emits 0 or 1 link.
+ *   - `template`/`variable` — delegates to
+ *     `resolveCxCallToSelectorInfos` and emits one link per
+ *     candidate (multi-match auto-picker in VS Code).
+ *
+ * Each `SelectorInfo` becomes a `LocationLink`:
  *   - `originSelectionRange` — the class token in source (drives
  *     the underline on the click target)
  *   - `targetUri`            — `file://` URL of the SCSS module
  *   - `targetRange`          — full `{ ... }` rule block (peek preview)
  *   - `targetSelectionRange` — class token range (caret placement)
  *
- * Multi-match (template prefix, variable union) returns every
- * link; VS Code opens an auto-picker. Empty match returns `null`,
- * not `[]`, so other providers can still attempt.
- *
- * Top-level try/catch ensures a single handler bug never crashes
- * the server (spec section 2.8 — error isolation).
+ * Empty match returns `null`, not `[]`, so other providers can
+ * still attempt. The `wrapHandler` boundary ensures a single
+ * handler bug never crashes the server (spec section 2.8).
  */
-export function handleDefinition(params: CursorParams, deps: ProviderDeps): LocationLink[] | null {
-  try {
-    return (
-      withCxCallAtCursor(params, deps, (ctx) => buildLinks(ctx, params, deps)) ??
-      withStyleRefAtCursor(params, deps, (ctx) => {
-        if (!ctx.info) return null;
-        const targetUri = pathToFileUrl(ctx.ref.scssModulePath);
-        return [
-          {
-            originSelectionRange: toLspRange(ctx.ref.originRange),
-            targetUri,
-            targetRange: toLspRange(ctx.info.ruleRange),
-            targetSelectionRange: toLspRange(ctx.info.range),
-          },
-        ];
-      })
-    );
-  } catch (err) {
-    deps.logError("definition handler failed", err);
-    return null;
-  }
-}
+export const handleDefinition = wrapHandler<CursorParams, [], LocationLink[] | null>(
+  "definition",
+  (params, deps) => withClassRefAtCursor(params, deps, (ctx) => buildLinks(ctx, params, deps)),
+  null,
+);
 
 function buildLinks(
-  ctx: CxCallContext,
+  ctx: ClassRefContext,
   params: CursorParams,
   deps: ProviderDeps,
 ): LocationLink[] | null {
-  const infos = resolveCxCallToSelectorInfos({
-    call: ctx.call,
+  const infos = resolveRefToInfos(ctx, params, deps);
+  if (infos.length === 0) return null;
+  const targetUri = pathToFileUrl(ctx.ref.scssModulePath);
+  return infos.map<LocationLink>((info) => toLocationLink(ctx.ref.originRange, targetUri, info));
+}
+
+function resolveRefToInfos(
+  ctx: ClassRefContext,
+  params: CursorParams,
+  deps: ProviderDeps,
+): SelectorInfo[] {
+  if (ctx.ref.kind === "static") {
+    const info = ctx.classMap.get(ctx.ref.className);
+    return info ? [info] : [];
+  }
+  return resolveCxCallToSelectorInfos({
+    call: ctx.ref,
     classMap: ctx.classMap,
     typeResolver: deps.typeResolver,
     filePath: params.filePath,
     workspaceRoot: deps.workspaceRoot,
   });
-  if (infos.length === 0) return null;
-  const targetUri = pathToFileUrl(ctx.call.scssModulePath);
-  return infos.map<LocationLink>((info) => toLocationLink(ctx.call.originRange, targetUri, info));
 }
 
 function toLocationLink(originRange: Range, targetUri: string, info: SelectorInfo): LocationLink {

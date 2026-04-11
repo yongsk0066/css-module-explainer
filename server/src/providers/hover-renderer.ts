@@ -1,8 +1,8 @@
 import { relative } from "node:path";
-import type { CxCallInfo, SelectorInfo } from "@css-module-explainer/shared";
+import type { ClassRef, SelectorInfo } from "@css-module-explainer/shared";
 
 export interface RenderArgs {
-  readonly call: CxCallInfo;
+  readonly ref: ClassRef;
   readonly scssModulePath: string;
   readonly infos: readonly SelectorInfo[];
   readonly workspaceRoot: string;
@@ -45,12 +45,12 @@ function renderMulti(args: RenderArgs): string {
 }
 
 function buildMultiHeader(args: RenderArgs): string {
-  const kind = args.call.kind;
-  if (kind === "variable") {
-    return `**${args.infos.length} matches** for \`cx(${args.call.variableName})\``;
+  const ref = args.ref;
+  if (ref.kind === "variable") {
+    return `**${args.infos.length} matches** for \`cx(${ref.variableName})\``;
   }
-  if (kind === "template") {
-    return `**${args.infos.length} matches** for \`cx(\\\`${args.call.staticPrefix}\${...}\\\`)\``;
+  if (ref.kind === "template") {
+    return `**${args.infos.length} matches** for \`cx(\\\`${ref.staticPrefix}\${...}\\\`)\``;
   }
   return `**${args.infos.length} matches** for \`cx(...)\``;
 }

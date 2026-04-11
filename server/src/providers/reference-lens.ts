@@ -3,6 +3,7 @@ import type { SelectorInfo } from "@css-module-explainer/shared";
 import { findLangForPath } from "../core/scss/lang-registry";
 import { fileUrlToPath } from "../core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
+import { wrapHandler } from "./_wrap-handler";
 import type { ProviderDeps } from "./cursor-dispatch";
 
 /**
@@ -13,9 +14,15 @@ import type { ProviderDeps } from "./cursor-dispatch";
  * reference list via `reverseIndex.find` at codeLens request
  * time (not at resolve time — `resolveProvider: false`), and
  * invokes VS Code's built-in `editor.action.showReferences`.
+ *
+ * This handler does not dispatch on a cursor position — it
+ * iterates the SCSS-side classMap only. The unified
+ * `wrapHandler` boundary (Wave 1 Stage 2) captures sync
+ * exceptions.
  */
-export function handleCodeLens(params: CodeLensParams, deps: ProviderDeps): CodeLens[] | null {
-  try {
+export const handleCodeLens = wrapHandler<CodeLensParams, [], CodeLens[] | null>(
+  "codeLens",
+  (params, deps) => {
     const filePath = fileUrlToPath(params.textDocument.uri);
     if (!findLangForPath(filePath)) return null;
 
@@ -28,11 +35,9 @@ export function handleCodeLens(params: CodeLensParams, deps: ProviderDeps): Code
       if (lens) lenses.push(lens);
     }
     return lenses.length > 0 ? lenses : null;
-  } catch (err) {
-    deps.logError("code-lens handler failed", err);
-    return null;
-  }
-}
+  },
+  null,
+);
 
 function buildLens(
   uri: string,

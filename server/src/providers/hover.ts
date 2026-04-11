@@ -2,79 +2,63 @@ import type { Hover } from "vscode-languageserver/node";
 import { resolveCxCallToSelectorInfos } from "../core/cx/call-resolver";
 import { toLspRange } from "./lsp-adapters";
 import { renderHover } from "./hover-renderer";
+import { wrapHandler } from "./_wrap-handler";
 import {
-  withCxCallAtCursor,
-  withStyleRefAtCursor,
+  withClassRefAtCursor,
+  type ClassRefContext,
   type CursorParams,
-  type CxCallContext,
   type ProviderDeps,
 } from "./cursor-dispatch";
 
 /**
- * Handle `textDocument/hover` for a `cx()` call.
+ * Handle `textDocument/hover` for any ClassRef under the cursor.
  *
- * Dispatches through `withCxCallAtCursor`, resolves the call to
- * its SelectorInfo list, then delegates to the pure
- * `renderHover` markdown builder. Empty match → null Hover;
- * exception → logged and null (error isolation).
+ * Dispatches through the unified `withClassRefAtCursor` front
+ * stage (Wave 1 Stage 2). For static refs we short-circuit with a
+ * single classMap lookup; for template/variable refs we delegate
+ * to `resolveCxCallToSelectorInfos`. Either way, the resolved
+ * SelectorInfo list is handed to the pure `renderHover` markdown
+ * builder. Empty match → null Hover; exception → logged by
+ * `wrapHandler` and null.
  */
-export function handleHover(
-  params: CursorParams,
-  deps: ProviderDeps,
-  maxCandidates = 10,
-): Hover | null {
-  try {
-    return (
-      withCxCallAtCursor(params, deps, (ctx) => buildHover(ctx, params, deps, maxCandidates)) ??
-      withStyleRefAtCursor(params, deps, (ctx) => {
-        if (!ctx.info) return null;
-        const markdown = renderHover({
-          call: {
-            kind: "static" as const,
-            className: ctx.ref.className,
-            originRange: ctx.ref.originRange,
-            scssModulePath: ctx.ref.scssModulePath,
-          },
-          scssModulePath: ctx.ref.scssModulePath,
-          infos: [ctx.info],
-          workspaceRoot: deps.workspaceRoot,
-        });
-        if (!markdown) return null;
-        return {
-          range: toLspRange(ctx.ref.originRange),
-          contents: { kind: "markdown", value: markdown },
-        };
-      })
-    );
-  } catch (err) {
-    deps.logError("hover handler failed", err);
-    return null;
-  }
-}
+export const handleHover = wrapHandler<CursorParams, [maxCandidates?: number], Hover | null>(
+  "hover",
+  (params, deps, maxCandidates = 10) =>
+    withClassRefAtCursor(params, deps, (ctx) => buildHover(ctx, params, deps, maxCandidates)),
+  null,
+);
 
 function buildHover(
-  ctx: CxCallContext,
+  ctx: ClassRefContext,
   params: CursorParams,
   deps: ProviderDeps,
   maxCandidates: number,
 ): Hover | null {
-  const infos = resolveCxCallToSelectorInfos({
-    call: ctx.call,
-    classMap: ctx.classMap,
-    typeResolver: deps.typeResolver,
-    filePath: params.filePath,
-    workspaceRoot: deps.workspaceRoot,
-  });
+  const infos = resolveRefToInfos(ctx, params, deps);
   const markdown = renderHover({
-    call: ctx.call,
-    scssModulePath: ctx.call.scssModulePath,
+    ref: ctx.ref,
+    scssModulePath: ctx.ref.scssModulePath,
     infos,
     workspaceRoot: deps.workspaceRoot,
     maxCandidates,
   });
   if (!markdown) return null;
   return {
-    range: toLspRange(ctx.call.originRange),
+    range: toLspRange(ctx.ref.originRange),
     contents: { kind: "markdown", value: markdown },
   };
+}
+
+function resolveRefToInfos(ctx: ClassRefContext, params: CursorParams, deps: ProviderDeps) {
+  if (ctx.ref.kind === "static") {
+    const info = ctx.classMap.get(ctx.ref.className);
+    return info ? [info] : [];
+  }
+  return resolveCxCallToSelectorInfos({
+    call: ctx.ref,
+    classMap: ctx.classMap,
+    typeResolver: deps.typeResolver,
+    filePath: params.filePath,
+    workspaceRoot: deps.workspaceRoot,
+  });
 }
