@@ -1,22 +1,14 @@
-import type {
-  ClassRef,
-  CxCallInfo,
-  ScssClassMap,
-  SelectorInfo,
-} from "@css-module-explainer/shared";
+import type { ClassRef, ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
 import type { TypeResolver } from "../ts/type-resolver";
 
 /**
- * The resolver accepts either a legacy `CxCallInfo` (still used by
- * the diagnostics provider during Wave 1) or a unified `ClassRef`
- * (used by the Stage-2-migrated hover/definition providers). Both
- * shapes share the discriminator fields this function reads
- * (`kind`, `className`, `staticPrefix`, `variableName`), so the
- * function body is identical for both. The union widens in
- * Stage 4.2.a when `CxCallInfo` is deleted.
+ * Resolve a unified `ClassRef` against a `ScssClassMap`. The
+ * function reads only the discriminator fields (`kind`,
+ * `className`, `staticPrefix`, `variableName`) — origin
+ * (cxCall vs styleAccess) does not affect resolution.
  */
 export interface ResolveArgs {
-  readonly call: CxCallInfo | ClassRef;
+  readonly call: ClassRef;
   readonly classMap: ScssClassMap;
   readonly typeResolver: TypeResolver;
   readonly filePath: string;
@@ -24,19 +16,19 @@ export interface ResolveArgs {
 }
 
 /**
- * Dispatch a CxCallInfo to concrete SelectorInfo values.
+ * Dispatch a ClassRef to concrete SelectorInfo values.
  *
  * Contract:
  *   - Returns `[]` when nothing matches. Providers treat `[]` as
  *     "nothing to show" (hover → null, definition → null,
  *     diagnostics → emit warning).
- *   - Returns a non-empty list when the call can be resolved,
+ *   - Returns a non-empty list when the ref can be resolved,
  *     possibly to multiple candidates (template prefixes, union
  *     variables). Providers typically display a picker or a
  *     multi-candidate hover card.
  *
  * The function is pure — no I/O, no caching, no AST walking. It
- * is the single place where ScssClassMap, CxCallInfo, and
+ * is the single place where ScssClassMap, ClassRef, and
  * TypeResolver meet.
  */
 export function resolveCxCallToSelectorInfos(args: ResolveArgs): SelectorInfo[] {

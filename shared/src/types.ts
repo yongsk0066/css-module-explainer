@@ -153,68 +153,12 @@ export interface VariableClassRef extends ClassRefBase {
 }
 
 /**
- * A reference to a SCSS class at a specific location in source.
- * The only ref concept in Wave 1+ — replaces legacy `CxCallInfo`
- * and `StylePropertyRef`.
+ * A reference to a SCSS class at a specific location in source —
+ * the unified model for both `cx('btn')` arguments (origin =
+ * "cxCall") and direct `styles.btn` accesses (origin =
+ * "styleAccess").
  */
 export type ClassRef = StaticClassRef | TemplateClassRef | VariableClassRef;
-
-// ──────────────────────────────────────────────────────────────
-// Legacy cx call types — @deprecated, kept during Wave 1 Stage 1–2
-// migration. Deleted in Stage 4.2.a.
-// ──────────────────────────────────────────────────────────────
-
-/**
- * @deprecated Wave 1 Stage 4.2.a will delete. Use `ClassRef` instead.
- */
-interface CxCallBase {
-  /**
-   * LSP highlight range for the specific class token, quote
-   * characters excluded. For `cx('indicator')`, this covers only
-   * the `indicator` text, not the surrounding apostrophes.
-   */
-  readonly originRange: Range;
-  /** Absolute path of the `.module.scss|css` file this call references. */
-  readonly scssModulePath: string;
-}
-
-/** @deprecated Wave 1 Stage 4.2.a will delete. Use `StaticClassRef`. */
-export interface StaticClassCall extends CxCallBase {
-  readonly kind: "static";
-  readonly className: string;
-}
-
-/** @deprecated Wave 1 Stage 4.2.a will delete. Use `TemplateClassRef`. */
-export interface TemplateLiteralCall extends CxCallBase {
-  readonly kind: "template";
-  readonly rawTemplate: string;
-  readonly staticPrefix: string;
-}
-
-/** @deprecated Wave 1 Stage 4.2.a will delete. Use `VariableClassRef`. */
-export interface VariableRefCall extends CxCallBase {
-  readonly kind: "variable";
-  readonly variableName: string;
-}
-
-/** @deprecated Wave 1 Stage 4.2.a will delete. Use `ClassRef`. */
-export type CxCallInfo = StaticClassCall | TemplateLiteralCall | VariableRefCall;
-
-// ──────────────────────────────────────────────────────────────
-// Direct style property access (`styles.button`)
-// ──────────────────────────────────────────────────────────────
-
-/**
- * @deprecated Wave 1 Stage 4.2.a will delete. Use `StaticClassRef`
- * with `origin: "styleAccess"` instead.
- */
-export interface StylePropertyRef {
-  readonly kind: "style-access";
-  readonly className: string;
-  readonly scssModulePath: string;
-  readonly stylesVarName: string;
-  readonly originRange: Range;
-}
 
 // ──────────────────────────────────────────────────────────────
 // Type resolution

@@ -1,11 +1,6 @@
 import { bench, describe } from "vitest";
 import type ts from "typescript";
-import type {
-  CxBinding,
-  CxCallInfo,
-  ScssClassMap,
-  SelectorInfo,
-} from "@css-module-explainer/shared";
+import type { ClassRef, CxBinding, ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
 import { SourceFileCache } from "../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../server/src/core/indexing/document-analysis-cache";
 import { NullReverseIndex } from "../../server/src/core/indexing/reverse-index";
@@ -61,14 +56,18 @@ const detectCxBindings = (sourceFile: ts.SourceFile): CxBinding[] => [
   },
 ];
 
-const parseCxCalls = (_sf: ts.SourceFile, binding: CxBinding): CxCallInfo[] => [
-  {
-    kind: "static",
-    className: "indicator",
-    originRange: { start: { line: 4, character: 26 }, end: { line: 4, character: 35 } },
-    scssModulePath: binding.scssModulePath,
-  },
-];
+const parseClassRefs = (_sf: ts.SourceFile, bindings: readonly CxBinding[]): ClassRef[] =>
+  bindings.length === 0
+    ? []
+    : [
+        {
+          kind: "static",
+          origin: "cxCall",
+          className: "indicator",
+          originRange: { start: { line: 4, character: 26 }, end: { line: 4, character: 35 } },
+          scssModulePath: bindings[0]!.scssModulePath,
+        },
+      ];
 
 function makeClassMap(): ScssClassMap {
   const entries = new Map<string, SelectorInfo>();
@@ -84,8 +83,9 @@ function makeDeps(): ProviderDeps {
   return {
     analysisCache: new DocumentAnalysisCache({
       sourceFileCache,
+      collectStyleImports: () => new Map(),
       detectCxBindings,
-      parseCxCalls,
+      parseClassRefs,
       max: 10,
     }),
     scssClassMapForPath: () => makeClassMap(),
@@ -180,17 +180,21 @@ describe("diagnostics document-wide scan", () => {
       ...makeDeps(),
       analysisCache: new DocumentAnalysisCache({
         sourceFileCache: new SourceFileCache({ max: 10 }),
+        collectStyleImports: () => new Map(),
         detectCxBindings,
-        parseCxCalls: (_sf, binding): CxCallInfo[] =>
-          Array.from({ length: 100 }, (_, i) => ({
-            kind: "static",
-            className: `class-${i}`,
-            originRange: {
-              start: { line: 5 + i, character: 30 },
-              end: { line: 5 + i, character: 40 },
-            },
-            scssModulePath: binding.scssModulePath,
-          })),
+        parseClassRefs: (_sf, bindings): ClassRef[] =>
+          bindings.length === 0
+            ? []
+            : Array.from({ length: 100 }, (_, i) => ({
+                kind: "static",
+                origin: "cxCall",
+                className: `class-${i}`,
+                originRange: {
+                  start: { line: 5 + i, character: 30 },
+                  end: { line: 5 + i, character: 40 },
+                },
+                scssModulePath: bindings[0]!.scssModulePath,
+              })),
         max: 10,
       }),
     };

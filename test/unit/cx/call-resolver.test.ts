@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type {
+  ClassRef,
   CxBinding,
-  CxCallInfo,
   Range,
   ScssClassMap,
   SelectorInfo,
@@ -56,8 +56,9 @@ function makeBinding(): CxBinding {
 describe("resolveCxCallToSelectorInfos / static", () => {
   it("returns the matching class for a static call", () => {
     const classMap = makeClassMap(["btn", "active"]);
-    const call: CxCallInfo = {
+    const call: ClassRef = {
       kind: "static",
+      origin: "cxCall",
       className: "btn",
       originRange: ZERO,
       scssModulePath: makeBinding().scssModulePath,
@@ -74,8 +75,9 @@ describe("resolveCxCallToSelectorInfos / static", () => {
 
   it("returns [] when a static class is missing from the class map", () => {
     const classMap = makeClassMap(["btn"]);
-    const call: CxCallInfo = {
+    const call: ClassRef = {
       kind: "static",
+      origin: "cxCall",
       className: "nope",
       originRange: ZERO,
       scssModulePath: makeBinding().scssModulePath,
@@ -94,8 +96,9 @@ describe("resolveCxCallToSelectorInfos / static", () => {
 describe("resolveCxCallToSelectorInfos / template", () => {
   it("returns every class whose name starts with the static prefix", () => {
     const classMap = makeClassMap(["weight-light", "weight-normal", "weight-bold", "unrelated"]);
-    const call: CxCallInfo = {
+    const call: ClassRef = {
       kind: "template",
+      origin: "cxCall",
       rawTemplate: "`weight-${w}`",
       staticPrefix: "weight-",
       originRange: ZERO,
@@ -114,8 +117,9 @@ describe("resolveCxCallToSelectorInfos / template", () => {
 
   it("returns [] when no class matches the prefix", () => {
     const classMap = makeClassMap(["btn", "link"]);
-    const call: CxCallInfo = {
+    const call: ClassRef = {
       kind: "template",
+      origin: "cxCall",
       rawTemplate: "`size-${s}`",
       staticPrefix: "size-",
       originRange: ZERO,
@@ -135,8 +139,9 @@ describe("resolveCxCallToSelectorInfos / template", () => {
     // `cx(`${name}-suffix`)` — staticPrefix is empty so every
     // class starts with it. Matches every class in the map.
     const classMap = makeClassMap(["a", "b"]);
-    const call: CxCallInfo = {
+    const call: ClassRef = {
       kind: "template",
+      origin: "cxCall",
       rawTemplate: "`${name}-suffix`",
       staticPrefix: "",
       originRange: ZERO,
@@ -156,8 +161,9 @@ describe("resolveCxCallToSelectorInfos / template", () => {
 describe("resolveCxCallToSelectorInfos / variable", () => {
   it("resolves a union variable to each existing class", () => {
     const classMap = makeClassMap(["small", "medium", "large"]);
-    const call: CxCallInfo = {
+    const call: ClassRef = {
       kind: "variable",
+      origin: "cxCall",
       variableName: "size",
       originRange: ZERO,
       scssModulePath: makeBinding().scssModulePath,
@@ -180,8 +186,9 @@ describe("resolveCxCallToSelectorInfos / variable", () => {
     // silently; the diagnostic layer handles reporting when
     // reportPartialUnionMismatch is enabled.
     const classMap = makeClassMap(["small", "medium"]);
-    const call: CxCallInfo = {
+    const call: ClassRef = {
       kind: "variable",
+      origin: "cxCall",
       variableName: "size",
       originRange: ZERO,
       scssModulePath: makeBinding().scssModulePath,
@@ -200,8 +207,9 @@ describe("resolveCxCallToSelectorInfos / variable", () => {
 
   it("returns [] for an unresolvable variable", () => {
     const classMap = makeClassMap(["small"]);
-    const call: CxCallInfo = {
+    const call: ClassRef = {
       kind: "variable",
+      origin: "cxCall",
       variableName: "x",
       originRange: ZERO,
       scssModulePath: makeBinding().scssModulePath,

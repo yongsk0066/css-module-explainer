@@ -11,16 +11,10 @@ import type {
 /**
  * Unified ClassRef producer (Wave 1).
  *
- * Replaces the dual-parser pipeline
- * (`parseCxCalls` + `parseStylePropertyAccesses`) with a single
- * walk that emits `ClassRef[]`. Each cx() call produces entries
- * with `origin: "cxCall"`; each `styles.x` direct access produces
- * a static entry with `origin: "styleAccess"`.
- *
- * This is a pure translation of the existing logic in
- * `call-parser.ts` and `style-access-parser.ts` — no new edge
- * cases, no new behavior. Stage 4.2.a deletes the legacy
- * parsers once all consumers read `entry.classRefs`.
+ * Single AST walk that emits `ClassRef[]` covering both cx() call
+ * arguments and direct `styles.x` property access. Each cx() call
+ * produces entries with `origin: "cxCall"`; each `styles.x`
+ * direct access produces a static entry with `origin: "styleAccess"`.
  */
 export function parseClassRefs(
   sourceFile: ts.SourceFile,
@@ -29,8 +23,7 @@ export function parseClassRefs(
 ): ClassRef[] {
   const refs: ClassRef[] = [];
 
-  // 1. cx() calls — one pass per binding, matching the legacy
-  // `parseCxCalls` semantics. Scope filtering inside
+  // 1. cx() calls — one pass per binding. Scope filtering inside
   // `isMatchingCxCall` keeps function-scoped bindings correct.
   for (const binding of bindings) {
     collectCxCallRefs(sourceFile, binding, refs);
@@ -98,7 +91,7 @@ function extractFromArgument(
       }
       // Intentional: computed-property keys and numeric literal
       // keys cannot be resolved statically and are skipped
-      // without warning — identical to legacy parseCxCalls.
+      // without warning.
     }
     return;
   }

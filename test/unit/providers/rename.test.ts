@@ -3,7 +3,6 @@ import type {
   CallSite,
   ClassRef,
   CxBinding,
-  CxCallInfo,
   ScssClassMap,
   SelectorInfo,
 } from "@css-module-explainer/shared";
@@ -203,14 +202,6 @@ function makeTsxDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
           startLine: 0,
           endLine: sourceFile.getLineAndCharacterOfPosition(sourceFile.getEnd()).line,
         },
-      },
-    ],
-    parseCxCalls: (_sf: ts.SourceFile, binding: CxBinding): CxCallInfo[] => [
-      {
-        kind: "static",
-        className: "indicator",
-        originRange: { start: { line: 3, character: 14 }, end: { line: 3, character: 23 } },
-        scssModulePath: binding.scssModulePath,
       },
     ],
     parseClassRefs: (_sf: ts.SourceFile, bindings: readonly CxBinding[]): ClassRef[] =>

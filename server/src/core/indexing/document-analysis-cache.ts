@@ -1,11 +1,6 @@
 import * as nodeUrl from "node:url";
 import type ts from "typescript";
-import type {
-  ClassRef,
-  CxBinding,
-  CxCallInfo,
-  StylePropertyRef,
-} from "@css-module-explainer/shared";
+import type { ClassRef, CxBinding } from "@css-module-explainer/shared";
 import { contentHash } from "../util/hash";
 import { LruMap } from "../util/lru-map";
 import type { SourceFileCache } from "../ts/source-file-cache";
@@ -24,15 +19,11 @@ export interface AnalysisEntry {
   readonly contentHash: string;
   readonly sourceFile: ts.SourceFile;
   readonly bindings: readonly CxBinding[];
-  readonly calls: readonly CxCallInfo[];
-  /** Direct `styles.className` property accesses (non-cx pattern). */
-  readonly styleRefs: readonly StylePropertyRef[];
   /**
-   * Unified class-reference list (Wave 1). Emitted by
-   * `parseClassRefs` alongside the legacy `calls`/`styleRefs`
-   * arrays during the Stage 1–2 dual-pipeline window. A dev-only
-   * invariant in `analyze()` asserts
-   * `classRefs.length === calls.length + styleRefs.length`.
+   * Unified class-reference list (Wave 1). Produced by
+   * `parseClassRefs` — covers both cx() call arguments
+   * (`origin: "cxCall"`) and direct `styles.x` property access
+   * (`origin: "styleAccess"`).
    */
   readonly classRefs: readonly ClassRef[];
   /** Map of style-import local name → resolved absolute SCSS path. */
@@ -53,15 +44,10 @@ export interface DocumentAnalysisCacheDeps {
     filePath: string,
   ) => ReadonlyMap<string, string>;
   readonly detectCxBindings: (sourceFile: ts.SourceFile, filePath: string) => CxBinding[];
-  readonly parseCxCalls: (sourceFile: ts.SourceFile, binding: CxBinding) => CxCallInfo[];
-  readonly parseStyleAccesses?: (
-    sourceFile: ts.SourceFile,
-    stylesBindings: ReadonlyMap<string, string>,
-  ) => StylePropertyRef[];
   /**
    * Unified ClassRef producer (Wave 1). Optional so test helpers
    * that construct a cache without wiring Wave 1 still work — the
-   * cache falls back to `[]` and skips the dev-only invariant.
+   * cache falls back to `[]`.
    */
   readonly parseClassRefs?: (
     sourceFile: ts.SourceFile,
@@ -89,9 +75,9 @@ export interface DocumentAnalysisCacheDeps {
  * The single-parse hub for every provider hot path.
  *
  * `get(uri, content, filePath, version)` returns an AnalysisEntry
- * containing the AST, bindings, and all cx() calls. The cache
+ * containing the AST, bindings, and all class references. The cache
  * guarantees that `ts.createSourceFile + detectCxBindings +
- * parseCxCalls` run at most once per (uri, version) — same-version
+ * parseClassRefs` run at most once per (uri, version) — same-version
  * repeat calls are O(1), and a content-hash fallback catches the
  * case where the version bumped but the actual text is identical.
  *
@@ -159,25 +145,13 @@ export class DocumentAnalysisCache {
   private analyze(content: string, filePath: string, version: number, hash: string): AnalysisEntry {
     const sourceFile = this.deps.sourceFileCache.get(filePath, content);
     const bindings = this.deps.detectCxBindings(sourceFile, filePath);
-    const calls = bindings.flatMap((binding) => this.deps.parseCxCalls(sourceFile, binding));
 
     // Independent style-import scanning: collect style imports independently of cx bindings.
-    // Files without classnames/bind now get styles.x support.
+    // Files without classnames/bind still get styles.x support.
     const stylesBindings = this.deps.collectStyleImports(sourceFile, filePath);
-    const styleRefs = this.deps.parseStyleAccesses?.(sourceFile, stylesBindings) ?? [];
 
-    // Wave 1 dual-pipeline window: the unified parser runs
-    // alongside the legacy parsers. Stage 4.2.a deletes the
-    // legacy arrays once providers all read `classRefs`.
+    // Unified Wave 1 parser — covers both cx() arguments and styles.x accesses.
     const classRefs = this.deps.parseClassRefs?.(sourceFile, bindings, stylesBindings) ?? [];
-
-    if (this.deps.parseClassRefs && process.env.NODE_ENV !== "production") {
-      if (classRefs.length !== calls.length + styleRefs.length) {
-        throw new Error(
-          `ClassRef/legacy count mismatch in ${filePath}: classRefs=${classRefs.length}, calls=${calls.length}, styleRefs=${styleRefs.length}`,
-        );
-      }
-    }
 
     const classUtilNames = this.deps.detectClassUtilImports?.(sourceFile) ?? [];
 
@@ -186,8 +160,6 @@ export class DocumentAnalysisCache {
       contentHash: hash,
       sourceFile,
       bindings,
-      calls,
-      styleRefs,
       classRefs,
       stylesBindings,
       classUtilNames,

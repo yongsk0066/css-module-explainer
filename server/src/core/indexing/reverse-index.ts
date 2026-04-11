@@ -140,12 +140,14 @@ export interface CallSiteResolverContext {
 }
 
 /**
- * Build the `CallSite[]` list the reverse index consumes.
+ * Build the `CallSite[]` list the reverse index consumes from the
+ * document's unified `classRefs`.
  *
- * When `ctx` is provided, template and variable calls are EXPANDED
- * into individual static-keyed entries so Find References can
- * locate them. Without `ctx`, only static calls are indexed (the
- * default behavior).
+ * When `ctx` is provided, template and variable cx() refs are
+ * EXPANDED into individual static-keyed entries so Find References
+ * can locate them. Without `ctx`, only direct static entries land
+ * in the index (template/variable kinds are recorded but cannot be
+ * looked up by className).
  */
 export function collectCallSites(
   uri: string,
@@ -153,14 +155,16 @@ export function collectCallSites(
   ctx?: CallSiteResolverContext,
 ): CallSite[] {
   const sites: CallSite[] = [];
-  for (const call of entry.calls) {
-    const base = { uri, range: call.originRange, scssModulePath: call.scssModulePath };
-    switch (call.kind) {
+  for (const ref of entry.classRefs) {
+    const base = { uri, range: ref.originRange, scssModulePath: ref.scssModulePath };
+    switch (ref.kind) {
       case "static":
         // Native static token: the user literally wrote this class name.
+        // Applies to both cxCall origin (`cx('btn')`) and styleAccess
+        // origin (`styles.btn`) — both are direct references.
         sites.push({
           ...base,
-          match: { kind: "static", className: call.className },
+          match: { kind: "static", className: ref.className },
           expansion: "direct",
         });
         break;
@@ -168,7 +172,7 @@ export function collectCallSites(
         // The template ref itself is a direct site (the literal the user wrote).
         sites.push({
           ...base,
-          match: { kind: "template", staticPrefix: call.staticPrefix },
+          match: { kind: "template", staticPrefix: ref.staticPrefix },
           expansion: "direct",
         });
         // If resolver context available, expand to individual static entries.
@@ -178,10 +182,10 @@ export function collectCallSites(
         // the whole template expression would be rewritten with the new
         // class name, destroying the template literal source).
         if (ctx) {
-          const classMap = ctx.classMapForPath(call.scssModulePath);
+          const classMap = ctx.classMapForPath(ref.scssModulePath);
           if (classMap) {
             for (const name of classMap.keys()) {
-              if (name.startsWith(call.staticPrefix)) {
+              if (name.startsWith(ref.staticPrefix)) {
                 sites.push({
                   ...base,
                   match: { kind: "static", className: name },
@@ -197,7 +201,7 @@ export function collectCallSites(
         // The variable ref itself is a direct site (the identifier the user wrote).
         sites.push({
           ...base,
-          match: { kind: "variable", variableName: call.variableName },
+          match: { kind: "variable", variableName: ref.variableName },
           expansion: "direct",
         });
         // Union-type resolution synthesizes one static entry per union
@@ -206,7 +210,7 @@ export function collectCallSites(
         if (ctx) {
           const resolved = ctx.typeResolver.resolve(
             ctx.filePath,
-            call.variableName,
+            ref.variableName,
             ctx.workspaceRoot,
           );
           if (resolved.kind === "union") {
@@ -222,17 +226,6 @@ export function collectCallSites(
         break;
       }
     }
-  }
-
-  // Process styles.x direct references (StylePropertyRef reverse-index entries).
-  for (const ref of entry.styleRefs) {
-    sites.push({
-      uri,
-      range: ref.originRange,
-      scssModulePath: ref.scssModulePath,
-      match: { kind: "static", className: ref.className },
-      expansion: "direct",
-    });
   }
 
   return sites;

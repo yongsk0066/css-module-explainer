@@ -1,12 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type ts from "typescript";
-import type {
-  ClassRef,
-  CxBinding,
-  CxCallInfo,
-  ScssClassMap,
-  SelectorInfo,
-} from "@css-module-explainer/shared";
+import type { ClassRef, CxBinding, ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
 import { NullReverseIndex } from "../../../server/src/core/indexing/reverse-index";
@@ -50,36 +44,7 @@ const detectCxBindings = (sourceFile: ts.SourceFile): CxBinding[] => [
   },
 ];
 
-// Legacy parseCxCalls stub — the dual-pipeline cache still
-// requires it. Produces the same static call the classRefs stub
-// below records so the invariant
-// `classRefs.length === calls.length + styleRefs.length` holds.
-const parseCxCalls = (_sf: ts.SourceFile, binding: CxBinding): CxCallInfo[] => [
-  {
-    kind: "static",
-    className: "indicator",
-    originRange: {
-      start: { line: 4, character: 15 },
-      end: { line: 4, character: 24 },
-    },
-    scssModulePath: binding.scssModulePath,
-  },
-];
-
 const collectStyleImports = (): ReadonlyMap<string, string> => new Map([["styles", SCSS_PATH]]);
-
-const parseStyleAccesses = () => [
-  {
-    kind: "style-access" as const,
-    className: "active",
-    scssModulePath: SCSS_PATH,
-    stylesVarName: "styles",
-    originRange: {
-      start: { line: 5, character: 28 },
-      end: { line: 5, character: 34 },
-    },
-  },
-];
 
 const parseClassRefs = (): ClassRef[] => [
   {
@@ -110,8 +75,6 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     sourceFileCache,
     collectStyleImports,
     detectCxBindings,
-    parseCxCalls,
-    parseStyleAccesses,
     parseClassRefs,
     max: 10,
   });
@@ -168,7 +131,6 @@ describe("withClassRefAtCursor / fast paths", () => {
       sourceFileCache,
       collectStyleImports: () => new Map(),
       detectCxBindings: () => [],
-      parseCxCalls: () => [],
       parseClassRefs: () => [],
       max: 10,
     });

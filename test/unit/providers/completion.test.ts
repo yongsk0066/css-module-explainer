@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import ts from "typescript";
 import { CompletionItemKind } from "vscode-languageserver-protocol/node";
-import type { CxBinding, CxCallInfo, ScssClassMap } from "@css-module-explainer/shared";
+import type { CxBinding, ScssClassMap } from "@css-module-explainer/shared";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
 import type { ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
@@ -29,15 +29,12 @@ const detectCxBindings = (sourceFile: ts.SourceFile): CxBinding[] => [
   },
 ];
 
-const parseCxCalls = (_sf: ts.SourceFile, _binding: CxBinding): CxCallInfo[] => [];
-
 function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
   const analysisCache = new DocumentAnalysisCache({
     sourceFileCache,
     collectStyleImports: () => new Map(),
     detectCxBindings,
-    parseCxCalls,
     detectClassUtilImports,
     max: 10,
   });
@@ -223,9 +220,8 @@ const el = clsx(styles.
     const analysisCache = new DocumentAnalysisCache({
       sourceFileCache,
       detectCxBindings: () => [],
-      parseCxCalls: () => [],
-      parseStyleAccesses: () => [],
-      // After L8 fix: collectStyleImports is wired and populates stylesBindings
+      // collectStyleImports is wired and populates stylesBindings so
+      // parseClassRefs can see the styles.x access patterns.
       collectStyleImports: (_sf: ts.SourceFile, _fp: string) =>
         new Map([["styles", "/fake/ws/src/Button.module.scss"]]),
       detectClassUtilImports,

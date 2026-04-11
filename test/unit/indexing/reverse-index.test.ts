@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { CallSite, CxBinding, StylePropertyRef } from "@css-module-explainer/shared";
+import type { CallSite, ClassRef, CxBinding } from "@css-module-explainer/shared";
 import {
   collectCallSites,
   NullReverseIndex,
@@ -189,14 +189,14 @@ describe("CallSite carries scssModulePath directly", () => {
   });
 });
 
-describe("collectCallSites / StylePropertyRef entries", () => {
-  it("creates static CallSite entries from entry.styleRefs", () => {
+describe("collectCallSites / styleAccess ClassRef entries", () => {
+  it("creates static CallSite entries from styleAccess ClassRefs", () => {
     const sourceFile = ts.createSourceFile("test.tsx", "", ts.ScriptTarget.Latest, true);
-    const styleRef: StylePropertyRef = {
-      kind: "style-access",
+    const styleRef: ClassRef = {
+      kind: "static",
+      origin: "styleAccess",
       className: "indicator",
       scssModulePath: "/fake/a.module.scss",
-      stylesVarName: "styles",
       originRange: {
         start: { line: 5, character: 10 },
         end: { line: 5, character: 19 },
@@ -207,10 +207,9 @@ describe("collectCallSites / StylePropertyRef entries", () => {
       contentHash: "abc",
       sourceFile,
       bindings: [],
-      calls: [],
-      styleRefs: [styleRef],
-      classRefs: [],
+      classRefs: [styleRef],
       stylesBindings: new Map(),
+      classUtilNames: [],
     };
 
     const sites = collectCallSites("file:///fake/a.tsx", entry);
@@ -224,7 +223,7 @@ describe("collectCallSites / StylePropertyRef entries", () => {
     expect(sites[0]!.scssModulePath).toBe("/fake/a.module.scss");
   });
 
-  it("merges cx call sites and styleRef sites", () => {
+  it("merges cxCall and styleAccess ClassRef sites", () => {
     const sourceFile = ts.createSourceFile("test.tsx", "", ts.ScriptTarget.Latest, true);
     const binding: CxBinding = {
       cxVarName: "cx",
@@ -238,25 +237,24 @@ describe("collectCallSites / StylePropertyRef entries", () => {
       contentHash: "abc",
       sourceFile,
       bindings: [binding],
-      calls: [
+      classRefs: [
         {
           kind: "static",
+          origin: "cxCall",
           className: "active",
           originRange: { start: { line: 3, character: 4 }, end: { line: 3, character: 10 } },
           scssModulePath: binding.scssModulePath,
         },
-      ],
-      styleRefs: [
         {
-          kind: "style-access",
+          kind: "static",
+          origin: "styleAccess",
           className: "indicator",
           scssModulePath: "/fake/a.module.scss",
-          stylesVarName: "styles",
           originRange: { start: { line: 7, character: 10 }, end: { line: 7, character: 19 } },
         },
       ],
-      classRefs: [],
       stylesBindings: new Map(),
+      classUtilNames: [],
     };
 
     const sites = collectCallSites("file:///fake/a.tsx", entry);
@@ -269,25 +267,24 @@ describe("collectCallSites / StylePropertyRef entries", () => {
     expect(classNames).toEqual(["active", "indicator"]);
   });
 
-  it("reverse index find() returns styleRef sites", () => {
+  it("reverse index find() returns styleAccess sites", () => {
     const sourceFile = ts.createSourceFile("test.tsx", "", ts.ScriptTarget.Latest, true);
     const entry: AnalysisEntry = {
       version: 1,
       contentHash: "abc",
       sourceFile,
       bindings: [],
-      calls: [],
-      styleRefs: [
+      classRefs: [
         {
-          kind: "style-access",
+          kind: "static",
+          origin: "styleAccess",
           className: "btn",
           scssModulePath: "/fake/a.module.scss",
-          stylesVarName: "styles",
           originRange: { start: { line: 2, character: 5 }, end: { line: 2, character: 8 } },
         },
       ],
-      classRefs: [],
       stylesBindings: new Map(),
+      classUtilNames: [],
     };
 
     const sites = collectCallSites("file:///fake/a.tsx", entry);

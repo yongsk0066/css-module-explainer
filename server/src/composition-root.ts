@@ -21,8 +21,6 @@ import {
   detectClassUtilImports,
   detectCxBindings,
 } from "./core/cx/binding-detector";
-import { parseCxCalls } from "./core/cx/call-parser";
-import { parseStylePropertyAccesses } from "./core/cx/style-access-parser";
 import { parseClassRefs } from "./core/cx/class-ref-parser";
 import { SourceFileCache } from "./core/ts/source-file-cache";
 import { WorkspaceTypeResolver, type TypeResolver } from "./core/ts/type-resolver";
@@ -193,8 +191,6 @@ function buildBundle(
     sourceFileCache,
     collectStyleImports,
     detectCxBindings,
-    parseCxCalls,
-    parseStyleAccesses: parseStylePropertyAccesses,
     parseClassRefs,
     detectClassUtilImports,
     max: 200,

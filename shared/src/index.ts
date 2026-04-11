@@ -12,14 +12,8 @@ export type {
   StaticClassRef,
   TemplateClassRef,
   VariableClassRef,
-  // Legacy — @deprecated, Wave 1 Stage 4.2.a will delete
-  CxCallInfo,
-  StaticClassCall,
-  TemplateLiteralCall,
-  VariableRefCall,
   ResolvedType,
   CallSite,
   CallSiteMatch,
   CallSiteExpansion,
-  StylePropertyRef,
 } from "./types";
