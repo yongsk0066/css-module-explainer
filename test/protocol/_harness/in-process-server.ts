@@ -61,7 +61,10 @@ function emptySupplier(): AsyncIterable<FileTask> {
   };
 }
 
-export interface InProcessServerOptions extends Omit<CreateServerOptions, "reader" | "writer"> {}
+export interface InProcessServerOptions extends Omit<
+  Extract<CreateServerOptions, { transport?: "auto" }>,
+  "transport"
+> {}
 
 export interface LspTestClient {
   initialize(overrides?: Partial<InitializeParams>): Promise<InitializeResult>;
@@ -134,6 +137,7 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
     fileSupplier: () => emptySupplier(),
     readStyleFileAsync: async () => null,
     ...options,
+    transport: "streams",
     reader: new StreamMessageReader(clientToServer),
     writer: new StreamMessageWriter(serverToClient),
   });

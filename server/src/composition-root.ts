@@ -37,22 +37,43 @@ import type { FileTask } from "./core/indexing/indexer-worker";
 const SERVER_NAME = "css-module-explainer";
 const SERVER_VERSION = "1.4.0";
 
-export interface CreateServerOptions {
+/**
+ * Transport-agnostic shared options consumed by every
+ * `createServer` variant. Lives on the "auto" branch of the
+ * discriminated union as the implied default — the "streams"
+ * branch extends it and adds the required reader/writer pair.
+ *
+ * Split on `transport` so there is no stringly-typed cast at the
+ * `createConnection` call site.
+ */
+export interface CreateServerAutoOptions {
   /**
-   * When both reader and writer are provided, the connection uses
-   * them directly (Tier 2 test harness with PassThrough streams).
-   * When OMITTED, `createConnection(ProposedFeatures.all)` auto-
-   * detects the transport from process.argv flags set by the
-   * LanguageClient: `--node-ipc` → IPC, `--stdio` → stdin/stdout.
+   * `"auto"` (default): `createConnection(ProposedFeatures.all)`
+   * auto-detects the transport from process.argv flags set by
+   * the LanguageClient — `--node-ipc` → IPC, `--stdio` →
+   * stdin/stdout.
    */
-  readonly reader?: MessageReader | NodeJS.ReadableStream;
-  readonly writer?: MessageWriter | NodeJS.WritableStream;
+  readonly transport?: "auto";
   readonly typeResolver?: TypeResolver;
   readonly readStyleFile?: (path: string) => string | null;
   readonly createProgram?: (workspaceRoot: string) => ts.Program;
   readonly fileSupplier?: () => AsyncIterable<FileTask>;
   readonly readStyleFileAsync?: (path: string) => Promise<string | null>;
 }
+
+/**
+ * Streams transport: the caller supplies a preconstructed
+ * reader/writer pair (Tier 2 test harness with PassThrough
+ * streams). The discriminant narrows both fields to
+ * `MessageReader` / `MessageWriter` inside the branch — no cast.
+ */
+export interface CreateServerStreamsOptions extends Omit<CreateServerAutoOptions, "transport"> {
+  readonly transport: "streams";
+  readonly reader: MessageReader;
+  readonly writer: MessageWriter;
+}
+
+export type CreateServerOptions = CreateServerAutoOptions | CreateServerStreamsOptions;
 
 export interface CreatedServer {
   readonly connection: Connection;
@@ -72,12 +93,8 @@ export interface CreatedServer {
  */
 export function createServer(options: CreateServerOptions): CreatedServer {
   const connection =
-    options.reader && options.writer
-      ? createConnection(
-          ProposedFeatures.all,
-          options.reader as MessageReader,
-          options.writer as MessageWriter,
-        )
+    options.transport === "streams"
+      ? createConnection(ProposedFeatures.all, options.reader, options.writer)
       : createConnection(ProposedFeatures.all);
   const documents = new TextDocuments<TextDocument>(TextDocument);
 
