@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { parseStyleModule, StyleIndexCache } from "../../../server/src/core/scss/scss-index";
+import {
+  buildChildContext,
+  parseStyleModule,
+  StyleIndexCache,
+} from "../../../server/src/core/scss/scss-index";
 
 describe("parseStyleModule / flat classes", () => {
   it("extracts a single flat class", () => {
@@ -308,5 +312,40 @@ describe("StyleIndexCache", () => {
     // still produces an equivalent map, but identity differs).
     const bAgain = cache.get("/b.module.scss", `.b{}`);
     expect(bAgain.has("b")).toBe(true);
+  });
+});
+
+describe("buildChildContext", () => {
+  it("bare single class: sets className, no isGrouped", () => {
+    const ctx = buildChildContext([".a"], ".a");
+    expect(ctx.selector).toBe(".a");
+    expect(ctx.className).toBe("a");
+    expect(ctx.isGrouped).toBeUndefined();
+  });
+
+  it("pseudo-bearing parent: no className, no isGrouped", () => {
+    const ctx = buildChildContext([".a:hover"], ".a:hover");
+    expect(ctx.selector).toBe(".a:hover");
+    expect(ctx.className).toBeUndefined();
+    expect(ctx.isGrouped).toBeUndefined();
+  });
+
+  it("grouped parent: isGrouped true, className undefined on each branch", () => {
+    const first = buildChildContext([".a", ".b"], ".a");
+    expect(first.selector).toBe(".a");
+    expect(first.className).toBeUndefined();
+    expect(first.isGrouped).toBe(true);
+
+    const second = buildChildContext([".a", ".b"], ".b");
+    expect(second.selector).toBe(".b");
+    expect(second.className).toBeUndefined();
+    expect(second.isGrouped).toBe(true);
+  });
+
+  it("descendant compound parent: no className", () => {
+    const ctx = buildChildContext([".a .b"], ".a .b");
+    expect(ctx.selector).toBe(".a .b");
+    expect(ctx.className).toBeUndefined();
+    expect(ctx.isGrouped).toBeUndefined();
   });
 });

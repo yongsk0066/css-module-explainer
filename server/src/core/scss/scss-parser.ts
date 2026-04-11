@@ -10,6 +10,51 @@ import { findLangForPath, getRuntimeSyntax } from "./lang-registry";
  * legitimate "no classes found" result, so upstream providers keep
  * running even when one file is broken.
  */
+/**
+ * Context threaded through the recursive SCSS walk. Carries the
+ * resolved parent selector plus a narrower view for `&`-nested
+ * rename support: `className` is set iff the parent rule is a
+ * bare single `.classname`, and `isGrouped` tracks whether the
+ * parent rule had `selectors.length > 1`.
+ *
+ * Wave 2A uses `className` to produce the `parentResolvedName`
+ * field on nested child entries. Wave 2A consumers read it via
+ * the rename provider to drive suffix-math edits.
+ */
+export interface ParentContext {
+  readonly selector: string;
+  readonly className?: string;
+  readonly isGrouped?: boolean;
+}
+
+/**
+ * Build the child recursion context from a parent rule's resolved
+ * selectors and one specific child branch.
+ *
+ * Sets `className` only when the **current branch** is a bare
+ * single class (`.foo`) AND the parent rule was not grouped —
+ * otherwise `className` is undefined so rename-safe-nested
+ * entries reject downstream.
+ *
+ * Exported for unit testing of the context derivation logic.
+ */
+export function buildChildContext(
+  resolvedSelectors: readonly string[],
+  nextResolved: string,
+): ParentContext {
+  const classesInParent = extractClassNames(nextResolved);
+  const isBareSingleClass =
+    resolvedSelectors.length === 1 &&
+    classesInParent.length === 1 &&
+    nextResolved === "." + classesInParent[0];
+  const ctx: ParentContext = {
+    selector: nextResolved,
+    ...(isBareSingleClass ? { className: classesInParent[0] } : {}),
+    ...(resolvedSelectors.length > 1 ? { isGrouped: true } : {}),
+  };
+  return ctx;
+}
+
 export function parseStyleModule(content: string, filePath: string): ScssClassMap {
   const classMap = new Map<string, SelectorInfo>();
 
@@ -38,7 +83,7 @@ export function parseStyleModule(content: string, filePath: string): ScssClassMa
   // postcss's root.nodes is typed as ChildNode[] | Root_[] at the
   // Document level, but at Root level it is ChildNode[]. Narrow
   // by walking children directly.
-  walkStyleNodes(root.nodes as ChildNode[], "", classMap);
+  walkStyleNodes(root.nodes as ChildNode[], { selector: "" }, classMap);
   return classMap;
 }
 
@@ -49,7 +94,7 @@ export function parseStyleModule(content: string, filePath: string): ScssClassMa
  */
 function walkStyleNodes(
   nodes: ChildNode[] | undefined,
-  parentSelector: string,
+  parentCtx: ParentContext,
   classMap: Map<string, SelectorInfo>,
 ): void {
   if (!nodes) return;
@@ -61,10 +106,10 @@ function walkStyleNodes(
       // :local block form — passthrough (CSS Modules default is
       // local, so these are already correctly indexed).
       if (isLocalBlockRule(node.selector)) {
-        walkStyleNodes(node.nodes, parentSelector, classMap);
+        walkStyleNodes(node.nodes, parentCtx, classMap);
         continue;
       }
-      recordRule(node, parentSelector, classMap);
+      recordRule(node, parentCtx, classMap);
     } else if (node.type === "atrule" && isTransparentAtRule(node.name)) {
       if (node.name === "at-root" && isInlineAtRoot(node)) {
         recordAtRootInlineRule(node, classMap);
@@ -72,9 +117,9 @@ function walkStyleNodes(
         // Block form `@at-root { .escaped {} }` — resets the
         // parent selector so nested rules escape all enclosing
         // nesting, which is the entire point of @at-root.
-        walkStyleNodes(node.nodes, "", classMap);
+        walkStyleNodes(node.nodes, { selector: "" }, classMap);
       } else {
-        walkStyleNodes(node.nodes, parentSelector, classMap);
+        walkStyleNodes(node.nodes, parentCtx, classMap);
       }
     }
   }
@@ -99,7 +144,11 @@ function isInlineAtRoot(atrule: AtRule): boolean {
   return atrule.params.trim().length > 0;
 }
 
-function recordRule(rule: Rule, parentSelector: string, classMap: Map<string, SelectorInfo>): void {
+function recordRule(
+  rule: Rule,
+  parentCtx: ParentContext,
+  classMap: Map<string, SelectorInfo>,
+): void {
   const { declarations, composes } = collectDeclarationsAndComposes(rule.nodes);
   const ruleRange = rangeForSourceNode(rule);
 
@@ -107,7 +156,7 @@ function recordRule(rule: Rule, parentSelector: string, classMap: Map<string, Se
   const resolvedSelectors: string[] = [];
 
   for (const raw of selectors) {
-    const resolved = resolveSelector(raw, parentSelector);
+    const resolved = resolveSelector(raw, parentCtx.selector);
     resolvedSelectors.push(resolved);
     const isNested = raw.includes("&");
 
@@ -137,9 +186,9 @@ function recordRule(rule: Rule, parentSelector: string, classMap: Map<string, Se
   // just the first. `.a, .b { .child {} }` → both `.a .child` and
   // `.b .child` are indexed. Guard against pathological expansion
   // by capping the branch count.
-  const parents = resolvedSelectors.length > 0 ? resolvedSelectors : [parentSelector];
-  for (const nextParent of parents) {
-    walkStyleNodes(rule.nodes, nextParent, classMap);
+  const parents = resolvedSelectors.length > 0 ? resolvedSelectors : [parentCtx.selector];
+  for (const nextResolved of parents) {
+    walkStyleNodes(rule.nodes, buildChildContext(resolvedSelectors, nextResolved), classMap);
   }
 }
 
