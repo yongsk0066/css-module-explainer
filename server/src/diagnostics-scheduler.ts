@@ -7,8 +7,6 @@ import { computeScssUnusedDiagnostics } from "./providers/scss-diagnostics";
 import type { ProviderDeps } from "./providers/cursor-dispatch";
 import { fileUrlToPath } from "./core/util/text-utils";
 import { findLangForPath } from "./core/scss/lang-registry";
-import type { StyleIndexCache } from "./core/scss/scss-index";
-import type { IndexerWorker } from "./core/indexing/indexer-worker";
 import type { Settings } from "./settings";
 
 const DIAGNOSTICS_DEBOUNCE_MS = 200;
@@ -17,7 +15,6 @@ export interface DiagnosticsSchedulerDeps {
   readonly connection: Connection;
   readonly documents: TextDocuments<TextDocument>;
   getDeps(): ProviderDeps | null;
-  getBundle(): { styleIndexCache: StyleIndexCache; indexerWorker: IndexerWorker } | null;
 }
 
 export interface DiagnosticsScheduler {
@@ -52,7 +49,7 @@ export function createDiagnosticsScheduler(
   deps: DiagnosticsSchedulerDeps,
   settings: Settings,
 ): DiagnosticsScheduler {
-  const { connection, documents, getDeps, getBundle } = deps;
+  const { connection, documents, getDeps } = deps;
 
   let currentSettings = settings;
 
@@ -87,10 +84,10 @@ export function createDiagnosticsScheduler(
 
   function ensureReadySubscribed(): void {
     if (readySubscribed) return;
-    const bundle = getBundle();
-    if (!bundle) return;
+    const providerDeps = getDeps();
+    if (!providerDeps) return;
     readySubscribed = true;
-    bundle.indexerWorker.ready
+    providerDeps.indexerReady
       .then(() => {
         indexReady = true;
         for (const doc of documents.all()) {

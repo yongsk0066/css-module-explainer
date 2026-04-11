@@ -83,7 +83,7 @@ export function createServer(options: CreateServerOptions): CreatedServer {
       : createConnection(ProposedFeatures.all);
   const documents = new TextDocuments<TextDocument>(TextDocument);
 
-  let bundle: CompositionBundle | null = null;
+  let bundle: ProviderDeps | null = null;
   let watchedFilesDisposable: Promise<{ dispose(): void }> | null = null;
   let clientSupportsDynamicWatchers = false;
 
@@ -121,23 +121,12 @@ export function createServer(options: CreateServerOptions): CreatedServer {
   const handlers = registerHandlers({
     connection,
     documents,
-    getDeps: () => bundle?.deps ?? null,
-    getBundle: () =>
-      bundle
-        ? { styleIndexCache: bundle.styleIndexCache, indexerWorker: bundle.indexerWorker }
-        : null,
+    getDeps: () => bundle,
   });
 
   connection.onInitialized(async () => {
     connection.console.info(`[${SERVER_NAME}] initialized`);
     if (!bundle) return;
-    bundle.indexerWorker.start().catch((err: unknown) => {
-      connection.console.error(
-        `[${SERVER_NAME}] indexer worker crashed: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
-    });
     if (clientSupportsDynamicWatchers) {
       watchedFilesDisposable = connection.client
         .register(DidChangeWatchedFilesNotification.type, {
@@ -169,18 +158,12 @@ function resolveWorkspaceRoot(params: InitializeParams): string {
   return process.cwd();
 }
 
-interface CompositionBundle {
-  readonly deps: ProviderDeps;
-  readonly styleIndexCache: StyleIndexCache;
-  readonly indexerWorker: IndexerWorker;
-}
-
 function buildBundle(
   workspaceRoot: string,
   options: CreateServerOptions,
   connection: Connection,
   documents: TextDocuments<TextDocument>,
-): CompositionBundle {
+): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 200 });
   const styleIndexCache = new StyleIndexCache({ max: 500 });
   const reverseIndex = new WorkspaceReverseIndex();
@@ -233,18 +216,6 @@ function buildBundle(
     error: (msg: string) => connection.console.error(`[${SERVER_NAME}:indexer] ${msg}`),
   };
 
-  const deps: ProviderDeps = {
-    analysisCache,
-    scssClassMapForPath: classMapForPath,
-    typeResolver,
-    reverseIndex,
-    workspaceRoot,
-    logError: (message, err) => {
-      const detail = err instanceof Error ? `${err.message}\n${err.stack ?? ""}` : String(err);
-      connection.console.error(`[${SERVER_NAME}] ${message}: ${detail}`);
-    },
-  };
-
   const supplier = options.fileSupplier ?? (() => scssFileSupplier(workspaceRoot, indexerLogger));
   const asyncReadFile = options.readStyleFileAsync ?? defaultReadStyleFileAsync;
   const indexerWorker = new IndexerWorker({
@@ -257,7 +228,31 @@ function buildBundle(
     logger: indexerLogger,
   });
 
-  return { deps, styleIndexCache, indexerWorker };
+  indexerWorker.start().catch((err: unknown) => {
+    connection.console.error(
+      `[${SERVER_NAME}] indexer worker crashed: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+  });
+
+  const deps: ProviderDeps = {
+    analysisCache,
+    scssClassMapForPath: classMapForPath,
+    typeResolver,
+    reverseIndex,
+    workspaceRoot,
+    logError: (message, err) => {
+      const detail = err instanceof Error ? `${err.message}\n${err.stack ?? ""}` : String(err);
+      connection.console.error(`[${SERVER_NAME}] ${message}: ${detail}`);
+    },
+    invalidateStyle: (path) => styleIndexCache.invalidate(path),
+    pushStyleFile: (path) => indexerWorker.pushFile({ kind: "scss", path }),
+    indexerReady: indexerWorker.ready,
+    stopIndexer: () => indexerWorker.stop(),
+  };
+
+  return deps;
 }
 
 async function defaultReadStyleFileAsync(path: string): Promise<string | null> {

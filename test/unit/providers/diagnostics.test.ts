@@ -174,6 +174,10 @@ describe("computeDiagnostics", () => {
       reverseIndex: new NullReverseIndex(),
       workspaceRoot: "/fake/ws",
       logError: NOOP_LOG_ERROR,
+      invalidateStyle: () => {},
+      pushStyleFile: () => {},
+      indexerReady: Promise.resolve(),
+      stopIndexer: () => {},
     };
     const result = computeDiagnostics(baseParams, deps);
     expect(result).toHaveLength(1);
@@ -217,6 +221,10 @@ describe("computeDiagnostics", () => {
       reverseIndex: new NullReverseIndex(),
       workspaceRoot: "/fake/ws",
       logError: NOOP_LOG_ERROR,
+      invalidateStyle: () => {},
+      pushStyleFile: () => {},
+      indexerReady: Promise.resolve(),
+      stopIndexer: () => {},
     };
     const result = computeDiagnostics(baseParams, deps);
     expect(result).toHaveLength(1);
@@ -249,6 +257,10 @@ describe("computeDiagnostics", () => {
       reverseIndex: new NullReverseIndex(),
       workspaceRoot: "/fake/ws",
       logError: NOOP_LOG_ERROR,
+      invalidateStyle: () => {},
+      pushStyleFile: () => {},
+      indexerReady: Promise.resolve(),
+      stopIndexer: () => {},
     };
     const result = computeDiagnostics(baseParams, deps);
     expect(result).toEqual([]);

@@ -12,9 +12,6 @@ import { handlePrepareRename, handleRename } from "./providers/rename";
 import type { CursorParams, ProviderDeps } from "./providers/cursor-dispatch";
 import { fileUrlToPath } from "./core/util/text-utils";
 import { findLangForPath } from "./core/scss/lang-registry";
-import type { StyleIndexCache } from "./core/scss/scss-index";
-import type { IndexerWorker } from "./core/indexing/indexer-worker";
-import type { FileTask } from "./core/indexing/indexer-worker";
 import { fetchSettings, DEFAULT_SETTINGS, type Settings } from "./settings";
 import { createDiagnosticsScheduler } from "./diagnostics-scheduler";
 
@@ -22,7 +19,6 @@ export interface HandlerContext {
   readonly connection: Connection;
   readonly documents: TextDocuments<TextDocument>;
   getDeps(): ProviderDeps | null;
-  getBundle(): { styleIndexCache: StyleIndexCache; indexerWorker: IndexerWorker } | null;
 }
 
 export interface HandlerCleanup {
@@ -41,14 +37,11 @@ export interface HandlerCleanup {
  * `onShutdown` handler can invoke timer + indexer cleanup.
  */
 export function registerHandlers(ctx: HandlerContext): HandlerCleanup {
-  const { connection, documents, getDeps, getBundle } = ctx;
+  const { connection, documents, getDeps } = ctx;
 
   let settings: Settings = DEFAULT_SETTINGS;
 
-  const scheduler = createDiagnosticsScheduler(
-    { connection, documents, getDeps, getBundle },
-    settings,
-  );
+  const scheduler = createDiagnosticsScheduler({ connection, documents, getDeps }, settings);
 
   function reloadSettings(): void {
     fetchSettings(connection)
@@ -149,17 +142,16 @@ export function registerHandlers(ctx: HandlerContext): HandlerCleanup {
   });
 
   connection.onDidChangeWatchedFiles((params: DidChangeWatchedFilesParams) => {
-    const bundle = getBundle();
-    if (!bundle) return;
+    const deps = getDeps();
+    if (!deps) return;
     for (const change of params.changes) {
       const filePath = fileUrlToPath(change.uri);
       if (change.type === FileChangeType.Deleted) {
-        bundle.styleIndexCache.invalidate(filePath);
+        deps.invalidateStyle(filePath);
         continue;
       }
-      bundle.styleIndexCache.invalidate(filePath);
-      const task: FileTask = { kind: "scss", path: filePath };
-      bundle.indexerWorker.pushFile(task);
+      deps.invalidateStyle(filePath);
+      deps.pushStyleFile(filePath);
     }
     for (const doc of documents.all()) {
       scheduler.scheduleTsx(doc.uri);
@@ -168,8 +160,8 @@ export function registerHandlers(ctx: HandlerContext): HandlerCleanup {
 
   return {
     shutdown() {
-      const bundle = getBundle();
-      bundle?.indexerWorker.stop();
+      const deps = getDeps();
+      deps?.stopIndexer();
       scheduler.shutdown();
     },
     refreshSettings() {

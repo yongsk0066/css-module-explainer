@@ -80,6 +80,10 @@ export function makeBaseDeps(overrides: Partial<ProviderDeps> = {}): ProviderDep
     reverseIndex: new NullReverseIndex(),
     workspaceRoot: "/fake/ws",
     logError: NOOP_LOG_ERROR,
+    invalidateStyle: () => {},
+    pushStyleFile: () => {},
+    indexerReady: Promise.resolve(),
+    stopIndexer: () => {},
     ...overrides,
   };
 }

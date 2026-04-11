@@ -60,6 +60,27 @@ export interface ProviderDeps {
    * result" contract is explicit at every call site.
    */
   readonly logError: (message: string, err: unknown) => void;
+  /**
+   * Invalidate the cached style-index entry for a single file path.
+   * Used by the file-watcher when a `.module.*` file changes.
+   */
+  readonly invalidateStyle: (path: string) => void;
+  /**
+   * Queue a single style file for incremental re-indexing by the
+   * background indexer worker. Used by the file-watcher alongside
+   * `invalidateStyle`.
+   */
+  readonly pushStyleFile: (path: string) => void;
+  /**
+   * Resolves when the initial indexer walk completes. Diagnostics
+   * subscribers await this before running SCSS diagnostics that
+   * depend on the workspace-wide reverse index.
+   */
+  readonly indexerReady: Promise<void>;
+  /**
+   * Stop the background indexer worker. Called from `onShutdown`.
+   */
+  readonly stopIndexer: () => void;
 }
 
 /** No-op logError stub for tests — keeps `ProviderDeps.logError` required. */

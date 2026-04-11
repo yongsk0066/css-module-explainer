@@ -93,6 +93,10 @@ function makeDeps(): ProviderDeps {
     reverseIndex: new NullReverseIndex(),
     workspaceRoot: "/bench",
     logError: NOOP_LOG_ERROR,
+    invalidateStyle: () => {},
+    pushStyleFile: () => {},
+    indexerReady: Promise.resolve(),
+    stopIndexer: () => {},
   };
 }
 
