@@ -468,10 +468,13 @@ function extractClassNames(resolvedSelector: string): string[] {
   const segments = withoutPseudos.trim().split(/\s*[>+~]\s*|\s+/);
   const lastSegment = segments[segments.length - 1] ?? "";
   // Unicode property classes so identifiers outside the ASCII
-  // subset (e.g. `.한글`, `.日本語`, `.español-btn`) survive the
-  // last-compound split. First character: letter or underscore;
-  // remainder: letter, number, underscore, dash.
-  const matches = lastSegment.match(/\.[\p{L}_][\p{L}\p{N}_-]*/gu) ?? [];
+  // subset (e.g. `.한글`, `.日本語`, `.español-btn`, or the NFD
+  // form `.café` where `é` is `e` + U+0301) survive the last-
+  // compound split. First character: letter or underscore.
+  // Remainder: letter, number, combining mark, underscore, dash —
+  // `\p{M}` picks up combining marks so a decomposed codepoint
+  // does not truncate the identifier at the base letter.
+  const matches = lastSegment.match(/\.[\p{L}_][\p{L}\p{N}\p{M}_-]*/gu) ?? [];
   return matches.map((m) => m.slice(1));
 }
 

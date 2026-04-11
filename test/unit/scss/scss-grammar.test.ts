@@ -180,6 +180,15 @@ describe("Unicode class-name identifiers survive extraction", () => {
     const m = parseStyleModule(`.日本語 { color: red; }\n.español-btn {}`, "/f.module.scss");
     expect([...m.keys()]).toEqual(["日本語", "español-btn"]);
   });
+
+  it("decomposed (NFD) combining mark does not truncate the identifier", () => {
+    // `.café` where `é` is the decomposed pair `e` + U+0301.
+    // Without combining-mark tolerance the identifier would
+    // truncate to `caf`, dropping the trailing mark from the key
+    // and desyncing the class map from the source text.
+    const m = parseStyleModule(".cafe\u0301 { color: red; }", "/f.module.scss");
+    expect([...m.keys()]).toEqual(["cafe\u0301"]);
+  });
 });
 
 describe("leading byte-order mark does not hide the first class", () => {
