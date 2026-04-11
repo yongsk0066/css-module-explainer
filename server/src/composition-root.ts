@@ -30,7 +30,7 @@ import { DocumentAnalysisCache } from "./core/indexing/document-analysis-cache";
 import { scssFileSupplier } from "./core/indexing/file-supplier";
 import { IndexerWorker } from "./core/indexing/indexer-worker";
 import { collectCallSites, WorkspaceReverseIndex } from "./core/indexing/reverse-index";
-import { fileUrlToPath } from "./core/util/text-utils";
+import { fileUrlToPath, pathToFileUrl } from "./core/util/text-utils";
 import { COMPLETION_TRIGGER_CHARACTERS } from "./providers/completion";
 import type { ProviderDeps } from "./providers/cursor-dispatch";
 import { registerHandlers } from "./handler-registration";
@@ -94,7 +94,7 @@ export function createServer(options: CreateServerOptions): CreatedServer {
     const workspaceRoot = resolveWorkspaceRoot(params);
     clientSupportsDynamicWatchers =
       params.capabilities.workspace?.didChangeWatchedFiles?.dynamicRegistration ?? false;
-    bundle = buildBundle(workspaceRoot, options, connection);
+    bundle = buildBundle(workspaceRoot, options, connection, documents);
     return {
       capabilities: {
         textDocumentSync: TextDocumentSyncKind.Incremental,
@@ -179,6 +179,7 @@ function buildBundle(
   workspaceRoot: string,
   options: CreateServerOptions,
   connection: Connection,
+  documents: TextDocuments<TextDocument>,
 ): CompositionBundle {
   const sourceFileCache = new SourceFileCache({ max: 200 });
   const styleIndexCache = new StyleIndexCache({ max: 500 });
@@ -191,8 +192,15 @@ function buildBundle(
     });
 
   const readStyleFile = options.readStyleFile ?? defaultReadStyleFile;
+  const readOpenStyleDocument = (path: string): string | null => {
+    const uri = pathToFileUrl(path);
+    const doc = documents.get(uri);
+    return doc?.getText() ?? null;
+  };
   const classMapForPath = (path: string): ScssClassMap | null => {
     if (!findLangForPath(path)) return null;
+    const buffered = readOpenStyleDocument(path);
+    if (buffered !== null) return styleIndexCache.get(path, buffered);
     const content = readStyleFile(path);
     if (content === null) return null;
     return styleIndexCache.get(path, content);

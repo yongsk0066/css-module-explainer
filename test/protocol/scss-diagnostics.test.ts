@@ -80,13 +80,54 @@ describe("SCSS unused selector diagnostics protocol", () => {
   // buffer first, falling back to disk.
   // ──────────────────────────────────────────────────────────
 
-  // TODO(wave1-stage3): un-skip after fix lands
-  it.skip("unused diagnostics use buffered SCSS content, NOT disk content (wave1-stage3.3)", async () => {
-    // Harness: readStyleFile stub returns `.a {}` (DIFFERENT
-    // from the open-buffer content `.a {} .b {}`). Open a TSX
-    // file referencing `.b`. Assert: no unused-diagnostic on
-    // `.a`, no unused-diagnostic on `.b`. Current code reads
-    // from disk → `.b` appears unused → red.
-    expect.fail("red placeholder — wave1-stage3.3");
+  it("unused diagnostics use buffered SCSS content, NOT disk content (wave1-stage3.3)", async () => {
+    // Disk content has only `.a`. Buffer content has `.a` and
+    // `.b`. TSX references `styles.b`. Pre-fix (disk read):
+    // classMapForPath returns `{a}` → TSX validation emits
+    // "Class '.b' not found" diagnostic. Post-fix (buffer
+    // read): classMapForPath returns `{a, b}` → no diagnostic.
+    const DISK_SCSS = ".a {}\n";
+    const BUFFER_SCSS = ".a {}\n.b {}\n";
+    const TSX = `import classNames from 'classnames/bind';
+import styles from './Button.module.scss';
+const cx = classNames.bind(styles);
+export function App() {
+  return <div className={cx('b')}>hi</div>;
+}
+`;
+    async function* supplier(): AsyncIterable<FileTask> {
+      // empty
+    }
+    client = createInProcessServer({
+      readStyleFile: () => DISK_SCSS,
+      typeResolver: new FakeTypeResolver(),
+      fileSupplier: () => supplier(),
+    });
+    await client.initialize();
+    client.initialized();
+
+    // Open SCSS FIRST so its buffer is in `documents` before
+    // the TSX analysis runs classMapForPath on the SCSS path.
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/Button.module.scss",
+        languageId: "scss",
+        version: 1,
+        text: BUFFER_SCSS,
+      },
+    });
+
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/App.tsx",
+        languageId: "typescriptreact",
+        version: 1,
+        text: TSX,
+      },
+    });
+
+    const tsxDiagnostics = await client.waitForDiagnostics("file:///fake/workspace/src/App.tsx");
+    const notFoundDiag = tsxDiagnostics.find((d) => d.message.includes("Class '.b' not found"));
+    expect(notFoundDiag).toBeUndefined();
   });
 });
