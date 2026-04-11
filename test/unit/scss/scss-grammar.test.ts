@@ -159,6 +159,29 @@ describe("parse failure still yields an empty classMap", () => {
   });
 });
 
+describe("leading byte-order mark does not hide the first class", () => {
+  // Files saved by some Windows editors (and copy-pastes through a
+  // BOM-preserving path) carry a leading U+FEFF. postcss-scss parses
+  // that as stray content and drops the first selector, leaving an
+  // empty class map and the "declared but never used" diagnostic on
+  // every TSX reference. Strip the BOM before handing the buffer to
+  // the parser.
+  it("UTF-8 BOM at the file start keeps the first selector in the class map", () => {
+    const m = parseStyleModule("\uFEFF.btn { color: red; }", "/f.module.scss");
+    expect([...m.keys()]).toEqual(["btn"]);
+  });
+
+  it("UTF-8 BOM + LESS file routes through the LESS parser without losing the first selector", () => {
+    const m = parseStyleModule("\uFEFF.btn { color: red; }\n.btn-primary {}", "/f.module.less");
+    expect([...m.keys()]).toEqual(["btn", "btn-primary"]);
+  });
+
+  it("UTF-8 BOM + CSS file still recognises the first selector", () => {
+    const m = parseStyleModule("\uFEFF.btn { color: red; }", "/f.module.css");
+    expect([...m.keys()]).toEqual(["btn"]);
+  });
+});
+
 describe("CSS nesting + `&` suffix survive in every grammar", () => {
   // Regression guard: the flat `.button` entry must appear in the
   // classMap even when the rule contains nested `&--primary` and
