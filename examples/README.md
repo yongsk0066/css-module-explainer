@@ -92,6 +92,24 @@ through them whenever you update the provider layer.
 - **Unused selector faded text**: declare a class that is never
   referenced by any `.tsx` — it renders faded with the "unused"
   diagnostic tag.
+- **Missing-module warning on typos**: in any scenario, change
+  `import styles from './Button.module.scss'` to a nonexistent
+  filename — a `missing-module` warning appears on the import
+  string immediately, even in files that only use `styles.x`
+  without `classnames/bind`. Reverting the typo clears it on
+  the next debounce.
+- **`classnameTransform` alias resolution**: set
+  `"cssModuleExplainer.scss.classnameTransform": "camelCase"` in
+  workspace settings and open `02-multi-binding`. Both
+  `styles['btn-primary']` and `styles.btnPrimary` should resolve
+  to the same selector (hover, go-to-definition, completion).
+  Rename `btnPrimary` from the alias — the SCSS source rewrites
+  the original `.btn-primary` token, not the alias copy.
+- **`classnameTransform` rename reject in `*Only` modes**: switch
+  the setting to `"camelCaseOnly"` and retry the rename on
+  `btnPrimary`. The rename UI should be suppressed entirely —
+  VS Code falls back to plain word-rename with no workspace
+  edits.
 
 ## Vite+ vs plain Vite
 

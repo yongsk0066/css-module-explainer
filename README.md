@@ -49,14 +49,42 @@ code --install-extension css-module-explainer-*.vsix
 
 ## Configuration
 
-| Setting                                     | Type      | Default | Description                                                     |
-| ------------------------------------------- | --------- | ------- | --------------------------------------------------------------- |
-| `cssModuleExplainer.enable`                 | `boolean` | `true`  | Master on/off switch                                            |
-| `cssModuleExplainer.diagnostics.enable`     | `boolean` | `true`  | Publish missing-class warnings                                  |
-| `cssModuleExplainer.diagnostics.debounceMs` | `number`  | `200`   | Delay before re-running diagnostics after an edit               |
-| `cssModuleExplainer.codeLens.enable`        | `boolean` | `true`  | Show reference counts above selectors in `.module.scss`         |
-| `cssModuleExplainer.trace.server`           | `string`  | `"off"` | LSP trace level (`"off"`, `"messages"`, `"verbose"`)            |
-| `cssModuleExplainer.maxFilesIndexed`        | `number`  | `5000`  | Maximum number of TS/TSX files the background indexer will walk |
+| Setting                                        | Type                                                                   | Default  | Description                                                     |
+| ---------------------------------------------- | ---------------------------------------------------------------------- | -------- | --------------------------------------------------------------- |
+| `cssModuleExplainer.enable`                    | `boolean`                                                              | `true`   | Master on/off switch                                            |
+| `cssModuleExplainer.diagnostics.enable`        | `boolean`                                                              | `true`   | Publish missing-class warnings                                  |
+| `cssModuleExplainer.diagnostics.missingModule` | `boolean`                                                              | `true`   | Warn when a `.module.*` import cannot be resolved on disk       |
+| `cssModuleExplainer.diagnostics.debounceMs`    | `number`                                                               | `200`    | Delay before re-running diagnostics after an edit               |
+| `cssModuleExplainer.scss.classnameTransform`   | `"asIs" \| "camelCase" \| "camelCaseOnly" \| "dashes" \| "dashesOnly"` | `"asIs"` | Control how SCSS selectors are exposed to TS — see table below  |
+| `cssModuleExplainer.codeLens.enable`           | `boolean`                                                              | `true`   | Show reference counts above selectors in `.module.scss`         |
+| `cssModuleExplainer.trace.server`              | `string`                                                               | `"off"`  | LSP trace level (`"off"`, `"messages"`, `"verbose"`)            |
+| `cssModuleExplainer.maxFilesIndexed`           | `number`                                                               | `5000`   | Maximum number of TS/TSX files the background indexer will walk |
+
+The extension additionally reads `cssModules.pathAlias` from the clinyong/vscode-cssmodules config for zero-config migration — see [Path aliases](#path-aliases) below.
+
+### Class name transform
+
+Matches css-loader's `modules.localsConvention`. For a selector `.btn-primary`:
+
+| Mode            | Exposed keys                 | css-loader equivalent | Notes                                                        |
+| --------------- | ---------------------------- | --------------------- | ------------------------------------------------------------ |
+| `asIs`          | `btn-primary`                | `asIs` (default)      | Unchanged behavior. No alias entries.                        |
+| `camelCase`     | `btn-primary` + `btnPrimary` | `camelCase`           | Both keys resolve. Rename from either rewrites the original. |
+| `camelCaseOnly` | `btnPrimary`                 | `camelCaseOnly`       | Only the camelCase alias exists. Rename is rejected.         |
+| `dashes`        | `btn-primary` + `btnPrimary` | `dashes`              | Like `camelCase` but only dashes become word boundaries.     |
+| `dashesOnly`    | `btnPrimary`                 | `dashesOnly`          | Only the dashes-to-camel alias exists. Rename is rejected.   |
+
+- Alias entries participate in hover, go-to-definition, completion, references, code lens, and BEM-suffix rename. A rename of `btnPrimary` rewrites the original `.btn-primary` in SCSS and every `styles['btn-primary']` / `styles.btnPrimary` call site in lockstep.
+- `camelCaseOnly` and `dashesOnly` **reject** rename — the reverse transform from alias → original SCSS selector is lossy (`btnSecondary` could map to `btn-secondary`, `btnSecondary`, or `btn_secondary`). Use `camelCase` / `dashes` for editor-driven rename workflows.
+- The transform handles ASCII inputs using the same algorithm as css-loader's default (`-` and `_` become word boundaries). Unicode identifiers pass through unchanged.
+
+### Path aliases
+
+`cssModules.pathAlias` from the clinyong/vscode-cssmodules extension is read as-is, so `import styles from '@styles/button.module.scss'` resolves when your workspace has `"cssModules.pathAlias": { "@styles": "src/styles" }` in its settings. `${workspaceFolder}` substitution is supported.
+
+**One intentional divergence from clinyong**: alias matching uses longest-prefix order rather than insertion order. Given `{ "@": "src", "@styles": "src/styles" }`, the specifier `@styles/button` routes to `src/styles/button` regardless of config key order — clinyong would route based on whichever prefix appears first in the object.
+
+Wildcard patterns and tsconfig.json `compilerOptions.paths` auto-detection are not yet supported — tracked for a future release.
 
 ## Development
 
