@@ -181,4 +181,44 @@ describe("computeScssUnusedDiagnostics", () => {
     const diagnostics = computeScssUnusedDiagnostics(SCSS_PATH, classMap, reverseIndex);
     expect(diagnostics.filter((d) => d.message.includes("btn-primary"))).toHaveLength(1);
   });
+
+  it("classnameTransform: alias-form TSX access keeps the original marked as used", async () => {
+    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
+    const { expandClassMapWithTransform } =
+      await import("../../../server/src/core/scss/classname-transform");
+    // `.btn-primary` is accessed ONLY via the camelCase alias from
+    // a TSX file (`styles.btnPrimary`) — no canonical `cx('btn-primary')`
+    // call exists. The reverse index canonicalises the alias access
+    // under `btn-primary`, so the unused-selector check must find the
+    // reference and skip the warning.
+    const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);
+    const classMap = expandClassMapWithTransform(base, "camelCase");
+
+    const reverseIndex = new WorkspaceReverseIndex();
+    reverseIndex.record("file:///a.tsx", [
+      siteAt("file:///a.tsx", "btnPrimary", 5, SCSS_PATH, "btn-primary"),
+    ]);
+    const diagnostics = computeScssUnusedDiagnostics(SCSS_PATH, classMap, reverseIndex);
+    expect(diagnostics).toHaveLength(0);
+  });
+
+  it("classnameTransform (camelCaseOnly): alias-only class still gets unused detection", async () => {
+    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
+    const { expandClassMapWithTransform } =
+      await import("../../../server/src/core/scss/classname-transform");
+    // `camelCaseOnly` drops the original from the class map entirely;
+    // only `btnPrimary` remains with `originalName: "btn-primary"`.
+    // The unused check must still emit exactly one warning for the
+    // canonical `btn-primary` even though no entry keyed on that
+    // name exists in the map.
+    const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);
+    const classMap = expandClassMapWithTransform(base, "camelCaseOnly");
+    expect(classMap.has("btn-primary")).toBe(false);
+    expect(classMap.has("btnPrimary")).toBe(true);
+
+    const reverseIndex = new WorkspaceReverseIndex();
+    const diagnostics = computeScssUnusedDiagnostics(SCSS_PATH, classMap, reverseIndex);
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]!.message).toContain("'.btn-primary'");
+  });
 });

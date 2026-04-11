@@ -46,18 +46,24 @@ export function infoWithDeclarations(
   };
 }
 
-/** Create a minimal static CallSite for testing. */
+/**
+ * Create a minimal static CallSite for testing. `canonicalName`
+ * defaults to `className` (the non-alias case); tests exercising
+ * alias-form access pass an explicit `canonicalName` to distinguish
+ * the source token from the original SCSS key.
+ */
 export function siteAt(
   uri: string,
   className: string,
   line: number,
   scssPath: string = "/fake/a.module.scss",
+  canonicalName: string = className,
 ): CallSite {
   return {
     uri,
     range: { start: { line, character: 10 }, end: { line, character: 10 + className.length } },
     scssModulePath: scssPath,
-    match: { kind: "static" as const, className },
+    match: { kind: "static" as const, className, canonicalName },
     expansion: "direct",
   };
 }

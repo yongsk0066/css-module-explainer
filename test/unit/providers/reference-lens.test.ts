@@ -41,7 +41,7 @@ describe("handleCodeLens", () => {
         uri: "file:///a.tsx",
         range: { start: { line: 10, character: 5 }, end: { line: 10, character: 14 } },
         scssModulePath: "/fake/src/Button.module.scss",
-        match: { kind: "static", className: "indicator" },
+        match: { kind: "static", className: "indicator", canonicalName: "indicator" },
       },
     ]);
     const result = handleCodeLens(

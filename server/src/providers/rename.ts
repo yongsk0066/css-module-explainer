@@ -6,6 +6,7 @@ import type {
 } from "vscode-languageserver/node";
 import type { BemSuffixInfo, ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
 import { findLangForPath } from "../core/scss/lang-registry";
+import { type ClassnameTransformMode, transformClassname } from "../core/scss/classname-transform";
 import { fileUrlToPath, pathToFileUrl } from "../core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
 import { wrapHandler } from "./_wrap-handler";
@@ -126,11 +127,12 @@ function resolveRenameTarget(
     : selectorInfo;
   if (gateTarget.isNested && !isBemRenameable(gateTarget)) return null;
 
-  // camelCaseOnly / dashesOnly alias rename reject — the new name
-  // would need to be reverse-transformed back to the original key
-  // format to rewrite the SCSS source, but the reverse transform
-  // is lossy. Initial release rejects; heuristic / explicit UI
-  // may lift this in a future wave.
+  // In `camelCaseOnly` / `dashesOnly` modes the original SCSS key
+  // is not in the class map, so a rewrite would have to guess the
+  // original separator convention from the new camelCase name —
+  // `btnSecondary` could map to `btn-secondary`, `btnSecondary`,
+  // or `btn_secondary` and the reverse transform is lossy. Reject
+  // rather than risk corrupting the source.
   const mode = deps.settings.scss.classnameTransform;
   if ((mode === "camelCaseOnly" || mode === "dashesOnly") && selectorInfo.originalName) {
     return null;
@@ -156,20 +158,20 @@ function isBemRenameable(info: SelectorInfo): info is SelectorInfo & { bemSuffix
 }
 
 /**
- * True if any reverse-index site for this class is a synthesized
- * expansion of a template/variable ref. `prepareRenameFromScss`
- * uses this to signal "unrenameable" to VS Code so the rename UI
- * is suppressed entirely. `renameFromScss` does not re-check —
- * `buildRenameEdit` filters individual expanded sites per-edit
- * so that even a direct rename call produces a safe edit.
+ * True if any reverse-index site under the given canonical class
+ * name is a synthesized expansion of a template/variable ref.
+ * `prepareRenameFromScss` uses this to signal "unrenameable" to
+ * VS Code so the rename UI is suppressed entirely. `renameFromScss`
+ * does not re-check — `buildRenameEdit` filters individual
+ * expanded sites per-edit so that even a direct rename call
+ * produces a safe edit.
  */
-function hasExpandedReverseSite(deps: ProviderDeps, filePath: string, className: string): boolean {
-  return deps.reverseIndex
-    .findAllForScssPath(filePath)
-    .some(
-      (s) =>
-        s.match.kind === "static" && s.match.className === className && s.expansion !== "direct",
-    );
+function hasExpandedReverseSite(
+  deps: ProviderDeps,
+  filePath: string,
+  canonicalName: string,
+): boolean {
+  return deps.reverseIndex.find(filePath, canonicalName).some((s) => s.expansion !== "direct");
 }
 
 function prepareRenameFromScss(
@@ -190,17 +192,8 @@ function prepareRenameFromScss(
   // destroy the dynamic expression source. `renameFromScss` does
   // not re-check: if a client forces the call anyway,
   // `buildRenameEdit` still filters expanded sites per-edit.
-  //
-  // The reject walks BOTH the alias key and the original key. A
-  // `cx(`btn-${x}`)` template produces an expanded entry for the
-  // original `btn-primary` key; the alias `btnPrimary` has no
-  // entry of its own, so checking only the alias would miss it.
-  const keysToCheck: readonly string[] = selectorInfo.originalName
-    ? [selectorInfo.name, selectorInfo.originalName]
-    : [selectorInfo.name];
-  for (const key of keysToCheck) {
-    if (hasExpandedReverseSite(deps, filePath, key)) return null;
-  }
+  const canonicalName = selectorInfo.originalName ?? selectorInfo.name;
+  if (hasExpandedReverseSite(deps, filePath, canonicalName)) return null;
 
   // Use the narrower raw-token range for nested entries (covers
   // `&--primary` exactly); flat entries keep the resolved range.
@@ -227,24 +220,24 @@ function renameFromScss(
 const IDENTIFIER_RE = /^[a-zA-Z_][\w-]*$/;
 
 /**
- * Alias-aware SCSS edit base resolver. When the cursor landed on
- * an alias entry (e.g. `btnPrimary` in camelCase mode), the SCSS
- * edit must operate on the ORIGINAL entry's `range` / `bemSuffix`
- * — the alias is a view of the original, not an independent
- * source of truth. `...info` spread in `expandClassMapWithTransform`
- * preserves both fields by reference, so in practice either entry
- * works, but routing through the original makes the intent
- * explicit and survives future schema changes.
+ * Resolve the canonical entry + canonical name for a cursor hit.
+ * When the cursor landed on an alias view (e.g. `btnPrimary` in
+ * camelCase mode), the SCSS edit must operate on the ORIGINAL
+ * entry's `range` / `bemSuffix`, and the reverse-index query must
+ * use the ORIGINAL key so every access form (original and alias)
+ * is rewritten by a single rename.
  */
-function resolveScssEditBase(
-  classMap: ScssClassMap,
+function canonicalForm(
+  classMap: ScssClassMap | null,
   selectorInfo: SelectorInfo,
 ): { info: SelectorInfo; name: string } {
-  if (selectorInfo.originalName) {
-    const original = classMap.get(selectorInfo.originalName);
-    if (original) return { info: original, name: original.name };
+  if (!selectorInfo.originalName) {
+    return { info: selectorInfo, name: selectorInfo.name };
   }
-  return { info: selectorInfo, name: selectorInfo.name };
+  const original = classMap?.get(selectorInfo.originalName);
+  return original
+    ? { info: original, name: original.name }
+    : { info: selectorInfo, name: selectorInfo.name };
 }
 
 function buildRenameEdit(
@@ -257,64 +250,75 @@ function buildRenameEdit(
   if (!IDENTIFIER_RE.test(newName)) return null;
 
   const classMap = deps.scssClassMapForPath(scssPath);
-  const scssBase = classMap
-    ? resolveScssEditBase(classMap, selectorInfo)
-    : { info: selectorInfo, name: selectorInfo.name };
+  const canonical = canonicalForm(classMap, selectorInfo);
 
-  const scssEdit = scssBase.info.bemSuffix
-    ? buildBemSuffixEdit(scssBase.info.bemSuffix, scssBase.info.name, newName)
-    : { range: toLspRange(scssBase.info.range), newText: newName };
+  const scssEdit = canonical.info.bemSuffix
+    ? buildBemSuffixEdit(canonical.info.bemSuffix, canonical.name, newName)
+    : { range: toLspRange(canonical.info.range), newText: newName };
   if (!scssEdit) return null;
 
   const changes: Record<string, Array<{ range: LspRange; newText: string }>> = {
     [scssUri]: [scssEdit],
   };
-  // Reference edits union over [primaryName, aliasName]. When the
-  // cursor is on a flat/non-alias entry, aliasName is null and the
-  // call collapses to a single-key lookup.
-  const aliasName =
-    selectorInfo.originalName && selectorInfo.name !== scssBase.name ? selectorInfo.name : null;
-  collectReferenceEdits(deps, scssPath, scssBase.name, aliasName, newName, changes);
+  collectReferenceEdits(
+    deps,
+    scssPath,
+    canonical.name,
+    newName,
+    deps.settings.scss.classnameTransform,
+    changes,
+  );
   return { changes };
 }
 
 /**
  * Append TS/TSX reference edits to `changes` for every direct
- * reverse-index site of the given class. `expansion !== "direct"`
- * sites are skipped — those are synthesized from template/variable
- * refs and rewriting them would destroy the dynamic expression
- * source. Find References still surfaces expanded sites; only
- * rename filters.
+ * reverse-index site keyed under the canonical SCSS class name.
+ * Template/variable expansions are skipped — rewriting them would
+ * destroy the dynamic expression source.
  *
- * When `aliasName` is non-null, the union over [primaryName,
- * aliasName] is walked and the `seen` Set dedups any site that
- * shows up under both lookups. In the common case where a TS
- * file uses both `styles.btnPrimary` (alias key) and
- * `cx('btn-primary')` (original key), each site rewrites exactly
- * once with the caller-supplied `newName`.
+ * Each site stores the class token as-written (`match.className`)
+ * plus its `canonicalName`. When the two match, the site uses
+ * the original form and the raw `newName` is written. When they
+ * differ, the site accessed the class via an alias form (e.g.
+ * `styles.btnPrimary` resolving to `.btn-primary` under
+ * `camelCase`), and `newName` is forwarded through
+ * `transformClassname` so the rewrite keeps the alias format
+ * — `styles.btnHero` instead of the invalid `styles.btn-hero`.
  */
 function collectReferenceEdits(
   deps: ProviderDeps,
   scssPath: string,
-  primaryName: string,
-  aliasName: string | null,
+  canonicalName: string,
   newName: string,
+  mode: ClassnameTransformMode,
   changes: Record<string, Array<{ range: LspRange; newText: string }>>,
 ): void {
-  const keys = aliasName !== null ? [primaryName, aliasName] : [primaryName];
-  const seen = new Set<string>();
-  for (const key of keys) {
-    for (const site of deps.reverseIndex.find(scssPath, key)) {
-      if (site.expansion !== "direct") continue;
-      const sig = `${site.uri}:${site.range.start.line}:${site.range.start.character}`;
-      if (seen.has(sig)) continue;
-      seen.add(sig);
-      (changes[site.uri] ??= []).push({
-        range: toLspRange(site.range),
-        newText: newName,
-      });
-    }
+  for (const site of deps.reverseIndex.find(scssPath, canonicalName)) {
+    if (site.expansion !== "direct") continue;
+    if (site.match.kind !== "static") continue;
+    const written = site.match.className;
+    const newText = written === canonicalName ? newName : (pickAliasForm(mode, newName) ?? newName);
+    (changes[site.uri] ??= []).push({
+      range: toLspRange(site.range),
+      newText,
+    });
   }
+}
+
+/**
+ * Given a user-supplied `newName` in its canonical (dashed)
+ * form, pick the alias form produced by the current
+ * `classnameTransform` mode. Returns `null` when no alias form
+ * is distinct from the input (e.g., the user typed a name that
+ * already matches the alias shape, or `asIs` mode is active).
+ */
+function pickAliasForm(mode: ClassnameTransformMode, newName: string): string | null {
+  const forms = transformClassname(mode, newName);
+  for (const form of forms) {
+    if (form !== newName) return form;
+  }
+  return null;
 }
 
 /**

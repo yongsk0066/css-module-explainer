@@ -44,20 +44,26 @@ export function computeScssUnusedDiagnostics(
   }
 
   const diagnostics: Diagnostic[] = [];
+  const emittedCanonical = new Set<string>();
   for (const [className, info] of classMap) {
-    // Skip alias entries from classnameTransform expansion — the
-    // original entry is walked separately and owns the diagnostic.
-    // Without this guard, `camelCase` mode would emit two warnings
-    // per unused class (`.orphan` + its `orphan` alias copy).
-    if (info.originalName !== undefined) continue;
-    if (composedClasses.has(className)) continue;
-    const refCount = reverseIndex.count(scssPath, className);
+    // Dedup by canonical name. Under `classnameTransform: "camelCase"`
+    // both `.btn-primary` and its `btnPrimary` alias share a single
+    // logical class; under `camelCaseOnly` only the alias exists.
+    // Iterating once per canonical name keeps the unused check
+    // symmetric — a class used through ANY alias form is not flagged,
+    // and a class is warned about exactly once even when multiple
+    // view entries point at it.
+    const canonical = info.originalName ?? className;
+    if (emittedCanonical.has(canonical)) continue;
+    emittedCanonical.add(canonical);
+    if (composedClasses.has(canonical)) continue;
+    const refCount = reverseIndex.count(scssPath, canonical);
     if (refCount === 0) {
       diagnostics.push({
         range: toLspRange(info.range),
         severity: DiagnosticSeverity.Hint,
         source: "css-module-explainer",
-        message: `Selector '.${className}' is declared but never used.`,
+        message: `Selector '.${canonical}' is declared but never used.`,
         tags: [DiagnosticTag.Unnecessary],
       });
     }

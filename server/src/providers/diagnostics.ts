@@ -68,10 +68,9 @@ export const computeDiagnostics = wrapHandler<
       }
     }
 
-    // Fast path 2 (v1.5.1 scope preserved): cx-pipeline class
-    // diagnostics only fire when `classnames/bind` is present.
-    // Pure `styles.x` access is covered by TypeScript's own type
-    // checker.
+    // Fast path 2: cx-pipeline class diagnostics only fire when
+    // `classnames/bind` is present. Pure `styles.x` access is
+    // covered by TypeScript's own type checker.
     if (!params.content.includes("classnames/bind")) return diagnostics;
 
     const cxRefs = entry.classRefs.filter((r) => r.origin === "cxCall");

@@ -76,7 +76,11 @@ export class WorkspaceReverseIndex implements ReverseIndex {
     const keys = new Set<string>();
     for (const site of callSites) {
       const scssPath = site.scssModulePath;
-      const key = site.match.kind === "static" ? site.match.className : "__non_static__";
+      // Keyed by `canonicalName` (the original SCSS selector) so
+      // every alias access form resolves to the same bucket. Non-
+      // static kinds (template/variable) share a sentinel bucket
+      // because they are not directly lookupable by class name.
+      const key = site.match.kind === "static" ? site.match.canonicalName : "__non_static__";
       const classMap = this.forward.get(scssPath) ?? new Map<string, CallSite[]>();
       const list = classMap.get(key) ?? [];
       list.push(site);
@@ -158,16 +162,20 @@ export function collectCallSites(
   for (const ref of entry.classRefs) {
     const base: CallSiteBase = { uri, range: ref.originRange, scssModulePath: ref.scssModulePath };
     switch (ref.kind) {
-      case "static":
+      case "static": {
         // Native static token: the user literally wrote this class
         // name. Applies to both cxCall (`cx('btn')`) and styleAccess
-        // (`styles.btn`) origins.
+        // (`styles.btn`) origins. Resolve the canonical SCSS name
+        // via classMap lookup so alias-form access points at the
+        // same reverse-index bucket as the original form.
+        const canonicalName = resolveCanonicalName(ctx, ref.scssModulePath, ref.className);
         sites.push({
           ...base,
-          match: { kind: "static", className: ref.className },
+          match: { kind: "static", className: ref.className, canonicalName },
           expansion: "direct",
         });
         break;
+      }
       case "template":
         sites.push({
           ...base,
@@ -190,6 +198,25 @@ export function collectCallSites(
   return sites;
 }
 
+/**
+ * Look up the original SCSS selector name for a class token. When
+ * no class map is available (unit tests without the DI context),
+ * or when the token is not in the map, returns the token itself —
+ * the non-alias case collapses to the identity and the reverse
+ * index stores under the same key the caller would query with.
+ */
+function resolveCanonicalName(
+  ctx: CallSiteResolverContext | undefined,
+  scssModulePath: string,
+  className: string,
+): string {
+  if (!ctx) return className;
+  const classMap = ctx.classMapForPath(scssModulePath);
+  if (!classMap) return className;
+  const entry = classMap.get(className);
+  return entry?.originalName ?? className;
+}
+
 type CallSiteBase = Pick<CallSite, "uri" | "range" | "scssModulePath">;
 
 /**
@@ -206,14 +233,14 @@ function expandTemplateRef(
 ): void {
   const classMap = ctx.classMapForPath(ref.scssModulePath);
   if (!classMap) return;
-  for (const name of classMap.keys()) {
-    if (name.startsWith(ref.staticPrefix)) {
-      out.push({
-        ...base,
-        match: { kind: "static", className: name },
-        expansion: "expanded",
-      });
-    }
+  for (const [name, info] of classMap) {
+    if (!name.startsWith(ref.staticPrefix)) continue;
+    const canonicalName = info.originalName ?? name;
+    out.push({
+      ...base,
+      match: { kind: "static", className: name, canonicalName },
+      expansion: "expanded",
+    });
   }
 }
 
@@ -224,17 +251,19 @@ function expandTemplateRef(
  * range and is flagged `"expanded"`.
  */
 function expandVariableRef(
-  ref: { readonly variableName: string },
+  ref: { readonly variableName: string; readonly scssModulePath: string },
   base: CallSiteBase,
   ctx: CallSiteResolverContext,
   out: CallSite[],
 ): void {
   const resolved = ctx.typeResolver.resolve(ctx.filePath, ref.variableName, ctx.workspaceRoot);
   if (resolved.kind !== "union") return;
+  const classMap = ctx.classMapForPath(ref.scssModulePath);
   for (const value of resolved.values) {
+    const canonicalName = classMap?.get(value)?.originalName ?? value;
     out.push({
       ...base,
-      match: { kind: "static", className: value },
+      match: { kind: "static", className: value, canonicalName },
       expansion: "expanded",
     });
   }

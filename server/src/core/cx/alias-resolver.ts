@@ -17,11 +17,12 @@ import * as path from "node:path";
  * We use longest-prefix, which is what users actually expect.
  * README documents this one divergence.
  *
- * No wildcard (`*`) support — tsconfig paths handle that, out of
- * scope for v1.6.0. No filesystem check — the returned path may
- * not exist; the `fileExists` DI in `DocumentAnalysisCache` runs
- * after and produces a missing-module diagnostic for dangling
- * alias targets.
+ * No wildcard (`*`) support — tsconfig `compilerOptions.paths`
+ * is the natural home for that and lives on a separate axis. No
+ * filesystem check — the returned path may not exist; the
+ * `fileExists` DI in `DocumentAnalysisCache` runs after and
+ * produces a missing-module diagnostic for dangling alias
+ * targets.
  */
 export class AliasResolver {
   private readonly sortedEntries: ReadonlyArray<readonly [string, string]>;

@@ -13,7 +13,7 @@ function makeCallSite(): CallSite {
     uri: "file:///fake/a.tsx",
     range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
     scssModulePath: "/fake/a.module.scss",
-    match: { kind: "static", className: "indicator" },
+    match: { kind: "static", className: "indicator", canonicalName: "indicator" },
     expansion: "direct",
   };
 }
@@ -60,7 +60,7 @@ function siteAt(uri: string, className: string, line: number, scssPath?: string)
       end: { line, character: 10 + className.length },
     },
     scssModulePath: scssPath ?? "/fake/a.module.scss",
-    match: { kind: "static", className },
+    match: { kind: "static", className, canonicalName: className },
     expansion: "direct",
   };
 }
@@ -179,7 +179,7 @@ describe("CallSite carries scssModulePath directly", () => {
       uri: "file:///a.tsx",
       range: { start: { line: 0, character: 0 }, end: { line: 0, character: 5 } },
       scssModulePath: "/fake/a.module.scss",
-      match: { kind: "static", className: "btn" },
+      match: { kind: "static", className: "btn", canonicalName: "btn" },
       expansion: "direct",
     };
     const index = new WorkspaceReverseIndex();
@@ -218,7 +218,7 @@ describe("collectCallSites / styleAccess ClassRef entries", () => {
     expect(sites[0]).toMatchObject({
       uri: "file:///fake/a.tsx",
       range: { start: { line: 5, character: 10 }, end: { line: 5, character: 19 } },
-      match: { kind: "static", className: "indicator" },
+      match: { kind: "static", className: "indicator", canonicalName: "indicator" },
     });
     expect(sites[0]!.scssModulePath).toBe("/fake/a.module.scss");
   });

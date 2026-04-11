@@ -253,9 +253,22 @@ export type ResolvedType =
  * Structured classification of what a CallSite matches, used as
  * the reverse-index key. Discriminated union — the shape is
  * authoritative, no string parsing.
+ *
+ * `static` sites carry both `className` (exact token the user
+ * wrote — `btnPrimary` for `styles.btnPrimary`, `btn-primary` for
+ * `cx('btn-primary')`) and `canonicalName` (the original SCSS
+ * selector name — always the non-alias form). The reverse index
+ * keys by `canonicalName` so a single query finds every site that
+ * references a given SCSS class, regardless of which alias form
+ * the user wrote. Rename uses `className` to pick the correct
+ * rewrite form per site.
  */
 export type CallSiteMatch =
-  | { readonly kind: "static"; readonly className: string }
+  | {
+      readonly kind: "static";
+      readonly className: string;
+      readonly canonicalName: string;
+    }
   | { readonly kind: "template"; readonly staticPrefix: string }
   | { readonly kind: "variable"; readonly variableName: string };
 

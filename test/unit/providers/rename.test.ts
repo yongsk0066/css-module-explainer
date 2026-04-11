@@ -330,8 +330,16 @@ describe("rename template corruption guard", () => {
     const base = { uri: TEMPLATE_URI, range: TEMPLATE_RANGE, scssModulePath: SCSS_PATH };
     const sites: CallSite[] = [
       { ...base, match: { kind: "template", staticPrefix: "btn-" }, expansion: "direct" },
-      { ...base, match: { kind: "static", className: "btn-small" }, expansion: "expanded" },
-      { ...base, match: { kind: "static", className: "btn-large" }, expansion: "expanded" },
+      {
+        ...base,
+        match: { kind: "static", className: "btn-small", canonicalName: "btn-small" },
+        expansion: "expanded",
+      },
+      {
+        ...base,
+        match: { kind: "static", className: "btn-large", canonicalName: "btn-large" },
+        expansion: "expanded",
+      },
     ];
     idx.record(TEMPLATE_URI, sites);
     return idx;
@@ -499,7 +507,7 @@ describe("&-nested BEM suffix rename", () => {
         uri: "file:///fake/src/App.tsx",
         range: tsxRange,
         scssModulePath: SCSS_PATH,
-        match: { kind: "static", className: "button--primary" },
+        match: { kind: "static", className: "button--primary", canonicalName: "button--primary" },
         expansion: "direct",
       },
     ]);
@@ -793,7 +801,7 @@ describe("&-nested BEM suffix rename", () => {
         uri: "file:///fake/src/App.tsx",
         range: { start: { line: 5, character: 10 }, end: { line: 5, character: 30 } },
         scssModulePath: SCSS_PATH,
-        match: { kind: "static", className: "button--primary" },
+        match: { kind: "static", className: "button--primary", canonicalName: "button--primary" },
         expansion: "expanded",
       },
     ]);
@@ -1018,18 +1026,24 @@ describe("classnameTransform alias-aware rename", () => {
     expect(result).toBeNull();
   });
 
-  it("camelCase: alias + original keys unioned for reverse-index rewrite", async () => {
+  it("camelCase: canonical-form and alias-form sites both rewrite with per-site format", async () => {
     const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
     const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);
-    const classMap = aliasFirstCamelCaseMap(base);
+    const classMap = expandClassMapWithTransform(base, "camelCase");
     const original = base.get("btn-primary")!;
 
+    // Two real-world access patterns against the same SCSS class:
+    //   - `cx('btn-primary')` in App.tsx — canonical form
+    //   - `styles.btnPrimary`  in Other.tsx — alias form
+    // Production `collectCallSites` canonicalises both under
+    // `canonicalName: "btn-primary"` so the reverse index stores them
+    // in a single bucket.
     const reverseIndex = new WorkspaceReverseIndex();
     reverseIndex.record("file:///fake/src/App.tsx", [
       siteAt("file:///fake/src/App.tsx", "btn-primary", 10, SCSS_PATH),
     ]);
     reverseIndex.record("file:///fake/src/Other.tsx", [
-      siteAt("file:///fake/src/Other.tsx", "btnPrimary", 20, SCSS_PATH),
+      siteAt("file:///fake/src/Other.tsx", "btnPrimary", 20, SCSS_PATH, "btn-primary"),
     ]);
 
     const deps = makeBaseDeps({
@@ -1051,42 +1065,28 @@ describe("classnameTransform alias-aware rename", () => {
     );
     expect(result).not.toBeNull();
     const changes = result!.changes!;
-    // Both TSX files rewritten — union of primary + alias keys.
+    // Canonical-form site writes the raw dashed name.
     expect(changes["file:///fake/src/App.tsx"]).toHaveLength(1);
     expect(changes["file:///fake/src/App.tsx"]![0]!.newText).toBe("btn-hero");
+    // Alias-form site writes the camelCase form of the new name so
+    // `styles.btnPrimary` becomes `styles.btnHero`, not the invalid
+    // `styles.btn-hero`.
     expect(changes["file:///fake/src/Other.tsx"]).toHaveLength(1);
-    expect(changes["file:///fake/src/Other.tsx"]![0]!.newText).toBe("btn-hero");
+    expect(changes["file:///fake/src/Other.tsx"]![0]!.newText).toBe("btnHero");
   });
 
-  it("camelCase: `seen` guard dedups a site returned by both primary and alias lookups", async () => {
+  it("camelCase: SCSS cursor on original still finds alias-form TSX sites via canonical key", async () => {
     const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
     const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);
-    const classMap = aliasFirstCamelCaseMap(base);
+    const classMap = expandClassMapWithTransform(base, "camelCase");
     const original = base.get("btn-primary")!;
 
-    // Two sites at the same {uri, range} but keyed by different
-    // className. This shape is artificial — production parseClassRefs
-    // never emits it — but the `seen` guard must still dedup so that
-    // a future reverse-index change can't accidentally emit two
-    // edits for one call site.
+    // Only an alias-form TSX site exists — no direct `cx('btn-primary')`.
+    // SCSS cursor rename on the original must still rewrite the
+    // alias access because the reverse index canonicalises the key.
     const reverseIndex = new WorkspaceReverseIndex();
-    const sharedRange = { start: { line: 7, character: 10 }, end: { line: 7, character: 21 } };
-    const sharedUri = "file:///fake/src/App.tsx";
-    reverseIndex.record(sharedUri, [
-      {
-        uri: sharedUri,
-        range: sharedRange,
-        scssModulePath: SCSS_PATH,
-        match: { kind: "static", className: "btn-primary" },
-        expansion: "direct",
-      },
-      {
-        uri: sharedUri,
-        range: sharedRange,
-        scssModulePath: SCSS_PATH,
-        match: { kind: "static", className: "btnPrimary" },
-        expansion: "direct",
-      },
+    reverseIndex.record("file:///fake/src/App.tsx", [
+      siteAt("file:///fake/src/App.tsx", "btnPrimary", 15, SCSS_PATH, "btn-primary"),
     ]);
 
     const deps = makeBaseDeps({
@@ -1107,10 +1107,9 @@ describe("classnameTransform alias-aware rename", () => {
       deps,
     );
     expect(result).not.toBeNull();
-    const tsxEdits = result!.changes![sharedUri]!;
-    // Exactly one edit, not two — seen guard collapsed the duplicate.
+    const tsxEdits = result!.changes!["file:///fake/src/App.tsx"]!;
     expect(tsxEdits).toHaveLength(1);
-    expect(tsxEdits[0]!.newText).toBe("btn-hero");
+    expect(tsxEdits[0]!.newText).toBe("btnHero");
   });
 
   it("camelCase: SCSS cursor on original-first expansion returns the non-alias entry", async () => {
@@ -1157,7 +1156,7 @@ describe("classnameTransform alias-aware rename", () => {
         uri: "file:///fake/src/App.tsx",
         range: { start: { line: 5, character: 10 }, end: { line: 5, character: 30 } },
         scssModulePath: SCSS_PATH,
-        match: { kind: "static", className: "btn-primary" },
+        match: { kind: "static", className: "btn-primary", canonicalName: "btn-primary" },
         expansion: "expanded",
       },
     ]);
