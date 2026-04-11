@@ -49,18 +49,39 @@ code --install-extension css-module-explainer-*.vsix
 
 ## Configuration
 
-| Setting                                        | Type                                                                   | Default  | Description                                                     |
-| ---------------------------------------------- | ---------------------------------------------------------------------- | -------- | --------------------------------------------------------------- |
-| `cssModuleExplainer.enable`                    | `boolean`                                                              | `true`   | Master on/off switch                                            |
-| `cssModuleExplainer.diagnostics.enable`        | `boolean`                                                              | `true`   | Publish missing-class warnings                                  |
-| `cssModuleExplainer.diagnostics.missingModule` | `boolean`                                                              | `true`   | Warn when a `.module.*` import cannot be resolved on disk       |
-| `cssModuleExplainer.diagnostics.debounceMs`    | `number`                                                               | `200`    | Delay before re-running diagnostics after an edit               |
-| `cssModuleExplainer.scss.classnameTransform`   | `"asIs" \| "camelCase" \| "camelCaseOnly" \| "dashes" \| "dashesOnly"` | `"asIs"` | Control how SCSS selectors are exposed to TS — see table below  |
-| `cssModuleExplainer.codeLens.enable`           | `boolean`                                                              | `true`   | Show reference counts above selectors in `.module.scss`         |
-| `cssModuleExplainer.trace.server`              | `string`                                                               | `"off"`  | LSP trace level (`"off"`, `"messages"`, `"verbose"`)            |
-| `cssModuleExplainer.maxFilesIndexed`           | `number`                                                               | `5000`   | Maximum number of TS/TSX files the background indexer will walk |
+All settings live under the `cssModuleExplainer.*` namespace — search for "css-module-explainer" in the VS Code settings UI to see the full list.
 
-The extension additionally reads `cssModules.pathAlias` from the clinyong/vscode-cssmodules config for zero-config migration — see [Path aliases](#path-aliases) below.
+### Feature toggles
+
+Each feature can be turned off individually. Disabling a feature stops the server from answering the corresponding LSP request; other features are unaffected.
+
+| Setting               | Type      | Default | Description                                                 |
+| --------------------- | --------- | ------- | ----------------------------------------------------------- |
+| `features.definition` | `boolean` | `true`  | Go to Definition for class tokens inside `cx()` / `styles`. |
+| `features.hover`      | `boolean` | `true`  | Hover markdown for class tokens.                            |
+| `features.completion` | `boolean` | `true`  | Autocomplete inside an open `cx(`.                          |
+| `features.references` | `boolean` | `true`  | Find References + Reference CodeLens on `.module.scss`.     |
+| `features.rename`     | `boolean` | `true`  | Rename Symbol across SCSS and TS/TSX files.                 |
+
+### Diagnostics
+
+| Setting                      | Type                                              | Default     | Description                                                                           |
+| ---------------------------- | ------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------- |
+| `diagnostics.severity`       | `"error" \| "warning" \| "information" \| "hint"` | `"warning"` | Severity level for "unknown class" diagnostics inside `cx()`.                         |
+| `diagnostics.unusedSelector` | `boolean`                                         | `true`      | Hint (faded) for selectors declared in `.module.scss` that no TS/TSX file references. |
+| `diagnostics.missingModule`  | `boolean`                                         | `true`      | Warn when `import styles from './x.module.scss'` cannot be resolved on disk.          |
+
+### Hover
+
+| Setting               | Type     | Default | Description                                                                    |
+| --------------------- | -------- | ------- | ------------------------------------------------------------------------------ |
+| `hover.maxCandidates` | `number` | `10`    | Upper bound on template / variable candidates shown in hover (range `1`–`50`). |
+
+### SCSS
+
+| Setting                   | Type                                                                   | Default  | Description                                                                                                         |
+| ------------------------- | ---------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------- |
+| `scss.classnameTransform` | `"asIs" \| "camelCase" \| "camelCaseOnly" \| "dashes" \| "dashesOnly"` | `"asIs"` | Mirror of css-loader `modules.localsConvention`. See the [Class name transform](#class-name-transform) table below. |
 
 ### Class name transform
 
@@ -78,9 +99,9 @@ Matches css-loader's `modules.localsConvention`. For a selector `.btn-primary`:
 - `camelCaseOnly` and `dashesOnly` **reject** rename — the reverse transform from alias → original SCSS selector is lossy (`btnSecondary` could map to `btn-secondary`, `btnSecondary`, or `btn_secondary`). Use `camelCase` / `dashes` for editor-driven rename workflows.
 - The transform handles ASCII inputs using the same algorithm as css-loader's default (`-` and `_` become word boundaries). Unicode identifiers pass through unchanged.
 
-### Path aliases
+### Path aliases (clinyong compat)
 
-`cssModules.pathAlias` from the clinyong/vscode-cssmodules extension is read as-is, so `import styles from '@styles/button.module.scss'` resolves when your workspace has `"cssModules.pathAlias": { "@styles": "src/styles" }` in its settings. `${workspaceFolder}` substitution is supported.
+`cssModules.pathAlias` from the clinyong/vscode-cssmodules extension is read as-is, so `import styles from '@styles/button.module.scss'` resolves when your workspace has `"cssModules.pathAlias": { "@styles": "src/styles" }` in its settings. `${workspaceFolder}` substitution is supported. This key lives under `cssModules.*` rather than `cssModuleExplainer.*` so an existing clinyong config keeps working after migration.
 
 **One intentional divergence from clinyong**: alias matching uses longest-prefix order rather than insertion order. Given `{ "@": "src", "@styles": "src/styles" }`, the specifier `@styles/button` routes to `src/styles/button` regardless of config key order — clinyong would route based on whichever prefix appears first in the object.
 
@@ -91,7 +112,7 @@ Wildcard patterns and tsconfig.json `compilerOptions.paths` auto-detection are n
 ```bash
 pnpm install
 pnpm check        # oxlint + oxfmt --check + tsc -b
-pnpm test         # vitest unit + protocol tiers (253 tests)
+pnpm test         # vitest unit + protocol tiers
 pnpm test:bench   # vitest bench perf suite
 pnpm build        # rolldown client + server bundles
 ```
@@ -127,7 +148,7 @@ server/src/
 
 ### Examples sandbox
 
-`examples/` contains nine scenario sub-packages for manual QA in
+`examples/` contains ten scenario sub-packages for manual QA in
 the Extension Development Host. See
 [`examples/README.md`](./examples/README.md).
 
