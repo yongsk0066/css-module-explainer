@@ -15,6 +15,13 @@ const cxButton = classNames.bind(buttonStyles);
  *
  * Try a typo on each side independently — `cxCard('cardo')`
  * must suggest `card`, NOT `button`.
+ *
+ * Rename check: `Button.module.scss` has a top-level `.button`
+ * rule with `&:hover` nested inside it. Rename on `.button`
+ * itself must succeed and rewrite every `cxButton('button')`
+ * in this file. Rename on `&:hover` is rejected (the nested
+ * range is a synthesized fallback) — VS Code falls back to its
+ * built-in word rename.
  */
 export function MultiBindingScenario() {
   return (

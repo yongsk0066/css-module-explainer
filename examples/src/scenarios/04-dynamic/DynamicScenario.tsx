@@ -5,7 +5,13 @@ const cx = classNames.bind(styles);
 
 /**
  * 04 · dynamic keys — template literal `cx(`btn-${variant}`)`.
+ *
  * Hover on the template should show all matching classes.
+ *
+ * Rename check: rename `.btn-primary` in DynamicKeys.module.scss.
+ * The template literal below must stay `cx(`btn-${variant}`)`
+ * — the extension does not rewrite dynamic expressions. Find
+ * References on `.btn-primary` still surfaces this call site.
  */
 export function DynamicScenario() {
   const variants = ["primary", "secondary", "danger"] as const;

@@ -75,8 +75,8 @@ const SCENARIOS: readonly Scenario[] = [
   },
   {
     id: "10-clsx",
-    title: "10 · clsx",
-    description: "clsx(styles.btn, cond && styles.active) - no classnames/bind.",
+    title: "10 · clsx + styles.x",
+    description: "clsx(styles.btn, cond && styles.active) and direct styles.x access.",
     render: () => <ClsxScenario />,
   },
 ];

@@ -31,6 +31,7 @@ test/
 examples/
 .github/
 .vscode/
+.personal_docs/
 
 # Build artifacts we don't need
 **/*.tsbuildinfo
