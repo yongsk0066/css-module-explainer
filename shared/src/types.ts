@@ -50,6 +50,14 @@ export interface SelectorInfo {
   readonly ruleRange: Range;
   /** CSS Modules `composes` references, if any. */
   readonly composes?: readonly ComposesRef[];
+  /**
+   * True if this selector was produced from a SCSS `&`-nested rule
+   * whose raw source contained `&`. Wave 1 uses this purely as a
+   * defensive-reject signal in rename (range is synthesized and
+   * unsafe to rewrite). Wave 2 ampersand support will expand the
+   * nested-selector data model with `rawToken` / `parentResolvedName`.
+   */
+  readonly isNested?: boolean;
 }
 
 /** Immutable map from class name to its info, produced per style file. */

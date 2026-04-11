@@ -116,6 +116,7 @@ function recordRule(rule: Rule, parentSelector: string, classMap: Map<string, Se
   for (const raw of selectors) {
     const resolved = resolveSelector(raw, parentSelector);
     resolvedSelectors.push(resolved);
+    const isNested = raw.includes("&");
 
     for (const className of extractClassNames(resolved)) {
       const tokenRange = findClassTokenRange(rule.source?.start, className, raw);
@@ -126,6 +127,7 @@ function recordRule(rule: Rule, parentSelector: string, classMap: Map<string, Se
         declarations,
         ruleRange,
         ...(composes.length > 0 ? { composes } : {}),
+        ...(isNested ? { isNested: true } : {}),
       });
     }
   }

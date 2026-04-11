@@ -5,6 +5,7 @@ import type {
   CxBinding,
   CxCallInfo,
   ScssClassMap,
+  SelectorInfo,
 } from "@css-module-explainer/shared";
 import type ts from "typescript";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
@@ -386,15 +387,34 @@ describe("Wave 1 Stage 3.1 — rename template corruption (regression)", () => {
   });
 });
 
-describe("Wave 1 Stage 3.4 — &-nested prepareRename reject (red regression)", () => {
-  // TODO(wave1-stage3): un-skip after fix lands
-  it.skip("prepareRename rejects cursor on a &-nested selector (wave1-stage3.4)", () => {
+describe("Wave 1 Stage 3.4 — &-nested prepareRename reject", () => {
+  it("prepareRename rejects cursor on a &-nested selector (wave1-stage3.4)", () => {
     // Fixture: SCSS with `.button { &--primary { ... } }`.
-    // Cursor on `--primary` inside the nested selector.
-    // `handlePrepareRename` must return null — Wave 1 defers
-    // full &-nested rename support to Wave 2 and defensively
-    // rejects the request so no partial edit can corrupt
-    // source.
-    expect.fail("red placeholder — wave1-stage3.4");
+    // The parser stores the resolved class name (`button--primary`)
+    // and flips `isNested: true` because the raw source contained
+    // `&`. Wave 1 defensively rejects these — the range in a nested
+    // SelectorInfo is synthesized from the `&` column with the
+    // resolved name's length and is unsafe to rewrite. Wave 2
+    // ampersand support will add structured `rawToken` fields.
+    const nestedInfo: SelectorInfo = {
+      name: "button--primary",
+      range: { start: { line: 1, character: 2 }, end: { line: 1, character: 17 } },
+      fullSelector: ".button--primary",
+      declarations: "color: red",
+      ruleRange: { start: { line: 1, character: 0 }, end: { line: 2, character: 1 } },
+      isNested: true,
+    };
+    const deps = makeBaseDeps({
+      scssClassMapForPath: () => new Map([["button--primary", nestedInfo]]) as ScssClassMap,
+      workspaceRoot: "/fake",
+    });
+    const result = handlePrepareRename(
+      {
+        textDocument: { uri: SCSS_URI },
+        position: { line: 1, character: 5 },
+      },
+      deps,
+    );
+    expect(result).toBeNull();
   });
 });

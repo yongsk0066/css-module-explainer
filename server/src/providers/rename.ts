@@ -108,6 +108,13 @@ function prepareRenameFromScss(
   );
   if (!selectorInfo) return null;
 
+  // Bug 3.4 — defensively reject `&`-nested selectors. Their range
+  // is synthesized from the resolved class name and may span past
+  // the `&--primary` source into whitespace, silently corrupting
+  // the rename. Wave 2 will add full support via a parser-tracked
+  // raw token range; Wave 1 only closes the silent corruption.
+  if (isNestedSelector(selectorInfo)) return null;
+
   // Reject if any reverse-index site for this class is a synthesized
   // expansion of a template/variable ref. Rewriting those entries
   // would destroy the dynamic expression source (Bug 3.1). Find
@@ -138,7 +145,21 @@ function renameFromScss(
     params.position.character,
   );
   if (!selectorInfo) return null;
+  if (isNestedSelector(selectorInfo)) return null;
   return buildRenameEdit(params.textDocument.uri, filePath, selectorInfo, deps, params.newName);
+}
+
+/**
+ * True if the selector was produced from a `&`-nested SCSS rule.
+ * The parser sets `isNested: true` when the raw source contained `&`;
+ * in that case `SelectorInfo.range` is a synthesized fallback that
+ * points at the `&` column with the resolved class name's length and
+ * is unsafe to rewrite. Wave 1 rejects these outright. Wave 2
+ * ampersand support will add `rawToken` / `rawTokenRange` for proper
+ * suffix-targeted edits.
+ */
+function isNestedSelector(info: SelectorInfo): boolean {
+  return info.isNested === true;
 }
 
 function buildRenameEdit(
