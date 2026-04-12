@@ -43,6 +43,12 @@ describe("diagnostics protocol", () => {
     expect(diagnostics[0]!.message).toContain("'.indicaror'");
     // 'indicator' is distance 1 from 'indicaror'
     expect(diagnostics[0]!.message).toContain("Did you mean 'indicator'?");
+    expect(diagnostics[0]!.data).toMatchObject({
+      suggestion: "indicator",
+      createSelector: {
+        uri: "file:///fake/workspace/src/Button.module.scss",
+      },
+    });
   });
 
   it("publishes an empty diagnostic list for a clean document", async () => {

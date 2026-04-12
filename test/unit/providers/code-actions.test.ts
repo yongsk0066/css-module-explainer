@@ -18,6 +18,7 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
 }
 
 function diagnostic(suggestion: string | undefined, message = "foo"): Diagnostic {
+  const className = /Class '\.([^']+)'/.exec(message)?.[1] ?? "generated";
   return {
     range: {
       start: { line: 4, character: 15 },
@@ -26,7 +27,20 @@ function diagnostic(suggestion: string | undefined, message = "foo"): Diagnostic
     severity: DiagnosticSeverity.Warning,
     source: "css-module-explainer",
     message,
-    data: suggestion === undefined ? undefined : { suggestion },
+    data:
+      suggestion === undefined
+        ? undefined
+        : {
+            suggestion,
+            createSelector: {
+              uri: "file:///fake/src/Button.module.scss",
+              range: {
+                start: { line: 1, character: 0 },
+                end: { line: 1, character: 0 },
+              },
+              newText: `\n\n.${className} {\n}\n`,
+            },
+          },
   };
 }
 
@@ -42,11 +56,11 @@ function makeParams(diagnostics: Diagnostic[]): CodeActionParams {
 }
 
 describe("handleCodeAction", () => {
-  it("returns one QuickFix CodeAction per diagnostic with a suggestion", () => {
+  it("returns replace and create actions for a diagnostic with a suggestion", () => {
     const d = diagnostic("indicator", "Class '.indicaror' not found. Did you mean 'indicator'?");
     const result = handleCodeAction(makeParams([d]), makeDeps());
     expect(result).not.toBeNull();
-    expect(result).toHaveLength(1);
+    expect(result).toHaveLength(2);
     const action = result![0]!;
     expect(action.title).toBe("Replace with 'indicator'");
     expect(action.kind).toBe(CodeActionKind.QuickFix);
@@ -56,10 +70,29 @@ describe("handleCodeAction", () => {
     expect(edits).toHaveLength(1);
     expect(edits![0]!.newText).toBe("indicator");
     expect(edits![0]!.range).toEqual(d.range);
+
+    const createAction = result![1]!;
+    expect(createAction.title).toBe("Add '.indicaror' to Button.module.scss");
+    const createEdits = createAction.edit?.changes?.["file:///fake/src/Button.module.scss"];
+    expect(createEdits).toHaveLength(1);
+    expect(createEdits![0]!.newText).toBe("\n\n.indicaror {\n}\n");
   });
 
   it("returns null when no diagnostic carries a suggestion", () => {
-    const result = handleCodeAction(makeParams([diagnostic(undefined)]), makeDeps());
+    const result = handleCodeAction(
+      makeParams([
+        {
+          range: {
+            start: { line: 0, character: 0 },
+            end: { line: 0, character: 4 },
+          },
+          severity: DiagnosticSeverity.Warning,
+          source: "css-module-explainer",
+          message: "whatever",
+        },
+      ]),
+      makeDeps(),
+    );
     expect(result).toBeNull();
   });
 
@@ -71,8 +104,33 @@ describe("handleCodeAction", () => {
     const empty = { ...diagnostic(""), data: { suggestion: "" } };
     const good = diagnostic("real-one");
     const result = handleCodeAction(makeParams([withBadShape, empty, good]), makeDeps());
-    expect(result).toHaveLength(1);
+    expect(result).toHaveLength(2);
     expect(result![0]!.title).toBe("Replace with 'real-one'");
+  });
+
+  it("returns a create-selector quick fix even when there is no typo suggestion", () => {
+    const d: Diagnostic = {
+      range: {
+        start: { line: 4, character: 15 },
+        end: { line: 4, character: 24 },
+      },
+      severity: DiagnosticSeverity.Warning,
+      source: "css-module-explainer",
+      message: "Class '.missing' not found in Button.module.scss.",
+      data: {
+        createSelector: {
+          uri: "file:///fake/src/Button.module.scss",
+          range: {
+            start: { line: 1, character: 0 },
+            end: { line: 1, character: 0 },
+          },
+          newText: "\n\n.missing {\n}\n",
+        },
+      },
+    };
+    const result = handleCodeAction(makeParams([d]), makeDeps());
+    expect(result).toHaveLength(1);
+    expect(result![0]!.title).toBe("Add '.missing' to Button.module.scss");
   });
 
   it("logs and returns null on exception", () => {

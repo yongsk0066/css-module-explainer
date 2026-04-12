@@ -32,7 +32,7 @@ describe("code-action protocol", () => {
     });
   });
 
-  it("returns a QuickFix action for a diagnostic carrying a suggestion", async () => {
+  it("returns replace and create actions for a missing-selector diagnostic", async () => {
     client = createInProcessServer({
       readStyleFile: () => BUTTON_SCSS,
       typeResolver: new FakeTypeResolver(),
@@ -51,7 +51,12 @@ describe("code-action protocol", () => {
     // one Warning with `data.suggestion: "indicator"`.
     const diagnostics = await client.waitForDiagnostics("file:///fake/workspace/src/Button.tsx");
     expect(diagnostics).toHaveLength(1);
-    expect(diagnostics[0]!.data).toEqual({ suggestion: "indicator" });
+    expect(diagnostics[0]!.data).toMatchObject({
+      suggestion: "indicator",
+      createSelector: {
+        uri: "file:///fake/workspace/src/Button.module.scss",
+      },
+    });
 
     // Now ask for code actions at the diagnostic range.
     const actions = await client.codeAction({
@@ -63,7 +68,7 @@ describe("code-action protocol", () => {
       },
     });
     expect(actions).not.toBeNull();
-    expect(actions).toHaveLength(1);
+    expect(actions).toHaveLength(2);
     const action = actions![0] as {
       title: string;
       kind: string;
@@ -74,6 +79,16 @@ describe("code-action protocol", () => {
     const edits = action.edit?.changes?.["file:///fake/workspace/src/Button.tsx"];
     expect(edits).toHaveLength(1);
     expect(edits![0]!.newText).toBe("indicator");
+
+    const createAction = actions![1] as {
+      title: string;
+      edit?: { changes?: Record<string, Array<{ newText: string }>> };
+    };
+    expect(createAction.title).toBe("Add '.indicaror' to Button.module.scss");
+    const styleEdits =
+      createAction.edit?.changes?.["file:///fake/workspace/src/Button.module.scss"];
+    expect(styleEdits).toHaveLength(1);
+    expect(styleEdits![0]!.newText).toBe("\n\n.indicaror {\n}\n");
   });
 
   it("returns null when the context contains only suggestion-less diagnostics", async () => {

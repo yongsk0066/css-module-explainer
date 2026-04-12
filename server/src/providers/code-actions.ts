@@ -3,6 +3,7 @@ import {
   type CodeAction,
   type CodeActionParams,
   type Diagnostic,
+  type Range as LspRange,
   type WorkspaceEdit,
 } from "vscode-languageserver/node";
 import { wrapHandler } from "./_wrap-handler";
@@ -31,8 +32,13 @@ export const handleCodeAction = wrapHandler<CodeActionParams, [], CodeAction[] |
     const actions: CodeAction[] = [];
     for (const diagnostic of params.context.diagnostics) {
       const suggestion = extractSuggestion(diagnostic);
-      if (!suggestion) continue;
-      actions.push(buildQuickFix(params.textDocument.uri, diagnostic, suggestion));
+      if (suggestion) {
+        actions.push(buildReplaceQuickFix(params.textDocument.uri, diagnostic, suggestion));
+      }
+      const createSelector = extractCreateSelector(diagnostic);
+      if (createSelector) {
+        actions.push(buildCreateSelectorQuickFix(diagnostic, createSelector));
+      }
     }
     return actions.length > 0 ? actions : null;
   },
@@ -46,7 +52,32 @@ function extractSuggestion(diagnostic: Diagnostic): string | null {
   return typeof suggestion === "string" && suggestion.length > 0 ? suggestion : null;
 }
 
-function buildQuickFix(uri: string, diagnostic: Diagnostic, suggestion: string): CodeAction {
+function extractCreateSelector(diagnostic: Diagnostic): {
+  readonly uri: string;
+  readonly range: LspRange;
+  readonly newText: string;
+} | null {
+  const data = diagnostic.data;
+  if (!isRecord(data)) return null;
+  const payload = data.createSelector;
+  if (!isRecord(payload)) return null;
+  if (typeof payload.uri !== "string" || typeof payload.newText !== "string") return null;
+  const range = payload.range;
+  if (!isLspRange(range)) return null;
+  return { uri: payload.uri, range, newText: payload.newText };
+}
+
+function isLspRange(value: unknown): value is LspRange {
+  if (!isRecord(value)) return false;
+  return isPosition(value.start) && isPosition(value.end);
+}
+
+function isPosition(value: unknown): value is LspRange["start"] {
+  if (!isRecord(value)) return false;
+  return typeof value.line === "number" && typeof value.character === "number";
+}
+
+function buildReplaceQuickFix(uri: string, diagnostic: Diagnostic, suggestion: string): CodeAction {
   const edit: WorkspaceEdit = {
     changes: {
       [uri]: [
@@ -63,5 +94,34 @@ function buildQuickFix(uri: string, diagnostic: Diagnostic, suggestion: string):
     diagnostics: [diagnostic],
     edit,
     isPreferred: true,
+  };
+}
+
+function buildCreateSelectorQuickFix(
+  diagnostic: Diagnostic,
+  createSelector: {
+    readonly uri: string;
+    readonly range: LspRange;
+    readonly newText: string;
+  },
+): CodeAction {
+  const match = /Class '\.([^']+)' not found/.exec(diagnostic.message);
+  const className = match?.[1] ?? "selector";
+  const fileLabel = createSelector.uri.split("/").at(-1) ?? createSelector.uri;
+  const edit: WorkspaceEdit = {
+    changes: {
+      [createSelector.uri]: [
+        {
+          range: createSelector.range,
+          newText: createSelector.newText,
+        },
+      ],
+    },
+  };
+  return {
+    title: `Add '.${className}' to ${fileLabel}`,
+    kind: CodeActionKind.QuickFix,
+    diagnostics: [diagnostic],
+    edit,
   };
 }

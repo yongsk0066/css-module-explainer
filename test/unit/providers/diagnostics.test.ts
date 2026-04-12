@@ -116,7 +116,13 @@ describe("computeDiagnostics", () => {
     expect(d.severity).toBe(DiagnosticSeverity.Warning);
     expect(d.message).toContain("'.unknonw'");
     expect(d.message).toContain("Did you mean 'unknown'?");
-    expect(d.data).toEqual({ suggestion: "unknown" });
+    expect(d.data).toMatchObject({
+      suggestion: "unknown",
+      createSelector: {
+        uri: "file:///fake/ws/src/Button.module.scss",
+        newText: "\n\n.unknonw {\n}\n",
+      },
+    });
   });
 
   it("returns an empty array when the file does not import classnames/bind", () => {

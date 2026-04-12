@@ -4,6 +4,8 @@ import {
   type Range as LspRange,
 } from "vscode-languageserver/node";
 import { findInvalidClassReference } from "../core/query/find-invalid-class-references";
+import type { StyleDocumentHIR } from "../core/hir/style-types";
+import { pathToFileUrl } from "../core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
 import { wrapHandler } from "./_wrap-handler";
 import type { DocumentParams, ProviderDeps } from "./provider-deps";
@@ -89,7 +91,7 @@ export const computeDiagnostics = wrapHandler<
           filePath: params.filePath,
           workspaceRoot: deps.workspaceRoot,
         });
-        if (finding) diagnostics.push(toDiagnostic(finding, deps, severity));
+        if (finding) diagnostics.push(toDiagnostic(finding, styleDocument, deps, severity));
       } catch (err) {
         deps.logError("diagnostics per-call validation failed", err);
         // continue to the next ref
@@ -104,6 +106,7 @@ const DIAGNOSTIC_SOURCE = "css-module-explainer";
 
 function toDiagnostic(
   finding: NonNullable<ReturnType<typeof findInvalidClassReference>>,
+  styleDocument: StyleDocumentHIR,
   deps: ProviderDeps,
   severity: DiagnosticSeverity,
 ): Diagnostic {
@@ -117,7 +120,14 @@ function toDiagnostic(
         severity,
         source: DIAGNOSTIC_SOURCE,
         message: `Class '.${finding.expression.className}' not found in ${relativeScss(finding.expression.scssModulePath, deps.workspaceRoot)}.${hint}`,
-        data: finding.suggestion ? { suggestion: finding.suggestion } : undefined,
+        data: {
+          ...(finding.suggestion ? { suggestion: finding.suggestion } : {}),
+          createSelector: buildCreateSelectorActionData(
+            finding.expression.className,
+            finding.expression.scssModulePath,
+            styleDocument,
+          ),
+        },
       };
     }
     case "missingTemplatePrefix":
@@ -138,6 +148,46 @@ function toDiagnostic(
       finding satisfies never;
       return finding;
   }
+}
+
+function buildCreateSelectorActionData(
+  className: string,
+  scssModulePath: string,
+  styleDocument: StyleDocumentHIR,
+): {
+  readonly uri: string;
+  readonly range: LspRange;
+  readonly newText: string;
+} {
+  const insertionRange = findSelectorInsertionRange(styleDocument);
+  return {
+    uri: pathToFileUrl(scssModulePath),
+    range: insertionRange,
+    newText:
+      styleDocument.selectors.length > 0 ? `\n\n.${className} {\n}\n` : `.${className} {\n}\n`,
+  };
+}
+
+function findSelectorInsertionRange(styleDocument: StyleDocumentHIR): LspRange {
+  if (styleDocument.selectors.length === 0) {
+    return {
+      start: { line: 0, character: 0 },
+      end: { line: 0, character: 0 },
+    };
+  }
+
+  let latest = styleDocument.selectors[0]!.ruleRange.end;
+  for (const selector of styleDocument.selectors) {
+    const end = selector.ruleRange.end;
+    if (end.line > latest.line || (end.line === latest.line && end.character > latest.character)) {
+      latest = end;
+    }
+  }
+
+  return {
+    start: { line: latest.line, character: latest.character },
+    end: { line: latest.line, character: latest.character },
+  };
 }
 
 function diagnosticMessageForResolvedValues(
