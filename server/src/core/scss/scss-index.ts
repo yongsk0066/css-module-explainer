@@ -4,13 +4,9 @@ import { LruMap } from "../util/lru-map";
 import { expandClassMapWithTransform, type ClassnameTransformMode } from "./classname-transform";
 import { parseStyleModule } from "./scss-parser";
 
-export {
-  parseStyleModule,
-  buildChildContext,
-  enumerateGroups,
-  type ParentContext,
-} from "./scss-parser";
+export { parseStyleModule, buildChildContext, type ParentContext } from "./scss-parser";
 export { findBemSuffixSpan } from "./bem-suffix";
+export { enumerateGroups } from "./scss-selector-utils";
 
 interface StyleIndexCacheEntry {
   hash: string;
