@@ -1,6 +1,9 @@
 import * as nodeUrl from "node:url";
 import type ts from "typescript";
 import type { ClassRef, CxBinding, StyleImport } from "@css-module-explainer/shared";
+import { buildSourceDocumentFromLegacy } from "../hir/builders/ts-source-adapter";
+import { sourceDocumentToLegacyClassRefs } from "../hir/compat/source-document-compat";
+import type { SourceDocumentHIR } from "../hir/source-types";
 import { contentHash } from "../util/hash";
 import { LruMap } from "../util/lru-map";
 import type { SourceFileCache } from "../ts/source-file-cache";
@@ -26,6 +29,12 @@ export interface AnalysisEntry {
    * direct `styles.x` property access (`origin: "styleAccess"`).
    */
   readonly classRefs: readonly ClassRef[];
+  /**
+   * Wave 1 document-level source HIR. This is compatibility-backed
+   * for now: it is derived from the current scan/parser outputs so
+   * provider behavior stays stable while the HIR layer is introduced.
+   */
+  readonly sourceDocument: SourceDocumentHIR;
   /**
    * Map of style-import local name → resolution outcome. The
    * `resolved` variant carries the absolute SCSS path; the
@@ -187,9 +196,17 @@ export class DocumentAnalysisCache {
     );
 
     // Unified class-ref parser — covers both cx() arguments and styles.x accesses.
-    const classRefs = this.deps.parseClassRefs?.(sourceFile, bindings, stylesBindings) ?? [];
+    const parsedClassRefs = this.deps.parseClassRefs?.(sourceFile, bindings, stylesBindings) ?? [];
 
     const classUtilNames = this.deps.detectClassUtilImports?.(sourceFile) ?? [];
+    const sourceDocument = buildSourceDocumentFromLegacy({
+      filePath,
+      bindings,
+      stylesBindings,
+      classUtilNames,
+      classRefs: parsedClassRefs,
+    });
+    const classRefs = sourceDocumentToLegacyClassRefs(sourceDocument);
 
     return {
       version,
@@ -197,6 +214,7 @@ export class DocumentAnalysisCache {
       sourceFile,
       bindings,
       classRefs,
+      sourceDocument,
       stylesBindings,
       classUtilNames,
     };
