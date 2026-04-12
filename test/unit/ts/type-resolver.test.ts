@@ -201,6 +201,39 @@ describe("WorkspaceTypeResolver.resolve", () => {
     const result = resolver.resolve("/ws/a.tsx", "sizes.nonexistent", "/ws");
     expect(result.kind).toBe("unresolvable");
   });
+
+  it("prefers a local declaration over an import with the same name", () => {
+    // Regression: import-first DFS used to pick the import binding,
+    // shadowing the local parameter. The 2-pass (local-first,
+    // import-fallback) strategy must pick the local parameter.
+    const resolver = makeResolver({
+      "/ws/theme.ts": `export const sizes = { large: "imported" } as const;`,
+      "/ws/a.tsx": `
+        import { sizes } from "./theme";
+        function render(sizes: "local-a" | "local-b") { return sizes; }
+        export {};
+      `,
+    });
+    const result = resolver.resolve("/ws/a.tsx", "sizes", "/ws");
+    expect(result.kind).toBe("union");
+    expect(result.values.toSorted()).toEqual(["local-a", "local-b"]);
+  });
+
+  it("falls back to import when no local declaration matches", () => {
+    // Ensures the import-fallback pass still works when no local
+    // declaration shadows the import binding.
+    const resolver = makeResolver({
+      "/ws/theme.ts": `export const size = "imported" as const;`,
+      "/ws/a.tsx": `
+        import { size } from "./theme";
+        const unrelated = 42;
+        export {};
+      `,
+    });
+    const result = resolver.resolve("/ws/a.tsx", "size", "/ws");
+    expect(result.kind).toBe("union");
+    expect(result.values).toEqual(["imported"]);
+  });
 });
 
 describe("WorkspaceTypeResolver / program caching", () => {

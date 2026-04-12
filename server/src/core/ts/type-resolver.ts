@@ -106,14 +106,35 @@ const UNRESOLVABLE: ResolvedType = { kind: "unresolvable", values: [] };
 
 /**
  * Walk the source file for an identifier matching `variableName`
- * and return its checker symbol. Looks at variable declarations,
- * function parameters, and destructuring binding elements.
+ * and return its checker symbol.
  *
- * Document-order DFS — returns the first match by name, NOT by
- * lexical scope. Full scope-aware resolution requires carrying
- * the call-site node into the resolver (future work).
+ * Uses a **local-first, import-fallback** 2-pass strategy:
+ *   1. First pass looks only at local declarations (variable,
+ *      parameter, destructuring binding) via document-order DFS.
+ *   2. If no local match, a second pass checks import bindings
+ *      (named, default, namespace).
+ *
+ * This ensures local declarations shadow imports with the same
+ * name, matching TypeScript's own scoping rules in the common
+ * case. Note: this is still NOT fully scope-aware — if the same
+ * name appears in two different local scopes, the first one in
+ * document order wins. Full scope-aware resolution requires
+ * carrying the call-site node into the resolver (future work).
  */
 function findIdentifierSymbol(
+  sourceFile: ts.SourceFile,
+  variableName: string,
+  checker: ts.TypeChecker,
+): ts.Symbol | null {
+  // Pass 1: local declarations only.
+  const local = findLocalSymbol(sourceFile, variableName, checker);
+  if (local) return local;
+
+  // Pass 2: import bindings as fallback.
+  return findImportSymbol(sourceFile, variableName, checker);
+}
+
+function findLocalSymbol(
   sourceFile: ts.SourceFile,
   variableName: string,
   checker: ts.TypeChecker,
@@ -121,8 +142,6 @@ function findIdentifierSymbol(
   let found: ts.Symbol | null = null;
   function visit(node: ts.Node): void {
     if (found) return;
-
-    // Local declarations: variable, parameter, destructuring binding.
     if (ts.isVariableDeclaration(node) || ts.isParameter(node) || ts.isBindingElement(node)) {
       const nameNode = node.name;
       if (ts.isIdentifier(nameNode) && nameNode.text === variableName) {
@@ -130,9 +149,20 @@ function findIdentifierSymbol(
         if (found) return;
       }
     }
+    ts.forEachChild(node, visit);
+  }
+  visit(sourceFile);
+  return found;
+}
 
-    // Import bindings: `import { sizes } from ...` (named),
-    // `import sizes from ...` (default), `import * as sizes from ...`.
+function findImportSymbol(
+  sourceFile: ts.SourceFile,
+  variableName: string,
+  checker: ts.TypeChecker,
+): ts.Symbol | null {
+  let found: ts.Symbol | null = null;
+  function visit(node: ts.Node): void {
+    if (found) return;
     if (ts.isImportDeclaration(node) && node.importClause) {
       const clause = node.importClause;
       // Default import: `import sizes from './theme'`
@@ -150,8 +180,7 @@ function findIdentifierSymbol(
         } else {
           // `import { sizes } from './theme'` or `import { sizes as s }`
           for (const spec of clause.namedBindings.elements) {
-            const localName = spec.name.text;
-            if (localName === variableName) {
+            if (spec.name.text === variableName) {
               found = checker.getSymbolAtLocation(spec.name) ?? null;
               if (found) return;
             }
@@ -159,7 +188,8 @@ function findIdentifierSymbol(
         }
       }
     }
-
+    // Only recurse into non-import top-level children (imports are
+    // always top-level, but this keeps the visitor generic).
     ts.forEachChild(node, visit);
   }
   visit(sourceFile);

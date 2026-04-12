@@ -136,7 +136,9 @@ export function createServer(options: CreateServerOptions): CreatedServer {
         .register(DidChangeWatchedFilesNotification.type, {
           watchers: [
             { globPattern: buildStyleFileWatcherGlob() },
-            { globPattern: "**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs}" },
+            { globPattern: "**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs,d.ts}" },
+            { globPattern: "**/tsconfig*.json" },
+            { globPattern: "**/jsconfig*.json" },
           ],
         })
         .catch(() => ({ dispose: () => {} }));
