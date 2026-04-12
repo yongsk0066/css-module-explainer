@@ -34,6 +34,7 @@ export interface ReferenceQueryOptions {
 }
 
 export interface SemanticReferenceIndex {
+  listReferenceSites(): readonly SemanticReferenceSite[];
   findSelectorReferences(
     scssPath: string,
     canonicalName: string,
@@ -77,6 +78,9 @@ export function buildSemanticReferenceIndex(graph: SemanticGraph): SemanticRefer
   }
 
   return {
+    listReferenceSites() {
+      return Array.from(selectorToSites.values()).flatMap((sites) => sites);
+    },
     findSelectorReferences(scssPath, canonicalName, options) {
       const sites = selectorToSites.get(selectorKeyFor(scssPath, canonicalName)) ?? [];
       return filterByCertainty(sites, options);

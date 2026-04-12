@@ -5,6 +5,7 @@ import type { ClassRef, CxBinding, ScssClassMap } from "@css-module-explainer/sh
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
 import { NullReverseIndex } from "../../../server/src/core/indexing/reverse-index";
+import { NullSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
 import { NOOP_LOG_ERROR, type ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
 import { computeDiagnostics } from "../../../server/src/providers/diagnostics";
 import { DEFAULT_SETTINGS } from "../../../server/src/settings";
@@ -169,6 +170,7 @@ describe("computeDiagnostics", () => {
         ]) as ScssClassMap,
       typeResolver: new FakeTypeResolver(),
       reverseIndex: new NullReverseIndex(),
+      semanticReferenceIndex: new NullSemanticWorkspaceReferenceIndex(),
       workspaceRoot: "/fake/ws",
       logError: NOOP_LOG_ERROR,
       invalidateStyle: () => {},
@@ -223,6 +225,7 @@ describe("computeDiagnostics", () => {
         ]) as ScssClassMap,
       typeResolver: new UnionResolver(),
       reverseIndex: new NullReverseIndex(),
+      semanticReferenceIndex: new NullSemanticWorkspaceReferenceIndex(),
       workspaceRoot: "/fake/ws",
       logError: NOOP_LOG_ERROR,
       invalidateStyle: () => {},
@@ -266,6 +269,7 @@ describe("computeDiagnostics", () => {
       scssClassMapForPath: () => new Map([["indicator", info("indicator")]]) as ScssClassMap,
       typeResolver: new FakeTypeResolver(), // always unresolvable
       reverseIndex: new NullReverseIndex(),
+      semanticReferenceIndex: new NullSemanticWorkspaceReferenceIndex(),
       workspaceRoot: "/fake/ws",
       logError: NOOP_LOG_ERROR,
       invalidateStyle: () => {},

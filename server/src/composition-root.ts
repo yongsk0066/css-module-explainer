@@ -17,6 +17,7 @@ import type { ScssClassMap } from "@css-module-explainer/shared";
 import { DEFAULT_SETTINGS } from "./settings";
 import { buildStyleFileWatcherGlob, findLangForPath } from "./core/scss/lang-registry";
 import { StyleIndexCache } from "./core/scss/scss-index";
+import type { StyleDocumentHIR } from "./core/hir/style-types";
 import { detectClassUtilImports, scanCxImports } from "./core/cx/binding-detector";
 import { parseClassRefs } from "./core/cx/class-ref-parser";
 import { type AliasResolver, AliasResolverHolder } from "./core/cx/alias-resolver";
@@ -26,6 +27,10 @@ import { DocumentAnalysisCache } from "./core/indexing/document-analysis-cache";
 import { scssFileSupplier } from "./core/indexing/file-supplier";
 import { IndexerWorker } from "./core/indexing/indexer-worker";
 import { collectCallSites, WorkspaceReverseIndex } from "./core/indexing/reverse-index";
+import {
+  collectSemanticReferenceSites,
+  WorkspaceSemanticWorkspaceReferenceIndex,
+} from "./core/semantic/workspace-reference-index";
 import { fileUrlToPath, pathToFileUrl } from "./core/util/text-utils";
 import { COMPLETION_TRIGGER_CHARACTERS } from "./providers/completion";
 import type { ProviderDeps } from "./providers/provider-deps";
@@ -197,10 +202,16 @@ function buildBundle(
   const readStyleFile = options.readStyleFile ?? defaultReadStyleFile;
   const fileExists = options.fileExists ?? existsSync;
   const classMapForPath = buildClassMapForPath(caches.styleIndexCache, documents, readStyleFile);
+  const styleDocumentForPath = buildStyleDocumentForPath(
+    caches.styleIndexCache,
+    documents,
+    readStyleFile,
+  );
   const aliasHolder = new AliasResolverHolder(workspaceRoot, DEFAULT_SETTINGS.pathAlias);
   const analysisCache = buildAnalysisCache({
     caches,
     classMapForPath,
+    styleDocumentForPath,
     workspaceRoot,
     typeResolver,
     fileExists,
@@ -218,6 +229,7 @@ function buildBundle(
     scssClassMapForPath: classMapForPath,
     typeResolver,
     reverseIndex: caches.reverseIndex,
+    semanticReferenceIndex: caches.semanticReferenceIndex,
     workspaceRoot,
     logError: (message, err) => {
       const detail = err instanceof Error ? `${err.message}\n${err.stack ?? ""}` : String(err);
@@ -232,6 +244,7 @@ function buildBundle(
     setClassnameTransform(mode) {
       caches.styleIndexCache.setMode(mode);
       caches.reverseIndex.clear();
+      caches.semanticReferenceIndex.clear();
     },
   };
 }
@@ -240,6 +253,7 @@ interface BundleCaches {
   readonly sourceFileCache: SourceFileCache;
   readonly styleIndexCache: StyleIndexCache;
   readonly reverseIndex: WorkspaceReverseIndex;
+  readonly semanticReferenceIndex: WorkspaceSemanticWorkspaceReferenceIndex;
 }
 
 function buildCaches(): BundleCaches {
@@ -247,6 +261,7 @@ function buildCaches(): BundleCaches {
     sourceFileCache: new SourceFileCache({ max: 200 }),
     styleIndexCache: new StyleIndexCache({ max: 500 }),
     reverseIndex: new WorkspaceReverseIndex(),
+    semanticReferenceIndex: new WorkspaceSemanticWorkspaceReferenceIndex(),
   };
 }
 
@@ -264,14 +279,9 @@ function buildClassMapForPath(
   documents: TextDocuments<TextDocument>,
   readStyleFile: (path: string) => string | null,
 ): (path: string) => ScssClassMap | null {
-  const readOpenStyleDocument = (path: string): string | null => {
-    const uri = pathToFileUrl(path);
-    const doc = documents.get(uri);
-    return doc?.getText() ?? null;
-  };
   return (path: string): ScssClassMap | null => {
     if (!findLangForPath(path)) return null;
-    const buffered = readOpenStyleDocument(path);
+    const buffered = readStyleTextFromOpenDocuments(path, documents);
     if (buffered !== null) return styleIndexCache.get(path, buffered);
     const content = readStyleFile(path);
     if (content === null) return null;
@@ -279,9 +289,34 @@ function buildClassMapForPath(
   };
 }
 
+function buildStyleDocumentForPath(
+  styleIndexCache: StyleIndexCache,
+  documents: TextDocuments<TextDocument>,
+  readStyleFile: (path: string) => string | null,
+): (path: string) => StyleDocumentHIR | null {
+  return (path: string): StyleDocumentHIR | null => {
+    if (!findLangForPath(path)) return null;
+    const buffered = readStyleTextFromOpenDocuments(path, documents);
+    if (buffered !== null) return styleIndexCache.getStyleDocument(path, buffered);
+    const content = readStyleFile(path);
+    if (content === null) return null;
+    return styleIndexCache.getStyleDocument(path, content);
+  };
+}
+
+function readStyleTextFromOpenDocuments(
+  path: string,
+  documents: TextDocuments<TextDocument>,
+): string | null {
+  const uri = pathToFileUrl(path);
+  const doc = documents.get(uri);
+  return doc?.getText() ?? null;
+}
+
 interface AnalysisCacheArgs {
   readonly caches: BundleCaches;
   readonly classMapForPath: (path: string) => ScssClassMap | null;
+  readonly styleDocumentForPath: (path: string) => StyleDocumentHIR | null;
   readonly workspaceRoot: string;
   readonly typeResolver: TypeResolver;
   readonly fileExists: (path: string) => boolean;
@@ -289,8 +324,15 @@ interface AnalysisCacheArgs {
 }
 
 function buildAnalysisCache(args: AnalysisCacheArgs): DocumentAnalysisCache {
-  const { caches, classMapForPath, workspaceRoot, typeResolver, fileExists, getAliasResolver } =
-    args;
+  const {
+    caches,
+    classMapForPath,
+    styleDocumentForPath,
+    workspaceRoot,
+    typeResolver,
+    fileExists,
+    getAliasResolver,
+  } = args;
   return new DocumentAnalysisCache({
     sourceFileCache: caches.sourceFileCache,
     scanCxImports,
@@ -305,6 +347,15 @@ function buildAnalysisCache(args: AnalysisCacheArgs): DocumentAnalysisCache {
     },
     max: 200,
     onAnalyze: (uri, entry) => {
+      caches.semanticReferenceIndex.record(
+        uri,
+        collectSemanticReferenceSites(uri, entry, {
+          styleDocumentForPath,
+          typeResolver,
+          workspaceRoot,
+          filePath: fileUrlToPath(uri),
+        }),
+      );
       caches.reverseIndex.record(
         uri,
         collectCallSites(uri, entry, {

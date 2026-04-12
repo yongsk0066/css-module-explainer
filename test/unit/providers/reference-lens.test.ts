@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ScssClassMap } from "@css-module-explainer/shared";
 import { WorkspaceReverseIndex } from "../../../server/src/core/indexing/reverse-index";
+import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
 import type { ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
 import { handleCodeLens } from "../../../server/src/providers/reference-lens";
 import { infoAtLine, makeBaseDeps, siteAt } from "../../_fixtures/test-helpers";
@@ -50,6 +51,35 @@ describe("handleCodeLens", () => {
     );
     expect(result).not.toBeNull();
     const indicatorLens = result!.find((l) => l.command?.title.includes("1 reference"));
+    expect(indicatorLens).toBeDefined();
+  });
+
+  it("uses semantic reference counts when available", () => {
+    const idx = new WorkspaceSemanticWorkspaceReferenceIndex();
+    idx.record("file:///a.tsx", [
+      {
+        refId: "class-expr:0",
+        selectorId: "selector:/fake/src/Button.module.scss:indicator",
+        filePath: "/fake/src/App.tsx",
+        uri: "file:///fake/src/App.tsx",
+        range: { start: { line: 10, character: 5 }, end: { line: 10, character: 14 } },
+        origin: "cxCall",
+        scssModulePath: "/fake/src/Button.module.scss",
+        selectorFilePath: "/fake/src/Button.module.scss",
+        canonicalName: "indicator",
+        className: "indicator",
+        certainty: "exact",
+        reason: "literal",
+        expansion: "direct",
+      },
+    ]);
+    const result = handleCodeLens(
+      { textDocument: { uri: "file:///fake/src/Button.module.scss" } },
+      makeDeps({ semanticReferenceIndex: idx }),
+    );
+
+    expect(result).not.toBeNull();
+    const indicatorLens = result!.find((lens) => lens.command?.title === "1 reference");
     expect(indicatorLens).toBeDefined();
   });
 

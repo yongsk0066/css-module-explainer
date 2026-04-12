@@ -6,6 +6,7 @@ import { fileUrlToPath } from "../core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
 import { wrapHandler } from "./_wrap-handler";
 import { rangeContains } from "./cursor-dispatch";
+import type { ProviderDeps } from "./provider-deps";
 
 /**
  * Handle `textDocument/references` for a class selector inside a
@@ -39,7 +40,7 @@ export const handleReferences = wrapHandler<ReferenceParams, [], Location[] | nu
     // view (e.g. `btnPrimary` for `.btn-primary`), `info.name` is
     // the alias token; `canonicalNameOf` routes the lookup to the
     // bucket stored under the original source name.
-    const sites = deps.reverseIndex.find(filePath, canonicalNameOf(info));
+    const sites = findReferenceSites(deps, filePath, canonicalNameOf(info));
     if (sites.length === 0) return null;
 
     // No expansion filter here — expanded sites are valid Find Refs
@@ -53,6 +54,21 @@ export const handleReferences = wrapHandler<ReferenceParams, [], Location[] | nu
   },
   null,
 );
+
+function findReferenceSites(
+  deps: ProviderDeps,
+  filePath: string,
+  canonicalName: string,
+): readonly { readonly uri: string; readonly range: SelectorInfo["range"] }[] {
+  const semanticSites = deps.semanticReferenceIndex.findSelectorReferences(filePath, canonicalName);
+  if (semanticSites.length > 0) {
+    return semanticSites.map((site) => ({
+      uri: site.uri,
+      range: site.range,
+    }));
+  }
+  return deps.reverseIndex.find(filePath, canonicalName);
+}
 
 export function findSelectorAtCursor(
   classMap: ScssClassMap,

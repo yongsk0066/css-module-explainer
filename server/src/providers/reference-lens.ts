@@ -59,7 +59,7 @@ function buildLens(
   info: SelectorInfo,
   deps: ProviderDeps,
 ): CodeLens | null {
-  const sites = deps.reverseIndex.find(filePath, canonicalNameOf(info));
+  const sites = findReferenceSites(deps, filePath, canonicalNameOf(info));
   if (sites.length === 0) return null;
   const title = `${sites.length} reference${sites.length === 1 ? "" : "s"}`;
   const locations: ShowReferencesLocation[] = sites.map((site) => ({
@@ -83,4 +83,19 @@ function buildLens(
       arguments: [...args],
     },
   };
+}
+
+function findReferenceSites(
+  deps: ProviderDeps,
+  filePath: string,
+  canonicalName: string,
+): readonly { readonly uri: string; readonly range: SelectorInfo["range"] }[] {
+  const semanticSites = deps.semanticReferenceIndex.findSelectorReferences(filePath, canonicalName);
+  if (semanticSites.length > 0) {
+    return semanticSites.map((site) => ({
+      uri: site.uri,
+      range: site.range,
+    }));
+  }
+  return deps.reverseIndex.find(filePath, canonicalName);
 }

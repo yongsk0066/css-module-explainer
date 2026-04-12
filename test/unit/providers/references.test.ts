@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CallSite, ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
 import { WorkspaceReverseIndex } from "../../../server/src/core/indexing/reverse-index";
+import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
 import type { ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
 import { findSelectorAtCursor, handleReferences } from "../../../server/src/providers/references";
 import { infoAtLine, makeBaseDeps, siteAt } from "../../_fixtures/test-helpers";
@@ -59,6 +60,45 @@ describe("handleReferences", () => {
     expect(result).not.toBeNull();
     expect(result).toHaveLength(1);
     expect(result![0]!.uri).toBe("file:///fake/src/App.tsx");
+  });
+
+  it("prefers semantic reference sites when available", () => {
+    const idx = new WorkspaceSemanticWorkspaceReferenceIndex();
+    idx.record("file:///fake/src/App.tsx", [
+      {
+        refId: "class-expr:0",
+        selectorId: "selector:/fake/src/Button.module.scss:indicator",
+        filePath: "/fake/src/App.tsx",
+        uri: "file:///fake/src/App.tsx",
+        range: { start: { line: 12, character: 8 }, end: { line: 12, character: 17 } },
+        origin: "cxCall",
+        scssModulePath: "/fake/src/Button.module.scss",
+        selectorFilePath: "/fake/src/Button.module.scss",
+        canonicalName: "indicator",
+        className: "indicator",
+        certainty: "exact",
+        reason: "literal",
+        expansion: "direct",
+      },
+    ]);
+    const result = handleReferences(
+      {
+        textDocument: { uri: "file:///fake/src/Button.module.scss" },
+        position: { line: 5, character: 3 },
+        context: { includeDeclaration: true },
+      },
+      makeDeps({ semanticReferenceIndex: idx }),
+    );
+
+    expect(result).not.toBeNull();
+    expect(result).toHaveLength(1);
+    expect(result![0]).toEqual({
+      uri: "file:///fake/src/App.tsx",
+      range: {
+        start: { line: 12, character: 8 },
+        end: { line: 12, character: 17 },
+      },
+    });
   });
 
   // Find-references keeps expanded template/variable sites. The
