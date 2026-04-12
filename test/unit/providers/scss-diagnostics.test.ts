@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DiagnosticSeverity, DiagnosticTag } from "vscode-languageserver-protocol/node";
 import type { ScssClassMap } from "@css-module-explainer/shared";
 import { WorkspaceReverseIndex } from "../../../server/src/core/indexing/reverse-index";
+import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
 import { computeScssUnusedDiagnostics } from "../../../server/src/providers/scss-diagnostics";
 import { infoAtLine as info, siteAt } from "../../_fixtures/test-helpers";
 
@@ -16,7 +17,12 @@ describe("computeScssUnusedDiagnostics", () => {
     const reverseIndex = new WorkspaceReverseIndex();
     reverseIndex.record("file:///a.tsx", [siteAt("file:///a.tsx", "indicator", 5, SCSS_PATH)]);
     // "active" has no references.
-    const diagnostics = computeScssUnusedDiagnostics(SCSS_PATH, classMap, reverseIndex);
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      classMap,
+      reverseIndex,
+      new WorkspaceSemanticWorkspaceReferenceIndex(),
+    );
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0]!.message).toContain("'.active'");
     expect(diagnostics[0]!.severity).toBe(DiagnosticSeverity.Hint);
@@ -34,7 +40,12 @@ describe("computeScssUnusedDiagnostics", () => {
       siteAt("file:///a.tsx", "indicator", 5, SCSS_PATH),
       siteAt("file:///a.tsx", "active", 7, SCSS_PATH),
     ]);
-    const diagnostics = computeScssUnusedDiagnostics(SCSS_PATH, classMap, reverseIndex);
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      classMap,
+      reverseIndex,
+      new WorkspaceSemanticWorkspaceReferenceIndex(),
+    );
     expect(diagnostics).toEqual([]);
   });
 
@@ -52,7 +63,12 @@ describe("computeScssUnusedDiagnostics", () => {
         match: { kind: "variable", variableName: "someVar" },
       },
     ]);
-    const diagnostics = computeScssUnusedDiagnostics(SCSS_PATH, classMap, reverseIndex);
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      classMap,
+      reverseIndex,
+      new WorkspaceSemanticWorkspaceReferenceIndex(),
+    );
     expect(diagnostics).toEqual([]);
   });
 
@@ -70,7 +86,12 @@ describe("computeScssUnusedDiagnostics", () => {
         match: { kind: "template", staticPrefix: "btn-" },
       },
     ]);
-    const diagnostics = computeScssUnusedDiagnostics(SCSS_PATH, classMap, reverseIndex);
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      classMap,
+      reverseIndex,
+      new WorkspaceSemanticWorkspaceReferenceIndex(),
+    );
     expect(diagnostics).toEqual([]);
   });
 
@@ -100,14 +121,24 @@ describe("computeScssUnusedDiagnostics", () => {
     ]);
     const reverseIndex = new WorkspaceReverseIndex();
     reverseIndex.record("file:///a.tsx", [siteAt("file:///a.tsx", "button", 10, SCSS_PATH)]);
-    const diagnostics = computeScssUnusedDiagnostics(SCSS_PATH, classMap, reverseIndex);
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      classMap,
+      reverseIndex,
+      new WorkspaceSemanticWorkspaceReferenceIndex(),
+    );
     expect(diagnostics).toEqual([]);
   });
 
   it("returns [] for an empty classMap", () => {
     const classMap: ScssClassMap = new Map();
     const reverseIndex = new WorkspaceReverseIndex();
-    const diagnostics = computeScssUnusedDiagnostics(SCSS_PATH, classMap, reverseIndex);
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      classMap,
+      reverseIndex,
+      new WorkspaceSemanticWorkspaceReferenceIndex(),
+    );
     expect(diagnostics).toEqual([]);
   });
 
@@ -137,7 +168,12 @@ describe("computeScssUnusedDiagnostics", () => {
     ]);
     const reverseIndex = new WorkspaceReverseIndex();
     reverseIndex.record("file:///a.tsx", [siteAt("file:///a.tsx", "button", 10, SCSS_PATH)]);
-    const diagnostics = computeScssUnusedDiagnostics(SCSS_PATH, classMap, reverseIndex);
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      classMap,
+      reverseIndex,
+      new WorkspaceSemanticWorkspaceReferenceIndex(),
+    );
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0]!.message).toContain("'.base'");
   });
@@ -159,7 +195,12 @@ describe("computeScssUnusedDiagnostics", () => {
 
     const reverseIndex = new WorkspaceReverseIndex();
     reverseIndex.record("file:///a.tsx", [siteAt("file:///a.tsx", "btn-primary", 10, SCSS_PATH)]);
-    const diagnostics = computeScssUnusedDiagnostics(SCSS_PATH, classMap, reverseIndex);
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      classMap,
+      reverseIndex,
+      new WorkspaceSemanticWorkspaceReferenceIndex(),
+    );
     // Exactly one warning — for `.orphan` — not a second copy for
     // any alias entry.
     expect(diagnostics).toHaveLength(1);
@@ -178,7 +219,12 @@ describe("computeScssUnusedDiagnostics", () => {
 
     const reverseIndex = new WorkspaceReverseIndex();
     // No references anywhere — both alias and original sit at 0.
-    const diagnostics = computeScssUnusedDiagnostics(SCSS_PATH, classMap, reverseIndex);
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      classMap,
+      reverseIndex,
+      new WorkspaceSemanticWorkspaceReferenceIndex(),
+    );
     expect(diagnostics.filter((d) => d.message.includes("btn-primary"))).toHaveLength(1);
   });
 
@@ -198,7 +244,12 @@ describe("computeScssUnusedDiagnostics", () => {
     reverseIndex.record("file:///a.tsx", [
       siteAt("file:///a.tsx", "btnPrimary", 5, SCSS_PATH, "btn-primary"),
     ]);
-    const diagnostics = computeScssUnusedDiagnostics(SCSS_PATH, classMap, reverseIndex);
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      classMap,
+      reverseIndex,
+      new WorkspaceSemanticWorkspaceReferenceIndex(),
+    );
     expect(diagnostics).toHaveLength(0);
   });
 
@@ -217,8 +268,82 @@ describe("computeScssUnusedDiagnostics", () => {
     expect(classMap.has("btnPrimary")).toBe(true);
 
     const reverseIndex = new WorkspaceReverseIndex();
-    const diagnostics = computeScssUnusedDiagnostics(SCSS_PATH, classMap, reverseIndex);
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      classMap,
+      reverseIndex,
+      new WorkspaceSemanticWorkspaceReferenceIndex(),
+    );
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0]!.message).toContain("'.btn-primary'");
+  });
+
+  it("semantic direct alias access keeps the canonical selector marked as used", async () => {
+    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
+    const { expandClassMapWithTransform } =
+      await import("../../../server/src/core/scss/classname-transform");
+    const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);
+    const classMap = expandClassMapWithTransform(base, "camelCase");
+
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    semanticReferenceIndex.record("file:///a.tsx", [
+      {
+        refId: "ref:file:///a.tsx:5:10",
+        selectorId: `selector:${SCSS_PATH}:btn-primary`,
+        filePath: "/a.tsx",
+        uri: "file:///a.tsx",
+        range: { start: { line: 5, character: 10 }, end: { line: 5, character: 20 } },
+        origin: "styleAccess",
+        scssModulePath: SCSS_PATH,
+        selectorFilePath: SCSS_PATH,
+        canonicalName: "btn-primary",
+        className: "btnPrimary",
+        certainty: "exact",
+        reason: "styleAccess",
+        expansion: "direct",
+      },
+    ]);
+
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      classMap,
+      new WorkspaceReverseIndex(),
+      semanticReferenceIndex,
+    );
+    expect(diagnostics).toEqual([]);
+  });
+
+  it("semantic inferred matches suppress unused diagnostics for resolved dynamic refs", () => {
+    const classMap: ScssClassMap = new Map([
+      ["btn-primary", info("btn-primary", 1)],
+      ["btn-secondary", info("btn-secondary", 3)],
+    ]);
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    semanticReferenceIndex.record("file:///a.tsx", [
+      {
+        refId: "ref:file:///a.tsx:5:10",
+        selectorId: `selector:${SCSS_PATH}:btn-primary`,
+        filePath: "/a.tsx",
+        uri: "file:///a.tsx",
+        range: { start: { line: 5, character: 10 }, end: { line: 5, character: 30 } },
+        origin: "cxCall",
+        scssModulePath: SCSS_PATH,
+        selectorFilePath: SCSS_PATH,
+        canonicalName: "btn-primary",
+        className: "btn-primary",
+        certainty: "inferred",
+        reason: "templatePrefix",
+        expansion: "expanded",
+      },
+    ]);
+
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      classMap,
+      new WorkspaceReverseIndex(),
+      semanticReferenceIndex,
+    );
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]!.message).toContain("'.btn-secondary'");
   });
 });

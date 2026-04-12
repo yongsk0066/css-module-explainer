@@ -2,6 +2,7 @@ import { DiagnosticSeverity, DiagnosticTag, type Diagnostic } from "vscode-langu
 import type { ScssClassMap } from "@css-module-explainer/shared";
 import { canonicalNameOf } from "../core/scss/classname-transform";
 import type { ReverseIndex } from "../core/indexing/reverse-index";
+import type { SemanticWorkspaceReferenceIndex } from "../core/semantic/workspace-reference-index";
 import { toLspRange } from "./lsp-adapters";
 
 /**
@@ -19,10 +20,16 @@ export function computeScssUnusedDiagnostics(
   scssPath: string,
   classMap: ScssClassMap,
   reverseIndex: ReverseIndex,
+  semanticReferenceIndex: SemanticWorkspaceReferenceIndex,
 ): Diagnostic[] {
   // If any unresolvable reference (variable or template) targets
   // this SCSS module, suppress ALL unused diagnostics. The
   // unresolvable reference might resolve to any class at runtime.
+  //
+  // Keep this check on the legacy reverse index for now. The Wave 2
+  // semantic reference layer stores resolved selector edges, not the
+  // direct template/variable marker sites needed to distinguish
+  // "unknown dynamic reference exists somewhere in this module".
   const allSites = reverseIndex.findAllForScssPath(scssPath);
   const hasUnresolvableRef = allSites.some(
     (s) => s.match.kind === "variable" || s.match.kind === "template",
@@ -58,7 +65,10 @@ export function computeScssUnusedDiagnostics(
     if (emittedCanonical.has(canonical)) continue;
     emittedCanonical.add(canonical);
     if (composedClasses.has(canonical)) continue;
-    const refCount = reverseIndex.count(scssPath, canonical);
+    const refCount = Math.max(
+      semanticReferenceIndex.countSelectorReferences(scssPath, canonical),
+      reverseIndex.count(scssPath, canonical),
+    );
     if (refCount === 0) {
       diagnostics.push({
         range: toLspRange(info.range),
