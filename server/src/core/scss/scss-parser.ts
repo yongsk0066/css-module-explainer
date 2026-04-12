@@ -1,6 +1,5 @@
-import type { BemSuffixInfo, ComposesRef, Range, ScssClassMap } from "@css-module-explainer/shared";
+import type { BemSuffixInfo, ComposesRef, Range } from "@css-module-explainer/shared";
 import { parse as postcssParse, type AtRule, type ChildNode, type Root, type Rule } from "postcss";
-import { styleDocumentToLegacyClassMap } from "../hir/compat/style-document-compat";
 import {
   makeStyleDocumentHIR,
   type NestedSelectorSafety,
@@ -100,10 +99,6 @@ export function parseStyleDocument(content: string, filePath: string): StyleDocu
     filePath,
     Array.from(selectorsByName.values()).toSorted(compareSelectors),
   );
-}
-
-export function parseStyleModule(content: string, filePath: string): ScssClassMap {
-  return styleDocumentToLegacyClassMap(parseStyleDocument(content, filePath));
 }
 
 /**

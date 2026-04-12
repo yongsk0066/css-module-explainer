@@ -1,4 +1,3 @@
-import type { ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
 import {
   makeStyleDocumentHIR,
   type SelectorDeclHIR,
@@ -36,22 +35,6 @@ export type ClassnameTransformMode =
   | "camelCaseOnly"
   | "dashes"
   | "dashesOnly";
-
-/**
- * Resolve a `SelectorInfo` back to its canonical SCSS name — the
- * original selector source token, regardless of whether `info`
- * came from the original map entry or from an alias-view entry
- * produced by `expandClassMapWithTransform`.
- *
- * Every place that queries the workspace reverse index, or that
- * compares selector identity across alias views, has to route
- * through this function. Aliases carry their source name in
- * `originalName`; the original entry carries its own name in `name`
- * and leaves `originalName` undefined.
- */
-export function canonicalNameOf(info: SelectorInfo): string {
-  return info.originalName ?? info.name;
-}
 
 export function transformClassname(mode: ClassnameTransformMode, name: string): string[] {
   switch (mode) {
@@ -95,47 +78,6 @@ function toCamelCase(name: string): string {
       i === 0 ? p.charAt(0).toLowerCase() + p.slice(1) : p.charAt(0).toUpperCase() + p.slice(1),
     )
     .join("");
-}
-
-/**
- * Expand a base class map with classnameTransform aliases.
- *
- * For `asIs` mode this is an identity (returns the same reference
- * — zero cost, and downstream memoized structures stay valid).
- * For the other four modes it walks the base map and, for each
- * entry whose transform produces a name different from the
- * original, adds an alias entry with `originalName` set. The
- * `bemSuffix`, `isNested`, `range`, and `ruleRange` fields are
- * copied via `...info` spread — reference-identical to the
- * original so the rename provider's suffix-math operates on the
- * ORIGINAL source token.
- */
-export function expandClassMapWithTransform(
-  base: ScssClassMap,
-  mode: ClassnameTransformMode,
-): ScssClassMap {
-  if (mode === "asIs") return base;
-
-  const expanded = new Map<string, SelectorInfo>();
-  for (const [name, info] of base) {
-    const aliases = transformClassname(mode, name);
-    for (const alias of aliases) {
-      if (alias === name) {
-        expanded.set(name, info);
-        continue;
-      }
-      expanded.set(alias, {
-        ...info,
-        name: alias,
-        originalName: name,
-      });
-    }
-    // camelCaseOnly / dashesOnly: `aliases` does not contain the
-    // original name, so the original entry is dropped from the
-    // expanded map. Consumers that need the original still have
-    // `alias.originalName` as the back-pointer.
-  }
-  return expanded;
 }
 
 export function expandStyleDocumentWithTransform(

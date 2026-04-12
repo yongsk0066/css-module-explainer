@@ -135,10 +135,14 @@ VS Code
   ▼
 server/src/
 ├── core/
-│   ├── scss/         # postcss-scss → ScssClassMap
-│   ├── cx/           # TypeScript AST walkers (binding + calls)
+│   ├── hir/          # source/style HIR documents
+│   ├── semantic/     # semantic graph + workspace reference index
+│   ├── query/        # shared semantic queries for providers
+│   ├── flow/         # local flow-sensitive class-value analysis
+│   ├── scss/         # PostCSS-based style parsing + transform views
+│   ├── cx/           # TypeScript AST walkers (binding + expressions)
 │   ├── ts/           # 2-tier TypeScript strategy (in-flight + workspace)
-│   ├── indexing/     # analysis cache, reverse index, file walker
+│   ├── indexing/     # analysis cache, file walker
 │   └── util/         # pure helpers (hash, text, Levenshtein, LRU)
 ├── providers/        # definition, hover, completion, diagnostics,
 │                     # code-actions, references, reference-lens

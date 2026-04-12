@@ -1,5 +1,3 @@
-import type { ScssClassMap } from "@css-module-explainer/shared";
-import { styleDocumentToLegacyClassMap } from "../hir/compat/style-document-compat";
 import type { StyleDocumentHIR } from "../hir/style-types";
 import { contentHash } from "../util/hash";
 import { LruMap } from "../util/lru-map";
@@ -9,12 +7,7 @@ import {
 } from "./classname-transform";
 import { parseStyleDocument } from "./scss-parser";
 
-export {
-  parseStyleDocument,
-  parseStyleModule,
-  buildChildContext,
-  type ParentContext,
-} from "./scss-parser";
+export { parseStyleDocument, buildChildContext, type ParentContext } from "./scss-parser";
 export { findBemSuffixSpan } from "./bem-suffix";
 export { enumerateGroups } from "./scss-selector-utils";
 
@@ -22,18 +15,16 @@ export interface StyleIndexEntry {
   readonly hash: string;
   readonly mode: ClassnameTransformMode;
   readonly styleDocument: StyleDocumentHIR;
-  readonly classMap: ScssClassMap;
 }
 
 /**
- * Content-hashed LRU cache for style-document HIR plus
- * compatibility class-map output.
+ * Content-hashed LRU cache for transformed style-document HIR.
  *
  * - Hit path: provider asks for a file + its current content; the
  *   cache returns the previously-built `StyleIndexEntry` by
  *   reference identity when (content-hash, mode) match.
  * - Miss path: parse `StyleDocumentHIR` → apply transform aliases →
- *   derive compatibility `ScssClassMap` and store both.
+ *   store the transformed style document.
  * - Mode change: `setMode` clears the whole LRU. Keys that were
  *   valid under the old mode may not exist under the new one, so
  *   a full rebuild is correct. 500-entry LRU makes this cheap.
@@ -44,10 +35,6 @@ export class StyleIndexCache {
 
   constructor(options: { max: number }) {
     this.lru = new LruMap(options.max);
-  }
-
-  get(filePath: string, content: string): ScssClassMap {
-    return this.getEntry(filePath, content).classMap;
   }
 
   getStyleDocument(filePath: string, content: string): StyleDocumentHIR {
@@ -64,12 +51,10 @@ export class StyleIndexCache {
 
     const base = parseStyleDocument(content, filePath);
     const styleDocument = expandStyleDocumentWithTransform(base, this.mode);
-    const classMap = styleDocumentToLegacyClassMap(styleDocument);
     const entry: StyleIndexEntry = {
       hash,
       mode: this.mode,
       styleDocument,
-      classMap,
     };
     this.lru.set(filePath, entry);
     return entry;
