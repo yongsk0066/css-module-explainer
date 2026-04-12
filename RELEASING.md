@@ -55,3 +55,13 @@ Environment variables used by the publish script:
 - `PUBLISH_OPENVSX=true|false`
 - `VSCE_PAT`
 - `OVSX_PAT`
+
+For local publishing, you can also place `VSCE_PAT` and `OVSX_PAT` in a repo
+root `.env` file. The publish script loads it automatically when present.
+
+Example:
+
+```bash
+VSCE_PAT=...
+OVSX_PAT=...
+```

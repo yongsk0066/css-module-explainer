@@ -3,6 +3,14 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+# Load local release credentials if present.
+if [ -f .env ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . ./.env
+  set +a
+fi
+
 CHANNEL="${RELEASE_CHANNEL:-stable}"
 PUBLISH_MARKETPLACE="${PUBLISH_MARKETPLACE:-true}"
 PUBLISH_OPENVSX="${PUBLISH_OPENVSX:-true}"
