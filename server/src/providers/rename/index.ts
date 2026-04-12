@@ -4,6 +4,7 @@ import type {
   RenameParams,
   WorkspaceEdit,
 } from "vscode-languageserver/node";
+import { LSPErrorCodes, ResponseError } from "vscode-languageserver/node";
 import type { SelectorDeclHIR, StyleDocumentHIR } from "../../core/hir/style-types";
 import { hasBlockingRenameReferences } from "../../core/query/prepare-rename";
 import { findCanonicalSelector, findSelectorAtCursor } from "../../core/query/find-style-selector";
@@ -11,7 +12,10 @@ import { findLangForPath } from "../../core/scss/lang-registry";
 import { fileUrlToPath, pathToFileUrl } from "../../core/util/text-utils";
 import { toLspRange } from "../lsp-adapters";
 import { wrapHandler } from "../_wrap-handler";
-import { withSourceExpressionAtCursor } from "../cursor-dispatch";
+import {
+  findSourceExpressionContextAtCursor,
+  withSourceExpressionAtCursor,
+} from "../cursor-dispatch";
 import type { CursorParams, ProviderDeps } from "../provider-deps";
 import { buildRenameEdit } from "./build-edit";
 
@@ -27,13 +31,12 @@ import { buildRenameEdit } from "./build-edit";
  * back to its default word-rename behavior instead of editing a
  * dynamic expression.
  */
-export const handlePrepareRename = wrapHandler<
-  PrepareRenameParams,
-  [cursorParams?: CursorParams],
-  { range: LspRange; placeholder: string } | null
->(
-  "prepareRename",
-  (params, deps, cursorParams) => {
+export function handlePrepareRename(
+  params: PrepareRenameParams,
+  deps: ProviderDeps,
+  cursorParams?: CursorParams,
+): { range: LspRange; placeholder: string } | null {
+  try {
     const filePath = fileUrlToPath(params.textDocument.uri);
 
     if (findLangForPath(filePath)) {
@@ -41,17 +44,23 @@ export const handlePrepareRename = wrapHandler<
     }
 
     if (!cursorParams) return null;
+    const ctx = findSourceExpressionContextAtCursor(cursorParams, deps);
+    if (!ctx) return null;
 
-    return withSourceExpressionAtCursor(cursorParams, deps, (ctx) => {
-      if (ctx.expression.kind !== "literal" && ctx.expression.kind !== "styleAccess") return null;
-      return {
-        range: toLspRange(ctx.expression.range),
-        placeholder: ctx.expression.className,
-      };
-    });
-  },
-  null,
-);
+    if (ctx.expression.kind === "template" || ctx.expression.kind === "symbolRef") {
+      throwRenameBlocked("Dynamic class expressions cannot be renamed safely.");
+    }
+    if (ctx.expression.kind !== "literal" && ctx.expression.kind !== "styleAccess") return null;
+    return {
+      range: toLspRange(ctx.expression.range),
+      placeholder: ctx.expression.className,
+    };
+  } catch (err) {
+    if (isResponseError(err)) throw err;
+    deps.logError("prepareRename handler failed", err);
+    return null;
+  }
+}
 
 /**
  * Handle `textDocument/rename`.
@@ -112,11 +121,18 @@ function resolveRenameTarget(
   if (!selector) return null;
 
   const gateTarget = findCanonicalSelector(styleDocument, selector);
-  if (!isRenameSafe(gateTarget)) return null;
+  if (!isRenameSafe(gateTarget)) {
+    if (gateTarget.bemSuffix?.rawToken.includes("#{")) {
+      throwRenameBlocked("Selectors containing interpolation cannot be renamed safely.");
+    }
+    throwRenameBlocked("Only flat selectors and safe BEM suffix selectors can be renamed.");
+  }
 
   const mode = deps.settings.scss.classnameTransform;
   if ((mode === "camelCaseOnly" || mode === "dashesOnly") && selector.viewKind === "alias") {
-    return null;
+    throwRenameBlocked(
+      "Alias selector views cannot be renamed under the current classnameTransform mode.",
+    );
   }
 
   return { styleDocument, selector };
@@ -151,7 +167,11 @@ function prepareRenameFromScss(
 
   const canonicalSelector = findCanonicalSelector(target.styleDocument, target.selector);
   const canonicalName = canonicalSelector.canonicalName;
-  if (hasExpandedReverseSite(deps, filePath, canonicalName)) return null;
+  if (hasExpandedReverseSite(deps, filePath, canonicalName)) {
+    throwRenameBlocked(
+      "Rename is blocked because inferred or expanded references would make the edit unsafe.",
+    );
+  }
 
   const placeholderRange = target.selector.bemSuffix?.rawTokenRange ?? target.selector.range;
   return { range: toLspRange(placeholderRange), placeholder: target.selector.name };
@@ -188,4 +208,12 @@ function findSelectorAtExpression(
     (candidate): candidate is SelectorDeclHIR => candidate.name === className,
   );
   return selector ?? null;
+}
+
+function throwRenameBlocked(message: string): never {
+  throw new ResponseError(LSPErrorCodes.RequestFailed, message);
+}
+
+function isResponseError(err: unknown): err is ResponseError<unknown> {
+  return err instanceof ResponseError;
 }

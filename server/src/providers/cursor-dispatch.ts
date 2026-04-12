@@ -43,11 +43,10 @@ export function hasAnyStyleImport(content: string): boolean {
  * backing style document, and hands `{ expression, styleDocument,
  * entry }` to the transform.
  */
-export function withSourceExpressionAtCursor<T>(
+export function findSourceExpressionContextAtCursor(
   params: CursorParams,
   deps: ProviderDeps,
-  transform: (ctx: SourceExpressionContext) => T | null,
-): T | null {
+): SourceExpressionContext | null {
   if (!hasAnyStyleImport(params.content)) return null;
 
   const entry = deps.analysisCache.get(
@@ -66,7 +65,17 @@ export function withSourceExpressionAtCursor<T>(
   const styleDocument = resolveStyleDocument(deps, expression.scssModulePath);
   if (!styleDocument) return null;
 
-  return transform({ expression, styleDocument, entry }) ?? null;
+  return { expression, styleDocument, entry };
+}
+
+export function withSourceExpressionAtCursor<T>(
+  params: CursorParams,
+  deps: ProviderDeps,
+  transform: (ctx: SourceExpressionContext) => T | null,
+): T | null {
+  const ctx = findSourceExpressionContextAtCursor(params, deps);
+  if (!ctx) return null;
+  return transform(ctx) ?? null;
 }
 
 function resolveStyleDocument(deps: ProviderDeps, scssModulePath: string): StyleDocumentHIR | null {

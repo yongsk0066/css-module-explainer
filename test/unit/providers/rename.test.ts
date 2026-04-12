@@ -68,6 +68,13 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   });
 }
 
+function expectPrepareRenameBlocked(
+  run: () => ReturnType<typeof handlePrepareRename>,
+  message: string,
+): void {
+  expect(run).toThrow(message);
+}
+
 describe("handlePrepareRename", () => {
   it("returns range and placeholder for a selector at cursor in SCSS file", () => {
     const result = handlePrepareRename(
@@ -102,6 +109,34 @@ describe("handlePrepareRename", () => {
       makeDeps(),
     );
     expect(result).toBeNull();
+  });
+
+  it("returns a rename target for nested child selectors that parse as standalone classes", () => {
+    const styleDocument = buildStyleDocumentFromSelectorMap(
+      SCSS_PATH,
+      expandSelectorMapWithTransform(
+        parseStyleSelectorMap(
+          `
+.button {
+  .child {
+    color: red;
+  }
+}
+`,
+          SCSS_PATH,
+        ),
+        "asIs",
+      ),
+    );
+    const result = handlePrepareRename(
+      {
+        textDocument: { uri: SCSS_URI },
+        position: { line: 2, character: 4 },
+      },
+      makeDeps({ styleDocumentForPath: () => styleDocument }),
+    );
+    expect(result).not.toBeNull();
+    expect(result).toHaveProperty("placeholder", "child");
   });
 });
 
@@ -308,6 +343,71 @@ describe("handlePrepareRename from TS/TSX", () => {
     expect(result).not.toBeNull();
     expect(result!.placeholder).toBe("indicator");
   });
+
+  it("throws a message when the cursor is on a dynamic class expression", () => {
+    const sourceFileCache = new SourceFileCache({ max: 10 });
+    const analysisCache = new DocumentAnalysisCache({
+      sourceFileCache,
+      fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
+      scanCxImports: (sourceFile) => ({
+        stylesBindings: new Map([
+          ["styles", { kind: "resolved" as const, absolutePath: BINDING.scssModulePath }],
+        ]),
+        bindings: [
+          {
+            ...BINDING,
+            scope: {
+              startLine: 0,
+              endLine: sourceFile.getLineAndCharacterOfPosition(sourceFile.getEnd()).line,
+            },
+          },
+        ],
+      }),
+      parseClassExpressions: (_sf, bindings) =>
+        buildTestClassExpressions({
+          filePath: "/fake/src/App.tsx",
+          bindings,
+          expressions: [
+            {
+              kind: "symbolRef",
+              origin: "cxCall",
+              rawReference: "size",
+              range: {
+                start: { line: 3, character: 13 },
+                end: { line: 3, character: 17 },
+              },
+              scssModulePath: bindings[0]!.scssModulePath,
+            },
+          ],
+        }),
+      max: 10,
+    });
+    const deps = makeBaseDeps({
+      analysisCache,
+      selectorMapForPath: () => new Map([["indicator", info("indicator")]]),
+      workspaceRoot: "/fake",
+    });
+    const cursorParams: CursorParams = {
+      documentUri: "file:///fake/src/App.tsx",
+      content: TSX_CONTENT.replace("cx('indicator')", "cx(size)"),
+      filePath: "/fake/src/App.tsx",
+      line: 3,
+      character: 14,
+      version: 1,
+    };
+
+    expect(() =>
+      handlePrepareRename(
+        {
+          textDocument: { uri: "file:///fake/src/App.tsx" },
+          position: { line: 3, character: 14 },
+        },
+        deps,
+        cursorParams,
+      ),
+    ).toThrow("Dynamic class expressions cannot be renamed safely.");
+  });
 });
 
 describe("handleRename from TS/TSX", () => {
@@ -443,16 +543,17 @@ describe("rename template corruption guard", () => {
 
   it("SCSS-side prepareRename rejects class with template/variable references", () => {
     const semanticReferenceIndex = buildTemplateSemanticIndex();
-    const result = handlePrepareRename(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: { line: 1, character: 3 },
-      },
-      btnScssDeps({ semanticReferenceIndex }),
+    expectPrepareRenameBlocked(
+      () =>
+        handlePrepareRename(
+          {
+            textDocument: { uri: SCSS_URI },
+            position: { line: 1, character: 3 },
+          },
+          btnScssDeps({ semanticReferenceIndex }),
+        ),
+      "Rename is blocked because inferred or expanded references would make the edit unsafe.",
     );
-    // Cursor is on `.btn-small`, which has an inferred semantic
-    // site from the template expansion. prepareRename must refuse.
-    expect(result).toBeNull();
   });
 
   it("SCSS-side prepareRename rejects class with semantic inferred references", () => {
@@ -468,14 +569,17 @@ describe("rename template corruption guard", () => {
         reason: "templatePrefix",
       }),
     ]);
-    const result = handlePrepareRename(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: { line: 1, character: 3 },
-      },
-      btnScssDeps({ semanticReferenceIndex }),
+    expectPrepareRenameBlocked(
+      () =>
+        handlePrepareRename(
+          {
+            textDocument: { uri: SCSS_URI },
+            position: { line: 1, character: 3 },
+          },
+          btnScssDeps({ semanticReferenceIndex }),
+        ),
+      "Rename is blocked because inferred or expanded references would make the edit unsafe.",
     );
-    expect(result).toBeNull();
   });
 });
 
@@ -746,11 +850,14 @@ describe("&-nested BEM suffix rename", () => {
       selectorMapForPath: () => new Map([["btn--primary", synthetic]]),
       workspaceRoot: "/fake",
     });
-    const result = handlePrepareRename(
-      { textDocument: { uri: SCSS_URI }, position: { line: 1, character: 3 } },
-      deps,
+    expectPrepareRenameBlocked(
+      () =>
+        handlePrepareRename(
+          { textDocument: { uri: SCSS_URI }, position: { line: 1, character: 3 } },
+          deps,
+        ),
+      "Selectors containing interpolation cannot be renamed safely.",
     );
-    expect(result).toBeNull();
   });
 
   it("rejects non-bare parent `.card:hover { &--primary {} }`", async () => {
@@ -768,11 +875,14 @@ describe("&-nested BEM suffix rename", () => {
     expect(entry!.bemSuffix).toBeUndefined();
     // prepareRename must refuse
     const deps = makeBaseDeps({ selectorMapForPath: () => classMap, workspaceRoot: "/fake" });
-    const result = handlePrepareRename(
-      { textDocument: { uri: SCSS_URI }, position: { line: 1, character: 3 } },
-      deps,
+    expectPrepareRenameBlocked(
+      () =>
+        handlePrepareRename(
+          { textDocument: { uri: SCSS_URI }, position: { line: 1, character: 3 } },
+          deps,
+        ),
+      "Only flat selectors and safe BEM suffix selectors can be renamed.",
     );
-    expect(result).toBeNull();
   });
 
   it("rejects grouped-nested child `.btn { &--a, &--b {} }`", async () => {
@@ -781,11 +891,14 @@ describe("&-nested BEM suffix rename", () => {
     expect(a).toBeDefined();
     expect(a!.bemSuffix).toBeUndefined();
     const deps = makeBaseDeps({ selectorMapForPath: () => classMap, workspaceRoot: "/fake" });
-    const result = handlePrepareRename(
-      { textDocument: { uri: SCSS_URI }, position: { line: 1, character: 3 } },
-      deps,
+    expectPrepareRenameBlocked(
+      () =>
+        handlePrepareRename(
+          { textDocument: { uri: SCSS_URI }, position: { line: 1, character: 3 } },
+          deps,
+        ),
+      "Only flat selectors and safe BEM suffix selectors can be renamed.",
     );
-    expect(result).toBeNull();
   });
 
   it("rejects multi-`&` `.btn { & + &--x {} }`", async () => {
@@ -794,11 +907,14 @@ describe("&-nested BEM suffix rename", () => {
     if (entry !== undefined) {
       expect(entry.bemSuffix).toBeUndefined();
       const deps = makeBaseDeps({ selectorMapForPath: () => classMap, workspaceRoot: "/fake" });
-      const result = handlePrepareRename(
-        { textDocument: { uri: SCSS_URI }, position: { line: 1, character: 3 } },
-        deps,
+      expectPrepareRenameBlocked(
+        () =>
+          handlePrepareRename(
+            { textDocument: { uri: SCSS_URI }, position: { line: 1, character: 3 } },
+            deps,
+          ),
+        "Only flat selectors and safe BEM suffix selectors can be renamed.",
       );
-      expect(result).toBeNull();
     }
   });
 
@@ -808,8 +924,6 @@ describe("&-nested BEM suffix rename", () => {
     expect(active.nestedSafety).toBe("nestedUnsafe");
     expect(active.bemSuffix).toBeUndefined();
     const deps = makeBaseDeps({ selectorMapForPath: () => classMap, workspaceRoot: "/fake" });
-    // Cursor on `&.active` → selectorInfo is the `active` entry with
-    // trio undefined → reject via nested-trio guard.
     const result = handlePrepareRename(
       { textDocument: { uri: SCSS_URI }, position: { line: 1, character: 3 } },
       deps,
@@ -871,14 +985,17 @@ describe("&-nested BEM suffix rename", () => {
       semanticReferenceIndex,
     });
     const rawRange = classMap.get("button--primary")!.bemSuffix!.rawTokenRange;
-    const result = handlePrepareRename(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: { line: rawRange.start.line, character: rawRange.start.character + 1 },
-      },
-      deps,
+    expectPrepareRenameBlocked(
+      () =>
+        handlePrepareRename(
+          {
+            textDocument: { uri: SCSS_URI },
+            position: { line: rawRange.start.line, character: rawRange.start.character + 1 },
+          },
+          deps,
+        ),
+      "Rename is blocked because inferred or expanded references would make the edit unsafe.",
     );
-    expect(result).toBeNull();
   });
 });
 
@@ -1041,17 +1158,20 @@ describe("classnameTransform alias-aware rename", () => {
       workspaceRoot: "/fake",
       settings: withTransformMode("camelCaseOnly"),
     });
-    const result = handlePrepareRename(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: {
-          line: alias.range.start.line,
-          character: alias.range.start.character + 1,
-        },
-      },
-      deps,
+    expectPrepareRenameBlocked(
+      () =>
+        handlePrepareRename(
+          {
+            textDocument: { uri: SCSS_URI },
+            position: {
+              line: alias.range.start.line,
+              character: alias.range.start.character + 1,
+            },
+          },
+          deps,
+        ),
+      "Alias selector views cannot be renamed under the current classnameTransform mode.",
     );
-    expect(result).toBeNull();
   });
 
   it("dashesOnly: alias rename is rejected at prepareRename", async () => {
@@ -1065,17 +1185,20 @@ describe("classnameTransform alias-aware rename", () => {
       workspaceRoot: "/fake",
       settings: withTransformMode("dashesOnly"),
     });
-    const result = handlePrepareRename(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: {
-          line: alias.range.start.line,
-          character: alias.range.start.character + 1,
-        },
-      },
-      deps,
+    expectPrepareRenameBlocked(
+      () =>
+        handlePrepareRename(
+          {
+            textDocument: { uri: SCSS_URI },
+            position: {
+              line: alias.range.start.line,
+              character: alias.range.start.character + 1,
+            },
+          },
+          deps,
+        ),
+      "Alias selector views cannot be renamed under the current classnameTransform mode.",
     );
-    expect(result).toBeNull();
   });
 
   it("camelCase: canonical-form and alias-form sites both rewrite with per-site format", async () => {
@@ -1280,17 +1403,20 @@ describe("classnameTransform alias-aware rename", () => {
     // the union, the single-key check against `btnPrimary` would
     // miss the expanded site keyed on `btn-primary` and allow the
     // rename — rewriting the template and destroying the source.
-    const result = handlePrepareRename(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: {
-          line: original.range.start.line,
-          character: original.range.start.character + 1,
-        },
-      },
-      deps,
+    expectPrepareRenameBlocked(
+      () =>
+        handlePrepareRename(
+          {
+            textDocument: { uri: SCSS_URI },
+            position: {
+              line: original.range.start.line,
+              character: original.range.start.character + 1,
+            },
+          },
+          deps,
+        ),
+      "Rename is blocked because inferred or expanded references would make the edit unsafe.",
     );
-    expect(result).toBeNull();
   });
 
   it("regression: semantic expanded site on original key rejects rename via alias cursor", async () => {
@@ -1318,16 +1444,19 @@ describe("classnameTransform alias-aware rename", () => {
       semanticReferenceIndex,
       settings: withTransformMode("camelCase"),
     });
-    const result = handlePrepareRename(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: {
-          line: original.range.start.line,
-          character: original.range.start.character + 1,
-        },
-      },
-      deps,
+    expectPrepareRenameBlocked(
+      () =>
+        handlePrepareRename(
+          {
+            textDocument: { uri: SCSS_URI },
+            position: {
+              line: original.range.start.line,
+              character: original.range.start.character + 1,
+            },
+          },
+          deps,
+        ),
+      "Rename is blocked because inferred or expanded references would make the edit unsafe.",
     );
-    expect(result).toBeNull();
   });
 });

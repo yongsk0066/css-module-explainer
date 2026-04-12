@@ -121,6 +121,42 @@ describe("rename protocol", () => {
     expect(prep).toBeNull();
   });
 
+  it("prepareRename rejects dynamic source expressions with a message", async () => {
+    const dynamicTsx = `import classNames from 'classnames/bind';
+import styles from './Button.module.scss';
+const cx = classNames.bind(styles);
+const size = 'indicator';
+export function App() {
+  return <div className={cx(size)}>hi</div>;
+}
+`;
+    client = createInProcessServer({
+      readStyleFile: () => BUTTON_SCSS,
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/App.tsx",
+        languageId: "typescriptreact",
+        version: 1,
+        text: dynamicTsx,
+      },
+    });
+    await client.waitForDiagnostics("file:///fake/workspace/src/App.tsx");
+
+    await expect(
+      client.prepareRename({
+        textDocument: { uri: "file:///fake/workspace/src/App.tsx" },
+        position: { line: 5, character: 29 },
+      }),
+    ).rejects.toMatchObject({
+      message: "Dynamic class expressions cannot be renamed safely.",
+    });
+  });
+
   // End-to-end BEM suffix rename across SCSS + TSX.
   it("rename &-nested BEM suffix rewrites only the suffix in SCSS and the full class in TSX", async () => {
     const BEM_SCSS = `.button {
