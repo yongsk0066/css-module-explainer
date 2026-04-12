@@ -1,12 +1,17 @@
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import type { ScssClassMap } from "@css-module-explainer/shared";
+import { buildStyleDocumentFromClassMap } from "../../../server/src/core/hir/builders/style-adapter";
 import type { ClassExpressionHIR } from "../../../server/src/core/hir/source-types";
 import { findInvalidClassReference } from "../../../server/src/core/query/find-invalid-class-references";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
 import { info } from "../../_fixtures/test-helpers";
 
 const SCSS_PATH = "/fake/ws/src/Button.module.scss";
+
+function styleDocument(classMap: ScssClassMap) {
+  return buildStyleDocumentFromClassMap(SCSS_PATH, classMap);
+}
 
 describe("findInvalidClassReference", () => {
   it("reports a missing static class with a suggestion", () => {
@@ -30,7 +35,7 @@ describe("findInvalidClassReference", () => {
       findInvalidClassReference(
         expression,
         sourceFile,
-        new Map([["indicator", info("indicator")]]) as ScssClassMap,
+        styleDocument(new Map([["indicator", info("indicator")]]) as ScssClassMap),
         {
           typeResolver: new FakeTypeResolver(),
           filePath: "/fake/ws/src/Button.tsx",
@@ -67,7 +72,7 @@ describe("findInvalidClassReference", () => {
       findInvalidClassReference(
         expression,
         sourceFile,
-        new Map([["indicator", info("indicator")]]) as ScssClassMap,
+        styleDocument(new Map([["indicator", info("indicator")]]) as ScssClassMap),
         {
           typeResolver: new FakeTypeResolver(),
           filePath: "/fake/ws/src/Button.tsx",
@@ -105,7 +110,7 @@ describe("findInvalidClassReference", () => {
       findInvalidClassReference(
         expression,
         sourceFile,
-        new Map([["small", info("small")]]) as ScssClassMap,
+        styleDocument(new Map([["small", info("small")]]) as ScssClassMap),
         {
           typeResolver: new FakeTypeResolver(["small", "large"]),
           filePath: "/fake/ws/src/Button.tsx",

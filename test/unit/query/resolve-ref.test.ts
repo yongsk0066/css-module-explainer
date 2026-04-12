@@ -32,8 +32,6 @@ describe("resolveRefSelectors", () => {
       {
         styleDocumentForPath: (path) =>
           path === styleScenario.filePath ? styleScenario.styleDocument : null,
-        scssClassMapForPath: (path) =>
-          path === styleScenario.filePath ? styleScenario.compatClassMap : null,
         typeResolver: new FakeTypeResolver(["sm", "md", "lg"]),
         filePath: sourceScenario.filePath,
         workspaceRoot: "/fake/ws",
@@ -70,9 +68,8 @@ describe("resolveRefSelectors", () => {
         entry: analysisEntryFor(sourceScenario),
       },
       {
-        styleDocumentForPath: () => null,
-        scssClassMapForPath: (path) =>
-          path === styleScenario.filePath ? styleScenario.compatClassMap : null,
+        styleDocumentForPath: (path) =>
+          path === styleScenario.filePath ? styleScenario.styleDocument : null,
         typeResolver: new FakeTypeResolver(),
         filePath: sourceScenario.filePath,
         workspaceRoot: "/fake/ws",
@@ -129,8 +126,6 @@ function render(flag: boolean) {
       {
         styleDocumentForPath: (path) =>
           path === styleScenario.filePath ? styleScenario.styleDocument : null,
-        scssClassMapForPath: (path) =>
-          path === styleScenario.filePath ? styleScenario.compatClassMap : null,
         typeResolver: new FakeTypeResolver(),
         filePath: "/fake/Flow.tsx",
         workspaceRoot: "/fake/ws",

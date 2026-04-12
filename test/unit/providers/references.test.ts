@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
+import { buildStyleDocumentFromClassMap } from "../../../server/src/core/hir/builders/style-adapter";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
 import type { ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
 import { findSelectorAtCursor, handleReferences } from "../../../server/src/providers/references";
@@ -184,18 +185,19 @@ describe("handleReferences", () => {
       },
     };
     const classMap = new Map([["button--primary", info]]) as ScssClassMap;
+    const styleDocument = buildStyleDocumentFromClassMap("/fake/src/Button.module.scss", classMap);
 
     // Cursor on the `&` character at (line 1, character 2). The
     // rawTokenRange covers exactly this position; the test locks
     // down that findSelectorAtCursor prefers it.
-    const hit = findSelectorAtCursor(classMap, 1, 2);
+    const hit = findSelectorAtCursor(styleDocument, 1, 2);
     expect(hit).not.toBeNull();
     expect(hit!.name).toBe("button--primary");
 
     // Cursor past the rawTokenRange's end (character 11 is the
     // last char `y`; 12 is still INCLUSIVE at the end per the
     // codebase's rangeContains convention). Character 13 is past.
-    const miss = findSelectorAtCursor(classMap, 1, 13);
+    const miss = findSelectorAtCursor(styleDocument, 1, 13);
     expect(miss).toBeNull();
   });
 

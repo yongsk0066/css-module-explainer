@@ -1,5 +1,3 @@
-import type { ScssClassMap } from "@css-module-explainer/shared";
-import { buildStyleDocumentFromClassMap } from "../hir/builders/style-adapter";
 import type { ClassExpressionHIR, SymbolRefClassExpressionHIR } from "../hir/source-types";
 import type { SelectorDeclHIR, StyleDocumentHIR } from "../hir/style-types";
 import { buildSourceSemanticGraph } from "../semantic/graph-builder";
@@ -10,7 +8,6 @@ import type { AnalysisEntry } from "../indexing/document-analysis-cache";
 
 export interface ResolveRefQueryEnv {
   readonly styleDocumentForPath: (path: string) => StyleDocumentHIR | null;
-  readonly scssClassMapForPath: (path: string) => ScssClassMap | null;
   readonly typeResolver: TypeResolver;
   readonly filePath: string;
   readonly workspaceRoot: string;
@@ -27,9 +24,7 @@ export function resolveRefSelectors(
   env: ResolveRefQueryEnv,
 ): readonly SelectorDeclHIR[] {
   const styleDocument =
-    ctx.styleDocument ??
-    env.styleDocumentForPath(ctx.expression.scssModulePath) ??
-    resolveStyleDocumentFromClassMap(ctx.expression.scssModulePath, env.scssClassMapForPath);
+    ctx.styleDocument ?? env.styleDocumentForPath(ctx.expression.scssModulePath);
   if (!styleDocument) return [];
 
   const graph = buildSourceSemanticGraph({
@@ -138,12 +133,4 @@ function findCanonicalSelector(
         selector.canonicalName === match.canonicalName && selector.viewKind === "canonical",
     ) ?? match
   );
-}
-
-function resolveStyleDocumentFromClassMap(
-  scssModulePath: string,
-  scssClassMapForPath: (path: string) => ScssClassMap | null,
-): StyleDocumentHIR | null {
-  const classMap = scssClassMapForPath(scssModulePath);
-  return classMap ? buildStyleDocumentFromClassMap(scssModulePath, classMap) : null;
 }

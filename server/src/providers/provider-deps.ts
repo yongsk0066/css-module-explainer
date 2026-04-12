@@ -1,4 +1,3 @@
-import type { ScssClassMap } from "@css-module-explainer/shared";
 import type { ClassnameTransformMode } from "../core/scss/classname-transform";
 import type { DocumentAnalysisCache } from "../core/indexing/document-analysis-cache";
 import type { StyleDocumentHIR } from "../core/hir/style-types";
@@ -39,10 +38,6 @@ export interface CursorParams extends DocumentParams {
  */
 export interface ProviderDeps {
   readonly analysisCache: DocumentAnalysisCache;
-  /**
-   * Look up the ScssClassMap for a style module file path.
-   */
-  readonly scssClassMapForPath: (path: string) => ScssClassMap | null;
   /**
    * Look up the style-document HIR for a style module file path.
    */

@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { ScssClassMap } from "@css-module-explainer/shared";
+import { buildStyleDocumentFromClassMap } from "../../../server/src/core/hir/builders/style-adapter";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
 import { findUnusedSelectors } from "../../../server/src/core/query/compute-unused-selectors";
 import { infoAtLine as info, semanticSiteAt } from "../../_fixtures/test-helpers";
 
 const SCSS_PATH = "/fake/Button.module.scss";
+
+function styleDocument(classMap: ScssClassMap) {
+  return buildStyleDocumentFromClassMap(SCSS_PATH, classMap);
+}
 
 describe("findUnusedSelectors", () => {
   it("returns canonical unused selectors once", () => {
@@ -17,12 +22,14 @@ describe("findUnusedSelectors", () => {
       semanticSiteAt("file:///a.tsx", "indicator", 5, SCSS_PATH),
     ]);
 
-    expect(findUnusedSelectors(SCSS_PATH, classMap, semanticReferenceIndex)).toEqual([
-      {
-        canonicalName: "active",
-        range: { start: { line: 3, character: 1 }, end: { line: 3, character: 7 } },
-      },
-    ]);
+    expect(findUnusedSelectors(SCSS_PATH, styleDocument(classMap), semanticReferenceIndex)).toEqual(
+      [
+        {
+          canonicalName: "active",
+          range: { start: { line: 3, character: 1 }, end: { line: 3, character: 7 } },
+        },
+      ],
+    );
   });
 
   it("suppresses findings when the module still has unresolved dynamic refs", () => {
@@ -49,7 +56,9 @@ describe("findUnusedSelectors", () => {
       ],
     );
 
-    expect(findUnusedSelectors(SCSS_PATH, classMap, semanticReferenceIndex)).toEqual([]);
+    expect(findUnusedSelectors(SCSS_PATH, styleDocument(classMap), semanticReferenceIndex)).toEqual(
+      [],
+    );
   });
 
   it("keeps findings when dynamic refs were resolved semantically", () => {
@@ -92,12 +101,14 @@ describe("findUnusedSelectors", () => {
       ],
     );
 
-    expect(findUnusedSelectors(SCSS_PATH, classMap, semanticReferenceIndex)).toEqual([
-      {
-        canonicalName: "active",
-        range: { start: { line: 3, character: 1 }, end: { line: 3, character: 7 } },
-      },
-    ]);
+    expect(findUnusedSelectors(SCSS_PATH, styleDocument(classMap), semanticReferenceIndex)).toEqual(
+      [
+        {
+          canonicalName: "active",
+          range: { start: { line: 3, character: 1 }, end: { line: 3, character: 7 } },
+        },
+      ],
+    );
   });
 
   it("counts semantic references even when the compatibility index is empty", () => {
@@ -124,11 +135,13 @@ describe("findUnusedSelectors", () => {
       },
     ]);
 
-    expect(findUnusedSelectors(SCSS_PATH, classMap, semanticReferenceIndex)).toEqual([
-      {
-        canonicalName: "active",
-        range: { start: { line: 3, character: 1 }, end: { line: 3, character: 7 } },
-      },
-    ]);
+    expect(findUnusedSelectors(SCSS_PATH, styleDocument(classMap), semanticReferenceIndex)).toEqual(
+      [
+        {
+          canonicalName: "active",
+          range: { start: { line: 3, character: 1 }, end: { line: 3, character: 7 } },
+        },
+      ],
+    );
   });
 });

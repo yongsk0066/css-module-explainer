@@ -1,10 +1,12 @@
 import type { Range as LspRange } from "vscode-languageserver/node";
-import type { BemSuffixInfo, ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
+import type { BemSuffixInfo } from "@css-module-explainer/shared";
 import { findSelectorReferenceSites } from "../../core/query/find-references";
+import { findCanonicalSelector } from "../../core/query/find-style-selector";
 import {
   type ClassnameTransformMode,
   transformClassname,
 } from "../../core/scss/classname-transform";
+import type { SelectorDeclHIR, StyleDocumentHIR } from "../../core/hir/style-types";
 import { toLspRange } from "../lsp-adapters";
 import type { ProviderDeps } from "../provider-deps";
 
@@ -19,33 +21,27 @@ const IDENTIFIER_RE = /^[a-zA-Z_][\w-]*$/;
  * is rewritten by a single rename.
  */
 function canonicalForm(
-  classMap: ScssClassMap | null,
-  selectorInfo: SelectorInfo,
-): { info: SelectorInfo; name: string } {
-  if (!selectorInfo.originalName) {
-    return { info: selectorInfo, name: selectorInfo.name };
-  }
-  const original = classMap?.get(selectorInfo.originalName);
-  return original
-    ? { info: original, name: original.name }
-    : { info: selectorInfo, name: selectorInfo.name };
+  styleDocument: StyleDocumentHIR,
+  selector: SelectorDeclHIR,
+): SelectorDeclHIR {
+  return findCanonicalSelector(styleDocument, selector);
 }
 
 export function buildRenameEdit(
   scssUri: string,
   scssPath: string,
-  selectorInfo: SelectorInfo,
+  styleDocument: StyleDocumentHIR,
+  selector: SelectorDeclHIR,
   deps: ProviderDeps,
   newName: string,
 ): { changes: Record<string, Array<{ range: LspRange; newText: string }>> } | null {
   if (!IDENTIFIER_RE.test(newName)) return null;
 
-  const classMap = deps.scssClassMapForPath(scssPath);
-  const canonical = canonicalForm(classMap, selectorInfo);
+  const canonical = canonicalForm(styleDocument, selector);
 
-  const scssEdit = canonical.info.bemSuffix
-    ? buildBemSuffixEdit(canonical.info.bemSuffix, canonical.name, newName)
-    : { range: toLspRange(canonical.info.range), newText: newName };
+  const scssEdit = canonical.bemSuffix
+    ? buildBemSuffixEdit(canonical.bemSuffix, canonical.name, newName)
+    : { range: toLspRange(canonical.range), newText: newName };
   if (!scssEdit) return null;
 
   const changes: Record<string, Array<{ range: LspRange; newText: string }>> = {
@@ -54,7 +50,7 @@ export function buildRenameEdit(
   collectReferenceEdits(
     deps,
     scssPath,
-    canonical.name,
+    canonical.canonicalName,
     newName,
     deps.settings.scss.classnameTransform,
     changes,

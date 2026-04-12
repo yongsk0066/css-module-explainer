@@ -1,5 +1,4 @@
 import type { Range as SharedRange } from "@css-module-explainer/shared";
-import { buildStyleDocumentFromClassMap } from "../core/hir/builders/style-adapter";
 import type { AnalysisEntry } from "../core/indexing/document-analysis-cache";
 import type { ClassExpressionHIR } from "../core/hir/source-types";
 import type { StyleDocumentHIR } from "../core/hir/style-types";
@@ -71,11 +70,7 @@ export function withSourceExpressionAtCursor<T>(
 }
 
 function resolveStyleDocument(deps: ProviderDeps, scssModulePath: string): StyleDocumentHIR | null {
-  const styleDocument = deps.styleDocumentForPath(scssModulePath);
-  if (styleDocument) return styleDocument;
-
-  const classMap = deps.scssClassMapForPath(scssModulePath);
-  return classMap ? buildStyleDocumentFromClassMap(scssModulePath, classMap) : null;
+  return deps.styleDocumentForPath(scssModulePath);
 }
 
 export type { CursorParams, ProviderDeps } from "./provider-deps";

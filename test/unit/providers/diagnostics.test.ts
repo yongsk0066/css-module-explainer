@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type ts from "typescript";
 import { DiagnosticSeverity } from "vscode-languageserver-protocol/node";
 import type { ClassRef, CxBinding, ScssClassMap } from "@css-module-explainer/shared";
+import { buildStyleDocumentFromClassMap } from "../../../server/src/core/hir/builders/style-adapter";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
 import { NullSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
@@ -52,6 +53,10 @@ const parseClassRefs = (_sf: ts.SourceFile, bindings: readonly CxBinding[]): Cla
           scssModulePath: bindings[0]!.scssModulePath,
         },
       ];
+
+function styleDocumentForClassMap(classMap: ScssClassMap) {
+  return () => buildStyleDocumentFromClassMap("/fake/ws/src/Button.module.scss", classMap);
+}
 
 function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
@@ -162,11 +167,12 @@ describe("computeDiagnostics", () => {
     });
     const deps: ProviderDeps = {
       analysisCache,
-      scssClassMapForPath: () =>
+      styleDocumentForPath: styleDocumentForClassMap(
         new Map([
           ["indicator", info("indicator")],
           ["active", info("active")],
         ]) as ScssClassMap,
+      ),
       typeResolver: new FakeTypeResolver(),
       semanticReferenceIndex: new NullSemanticWorkspaceReferenceIndex(),
       workspaceRoot: "/fake/ws",
@@ -216,11 +222,12 @@ describe("computeDiagnostics", () => {
     }
     const deps: ProviderDeps = {
       analysisCache,
-      scssClassMapForPath: () =>
+      styleDocumentForPath: styleDocumentForClassMap(
         new Map([
           ["small", info("small")],
           ["medium", info("medium")],
         ]) as ScssClassMap,
+      ),
       typeResolver: new UnionResolver(),
       semanticReferenceIndex: new NullSemanticWorkspaceReferenceIndex(),
       workspaceRoot: "/fake/ws",
@@ -269,7 +276,9 @@ const a = cx(size);
     });
     const deps: ProviderDeps = {
       analysisCache,
-      scssClassMapForPath: () => new Map([["small", info("small")]]) as ScssClassMap,
+      styleDocumentForPath: styleDocumentForClassMap(
+        new Map([["small", info("small")]]) as ScssClassMap,
+      ),
       typeResolver: new FakeTypeResolver(),
       semanticReferenceIndex: new NullSemanticWorkspaceReferenceIndex(),
       workspaceRoot: "/fake/ws",
@@ -312,7 +321,9 @@ const a = cx(size);
     });
     const deps: ProviderDeps = {
       analysisCache,
-      scssClassMapForPath: () => new Map([["indicator", info("indicator")]]) as ScssClassMap,
+      styleDocumentForPath: styleDocumentForClassMap(
+        new Map([["indicator", info("indicator")]]) as ScssClassMap,
+      ),
       typeResolver: new FakeTypeResolver(), // always unresolvable
       semanticReferenceIndex: new NullSemanticWorkspaceReferenceIndex(),
       workspaceRoot: "/fake/ws",

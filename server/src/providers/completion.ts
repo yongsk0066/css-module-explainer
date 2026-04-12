@@ -14,9 +14,9 @@ import { wrapHandler } from "./_wrap-handler";
  * 2. Fetch the single AnalysisEntry. Bail if it has neither
  *    `bindings` (cx pipeline) nor `stylesBindings` (clsx path).
  * 3. Ask `findCompletionContext` for the SCSS module whose
- *    classMap should feed completions at the cursor. It walks
+ *    style document should feed completions at the cursor. It walks
  *    cx bindings first, then class-util imports.
- * 4. Convert every class in that classMap to a CompletionItem.
+ * 4. Convert every selector in that style document to a CompletionItem.
  */
 export const handleCompletion = wrapHandler<CursorParams, [], CompletionItem[] | null>(
   "completion",

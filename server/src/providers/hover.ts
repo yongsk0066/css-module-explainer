@@ -34,7 +34,6 @@ function buildHover(
 ): Hover | null {
   const selectors = resolveRefSelectors(ctx, {
     styleDocumentForPath: deps.styleDocumentForPath,
-    scssClassMapForPath: deps.scssClassMapForPath,
     typeResolver: deps.typeResolver,
     filePath: params.filePath,
     workspaceRoot: deps.workspaceRoot,

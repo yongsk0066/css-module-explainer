@@ -1,5 +1,6 @@
-import type { Range, ScssClassMap } from "@css-module-explainer/shared";
-import { canonicalNameOf } from "../scss/classname-transform";
+import type { Range } from "@css-module-explainer/shared";
+import type { StyleDocumentHIR } from "../hir/style-types";
+import { listCanonicalSelectors } from "./find-style-selector";
 import type { SemanticWorkspaceReferenceIndex } from "../semantic/workspace-reference-index";
 
 export interface UnusedSelectorFinding {
@@ -9,7 +10,7 @@ export interface UnusedSelectorFinding {
 
 export function findUnusedSelectors(
   scssPath: string,
-  classMap: ScssClassMap,
+  styleDocument: StyleDocumentHIR,
   semanticReferenceIndex: SemanticWorkspaceReferenceIndex,
 ): readonly UnusedSelectorFinding[] {
   const hasUnresolvedDynamicUsage = semanticReferenceIndex
@@ -18,9 +19,8 @@ export function findUnusedSelectors(
   if (hasUnresolvedDynamicUsage) return [];
 
   const composedClasses = new Set<string>();
-  for (const selectorInfo of classMap.values()) {
-    if (!selectorInfo.composes) continue;
-    for (const ref of selectorInfo.composes) {
+  for (const selector of listCanonicalSelectors(styleDocument)) {
+    for (const ref of selector.composes) {
       if (!ref.from && !ref.fromGlobal) {
         for (const name of ref.classNames) composedClasses.add(name);
       }
@@ -28,17 +28,16 @@ export function findUnusedSelectors(
   }
 
   const findings: UnusedSelectorFinding[] = [];
-  const emittedCanonical = new Set<string>();
-  for (const info of classMap.values()) {
-    const canonical = canonicalNameOf(info);
-    if (emittedCanonical.has(canonical)) continue;
-    emittedCanonical.add(canonical);
-    if (composedClasses.has(canonical)) continue;
+  for (const selector of listCanonicalSelectors(styleDocument)) {
+    if (composedClasses.has(selector.canonicalName)) continue;
 
-    const refCount = semanticReferenceIndex.countSelectorReferences(scssPath, canonical);
+    const refCount = semanticReferenceIndex.countSelectorReferences(
+      scssPath,
+      selector.canonicalName,
+    );
     if (refCount > 0) continue;
 
-    findings.push({ canonicalName: canonical, range: info.range });
+    findings.push({ canonicalName: selector.canonicalName, range: selector.range });
   }
 
   return findings;

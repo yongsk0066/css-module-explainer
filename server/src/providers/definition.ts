@@ -43,7 +43,6 @@ function buildLinks(
 ): LocationLink[] | null {
   const selectors = findDefinitionSelectors(ctx, {
     styleDocumentForPath: deps.styleDocumentForPath,
-    scssClassMapForPath: deps.scssClassMapForPath,
     typeResolver: deps.typeResolver,
     filePath: params.filePath,
     workspaceRoot: deps.workspaceRoot,

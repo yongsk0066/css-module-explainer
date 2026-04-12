@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ClassRef, CxBinding, ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
 import type ts from "typescript";
+import { buildStyleDocumentFromClassMap } from "../../../server/src/core/hir/builders/style-adapter";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
@@ -1257,7 +1258,7 @@ describe("classnameTransform alias-aware rename", () => {
     const original = base.get("btn-primary")!;
 
     const hit = findSelectorAtCursor(
-      classMap,
+      buildStyleDocumentFromClassMap(SCSS_PATH, classMap),
       original.range.start.line,
       original.range.start.character + 1,
     );

@@ -1,4 +1,4 @@
-import type { CallSite, SelectorInfo } from "@css-module-explainer/shared";
+import type { CallSite, ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
 import { buildStyleDocumentFromClassMap } from "../../server/src/core/hir/builders/style-adapter";
 import { SourceFileCache } from "../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../server/src/core/indexing/document-analysis-cache";
@@ -109,13 +109,17 @@ export function semanticSiteAt(
   } as const;
 }
 
+type BaseDepsOverrides = Partial<ProviderDeps> & {
+  readonly scssClassMapForPath?: (path: string) => ScssClassMap | null;
+};
+
 /**
  * Build a default ProviderDeps with sensible empty defaults.
  *
  * Callers override individual fields via the `overrides` argument.
  * Keeps test setup DRY across hover, completion, and diagnostics tests.
  */
-export function makeBaseDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
+export function makeBaseDeps(overrides: BaseDepsOverrides = {}): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
   const analysisCache = new DocumentAnalysisCache({
     sourceFileCache,
@@ -124,12 +128,15 @@ export function makeBaseDeps(overrides: Partial<ProviderDeps> = {}): ProviderDep
     aliasResolver: EMPTY_ALIAS_RESOLVER,
     max: 10,
   });
-  const scssClassMapForPath = overrides.scssClassMapForPath ?? (() => null);
+  const {
+    scssClassMapForPath = () => null,
+    styleDocumentForPath,
+    ...providerOverrides
+  } = overrides;
   return {
     analysisCache,
-    scssClassMapForPath,
     styleDocumentForPath:
-      overrides.styleDocumentForPath ??
+      styleDocumentForPath ??
       ((path: string) => {
         const classMap = scssClassMapForPath(path);
         return classMap ? buildStyleDocumentFromClassMap(path, classMap) : null;
@@ -145,6 +152,6 @@ export function makeBaseDeps(overrides: Partial<ProviderDeps> = {}): ProviderDep
     settings: DEFAULT_SETTINGS,
     rebuildAliasResolver: () => {},
     setClassnameTransform: () => {},
-    ...overrides,
+    ...providerOverrides,
   };
 }

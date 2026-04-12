@@ -1,4 +1,3 @@
-import type { ScssClassMap } from "@css-module-explainer/shared";
 import { findClosestMatch } from "../util/text-utils";
 import type { TypeResolver } from "../ts/type-resolver";
 import { resolveSymbolExpressionValues } from "../semantic/resolve-symbol-values";
@@ -9,6 +8,7 @@ import type {
   SymbolRefClassExpressionHIR,
   TemplateClassExpressionHIR,
 } from "../hir/source-types";
+import type { StyleDocumentHIR } from "../hir/style-types";
 
 export interface InvalidClassReferenceQueryEnv {
   readonly typeResolver: TypeResolver;
@@ -40,15 +40,18 @@ export type InvalidClassReferenceFinding =
 export function findInvalidClassReference(
   expression: ClassExpressionHIR,
   sourceFile: ts.SourceFile,
-  classMap: ScssClassMap,
+  styleDocument: StyleDocumentHIR,
   env: InvalidClassReferenceQueryEnv,
 ): InvalidClassReferenceFinding | null {
   if (expression.origin !== "cxCall") return null;
 
   switch (expression.kind) {
     case "literal": {
-      if (classMap.has(expression.className)) return null;
-      const suggestion = findClosestMatch(expression.className, classMap.keys());
+      if (hasSelectorNamed(styleDocument, expression.className)) return null;
+      const suggestion = findClosestMatch(
+        expression.className,
+        styleDocument.selectors.map((selector) => selector.name),
+      );
       return {
         kind: "missingStaticClass",
         expression,
@@ -57,7 +60,7 @@ export function findInvalidClassReference(
       };
     }
     case "template": {
-      if (anyValueStartsWith(classMap, expression.staticPrefix)) return null;
+      if (anySelectorStartsWith(styleDocument, expression.staticPrefix)) return null;
       return {
         kind: "missingTemplatePrefix",
         expression,
@@ -67,7 +70,9 @@ export function findInvalidClassReference(
     case "symbolRef": {
       const resolved = resolveSymbolExpressionValues(sourceFile, expression, env);
       if (!resolved) return null;
-      const missingValues = resolved.values.filter((value) => !classMap.has(value));
+      const missingValues = resolved.values.filter(
+        (value) => !hasSelectorNamed(styleDocument, value),
+      );
       if (missingValues.length === 0) return null;
       return {
         kind: "missingResolvedClassValues",
@@ -86,9 +91,13 @@ export function findInvalidClassReference(
   }
 }
 
-function anyValueStartsWith(classMap: ScssClassMap, prefix: string): boolean {
-  for (const name of classMap.keys()) {
-    if (name.startsWith(prefix)) return true;
+function anySelectorStartsWith(styleDocument: StyleDocumentHIR, prefix: string): boolean {
+  for (const selector of styleDocument.selectors) {
+    if (selector.name.startsWith(prefix)) return true;
   }
   return false;
+}
+
+function hasSelectorNamed(styleDocument: StyleDocumentHIR, name: string): boolean {
+  return styleDocument.selectors.some((selector) => selector.name === name);
 }

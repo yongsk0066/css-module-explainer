@@ -82,9 +82,9 @@ export const computeDiagnostics = wrapHandler<
     // return empty result" boundary applies per-ref, not per-file.
     for (const expression of cxExpressions) {
       try {
-        const classMap = deps.scssClassMapForPath(expression.scssModulePath);
-        if (!classMap) continue;
-        const finding = findInvalidClassReference(expression, entry.sourceFile, classMap, {
+        const styleDocument = deps.styleDocumentForPath(expression.scssModulePath);
+        if (!styleDocument) continue;
+        const finding = findInvalidClassReference(expression, entry.sourceFile, styleDocument, {
           typeResolver: deps.typeResolver,
           filePath: params.filePath,
           workspaceRoot: deps.workspaceRoot,

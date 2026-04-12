@@ -13,7 +13,6 @@ import {
 } from "vscode-languageserver/node";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import ts from "typescript";
-import type { ScssClassMap } from "@css-module-explainer/shared";
 import { DEFAULT_SETTINGS } from "./settings";
 import { buildStyleFileWatcherGlob, findLangForPath } from "./core/scss/lang-registry";
 import { StyleIndexCache } from "./core/scss/scss-index";
@@ -200,7 +199,6 @@ function buildBundle(
   const typeResolver = buildTypeResolver(options);
   const readStyleFile = options.readStyleFile ?? defaultReadStyleFile;
   const fileExists = options.fileExists ?? existsSync;
-  const classMapForPath = buildClassMapForPath(caches.styleIndexCache, documents, readStyleFile);
   const styleDocumentForPath = buildStyleDocumentForPath(
     caches.styleIndexCache,
     documents,
@@ -224,7 +222,6 @@ function buildBundle(
 
   return {
     analysisCache,
-    scssClassMapForPath: classMapForPath,
     styleDocumentForPath,
     typeResolver,
     semanticReferenceIndex: caches.semanticReferenceIndex,
@@ -267,21 +264,6 @@ function buildTypeResolver(options: CreateServerOptions): TypeResolver {
       createProgram: options.createProgram ?? createDefaultProgram,
     })
   );
-}
-
-function buildClassMapForPath(
-  styleIndexCache: StyleIndexCache,
-  documents: TextDocuments<TextDocument>,
-  readStyleFile: (path: string) => string | null,
-): (path: string) => ScssClassMap | null {
-  return (path: string): ScssClassMap | null => {
-    if (!findLangForPath(path)) return null;
-    const buffered = readStyleTextFromOpenDocuments(path, documents);
-    if (buffered !== null) return styleIndexCache.get(path, buffered);
-    const content = readStyleFile(path);
-    if (content === null) return null;
-    return styleIndexCache.get(path, content);
-  };
 }
 
 function buildStyleDocumentForPath(
@@ -371,7 +353,7 @@ function buildIndexerWorker(
     supplier,
     readFile: asyncReadFile,
     onScssFile: (path, content) => {
-      styleIndexCache.get(path, content);
+      styleIndexCache.getStyleDocument(path, content);
     },
     logger: indexerLogger,
   });

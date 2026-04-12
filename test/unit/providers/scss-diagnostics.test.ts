@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { DiagnosticSeverity, DiagnosticTag } from "vscode-languageserver-protocol/node";
 import type { ScssClassMap } from "@css-module-explainer/shared";
+import { buildStyleDocumentFromClassMap } from "../../../server/src/core/hir/builders/style-adapter";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
 import { computeScssUnusedDiagnostics } from "../../../server/src/providers/scss-diagnostics";
 import { infoAtLine as info, semanticSiteAt } from "../../_fixtures/test-helpers";
 
 const SCSS_PATH = "/fake/Button.module.scss";
+
+function styleDocument(classMap: ScssClassMap) {
+  return buildStyleDocumentFromClassMap(SCSS_PATH, classMap);
+}
 
 describe("computeScssUnusedDiagnostics", () => {
   it("flags a selector with zero references as Unnecessary", () => {
@@ -18,7 +23,11 @@ describe("computeScssUnusedDiagnostics", () => {
       semanticSiteAt("file:///a.tsx", "indicator", 5, SCSS_PATH),
     ]);
     // "active" has no references.
-    const diagnostics = computeScssUnusedDiagnostics(SCSS_PATH, classMap, semanticReferenceIndex);
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      styleDocument(classMap),
+      semanticReferenceIndex,
+    );
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0]!.message).toContain("'.active'");
     expect(diagnostics[0]!.severity).toBe(DiagnosticSeverity.Hint);
@@ -36,7 +45,11 @@ describe("computeScssUnusedDiagnostics", () => {
       semanticSiteAt("file:///a.tsx", "indicator", 5, SCSS_PATH),
       semanticSiteAt("file:///a.tsx", "active", 7, SCSS_PATH),
     ]);
-    const diagnostics = computeScssUnusedDiagnostics(SCSS_PATH, classMap, semanticReferenceIndex);
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      styleDocument(classMap),
+      semanticReferenceIndex,
+    );
     expect(diagnostics).toEqual([]);
   });
 
@@ -63,7 +76,11 @@ describe("computeScssUnusedDiagnostics", () => {
         },
       ],
     );
-    const diagnostics = computeScssUnusedDiagnostics(SCSS_PATH, classMap, semanticReferenceIndex);
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      styleDocument(classMap),
+      semanticReferenceIndex,
+    );
     expect(diagnostics).toEqual([]);
   });
 
@@ -90,7 +107,11 @@ describe("computeScssUnusedDiagnostics", () => {
         },
       ],
     );
-    const diagnostics = computeScssUnusedDiagnostics(SCSS_PATH, classMap, semanticReferenceIndex);
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      styleDocument(classMap),
+      semanticReferenceIndex,
+    );
     expect(diagnostics).toEqual([]);
   });
 
@@ -134,7 +155,11 @@ describe("computeScssUnusedDiagnostics", () => {
         },
       ],
     );
-    const diagnostics = computeScssUnusedDiagnostics(SCSS_PATH, classMap, semanticReferenceIndex);
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      styleDocument(classMap),
+      semanticReferenceIndex,
+    );
     expect(diagnostics).toHaveLength(2);
     expect(diagnostics.some((diagnostic) => diagnostic.message.includes("btn-secondary"))).toBe(
       true,
@@ -172,7 +197,11 @@ describe("computeScssUnusedDiagnostics", () => {
     semanticReferenceIndex.record("file:///a.tsx", [
       semanticSiteAt("file:///a.tsx", "button", 10, SCSS_PATH),
     ]);
-    const diagnostics = computeScssUnusedDiagnostics(SCSS_PATH, classMap, semanticReferenceIndex);
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      styleDocument(classMap),
+      semanticReferenceIndex,
+    );
     expect(diagnostics).toEqual([]);
   });
 
@@ -180,7 +209,7 @@ describe("computeScssUnusedDiagnostics", () => {
     const classMap: ScssClassMap = new Map();
     const diagnostics = computeScssUnusedDiagnostics(
       SCSS_PATH,
-      classMap,
+      styleDocument(classMap),
       new WorkspaceSemanticWorkspaceReferenceIndex(),
     );
     expect(diagnostics).toEqual([]);
@@ -214,7 +243,11 @@ describe("computeScssUnusedDiagnostics", () => {
     semanticReferenceIndex.record("file:///a.tsx", [
       semanticSiteAt("file:///a.tsx", "button", 10, SCSS_PATH),
     ]);
-    const diagnostics = computeScssUnusedDiagnostics(SCSS_PATH, classMap, semanticReferenceIndex);
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      styleDocument(classMap),
+      semanticReferenceIndex,
+    );
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0]!.message).toContain("'.base'");
   });
@@ -238,7 +271,11 @@ describe("computeScssUnusedDiagnostics", () => {
     semanticReferenceIndex.record("file:///a.tsx", [
       semanticSiteAt("file:///a.tsx", "btn-primary", 10, SCSS_PATH),
     ]);
-    const diagnostics = computeScssUnusedDiagnostics(SCSS_PATH, classMap, semanticReferenceIndex);
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      styleDocument(classMap),
+      semanticReferenceIndex,
+    );
     // Exactly one warning — for `.orphan` — not a second copy for
     // any alias entry.
     expect(diagnostics).toHaveLength(1);
@@ -257,7 +294,7 @@ describe("computeScssUnusedDiagnostics", () => {
 
     const diagnostics = computeScssUnusedDiagnostics(
       SCSS_PATH,
-      classMap,
+      styleDocument(classMap),
       new WorkspaceSemanticWorkspaceReferenceIndex(),
     );
     expect(diagnostics.filter((d) => d.message.includes("btn-primary"))).toHaveLength(1);
@@ -282,7 +319,11 @@ describe("computeScssUnusedDiagnostics", () => {
         origin: "styleAccess",
       }),
     ]);
-    const diagnostics = computeScssUnusedDiagnostics(SCSS_PATH, classMap, semanticReferenceIndex);
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      styleDocument(classMap),
+      semanticReferenceIndex,
+    );
     expect(diagnostics).toHaveLength(0);
   });
 
@@ -302,7 +343,7 @@ describe("computeScssUnusedDiagnostics", () => {
 
     const diagnostics = computeScssUnusedDiagnostics(
       SCSS_PATH,
-      classMap,
+      styleDocument(classMap),
       new WorkspaceSemanticWorkspaceReferenceIndex(),
     );
     expect(diagnostics).toHaveLength(1);
@@ -335,7 +376,11 @@ describe("computeScssUnusedDiagnostics", () => {
       },
     ]);
 
-    const diagnostics = computeScssUnusedDiagnostics(SCSS_PATH, classMap, semanticReferenceIndex);
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      styleDocument(classMap),
+      semanticReferenceIndex,
+    );
     expect(diagnostics).toEqual([]);
   });
 
@@ -363,7 +408,11 @@ describe("computeScssUnusedDiagnostics", () => {
       },
     ]);
 
-    const diagnostics = computeScssUnusedDiagnostics(SCSS_PATH, classMap, semanticReferenceIndex);
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      styleDocument(classMap),
+      semanticReferenceIndex,
+    );
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0]!.message).toContain("'.btn-secondary'");
   });
