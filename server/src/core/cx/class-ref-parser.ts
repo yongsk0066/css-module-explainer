@@ -1,6 +1,5 @@
 import ts from "typescript";
-import type { ClassRef, CxBinding, Range, StyleImport } from "@css-module-explainer/shared";
-import { classExpressionToLegacyClassRef } from "../hir/compat/source-document-compat";
+import type { CxBinding, Range, StyleImport } from "@css-module-explainer/shared";
 import {
   makeLiteralClassExpression,
   makeStyleAccessClassExpression,
@@ -8,16 +7,6 @@ import {
   makeTemplateClassExpression,
   type ClassExpressionHIR,
 } from "../hir/source-types";
-
-export function parseClassRefs(
-  sourceFile: ts.SourceFile,
-  bindings: readonly CxBinding[],
-  stylesBindings: ReadonlyMap<string, StyleImport>,
-): ClassRef[] {
-  return parseClassExpressions(sourceFile, bindings, stylesBindings).map(
-    classExpressionToLegacyClassRef,
-  );
-}
 
 /**
  * Unified source-expression producer.

@@ -9,7 +9,7 @@ import type {
   StyleImport,
 } from "@css-module-explainer/shared";
 import { detectClassUtilImports, scanCxImports } from "../../server/src/core/cx/binding-detector";
-import { parseClassRefs } from "../../server/src/core/cx/class-ref-parser";
+import { parseClassRefs } from "../../server/src/core/cx/compat/class-ref-parser-compat";
 import { buildSourceDocumentFromLegacy } from "../../server/src/core/hir/compat/source-document-builder-compat";
 import { buildStyleDocumentFromClassMap } from "../../server/src/core/hir/compat/style-document-builder-compat";
 import { sourceDocumentToLegacyClassRefs } from "../../server/src/core/hir/compat/source-document-compat";
