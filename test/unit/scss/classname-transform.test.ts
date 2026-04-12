@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
-  expandClassMapWithTransform,
   expandStyleDocumentWithTransform,
   transformClassname,
 } from "../../../server/src/core/scss/classname-transform";
-import { parseStyleDocument, parseStyleModule } from "../../../server/src/core/scss/scss-parser";
+import { parseStyleDocument } from "../../../server/src/core/scss/scss-parser";
+import { expandClassMapWithTransform, parseStyleModule } from "../../_fixtures/style-compat";
 
 // Parity snapshot tests ported from ts-plugin-css-modules
 // src/helpers/__tests__/__snapshots__/classTransforms.test.ts.snap

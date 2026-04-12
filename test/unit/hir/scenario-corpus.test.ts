@@ -4,33 +4,23 @@ import {
   STYLE_SCENARIOS,
   loadSourceScenario,
   loadStyleScenario,
-  normalizeClassMap,
-  normalizeClassRefs,
   normalizeSourceDocument,
   normalizeStyleDocument,
 } from "../../_fixtures/scenario-corpus";
 
-describe("HIR scenario corpus / source differential", () => {
+describe("HIR scenario corpus / source", () => {
   for (const scenario of SOURCE_SCENARIOS) {
-    it(`${scenario.id} keeps legacy class refs equivalent through source HIR`, () => {
+    it(`${scenario.id} builds stable source HIR snapshots`, () => {
       const loaded = loadSourceScenario(scenario);
-
-      expect(normalizeClassRefs(loaded.compatClassRefs)).toEqual(
-        normalizeClassRefs(loaded.legacyClassRefs),
-      );
       expect(normalizeSourceDocument(loaded.sourceDocument)).toMatchSnapshot();
     });
   }
 });
 
-describe("HIR scenario corpus / style differential", () => {
+describe("HIR scenario corpus / style", () => {
   for (const scenario of STYLE_SCENARIOS) {
-    it(`${scenario.id} keeps legacy selector maps equivalent through style HIR`, () => {
+    it(`${scenario.id} builds stable style HIR snapshots`, () => {
       const loaded = loadStyleScenario(scenario);
-
-      expect(normalizeClassMap(loaded.compatClassMap)).toEqual(
-        normalizeClassMap(loaded.legacyClassMap),
-      );
       expect(normalizeStyleDocument(loaded.styleDocument)).toMatchSnapshot();
     });
   }

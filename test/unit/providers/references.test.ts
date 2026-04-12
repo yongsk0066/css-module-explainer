@@ -1,10 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
-import { buildStyleDocumentFromClassMap } from "../../../server/src/core/hir/compat/style-document-builder-compat";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
 import type { ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
 import { findSelectorAtCursor, handleReferences } from "../../../server/src/providers/references";
 import { infoAtLine, makeBaseDeps, semanticSiteAt } from "../../_fixtures/test-helpers";
+import {
+  buildStyleDocumentFromClassMap,
+  expandClassMapWithTransform,
+  parseStyleModule,
+} from "../../_fixtures/style-compat";
 
 function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   return makeBaseDeps({
@@ -202,9 +206,6 @@ describe("handleReferences", () => {
   });
 
   it("classnameTransform: finds alias-form TSX access from SCSS cursor on original selector", async () => {
-    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
-    const { expandClassMapWithTransform } =
-      await import("../../../server/src/core/scss/classname-transform");
     const SCSS_PATH = "/fake/Button.module.scss";
     const SCSS_URI = "file:///fake/Button.module.scss";
     const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);
@@ -247,9 +248,6 @@ describe("handleReferences", () => {
   });
 
   it("classnameTransform (camelCaseOnly): alias-only entry still resolves to the canonical selector bucket", async () => {
-    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
-    const { expandClassMapWithTransform } =
-      await import("../../../server/src/core/scss/classname-transform");
     const SCSS_PATH = "/fake/Button.module.scss";
     const SCSS_URI = "file:///fake/Button.module.scss";
     const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);

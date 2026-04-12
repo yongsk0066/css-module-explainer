@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { ScssClassMap } from "@css-module-explainer/shared";
-import { buildStyleDocumentFromClassMap } from "../../../server/src/core/hir/compat/style-document-builder-compat";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
 import { findUnusedSelectors } from "../../../server/src/core/query/compute-unused-selectors";
 import { infoAtLine as info, semanticSiteAt } from "../../_fixtures/test-helpers";
+import { buildStyleDocumentFromClassMap } from "../../_fixtures/style-compat";
 
 const SCSS_PATH = "/fake/Button.module.scss";
 

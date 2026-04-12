@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { DiagnosticSeverity, DiagnosticTag } from "vscode-languageserver-protocol/node";
 import type { ScssClassMap } from "@css-module-explainer/shared";
-import { buildStyleDocumentFromClassMap } from "../../../server/src/core/hir/compat/style-document-builder-compat";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
 import { computeScssUnusedDiagnostics } from "../../../server/src/providers/scss-diagnostics";
 import { infoAtLine as info, semanticSiteAt } from "../../_fixtures/test-helpers";
+import {
+  buildStyleDocumentFromClassMap,
+  expandClassMapWithTransform,
+  parseStyleModule,
+} from "../../_fixtures/style-compat";
 
 const SCSS_PATH = "/fake/Button.module.scss";
 
@@ -253,9 +257,6 @@ describe("computeScssUnusedDiagnostics", () => {
   });
 
   it("classnameTransform: does not double-count unused alias entries", async () => {
-    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
-    const { expandClassMapWithTransform } =
-      await import("../../../server/src/core/scss/classname-transform");
     // `.btn-primary` is used via its original name; `.orphan` is unused.
     const base = parseStyleModule(
       `.btn-primary { color: red; }\n.orphan { color: blue; }`,
@@ -283,9 +284,6 @@ describe("computeScssUnusedDiagnostics", () => {
   });
 
   it("classnameTransform: original-is-unused still emits exactly one warning", async () => {
-    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
-    const { expandClassMapWithTransform } =
-      await import("../../../server/src/core/scss/classname-transform");
     // Consumer references only via the CAMEL alias — the original
     // `btn-primary` has zero direct refs, but we still want exactly
     // one warning, not zero (via alias double-count) and not two.
@@ -301,9 +299,6 @@ describe("computeScssUnusedDiagnostics", () => {
   });
 
   it("classnameTransform: alias-form TSX access keeps the original marked as used", async () => {
-    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
-    const { expandClassMapWithTransform } =
-      await import("../../../server/src/core/scss/classname-transform");
     // `.btn-primary` is accessed ONLY via the camelCase alias from
     // a TSX file (`styles.btnPrimary`) — no canonical `cx('btn-primary')`
     // call exists. The reverse index canonicalises the alias access
@@ -328,9 +323,6 @@ describe("computeScssUnusedDiagnostics", () => {
   });
 
   it("classnameTransform (camelCaseOnly): alias-only class still gets unused detection", async () => {
-    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
-    const { expandClassMapWithTransform } =
-      await import("../../../server/src/core/scss/classname-transform");
     // `camelCaseOnly` drops the original from the class map entirely;
     // only `btnPrimary` remains with `originalName: "btn-primary"`.
     // The unused check must still emit exactly one warning for the
@@ -351,9 +343,6 @@ describe("computeScssUnusedDiagnostics", () => {
   });
 
   it("semantic direct alias access keeps the canonical selector marked as used", async () => {
-    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
-    const { expandClassMapWithTransform } =
-      await import("../../../server/src/core/scss/classname-transform");
     const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);
     const classMap = expandClassMapWithTransform(base, "camelCase");
 

@@ -6,8 +6,6 @@ import type {
   SelectorInfo,
   StyleImport,
 } from "@css-module-explainer/shared";
-import { buildSourceDocumentFromLegacy } from "../../server/src/core/hir/compat/source-document-builder-compat";
-import { buildStyleDocumentFromClassMap } from "../../server/src/core/hir/compat/style-document-builder-compat";
 import { SourceFileCache } from "../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../server/src/core/indexing/document-analysis-cache";
 import { NullSemanticWorkspaceReferenceIndex } from "../../server/src/core/semantic/workspace-reference-index";
@@ -15,6 +13,8 @@ import { NOOP_LOG_ERROR, type ProviderDeps } from "../../server/src/providers/cu
 import { DEFAULT_SETTINGS } from "../../server/src/settings";
 import { AliasResolver } from "../../server/src/core/cx/alias-resolver";
 import { FakeTypeResolver } from "./fake-type-resolver";
+import { buildSourceDocumentFromLegacy } from "./source-compat";
+import { buildStyleDocumentFromClassMap } from "./style-compat";
 
 export const EMPTY_ALIAS_RESOLVER = new AliasResolver("/fake/ws", {});
 

@@ -1,5 +1,6 @@
 import { bench, describe } from "vitest";
-import { parseStyleModule, StyleIndexCache } from "../../server/src/core/scss/scss-index";
+import { StyleIndexCache } from "../../server/src/core/scss/scss-index";
+import { parseStyleDocument } from "../../server/src/core/scss/scss-parser";
 
 const SMALL_SCSS = `
 .button { color: red; padding: 8px 16px; border-radius: 4px; }
@@ -27,31 +28,31 @@ const NESTED_SCSS = `
 }
 `;
 
-describe("parseStyleModule", () => {
+describe("parseStyleDocument", () => {
   bench("small (4 rules)", () => {
-    parseStyleModule(SMALL_SCSS, "/bench/small.module.scss");
+    parseStyleDocument(SMALL_SCSS, "/bench/small.module.scss");
   });
 
   bench("large (200 rules)", () => {
-    parseStyleModule(LARGE_SCSS, "/bench/large.module.scss");
+    parseStyleDocument(LARGE_SCSS, "/bench/large.module.scss");
   });
 
   bench("nested + ampersand (SCSS resolution)", () => {
-    parseStyleModule(NESTED_SCSS, "/bench/nested.module.scss");
+    parseStyleDocument(NESTED_SCSS, "/bench/nested.module.scss");
   });
 });
 
 describe("StyleIndexCache", () => {
   bench("cold → warm for the same file", () => {
     const cache = new StyleIndexCache({ max: 10 });
-    cache.get("/bench/large.module.scss", LARGE_SCSS);
-    cache.get("/bench/large.module.scss", LARGE_SCSS); // hit
+    cache.getStyleDocument("/bench/large.module.scss", LARGE_SCSS);
+    cache.getStyleDocument("/bench/large.module.scss", LARGE_SCSS); // hit
   });
 
   bench("500 files sequentially", () => {
     const cache = new StyleIndexCache({ max: 1000 });
     for (let i = 0; i < 500; i += 1) {
-      cache.get(`/bench/file-${i}.module.scss`, SMALL_SCSS);
+      cache.getStyleDocument(`/bench/file-${i}.module.scss`, SMALL_SCSS);
     }
   });
 });

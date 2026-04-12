@@ -1,6 +1,6 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`HIR scenario corpus / source differential > 01-basic keeps legacy class refs equivalent through source HIR 1`] = `
+exports[`HIR scenario corpus / source > 01-basic builds stable source HIR snapshots 1`] = `
 {
   "classExpressions": [
     {
@@ -168,7 +168,7 @@ exports[`HIR scenario corpus / source differential > 01-basic keeps legacy class
 }
 `;
 
-exports[`HIR scenario corpus / source differential > 02-multi-binding keeps legacy class refs equivalent through source HIR 1`] = `
+exports[`HIR scenario corpus / source > 02-multi-binding builds stable source HIR snapshots 1`] = `
 {
   "classExpressions": [
     {
@@ -339,7 +339,7 @@ exports[`HIR scenario corpus / source differential > 02-multi-binding keeps lega
 }
 `;
 
-exports[`HIR scenario corpus / source differential > 02-style-access keeps legacy class refs equivalent through source HIR 1`] = `
+exports[`HIR scenario corpus / source > 02-style-access builds stable source HIR snapshots 1`] = `
 {
   "classExpressions": [
     {
@@ -389,7 +389,7 @@ exports[`HIR scenario corpus / source differential > 02-style-access keeps legac
 }
 `;
 
-exports[`HIR scenario corpus / source differential > 04-dynamic keeps legacy class refs equivalent through source HIR 1`] = `
+exports[`HIR scenario corpus / source > 04-dynamic builds stable source HIR snapshots 1`] = `
 {
   "classExpressions": [
     {
@@ -434,7 +434,7 @@ exports[`HIR scenario corpus / source differential > 04-dynamic keeps legacy cla
 }
 `;
 
-exports[`HIR scenario corpus / source differential > 10-clsx keeps legacy class refs equivalent through source HIR 1`] = `
+exports[`HIR scenario corpus / source > 10-clsx builds stable source HIR snapshots 1`] = `
 {
   "classExpressions": [
     {
@@ -624,7 +624,7 @@ exports[`HIR scenario corpus / source differential > 10-clsx keeps legacy class 
 }
 `;
 
-exports[`HIR scenario corpus / style differential > 01-basic-style keeps legacy selector maps equivalent through style HIR 1`] = `
+exports[`HIR scenario corpus / style > 01-basic-style builds stable style HIR snapshots 1`] = `
 {
   "filePath": "examples/src/scenarios/01-basic/Button.module.scss",
   "selectors": [
@@ -803,7 +803,7 @@ exports[`HIR scenario corpus / style differential > 01-basic-style keeps legacy 
 }
 `;
 
-exports[`HIR scenario corpus / style differential > 02-button-camel-case keeps legacy selector maps equivalent through style HIR 1`] = `
+exports[`HIR scenario corpus / style > 02-button-camel-case builds stable style HIR snapshots 1`] = `
 {
   "filePath": "examples/src/scenarios/02-multi-binding/Button.module.scss",
   "selectors": [
@@ -986,7 +986,7 @@ exports[`HIR scenario corpus / style differential > 02-button-camel-case keeps l
 }
 `;
 
-exports[`HIR scenario corpus / style differential > 04-dynamic-style keeps legacy selector maps equivalent through style HIR 1`] = `
+exports[`HIR scenario corpus / style > 04-dynamic-style builds stable style HIR snapshots 1`] = `
 {
   "filePath": "examples/src/scenarios/04-dynamic/DynamicKeys.module.scss",
   "selectors": [
@@ -1051,7 +1051,7 @@ exports[`HIR scenario corpus / style differential > 04-dynamic-style keeps legac
 }
 `;
 
-exports[`HIR scenario corpus / style differential > 10-clsx-style keeps legacy selector maps equivalent through style HIR 1`] = `
+exports[`HIR scenario corpus / style > 10-clsx-style builds stable style HIR snapshots 1`] = `
 {
   "filePath": "examples/src/scenarios/10-clsx/Clsx.module.scss",
   "selectors": [

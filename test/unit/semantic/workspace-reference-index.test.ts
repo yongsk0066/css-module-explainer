@@ -1,7 +1,6 @@
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import type { AnalysisEntry } from "../../../server/src/core/indexing/document-analysis-cache";
-import { buildStyleDocumentFromClassMap } from "../../../server/src/core/hir/compat/style-document-builder-compat";
 import {
   makeSourceDocumentHIR,
   makeStyleImportBinding,
@@ -14,6 +13,7 @@ import {
 import type { StyleImport } from "@css-module-explainer/shared";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
 import { info } from "../../_fixtures/test-helpers";
+import { buildStyleDocumentFromClassMap } from "../../_fixtures/style-compat";
 
 const FILE_PATH = "/fake/ws/src/App.tsx";
 const SCSS_PATH = "/fake/ws/src/Button.module.scss";

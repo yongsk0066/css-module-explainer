@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseStyleModule } from "../../../server/src/core/scss/scss-parser";
+import { parseStyleModule } from "../../_fixtures/style-compat";
 
 /**
  * Grammar-routing regression tests.

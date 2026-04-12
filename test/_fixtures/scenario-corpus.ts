@@ -1,26 +1,17 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
-import type {
-  ClassRef,
-  Range,
-  ScssClassMap,
-  SelectorInfo,
-  StyleImport,
-} from "@css-module-explainer/shared";
+import type { Range, StyleImport } from "@css-module-explainer/shared";
 import { detectClassUtilImports, scanCxImports } from "../../server/src/core/cx/binding-detector";
-import { parseClassRefs } from "../../server/src/core/cx/compat/class-ref-parser-compat";
-import { buildSourceDocumentFromLegacy } from "../../server/src/core/hir/compat/source-document-builder-compat";
-import { buildStyleDocumentFromClassMap } from "../../server/src/core/hir/compat/style-document-builder-compat";
-import { sourceDocumentToLegacyClassRefs } from "../../server/src/core/hir/compat/source-document-compat";
-import { styleDocumentToLegacyClassMap } from "../../server/src/core/hir/compat/style-document-compat";
+import { parseClassExpressions } from "../../server/src/core/cx/class-ref-parser";
+import { buildSourceDocument } from "../../server/src/core/hir/builders/ts-source-adapter";
 import type { SourceDocumentHIR } from "../../server/src/core/hir/source-types";
 import type { StyleDocumentHIR } from "../../server/src/core/hir/style-types";
 import {
-  expandClassMapWithTransform,
+  expandStyleDocumentWithTransform,
   type ClassnameTransformMode,
 } from "../../server/src/core/scss/classname-transform";
-import { parseStyleModule } from "../../server/src/core/scss/scss-parser";
+import { parseStyleDocument } from "../../server/src/core/scss/scss-parser";
 import { EMPTY_ALIAS_RESOLVER } from "./test-helpers";
 
 const REPO_ROOT = process.cwd();
@@ -61,8 +52,6 @@ export interface LoadedSourceScenario {
   readonly filePath: string;
   readonly relativePath: string;
   readonly sourceDocument: SourceDocumentHIR;
-  readonly legacyClassRefs: readonly ClassRef[];
-  readonly compatClassRefs: readonly ClassRef[];
 }
 
 export interface LoadedStyleScenario {
@@ -70,8 +59,6 @@ export interface LoadedStyleScenario {
   readonly filePath: string;
   readonly relativePath: string;
   readonly styleDocument: StyleDocumentHIR;
-  readonly legacyClassMap: ScssClassMap;
-  readonly compatClassMap: ScssClassMap;
 }
 
 export function loadSourceScenario(def: SourceScenarioDef): LoadedSourceScenario {
@@ -92,13 +79,12 @@ export function loadSourceScenario(def: SourceScenarioDef): LoadedSourceScenario
     existsSync,
     EMPTY_ALIAS_RESOLVER,
   );
-  const classRefs = parseClassRefs(sourceFile, bindings, stylesBindings);
-  const sourceDocument = buildSourceDocumentFromLegacy({
+  const sourceDocument = buildSourceDocument({
     filePath,
     bindings,
     stylesBindings,
     classUtilNames: detectClassUtilImports(sourceFile),
-    classRefs,
+    classExpressions: parseClassExpressions(sourceFile, bindings, stylesBindings),
   });
 
   return {
@@ -106,8 +92,6 @@ export function loadSourceScenario(def: SourceScenarioDef): LoadedSourceScenario
     filePath,
     relativePath,
     sourceDocument,
-    legacyClassRefs: classRefs,
-    compatClassRefs: sourceDocumentToLegacyClassRefs(sourceDocument),
   };
 }
 
@@ -115,17 +99,16 @@ export function loadStyleScenario(def: StyleScenarioDef): LoadedStyleScenario {
   const filePath = path.join(EXAMPLES_ROOT, def.stylePath);
   const relativePath = toRepoRelative(filePath);
   const content = readFileSync(filePath, "utf8");
-  const parsed = parseStyleModule(content, filePath);
-  const legacyClassMap = expandClassMapWithTransform(parsed, def.mode ?? "asIs");
-  const styleDocument = buildStyleDocumentFromClassMap(filePath, legacyClassMap);
+  const styleDocument = expandStyleDocumentWithTransform(
+    parseStyleDocument(content, filePath),
+    def.mode ?? "asIs",
+  );
 
   return {
     id: def.id,
     filePath,
     relativePath,
     styleDocument,
-    legacyClassMap,
-    compatClassMap: styleDocumentToLegacyClassMap(styleDocument),
   };
 }
 
@@ -203,62 +186,6 @@ export function normalizeStyleDocument(doc: StyleDocumentHIR): unknown {
         : {}),
       ...(selector.composes.length > 0 ? { composes: selector.composes } : {}),
     })),
-  };
-}
-
-export function normalizeClassRefs(classRefs: readonly ClassRef[]): unknown {
-  return classRefs.map((ref) => ({
-    kind: ref.kind,
-    origin: ref.origin,
-    scssModulePath: toRepoRelative(ref.scssModulePath),
-    originRange: normalizeRange(ref.originRange),
-    ...(ref.kind === "static" ? { className: ref.className } : {}),
-    ...(ref.kind === "template"
-      ? { rawTemplate: ref.rawTemplate, staticPrefix: ref.staticPrefix }
-      : {}),
-    ...(ref.kind === "variable" ? { variableName: ref.variableName } : {}),
-  }));
-}
-
-export function normalizeClassMap(classMap: ScssClassMap): unknown {
-  return Array.from(classMap.values(), normalizeSelectorInfo).toSorted((a, b) =>
-    a.name.localeCompare(b.name),
-  );
-}
-
-function normalizeSelectorInfo(info: SelectorInfo): {
-  readonly name: string;
-  readonly range: ReturnType<typeof normalizeRange>;
-  readonly ruleRange: ReturnType<typeof normalizeRange>;
-  readonly fullSelector: string;
-  readonly declarations: string;
-  readonly isNested?: true;
-  readonly originalName?: string;
-  readonly bemSuffix?: {
-    readonly rawToken: string;
-    readonly rawTokenRange: ReturnType<typeof normalizeRange>;
-    readonly parentResolvedName: string;
-  };
-  readonly composes?: SelectorInfo["composes"];
-} {
-  return {
-    name: info.name,
-    range: normalizeRange(info.range),
-    ruleRange: normalizeRange(info.ruleRange),
-    fullSelector: info.fullSelector,
-    declarations: info.declarations,
-    ...(info.isNested ? { isNested: true as const } : {}),
-    ...(info.originalName ? { originalName: info.originalName } : {}),
-    ...(info.bemSuffix
-      ? {
-          bemSuffix: {
-            rawToken: info.bemSuffix.rawToken,
-            rawTokenRange: normalizeRange(info.bemSuffix.rawTokenRange),
-            parentResolvedName: info.bemSuffix.parentResolvedName,
-          },
-        }
-      : {}),
-    ...(info.composes ? { composes: info.composes } : {}),
   };
 }
 

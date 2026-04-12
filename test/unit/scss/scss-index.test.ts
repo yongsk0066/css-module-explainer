@@ -4,10 +4,9 @@ import {
   buildChildContext,
   enumerateGroups,
   findBemSuffixSpan,
-  parseStyleModule,
   StyleIndexCache,
 } from "../../../server/src/core/scss/scss-index";
-import { styleDocumentToLegacyClassMap } from "../../../server/src/core/hir/compat/style-document-compat";
+import { parseStyleModule, styleDocumentToLegacyClassMap } from "../../_fixtures/style-compat";
 
 describe("parseStyleModule / flat classes", () => {
   it("extracts a single flat class", () => {
@@ -271,54 +270,54 @@ describe("parseStyleModule / edge cases", () => {
 });
 
 describe("StyleIndexCache", () => {
-  it("returns the same class map for identical content", () => {
+  it("returns the same style document for identical content", () => {
     const cache = new StyleIndexCache({ max: 10 });
-    const first = cache.get("/fake/a.module.scss", `.btn { color: red; }`);
-    const second = cache.get("/fake/a.module.scss", `.btn { color: red; }`);
+    const first = cache.getStyleDocument("/fake/a.module.scss", `.btn { color: red; }`);
+    const second = cache.getStyleDocument("/fake/a.module.scss", `.btn { color: red; }`);
     expect(second).toBe(first);
   });
 
   it("re-parses when content changes", () => {
     const cache = new StyleIndexCache({ max: 10 });
-    const first = cache.get("/fake/a.module.scss", `.btn { color: red; }`);
-    const second = cache.get("/fake/a.module.scss", `.btn { color: blue; }`);
+    const first = cache.getStyleDocument("/fake/a.module.scss", `.btn { color: red; }`);
+    const second = cache.getStyleDocument("/fake/a.module.scss", `.btn { color: blue; }`);
     expect(second).not.toBe(first);
-    expect(second.get("btn")!.declarations).toContain("color: blue");
+    expect(styleDocumentToLegacyClassMap(second).get("btn")!.declarations).toContain("color: blue");
   });
 
   it("invalidate(path) drops the cached entry", () => {
     const cache = new StyleIndexCache({ max: 10 });
-    const first = cache.get("/fake/a.module.scss", `.btn { color: red; }`);
+    const first = cache.getStyleDocument("/fake/a.module.scss", `.btn { color: red; }`);
     cache.invalidate("/fake/a.module.scss");
-    const second = cache.get("/fake/a.module.scss", `.btn { color: red; }`);
+    const second = cache.getStyleDocument("/fake/a.module.scss", `.btn { color: red; }`);
     expect(second).not.toBe(first);
   });
 
   it("clear() drops everything", () => {
     const cache = new StyleIndexCache({ max: 10 });
-    cache.get("/fake/a.module.scss", `.a { color: red; }`);
-    cache.get("/fake/b.module.scss", `.b { color: red; }`);
+    cache.getStyleDocument("/fake/a.module.scss", `.a { color: red; }`);
+    cache.getStyleDocument("/fake/b.module.scss", `.b { color: red; }`);
     cache.clear();
-    const after = cache.get("/fake/a.module.scss", `.a { color: red; }`);
-    expect(after.has("a")).toBe(true);
+    const after = cache.getStyleDocument("/fake/a.module.scss", `.a { color: red; }`);
+    expect(styleDocumentToLegacyClassMap(after).has("a")).toBe(true);
   });
 
   it("evicts the least-recently-used entry beyond the max", () => {
     const cache = new StyleIndexCache({ max: 2 });
-    const a = cache.get("/a.module.scss", `.a{}`);
-    cache.get("/b.module.scss", `.b{}`);
+    const a = cache.getStyleDocument("/a.module.scss", `.a{}`);
+    cache.getStyleDocument("/b.module.scss", `.b{}`);
     // LRU order: a, b
-    cache.get("/a.module.scss", `.a{}`); // touch a → order: b, a
-    cache.get("/c.module.scss", `.c{}`); // evicts b
-    const aAgain = cache.get("/a.module.scss", `.a{}`);
+    cache.getStyleDocument("/a.module.scss", `.a{}`); // touch a → order: b, a
+    cache.getStyleDocument("/c.module.scss", `.c{}`); // evicts b
+    const aAgain = cache.getStyleDocument("/a.module.scss", `.a{}`);
     expect(aAgain).toBe(a);
     // b was evicted, so re-getting it reparses (different content string
-    // still produces an equivalent map, but identity differs).
-    const bAgain = cache.get("/b.module.scss", `.b{}`);
-    expect(bAgain.has("b")).toBe(true);
+    // still produces an equivalent document, but identity differs).
+    const bAgain = cache.getStyleDocument("/b.module.scss", `.b{}`);
+    expect(styleDocumentToLegacyClassMap(bAgain).has("b")).toBe(true);
   });
 
-  it("stores a style document HIR alongside the compatibility class map", () => {
+  it("stores a transformed style document entry", () => {
     const cache = new StyleIndexCache({ max: 10 });
     const entry = cache.getEntry(
       "/fake/a.module.scss",
@@ -330,7 +329,6 @@ describe("StyleIndexCache", () => {
       "button",
       "button--primary",
     ]);
-    expect(entry.classMap).toEqual(styleDocumentToLegacyClassMap(entry.styleDocument));
   });
 
   it("returns the same cached style document for identical content", () => {
@@ -342,13 +340,15 @@ describe("StyleIndexCache", () => {
 
   // ── classnameTransform integration ──
 
-  it("setMode('camelCase') clears the cache and next get() returns expanded map", () => {
+  it("setMode('camelCase') clears the cache and next read returns alias views", () => {
     const cache = new StyleIndexCache({ max: 10 });
-    const asIsMap = cache.get("/f.module.scss", `.btn-primary { color: red; }`);
+    const asIsDoc = cache.getStyleDocument("/f.module.scss", `.btn-primary { color: red; }`);
+    const asIsMap = styleDocumentToLegacyClassMap(asIsDoc);
     expect(asIsMap.has("btnPrimary")).toBe(false);
     cache.setMode("camelCase");
-    const expanded = cache.get("/f.module.scss", `.btn-primary { color: red; }`);
-    expect(expanded).not.toBe(asIsMap); // new reference
+    const expandedDoc = cache.getStyleDocument("/f.module.scss", `.btn-primary { color: red; }`);
+    const expanded = styleDocumentToLegacyClassMap(expandedDoc);
+    expect(expandedDoc).not.toBe(asIsDoc);
     expect(expanded.has("btn-primary")).toBe(true);
     expect(expanded.has("btnPrimary")).toBe(true);
     expect(expanded.get("btnPrimary")?.originalName).toBe("btn-primary");
@@ -356,9 +356,9 @@ describe("StyleIndexCache", () => {
 
   it("setMode idempotent: setting the same mode does not clear", () => {
     const cache = new StyleIndexCache({ max: 10 });
-    const first = cache.get("/f.module.scss", `.btn-primary { color: red; }`);
+    const first = cache.getStyleDocument("/f.module.scss", `.btn-primary { color: red; }`);
     cache.setMode("asIs"); // no-op
-    const second = cache.get("/f.module.scss", `.btn-primary { color: red; }`);
+    const second = cache.getStyleDocument("/f.module.scss", `.btn-primary { color: red; }`);
     expect(second).toBe(first); // same reference — not cleared
   });
 });

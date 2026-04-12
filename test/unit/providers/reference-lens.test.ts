@@ -4,6 +4,7 @@ import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/co
 import type { ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
 import { handleCodeLens } from "../../../server/src/providers/reference-lens";
 import { infoAtLine, makeBaseDeps, semanticSiteAt } from "../../_fixtures/test-helpers";
+import { expandClassMapWithTransform, parseStyleModule } from "../../_fixtures/style-compat";
 
 function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   return makeBaseDeps({
@@ -78,9 +79,6 @@ describe("handleCodeLens", () => {
   });
 
   it("classnameTransform (camelCaseOnly): emits a lens for an alias-only entry whose bucket lives under canonical", async () => {
-    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
-    const { expandClassMapWithTransform } =
-      await import("../../../server/src/core/scss/classname-transform");
     const SCSS_PATH = "/fake/src/Button.module.scss";
     const SCSS_URI = "file:///fake/src/Button.module.scss";
     const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);
@@ -114,9 +112,6 @@ describe("handleCodeLens", () => {
   });
 
   it("classnameTransform: emits one lens reflecting the canonical bucket across both class-map views", async () => {
-    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
-    const { expandClassMapWithTransform } =
-      await import("../../../server/src/core/scss/classname-transform");
     const SCSS_PATH = "/fake/src/Button.module.scss";
     const SCSS_URI = "file:///fake/src/Button.module.scss";
     const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);
