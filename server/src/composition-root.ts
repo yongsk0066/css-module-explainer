@@ -134,7 +134,10 @@ export function createServer(options: CreateServerOptions): CreatedServer {
     if (clientSupportsDynamicWatchers) {
       watchedFilesDisposable = connection.client
         .register(DidChangeWatchedFilesNotification.type, {
-          watchers: [{ globPattern: buildStyleFileWatcherGlob() }],
+          watchers: [
+            { globPattern: buildStyleFileWatcherGlob() },
+            { globPattern: "**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs}" },
+          ],
         })
         .catch(() => ({ dispose: () => {} }));
     }

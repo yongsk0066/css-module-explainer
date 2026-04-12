@@ -224,16 +224,33 @@ function registerWatchedFilesHandler(state: HandlerState): void {
   connection.onDidChangeWatchedFiles((params: DidChangeWatchedFilesParams) => {
     const deps = getDeps();
     if (!deps) return;
+    let hasStyleChange = false;
+    let hasSourceChange = false;
     for (const change of params.changes) {
       const filePath = fileUrlToPath(change.uri);
-      deps.invalidateStyle(filePath);
-      if (change.type !== FileChangeType.Deleted) {
-        deps.pushStyleFile(filePath);
+      if (findLangForPath(filePath)) {
+        hasStyleChange = true;
+        deps.invalidateStyle(filePath);
+        if (change.type !== FileChangeType.Deleted) {
+          deps.pushStyleFile(filePath);
+        }
+        invalidateDependentTsxEntries(deps, filePath);
+      } else {
+        hasSourceChange = true;
       }
-      invalidateDependentTsxEntries(deps, filePath);
     }
-    for (const doc of documents.all()) {
-      state.scheduler.scheduleTsx(doc.uri);
+    if (hasSourceChange) {
+      deps.typeResolver.invalidate(deps.workspaceRoot);
+    }
+    if (hasStyleChange || hasSourceChange) {
+      for (const doc of documents.all()) {
+        const docPath = fileUrlToPath(doc.uri);
+        if (findLangForPath(docPath)) {
+          state.scheduler.scheduleScss(doc.uri);
+        } else {
+          state.scheduler.scheduleTsx(doc.uri);
+        }
+      }
     }
   });
 }
