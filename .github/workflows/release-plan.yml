@@ -21,7 +21,6 @@ jobs:
       - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version-file: .nvmrc
-          cache: pnpm
       - run: corepack enable && corepack prepare pnpm@10.30.3 --activate
       - run: pnpm install --frozen-lockfile
       - uses: changesets/action@6a0a831ff30acef54f2c6aa1cbbc1096b066edaf # v1.7.0
