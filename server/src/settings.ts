@@ -1,5 +1,7 @@
 import type { Connection } from "vscode-languageserver/node";
 import type { ClassnameTransformMode } from "./core/scss/classname-transform";
+import { isRecord } from "./core/util/value-guards";
+import { parseBool, parseFiniteNumber } from "./core/util/value-utils";
 
 export interface Settings {
   readonly features: {
@@ -22,9 +24,9 @@ export interface Settings {
   };
   /**
    * Path alias map compat-read from the `cssModules.pathAlias`
-   * config key (clinyong/vscode-cssmodules). Keys are import
-   * prefixes (e.g. `"@styles"`), values are workspace-relative
-   * or absolute target paths. Defaults to `{}`.
+   * config key. Keys are import prefixes (e.g. `"@styles"`),
+   * values are workspace-relative or absolute target paths.
+   * Defaults to `{}`.
    *
    * A native `cssModuleExplainer.pathAlias` key is intentionally
    * not exposed yet — the compat read covers the zero-config
@@ -57,17 +59,8 @@ function isClassnameTransform(v: unknown): v is ClassnameTransformMode {
 const SEVERITY_VALUES = ["error", "warning", "information", "hint"] as const;
 type Severity = (typeof SEVERITY_VALUES)[number];
 
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
-}
 function isSeverity(v: unknown): v is Severity {
   return typeof v === "string" && (SEVERITY_VALUES as readonly string[]).includes(v);
-}
-function parseBool(v: unknown, fallback: boolean): boolean {
-  return typeof v === "boolean" ? v : fallback;
-}
-function parseNumber(v: unknown, fallback: number): number {
-  return typeof v === "number" && Number.isFinite(v) ? v : fallback;
 }
 
 export function parseSettings(raw: unknown): Settings {
@@ -92,7 +85,7 @@ export function parseSettings(raw: unknown): Settings {
       missingModule: parseBool(diagnostics.missingModule, DEFAULTS.diagnostics.missingModule),
     },
     hover: {
-      maxCandidates: parseNumber(hover.maxCandidates, DEFAULTS.hover.maxCandidates),
+      maxCandidates: parseFiniteNumber(hover.maxCandidates, DEFAULTS.hover.maxCandidates),
     },
     scss: {
       classnameTransform: isClassnameTransform(scss.classnameTransform)

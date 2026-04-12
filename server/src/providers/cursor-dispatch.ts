@@ -1,21 +1,8 @@
-import type { Range as SharedRange } from "@css-module-explainer/shared";
 import type { AnalysisEntry } from "../core/indexing/document-analysis-cache";
 import type { ClassExpressionHIR } from "../core/hir/source-types";
 import type { StyleDocumentHIR } from "../core/hir/style-types";
+import { rangeContains } from "../core/util/range-utils";
 import type { CursorParams, ProviderDeps } from "./provider-deps";
-
-/**
- * Does `(line, character)` fall inside `range`? Inclusive on
- * both ends, matching the LSP convention used throughout the
- * codebase. Shared between the cursor-based providers.
- */
-export function rangeContains(range: SharedRange, line: number, character: number): boolean {
-  const { start, end } = range;
-  if (line < start.line || line > end.line) return false;
-  if (line === start.line && character < start.character) return false;
-  if (line === end.line && character > end.character) return false;
-  return true;
-}
 
 /**
  * The data every cursor-based semantic provider receives.

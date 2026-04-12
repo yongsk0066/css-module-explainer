@@ -7,12 +7,9 @@ import {
   type Range as LspRange,
   type WorkspaceEdit,
 } from "vscode-languageserver/node";
+import { isRecord } from "../core/util/value-guards";
 import { wrapHandler } from "./_wrap-handler";
 import type { ProviderDeps } from "./provider-deps";
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null;
-}
 
 /**
  * Handle `textDocument/codeAction` by emitting quickfixes from

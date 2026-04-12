@@ -57,10 +57,10 @@ describe("AliasResolver", () => {
     expect(r.resolve("lodash")).toBeNull();
   });
 
-  it("longest-prefix diverges from clinyong's first-match (documented intentional upgrade)", () => {
-    // Config listed in {"@", "@styles"} order: clinyong's first-match
-    // would pick `@` for `@styles/button` (based on Object.keys order),
-    // but longest-prefix correctly picks `@styles`. A bare `@/button`
+  it("longest-prefix wins over generic prefixes even when key order is broad-first", () => {
+    // Config listed in {"@", "@styles"} order: insertion-order
+    // matching would pick `@` for `@styles/button`, but the resolver
+    // intentionally uses the most specific prefix. A bare `@/button`
     // specifier still routes through the `@` prefix after normalization.
     const r = new AliasResolver(WORKSPACE, {
       "@": "src",

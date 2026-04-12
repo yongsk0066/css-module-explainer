@@ -151,8 +151,8 @@ function tryResolveImportStatement(
   }
 
   // Resolve the specifier to an absolute path — relative first,
-  // alias second, drop otherwise. Matches clinyong's precedence
-  // (relative always wins over alias).
+  // alias second, drop otherwise. Relative imports always win
+  // over alias resolution.
   let absolutePath: string | null = null;
   if (specifier.startsWith(".")) {
     absolutePath = path.resolve(path.dirname(filePath), specifier);

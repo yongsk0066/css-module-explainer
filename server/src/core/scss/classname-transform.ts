@@ -6,8 +6,8 @@ import {
 
 /**
  * 5-mode classname transformation for CSS Modules. Mirrors
- * css-loader's `localsConvention` option and the ts-plugin-css-modules
- * implementation (ref: ~/oss/typescript-plugin-css-modules/src/helpers/classTransforms.ts).
+ * css-loader's `localsConvention` option and common CSS Modules
+ * classname transform behavior.
  *
  * Takes an original SCSS class name and returns the list of names
  * the JS-side `classMap` should expose for it:
@@ -57,8 +57,7 @@ export function transformClassname(mode: ClassnameTransformMode, name: string): 
 
 /**
  * `-+(\w)` → uppercase. Only dashes are consumed; underscores and
- * whitespace pass through. Matches ts-plugin's regex at
- * classTransforms.ts:8.
+ * whitespace pass through.
  */
 function dashesToCamel(name: string): string {
   return name.replace(/-+(\w)/g, (_, ch: string) => ch.toUpperCase());

@@ -99,11 +99,11 @@ Matches css-loader's `modules.localsConvention`. For a selector `.btn-primary`:
 - `camelCaseOnly` and `dashesOnly` **reject** rename — the reverse transform from alias → original SCSS selector is lossy (`btnSecondary` could map to `btn-secondary`, `btnSecondary`, or `btn_secondary`). Use `camelCase` / `dashes` for editor-driven rename workflows.
 - The transform handles ASCII inputs using the same algorithm as css-loader's default (`-` and `_` become word boundaries). Unicode identifiers pass through unchanged.
 
-### Path aliases (clinyong compat)
+### Path aliases (`cssModules.pathAlias` compatibility)
 
-`cssModules.pathAlias` from the clinyong/vscode-cssmodules extension is read as-is, so `import styles from '@styles/button.module.scss'` resolves when your workspace has `"cssModules.pathAlias": { "@styles": "src/styles" }` in its settings. `${workspaceFolder}` substitution is supported. This key lives under `cssModules.*` rather than `cssModuleExplainer.*` so an existing clinyong config keeps working after migration.
+`cssModules.pathAlias` is read as-is, so `import styles from '@styles/button.module.scss'` resolves when your workspace has `"cssModules.pathAlias": { "@styles": "src/styles" }` in its settings. `${workspaceFolder}` substitution is supported. This keeps existing `cssModules.*` workspace settings working without an extra migration step.
 
-**One intentional divergence from clinyong**: alias matching uses longest-prefix order rather than insertion order. Given `{ "@": "src", "@styles": "src/styles" }`, the specifier `@styles/button` routes to `src/styles/button` regardless of config key order — clinyong would route based on whichever prefix appears first in the object.
+Alias matching uses longest-prefix order rather than insertion order. Given `{ "@": "src", "@styles": "src/styles" }`, the specifier `@styles/button` routes to `src/styles/button` regardless of config key order.
 
 Wildcard patterns and tsconfig.json `compilerOptions.paths` auto-detection are not yet supported — tracked for a future release.
 

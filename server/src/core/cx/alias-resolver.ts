@@ -3,19 +3,16 @@ import * as path from "node:path";
 /**
  * Workspace-scoped path-alias resolver for CSS Module imports.
  *
- * Reads the clinyong-compat `cssModules.pathAlias` record and
+ * Reads the legacy-compatible `cssModules.pathAlias` record and
  * matches non-relative import specifiers against it using
  * longest-prefix semantics. `${workspaceFolder}` in target values
  * is substituted at construction time; relative targets are
  * resolved against `workspaceRoot`.
  *
- * **Intentional divergence from clinyong**: clinyong's
- * `resolveImportPath` (~/oss/vscode-css-modules/src/utils/path.ts)
- * uses `Object.keys().find(...)` which is insertion-order
- * first-match — a config like `{ "@": "src", "@styles": "src/styles" }`
- * routes `@styles/button` to `src/button` when `@` appears first.
- * We use longest-prefix, which is what users actually expect.
- * README documents this one divergence.
+ * Alias matching uses longest-prefix order instead of relying on
+ * object insertion order. A config like
+ * `{ "@": "src", "@styles": "src/styles" }` therefore routes
+ * `@styles/button` to `src/styles/button` regardless of key order.
  *
  * No wildcard (`*`) support — tsconfig `compilerOptions.paths`
  * is the natural home for that and lives on a separate axis. No
@@ -80,9 +77,8 @@ export class AliasResolver {
   }
 
   private substituteWorkspace(target: string): string {
-    // `${workspaceFolder}` is the clinyong-compat variable —
-    // substituted at construction time because workspaceRoot is
-    // immutable for the server's lifetime.
+    // `${workspaceFolder}` is substituted at construction time
+    // because workspaceRoot is immutable for the server's lifetime.
     const replaced = target.replace("${workspaceFolder}", this.workspaceRoot);
     return path.isAbsolute(replaced) ? replaced : path.resolve(this.workspaceRoot, replaced);
   }

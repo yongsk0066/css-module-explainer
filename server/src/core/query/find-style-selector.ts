@@ -1,5 +1,5 @@
-import type { Range } from "@css-module-explainer/shared";
 import type { SelectorDeclHIR, StyleDocumentHIR } from "../hir/style-types";
+import { rangeContains } from "../util/range-utils";
 
 export function findSelectorAtCursor(
   styleDocument: StyleDocumentHIR,
@@ -38,12 +38,4 @@ export function listCanonicalSelectors(
   }
 
   return canonicalSelectors;
-}
-
-function rangeContains(range: Range, line: number, character: number): boolean {
-  const { start, end } = range;
-  if (line < start.line || line > end.line) return false;
-  if (line === start.line && character < start.character) return false;
-  if (line === end.line && character > end.character) return false;
-  return true;
 }
