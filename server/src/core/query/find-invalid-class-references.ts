@@ -1,8 +1,14 @@
-import type { ClassRef, ScssClassMap } from "@css-module-explainer/shared";
+import type { ScssClassMap } from "@css-module-explainer/shared";
 import { findClosestMatch } from "../util/text-utils";
 import type { TypeResolver } from "../ts/type-resolver";
-import { resolveClassRefSymbolValues } from "../semantic/resolve-symbol-values";
+import { resolveSymbolExpressionValues } from "../semantic/resolve-symbol-values";
 import type ts from "typescript";
+import type {
+  ClassExpressionHIR,
+  LiteralClassExpressionHIR,
+  SymbolRefClassExpressionHIR,
+  TemplateClassExpressionHIR,
+} from "../hir/source-types";
 
 export interface InvalidClassReferenceQueryEnv {
   readonly typeResolver: TypeResolver;
@@ -13,67 +19,69 @@ export interface InvalidClassReferenceQueryEnv {
 export type InvalidClassReferenceFinding =
   | {
       readonly kind: "missingStaticClass";
-      readonly ref: Extract<ClassRef, { kind: "static" }>;
-      readonly range: Extract<ClassRef, { kind: "static" }>["originRange"];
+      readonly expression: LiteralClassExpressionHIR;
+      readonly range: LiteralClassExpressionHIR["range"];
       readonly suggestion?: string;
     }
   | {
       readonly kind: "missingTemplatePrefix";
-      readonly ref: Extract<ClassRef, { kind: "template" }>;
-      readonly range: Extract<ClassRef, { kind: "template" }>["originRange"];
+      readonly expression: TemplateClassExpressionHIR;
+      readonly range: TemplateClassExpressionHIR["range"];
     }
   | {
       readonly kind: "missingResolvedClassValues";
-      readonly ref: Extract<ClassRef, { kind: "variable" }>;
-      readonly range: Extract<ClassRef, { kind: "variable" }>["originRange"];
+      readonly expression: SymbolRefClassExpressionHIR;
+      readonly range: SymbolRefClassExpressionHIR["range"];
       readonly missingValues: readonly string[];
       readonly certainty: "exact" | "inferred" | "possible";
       readonly reason: "flowLiteral" | "flowBranch" | "typeUnion";
     };
 
 export function findInvalidClassReference(
-  ref: ClassRef,
+  expression: ClassExpressionHIR,
   sourceFile: ts.SourceFile,
   classMap: ScssClassMap,
   env: InvalidClassReferenceQueryEnv,
 ): InvalidClassReferenceFinding | null {
-  if (ref.origin !== "cxCall") return null;
+  if (expression.origin !== "cxCall") return null;
 
-  switch (ref.kind) {
-    case "static": {
-      if (classMap.has(ref.className)) return null;
-      const suggestion = findClosestMatch(ref.className, classMap.keys());
+  switch (expression.kind) {
+    case "literal": {
+      if (classMap.has(expression.className)) return null;
+      const suggestion = findClosestMatch(expression.className, classMap.keys());
       return {
         kind: "missingStaticClass",
-        ref,
-        range: ref.originRange,
+        expression,
+        range: expression.range,
         ...(suggestion ? { suggestion } : {}),
       };
     }
     case "template": {
-      if (anyValueStartsWith(classMap, ref.staticPrefix)) return null;
+      if (anyValueStartsWith(classMap, expression.staticPrefix)) return null;
       return {
         kind: "missingTemplatePrefix",
-        ref,
-        range: ref.originRange,
+        expression,
+        range: expression.range,
       };
     }
-    case "variable": {
-      const resolved = resolveClassRefSymbolValues(sourceFile, ref, env);
+    case "symbolRef": {
+      const resolved = resolveSymbolExpressionValues(sourceFile, expression, env);
       if (!resolved) return null;
       const missingValues = resolved.values.filter((value) => !classMap.has(value));
       if (missingValues.length === 0) return null;
       return {
         kind: "missingResolvedClassValues",
-        ref,
-        range: ref.originRange,
+        expression,
+        range: expression.range,
         missingValues,
         certainty: resolved.certainty,
         reason: resolved.reason,
       };
     }
+    case "styleAccess":
+      return null;
     default:
-      ref satisfies never;
+      expression satisfies never;
       return null;
   }
 }

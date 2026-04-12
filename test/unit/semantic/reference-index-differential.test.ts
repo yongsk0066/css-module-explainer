@@ -122,7 +122,6 @@ function buildReverseIndex(args: {
       ts.ScriptKind.TSX,
     ),
     bindings: [],
-    classRefs: args.sourceScenario.compatClassRefs,
     sourceDocument: args.sourceScenario.sourceDocument,
     stylesBindings: toStyleBindingsMap(args.sourceScenario.sourceDocument.styleImports),
     classUtilNames: [],

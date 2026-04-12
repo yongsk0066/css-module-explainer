@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import type ts from "typescript";
 import type { ClassRef, CxBinding, StyleImport } from "@css-module-explainer/shared";
-import { sourceDocumentToLegacyClassRefs } from "../../../server/src/core/hir/compat/source-document-compat";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
 import { EMPTY_ALIAS_RESOLVER } from "../../_fixtures/test-helpers";
@@ -183,7 +182,7 @@ describe("DocumentAnalysisCache", () => {
 });
 
 describe("DocumentAnalysisCache / styleAccess without classnames/bind", () => {
-  it("populates classRefs from parseClassRefs for a file with style imports but no classnames/bind", () => {
+  it("populates sourceDocument class expressions for a file with style imports but no classnames/bind", () => {
     const clsxSource = `
       import clsx from 'clsx';
       import styles from './Button.module.scss';
@@ -230,19 +229,11 @@ describe("DocumentAnalysisCache / styleAccess without classnames/bind", () => {
     // styleAccess refs must be populated even though the scan
     // returned an empty bindings list.
     expect(entry.bindings).toHaveLength(0);
-    expect(entry.classRefs).toHaveLength(1);
     expect(entry.sourceDocument.classExpressions).toHaveLength(1);
     expect(entry.sourceDocument.classExpressions[0]).toMatchObject({
       kind: "styleAccess",
       className: "indicator",
     });
-    expect(entry.classRefs[0]).toMatchObject({
-      kind: "static",
-      origin: "styleAccess",
-      className: "indicator",
-      scssModulePath: "/fake/src/Button.module.scss",
-    });
-    expect(entry.classRefs).toEqual(sourceDocumentToLegacyClassRefs(entry.sourceDocument));
     expect(scanSpy).toHaveBeenCalledTimes(1);
     expect(parseClassRefsSpy).toHaveBeenCalledTimes(1);
     // Verify parseClassRefs received the map from scanCxImports.

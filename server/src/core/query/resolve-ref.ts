@@ -1,55 +1,55 @@
-import type { ClassRef, ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
+import type { ScssClassMap } from "@css-module-explainer/shared";
 import { buildStyleDocumentFromClassMap } from "../hir/builders/style-adapter";
-import { selectorDeclToLegacySelectorInfo } from "../hir/compat/style-document-compat";
-import type { SourceDocumentHIR } from "../hir/source-types";
+import type { ClassExpressionHIR, SymbolRefClassExpressionHIR } from "../hir/source-types";
 import type { SelectorDeclHIR, StyleDocumentHIR } from "../hir/style-types";
 import { buildSourceSemanticGraph } from "../semantic/graph-builder";
 import { buildSemanticReferenceIndex } from "../semantic/reference-index";
-import {
-  resolveClassRefSymbolValues,
-  resolveSymbolExpressionValues,
-} from "../semantic/resolve-symbol-values";
+import { resolveSymbolExpressionValues } from "../semantic/resolve-symbol-values";
 import type { TypeResolver } from "../ts/type-resolver";
 import type { AnalysisEntry } from "../indexing/document-analysis-cache";
 
 export interface ResolveRefQueryEnv {
   readonly styleDocumentForPath: (path: string) => StyleDocumentHIR | null;
+  readonly scssClassMapForPath: (path: string) => ScssClassMap | null;
   readonly typeResolver: TypeResolver;
   readonly filePath: string;
   readonly workspaceRoot: string;
 }
 
 export interface ResolveRefQueryContext {
-  readonly ref: ClassRef;
-  readonly classMap: ScssClassMap;
+  readonly expression: ClassExpressionHIR;
+  readonly styleDocument: StyleDocumentHIR | null;
   readonly entry: AnalysisEntry;
 }
 
-export function resolveRefSelectorInfos(
+export function resolveRefSelectors(
   ctx: ResolveRefQueryContext,
   env: ResolveRefQueryEnv,
-): readonly SelectorInfo[] {
+): readonly SelectorDeclHIR[] {
   const styleDocument =
-    env.styleDocumentForPath(ctx.ref.scssModulePath) ??
-    buildStyleDocumentFromClassMap(ctx.ref.scssModulePath, ctx.classMap);
-  const sourceExpression = findMatchingExpressionId(ctx.entry.sourceDocument, ctx.ref);
-  if (!sourceExpression) {
-    return resolveRefAgainstStyleDocument(ctx.ref, styleDocument, ctx.entry.sourceFile, env);
-  }
+    ctx.styleDocument ??
+    env.styleDocumentForPath(ctx.expression.scssModulePath) ??
+    resolveStyleDocumentFromClassMap(ctx.expression.scssModulePath, env.scssClassMapForPath);
+  if (!styleDocument) return [];
 
   const graph = buildSourceSemanticGraph({
     sourceDocument: ctx.entry.sourceDocument,
-    styleDocumentsByPath: new Map([[ctx.ref.scssModulePath, styleDocument]]),
+    styleDocumentsByPath: new Map([[ctx.expression.scssModulePath, styleDocument]]),
     resolveSymbolValues(ref) {
       return resolveSymbolExpressionValues(ctx.entry.sourceFile, ref, env);
     },
   });
-  const targets = buildSemanticReferenceIndex(graph).findTargetsForRef(sourceExpression.id);
+  const targets = buildSemanticReferenceIndex(graph).findTargetsForRef(ctx.expression.id);
   if (targets.length === 0) {
-    return resolveRefAgainstStyleDocument(ctx.ref, styleDocument, ctx.entry.sourceFile, env);
+    return resolveExpressionAgainstStyleDocument(
+      ctx.expression,
+      styleDocument,
+      ctx.entry.sourceFile,
+      env,
+    );
   }
 
-  const resolvedInfos: SelectorInfo[] = [];
+  const resolvedSelectors: SelectorDeclHIR[] = [];
   const emitted = new Set<string>();
   for (const target of targets) {
     const key = `${target.selectorFilePath}::${target.canonicalName}`;
@@ -59,86 +59,68 @@ export function resolveRefSelectorInfos(
       (candidate) =>
         candidate.canonicalName === target.canonicalName && candidate.viewKind === "canonical",
     );
-    if (selector) {
-      resolvedInfos.push(selectorDeclToLegacySelectorInfo(selector));
-    }
+    if (selector) resolvedSelectors.push(selector);
   }
 
-  return resolvedInfos.length > 0
-    ? resolvedInfos
-    : resolveRefAgainstStyleDocument(ctx.ref, styleDocument, ctx.entry.sourceFile, env);
+  return resolvedSelectors.length > 0
+    ? resolvedSelectors
+    : resolveExpressionAgainstStyleDocument(
+        ctx.expression,
+        styleDocument,
+        ctx.entry.sourceFile,
+        env,
+      );
 }
 
-function findMatchingExpressionId(
-  sourceDocument: SourceDocumentHIR,
-  ref: ClassRef,
-): SourceDocumentHIR["classExpressions"][number] | null {
-  return (
-    sourceDocument.classExpressions.find((expr) => {
-      if (expr.scssModulePath !== ref.scssModulePath) return false;
-      if (!sameRange(expr.range, ref.originRange)) return false;
-
-      switch (expr.kind) {
-        case "literal":
-          return ref.kind === "static" && expr.className === ref.className;
-        case "template":
-          return ref.kind === "template" && expr.rawTemplate === ref.rawTemplate;
-        case "symbolRef":
-          return ref.kind === "variable" && expr.rawReference === ref.variableName;
-        case "styleAccess":
-          return (
-            ref.kind === "static" &&
-            expr.className === ref.className &&
-            ref.origin === "styleAccess"
-          );
-        default:
-          expr satisfies never;
-          return false;
-      }
-    }) ?? null
-  );
-}
-
-function resolveRefAgainstStyleDocument(
-  ref: ClassRef,
+function resolveExpressionAgainstStyleDocument(
+  expression: ClassExpressionHIR,
   styleDocument: StyleDocumentHIR,
   sourceFile: AnalysisEntry["sourceFile"],
   env: Pick<ResolveRefQueryEnv, "typeResolver" | "filePath" | "workspaceRoot">,
-): readonly SelectorInfo[] {
-  switch (ref.kind) {
-    case "static": {
-      const selector = findCanonicalSelector(styleDocument, ref.className);
-      return selector ? [selectorDeclToLegacySelectorInfo(selector)] : [];
+): readonly SelectorDeclHIR[] {
+  switch (expression.kind) {
+    case "literal":
+    case "styleAccess": {
+      const selector = findCanonicalSelector(styleDocument, expression.className);
+      return selector ? [selector] : [];
     }
     case "template":
-      return resolveTemplateSelectors(ref.staticPrefix, styleDocument);
-    case "variable": {
-      const resolved = resolveClassRefSymbolValues(sourceFile, ref, env);
+      return resolveTemplateSelectors(expression.staticPrefix, styleDocument);
+    case "symbolRef": {
+      const resolved = resolveExpressionSymbolValues(sourceFile, expression, env);
       if (!resolved) return [];
       return resolved.values.flatMap((value) => {
         const selector = findCanonicalSelector(styleDocument, value);
-        return selector ? [selectorDeclToLegacySelectorInfo(selector)] : [];
+        return selector ? [selector] : [];
       });
     }
     default:
-      ref satisfies never;
+      expression satisfies never;
       return [];
   }
+}
+
+function resolveExpressionSymbolValues(
+  sourceFile: AnalysisEntry["sourceFile"],
+  expression: SymbolRefClassExpressionHIR,
+  env: Pick<ResolveRefQueryEnv, "typeResolver" | "filePath" | "workspaceRoot">,
+) {
+  return resolveSymbolExpressionValues(sourceFile, expression, env);
 }
 
 function resolveTemplateSelectors(
   staticPrefix: string,
   styleDocument: StyleDocumentHIR,
-): readonly SelectorInfo[] {
+): readonly SelectorDeclHIR[] {
   const emitted = new Set<string>();
-  const resolved: SelectorInfo[] = [];
+  const resolved: SelectorDeclHIR[] = [];
 
   for (const selector of styleDocument.selectors) {
     if (!selector.name.startsWith(staticPrefix)) continue;
     const canonical = findCanonicalSelector(styleDocument, selector.name);
     if (!canonical || emitted.has(canonical.canonicalName)) continue;
     emitted.add(canonical.canonicalName);
-    resolved.push(selectorDeclToLegacySelectorInfo(canonical));
+    resolved.push(canonical);
   }
 
   return resolved;
@@ -158,20 +140,10 @@ function findCanonicalSelector(
   );
 }
 
-function sameRange(
-  left: {
-    readonly start: { readonly line: number; readonly character: number };
-    readonly end: { readonly line: number; readonly character: number };
-  },
-  right: {
-    readonly start: { readonly line: number; readonly character: number };
-    readonly end: { readonly line: number; readonly character: number };
-  },
-): boolean {
-  return (
-    left.start.line === right.start.line &&
-    left.start.character === right.start.character &&
-    left.end.line === right.end.line &&
-    left.end.character === right.end.character
-  );
+function resolveStyleDocumentFromClassMap(
+  scssModulePath: string,
+  scssClassMapForPath: (path: string) => ScssClassMap | null,
+): StyleDocumentHIR | null {
+  const classMap = scssClassMapForPath(scssModulePath);
+  return classMap ? buildStyleDocumentFromClassMap(scssModulePath, classMap) : null;
 }

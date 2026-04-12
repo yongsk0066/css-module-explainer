@@ -1,4 +1,5 @@
 import type { CallSite, SelectorInfo } from "@css-module-explainer/shared";
+import { buildStyleDocumentFromClassMap } from "../../server/src/core/hir/builders/style-adapter";
 import { SourceFileCache } from "../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../server/src/core/indexing/document-analysis-cache";
 import { NullSemanticWorkspaceReferenceIndex } from "../../server/src/core/semantic/workspace-reference-index";
@@ -123,10 +124,16 @@ export function makeBaseDeps(overrides: Partial<ProviderDeps> = {}): ProviderDep
     aliasResolver: EMPTY_ALIAS_RESOLVER,
     max: 10,
   });
+  const scssClassMapForPath = overrides.scssClassMapForPath ?? (() => null);
   return {
     analysisCache,
-    scssClassMapForPath: () => null,
-    styleDocumentForPath: () => null,
+    scssClassMapForPath,
+    styleDocumentForPath:
+      overrides.styleDocumentForPath ??
+      ((path: string) => {
+        const classMap = scssClassMapForPath(path);
+        return classMap ? buildStyleDocumentFromClassMap(path, classMap) : null;
+      }),
     typeResolver: new FakeTypeResolver(),
     semanticReferenceIndex: new NullSemanticWorkspaceReferenceIndex(),
     workspaceRoot: "/fake/ws",

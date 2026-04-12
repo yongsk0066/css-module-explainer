@@ -1,13 +1,13 @@
-import type { SelectorInfo } from "@css-module-explainer/shared";
 import {
-  resolveRefSelectorInfos,
+  resolveRefSelectors,
   type ResolveRefQueryContext,
   type ResolveRefQueryEnv,
 } from "./resolve-ref";
+import type { SelectorDeclHIR } from "../hir/style-types";
 
-export function findDefinitionSelectorInfos(
+export function findDefinitionSelectors(
   ctx: ResolveRefQueryContext,
   env: ResolveRefQueryEnv,
-): readonly SelectorInfo[] {
-  return resolveRefSelectorInfos(ctx, env);
+): readonly SelectorDeclHIR[] {
+  return resolveRefSelectors(ctx, env);
 }

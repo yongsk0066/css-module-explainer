@@ -1,15 +1,15 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import ts from "typescript";
-import type { ClassRef, StyleImport } from "@css-module-explainer/shared";
+import type { StyleImport } from "@css-module-explainer/shared";
 import type { AnalysisEntry } from "../../../server/src/core/indexing/document-analysis-cache";
 import { buildSourceDocumentFromLegacy } from "../../../server/src/core/hir/builders/ts-source-adapter";
-import { resolveRefSelectorInfos } from "../../../server/src/core/query/resolve-ref";
+import { resolveRefSelectors } from "../../../server/src/core/query/resolve-ref";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
 import { loadSourceScenario, loadStyleScenario } from "../../_fixtures/scenario-corpus";
 
-describe("resolveRefSelectorInfos", () => {
-  it("resolves selector infos through the semantic query for symbol refs", () => {
+describe("resolveRefSelectors", () => {
+  it("resolves selectors through the semantic query for symbol refs", () => {
     const sourceScenario = loadSourceScenario({
       id: "01-basic",
       sourcePath: "01-basic/BasicScenario.tsx",
@@ -18,30 +18,32 @@ describe("resolveRefSelectorInfos", () => {
       id: "01-basic-style",
       stylePath: "01-basic/Button.module.scss",
     });
-    const variableRef = sourceScenario.compatClassRefs.find(
-      (ref) => ref.kind === "variable" && ref.variableName === "size",
+    const variableExpression = sourceScenario.sourceDocument.classExpressions.find(
+      (expression) => expression.kind === "symbolRef" && expression.rawReference === "size",
     );
-    expect(variableRef).toBeDefined();
+    expect(variableExpression).toBeDefined();
 
-    const infos = resolveRefSelectorInfos(
+    const selectors = resolveRefSelectors(
       {
-        ref: variableRef!,
-        classMap: styleScenario.compatClassMap,
+        expression: variableExpression!,
+        styleDocument: styleScenario.styleDocument,
         entry: analysisEntryFor(sourceScenario),
       },
       {
         styleDocumentForPath: (path) =>
           path === styleScenario.filePath ? styleScenario.styleDocument : null,
+        scssClassMapForPath: (path) =>
+          path === styleScenario.filePath ? styleScenario.compatClassMap : null,
         typeResolver: new FakeTypeResolver(["sm", "md", "lg"]),
         filePath: sourceScenario.filePath,
         workspaceRoot: "/fake/ws",
       },
     );
 
-    expect(infos.map((info) => info.name).toSorted()).toEqual(["lg", "md", "sm"]);
+    expect(selectors.map((selector) => selector.name).toSorted()).toEqual(["lg", "md", "sm"]);
   });
 
-  it("falls back to the legacy resolver when the HIR match is missing", () => {
+  it("falls back to style-document resolution when the graph has no match", () => {
     const sourceScenario = loadSourceScenario({
       id: "01-basic",
       sourcePath: "01-basic/BasicScenario.tsx",
@@ -50,32 +52,34 @@ describe("resolveRefSelectorInfos", () => {
       id: "01-basic-style",
       stylePath: "01-basic/Button.module.scss",
     });
-    const staticRef = sourceScenario.compatClassRefs.find(
-      (ref) => ref.kind === "static" && ref.className === "button",
+    const staticExpression = sourceScenario.sourceDocument.classExpressions.find(
+      (expression) => expression.kind === "literal" && expression.className === "button",
     );
-    expect(staticRef).toBeDefined();
+    expect(staticExpression).toBeDefined();
 
-    const infos = resolveRefSelectorInfos(
+    const selectors = resolveRefSelectors(
       {
-        ref: {
-          ...staticRef!,
-          originRange: {
+        expression: {
+          ...staticExpression!,
+          range: {
             start: { line: 999, character: 0 },
             end: { line: 999, character: 6 },
           },
         },
-        classMap: styleScenario.compatClassMap,
+        styleDocument: null,
         entry: analysisEntryFor(sourceScenario),
       },
       {
         styleDocumentForPath: () => null,
+        scssClassMapForPath: (path) =>
+          path === styleScenario.filePath ? styleScenario.compatClassMap : null,
         typeResolver: new FakeTypeResolver(),
         filePath: sourceScenario.filePath,
         workspaceRoot: "/fake/ws",
       },
     );
 
-    expect(infos.map((info) => info.name)).toEqual(["button"]);
+    expect(selectors.map((selector) => selector.name)).toEqual(["button"]);
   });
 
   it("resolves symbol refs from local flow when the type resolver is unresolvable", () => {
@@ -99,25 +103,24 @@ function render(flag: boolean) {
       true,
       ts.ScriptKind.TSX,
     );
-    const ref = variableRefAt(source, "size", styleScenario.filePath);
+    const expression = variableExpressionAt(source, "size", styleScenario.filePath);
     const sourceDocument = buildSourceDocumentFromLegacy({
       filePath: "/fake/Flow.tsx",
       bindings: [],
       stylesBindings: new Map(),
       classUtilNames: [],
-      classRefs: [ref],
+      classRefs: [legacyVariableRefAt(source, "size", styleScenario.filePath)],
     });
 
-    const infos = resolveRefSelectorInfos(
+    const selectors = resolveRefSelectors(
       {
-        ref,
-        classMap: styleScenario.compatClassMap,
+        expression,
+        styleDocument: styleScenario.styleDocument,
         entry: {
           version: 1,
           contentHash: "fixture",
           sourceFile,
           bindings: [],
-          classRefs: [ref],
           sourceDocument,
           stylesBindings: new Map(),
           classUtilNames: [],
@@ -126,13 +129,15 @@ function render(flag: boolean) {
       {
         styleDocumentForPath: (path) =>
           path === styleScenario.filePath ? styleScenario.styleDocument : null,
+        scssClassMapForPath: (path) =>
+          path === styleScenario.filePath ? styleScenario.compatClassMap : null,
         typeResolver: new FakeTypeResolver(),
         filePath: "/fake/Flow.tsx",
         workspaceRoot: "/fake/ws",
       },
     );
 
-    expect(infos.map((info) => info.name).toSorted()).toEqual(["lg", "sm"]);
+    expect(selectors.map((selector) => selector.name).toSorted()).toEqual(["lg", "sm"]);
   });
 });
 
@@ -149,14 +154,13 @@ function analysisEntryFor(sourceScenario: ReturnType<typeof loadSourceScenario>)
       ts.ScriptKind.TSX,
     ),
     bindings: [],
-    classRefs: sourceScenario.compatClassRefs,
     sourceDocument: sourceScenario.sourceDocument,
     stylesBindings: toStyleBindingsMap(sourceScenario.sourceDocument.styleImports),
     classUtilNames: [],
   };
 }
 
-function variableRefAt(source: string, variableName: string, scssModulePath: string): ClassRef {
+function legacyVariableRefAt(source: string, variableName: string, scssModulePath: string) {
   const tokenIndex = source.lastIndexOf(`cx(${variableName})`) + 3;
   const prefix = source.slice(0, tokenIndex);
   const line = prefix.split("\n").length - 1;
@@ -172,6 +176,17 @@ function variableRefAt(source: string, variableName: string, scssModulePath: str
       end: { line, character: character + variableName.length },
     },
   };
+}
+
+function variableExpressionAt(source: string, variableName: string, scssModulePath: string) {
+  const ref = legacyVariableRefAt(source, variableName, scssModulePath);
+  return buildSourceDocumentFromLegacy({
+    filePath: "/fake/Flow.tsx",
+    bindings: [],
+    stylesBindings: new Map(),
+    classUtilNames: [],
+    classRefs: [ref],
+  }).classExpressions[0]!;
 }
 
 function toStyleBindingsMap(

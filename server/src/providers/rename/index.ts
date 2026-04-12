@@ -5,13 +5,15 @@ import type {
   WorkspaceEdit,
 } from "vscode-languageserver/node";
 import type { BemSuffixInfo, SelectorInfo } from "@css-module-explainer/shared";
+import { selectorDeclToLegacySelectorInfo } from "../../core/hir/compat/style-document-compat";
+import type { SelectorDeclHIR, StyleDocumentHIR } from "../../core/hir/style-types";
 import { hasBlockingRenameReferences } from "../../core/query/prepare-rename";
 import { canonicalNameOf } from "../../core/scss/classname-transform";
 import { findLangForPath } from "../../core/scss/lang-registry";
 import { fileUrlToPath, pathToFileUrl } from "../../core/util/text-utils";
 import { toLspRange } from "../lsp-adapters";
 import { wrapHandler } from "../_wrap-handler";
-import { withClassRefAtCursor } from "../cursor-dispatch";
+import { withSourceExpressionAtCursor } from "../cursor-dispatch";
 import type { CursorParams, ProviderDeps } from "../provider-deps";
 import { findSelectorAtCursor } from "../references";
 import { buildRenameEdit } from "./build-edit";
@@ -22,10 +24,11 @@ import { buildRenameEdit } from "./build-edit";
  * Returns `{ range, placeholder }` if the cursor sits on a renameable
  * class token, or `null` to reject the rename.
  *
- * Dispatches through the unified `withClassRefAtCursor` front stage.
- * Only `static` refs are renameable — template and variable refs are
- * rejected here so VS Code falls back to its default word-rename
- * behavior instead of editing a dynamic expression.
+ * Dispatches through the unified expression cursor stage. Only
+ * literal class expressions and direct style access are renameable.
+ * Template and symbol-ref expressions are rejected so VS Code falls
+ * back to its default word-rename behavior instead of editing a
+ * dynamic expression.
  */
 export const handlePrepareRename = wrapHandler<
   PrepareRenameParams,
@@ -42,11 +45,11 @@ export const handlePrepareRename = wrapHandler<
 
     if (!cursorParams) return null;
 
-    return withClassRefAtCursor(cursorParams, deps, (ctx) => {
-      if (ctx.ref.kind !== "static") return null;
+    return withSourceExpressionAtCursor(cursorParams, deps, (ctx) => {
+      if (ctx.expression.kind !== "literal" && ctx.expression.kind !== "styleAccess") return null;
       return {
-        range: toLspRange(ctx.ref.originRange),
-        placeholder: ctx.ref.className,
+        range: toLspRange(ctx.expression.range),
+        placeholder: ctx.expression.className,
       };
     });
   },
@@ -57,8 +60,8 @@ export const handlePrepareRename = wrapHandler<
  * Handle `textDocument/rename`.
  *
  * Builds a WorkspaceEdit with text edits across the SCSS file and
- * all referencing TS/TSX files. Only `static` class refs are
- * renameable — dynamic (template/variable) refs are skipped.
+ * all referencing TS/TSX files. Only literal class expressions and
+ * direct style access are renameable — dynamic expressions are skipped.
  */
 export const handleRename = wrapHandler<
   RenameParams,
@@ -75,13 +78,16 @@ export const handleRename = wrapHandler<
 
     if (!cursorParams) return null;
 
-    return withClassRefAtCursor(cursorParams, deps, (ctx) => {
-      if (ctx.ref.kind !== "static") return null;
-      const selectorInfo = ctx.classMap.get(ctx.ref.className);
+    return withSourceExpressionAtCursor(cursorParams, deps, (ctx) => {
+      if (ctx.expression.kind !== "literal" && ctx.expression.kind !== "styleAccess") return null;
+      const selectorInfo = findSelectorInfoAtExpression(
+        ctx.expression.className,
+        ctx.styleDocument,
+      );
       if (!selectorInfo) return null;
       return buildRenameEdit(
-        pathToFileUrl(ctx.ref.scssModulePath),
-        ctx.ref.scssModulePath,
+        pathToFileUrl(ctx.expression.scssModulePath),
+        ctx.expression.scssModulePath,
         selectorInfo,
         deps,
         params.newName,
@@ -179,4 +185,14 @@ function renameFromScss(
   if (!selectorInfo) return null;
 
   return buildRenameEdit(params.textDocument.uri, filePath, selectorInfo, deps, params.newName);
+}
+
+function findSelectorInfoAtExpression(
+  className: string,
+  styleDocument: StyleDocumentHIR,
+): SelectorInfo | null {
+  const selector = styleDocument.selectors.find(
+    (candidate): candidate is SelectorDeclHIR => candidate.name === className,
+  );
+  return selector ? selectorDeclToLegacySelectorInfo(selector) : null;
 }

@@ -1,4 +1,5 @@
 import type { CallSite, ScssClassMap } from "@css-module-explainer/shared";
+import { resolveSymbolExpressionValues } from "../semantic/resolve-symbol-values";
 import { canonicalNameOf } from "../scss/classname-transform";
 import type { AnalysisEntry } from "./document-analysis-cache";
 import type { TypeResolver } from "../ts/type-resolver";
@@ -146,12 +147,12 @@ export interface CallSiteResolverContext {
 
 /**
  * Build the `CallSite[]` list the reverse index consumes from the
- * document's unified `classRefs`.
+ * document's source-expression HIR.
  *
- * When `ctx` is provided, template and variable cx() refs are
+ * When `ctx` is provided, template and symbol-ref cx() refs are
  * EXPANDED into individual static-keyed entries so Find References
  * can locate them. Without `ctx`, only direct static entries land
- * in the index (template/variable kinds are recorded but cannot be
+ * in the index (template/symbol kinds are recorded but cannot be
  * looked up by className).
  */
 export function collectCallSites(
@@ -160,19 +161,28 @@ export function collectCallSites(
   ctx?: CallSiteResolverContext,
 ): CallSite[] {
   const sites: CallSite[] = [];
-  for (const ref of entry.classRefs) {
-    const base: CallSiteBase = { uri, range: ref.originRange, scssModulePath: ref.scssModulePath };
-    switch (ref.kind) {
-      case "static": {
+  for (const expression of entry.sourceDocument.classExpressions) {
+    const base: CallSiteBase = {
+      uri,
+      range: expression.range,
+      scssModulePath: expression.scssModulePath,
+    };
+    switch (expression.kind) {
+      case "literal":
+      case "styleAccess": {
         // Native static token: the user literally wrote this class
         // name. Applies to both cxCall (`cx('btn')`) and styleAccess
         // (`styles.btn`) origins. Resolve the canonical SCSS name
         // via classMap lookup so alias-form access points at the
         // same reverse-index bucket as the original form.
-        const canonicalName = resolveCanonicalName(ctx, ref.scssModulePath, ref.className);
+        const canonicalName = resolveCanonicalName(
+          ctx,
+          expression.scssModulePath,
+          expression.className,
+        );
         sites.push({
           ...base,
-          match: { kind: "static", className: ref.className, canonicalName },
+          match: { kind: "static", className: expression.className, canonicalName },
           expansion: "direct",
         });
         break;
@@ -180,27 +190,27 @@ export function collectCallSites(
       case "template":
         sites.push({
           ...base,
-          match: { kind: "template", staticPrefix: ref.staticPrefix },
+          match: { kind: "template", staticPrefix: expression.staticPrefix },
           expansion: "direct",
         });
-        if (ctx) expandTemplateRef(ref, base, ctx, sites);
+        if (ctx) expandTemplateExpression(expression, base, ctx, sites);
         break;
-      case "variable":
+      case "symbolRef":
         sites.push({
           ...base,
-          match: { kind: "variable", variableName: ref.variableName },
+          match: { kind: "variable", variableName: expression.rawReference },
           expansion: "direct",
         });
-        if (ctx) expandVariableRef(ref, base, ctx, sites);
+        if (ctx) expandSymbolExpression(expression, entry, base, ctx, sites);
         break;
       default:
         // Compile-time exhaustiveness check. `satisfies never`
-        // surfaces a new `ClassRef` kind at build time; the
+        // surfaces a new class-expression kind at build time; the
         // `break` ensures a runtime-widened kind (e.g. via a
         // bad JSON deserialization) skips the one bad ref
         // instead of truncating the whole document's call-site
         // list with an early return.
-        ref satisfies never;
+        expression satisfies never;
         break;
     }
   }
@@ -235,16 +245,16 @@ type CallSiteBase = Pick<CallSite, "uri" | "range" | "scssModulePath">;
  * synthesized sites carry the template's origin range, not the
  * literal class token, so rename filters them out.
  */
-function expandTemplateRef(
-  ref: { readonly staticPrefix: string; readonly scssModulePath: string },
+function expandTemplateExpression(
+  expression: { readonly staticPrefix: string; readonly scssModulePath: string },
   base: CallSiteBase,
   ctx: CallSiteResolverContext,
   out: CallSite[],
 ): void {
-  const classMap = ctx.classMapForPath(ref.scssModulePath);
+  const classMap = ctx.classMapForPath(expression.scssModulePath);
   if (!classMap) return;
   for (const [name, info] of classMap) {
-    if (!name.startsWith(ref.staticPrefix)) continue;
+    if (!name.startsWith(expression.staticPrefix)) continue;
     out.push({
       ...base,
       match: { kind: "static", className: name, canonicalName: canonicalNameOf(info) },
@@ -259,15 +269,34 @@ function expandTemplateRef(
  * expansion, each synthesized entry carries the variable's origin
  * range and is flagged `"expanded"`.
  */
-function expandVariableRef(
-  ref: { readonly variableName: string; readonly scssModulePath: string },
+function expandSymbolExpression(
+  expression: {
+    readonly scssModulePath: string;
+    readonly rawReference: string;
+    readonly rootName: string;
+  },
+  entry: AnalysisEntry,
   base: CallSiteBase,
   ctx: CallSiteResolverContext,
   out: CallSite[],
 ): void {
-  const resolved = ctx.typeResolver.resolve(ctx.filePath, ref.variableName, ctx.workspaceRoot);
-  if (resolved.kind !== "union") return;
-  const classMap = ctx.classMapForPath(ref.scssModulePath);
+  const resolved = resolveSymbolExpressionValues(
+    entry.sourceFile,
+    {
+      ...expression,
+      kind: "symbolRef",
+      id: "__reverse-index__",
+      origin: "cxCall",
+      pathSegments:
+        expression.rawReference === expression.rootName
+          ? []
+          : expression.rawReference.split(".").slice(1),
+      range: base.range,
+    },
+    ctx,
+  );
+  if (!resolved) return;
+  const classMap = ctx.classMapForPath(expression.scssModulePath);
   for (const value of resolved.values) {
     const canonicalName = classMap?.get(value)?.originalName ?? value;
     out.push({

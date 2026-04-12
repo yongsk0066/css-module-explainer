@@ -6,6 +6,7 @@ import {
   WorkspaceReverseIndex,
 } from "../../../server/src/core/indexing/reverse-index";
 import type { AnalysisEntry } from "../../../server/src/core/indexing/document-analysis-cache";
+import { buildSourceDocumentFromLegacy } from "../../../server/src/core/hir/builders/ts-source-adapter";
 import ts from "typescript";
 
 function makeCallSite(): CallSite {
@@ -202,15 +203,7 @@ describe("collectCallSites / styleAccess ClassRef entries", () => {
         end: { line: 5, character: 19 },
       },
     };
-    const entry: AnalysisEntry = {
-      version: 1,
-      contentHash: "abc",
-      sourceFile,
-      bindings: [],
-      classRefs: [styleRef],
-      stylesBindings: new Map(),
-      classUtilNames: [],
-    };
+    const entry = makeEntry(sourceFile, [], [styleRef]);
 
     const sites = collectCallSites("file:///fake/a.tsx", entry);
 
@@ -232,12 +225,10 @@ describe("collectCallSites / styleAccess ClassRef entries", () => {
       classNamesImportName: "classNames",
       scope: { startLine: 0, endLine: 100 },
     };
-    const entry: AnalysisEntry = {
-      version: 1,
-      contentHash: "abc",
+    const entry = makeEntry(
       sourceFile,
-      bindings: [binding],
-      classRefs: [
+      [binding],
+      [
         {
           kind: "static",
           origin: "cxCall",
@@ -253,9 +244,7 @@ describe("collectCallSites / styleAccess ClassRef entries", () => {
           originRange: { start: { line: 7, character: 10 }, end: { line: 7, character: 19 } },
         },
       ],
-      stylesBindings: new Map(),
-      classUtilNames: [],
-    };
+    );
 
     const sites = collectCallSites("file:///fake/a.tsx", entry);
 
@@ -269,12 +258,10 @@ describe("collectCallSites / styleAccess ClassRef entries", () => {
 
   it("reverse index find() returns styleAccess sites", () => {
     const sourceFile = ts.createSourceFile("test.tsx", "", ts.ScriptTarget.Latest, true);
-    const entry: AnalysisEntry = {
-      version: 1,
-      contentHash: "abc",
+    const entry = makeEntry(
       sourceFile,
-      bindings: [],
-      classRefs: [
+      [],
+      [
         {
           kind: "static",
           origin: "styleAccess",
@@ -283,9 +270,7 @@ describe("collectCallSites / styleAccess ClassRef entries", () => {
           originRange: { start: { line: 2, character: 5 }, end: { line: 2, character: 8 } },
         },
       ],
-      stylesBindings: new Map(),
-      classUtilNames: [],
-    };
+    );
 
     const sites = collectCallSites("file:///fake/a.tsx", entry);
     const index = new WorkspaceReverseIndex();
@@ -298,3 +283,25 @@ describe("collectCallSites / styleAccess ClassRef entries", () => {
     expect(found[0]!.range.start.line).toBe(2);
   });
 });
+
+function makeEntry(
+  sourceFile: ts.SourceFile,
+  bindings: readonly CxBinding[],
+  classRefs: readonly ClassRef[],
+): AnalysisEntry {
+  return {
+    version: 1,
+    contentHash: "abc",
+    sourceFile,
+    bindings,
+    sourceDocument: buildSourceDocumentFromLegacy({
+      filePath: sourceFile.fileName,
+      bindings,
+      stylesBindings: new Map(),
+      classUtilNames: [],
+      classRefs,
+    }),
+    stylesBindings: new Map(),
+    classUtilNames: [],
+  };
+}

@@ -2,7 +2,6 @@ import * as nodeUrl from "node:url";
 import type ts from "typescript";
 import type { ClassRef, CxBinding, StyleImport } from "@css-module-explainer/shared";
 import { buildSourceDocumentFromLegacy } from "../hir/builders/ts-source-adapter";
-import { sourceDocumentToLegacyClassRefs } from "../hir/compat/source-document-compat";
 import type { SourceDocumentHIR } from "../hir/source-types";
 import { contentHash } from "../util/hash";
 import { LruMap } from "../util/lru-map";
@@ -23,12 +22,6 @@ export interface AnalysisEntry {
   readonly contentHash: string;
   readonly sourceFile: ts.SourceFile;
   readonly bindings: readonly CxBinding[];
-  /**
-   * Unified class-reference list. Produced by `parseClassRefs` —
-   * covers both cx() call arguments (`origin: "cxCall"`) and
-   * direct `styles.x` property access (`origin: "styleAccess"`).
-   */
-  readonly classRefs: readonly ClassRef[];
   /**
    * Document-level source HIR derived from the current scan/parser
    * outputs. Providers still receive compatibility views from the
@@ -207,14 +200,12 @@ export class DocumentAnalysisCache {
       classUtilNames,
       classRefs: parsedClassRefs,
     });
-    const classRefs = sourceDocumentToLegacyClassRefs(sourceDocument);
 
     return {
       version,
       contentHash: hash,
       sourceFile,
       bindings,
-      classRefs,
       sourceDocument,
       stylesBindings,
       classUtilNames,

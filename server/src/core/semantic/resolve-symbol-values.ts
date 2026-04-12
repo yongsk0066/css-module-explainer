@@ -1,5 +1,4 @@
 import type ts from "typescript";
-import type { ClassRef } from "@css-module-explainer/shared";
 import { resolveFlowClassValues } from "../flow/class-value-analysis";
 import type { SymbolRefClassExpressionHIR } from "../hir/source-types";
 import type { FlowResolution } from "../flow/lattice";
@@ -34,22 +33,6 @@ export function resolveSymbolClassValues(
     : null;
 }
 
-export function resolveClassRefSymbolValues(
-  sourceFile: ts.SourceFile,
-  ref: Extract<ClassRef, { kind: "variable" }>,
-  env: SymbolValueResolutionEnv,
-): FlowResolution | null {
-  return resolveSymbolClassValues(
-    {
-      sourceFile,
-      range: ref.originRange,
-      rawReference: ref.variableName,
-      rootName: rootNameOfReference(ref.variableName),
-    },
-    env,
-  );
-}
-
 export function resolveSymbolExpressionValues(
   sourceFile: ts.SourceFile,
   ref: SymbolRefClassExpressionHIR,
@@ -64,9 +47,4 @@ export function resolveSymbolExpressionValues(
     },
     env,
   );
-}
-
-function rootNameOfReference(reference: string): string {
-  const firstDot = reference.indexOf(".");
-  return firstDot === -1 ? reference : reference.slice(0, firstDot);
 }

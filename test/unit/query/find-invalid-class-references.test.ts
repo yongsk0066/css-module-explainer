@@ -1,6 +1,7 @@
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
-import type { ClassRef, ScssClassMap } from "@css-module-explainer/shared";
+import type { ScssClassMap } from "@css-module-explainer/shared";
+import type { ClassExpressionHIR } from "../../../server/src/core/hir/source-types";
 import { findInvalidClassReference } from "../../../server/src/core/query/find-invalid-class-references";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
 import { info } from "../../_fixtures/test-helpers";
@@ -16,17 +17,18 @@ describe("findInvalidClassReference", () => {
       true,
       ts.ScriptKind.TSX,
     );
-    const ref: Extract<ClassRef, { kind: "static" }> = {
-      kind: "static",
+    const expression: ClassExpressionHIR = {
+      kind: "literal",
+      id: "expr:literal",
       origin: "cxCall",
       className: "indicaror",
-      originRange: rangeForToken(sourceFile, "indicaror"),
+      range: rangeForToken(sourceFile, "indicaror"),
       scssModulePath: SCSS_PATH,
     };
 
     expect(
       findInvalidClassReference(
-        ref,
+        expression,
         sourceFile,
         new Map([["indicator", info("indicator")]]) as ScssClassMap,
         {
@@ -50,17 +52,20 @@ describe("findInvalidClassReference", () => {
       true,
       ts.ScriptKind.TSX,
     );
-    const ref: Extract<ClassRef, { kind: "variable" }> = {
-      kind: "variable",
+    const expression: ClassExpressionHIR = {
+      kind: "symbolRef",
+      id: "expr:symbol",
       origin: "cxCall",
-      variableName: "size",
-      originRange: rangeForLastToken(sourceFile, "size"),
+      rawReference: "size",
+      rootName: "size",
+      pathSegments: [],
+      range: rangeForLastToken(sourceFile, "size"),
       scssModulePath: SCSS_PATH,
     };
 
     expect(
       findInvalidClassReference(
-        ref,
+        expression,
         sourceFile,
         new Map([["indicator", info("indicator")]]) as ScssClassMap,
         {
@@ -85,17 +90,20 @@ describe("findInvalidClassReference", () => {
       true,
       ts.ScriptKind.TSX,
     );
-    const ref: Extract<ClassRef, { kind: "variable" }> = {
-      kind: "variable",
+    const expression: ClassExpressionHIR = {
+      kind: "symbolRef",
+      id: "expr:symbol",
       origin: "cxCall",
-      variableName: "size",
-      originRange: rangeForToken(sourceFile, "size"),
+      rawReference: "size",
+      rootName: "size",
+      pathSegments: [],
+      range: rangeForToken(sourceFile, "size"),
       scssModulePath: SCSS_PATH,
     };
 
     expect(
       findInvalidClassReference(
-        ref,
+        expression,
         sourceFile,
         new Map([["small", info("small")]]) as ScssClassMap,
         {

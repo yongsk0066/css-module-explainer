@@ -1,5 +1,8 @@
-import type { ClassRef, Range as SharedRange, ScssClassMap } from "@css-module-explainer/shared";
+import type { Range as SharedRange } from "@css-module-explainer/shared";
+import { buildStyleDocumentFromClassMap } from "../core/hir/builders/style-adapter";
 import type { AnalysisEntry } from "../core/indexing/document-analysis-cache";
+import type { ClassExpressionHIR } from "../core/hir/source-types";
+import type { StyleDocumentHIR } from "../core/hir/style-types";
 import type { CursorParams, ProviderDeps } from "./provider-deps";
 
 /**
@@ -16,11 +19,11 @@ export function rangeContains(range: SharedRange, line: number, character: numbe
 }
 
 /**
- * The data every `withClassRefAtCursor` transform receives.
+ * The data every cursor-based semantic provider receives.
  */
-export interface ClassRefContext {
-  readonly ref: ClassRef;
-  readonly classMap: ScssClassMap;
+export interface SourceExpressionContext {
+  readonly expression: ClassExpressionHIR;
+  readonly styleDocument: StyleDocumentHIR;
   readonly entry: AnalysisEntry;
 }
 
@@ -34,17 +37,17 @@ export function hasAnyStyleImport(content: string): boolean {
 }
 
 /**
- * Unified front stage for every cursor-based provider.
+ * Unified front stage for every source-expression-based provider.
  *
- * Searches `entry.classRefs` for the ref whose `originRange`
- * contains the cursor, resolves the backing classMap, and hands
- * `{ ref, classMap, entry }` to the transform. Providers branch
- * on `ctx.ref.kind` and `ctx.ref.origin` as needed.
+ * Searches `entry.sourceDocument.classExpressions` for the
+ * expression whose source range contains the cursor, resolves the
+ * backing style document, and hands `{ expression, styleDocument,
+ * entry }` to the transform.
  */
-export function withClassRefAtCursor<T>(
+export function withSourceExpressionAtCursor<T>(
   params: CursorParams,
   deps: ProviderDeps,
-  transform: (ctx: ClassRefContext) => T | null,
+  transform: (ctx: SourceExpressionContext) => T | null,
 ): T | null {
   if (!hasAnyStyleImport(params.content)) return null;
 
@@ -54,15 +57,25 @@ export function withClassRefAtCursor<T>(
     params.filePath,
     params.version,
   );
-  if (entry.classRefs.length === 0) return null;
+  if (entry.sourceDocument.classExpressions.length === 0) return null;
 
-  const ref = entry.classRefs.find((r) =>
-    rangeContains(r.originRange, params.line, params.character),
+  const expression = entry.sourceDocument.classExpressions.find((candidate) =>
+    rangeContains(candidate.range, params.line, params.character),
   );
-  if (!ref) return null;
+  if (!expression) return null;
 
-  const classMap = deps.scssClassMapForPath(ref.scssModulePath);
-  if (!classMap) return null;
+  const styleDocument = resolveStyleDocument(deps, expression.scssModulePath);
+  if (!styleDocument) return null;
 
-  return transform({ ref, classMap, entry }) ?? null;
+  return transform({ expression, styleDocument, entry }) ?? null;
 }
+
+function resolveStyleDocument(deps: ProviderDeps, scssModulePath: string): StyleDocumentHIR | null {
+  const styleDocument = deps.styleDocumentForPath(scssModulePath);
+  if (styleDocument) return styleDocument;
+
+  const classMap = deps.scssClassMapForPath(scssModulePath);
+  return classMap ? buildStyleDocumentFromClassMap(scssModulePath, classMap) : null;
+}
+
+export type { CursorParams, ProviderDeps } from "./provider-deps";

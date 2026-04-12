@@ -1,18 +1,15 @@
 import { describe, expect, it } from "vitest";
-import type {
-  StaticClassRef,
-  TemplateClassRef,
-  VariableClassRef,
-} from "@css-module-explainer/shared";
+import type { ClassExpressionHIR } from "../../../server/src/core/hir/source-types";
+import type { SelectorDeclHIR } from "../../../server/src/core/hir/style-types";
 import { renderHover } from "../../../server/src/providers/hover-renderer";
-import { infoWithDeclarations as info } from "../../_fixtures/test-helpers";
 
 const SCSS_PATH = "/fake/ws/src/Button.module.scss";
 
-const staticRef: StaticClassRef = {
-  kind: "static",
+const staticExpression: ClassExpressionHIR = {
+  kind: "literal",
+  id: "expr:literal",
   className: "indicator",
-  originRange: {
+  range: {
     start: { line: 4, character: 15 },
     end: { line: 4, character: 24 },
   },
@@ -20,11 +17,12 @@ const staticRef: StaticClassRef = {
   origin: "cxCall",
 };
 
-const templateRef: TemplateClassRef = {
+const templateExpression: ClassExpressionHIR = {
   kind: "template",
+  id: "expr:template",
   rawTemplate: "btn-${variant}",
   staticPrefix: "btn-",
-  originRange: {
+  range: {
     start: { line: 4, character: 15 },
     end: { line: 4, character: 28 },
   },
@@ -32,10 +30,13 @@ const templateRef: TemplateClassRef = {
   origin: "cxCall",
 };
 
-const variableRef: VariableClassRef = {
-  kind: "variable",
-  variableName: "size",
-  originRange: {
+const symbolExpression: ClassExpressionHIR = {
+  kind: "symbolRef",
+  id: "expr:symbol",
+  rawReference: "size",
+  rootName: "size",
+  pathSegments: [],
+  range: {
     start: { line: 4, character: 15 },
     end: { line: 4, character: 19 },
   },
@@ -43,13 +44,29 @@ const variableRef: VariableClassRef = {
   origin: "cxCall",
 };
 
+function selector(name: string, line: number, declarations: string): SelectorDeclHIR {
+  return {
+    kind: "selector",
+    id: `selector:${name}:${line}`,
+    name,
+    canonicalName: name,
+    viewKind: "canonical",
+    range: { start: { line, character: 2 }, end: { line, character: 2 + name.length } },
+    fullSelector: `.${name}`,
+    declarations,
+    ruleRange: { start: { line, character: 0 }, end: { line: line + 3, character: 1 } },
+    composes: [],
+    nestedSafety: "flat",
+  };
+}
+
 describe("renderHover", () => {
-  it("returns null when no infos match", () => {
+  it("returns null when no selectors match", () => {
     expect(
       renderHover({
-        ref: staticRef,
+        expression: staticExpression,
         scssModulePath: SCSS_PATH,
-        infos: [],
+        selectors: [],
         workspaceRoot: "/fake/ws",
       }),
     ).toBeNull();
@@ -57,9 +74,9 @@ describe("renderHover", () => {
 
   it("renders a single-match card with workspace-relative location", () => {
     const markdown = renderHover({
-      ref: staticRef,
+      expression: staticExpression,
       scssModulePath: SCSS_PATH,
-      infos: [info("indicator", 11, "color: red; font-size: 14px")],
+      selectors: [selector("indicator", 11, "color: red; font-size: 14px")],
       workspaceRoot: "/fake/ws",
     });
     expect(markdown).toContain("**`.indicator`**");
@@ -71,9 +88,12 @@ describe("renderHover", () => {
 
   it("renders a multi-match template card", () => {
     const markdown = renderHover({
-      ref: templateRef,
+      expression: templateExpression,
       scssModulePath: SCSS_PATH,
-      infos: [info("btn-primary", 10, "color: white"), info("btn-secondary", 14, "color: gray")],
+      selectors: [
+        selector("btn-primary", 10, "color: white"),
+        selector("btn-secondary", 14, "color: gray"),
+      ],
       workspaceRoot: "/fake/ws",
     });
     expect(markdown).toContain("**2 matches** for `cx(");
@@ -85,20 +105,23 @@ describe("renderHover", () => {
 
   it("renders a multi-match variable card", () => {
     const markdown = renderHover({
-      ref: variableRef,
+      expression: symbolExpression,
       scssModulePath: SCSS_PATH,
-      infos: [info("small", 10, "font-size: 12px"), info("medium", 14, "font-size: 16px")],
+      selectors: [
+        selector("small", 10, "font-size: 12px"),
+        selector("medium", 14, "font-size: 16px"),
+      ],
       workspaceRoot: "/fake/ws",
     });
     expect(markdown).toContain("**2 matches** for `cx(size)`");
   });
 
   it("caps multi-match at MAX_CANDIDATES=10 with a tail summary", () => {
-    const many = Array.from({ length: 15 }, (_, i) => info(`item-${i}`, i + 1, "color: red"));
+    const many = Array.from({ length: 15 }, (_, i) => selector(`item-${i}`, i + 1, "color: red"));
     const markdown = renderHover({
-      ref: templateRef,
+      expression: templateExpression,
       scssModulePath: SCSS_PATH,
-      infos: many,
+      selectors: many,
       workspaceRoot: "/fake/ws",
     });
     expect(markdown).toContain("**15 matches**");
@@ -111,9 +134,9 @@ describe("renderHover", () => {
 
   it("falls back to the raw scss path when workspaceRoot equals scssModulePath", () => {
     const markdown = renderHover({
-      ref: staticRef,
+      expression: staticExpression,
       scssModulePath: "/same",
-      infos: [info("only", 3, "color: red")],
+      selectors: [selector("only", 3, "color: red")],
       workspaceRoot: "/same",
     });
     // relative("/same", "/same") === "" → fallback to raw path
@@ -122,9 +145,9 @@ describe("renderHover", () => {
 
   it("handles an empty declarations string with empty braces", () => {
     const markdown = renderHover({
-      ref: staticRef,
+      expression: staticExpression,
       scssModulePath: SCSS_PATH,
-      infos: [info("empty", 5, "")],
+      selectors: [selector("empty", 5, "")],
       workspaceRoot: "/fake/ws",
     });
     expect(markdown).toContain(".empty {}");

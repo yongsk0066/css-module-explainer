@@ -15,7 +15,7 @@ import type { DocumentParams, ProviderDeps } from "./provider-deps";
  * `onDidChangeContent` (debounced) and pipes the result into
  * `connection.sendDiagnostics(...)`.
  *
- * Iterates every cached ClassRef whose origin is `cxCall` in the
+ * Iterates every cached class expression whose origin is `cxCall` in the
  * document's analysis entry, classifies each, and emits a
  * Diagnostic for unresolved / missing class names. Returns [] for
  * clean documents — caller MUST still publish to clear prior
@@ -71,18 +71,20 @@ export const computeDiagnostics = wrapHandler<
     // covered by TypeScript's own type checker.
     if (!params.content.includes("classnames/bind")) return diagnostics;
 
-    const cxRefs = entry.classRefs.filter((r) => r.origin === "cxCall");
-    if (cxRefs.length === 0) return diagnostics;
+    const cxExpressions = entry.sourceDocument.classExpressions.filter(
+      (expression) => expression.origin === "cxCall",
+    );
+    if (cxExpressions.length === 0) return diagnostics;
 
     // Per-ref isolation: a single throwing ref (e.g. a malformed
     // binding or a misbehaving TypeResolver entry) must NOT erase
     // every other diagnostic in the same document. The "log +
     // return empty result" boundary applies per-ref, not per-file.
-    for (const ref of cxRefs) {
+    for (const expression of cxExpressions) {
       try {
-        const classMap = deps.scssClassMapForPath(ref.scssModulePath);
+        const classMap = deps.scssClassMapForPath(expression.scssModulePath);
         if (!classMap) continue;
-        const finding = findInvalidClassReference(ref, entry.sourceFile, classMap, {
+        const finding = findInvalidClassReference(expression, entry.sourceFile, classMap, {
           typeResolver: deps.typeResolver,
           filePath: params.filePath,
           workspaceRoot: deps.workspaceRoot,
@@ -114,7 +116,7 @@ function toDiagnostic(
         range,
         severity,
         source: DIAGNOSTIC_SOURCE,
-        message: `Class '.${finding.ref.className}' not found in ${relativeScss(finding.ref.scssModulePath, deps.workspaceRoot)}.${hint}`,
+        message: `Class '.${finding.expression.className}' not found in ${relativeScss(finding.expression.scssModulePath, deps.workspaceRoot)}.${hint}`,
         data: finding.suggestion ? { suggestion: finding.suggestion } : undefined,
       };
     }
@@ -123,7 +125,7 @@ function toDiagnostic(
         range,
         severity,
         source: DIAGNOSTIC_SOURCE,
-        message: `No class starting with '${finding.ref.staticPrefix}' found in ${relativeScss(finding.ref.scssModulePath, deps.workspaceRoot)}.`,
+        message: `No class starting with '${finding.expression.staticPrefix}' found in ${relativeScss(finding.expression.scssModulePath, deps.workspaceRoot)}.`,
       };
     case "missingResolvedClassValues":
       return {
