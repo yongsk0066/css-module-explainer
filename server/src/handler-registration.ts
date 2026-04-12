@@ -87,6 +87,8 @@ function registerSettingsHandler(state: HandlerState): () => void {
         // unused-selector diagnostic stale under the prior mode.
         if (aliasChanged || modeChanged) {
           deps.analysisCache.clear();
+          deps.reverseIndex.clear();
+          deps.semanticReferenceIndex.clear();
           for (const doc of state.ctx.documents.all()) {
             const filePath = fileUrlToPath(doc.uri);
             if (findLangForPath(filePath)) {
