@@ -1,25 +1,24 @@
 import type { LocationLink } from "vscode-languageserver/node";
-import type { Range, SelectorInfo } from "@css-module-explainer/shared";
-import { resolveClassRefContext } from "../core/cx/call-resolver";
+import type { Range } from "@css-module-explainer/shared";
+import { findDefinitionSelectors } from "../core/query/find-definitions";
+import type { SelectorDeclHIR } from "../core/hir/style-types";
 import { pathToFileUrl } from "../core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
 import { wrapHandler } from "./_wrap-handler";
-import { withClassRefAtCursor, type ClassRefContext } from "./cursor-dispatch";
+import { withSourceExpressionAtCursor, type SourceExpressionContext } from "./cursor-dispatch";
 import type { CursorParams, ProviderDeps } from "./provider-deps";
 
 /**
- * Handle `textDocument/definition` for any ClassRef under the
+ * Handle `textDocument/definition` for any class expression under the
  * cursor.
  *
- * Dispatches through the unified `withClassRefAtCursor` front
- * stage and branches on `ctx.ref.kind`:
+ * Dispatches through the unified expression cursor stage and
+ * resolves selector targets through the shared ref
+ * query. Each target becomes a `LocationLink`, which lets VS Code
+ * offer multi-match selection when a ref resolves to more than one
+ * selector.
  *
- *   - `static`  — single classMap lookup, emits 0 or 1 link.
- *   - `template`/`variable` — delegates to
- *     `resolveClassRefContext` and emits one link per
- *     candidate (multi-match auto-picker in VS Code).
- *
- * Each `SelectorInfo` becomes a `LocationLink`:
+ * Each selector becomes a `LocationLink`:
  *   - `originSelectionRange` — the class token in source (drives
  *     the underline on the click target)
  *   - `targetUri`            — `file://` URL of the SCSS module
@@ -32,30 +31,38 @@ import type { CursorParams, ProviderDeps } from "./provider-deps";
  */
 export const handleDefinition = wrapHandler<CursorParams, [], LocationLink[] | null>(
   "definition",
-  (params, deps) => withClassRefAtCursor(params, deps, (ctx) => buildLinks(ctx, params, deps)),
+  (params, deps) =>
+    withSourceExpressionAtCursor(params, deps, (ctx) => buildLinks(ctx, params, deps)),
   null,
 );
 
 function buildLinks(
-  ctx: ClassRefContext,
+  ctx: SourceExpressionContext,
   params: CursorParams,
   deps: ProviderDeps,
 ): LocationLink[] | null {
-  const infos = resolveClassRefContext(ctx, {
+  const selectors = findDefinitionSelectors(ctx, {
+    styleDocumentForPath: deps.styleDocumentForPath,
     typeResolver: deps.typeResolver,
     filePath: params.filePath,
     workspaceRoot: deps.workspaceRoot,
   });
-  if (infos.length === 0) return null;
-  const targetUri = pathToFileUrl(ctx.ref.scssModulePath);
-  return infos.map<LocationLink>((info) => toLocationLink(ctx.ref.originRange, targetUri, info));
+  if (selectors.length === 0) return null;
+  const targetUri = pathToFileUrl(ctx.expression.scssModulePath);
+  return selectors.map<LocationLink>((selector) =>
+    toLocationLink(ctx.expression.range, targetUri, selector),
+  );
 }
 
-function toLocationLink(originRange: Range, targetUri: string, info: SelectorInfo): LocationLink {
+function toLocationLink(
+  originRange: Range,
+  targetUri: string,
+  selector: SelectorDeclHIR,
+): LocationLink {
   return {
     originSelectionRange: toLspRange(originRange),
     targetUri,
-    targetRange: toLspRange(info.ruleRange),
-    targetSelectionRange: toLspRange(info.range),
+    targetRange: toLspRange(selector.ruleRange),
+    targetSelectionRange: toLspRange(selector.range),
   };
 }

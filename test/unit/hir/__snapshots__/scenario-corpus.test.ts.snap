@@ -1,0 +1,1193 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`HIR scenario corpus / source > 01-basic builds stable source HIR snapshots 1`] = `
+{
+  "classExpressions": [
+    {
+      "className": "button",
+      "kind": "literal",
+      "origin": "cxCall",
+      "range": [
+        25,
+        25,
+        25,
+        31,
+      ],
+      "scssModulePath": "examples/src/scenarios/01-basic/Button.module.scss",
+    },
+    {
+      "className": "primary",
+      "kind": "literal",
+      "origin": "cxCall",
+      "range": [
+        25,
+        35,
+        25,
+        42,
+      ],
+      "scssModulePath": "examples/src/scenarios/01-basic/Button.module.scss",
+    },
+    {
+      "kind": "symbolRef",
+      "origin": "cxCall",
+      "pathSegments": [],
+      "range": [
+        25,
+        45,
+        25,
+        49,
+      ],
+      "rawReference": "size",
+      "rootName": "size",
+      "scssModulePath": "examples/src/scenarios/01-basic/Button.module.scss",
+    },
+    {
+      "className": "disabled",
+      "kind": "literal",
+      "origin": "cxCall",
+      "range": [
+        25,
+        53,
+        25,
+        61,
+      ],
+      "scssModulePath": "examples/src/scenarios/01-basic/Button.module.scss",
+    },
+    {
+      "className": "button",
+      "kind": "literal",
+      "origin": "cxCall",
+      "range": [
+        30,
+        45,
+        30,
+        51,
+      ],
+      "scssModulePath": "examples/src/scenarios/01-basic/Button.module.scss",
+    },
+    {
+      "className": "secondary",
+      "kind": "literal",
+      "origin": "cxCall",
+      "range": [
+        30,
+        55,
+        30,
+        64,
+      ],
+      "scssModulePath": "examples/src/scenarios/01-basic/Button.module.scss",
+    },
+    {
+      "kind": "symbolRef",
+      "origin": "cxCall",
+      "pathSegments": [],
+      "range": [
+        30,
+        67,
+        30,
+        71,
+      ],
+      "rawReference": "size",
+      "rootName": "size",
+      "scssModulePath": "examples/src/scenarios/01-basic/Button.module.scss",
+    },
+    {
+      "className": "button",
+      "kind": "literal",
+      "origin": "cxCall",
+      "range": [
+        35,
+        25,
+        35,
+        31,
+      ],
+      "scssModulePath": "examples/src/scenarios/01-basic/Button.module.scss",
+    },
+    {
+      "className": "primary",
+      "kind": "literal",
+      "origin": "cxCall",
+      "range": [
+        35,
+        35,
+        35,
+        42,
+      ],
+      "scssModulePath": "examples/src/scenarios/01-basic/Button.module.scss",
+    },
+    {
+      "className": "lg",
+      "kind": "literal",
+      "origin": "cxCall",
+      "range": [
+        35,
+        46,
+        35,
+        48,
+      ],
+      "scssModulePath": "examples/src/scenarios/01-basic/Button.module.scss",
+    },
+    {
+      "className": "disabledStripes",
+      "kind": "literal",
+      "origin": "cxCall",
+      "range": [
+        35,
+        64,
+        35,
+        79,
+      ],
+      "scssModulePath": "examples/src/scenarios/01-basic/Button.module.scss",
+    },
+  ],
+  "filePath": "examples/src/scenarios/01-basic/BasicScenario.tsx",
+  "language": "typescriptreact",
+  "styleImports": [
+    {
+      "kind": "styleImport",
+      "localName": "styles",
+      "resolved": {
+        "absolutePath": "examples/src/scenarios/01-basic/Button.module.scss",
+        "kind": "resolved",
+      },
+    },
+  ],
+  "utilityBindings": [
+    {
+      "classNamesImportName": "classNames",
+      "kind": "classnamesBind",
+      "localName": "cx",
+      "scope": {
+        "endLine": 58,
+        "startLine": 0,
+      },
+      "scssModulePath": "examples/src/scenarios/01-basic/Button.module.scss",
+      "stylesLocalName": "styles",
+    },
+  ],
+}
+`;
+
+exports[`HIR scenario corpus / source > 02-multi-binding builds stable source HIR snapshots 1`] = `
+{
+  "classExpressions": [
+    {
+      "className": "card",
+      "kind": "literal",
+      "origin": "cxCall",
+      "range": [
+        30,
+        32,
+        30,
+        36,
+      ],
+      "scssModulePath": "examples/src/scenarios/02-multi-binding/Card.module.scss",
+    },
+    {
+      "className": "elevated",
+      "kind": "literal",
+      "origin": "cxCall",
+      "range": [
+        30,
+        40,
+        30,
+        48,
+      ],
+      "scssModulePath": "examples/src/scenarios/02-multi-binding/Card.module.scss",
+    },
+    {
+      "className": "cardHeader",
+      "kind": "literal",
+      "origin": "cxCall",
+      "range": [
+        31,
+        33,
+        31,
+        43,
+      ],
+      "scssModulePath": "examples/src/scenarios/02-multi-binding/Card.module.scss",
+    },
+    {
+      "className": "cardTitle",
+      "kind": "literal",
+      "origin": "cxCall",
+      "range": [
+        32,
+        31,
+        32,
+        40,
+      ],
+      "scssModulePath": "examples/src/scenarios/02-multi-binding/Card.module.scss",
+    },
+    {
+      "className": "cardBody",
+      "kind": "literal",
+      "origin": "cxCall",
+      "range": [
+        34,
+        30,
+        34,
+        38,
+      ],
+      "scssModulePath": "examples/src/scenarios/02-multi-binding/Card.module.scss",
+    },
+    {
+      "className": "cardFooter",
+      "kind": "literal",
+      "origin": "cxCall",
+      "range": [
+        40,
+        33,
+        40,
+        43,
+      ],
+      "scssModulePath": "examples/src/scenarios/02-multi-binding/Card.module.scss",
+    },
+    {
+      "className": "button",
+      "kind": "literal",
+      "origin": "cxCall",
+      "range": [
+        41,
+        51,
+        41,
+        57,
+      ],
+      "scssModulePath": "examples/src/scenarios/02-multi-binding/Button.module.scss",
+    },
+    {
+      "className": "primary",
+      "kind": "literal",
+      "origin": "cxCall",
+      "range": [
+        41,
+        61,
+        41,
+        68,
+      ],
+      "scssModulePath": "examples/src/scenarios/02-multi-binding/Button.module.scss",
+    },
+    {
+      "className": "button",
+      "kind": "literal",
+      "origin": "cxCall",
+      "range": [
+        44,
+        51,
+        44,
+        57,
+      ],
+      "scssModulePath": "examples/src/scenarios/02-multi-binding/Button.module.scss",
+    },
+    {
+      "className": "secondary",
+      "kind": "literal",
+      "origin": "cxCall",
+      "range": [
+        44,
+        61,
+        44,
+        70,
+      ],
+      "scssModulePath": "examples/src/scenarios/02-multi-binding/Button.module.scss",
+    },
+  ],
+  "filePath": "examples/src/scenarios/02-multi-binding/MultiBindingScenario.tsx",
+  "language": "typescriptreact",
+  "styleImports": [
+    {
+      "kind": "styleImport",
+      "localName": "cardStyles",
+      "resolved": {
+        "absolutePath": "examples/src/scenarios/02-multi-binding/Card.module.scss",
+        "kind": "resolved",
+      },
+    },
+    {
+      "kind": "styleImport",
+      "localName": "buttonStyles",
+      "resolved": {
+        "absolutePath": "examples/src/scenarios/02-multi-binding/Button.module.scss",
+        "kind": "resolved",
+      },
+    },
+  ],
+  "utilityBindings": [
+    {
+      "classNamesImportName": "classNames",
+      "kind": "classnamesBind",
+      "localName": "cxCard",
+      "scope": {
+        "endLine": 51,
+        "startLine": 0,
+      },
+      "scssModulePath": "examples/src/scenarios/02-multi-binding/Card.module.scss",
+      "stylesLocalName": "cardStyles",
+    },
+    {
+      "classNamesImportName": "classNames",
+      "kind": "classnamesBind",
+      "localName": "cxButton",
+      "scope": {
+        "endLine": 51,
+        "startLine": 0,
+      },
+      "scssModulePath": "examples/src/scenarios/02-multi-binding/Button.module.scss",
+      "stylesLocalName": "buttonStyles",
+    },
+  ],
+}
+`;
+
+exports[`HIR scenario corpus / source > 02-style-access builds stable source HIR snapshots 1`] = `
+{
+  "classExpressions": [
+    {
+      "accessPath": [
+        "button",
+      ],
+      "className": "button",
+      "kind": "styleAccess",
+      "origin": "styleAccess",
+      "range": [
+        17,
+        27,
+        17,
+        33,
+      ],
+      "scssModulePath": "examples/src/scenarios/02-multi-binding/Button.module.scss",
+    },
+    {
+      "accessPath": [
+        "buttonPrimary",
+      ],
+      "className": "buttonPrimary",
+      "kind": "styleAccess",
+      "origin": "styleAccess",
+      "range": [
+        18,
+        46,
+        18,
+        59,
+      ],
+      "scssModulePath": "examples/src/scenarios/02-multi-binding/Button.module.scss",
+    },
+  ],
+  "filePath": "examples/src/scenarios/02-multi-binding/StyleAccessDemo.tsx",
+  "language": "typescriptreact",
+  "styleImports": [
+    {
+      "kind": "styleImport",
+      "localName": "styles",
+      "resolved": {
+        "absolutePath": "examples/src/scenarios/02-multi-binding/Button.module.scss",
+        "kind": "resolved",
+      },
+    },
+  ],
+  "utilityBindings": [],
+}
+`;
+
+exports[`HIR scenario corpus / source > 04-dynamic builds stable source HIR snapshots 1`] = `
+{
+  "classExpressions": [
+    {
+      "kind": "template",
+      "origin": "cxCall",
+      "range": [
+        20,
+        58,
+        20,
+        74,
+      ],
+      "rawTemplate": "\`btn-\${variant}\`",
+      "scssModulePath": "examples/src/scenarios/04-dynamic/DynamicKeys.module.scss",
+      "staticPrefix": "btn-",
+    },
+  ],
+  "filePath": "examples/src/scenarios/04-dynamic/DynamicScenario.tsx",
+  "language": "typescriptreact",
+  "styleImports": [
+    {
+      "kind": "styleImport",
+      "localName": "styles",
+      "resolved": {
+        "absolutePath": "examples/src/scenarios/04-dynamic/DynamicKeys.module.scss",
+        "kind": "resolved",
+      },
+    },
+  ],
+  "utilityBindings": [
+    {
+      "classNamesImportName": "classNames",
+      "kind": "classnamesBind",
+      "localName": "cx",
+      "scope": {
+        "endLine": 27,
+        "startLine": 0,
+      },
+      "scssModulePath": "examples/src/scenarios/04-dynamic/DynamicKeys.module.scss",
+      "stylesLocalName": "styles",
+    },
+  ],
+}
+`;
+
+exports[`HIR scenario corpus / source > 10-clsx builds stable source HIR snapshots 1`] = `
+{
+  "classExpressions": [
+    {
+      "accessPath": [
+        "btn",
+      ],
+      "className": "btn",
+      "kind": "styleAccess",
+      "origin": "styleAccess",
+      "range": [
+        27,
+        33,
+        27,
+        36,
+      ],
+      "scssModulePath": "examples/src/scenarios/10-clsx/Clsx.module.scss",
+    },
+    {
+      "accessPath": [
+        "primary",
+      ],
+      "className": "primary",
+      "kind": "styleAccess",
+      "origin": "styleAccess",
+      "range": [
+        27,
+        45,
+        27,
+        52,
+      ],
+      "scssModulePath": "examples/src/scenarios/10-clsx/Clsx.module.scss",
+    },
+    {
+      "accessPath": [
+        "active",
+      ],
+      "className": "active",
+      "kind": "styleAccess",
+      "origin": "styleAccess",
+      "range": [
+        27,
+        73,
+        27,
+        79,
+      ],
+      "scssModulePath": "examples/src/scenarios/10-clsx/Clsx.module.scss",
+    },
+    {
+      "accessPath": [
+        "btn",
+      ],
+      "className": "btn",
+      "kind": "styleAccess",
+      "origin": "styleAccess",
+      "range": [
+        34,
+        33,
+        34,
+        36,
+      ],
+      "scssModulePath": "examples/src/scenarios/10-clsx/Clsx.module.scss",
+    },
+    {
+      "accessPath": [
+        "secondary",
+      ],
+      "className": "secondary",
+      "kind": "styleAccess",
+      "origin": "styleAccess",
+      "range": [
+        34,
+        45,
+        34,
+        54,
+      ],
+      "scssModulePath": "examples/src/scenarios/10-clsx/Clsx.module.scss",
+    },
+    {
+      "accessPath": [
+        "active",
+      ],
+      "className": "active",
+      "kind": "styleAccess",
+      "origin": "styleAccess",
+      "range": [
+        34,
+        75,
+        34,
+        81,
+      ],
+      "scssModulePath": "examples/src/scenarios/10-clsx/Clsx.module.scss",
+    },
+    {
+      "accessPath": [
+        "btn",
+      ],
+      "className": "btn",
+      "kind": "styleAccess",
+      "origin": "styleAccess",
+      "range": [
+        41,
+        19,
+        41,
+        22,
+      ],
+      "scssModulePath": "examples/src/scenarios/10-clsx/Clsx.module.scss",
+    },
+    {
+      "accessPath": [
+        "primary",
+      ],
+      "className": "primary",
+      "kind": "styleAccess",
+      "origin": "styleAccess",
+      "range": [
+        42,
+        19,
+        42,
+        26,
+      ],
+      "scssModulePath": "examples/src/scenarios/10-clsx/Clsx.module.scss",
+    },
+    {
+      "accessPath": [
+        "lg",
+      ],
+      "className": "lg",
+      "kind": "styleAccess",
+      "origin": "styleAccess",
+      "range": [
+        43,
+        19,
+        43,
+        21,
+      ],
+      "scssModulePath": "examples/src/scenarios/10-clsx/Clsx.module.scss",
+    },
+    {
+      "accessPath": [
+        "disabled",
+      ],
+      "className": "disabled",
+      "kind": "styleAccess",
+      "origin": "styleAccess",
+      "range": [
+        44,
+        33,
+        44,
+        41,
+      ],
+      "scssModulePath": "examples/src/scenarios/10-clsx/Clsx.module.scss",
+    },
+    {
+      "accessPath": [
+        "note",
+      ],
+      "className": "note",
+      "kind": "styleAccess",
+      "origin": "styleAccess",
+      "range": [
+        71,
+        27,
+        71,
+        31,
+      ],
+      "scssModulePath": "examples/src/scenarios/10-clsx/Clsx.module.scss",
+    },
+  ],
+  "filePath": "examples/src/scenarios/10-clsx/ClsxScenario.tsx",
+  "language": "typescriptreact",
+  "styleImports": [
+    {
+      "kind": "styleImport",
+      "localName": "styles",
+      "resolved": {
+        "absolutePath": "examples/src/scenarios/10-clsx/Clsx.module.scss",
+        "kind": "resolved",
+      },
+    },
+  ],
+  "utilityBindings": [
+    {
+      "kind": "classUtil",
+      "localName": "clsx",
+    },
+  ],
+}
+`;
+
+exports[`HIR scenario corpus / style > 01-basic-style builds stable style HIR snapshots 1`] = `
+{
+  "filePath": "examples/src/scenarios/01-basic/Button.module.scss",
+  "selectors": [
+    {
+      "canonicalName": "button",
+      "fullSelector": ".button",
+      "name": "button",
+      "nestedSafety": "flat",
+      "range": [
+        2,
+        1,
+        2,
+        7,
+      ],
+      "ruleRange": [
+        2,
+        0,
+        16,
+        0,
+      ],
+      "viewKind": "canonical",
+    },
+    {
+      "canonicalName": "primary",
+      "fullSelector": ".primary",
+      "name": "primary",
+      "nestedSafety": "flat",
+      "range": [
+        18,
+        1,
+        18,
+        8,
+      ],
+      "ruleRange": [
+        18,
+        0,
+        22,
+        0,
+      ],
+      "viewKind": "canonical",
+    },
+    {
+      "canonicalName": "secondary",
+      "fullSelector": ".secondary",
+      "name": "secondary",
+      "nestedSafety": "flat",
+      "range": [
+        24,
+        1,
+        24,
+        10,
+      ],
+      "ruleRange": [
+        24,
+        0,
+        27,
+        0,
+      ],
+      "viewKind": "canonical",
+    },
+    {
+      "canonicalName": "sm",
+      "fullSelector": ".sm",
+      "name": "sm",
+      "nestedSafety": "flat",
+      "range": [
+        29,
+        1,
+        29,
+        3,
+      ],
+      "ruleRange": [
+        29,
+        0,
+        32,
+        0,
+      ],
+      "viewKind": "canonical",
+    },
+    {
+      "canonicalName": "md",
+      "fullSelector": ".md",
+      "name": "md",
+      "nestedSafety": "flat",
+      "range": [
+        34,
+        1,
+        34,
+        3,
+      ],
+      "ruleRange": [
+        34,
+        0,
+        36,
+        0,
+      ],
+      "viewKind": "canonical",
+    },
+    {
+      "canonicalName": "lg",
+      "fullSelector": ".lg",
+      "name": "lg",
+      "nestedSafety": "flat",
+      "range": [
+        38,
+        1,
+        38,
+        3,
+      ],
+      "ruleRange": [
+        38,
+        0,
+        41,
+        0,
+      ],
+      "viewKind": "canonical",
+    },
+    {
+      "canonicalName": "disabled",
+      "fullSelector": ".disabled",
+      "name": "disabled",
+      "nestedSafety": "flat",
+      "range": [
+        43,
+        1,
+        43,
+        9,
+      ],
+      "ruleRange": [
+        43,
+        0,
+        45,
+        0,
+      ],
+      "viewKind": "canonical",
+    },
+    {
+      "canonicalName": "disabledStripes",
+      "fullSelector": ".disabledStripes",
+      "name": "disabledStripes",
+      "nestedSafety": "flat",
+      "range": [
+        47,
+        1,
+        47,
+        16,
+      ],
+      "ruleRange": [
+        47,
+        0,
+        55,
+        0,
+      ],
+      "viewKind": "canonical",
+    },
+    {
+      "canonicalName": "typoTarget",
+      "fullSelector": ".typoTarget",
+      "name": "typoTarget",
+      "nestedSafety": "flat",
+      "range": [
+        58,
+        1,
+        58,
+        11,
+      ],
+      "ruleRange": [
+        58,
+        0,
+        60,
+        0,
+      ],
+      "viewKind": "canonical",
+    },
+  ],
+}
+`;
+
+exports[`HIR scenario corpus / style > 02-button-camel-case builds stable style HIR snapshots 1`] = `
+{
+  "filePath": "examples/src/scenarios/02-multi-binding/Button.module.scss",
+  "selectors": [
+    {
+      "canonicalName": "button",
+      "fullSelector": ".button",
+      "name": "button",
+      "nestedSafety": "flat",
+      "range": [
+        0,
+        1,
+        0,
+        7,
+      ],
+      "ruleRange": [
+        0,
+        0,
+        22,
+        0,
+      ],
+      "viewKind": "canonical",
+    },
+    {
+      "bemSuffix": {
+        "parentResolvedName": "button",
+        "rawToken": "&--primary",
+        "rawTokenRange": [
+          11,
+          2,
+          11,
+          12,
+        ],
+      },
+      "canonicalName": "button--primary",
+      "fullSelector": ".button--primary",
+      "name": "button--primary",
+      "nestedSafety": "bemSuffixSafe",
+      "range": [
+        11,
+        2,
+        11,
+        17,
+      ],
+      "ruleRange": [
+        11,
+        2,
+        15,
+        2,
+      ],
+      "viewKind": "canonical",
+    },
+    {
+      "bemSuffix": {
+        "parentResolvedName": "button",
+        "rawToken": "&--primary",
+        "rawTokenRange": [
+          11,
+          2,
+          11,
+          12,
+        ],
+      },
+      "canonicalName": "button--primary",
+      "fullSelector": ".button--primary",
+      "name": "buttonPrimary",
+      "nestedSafety": "bemSuffixSafe",
+      "originalName": "button--primary",
+      "range": [
+        11,
+        2,
+        11,
+        17,
+      ],
+      "ruleRange": [
+        11,
+        2,
+        15,
+        2,
+      ],
+      "viewKind": "alias",
+    },
+    {
+      "bemSuffix": {
+        "parentResolvedName": "button",
+        "rawToken": "&--secondary",
+        "rawTokenRange": [
+          17,
+          2,
+          17,
+          14,
+        ],
+      },
+      "canonicalName": "button--secondary",
+      "fullSelector": ".button--secondary",
+      "name": "button--secondary",
+      "nestedSafety": "bemSuffixSafe",
+      "range": [
+        17,
+        2,
+        17,
+        19,
+      ],
+      "ruleRange": [
+        17,
+        2,
+        21,
+        2,
+      ],
+      "viewKind": "canonical",
+    },
+    {
+      "bemSuffix": {
+        "parentResolvedName": "button",
+        "rawToken": "&--secondary",
+        "rawTokenRange": [
+          17,
+          2,
+          17,
+          14,
+        ],
+      },
+      "canonicalName": "button--secondary",
+      "fullSelector": ".button--secondary",
+      "name": "buttonSecondary",
+      "nestedSafety": "bemSuffixSafe",
+      "originalName": "button--secondary",
+      "range": [
+        17,
+        2,
+        17,
+        19,
+      ],
+      "ruleRange": [
+        17,
+        2,
+        21,
+        2,
+      ],
+      "viewKind": "alias",
+    },
+    {
+      "canonicalName": "primary",
+      "fullSelector": ".primary",
+      "name": "primary",
+      "nestedSafety": "flat",
+      "range": [
+        27,
+        1,
+        27,
+        8,
+      ],
+      "ruleRange": [
+        27,
+        0,
+        31,
+        0,
+      ],
+      "viewKind": "canonical",
+    },
+    {
+      "canonicalName": "secondary",
+      "fullSelector": ".secondary",
+      "name": "secondary",
+      "nestedSafety": "flat",
+      "range": [
+        33,
+        1,
+        33,
+        10,
+      ],
+      "ruleRange": [
+        33,
+        0,
+        37,
+        0,
+      ],
+      "viewKind": "canonical",
+    },
+  ],
+}
+`;
+
+exports[`HIR scenario corpus / style > 04-dynamic-style builds stable style HIR snapshots 1`] = `
+{
+  "filePath": "examples/src/scenarios/04-dynamic/DynamicKeys.module.scss",
+  "selectors": [
+    {
+      "canonicalName": "btn-primary",
+      "fullSelector": ".btn-primary",
+      "name": "btn-primary",
+      "nestedSafety": "flat",
+      "range": [
+        0,
+        1,
+        0,
+        12,
+      ],
+      "ruleRange": [
+        0,
+        0,
+        0,
+        120,
+      ],
+      "viewKind": "canonical",
+    },
+    {
+      "canonicalName": "btn-secondary",
+      "fullSelector": ".btn-secondary",
+      "name": "btn-secondary",
+      "nestedSafety": "flat",
+      "range": [
+        1,
+        1,
+        1,
+        14,
+      ],
+      "ruleRange": [
+        1,
+        0,
+        1,
+        141,
+      ],
+      "viewKind": "canonical",
+    },
+    {
+      "canonicalName": "btn-danger",
+      "fullSelector": ".btn-danger",
+      "name": "btn-danger",
+      "nestedSafety": "flat",
+      "range": [
+        2,
+        1,
+        2,
+        11,
+      ],
+      "ruleRange": [
+        2,
+        0,
+        2,
+        119,
+      ],
+      "viewKind": "canonical",
+    },
+  ],
+}
+`;
+
+exports[`HIR scenario corpus / style > 10-clsx-style builds stable style HIR snapshots 1`] = `
+{
+  "filePath": "examples/src/scenarios/10-clsx/Clsx.module.scss",
+  "selectors": [
+    {
+      "canonicalName": "btn",
+      "fullSelector": ".btn",
+      "name": "btn",
+      "nestedSafety": "flat",
+      "range": [
+        0,
+        1,
+        0,
+        4,
+      ],
+      "ruleRange": [
+        0,
+        0,
+        10,
+        0,
+      ],
+      "viewKind": "canonical",
+    },
+    {
+      "canonicalName": "primary",
+      "fullSelector": ".primary",
+      "name": "primary",
+      "nestedSafety": "flat",
+      "range": [
+        12,
+        1,
+        12,
+        8,
+      ],
+      "ruleRange": [
+        12,
+        0,
+        16,
+        0,
+      ],
+      "viewKind": "canonical",
+    },
+    {
+      "canonicalName": "secondary",
+      "fullSelector": ".secondary",
+      "name": "secondary",
+      "nestedSafety": "flat",
+      "range": [
+        18,
+        1,
+        18,
+        10,
+      ],
+      "ruleRange": [
+        18,
+        0,
+        21,
+        0,
+      ],
+      "viewKind": "canonical",
+    },
+    {
+      "canonicalName": "active",
+      "fullSelector": ".active",
+      "name": "active",
+      "nestedSafety": "flat",
+      "range": [
+        23,
+        1,
+        23,
+        7,
+      ],
+      "ruleRange": [
+        23,
+        0,
+        25,
+        0,
+      ],
+      "viewKind": "canonical",
+    },
+    {
+      "canonicalName": "disabled",
+      "fullSelector": ".disabled",
+      "name": "disabled",
+      "nestedSafety": "flat",
+      "range": [
+        27,
+        1,
+        27,
+        9,
+      ],
+      "ruleRange": [
+        27,
+        0,
+        31,
+        0,
+      ],
+      "viewKind": "canonical",
+    },
+    {
+      "canonicalName": "lg",
+      "fullSelector": ".lg",
+      "name": "lg",
+      "nestedSafety": "flat",
+      "range": [
+        33,
+        1,
+        33,
+        3,
+      ],
+      "ruleRange": [
+        33,
+        0,
+        36,
+        0,
+      ],
+      "viewKind": "canonical",
+    },
+    {
+      "canonicalName": "note",
+      "fullSelector": ".note",
+      "name": "note",
+      "nestedSafety": "flat",
+      "range": [
+        38,
+        1,
+        38,
+        5,
+      ],
+      "ruleRange": [
+        38,
+        0,
+        45,
+        0,
+      ],
+      "viewKind": "canonical",
+    },
+  ],
+}
+`;

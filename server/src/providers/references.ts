@@ -1,11 +1,10 @@
 import type { Location, ReferenceParams } from "vscode-languageserver/node";
-import type { ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
-import { canonicalNameOf } from "../core/scss/classname-transform";
+import { findSelectorReferenceSites } from "../core/query/find-references";
+import { findSelectorAtCursor } from "../core/query/find-style-selector";
 import { findLangForPath } from "../core/scss/lang-registry";
 import { fileUrlToPath } from "../core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
 import { wrapHandler } from "./_wrap-handler";
-import { rangeContains } from "./cursor-dispatch";
 
 /**
  * Handle `textDocument/references` for a class selector inside a
@@ -13,11 +12,11 @@ import { rangeContains } from "./cursor-dispatch";
  *
  * Pipeline:
  * 1. Bail if the file is not a style module.
- * 2. Ask `deps.scssClassMapForPath` — null result also covers
+ * 2. Ask `deps.styleDocumentForPath` — null result also covers
  *    "file missing on disk", so no separate exists-check.
- * 3. Find the SelectorInfo whose `range` contains the cursor.
- * 4. Ask the ReverseIndex for every CallSite referencing that
- *    (scssPath, className) pair.
+ * 3. Find the selector whose range contains the cursor.
+ * 4. Ask the shared reference query for every site referencing
+ *    that `(scssPath, canonicalName)` pair.
  * 5. Convert each CallSite to an LSP `Location`.
  *
  * Error isolation is owned by `wrapHandler`.
@@ -28,18 +27,17 @@ export const handleReferences = wrapHandler<ReferenceParams, [], Location[] | nu
     const filePath = fileUrlToPath(params.textDocument.uri);
     if (!findLangForPath(filePath)) return null;
 
-    const classMap = deps.scssClassMapForPath(filePath);
-    if (!classMap) return null;
+    const styleDocument = deps.styleDocumentForPath(filePath);
+    if (!styleDocument) return null;
 
-    const info = findSelectorAtCursor(classMap, params.position.line, params.position.character);
-    if (!info) return null;
+    const selector = findSelectorAtCursor(
+      styleDocument,
+      params.position.line,
+      params.position.character,
+    );
+    if (!selector) return null;
 
-    // The reverse index keys sites by the original SCSS selector
-    // name. Under `classnameTransform` modes that expose an alias
-    // view (e.g. `btnPrimary` for `.btn-primary`), `info.name` is
-    // the alias token; `canonicalNameOf` routes the lookup to the
-    // bucket stored under the original source name.
-    const sites = deps.reverseIndex.find(filePath, canonicalNameOf(info));
+    const sites = findSelectorReferenceSites(deps, filePath, selector.canonicalName);
     if (sites.length === 0) return null;
 
     // No expansion filter here — expanded sites are valid Find Refs
@@ -53,18 +51,4 @@ export const handleReferences = wrapHandler<ReferenceParams, [], Location[] | nu
   },
   null,
 );
-
-export function findSelectorAtCursor(
-  classMap: ScssClassMap,
-  line: number,
-  character: number,
-): SelectorInfo | null {
-  for (const info of classMap.values()) {
-    // Prefer the narrower BEM suffix range when present; fall
-    // back to the resolved-name range otherwise. Flat entries
-    // have no bemSuffix, so they use the resolved range directly.
-    const hitRange = info.bemSuffix?.rawTokenRange ?? info.range;
-    if (rangeContains(hitRange, line, character)) return info;
-  }
-  return null;
-}
+export { findSelectorAtCursor } from "../core/query/find-style-selector";

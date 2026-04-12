@@ -13,19 +13,22 @@ import {
 } from "vscode-languageserver/node";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import ts from "typescript";
-import type { ScssClassMap } from "@css-module-explainer/shared";
 import { DEFAULT_SETTINGS } from "./settings";
 import { buildStyleFileWatcherGlob, findLangForPath } from "./core/scss/lang-registry";
 import { StyleIndexCache } from "./core/scss/scss-index";
+import type { StyleDocumentHIR } from "./core/hir/style-types";
 import { detectClassUtilImports, scanCxImports } from "./core/cx/binding-detector";
-import { parseClassRefs } from "./core/cx/class-ref-parser";
+import { parseClassExpressions } from "./core/cx/class-ref-parser";
 import { type AliasResolver, AliasResolverHolder } from "./core/cx/alias-resolver";
 import { SourceFileCache } from "./core/ts/source-file-cache";
 import { WorkspaceTypeResolver, type TypeResolver } from "./core/ts/type-resolver";
 import { DocumentAnalysisCache } from "./core/indexing/document-analysis-cache";
 import { scssFileSupplier } from "./core/indexing/file-supplier";
 import { IndexerWorker } from "./core/indexing/indexer-worker";
-import { collectCallSites, WorkspaceReverseIndex } from "./core/indexing/reverse-index";
+import {
+  collectSemanticReferenceContribution,
+  WorkspaceSemanticWorkspaceReferenceIndex,
+} from "./core/semantic/workspace-reference-index";
 import { fileUrlToPath, pathToFileUrl } from "./core/util/text-utils";
 import { COMPLETION_TRIGGER_CHARACTERS } from "./providers/completion";
 import type { ProviderDeps } from "./providers/provider-deps";
@@ -33,7 +36,7 @@ import { registerHandlers } from "./handler-registration";
 import type { FileTask } from "./core/indexing/indexer-worker";
 
 const SERVER_NAME = "css-module-explainer";
-const SERVER_VERSION = "1.8.0";
+const SERVER_VERSION = "2.0.0";
 
 /**
  * Transport-agnostic shared options consumed by every
@@ -196,11 +199,15 @@ function buildBundle(
   const typeResolver = buildTypeResolver(options);
   const readStyleFile = options.readStyleFile ?? defaultReadStyleFile;
   const fileExists = options.fileExists ?? existsSync;
-  const classMapForPath = buildClassMapForPath(caches.styleIndexCache, documents, readStyleFile);
+  const styleDocumentForPath = buildStyleDocumentForPath(
+    caches.styleIndexCache,
+    documents,
+    readStyleFile,
+  );
   const aliasHolder = new AliasResolverHolder(workspaceRoot, DEFAULT_SETTINGS.pathAlias);
   const analysisCache = buildAnalysisCache({
     caches,
-    classMapForPath,
+    styleDocumentForPath,
     workspaceRoot,
     typeResolver,
     fileExists,
@@ -215,9 +222,9 @@ function buildBundle(
 
   return {
     analysisCache,
-    scssClassMapForPath: classMapForPath,
+    styleDocumentForPath,
     typeResolver,
-    reverseIndex: caches.reverseIndex,
+    semanticReferenceIndex: caches.semanticReferenceIndex,
     workspaceRoot,
     logError: (message, err) => {
       const detail = err instanceof Error ? `${err.message}\n${err.stack ?? ""}` : String(err);
@@ -231,7 +238,7 @@ function buildBundle(
     rebuildAliasResolver: (pathAlias) => aliasHolder.rebuild(pathAlias),
     setClassnameTransform(mode) {
       caches.styleIndexCache.setMode(mode);
-      caches.reverseIndex.clear();
+      caches.semanticReferenceIndex.clear();
     },
   };
 }
@@ -239,14 +246,14 @@ function buildBundle(
 interface BundleCaches {
   readonly sourceFileCache: SourceFileCache;
   readonly styleIndexCache: StyleIndexCache;
-  readonly reverseIndex: WorkspaceReverseIndex;
+  readonly semanticReferenceIndex: WorkspaceSemanticWorkspaceReferenceIndex;
 }
 
 function buildCaches(): BundleCaches {
   return {
     sourceFileCache: new SourceFileCache({ max: 200 }),
     styleIndexCache: new StyleIndexCache({ max: 500 }),
-    reverseIndex: new WorkspaceReverseIndex(),
+    semanticReferenceIndex: new WorkspaceSemanticWorkspaceReferenceIndex(),
   };
 }
 
@@ -259,29 +266,33 @@ function buildTypeResolver(options: CreateServerOptions): TypeResolver {
   );
 }
 
-function buildClassMapForPath(
+function buildStyleDocumentForPath(
   styleIndexCache: StyleIndexCache,
   documents: TextDocuments<TextDocument>,
   readStyleFile: (path: string) => string | null,
-): (path: string) => ScssClassMap | null {
-  const readOpenStyleDocument = (path: string): string | null => {
-    const uri = pathToFileUrl(path);
-    const doc = documents.get(uri);
-    return doc?.getText() ?? null;
-  };
-  return (path: string): ScssClassMap | null => {
+): (path: string) => StyleDocumentHIR | null {
+  return (path: string): StyleDocumentHIR | null => {
     if (!findLangForPath(path)) return null;
-    const buffered = readOpenStyleDocument(path);
-    if (buffered !== null) return styleIndexCache.get(path, buffered);
+    const buffered = readStyleTextFromOpenDocuments(path, documents);
+    if (buffered !== null) return styleIndexCache.getStyleDocument(path, buffered);
     const content = readStyleFile(path);
     if (content === null) return null;
-    return styleIndexCache.get(path, content);
+    return styleIndexCache.getStyleDocument(path, content);
   };
+}
+
+function readStyleTextFromOpenDocuments(
+  path: string,
+  documents: TextDocuments<TextDocument>,
+): string | null {
+  const uri = pathToFileUrl(path);
+  const doc = documents.get(uri);
+  return doc?.getText() ?? null;
 }
 
 interface AnalysisCacheArgs {
   readonly caches: BundleCaches;
-  readonly classMapForPath: (path: string) => ScssClassMap | null;
+  readonly styleDocumentForPath: (path: string) => StyleDocumentHIR | null;
   readonly workspaceRoot: string;
   readonly typeResolver: TypeResolver;
   readonly fileExists: (path: string) => boolean;
@@ -289,12 +300,18 @@ interface AnalysisCacheArgs {
 }
 
 function buildAnalysisCache(args: AnalysisCacheArgs): DocumentAnalysisCache {
-  const { caches, classMapForPath, workspaceRoot, typeResolver, fileExists, getAliasResolver } =
-    args;
+  const {
+    caches,
+    styleDocumentForPath,
+    workspaceRoot,
+    typeResolver,
+    fileExists,
+    getAliasResolver,
+  } = args;
   return new DocumentAnalysisCache({
     sourceFileCache: caches.sourceFileCache,
     scanCxImports,
-    parseClassRefs,
+    parseClassExpressions,
     detectClassUtilImports,
     fileExists,
     // getter-over-closure: reads currentResolver at analyze() time,
@@ -305,14 +322,16 @@ function buildAnalysisCache(args: AnalysisCacheArgs): DocumentAnalysisCache {
     },
     max: 200,
     onAnalyze: (uri, entry) => {
-      caches.reverseIndex.record(
+      const semanticContribution = collectSemanticReferenceContribution(uri, entry, {
+        styleDocumentForPath,
+        typeResolver,
+        workspaceRoot,
+        filePath: fileUrlToPath(uri),
+      });
+      caches.semanticReferenceIndex.record(
         uri,
-        collectCallSites(uri, entry, {
-          classMapForPath,
-          typeResolver,
-          workspaceRoot,
-          filePath: fileUrlToPath(uri),
-        }),
+        semanticContribution.referenceSites,
+        semanticContribution.moduleUsages,
       );
     },
   });
@@ -334,7 +353,7 @@ function buildIndexerWorker(
     supplier,
     readFile: asyncReadFile,
     onScssFile: (path, content) => {
-      styleIndexCache.get(path, content);
+      styleIndexCache.getStyleDocument(path, content);
     },
     logger: indexerLogger,
   });

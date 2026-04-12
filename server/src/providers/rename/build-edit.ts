@@ -1,9 +1,12 @@
 import type { Range as LspRange } from "vscode-languageserver/node";
-import type { BemSuffixInfo, ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
+import type { BemSuffixInfo } from "@css-module-explainer/shared";
+import { findSelectorReferenceSites } from "../../core/query/find-references";
+import { findCanonicalSelector } from "../../core/query/find-style-selector";
 import {
   type ClassnameTransformMode,
   transformClassname,
 } from "../../core/scss/classname-transform";
+import type { SelectorDeclHIR, StyleDocumentHIR } from "../../core/hir/style-types";
 import { toLspRange } from "../lsp-adapters";
 import type { ProviderDeps } from "../provider-deps";
 
@@ -13,38 +16,32 @@ const IDENTIFIER_RE = /^[a-zA-Z_][\w-]*$/;
  * Resolve the canonical entry + canonical name for a cursor hit.
  * When the cursor landed on an alias view (e.g. `btnPrimary` in
  * camelCase mode), the SCSS edit must operate on the ORIGINAL
- * entry's `range` / `bemSuffix`, and the reverse-index query must
+ * entry's `range` / `bemSuffix`, and the shared reference query must
  * use the ORIGINAL key so every access form (original and alias)
  * is rewritten by a single rename.
  */
 function canonicalForm(
-  classMap: ScssClassMap | null,
-  selectorInfo: SelectorInfo,
-): { info: SelectorInfo; name: string } {
-  if (!selectorInfo.originalName) {
-    return { info: selectorInfo, name: selectorInfo.name };
-  }
-  const original = classMap?.get(selectorInfo.originalName);
-  return original
-    ? { info: original, name: original.name }
-    : { info: selectorInfo, name: selectorInfo.name };
+  styleDocument: StyleDocumentHIR,
+  selector: SelectorDeclHIR,
+): SelectorDeclHIR {
+  return findCanonicalSelector(styleDocument, selector);
 }
 
 export function buildRenameEdit(
   scssUri: string,
   scssPath: string,
-  selectorInfo: SelectorInfo,
+  styleDocument: StyleDocumentHIR,
+  selector: SelectorDeclHIR,
   deps: ProviderDeps,
   newName: string,
 ): { changes: Record<string, Array<{ range: LspRange; newText: string }>> } | null {
   if (!IDENTIFIER_RE.test(newName)) return null;
 
-  const classMap = deps.scssClassMapForPath(scssPath);
-  const canonical = canonicalForm(classMap, selectorInfo);
+  const canonical = canonicalForm(styleDocument, selector);
 
-  const scssEdit = canonical.info.bemSuffix
-    ? buildBemSuffixEdit(canonical.info.bemSuffix, canonical.name, newName)
-    : { range: toLspRange(canonical.info.range), newText: newName };
+  const scssEdit = canonical.bemSuffix
+    ? buildBemSuffixEdit(canonical.bemSuffix, canonical.name, newName)
+    : { range: toLspRange(canonical.range), newText: newName };
   if (!scssEdit) return null;
 
   const changes: Record<string, Array<{ range: LspRange; newText: string }>> = {
@@ -53,7 +50,7 @@ export function buildRenameEdit(
   collectReferenceEdits(
     deps,
     scssPath,
-    canonical.name,
+    canonical.canonicalName,
     newName,
     deps.settings.scss.classnameTransform,
     changes,
@@ -63,7 +60,7 @@ export function buildRenameEdit(
 
 /**
  * Append TS/TSX reference edits to `changes` for every direct
- * reverse-index site keyed under the canonical SCSS class name.
+ * reference site keyed under the canonical SCSS class name.
  * Template/variable expansions are skipped — rewriting them would
  * destroy the dynamic expression source.
  *
@@ -84,10 +81,9 @@ function collectReferenceEdits(
   mode: ClassnameTransformMode,
   changes: Record<string, Array<{ range: LspRange; newText: string }>>,
 ): void {
-  for (const site of deps.reverseIndex.find(scssPath, canonicalName)) {
+  for (const site of findSelectorReferenceSites(deps, scssPath, canonicalName)) {
     if (site.expansion !== "direct") continue;
-    if (site.match.kind !== "static") continue;
-    const written = site.match.className;
+    const written = site.className;
     const newText = written === canonicalName ? newName : (pickAliasForm(mode, newName) ?? newName);
     (changes[site.uri] ??= []).push({
       range: toLspRange(site.range),

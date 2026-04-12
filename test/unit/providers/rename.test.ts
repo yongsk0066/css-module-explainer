@@ -1,41 +1,78 @@
 import { describe, expect, it, vi } from "vitest";
-import type {
-  CallSite,
-  ClassRef,
-  CxBinding,
-  ScssClassMap,
-  SelectorInfo,
-} from "@css-module-explainer/shared";
-import type ts from "typescript";
+import type { CxBinding } from "@css-module-explainer/shared";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
-import { WorkspaceReverseIndex } from "../../../server/src/core/indexing/reverse-index";
+import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
 import type { CursorParams, ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
 import { handlePrepareRename, handleRename } from "../../../server/src/providers/rename";
 import { findSelectorAtCursor } from "../../../server/src/providers/references";
-import { expandClassMapWithTransform } from "../../../server/src/core/scss/classname-transform";
 import { DEFAULT_SETTINGS } from "../../../server/src/settings";
 import type { Settings } from "../../../server/src/settings";
 import {
   EMPTY_ALIAS_RESOLVER,
+  buildTestClassExpressions,
   infoAtLine as info,
   makeBaseDeps,
-  siteAt,
 } from "../../_fixtures/test-helpers";
+import {
+  buildStyleDocumentFromSelectorMap,
+  expandSelectorMapWithTransform,
+  parseStyleSelectorMap,
+} from "../../_fixtures/style-documents";
 
 const SCSS_PATH = "/fake/src/Button.module.scss";
 const SCSS_URI = "file:///fake/src/Button.module.scss";
 
+function semanticSite(args: {
+  uri: string;
+  canonicalName: string;
+  className?: string;
+  line: number;
+  start?: number;
+  end?: number;
+  certainty?: "exact" | "inferred" | "possible";
+  reason?: "literal" | "styleAccess" | "templatePrefix" | "typeUnion";
+  origin?: "cxCall" | "styleAccess";
+}) {
+  const certainty = args.certainty ?? "exact";
+  const start = args.start ?? 10;
+  return {
+    refId: `ref:${args.uri}:${args.line}:${start}`,
+    selectorId: `selector:${SCSS_PATH}:${args.canonicalName}`,
+    filePath: args.uri.replace("file://", ""),
+    uri: args.uri,
+    range: {
+      start: { line: args.line, character: start },
+      end: { line: args.line, character: args.end ?? start + args.canonicalName.length },
+    },
+    origin: args.origin ?? "cxCall",
+    scssModulePath: SCSS_PATH,
+    selectorFilePath: SCSS_PATH,
+    canonicalName: args.canonicalName,
+    className: args.className ?? args.canonicalName,
+    certainty,
+    reason: args.reason ?? "literal",
+    expansion: certainty === "exact" ? "direct" : "expanded",
+  } as const;
+}
+
 function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   return makeBaseDeps({
-    scssClassMapForPath: () =>
+    selectorMapForPath: () =>
       new Map([
         ["indicator", info("indicator", 1)],
         ["active", info("active", 3)],
-      ]) as ScssClassMap,
+      ]),
     workspaceRoot: "/fake",
     ...overrides,
   });
+}
+
+function expectPrepareRenameBlocked(
+  run: () => ReturnType<typeof handlePrepareRename>,
+  message: string,
+): void {
+  expect(run).toThrow(message);
 }
 
 describe("handlePrepareRename", () => {
@@ -73,16 +110,52 @@ describe("handlePrepareRename", () => {
     );
     expect(result).toBeNull();
   });
+
+  it("returns a rename target for nested child selectors that parse as standalone classes", () => {
+    const styleDocument = buildStyleDocumentFromSelectorMap(
+      SCSS_PATH,
+      expandSelectorMapWithTransform(
+        parseStyleSelectorMap(
+          `
+.button {
+  .child {
+    color: red;
+  }
+}
+`,
+          SCSS_PATH,
+        ),
+        "asIs",
+      ),
+    );
+    const result = handlePrepareRename(
+      {
+        textDocument: { uri: SCSS_URI },
+        position: { line: 2, character: 4 },
+      },
+      makeDeps({ styleDocumentForPath: () => styleDocument }),
+    );
+    expect(result).not.toBeNull();
+    expect(result).toHaveProperty("placeholder", "child");
+  });
 });
 
 describe("handleRename", () => {
   it("builds WorkspaceEdit with SCSS selector and TS/TSX reference edits", () => {
-    const idx = new WorkspaceReverseIndex();
-    idx.record("file:///fake/src/App.tsx", [
-      siteAt("file:///fake/src/App.tsx", "indicator", 10, SCSS_PATH),
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    semanticReferenceIndex.record("file:///fake/src/App.tsx", [
+      semanticSite({
+        uri: "file:///fake/src/App.tsx",
+        canonicalName: "indicator",
+        line: 10,
+      }),
     ]);
-    idx.record("file:///fake/src/Other.tsx", [
-      siteAt("file:///fake/src/Other.tsx", "indicator", 20, SCSS_PATH),
+    semanticReferenceIndex.record("file:///fake/src/Other.tsx", [
+      semanticSite({
+        uri: "file:///fake/src/Other.tsx",
+        canonicalName: "indicator",
+        line: 20,
+      }),
     ]);
     const result = handleRename(
       {
@@ -90,7 +163,7 @@ describe("handleRename", () => {
         position: { line: 1, character: 3 },
         newName: "status",
       },
-      makeDeps({ reverseIndex: idx }),
+      makeDeps({ semanticReferenceIndex }),
     );
     expect(result).not.toBeNull();
     const changes = result!.changes!;
@@ -154,7 +227,7 @@ it("logs and returns null on exception in prepareRename", () => {
       position: { line: 1, character: 3 },
     },
     makeDeps({
-      scssClassMapForPath: () => {
+      selectorMapForPath: () => {
         throw new Error("boom");
       },
       logError,
@@ -173,7 +246,7 @@ it("logs and returns null on exception in rename", () => {
       newName: "status",
     },
     makeDeps({
-      scssClassMapForPath: () => {
+      selectorMapForPath: () => {
         throw new Error("boom");
       },
       logError,
@@ -219,26 +292,31 @@ function makeTsxDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
         },
       ],
     }),
-    parseClassRefs: (_sf: ts.SourceFile, bindings: readonly CxBinding[]): ClassRef[] =>
-      bindings.length === 0
-        ? []
-        : [
-            {
-              kind: "static",
-              origin: "cxCall",
-              className: "indicator",
-              originRange: {
-                start: { line: 3, character: 14 },
-                end: { line: 3, character: 23 },
-              },
-              scssModulePath: bindings[0]!.scssModulePath,
-            },
-          ],
+    parseClassExpressions: (_sf, bindings) =>
+      buildTestClassExpressions({
+        filePath: "/fake/src/App.tsx",
+        bindings,
+        expressions:
+          bindings.length === 0
+            ? []
+            : [
+                {
+                  kind: "literal",
+                  origin: "cxCall",
+                  className: "indicator",
+                  range: {
+                    start: { line: 3, character: 14 },
+                    end: { line: 3, character: 23 },
+                  },
+                  scssModulePath: bindings[0]!.scssModulePath,
+                },
+              ],
+      }),
     max: 10,
   });
   return makeBaseDeps({
     analysisCache,
-    scssClassMapForPath: () => new Map([["indicator", info("indicator", 1)]]) as ScssClassMap,
+    selectorMapForPath: () => new Map([["indicator", info("indicator", 1)]]),
     workspaceRoot: "/fake",
     ...overrides,
   });
@@ -265,16 +343,91 @@ describe("handlePrepareRename from TS/TSX", () => {
     expect(result).not.toBeNull();
     expect(result!.placeholder).toBe("indicator");
   });
+
+  it("throws a message when the cursor is on a dynamic class expression", () => {
+    const sourceFileCache = new SourceFileCache({ max: 10 });
+    const analysisCache = new DocumentAnalysisCache({
+      sourceFileCache,
+      fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
+      scanCxImports: (sourceFile) => ({
+        stylesBindings: new Map([
+          ["styles", { kind: "resolved" as const, absolutePath: BINDING.scssModulePath }],
+        ]),
+        bindings: [
+          {
+            ...BINDING,
+            scope: {
+              startLine: 0,
+              endLine: sourceFile.getLineAndCharacterOfPosition(sourceFile.getEnd()).line,
+            },
+          },
+        ],
+      }),
+      parseClassExpressions: (_sf, bindings) =>
+        buildTestClassExpressions({
+          filePath: "/fake/src/App.tsx",
+          bindings,
+          expressions: [
+            {
+              kind: "symbolRef",
+              origin: "cxCall",
+              rawReference: "size",
+              range: {
+                start: { line: 3, character: 13 },
+                end: { line: 3, character: 17 },
+              },
+              scssModulePath: bindings[0]!.scssModulePath,
+            },
+          ],
+        }),
+      max: 10,
+    });
+    const deps = makeBaseDeps({
+      analysisCache,
+      selectorMapForPath: () => new Map([["indicator", info("indicator")]]),
+      workspaceRoot: "/fake",
+    });
+    const cursorParams: CursorParams = {
+      documentUri: "file:///fake/src/App.tsx",
+      content: TSX_CONTENT.replace("cx('indicator')", "cx(size)"),
+      filePath: "/fake/src/App.tsx",
+      line: 3,
+      character: 14,
+      version: 1,
+    };
+
+    expect(() =>
+      handlePrepareRename(
+        {
+          textDocument: { uri: "file:///fake/src/App.tsx" },
+          position: { line: 3, character: 14 },
+        },
+        deps,
+        cursorParams,
+      ),
+    ).toThrow("Dynamic class expressions cannot be renamed safely.");
+  });
 });
 
 describe("handleRename from TS/TSX", () => {
   it("builds WorkspaceEdit when renaming from cx('indicator') in TSX", () => {
-    const idx = new WorkspaceReverseIndex();
-    idx.record("file:///fake/src/App.tsx", [
-      siteAt("file:///fake/src/App.tsx", "indicator", 3, SCSS_PATH),
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    semanticReferenceIndex.record("file:///fake/src/App.tsx", [
+      semanticSite({
+        uri: "file:///fake/src/App.tsx",
+        canonicalName: "indicator",
+        line: 3,
+        start: 14,
+        end: 23,
+      }),
     ]);
-    idx.record("file:///fake/src/Other.tsx", [
-      siteAt("file:///fake/src/Other.tsx", "indicator", 20, SCSS_PATH),
+    semanticReferenceIndex.record("file:///fake/src/Other.tsx", [
+      semanticSite({
+        uri: "file:///fake/src/Other.tsx",
+        canonicalName: "indicator",
+        line: 20,
+      }),
     ]);
     const cursorParams: CursorParams = {
       documentUri: "file:///fake/src/App.tsx",
@@ -290,7 +443,7 @@ describe("handleRename from TS/TSX", () => {
         position: { line: 3, character: 16 },
         newName: "status",
       },
-      makeTsxDeps({ reverseIndex: idx }),
+      makeTsxDeps({ semanticReferenceIndex }),
       cursorParams,
     );
     expect(result).not.toBeNull();
@@ -326,47 +479,54 @@ describe("rename template corruption guard", () => {
     end: { line: 5, character: 30 },
   };
 
-  function buildTemplateReverseIndex(): WorkspaceReverseIndex {
-    const idx = new WorkspaceReverseIndex();
-    const base = { uri: TEMPLATE_URI, range: TEMPLATE_RANGE, scssModulePath: SCSS_PATH };
-    const sites: CallSite[] = [
-      { ...base, match: { kind: "template", staticPrefix: "btn-" }, expansion: "direct" },
-      {
-        ...base,
-        match: { kind: "static", className: "btn-small", canonicalName: "btn-small" },
-        expansion: "expanded",
-      },
-      {
-        ...base,
-        match: { kind: "static", className: "btn-large", canonicalName: "btn-large" },
-        expansion: "expanded",
-      },
-    ];
-    idx.record(TEMPLATE_URI, sites);
+  function buildTemplateSemanticIndex(): WorkspaceSemanticWorkspaceReferenceIndex {
+    const idx = new WorkspaceSemanticWorkspaceReferenceIndex();
+    idx.record(TEMPLATE_URI, [
+      semanticSite({
+        uri: TEMPLATE_URI,
+        canonicalName: "btn-small",
+        className: "btn-small",
+        line: TEMPLATE_RANGE.start.line,
+        start: TEMPLATE_RANGE.start.character,
+        end: TEMPLATE_RANGE.end.character,
+        certainty: "inferred",
+        reason: "templatePrefix",
+      }),
+      semanticSite({
+        uri: TEMPLATE_URI,
+        canonicalName: "btn-large",
+        className: "btn-large",
+        line: TEMPLATE_RANGE.start.line,
+        start: TEMPLATE_RANGE.start.character,
+        end: TEMPLATE_RANGE.end.character,
+        certainty: "inferred",
+        reason: "templatePrefix",
+      }),
+    ]);
     return idx;
   }
 
-  function btnScssDeps(idx: WorkspaceReverseIndex): ProviderDeps {
+  function btnScssDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     return makeBaseDeps({
-      scssClassMapForPath: () =>
+      selectorMapForPath: () =>
         new Map([
           ["btn-small", info("btn-small", 1)],
           ["btn-large", info("btn-large", 3)],
-        ]) as ScssClassMap,
+        ]),
       workspaceRoot: "/fake",
-      reverseIndex: idx,
+      ...overrides,
     });
   }
 
   it("rename template-literal class does NOT rewrite the template range", () => {
-    const idx = buildTemplateReverseIndex();
+    const semanticReferenceIndex = buildTemplateSemanticIndex();
     const result = handleRename(
       {
         textDocument: { uri: SCSS_URI },
         position: { line: 1, character: 3 },
         newName: "btn-tiny",
       },
-      btnScssDeps(idx),
+      btnScssDeps({ semanticReferenceIndex }),
     );
     expect(result).not.toBeNull();
     const changes = result!.changes!;
@@ -382,33 +542,59 @@ describe("rename template corruption guard", () => {
   });
 
   it("SCSS-side prepareRename rejects class with template/variable references", () => {
-    const idx = buildTemplateReverseIndex();
-    const result = handlePrepareRename(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: { line: 1, character: 3 },
-      },
-      btnScssDeps(idx),
+    const semanticReferenceIndex = buildTemplateSemanticIndex();
+    expectPrepareRenameBlocked(
+      () =>
+        handlePrepareRename(
+          {
+            textDocument: { uri: SCSS_URI },
+            position: { line: 1, character: 3 },
+          },
+          btnScssDeps({ semanticReferenceIndex }),
+        ),
+      "Rename is blocked because inferred or expanded references would make the edit unsafe.",
     );
-    // Cursor is on `.btn-small`, which has an expanded reverse-index
-    // entry from the template. prepareRename must refuse.
-    expect(result).toBeNull();
+  });
+
+  it("SCSS-side prepareRename rejects class with semantic inferred references", () => {
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    semanticReferenceIndex.record("file:///fake/src/App.tsx", [
+      semanticSite({
+        uri: "file:///fake/src/App.tsx",
+        canonicalName: "btn-small",
+        line: 5,
+        start: 10,
+        end: 30,
+        certainty: "inferred",
+        reason: "templatePrefix",
+      }),
+    ]);
+    expectPrepareRenameBlocked(
+      () =>
+        handlePrepareRename(
+          {
+            textDocument: { uri: SCSS_URI },
+            position: { line: 1, character: 3 },
+          },
+          btnScssDeps({ semanticReferenceIndex }),
+        ),
+      "Rename is blocked because inferred or expanded references would make the edit unsafe.",
+    );
   });
 });
 
-describe("prepareRename through real parseStyleModule (regression)", () => {
-  // These tests exercise prepareRenameFromScss against ScssClassMaps
-  // built by the real `parseStyleModule`, to catch regressions where
-  // a nested rule silently flips a flat parent's `isNested` flag and
+describe("prepareRename through real parseStyleSelectorMap (regression)", () => {
+  // These tests exercise prepareRenameFromScss against selector maps
+  // built by the real `parseStyleSelectorMap`, to catch regressions where
+  // a nested rule silently changes a flat parent's nested-safety state and
   // causes rename to be rejected on the flat parent.
   it("`.button { &:hover {} }` — rename is accepted on the flat .button", async () => {
-    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
-    const classMap = parseStyleModule(
+    const classMap = parseStyleSelectorMap(
       `.button {\n  color: red;\n  &:hover { color: blue; }\n}`,
       "/fake/src/Button.module.scss",
     );
     const deps = makeBaseDeps({
-      scssClassMapForPath: () => classMap,
+      selectorMapForPath: () => classMap,
       workspaceRoot: "/fake",
     });
     const result = handlePrepareRename(
@@ -423,13 +609,12 @@ describe("prepareRename through real parseStyleModule (regression)", () => {
   });
 
   it("`.button { &--primary {} }` — both flat .button and nested &--primary are renameable", async () => {
-    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
-    const classMap = parseStyleModule(
+    const classMap = parseStyleSelectorMap(
       `.button {\n  color: red;\n  &--primary { background: blue; }\n}`,
       "/fake/src/Button.module.scss",
     );
     const deps = makeBaseDeps({
-      scssClassMapForPath: () => classMap,
+      selectorMapForPath: () => classMap,
       workspaceRoot: "/fake",
     });
     // Cursor on `.button` at the flat rule — accepted.
@@ -470,13 +655,12 @@ describe("prepareRename through real parseStyleModule (regression)", () => {
 describe("&-nested BEM suffix rename", () => {
   // Positive cases (4): strict red→green for BEM-safe shapes.
   it("prepareRename on `&--primary` returns range covering only `&--primary` (10 chars)", async () => {
-    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
-    const classMap = parseStyleModule(
+    const classMap = parseStyleSelectorMap(
       `.button {\n  &--primary { color: white; }\n}`,
       "/fake/src/Button.module.scss",
     );
     const deps = makeBaseDeps({
-      scssClassMapForPath: () => classMap,
+      selectorMapForPath: () => classMap,
       workspaceRoot: "/fake",
     });
     const rawRange = classMap.get("button--primary")!.bemSuffix!.rawTokenRange;
@@ -496,26 +680,25 @@ describe("&-nested BEM suffix rename", () => {
   });
 
   it("rename `button--primary → button--tiny`: SCSS edits only `--primary` slice, TSX full", async () => {
-    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
-    const classMap = parseStyleModule(
+    const classMap = parseStyleSelectorMap(
       `.button {\n  &--primary { color: white; }\n}`,
       "/fake/src/Button.module.scss",
     );
-    const reverseIndex = new WorkspaceReverseIndex();
-    const tsxRange = { start: { line: 3, character: 10 }, end: { line: 3, character: 25 } };
-    reverseIndex.record("file:///fake/src/App.tsx", [
-      {
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    semanticReferenceIndex.record("file:///fake/src/App.tsx", [
+      semanticSite({
         uri: "file:///fake/src/App.tsx",
-        range: tsxRange,
-        scssModulePath: SCSS_PATH,
-        match: { kind: "static", className: "button--primary", canonicalName: "button--primary" },
-        expansion: "direct",
-      },
+        canonicalName: "button--primary",
+        className: "button--primary",
+        line: 3,
+        start: 10,
+        end: 25,
+      }),
     ]);
     const deps = makeBaseDeps({
-      scssClassMapForPath: () => classMap,
+      selectorMapForPath: () => classMap,
       workspaceRoot: "/fake",
-      reverseIndex,
+      semanticReferenceIndex,
     });
     const rawRange = classMap.get("button--primary")!.bemSuffix!.rawTokenRange;
     const result = handleRename(
@@ -551,13 +734,12 @@ describe("&-nested BEM suffix rename", () => {
   });
 
   it("rename `&__icon`: edits only the `__icon` slice", async () => {
-    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
-    const classMap = parseStyleModule(
+    const classMap = parseStyleSelectorMap(
       `.card {\n  &__icon { width: 16px; }\n}`,
       "/fake/src/Card.module.scss",
     );
     const deps = makeBaseDeps({
-      scssClassMapForPath: () => classMap,
+      selectorMapForPath: () => classMap,
       workspaceRoot: "/fake",
     });
     const rawRange = classMap.get("card__icon")!.bemSuffix!.rawTokenRange;
@@ -576,13 +758,12 @@ describe("&-nested BEM suffix rename", () => {
   });
 
   it("double-nested `.card { &__icon { &--small {} } }` edits only innermost `--small`", async () => {
-    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
-    const classMap = parseStyleModule(
+    const classMap = parseStyleSelectorMap(
       `.card {\n  &__icon {\n    &--small { font-size: 12px; }\n  }\n}`,
       "/fake/src/Card.module.scss",
     );
     const deps = makeBaseDeps({
-      scssClassMapForPath: () => classMap,
+      selectorMapForPath: () => classMap,
       workspaceRoot: "/fake",
     });
     const rawRange = classMap.get("card__icon--small")!.bemSuffix!.rawTokenRange;
@@ -603,12 +784,11 @@ describe("&-nested BEM suffix rename", () => {
 
   // Negative cases (12): new guards in Commit 4.
   it("rejects cross-parent rename `button--primary → banner--tiny`", async () => {
-    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
-    const classMap = parseStyleModule(
+    const classMap = parseStyleSelectorMap(
       `.button {\n  &--primary {}\n}`,
       "/fake/src/Button.module.scss",
     );
-    const deps = makeBaseDeps({ scssClassMapForPath: () => classMap, workspaceRoot: "/fake" });
+    const deps = makeBaseDeps({ selectorMapForPath: () => classMap, workspaceRoot: "/fake" });
     const rawRange = classMap.get("button--primary")!.bemSuffix!.rawTokenRange;
     const result = handleRename(
       {
@@ -622,9 +802,8 @@ describe("&-nested BEM suffix rename", () => {
   });
 
   it("rejects empty-suffix rename `button--primary → button`", async () => {
-    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
-    const classMap = parseStyleModule(`.button {\n  &--primary {}\n}`, "/f.module.scss");
-    const deps = makeBaseDeps({ scssClassMapForPath: () => classMap, workspaceRoot: "/fake" });
+    const classMap = parseStyleSelectorMap(`.button {\n  &--primary {}\n}`, "/f.module.scss");
+    const deps = makeBaseDeps({ selectorMapForPath: () => classMap, workspaceRoot: "/fake" });
     const rawRange = classMap.get("button--primary")!.bemSuffix!.rawTokenRange;
     const result = handleRename(
       {
@@ -638,9 +817,8 @@ describe("&-nested BEM suffix rename", () => {
   });
 
   it("rejects no-op rename `button--primary → button--primary`", async () => {
-    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
-    const classMap = parseStyleModule(`.button {\n  &--primary {}\n}`, "/f.module.scss");
-    const deps = makeBaseDeps({ scssClassMapForPath: () => classMap, workspaceRoot: "/fake" });
+    const classMap = parseStyleSelectorMap(`.button {\n  &--primary {}\n}`, "/f.module.scss");
+    const deps = makeBaseDeps({ selectorMapForPath: () => classMap, workspaceRoot: "/fake" });
     const rawRange = classMap.get("button--primary")!.bemSuffix!.rawTokenRange;
     const result = handleRename(
       {
@@ -653,95 +831,99 @@ describe("&-nested BEM suffix rename", () => {
     expect(result).toBeNull();
   });
 
-  it("rejects interpolated rawToken (guard test — synthetic SelectorInfo)", () => {
+  it("rejects interpolated rawToken (guard test — synthetic selector)", () => {
     // Parser cannot produce this shape, but the guard is load-bearing
     // if a future parser change weakens interpolation filtering.
-    const synthetic: SelectorInfo = {
-      name: "btn--primary",
+    const synthetic = {
+      ...info("btn--primary", 1),
       range: { start: { line: 1, character: 2 }, end: { line: 1, character: 16 } },
       bemSuffix: {
         rawTokenRange: { start: { line: 1, character: 2 }, end: { line: 1, character: 14 } },
         rawToken: "&--#{$mod}",
         parentResolvedName: "btn",
       },
-      isNested: true,
-      fullSelector: ".btn--primary",
+      nestedSafety: "bemSuffixSafe" as const,
       declarations: "",
       ruleRange: { start: { line: 1, character: 0 }, end: { line: 1, character: 16 } },
     };
     const deps = makeBaseDeps({
-      scssClassMapForPath: () => new Map([["btn--primary", synthetic]]) as ScssClassMap,
+      selectorMapForPath: () => new Map([["btn--primary", synthetic]]),
       workspaceRoot: "/fake",
     });
-    const result = handlePrepareRename(
-      { textDocument: { uri: SCSS_URI }, position: { line: 1, character: 3 } },
-      deps,
+    expectPrepareRenameBlocked(
+      () =>
+        handlePrepareRename(
+          { textDocument: { uri: SCSS_URI }, position: { line: 1, character: 3 } },
+          deps,
+        ),
+      "Selectors containing interpolation cannot be renamed safely.",
     );
-    expect(result).toBeNull();
   });
 
   it("rejects non-bare parent `.card:hover { &--primary {} }`", async () => {
-    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
-    const classMap = parseStyleModule(`.card:hover {\n  &--primary {}\n}`, "/f.module.scss");
+    const classMap = parseStyleSelectorMap(`.card:hover {\n  &--primary {}\n}`, "/f.module.scss");
     // `card--primary` never exists because extractClassNames strips
     // `:hover--primary` greedily. Any cursor on line 1 falls through.
     expect(classMap.has("card--primary")).toBe(false);
   });
 
   it("rejects grouped parent `.a, .b { &--c {} }`", async () => {
-    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
-    const classMap = parseStyleModule(`.a, .b {\n  &--c {}\n}`, "/f.module.scss");
+    const classMap = parseStyleSelectorMap(`.a, .b {\n  &--c {}\n}`, "/f.module.scss");
     const entry = classMap.get("a--c") ?? classMap.get("b--c");
     expect(entry).toBeDefined();
     // bemSuffix undefined because parentCtx.isGrouped === true
     expect(entry!.bemSuffix).toBeUndefined();
     // prepareRename must refuse
-    const deps = makeBaseDeps({ scssClassMapForPath: () => classMap, workspaceRoot: "/fake" });
-    const result = handlePrepareRename(
-      { textDocument: { uri: SCSS_URI }, position: { line: 1, character: 3 } },
-      deps,
+    const deps = makeBaseDeps({ selectorMapForPath: () => classMap, workspaceRoot: "/fake" });
+    expectPrepareRenameBlocked(
+      () =>
+        handlePrepareRename(
+          { textDocument: { uri: SCSS_URI }, position: { line: 1, character: 3 } },
+          deps,
+        ),
+      "Only flat selectors and safe BEM suffix selectors can be renamed.",
     );
-    expect(result).toBeNull();
   });
 
   it("rejects grouped-nested child `.btn { &--a, &--b {} }`", async () => {
-    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
-    const classMap = parseStyleModule(`.btn {\n  &--a, &--b {}\n}`, "/f.module.scss");
+    const classMap = parseStyleSelectorMap(`.btn {\n  &--a, &--b {}\n}`, "/f.module.scss");
     const a = classMap.get("btn--a");
     expect(a).toBeDefined();
     expect(a!.bemSuffix).toBeUndefined();
-    const deps = makeBaseDeps({ scssClassMapForPath: () => classMap, workspaceRoot: "/fake" });
-    const result = handlePrepareRename(
-      { textDocument: { uri: SCSS_URI }, position: { line: 1, character: 3 } },
-      deps,
+    const deps = makeBaseDeps({ selectorMapForPath: () => classMap, workspaceRoot: "/fake" });
+    expectPrepareRenameBlocked(
+      () =>
+        handlePrepareRename(
+          { textDocument: { uri: SCSS_URI }, position: { line: 1, character: 3 } },
+          deps,
+        ),
+      "Only flat selectors and safe BEM suffix selectors can be renamed.",
     );
-    expect(result).toBeNull();
   });
 
   it("rejects multi-`&` `.btn { & + &--x {} }`", async () => {
-    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
-    const classMap = parseStyleModule(`.btn {\n  & + &--x {}\n}`, "/f.module.scss");
+    const classMap = parseStyleSelectorMap(`.btn {\n  & + &--x {}\n}`, "/f.module.scss");
     const entry = classMap.get("btn--x");
     if (entry !== undefined) {
       expect(entry.bemSuffix).toBeUndefined();
-      const deps = makeBaseDeps({ scssClassMapForPath: () => classMap, workspaceRoot: "/fake" });
-      const result = handlePrepareRename(
-        { textDocument: { uri: SCSS_URI }, position: { line: 1, character: 3 } },
-        deps,
+      const deps = makeBaseDeps({ selectorMapForPath: () => classMap, workspaceRoot: "/fake" });
+      expectPrepareRenameBlocked(
+        () =>
+          handlePrepareRename(
+            { textDocument: { uri: SCSS_URI }, position: { line: 1, character: 3 } },
+            deps,
+          ),
+        "Only flat selectors and safe BEM suffix selectors can be renamed.",
       );
-      expect(result).toBeNull();
     }
   });
 
   it("rejects compound `.button { &.active {} }` (active entry has no trio)", async () => {
-    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
-    const classMap = parseStyleModule(`.button {\n  &.active {}\n}`, "/f.module.scss");
+    const classMap = parseStyleSelectorMap(`.button {\n  &.active {}\n}`, "/f.module.scss");
     const active = classMap.get("active")!;
-    expect(active.isNested).toBe(true);
+    expect(active.nestedSafety).toBe("nestedUnsafe");
     expect(active.bemSuffix).toBeUndefined();
-    const deps = makeBaseDeps({ scssClassMapForPath: () => classMap, workspaceRoot: "/fake" });
-    // Cursor on `&.active` → selectorInfo is the `active` entry with
-    // trio undefined → reject via nested-trio guard.
+    const deps = makeBaseDeps({ selectorMapForPath: () => classMap, workspaceRoot: "/fake" });
     const result = handlePrepareRename(
       { textDocument: { uri: SCSS_URI }, position: { line: 1, character: 3 } },
       deps,
@@ -750,9 +932,8 @@ describe("&-nested BEM suffix rename", () => {
   });
 
   it("rejects invalid newName (empty string)", async () => {
-    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
-    const classMap = parseStyleModule(`.button {\n  &--primary {}\n}`, "/f.module.scss");
-    const deps = makeBaseDeps({ scssClassMapForPath: () => classMap, workspaceRoot: "/fake" });
+    const classMap = parseStyleSelectorMap(`.button {\n  &--primary {}\n}`, "/f.module.scss");
+    const deps = makeBaseDeps({ selectorMapForPath: () => classMap, workspaceRoot: "/fake" });
     const rawRange = classMap.get("button--primary")!.bemSuffix!.rawTokenRange;
     const result = handleRename(
       {
@@ -766,9 +947,8 @@ describe("&-nested BEM suffix rename", () => {
   });
 
   it("rejects invalid newName (numeric start)", async () => {
-    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
-    const classMap = parseStyleModule(`.button {\n  &--primary {}\n}`, "/f.module.scss");
-    const deps = makeBaseDeps({ scssClassMapForPath: () => classMap, workspaceRoot: "/fake" });
+    const classMap = parseStyleSelectorMap(`.button {\n  &--primary {}\n}`, "/f.module.scss");
+    const deps = makeBaseDeps({ selectorMapForPath: () => classMap, workspaceRoot: "/fake" });
     const rawRange = classMap.get("button--primary")!.bemSuffix!.rawTokenRange;
     const result = handleRename(
       {
@@ -782,51 +962,47 @@ describe("&-nested BEM suffix rename", () => {
   });
 
   it("regression: nested `&--primary` + template `cx(\\`button--${x}\\`)` still rejects via expanded-sites", async () => {
-    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
-    const classMap = parseStyleModule(
+    const classMap = parseStyleSelectorMap(
       `.button {\n  &--primary {}\n}`,
       "/fake/src/Button.module.scss",
     );
-    const reverseIndex = new WorkspaceReverseIndex();
-    // Simulate a template-literal call site that expanded to
-    // include `button--primary`. Rename must still reject.
-    reverseIndex.record("file:///fake/src/App.tsx", [
-      {
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    semanticReferenceIndex.record("file:///fake/src/App.tsx", [
+      semanticSite({
         uri: "file:///fake/src/App.tsx",
-        range: { start: { line: 5, character: 10 }, end: { line: 5, character: 30 } },
-        scssModulePath: SCSS_PATH,
-        match: { kind: "template", staticPrefix: "button--" },
-        expansion: "direct",
-      },
-      {
-        uri: "file:///fake/src/App.tsx",
-        range: { start: { line: 5, character: 10 }, end: { line: 5, character: 30 } },
-        scssModulePath: SCSS_PATH,
-        match: { kind: "static", className: "button--primary", canonicalName: "button--primary" },
-        expansion: "expanded",
-      },
+        canonicalName: "button--primary",
+        className: "button--primary",
+        line: 5,
+        start: 10,
+        end: 30,
+        certainty: "inferred",
+        reason: "templatePrefix",
+      }),
     ]);
     const deps = makeBaseDeps({
-      scssClassMapForPath: () => classMap,
+      selectorMapForPath: () => classMap,
       workspaceRoot: "/fake",
-      reverseIndex,
+      semanticReferenceIndex,
     });
     const rawRange = classMap.get("button--primary")!.bemSuffix!.rawTokenRange;
-    const result = handlePrepareRename(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: { line: rawRange.start.line, character: rawRange.start.character + 1 },
-      },
-      deps,
+    expectPrepareRenameBlocked(
+      () =>
+        handlePrepareRename(
+          {
+            textDocument: { uri: SCSS_URI },
+            position: { line: rawRange.start.line, character: rawRange.start.character + 1 },
+          },
+          deps,
+        ),
+      "Rename is blocked because inferred or expanded references would make the edit unsafe.",
     );
-    expect(result).toBeNull();
   });
 });
 
 /**
- * Alias-first iteration order. Production `expandClassMapWithTransform`
+ * Alias-first iteration order. Production `expandSelectorMapWithTransform`
  * puts originals before aliases, which makes SCSS-cursor always hit
- * the original. To exercise the alias-selectorInfo code path from
+ * the original. To exercise the alias-selector code path from
  * the SCSS side, we flip the insertion order. The code under test
  * must be robust regardless of iteration order — and this helper
  * forces the alias branch.
@@ -840,12 +1016,12 @@ const camelOf = (name: string): string =>
     )
     .join("");
 
-function aliasFirstCamelCaseMap(base: ScssClassMap): ScssClassMap {
-  const expanded = new Map<string, SelectorInfo>();
+function aliasFirstCamelCaseMap(base: ReadonlyMap<string, ReturnType<typeof info>>) {
+  const expanded = new Map<string, ReturnType<typeof info>>();
   for (const [name, entry] of base) {
     const alias = camelOf(name);
     if (alias !== name && !expanded.has(alias)) {
-      expanded.set(alias, { ...entry, name: alias, originalName: name });
+      expanded.set(alias, { ...entry, name: alias, originalName: name, canonicalName: name });
     }
   }
   for (const [name, entry] of base) {
@@ -863,8 +1039,7 @@ function withTransformMode(mode: Settings["scss"]["classnameTransform"]): Settin
 
 describe("classnameTransform alias-aware rename", () => {
   it("camelCase: alias cursor rewrites SCSS via original entry's range", async () => {
-    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
-    const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);
+    const base = parseStyleSelectorMap(`.btn-primary { color: red; }`, SCSS_PATH);
     const classMap = aliasFirstCamelCaseMap(base);
     // sanity: alias iterates first
     const firstKey = classMap.keys().next().value;
@@ -872,7 +1047,7 @@ describe("classnameTransform alias-aware rename", () => {
     const original = base.get("btn-primary")!;
 
     const deps = makeBaseDeps({
-      scssClassMapForPath: () => classMap,
+      selectorMapForPath: () => classMap,
       workspaceRoot: "/fake",
       settings: withTransformMode("camelCase"),
     });
@@ -900,8 +1075,7 @@ describe("classnameTransform alias-aware rename", () => {
   });
 
   it("camelCase: alias cursor on deep-nested BEM edits only the suffix slice", async () => {
-    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
-    const base = parseStyleModule(`.btn-primary {\n  &--xl {}\n}`, SCSS_PATH);
+    const base = parseStyleSelectorMap(`.btn-primary {\n  &--xl {}\n}`, SCSS_PATH);
     const classMap = aliasFirstCamelCaseMap(base);
     // sanity: alias entries exist
     expect(classMap.has("btnPrimaryXl")).toBe(true);
@@ -910,7 +1084,7 @@ describe("classnameTransform alias-aware rename", () => {
     const rawRange = originalNested.bemSuffix!.rawTokenRange;
 
     const deps = makeBaseDeps({
-      scssClassMapForPath: () => classMap,
+      selectorMapForPath: () => classMap,
       workspaceRoot: "/fake",
       settings: withTransformMode("camelCase"),
     });
@@ -939,15 +1113,14 @@ describe("classnameTransform alias-aware rename", () => {
   });
 
   it("camelCase: original-name cursor (non-alias path) edits same range", async () => {
-    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
-    const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);
+    const base = parseStyleSelectorMap(`.btn-primary { color: red; }`, SCSS_PATH);
     // Production expansion (original-first) — findSelectorAtCursor
     // returns the non-alias entry.
-    const classMap = expandClassMapWithTransform(base, "camelCase");
+    const classMap = expandSelectorMapWithTransform(base, "camelCase");
     const original = base.get("btn-primary")!;
 
     const deps = makeBaseDeps({
-      scssClassMapForPath: () => classMap,
+      selectorMapForPath: () => classMap,
       workspaceRoot: "/fake",
       settings: withTransformMode("camelCase"),
     });
@@ -973,81 +1146,94 @@ describe("classnameTransform alias-aware rename", () => {
   });
 
   it("camelCaseOnly: alias rename is rejected at prepareRename", async () => {
-    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
-    const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);
+    const base = parseStyleSelectorMap(`.btn-primary { color: red; }`, SCSS_PATH);
     // camelCaseOnly drops the original; only `btnPrimary` alias remains.
-    const classMap = expandClassMapWithTransform(base, "camelCaseOnly");
+    const classMap = expandSelectorMapWithTransform(base, "camelCaseOnly");
     expect(classMap.has("btn-primary")).toBe(false);
     expect(classMap.get("btnPrimary")!.originalName).toBe("btn-primary");
     const alias = classMap.get("btnPrimary")!;
 
     const deps = makeBaseDeps({
-      scssClassMapForPath: () => classMap,
+      selectorMapForPath: () => classMap,
       workspaceRoot: "/fake",
       settings: withTransformMode("camelCaseOnly"),
     });
-    const result = handlePrepareRename(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: {
-          line: alias.range.start.line,
-          character: alias.range.start.character + 1,
-        },
-      },
-      deps,
+    expectPrepareRenameBlocked(
+      () =>
+        handlePrepareRename(
+          {
+            textDocument: { uri: SCSS_URI },
+            position: {
+              line: alias.range.start.line,
+              character: alias.range.start.character + 1,
+            },
+          },
+          deps,
+        ),
+      "Alias selector views cannot be renamed under the current classnameTransform mode.",
     );
-    expect(result).toBeNull();
   });
 
   it("dashesOnly: alias rename is rejected at prepareRename", async () => {
-    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
-    const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);
-    const classMap = expandClassMapWithTransform(base, "dashesOnly");
+    const base = parseStyleSelectorMap(`.btn-primary { color: red; }`, SCSS_PATH);
+    const classMap = expandSelectorMapWithTransform(base, "dashesOnly");
     expect(classMap.get("btnPrimary")!.originalName).toBe("btn-primary");
     const alias = classMap.get("btnPrimary")!;
 
     const deps = makeBaseDeps({
-      scssClassMapForPath: () => classMap,
+      selectorMapForPath: () => classMap,
       workspaceRoot: "/fake",
       settings: withTransformMode("dashesOnly"),
     });
-    const result = handlePrepareRename(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: {
-          line: alias.range.start.line,
-          character: alias.range.start.character + 1,
-        },
-      },
-      deps,
+    expectPrepareRenameBlocked(
+      () =>
+        handlePrepareRename(
+          {
+            textDocument: { uri: SCSS_URI },
+            position: {
+              line: alias.range.start.line,
+              character: alias.range.start.character + 1,
+            },
+          },
+          deps,
+        ),
+      "Alias selector views cannot be renamed under the current classnameTransform mode.",
     );
-    expect(result).toBeNull();
   });
 
   it("camelCase: canonical-form and alias-form sites both rewrite with per-site format", async () => {
-    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
-    const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);
-    const classMap = expandClassMapWithTransform(base, "camelCase");
+    const base = parseStyleSelectorMap(`.btn-primary { color: red; }`, SCSS_PATH);
+    const classMap = expandSelectorMapWithTransform(base, "camelCase");
     const original = base.get("btn-primary")!;
 
     // Two real-world access patterns against the same SCSS class:
     //   - `cx('btn-primary')` in App.tsx — canonical form
     //   - `styles.btnPrimary`  in Other.tsx — alias form
-    // Production `collectCallSites` canonicalises both under
-    // `canonicalName: "btn-primary"` so the reverse index stores them
-    // in a single bucket.
-    const reverseIndex = new WorkspaceReverseIndex();
-    reverseIndex.record("file:///fake/src/App.tsx", [
-      siteAt("file:///fake/src/App.tsx", "btn-primary", 10, SCSS_PATH),
+    // Both access forms are keyed under the canonical selector.
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    semanticReferenceIndex.record("file:///fake/src/App.tsx", [
+      semanticSite({
+        uri: "file:///fake/src/App.tsx",
+        canonicalName: "btn-primary",
+        className: "btn-primary",
+        line: 10,
+      }),
     ]);
-    reverseIndex.record("file:///fake/src/Other.tsx", [
-      siteAt("file:///fake/src/Other.tsx", "btnPrimary", 20, SCSS_PATH, "btn-primary"),
+    semanticReferenceIndex.record("file:///fake/src/Other.tsx", [
+      semanticSite({
+        uri: "file:///fake/src/Other.tsx",
+        canonicalName: "btn-primary",
+        className: "btnPrimary",
+        line: 20,
+        reason: "styleAccess",
+        origin: "styleAccess",
+      }),
     ]);
 
     const deps = makeBaseDeps({
-      scssClassMapForPath: () => classMap,
+      selectorMapForPath: () => classMap,
       workspaceRoot: "/fake",
-      reverseIndex,
+      semanticReferenceIndex,
       settings: withTransformMode("camelCase"),
     });
     const result = handleRename(
@@ -1073,24 +1259,81 @@ describe("classnameTransform alias-aware rename", () => {
     expect(changes["file:///fake/src/Other.tsx"]![0]!.newText).toBe("btnHero");
   });
 
+  it("camelCase: semantic direct sites rewrite with per-site format", async () => {
+    const base = parseStyleSelectorMap(`.btn-primary { color: red; }`, SCSS_PATH);
+    const classMap = expandSelectorMapWithTransform(base, "camelCase");
+    const original = base.get("btn-primary")!;
+
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    semanticReferenceIndex.record("file:///fake/src/App.tsx", [
+      semanticSite({
+        uri: "file:///fake/src/App.tsx",
+        canonicalName: "btn-primary",
+        className: "btn-primary",
+        line: 10,
+      }),
+    ]);
+    semanticReferenceIndex.record("file:///fake/src/Other.tsx", [
+      semanticSite({
+        uri: "file:///fake/src/Other.tsx",
+        canonicalName: "btn-primary",
+        className: "btnPrimary",
+        line: 20,
+        reason: "styleAccess",
+        origin: "styleAccess",
+      }),
+    ]);
+
+    const deps = makeBaseDeps({
+      selectorMapForPath: () => classMap,
+      workspaceRoot: "/fake",
+      semanticReferenceIndex,
+      settings: withTransformMode("camelCase"),
+    });
+    const result = handleRename(
+      {
+        textDocument: { uri: SCSS_URI },
+        position: {
+          line: original.range.start.line,
+          character: original.range.start.character + 1,
+        },
+        newName: "btn-hero",
+      },
+      deps,
+    );
+    expect(result).not.toBeNull();
+    const changes = result!.changes!;
+    expect(changes["file:///fake/src/App.tsx"]).toHaveLength(1);
+    expect(changes["file:///fake/src/App.tsx"]![0]!.newText).toBe("btn-hero");
+    expect(changes["file:///fake/src/Other.tsx"]).toHaveLength(1);
+    expect(changes["file:///fake/src/Other.tsx"]![0]!.newText).toBe("btnHero");
+  });
+
   it("camelCase: SCSS cursor on original still finds alias-form TSX sites via canonical key", async () => {
-    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
-    const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);
-    const classMap = expandClassMapWithTransform(base, "camelCase");
+    const base = parseStyleSelectorMap(`.btn-primary { color: red; }`, SCSS_PATH);
+    const classMap = expandSelectorMapWithTransform(base, "camelCase");
     const original = base.get("btn-primary")!;
 
     // Only an alias-form TSX site exists — no direct `cx('btn-primary')`.
     // SCSS cursor rename on the original must still rewrite the
-    // alias access because the reverse index canonicalises the key.
-    const reverseIndex = new WorkspaceReverseIndex();
-    reverseIndex.record("file:///fake/src/App.tsx", [
-      siteAt("file:///fake/src/App.tsx", "btnPrimary", 15, SCSS_PATH, "btn-primary"),
+    // alias access because the semantic index keys it under the
+    // canonical selector.
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    semanticReferenceIndex.record("file:///fake/src/App.tsx", [
+      semanticSite({
+        uri: "file:///fake/src/App.tsx",
+        canonicalName: "btn-primary",
+        className: "btnPrimary",
+        line: 15,
+        reason: "styleAccess",
+        origin: "styleAccess",
+      }),
     ]);
 
     const deps = makeBaseDeps({
-      scssClassMapForPath: () => classMap,
+      selectorMapForPath: () => classMap,
       workspaceRoot: "/fake",
-      reverseIndex,
+      semanticReferenceIndex,
       settings: withTransformMode("camelCase"),
     });
     const result = handleRename(
@@ -1111,16 +1354,15 @@ describe("classnameTransform alias-aware rename", () => {
   });
 
   it("camelCase: SCSS cursor on original-first expansion returns the non-alias entry", async () => {
-    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
-    const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);
-    const classMap = expandClassMapWithTransform(base, "camelCase");
+    const base = parseStyleSelectorMap(`.btn-primary { color: red; }`, SCSS_PATH);
+    const classMap = expandSelectorMapWithTransform(base, "camelCase");
     // Both keys present.
     expect(classMap.has("btn-primary")).toBe(true);
     expect(classMap.has("btnPrimary")).toBe(true);
     const original = base.get("btn-primary")!;
 
     const hit = findSelectorAtCursor(
-      classMap,
+      buildStyleDocumentFromSelectorMap(SCSS_PATH, classMap),
       original.range.start.line,
       original.range.start.character + 1,
     );
@@ -1133,52 +1375,88 @@ describe("classnameTransform alias-aware rename", () => {
   });
 
   it("regression: expanded site on original key rejects rename via alias cursor", async () => {
-    const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
-    const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);
+    const base = parseStyleSelectorMap(`.btn-primary { color: red; }`, SCSS_PATH);
     const classMap = aliasFirstCamelCaseMap(base);
     const original = base.get("btn-primary")!;
 
-    // Simulate a `cx(`btn-${x}`)` template whose reverse-index
-    // emits one direct template site and one expanded static site
-    // keyed on the ORIGINAL name `btn-primary`.
-    const reverseIndex = new WorkspaceReverseIndex();
-    reverseIndex.record("file:///fake/src/App.tsx", [
-      {
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    semanticReferenceIndex.record("file:///fake/src/App.tsx", [
+      semanticSite({
         uri: "file:///fake/src/App.tsx",
-        range: { start: { line: 5, character: 10 }, end: { line: 5, character: 30 } },
-        scssModulePath: SCSS_PATH,
-        match: { kind: "template", staticPrefix: "btn-" },
-        expansion: "direct",
-      },
-      {
-        uri: "file:///fake/src/App.tsx",
-        range: { start: { line: 5, character: 10 }, end: { line: 5, character: 30 } },
-        scssModulePath: SCSS_PATH,
-        match: { kind: "static", className: "btn-primary", canonicalName: "btn-primary" },
-        expansion: "expanded",
-      },
+        canonicalName: "btn-primary",
+        className: "btn-primary",
+        line: 5,
+        start: 10,
+        end: 30,
+        certainty: "inferred",
+        reason: "templatePrefix",
+      }),
     ]);
 
     const deps = makeBaseDeps({
-      scssClassMapForPath: () => classMap,
+      selectorMapForPath: () => classMap,
       workspaceRoot: "/fake",
-      reverseIndex,
+      semanticReferenceIndex,
       settings: withTransformMode("camelCase"),
     });
     // Cursor hits the alias first (alias-first iteration). Without
     // the union, the single-key check against `btnPrimary` would
     // miss the expanded site keyed on `btn-primary` and allow the
     // rename — rewriting the template and destroying the source.
-    const result = handlePrepareRename(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: {
-          line: original.range.start.line,
-          character: original.range.start.character + 1,
-        },
-      },
-      deps,
+    expectPrepareRenameBlocked(
+      () =>
+        handlePrepareRename(
+          {
+            textDocument: { uri: SCSS_URI },
+            position: {
+              line: original.range.start.line,
+              character: original.range.start.character + 1,
+            },
+          },
+          deps,
+        ),
+      "Rename is blocked because inferred or expanded references would make the edit unsafe.",
     );
-    expect(result).toBeNull();
+  });
+
+  it("regression: semantic expanded site on original key rejects rename via alias cursor", async () => {
+    const base = parseStyleSelectorMap(`.btn-primary { color: red; }`, SCSS_PATH);
+    const classMap = aliasFirstCamelCaseMap(base);
+    const original = base.get("btn-primary")!;
+
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    semanticReferenceIndex.record("file:///fake/src/App.tsx", [
+      semanticSite({
+        uri: "file:///fake/src/App.tsx",
+        canonicalName: "btn-primary",
+        className: "btn-primary",
+        line: 5,
+        start: 10,
+        end: 30,
+        certainty: "inferred",
+        reason: "templatePrefix",
+      }),
+    ]);
+
+    const deps = makeBaseDeps({
+      selectorMapForPath: () => classMap,
+      workspaceRoot: "/fake",
+      semanticReferenceIndex,
+      settings: withTransformMode("camelCase"),
+    });
+    expectPrepareRenameBlocked(
+      () =>
+        handlePrepareRename(
+          {
+            textDocument: { uri: SCSS_URI },
+            position: {
+              line: original.range.start.line,
+              character: original.range.start.character + 1,
+            },
+          },
+          deps,
+        ),
+      "Rename is blocked because inferred or expanded references would make the edit unsafe.",
+    );
   });
 });

@@ -1,49 +1,39 @@
-import type { CallSite, SelectorInfo } from "@css-module-explainer/shared";
+import type { CallSite, CxBinding, StyleImport } from "@css-module-explainer/shared";
 import { SourceFileCache } from "../../server/src/core/ts/source-file-cache";
+import type { SelectorDeclHIR } from "../../server/src/core/hir/style-types";
 import { DocumentAnalysisCache } from "../../server/src/core/indexing/document-analysis-cache";
-import { NullReverseIndex } from "../../server/src/core/indexing/reverse-index";
+import { NullSemanticWorkspaceReferenceIndex } from "../../server/src/core/semantic/workspace-reference-index";
 import { NOOP_LOG_ERROR, type ProviderDeps } from "../../server/src/providers/cursor-dispatch";
 import { DEFAULT_SETTINGS } from "../../server/src/settings";
 import { AliasResolver } from "../../server/src/core/cx/alias-resolver";
 import { FakeTypeResolver } from "./fake-type-resolver";
+import { buildClassExpressions } from "./source-documents";
+import { buildStyleDocumentFromSelectorMap, makeTestSelector } from "./style-documents";
 
 export const EMPTY_ALIAS_RESOLVER = new AliasResolver("/fake/ws", {});
 
-/** Create a minimal SelectorInfo for testing (fixed line 11 position). */
-export function info(name: string): SelectorInfo {
-  return {
-    name,
-    range: { start: { line: 11, character: 2 }, end: { line: 11, character: 2 + name.length } },
-    fullSelector: `.${name}`,
-    declarations: "color: red",
+/** Create a minimal selector for testing (fixed line 11 position). */
+export function info(name: string): SelectorDeclHIR {
+  return makeTestSelector(name, 11, {
     ruleRange: { start: { line: 10, character: 0 }, end: { line: 13, character: 1 } },
-  };
+  });
 }
 
-/** Create a minimal SelectorInfo at a specific line. */
-export function infoAtLine(name: string, line: number): SelectorInfo {
-  return {
-    name,
+/** Create a minimal selector at a specific line. */
+export function infoAtLine(name: string, line: number): SelectorDeclHIR {
+  return makeTestSelector(name, line, {
     range: { start: { line, character: 1 }, end: { line, character: 1 + name.length } },
-    fullSelector: `.${name}`,
-    declarations: "color: red",
     ruleRange: { start: { line, character: 0 }, end: { line: line + 2, character: 1 } },
-  };
+  });
 }
 
-/** Create a SelectorInfo at a specific line with custom declarations. */
+/** Create a selector at a specific line with custom declarations. */
 export function infoWithDeclarations(
   name: string,
   line: number,
   declarations: string,
-): SelectorInfo {
-  return {
-    name,
-    range: { start: { line, character: 2 }, end: { line, character: 2 + name.length } },
-    fullSelector: `.${name}`,
-    declarations,
-    ruleRange: { start: { line, character: 0 }, end: { line: line + 3, character: 1 } },
-  };
+): SelectorDeclHIR {
+  return makeTestSelector(name, line, { declarations });
 }
 
 /**
@@ -68,13 +58,73 @@ export function siteAt(
   };
 }
 
+export function semanticSiteAt(
+  uri: string,
+  className: string,
+  line: number,
+  scssPath: string = "/fake/a.module.scss",
+  canonicalName: string = className,
+  options: {
+    start?: number;
+    end?: number;
+    certainty?: "exact" | "inferred" | "possible";
+    reason?:
+      | "literal"
+      | "styleAccess"
+      | "templatePrefix"
+      | "typeUnion"
+      | "flowLiteral"
+      | "flowBranch";
+    origin?: "cxCall" | "styleAccess";
+  } = {},
+) {
+  const certainty = options.certainty ?? "exact";
+  const start = options.start ?? 10;
+  const end = options.end ?? start + className.length;
+  return {
+    refId: `ref:${uri}:${line}:${start}`,
+    selectorId: `selector:${scssPath}:${canonicalName}`,
+    filePath: uri.replace("file://", ""),
+    uri,
+    range: { start: { line, character: start }, end: { line, character: end } },
+    origin: options.origin ?? "cxCall",
+    scssModulePath: scssPath,
+    selectorFilePath: scssPath,
+    canonicalName,
+    className,
+    certainty,
+    reason: options.reason ?? "literal",
+    expansion: certainty === "exact" ? "direct" : "expanded",
+  } as const;
+}
+
+export function buildTestClassExpressions(args: {
+  readonly filePath: string;
+  readonly bindings: readonly CxBinding[];
+  readonly stylesBindings?: ReadonlyMap<string, StyleImport>;
+  readonly classUtilNames?: readonly string[];
+  readonly expressions: Parameters<typeof buildClassExpressions>[0]["expressions"];
+}) {
+  return buildClassExpressions({
+    filePath: args.filePath,
+    bindings: args.bindings,
+    stylesBindings: args.stylesBindings ?? new Map(),
+    classUtilNames: args.classUtilNames ?? [],
+    expressions: args.expressions,
+  });
+}
+
+type BaseDepsOverrides = Partial<ProviderDeps> & {
+  readonly selectorMapForPath?: (path: string) => ReadonlyMap<string, SelectorDeclHIR> | null;
+};
+
 /**
  * Build a default ProviderDeps with sensible empty defaults.
  *
  * Callers override individual fields via the `overrides` argument.
  * Keeps test setup DRY across hover, completion, and diagnostics tests.
  */
-export function makeBaseDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
+export function makeBaseDeps(overrides: BaseDepsOverrides = {}): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
   const analysisCache = new DocumentAnalysisCache({
     sourceFileCache,
@@ -83,11 +133,17 @@ export function makeBaseDeps(overrides: Partial<ProviderDeps> = {}): ProviderDep
     aliasResolver: EMPTY_ALIAS_RESOLVER,
     max: 10,
   });
+  const { selectorMapForPath = () => null, styleDocumentForPath, ...providerOverrides } = overrides;
   return {
     analysisCache,
-    scssClassMapForPath: () => null,
+    styleDocumentForPath:
+      styleDocumentForPath ??
+      ((path: string) => {
+        const selectors = selectorMapForPath(path);
+        return selectors ? buildStyleDocumentFromSelectorMap(path, selectors) : null;
+      }),
     typeResolver: new FakeTypeResolver(),
-    reverseIndex: new NullReverseIndex(),
+    semanticReferenceIndex: new NullSemanticWorkspaceReferenceIndex(),
     workspaceRoot: "/fake/ws",
     logError: NOOP_LOG_ERROR,
     invalidateStyle: () => {},
@@ -97,6 +153,6 @@ export function makeBaseDeps(overrides: Partial<ProviderDeps> = {}): ProviderDep
     settings: DEFAULT_SETTINGS,
     rebuildAliasResolver: () => {},
     setClassnameTransform: () => {},
-    ...overrides,
+    ...providerOverrides,
   };
 }

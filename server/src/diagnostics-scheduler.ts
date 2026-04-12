@@ -149,9 +149,13 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
     const doc = this.deps.documents.get(uri);
     if (!providerDeps || !doc) return;
     const filePath = fileUrlToPath(uri);
-    const classMap = providerDeps.scssClassMapForPath(filePath);
-    if (!classMap) return;
-    const diagnostics = computeScssUnusedDiagnostics(filePath, classMap, providerDeps.reverseIndex);
+    const styleDocument = providerDeps.styleDocumentForPath(filePath);
+    if (!styleDocument) return;
+    const diagnostics = computeScssUnusedDiagnostics(
+      filePath,
+      styleDocument,
+      providerDeps.semanticReferenceIndex,
+    );
     this.deps.connection.sendDiagnostics({ uri, diagnostics });
   }
 }

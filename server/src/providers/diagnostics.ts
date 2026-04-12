@@ -3,9 +3,9 @@ import {
   type Diagnostic,
   type Range as LspRange,
 } from "vscode-languageserver/node";
-import type { ClassRef, ScssClassMap } from "@css-module-explainer/shared";
-import { resolveClassRefToSelectorInfos } from "../core/cx/call-resolver";
-import { findClosestMatch } from "../core/util/text-utils";
+import { findInvalidClassReference } from "../core/query/find-invalid-class-references";
+import type { StyleDocumentHIR } from "../core/hir/style-types";
+import { pathToFileUrl } from "../core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
 import { wrapHandler } from "./_wrap-handler";
 import type { DocumentParams, ProviderDeps } from "./provider-deps";
@@ -17,7 +17,7 @@ import type { DocumentParams, ProviderDeps } from "./provider-deps";
  * `onDidChangeContent` (debounced) and pipes the result into
  * `connection.sendDiagnostics(...)`.
  *
- * Iterates every cached ClassRef whose origin is `cxCall` in the
+ * Iterates every cached class expression whose origin is `cxCall` in the
  * document's analysis entry, classifies each, and emits a
  * Diagnostic for unresolved / missing class names. Returns [] for
  * clean documents — caller MUST still publish to clear prior
@@ -64,6 +64,11 @@ export const computeDiagnostics = wrapHandler<
           source: DIAGNOSTIC_SOURCE,
           message: `Cannot resolve CSS Module '${imp.specifier}'. The file does not exist.`,
           code: "missing-module",
+          data: {
+            createModuleFile: {
+              uri: pathToFileUrl(imp.absolutePath),
+            },
+          },
         });
       }
     }
@@ -73,19 +78,25 @@ export const computeDiagnostics = wrapHandler<
     // covered by TypeScript's own type checker.
     if (!params.content.includes("classnames/bind")) return diagnostics;
 
-    const cxRefs = entry.classRefs.filter((r) => r.origin === "cxCall");
-    if (cxRefs.length === 0) return diagnostics;
+    const cxExpressions = entry.sourceDocument.classExpressions.filter(
+      (expression) => expression.origin === "cxCall",
+    );
+    if (cxExpressions.length === 0) return diagnostics;
 
     // Per-ref isolation: a single throwing ref (e.g. a malformed
     // binding or a misbehaving TypeResolver entry) must NOT erase
     // every other diagnostic in the same document. The "log +
     // return empty result" boundary applies per-ref, not per-file.
-    for (const ref of cxRefs) {
+    for (const expression of cxExpressions) {
       try {
-        const classMap = deps.scssClassMapForPath(ref.scssModulePath);
-        if (!classMap) continue;
-        const d = validateCall(ref, classMap, params, deps, severity);
-        if (d) diagnostics.push(d);
+        const styleDocument = deps.styleDocumentForPath(expression.scssModulePath);
+        if (!styleDocument) continue;
+        const finding = findInvalidClassReference(expression, entry.sourceFile, styleDocument, {
+          typeResolver: deps.typeResolver,
+          filePath: params.filePath,
+          workspaceRoot: deps.workspaceRoot,
+        });
+        if (finding) diagnostics.push(toDiagnostic(finding, styleDocument, deps, severity));
       } catch (err) {
         deps.logError("diagnostics per-call validation failed", err);
         // continue to the next ref
@@ -98,96 +109,107 @@ export const computeDiagnostics = wrapHandler<
 
 const DIAGNOSTIC_SOURCE = "css-module-explainer";
 
-function validateCall(
-  ref: ClassRef,
-  classMap: ScssClassMap,
-  params: Pick<DocumentParams, "filePath">,
+function toDiagnostic(
+  finding: NonNullable<ReturnType<typeof findInvalidClassReference>>,
+  styleDocument: StyleDocumentHIR,
   deps: ProviderDeps,
   severity: DiagnosticSeverity,
-): Diagnostic | null {
-  const range = toLspRange(ref.originRange);
-  switch (ref.kind) {
-    case "static":
-      return validateStaticRef(ref, classMap, deps, range, severity);
-    case "template":
-      return validateTemplateRef(ref, classMap, deps, range, severity);
-    case "variable":
-      return validateVariableRef(ref, classMap, params, deps, range, severity);
-    default: {
-      const _exhaustive: never = ref;
-      return _exhaustive;
+): Diagnostic {
+  const range: LspRange = toLspRange(finding.range);
+
+  switch (finding.kind) {
+    case "missingStaticClass": {
+      const hint = finding.suggestion ? ` Did you mean '${finding.suggestion}'?` : "";
+      return {
+        range,
+        severity,
+        source: DIAGNOSTIC_SOURCE,
+        message: `Class '.${finding.expression.className}' not found in ${relativeScss(finding.expression.scssModulePath, deps.workspaceRoot)}.${hint}`,
+        data: {
+          ...(finding.suggestion ? { suggestion: finding.suggestion } : {}),
+          createSelector: buildCreateSelectorActionData(
+            finding.expression.className,
+            finding.expression.scssModulePath,
+            styleDocument,
+          ),
+        },
+      };
+    }
+    case "missingTemplatePrefix":
+      return {
+        range,
+        severity,
+        source: DIAGNOSTIC_SOURCE,
+        message: `No class starting with '${finding.expression.staticPrefix}' found in ${relativeScss(finding.expression.scssModulePath, deps.workspaceRoot)}.`,
+      };
+    case "missingResolvedClassValues":
+      return {
+        range,
+        severity,
+        source: DIAGNOSTIC_SOURCE,
+        message: diagnosticMessageForResolvedValues(finding),
+      };
+    default:
+      finding satisfies never;
+      return finding;
+  }
+}
+
+function buildCreateSelectorActionData(
+  className: string,
+  scssModulePath: string,
+  styleDocument: StyleDocumentHIR,
+): {
+  readonly uri: string;
+  readonly range: LspRange;
+  readonly newText: string;
+} {
+  const insertionRange = findSelectorInsertionRange(styleDocument);
+  return {
+    uri: pathToFileUrl(scssModulePath),
+    range: insertionRange,
+    newText:
+      styleDocument.selectors.length > 0 ? `\n\n.${className} {\n}\n` : `.${className} {\n}\n`,
+  };
+}
+
+function findSelectorInsertionRange(styleDocument: StyleDocumentHIR): LspRange {
+  if (styleDocument.selectors.length === 0) {
+    return {
+      start: { line: 0, character: 0 },
+      end: { line: 0, character: 0 },
+    };
+  }
+
+  let latest = styleDocument.selectors[0]!.ruleRange.end;
+  for (const selector of styleDocument.selectors) {
+    const end = selector.ruleRange.end;
+    if (end.line > latest.line || (end.line === latest.line && end.character > latest.character)) {
+      latest = end;
     }
   }
-}
 
-function validateStaticRef(
-  ref: Extract<ClassRef, { kind: "static" }>,
-  classMap: ScssClassMap,
-  deps: ProviderDeps,
-  range: LspRange,
-  severity: DiagnosticSeverity,
-): Diagnostic | null {
-  if (classMap.has(ref.className)) return null;
-  const suggestion = findClosestMatch(ref.className, classMap.keys());
-  const hint = suggestion ? ` Did you mean '${suggestion}'?` : "";
   return {
-    range,
-    severity,
-    source: DIAGNOSTIC_SOURCE,
-    message: `Class '.${ref.className}' not found in ${relativeScss(ref.scssModulePath, deps.workspaceRoot)}.${hint}`,
-    data: suggestion ? { suggestion } : undefined,
+    start: { line: latest.line, character: latest.character },
+    end: { line: latest.line, character: latest.character },
   };
 }
 
-function validateTemplateRef(
-  ref: Extract<ClassRef, { kind: "template" }>,
-  classMap: ScssClassMap,
-  deps: ProviderDeps,
-  range: LspRange,
-  severity: DiagnosticSeverity,
-): Diagnostic | null {
-  if (anyValueStartsWith(classMap, ref.staticPrefix)) return null;
-  return {
-    range,
-    severity,
-    source: DIAGNOSTIC_SOURCE,
-    message: `No class starting with '${ref.staticPrefix}' found in ${relativeScss(ref.scssModulePath, deps.workspaceRoot)}.`,
-  };
-}
-
-function validateVariableRef(
-  ref: Extract<ClassRef, { kind: "variable" }>,
-  classMap: ScssClassMap,
-  params: Pick<DocumentParams, "filePath">,
-  deps: ProviderDeps,
-  range: LspRange,
-  severity: DiagnosticSeverity,
-): Diagnostic | null {
-  const infos = resolveClassRefToSelectorInfos({
-    ref,
-    classMap,
-    typeResolver: deps.typeResolver,
-    filePath: params.filePath,
-    workspaceRoot: deps.workspaceRoot,
-  });
-  const resolved = deps.typeResolver.resolve(params.filePath, ref.variableName, deps.workspaceRoot);
-  if (resolved.kind !== "union") return null;
-  if (infos.length === resolved.values.length) return null;
-  const missing = resolved.values.filter((v) => !classMap.has(v));
-  if (missing.length === 0) return null;
-  return {
-    range,
-    severity,
-    source: DIAGNOSTIC_SOURCE,
-    message: `Missing class for union member${missing.length > 1 ? "s" : ""}: ${missing.map((m) => `'${m}'`).join(", ")}.`,
-  };
-}
-
-function anyValueStartsWith(classMap: ScssClassMap, prefix: string): boolean {
-  for (const name of classMap.keys()) {
-    if (name.startsWith(prefix)) return true;
+function diagnosticMessageForResolvedValues(
+  finding: Extract<
+    NonNullable<ReturnType<typeof findInvalidClassReference>>,
+    {
+      kind: "missingResolvedClassValues";
+    }
+  >,
+): string {
+  if (finding.reason === "typeUnion") {
+    return `Missing class for union member${finding.missingValues.length > 1 ? "s" : ""}: ${finding.missingValues.map((value) => `'${value}'`).join(", ")}.`;
   }
-  return false;
+  if (finding.missingValues.length === 1 && finding.certainty === "exact") {
+    return `Missing class for resolved value: '${finding.missingValues[0]}'.`;
+  }
+  return `Missing class for possible value${finding.missingValues.length > 1 ? "s" : ""}: ${finding.missingValues.map((value) => `'${value}'`).join(", ")}.`;
 }
 
 function relativeScss(scssPath: string, workspaceRoot: string): string {

@@ -1,12 +1,10 @@
 /**
  * Ambient type declarations for the Vite+ dogfood sandbox.
  *
- * Vite ships `vite/client` with these declarations, but since
- * we depend on `vite-plus` (which transitively provides vite
- * via the pnpm store) instead of `vite` directly, the
- * `/// <reference types="vite/client" />` triple-slash may
- * fail to resolve from the IDE's TypeScript language service.
- * Inlining the declarations keeps the sandbox self-contained.
+ * We keep the sandbox self-contained instead of relying on
+ * `vite/client` ambient declarations. That keeps editor behavior
+ * stable even when the examples app is opened as a standalone QA
+ * folder rather than through the whole repo workspace.
  */
 
 declare module "*.module.scss" {

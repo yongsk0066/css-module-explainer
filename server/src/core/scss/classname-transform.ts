@@ -1,9 +1,13 @@
-import type { ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
+import {
+  makeStyleDocumentHIR,
+  type SelectorDeclHIR,
+  type StyleDocumentHIR,
+} from "../hir/style-types";
 
 /**
  * 5-mode classname transformation for CSS Modules. Mirrors
- * css-loader's `localsConvention` option and the ts-plugin-css-modules
- * implementation (ref: ~/oss/typescript-plugin-css-modules/src/helpers/classTransforms.ts).
+ * css-loader's `localsConvention` option and common CSS Modules
+ * classname transform behavior.
  *
  * Takes an original SCSS class name and returns the list of names
  * the JS-side `classMap` should expose for it:
@@ -32,22 +36,6 @@ export type ClassnameTransformMode =
   | "dashes"
   | "dashesOnly";
 
-/**
- * Resolve a `SelectorInfo` back to its canonical SCSS name — the
- * original selector source token, regardless of whether `info`
- * came from the original map entry or from an alias-view entry
- * produced by `expandClassMapWithTransform`.
- *
- * Every place that queries the workspace reverse index, or that
- * compares selector identity across alias views, has to route
- * through this function. Aliases carry their source name in
- * `originalName`; the original entry carries its own name in `name`
- * and leaves `originalName` undefined.
- */
-export function canonicalNameOf(info: SelectorInfo): string {
-  return info.originalName ?? info.name;
-}
-
 export function transformClassname(mode: ClassnameTransformMode, name: string): string[] {
   switch (mode) {
     case "asIs":
@@ -69,8 +57,7 @@ export function transformClassname(mode: ClassnameTransformMode, name: string): 
 
 /**
  * `-+(\w)` → uppercase. Only dashes are consumed; underscores and
- * whitespace pass through. Matches ts-plugin's regex at
- * classTransforms.ts:8.
+ * whitespace pass through.
  */
 function dashesToCamel(name: string): string {
   return name.replace(/-+(\w)/g, (_, ch: string) => ch.toUpperCase());
@@ -92,43 +79,29 @@ function toCamelCase(name: string): string {
     .join("");
 }
 
-/**
- * Expand a base class map with classnameTransform aliases.
- *
- * For `asIs` mode this is an identity (returns the same reference
- * — zero cost, and downstream memoized structures stay valid).
- * For the other four modes it walks the base map and, for each
- * entry whose transform produces a name different from the
- * original, adds an alias entry with `originalName` set. The
- * `bemSuffix`, `isNested`, `range`, and `ruleRange` fields are
- * copied via `...info` spread — reference-identical to the
- * original so the rename provider's suffix-math operates on the
- * ORIGINAL source token.
- */
-export function expandClassMapWithTransform(
-  base: ScssClassMap,
+export function expandStyleDocumentWithTransform(
+  base: StyleDocumentHIR,
   mode: ClassnameTransformMode,
-): ScssClassMap {
+): StyleDocumentHIR {
   if (mode === "asIs") return base;
 
-  const expanded = new Map<string, SelectorInfo>();
-  for (const [name, info] of base) {
-    const aliases = transformClassname(mode, name);
+  const expandedSelectors: SelectorDeclHIR[] = [];
+  for (const selector of base.selectors) {
+    const aliases = transformClassname(mode, selector.name);
     for (const alias of aliases) {
-      if (alias === name) {
-        expanded.set(name, info);
+      if (alias === selector.name) {
+        expandedSelectors.push(selector);
         continue;
       }
-      expanded.set(alias, {
-        ...info,
+      expandedSelectors.push({
+        ...selector,
+        id: `${selector.id}:alias:${alias}`,
         name: alias,
-        originalName: name,
+        viewKind: "alias",
+        originalName: selector.name,
       });
     }
-    // camelCaseOnly / dashesOnly: `aliases` does not contain the
-    // original name, so the original entry is dropped from the
-    // expanded map. Consumers that need the original still have
-    // `alias.originalName` as the back-pointer.
   }
-  return expanded;
+
+  return makeStyleDocumentHIR(base.filePath, expandedSelectors);
 }

@@ -1,11 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 import type ts from "typescript";
-import type { ClassRef, CxBinding, ScssClassMap } from "@css-module-explainer/shared";
+import type { CxBinding } from "@css-module-explainer/shared";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
 import type { ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
 import { handleHover } from "../../../server/src/providers/hover";
-import { EMPTY_ALIAS_RESOLVER, info, makeBaseDeps } from "../../_fixtures/test-helpers";
+import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
+import {
+  EMPTY_ALIAS_RESOLVER,
+  buildTestClassExpressions,
+  info,
+  makeBaseDeps,
+} from "../../_fixtures/test-helpers";
 
 const TSX = `
 import classNames from 'classnames/bind';
@@ -27,19 +33,6 @@ const detectCxBindings = (sourceFile: ts.SourceFile): CxBinding[] => [
   },
 ];
 
-const stubParseClassRefs = (_sf: ts.SourceFile, bindings: readonly CxBinding[]): ClassRef[] =>
-  bindings.length === 0
-    ? []
-    : [
-        {
-          kind: "static",
-          origin: "cxCall",
-          className: "indicator",
-          originRange: { start: { line: 4, character: 15 }, end: { line: 4, character: 24 } },
-          scssModulePath: bindings[0]!.scssModulePath,
-        },
-      ];
-
 function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
   const analysisCache = new DocumentAnalysisCache({
@@ -47,12 +40,31 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
     scanCxImports: (sf, fp) => ({ stylesBindings: new Map(), bindings: detectCxBindings(sf, fp) }),
-    parseClassRefs: stubParseClassRefs,
+    parseClassExpressions: (_sf, bindings) =>
+      buildTestClassExpressions({
+        filePath: "/fake/ws/src/Button.tsx",
+        bindings,
+        expressions:
+          bindings.length === 0
+            ? []
+            : [
+                {
+                  kind: "literal",
+                  origin: "cxCall",
+                  className: "indicator",
+                  range: {
+                    start: { line: 4, character: 15 },
+                    end: { line: 4, character: 24 },
+                  },
+                  scssModulePath: bindings[0]!.scssModulePath,
+                },
+              ],
+      }),
     max: 10,
   });
   return makeBaseDeps({
     analysisCache,
-    scssClassMapForPath: () => new Map([["indicator", info("indicator")]]) as ScssClassMap,
+    selectorMapForPath: () => new Map([["indicator", info("indicator")]]),
     ...overrides,
   });
 }
@@ -99,21 +111,26 @@ const el = cx(
           stylesBindings: new Map(),
           bindings: detectCxBindings(sf, fp),
         }),
-        parseClassRefs: (_sf: ts.SourceFile, bindings: readonly CxBinding[]): ClassRef[] =>
-          bindings.length === 0
-            ? []
-            : [
-                {
-                  kind: "static",
-                  origin: "cxCall",
-                  className: "indicator",
-                  originRange: {
-                    start: { line: 5, character: 2 },
-                    end: { line: 5, character: 13 },
-                  },
-                  scssModulePath: bindings[0]!.scssModulePath,
-                },
-              ],
+        parseClassExpressions: (_sf, bindings) =>
+          buildTestClassExpressions({
+            filePath: "/fake/ws/src/Button.tsx",
+            bindings,
+            expressions:
+              bindings.length === 0
+                ? []
+                : [
+                    {
+                      kind: "literal",
+                      origin: "cxCall",
+                      className: "indicator",
+                      range: {
+                        start: { line: 5, character: 2 },
+                        end: { line: 5, character: 13 },
+                      },
+                      scssModulePath: bindings[0]!.scssModulePath,
+                    },
+                  ],
+          }),
         max: 10,
       }),
     });
@@ -127,11 +144,75 @@ const el = cx(
   });
 
   it("returns null when the classMap has no match", () => {
-    const hover = handleHover(
-      baseParams,
-      makeDeps({ scssClassMapForPath: () => new Map() as ScssClassMap }),
-    );
+    const hover = handleHover(baseParams, makeDeps({ selectorMapForPath: () => new Map() }));
     expect(hover).toBeNull();
+  });
+
+  it("includes dynamic hover explanation for symbol refs resolved from type unions", () => {
+    const unionTsx = `
+import classNames from 'classnames/bind';
+import styles from './Button.module.scss';
+const cx = classNames.bind(styles);
+const size = choose();
+const el = cx(size);
+`;
+    const deps = makeDeps({
+      analysisCache: new DocumentAnalysisCache({
+        sourceFileCache: new SourceFileCache({ max: 10 }),
+        fileExists: () => true,
+        aliasResolver: EMPTY_ALIAS_RESOLVER,
+        scanCxImports: (sf, fp) => ({
+          stylesBindings: new Map(),
+          bindings: detectCxBindings(sf, fp),
+        }),
+        parseClassExpressions: (_sf, bindings) =>
+          buildTestClassExpressions({
+            filePath: "/fake/ws/src/Button.tsx",
+            bindings,
+            expressions:
+              bindings.length === 0
+                ? []
+                : [
+                    {
+                      kind: "symbolRef",
+                      origin: "cxCall",
+                      rawReference: "size",
+                      rootName: "size",
+                      pathSegments: [],
+                      range: {
+                        start: { line: 5, character: 14 },
+                        end: { line: 5, character: 18 },
+                      },
+                      scssModulePath: bindings[0]!.scssModulePath,
+                    },
+                  ],
+          }),
+        max: 10,
+      }),
+      selectorMapForPath: () =>
+        new Map([
+          ["indicator", info("indicator")],
+          ["active", info("active")],
+        ]),
+      typeResolver: new FakeTypeResolver(["indicator", "active"]),
+    });
+
+    const hover = handleHover(
+      {
+        ...baseParams,
+        content: unionTsx,
+        line: 5,
+        character: 16,
+        version: 2,
+      },
+      deps,
+    );
+
+    expect(hover).not.toBeNull();
+    const value = (hover!.contents as { value: string }).value;
+    expect(value).toContain("Resolved from `size` via TypeScript string-literal union analysis.");
+    expect(value).toContain("Certainty: inferred.");
+    expect(value).toContain("Candidates: `indicator`, `active`.");
   });
 
   it("logs and returns null when the underlying transform raises", () => {
@@ -139,7 +220,7 @@ const el = cx(
     const hover = handleHover(
       baseParams,
       makeDeps({
-        scssClassMapForPath: () => {
+        styleDocumentForPath: () => {
           throw new Error("boom");
         },
         logError,
@@ -173,27 +254,32 @@ const el = <div className={clsx(styles.indicator)} />;
       }),
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
-      parseClassRefs: (_sf, _bindings, stylesBindings) => {
-        if (stylesBindings.has("styles")) {
-          return [
-            {
-              kind: "static",
-              origin: "styleAccess",
-              className: "indicator",
-              scssModulePath: "/fake/ws/src/Button.module.scss",
-              originRange: { start: { line: 3, character: 39 }, end: { line: 3, character: 48 } },
-            },
-          ];
-        }
-        return [];
-      },
+      parseClassExpressions: (_sf, _bindings, stylesBindings) =>
+        buildTestClassExpressions({
+          filePath: "/fake/ws/src/Button.tsx",
+          stylesBindings,
+          bindings: [],
+          expressions: stylesBindings.has("styles")
+            ? [
+                {
+                  kind: "styleAccess",
+                  className: "indicator",
+                  scssModulePath: "/fake/ws/src/Button.module.scss",
+                  range: {
+                    start: { line: 3, character: 39 },
+                    end: { line: 3, character: 48 },
+                  },
+                },
+              ]
+            : [],
+        }),
       max: 10,
     });
     const deps = makeDeps({
       analysisCache,
-      scssClassMapForPath: (path: string) => {
+      selectorMapForPath: (path: string) => {
         if (path === "/fake/ws/src/Button.module.scss") {
-          return new Map([["indicator", indicatorInfo]]) as ScssClassMap;
+          return new Map([["indicator", indicatorInfo]]);
         }
         return null;
       },
@@ -216,7 +302,7 @@ const el = <div className={clsx(styles.indicator)} />;
   });
 
   it("returns hover for styles['btn-primary'] bracket access", async () => {
-    const { parseClassRefs } = await import("../../../server/src/core/cx/class-ref-parser");
+    const { parseClassExpressions } = await import("../../../server/src/core/cx/class-ref-parser");
     const { scanCxImports } = await import("../../../server/src/core/cx/binding-detector");
     const bracketTsx = `
 import styles from './Button.module.scss';
@@ -227,16 +313,16 @@ const el = <div className={styles['btn-primary']} />;
     const analysisCache = new DocumentAnalysisCache({
       sourceFileCache,
       scanCxImports,
-      parseClassRefs,
+      parseClassExpressions,
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
       max: 10,
     });
     const deps = makeDeps({
       analysisCache,
-      scssClassMapForPath: (path: string) => {
+      selectorMapForPath: (path: string) => {
         if (path === "/fake/ws/src/Button.module.scss") {
-          return new Map([["btn-primary", btnInfo]]) as ScssClassMap;
+          return new Map([["btn-primary", btnInfo]]);
         }
         return null;
       },

@@ -1,6 +1,6 @@
 import { CompletionItemKind, type CompletionItem } from "vscode-languageserver/node";
-import type { SelectorInfo } from "@css-module-explainer/shared";
 import type { AnalysisEntry } from "../core/indexing/document-analysis-cache";
+import type { SelectorDeclHIR } from "../core/hir/style-types";
 import { hasAnyStyleImport } from "./cursor-dispatch";
 import type { CursorParams, ProviderDeps } from "./provider-deps";
 import { wrapHandler } from "./_wrap-handler";
@@ -14,9 +14,9 @@ import { wrapHandler } from "./_wrap-handler";
  * 2. Fetch the single AnalysisEntry. Bail if it has neither
  *    `bindings` (cx pipeline) nor `stylesBindings` (clsx path).
  * 3. Ask `findCompletionContext` for the SCSS module whose
- *    classMap should feed completions at the cursor. It walks
+ *    style document should feed completions at the cursor. It walks
  *    cx bindings first, then class-util imports.
- * 4. Convert every class in that classMap to a CompletionItem.
+ * 4. Convert every selector in that style document to a CompletionItem.
  */
 export const handleCompletion = wrapHandler<CursorParams, [], CompletionItem[] | null>(
   "completion",
@@ -33,16 +33,21 @@ function computeCompletion(params: CursorParams, deps: ProviderDeps): Completion
     params.filePath,
     params.version,
   );
-  if (entry.bindings.length === 0 && entry.stylesBindings.size === 0) return null;
+  if (
+    entry.sourceDocument.utilityBindings.length === 0 &&
+    entry.sourceDocument.styleImports.length === 0
+  ) {
+    return null;
+  }
 
   const textBefore = getTextBefore(params.content, params.line, params.character);
   const ctx = findCompletionContext(entry, textBefore, params.line);
   if (!ctx) return null;
 
-  const classMap = deps.scssClassMapForPath(ctx.scssModulePath);
-  if (!classMap || classMap.size === 0) return null;
+  const styleDocument = deps.styleDocumentForPath(ctx.scssModulePath);
+  if (!styleDocument || styleDocument.selectors.length === 0) return null;
 
-  return Array.from(classMap.values(), toCompletionItem);
+  return styleDocument.selectors.map(toCompletionItem);
 }
 
 interface CompletionContext {
@@ -67,47 +72,53 @@ function findCompletionContext(
   textBefore: string,
   line: number,
 ): CompletionContext | null {
-  for (const binding of entry.bindings) {
+  for (const binding of entry.sourceDocument.utilityBindings) {
+    if (binding.kind !== "classnamesBind") continue;
     if (line < binding.scope.startLine || line > binding.scope.endLine) continue;
-    if (isInsideCall(textBefore, binding.cxVarName)) {
+    if (isInsideCall(textBefore, binding.localName)) {
       return { scssModulePath: binding.scssModulePath };
     }
   }
 
-  if (entry.classUtilNames.length === 0 || entry.stylesBindings.size === 0) return null;
+  const classUtilBindings = entry.sourceDocument.utilityBindings.filter(
+    (binding) => binding.kind === "classUtil",
+  );
+  if (classUtilBindings.length === 0 || entry.sourceDocument.styleImports.length === 0) return null;
 
-  for (const utilName of entry.classUtilNames) {
-    if (!isInsideCall(textBefore, utilName)) continue;
+  for (const binding of classUtilBindings) {
+    if (!isInsideCall(textBefore, binding.localName)) continue;
     // Check if textBefore ends with `<varName>.` or `<varName>.<partial>`
     // for any known style import. Uses simple string check instead of
     // regex to avoid allocation in the hot completion path.
-    for (const [varName, styleImport] of entry.stylesBindings) {
+    for (const styleImport of entry.sourceDocument.styleImports) {
+      if (styleImport.resolved.kind !== "resolved") continue;
+      const varName = styleImport.localName;
       const dotPrefix = `${varName}.`;
       const idx = textBefore.lastIndexOf(dotPrefix);
       if (idx < 0) continue;
       // Everything after `varName.` must be a partial identifier (word chars only).
       const afterDot = textBefore.slice(idx + dotPrefix.length);
       if (afterDot.length > 0 && !/^\w+$/.test(afterDot)) continue;
-      return { scssModulePath: styleImport.absolutePath };
+      return { scssModulePath: styleImport.resolved.absolutePath };
     }
   }
 
   return null;
 }
 
-function toCompletionItem(info: SelectorInfo): CompletionItem {
-  const detail = info.declarations.trim() || info.fullSelector;
+function toCompletionItem(selector: SelectorDeclHIR): CompletionItem {
+  const detail = selector.declarations.trim() || selector.fullSelector;
   return {
-    label: info.name,
+    label: selector.name,
     kind: CompletionItemKind.Value,
     detail,
     documentation: {
       kind: "markdown",
-      value: `\`\`\`scss\n.${info.name} { ${info.declarations.trim()} }\n\`\`\``,
+      value: `\`\`\`scss\n.${selector.name} { ${selector.declarations.trim()} }\n\`\`\``,
     },
-    sortText: info.name,
-    filterText: info.name,
-    insertText: info.name,
+    sortText: selector.name,
+    filterText: selector.name,
+    insertText: selector.name,
   };
 }
 

@@ -1,0 +1,85 @@
+name: Publish Extension
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to publish"
+        required: true
+        default: "feat/ir-stack-base"
+      channel:
+        description: "Release channel"
+        required: true
+        default: "stable"
+        type: choice
+        options:
+          - stable
+          - preview
+      publish_marketplace:
+        description: "Publish to VS Code Marketplace"
+        required: true
+        default: true
+        type: boolean
+      publish_openvsx:
+        description: "Publish to Open VSX"
+        required: true
+        default: true
+        type: boolean
+      create_github_release:
+        description: "Create a GitHub release"
+        required: true
+        default: true
+        type: boolean
+
+concurrency:
+  group: publish-extension-${{ github.event.inputs.ref || github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_CHANNEL: ${{ github.event.inputs.channel }}
+      PUBLISH_MARKETPLACE: ${{ github.event.inputs.publish_marketplace }}
+      PUBLISH_OPENVSX: ${{ github.event.inputs.publish_openvsx }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.inputs.ref }}
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version-file: .nvmrc
+      - run: corepack enable && corepack prepare pnpm@10.30.3 --activate
+      - run: pnpm install --frozen-lockfile
+      - run: ./scripts/publish-extension.sh
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+      - name: Compute release metadata
+        id: meta
+        run: |
+          VERSION=$(jq -r '.version' package.json)
+          if [ "${RELEASE_CHANNEL}" = "preview" ]; then
+            TAG="v${VERSION}-preview.${GITHUB_RUN_NUMBER}"
+            PRERELEASE=true
+            NAME="v${VERSION} Preview"
+          else
+            TAG="v${VERSION}"
+            PRERELEASE=false
+            NAME="v${VERSION}"
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "prerelease=${PRERELEASE}" >> "$GITHUB_OUTPUT"
+          echo "name=${NAME}" >> "$GITHUB_OUTPUT"
+      - uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
+        if: github.event.inputs.create_github_release == 'true'
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: ${{ steps.meta.outputs.name }}
+          prerelease: ${{ steps.meta.outputs.prerelease }}
+          target_commitish: ${{ github.event.inputs.ref }}
+          files: "*.vsix"

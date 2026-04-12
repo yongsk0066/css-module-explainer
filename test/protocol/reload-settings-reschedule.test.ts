@@ -48,7 +48,7 @@ describe("reloadSettings reschedules open documents by language", () => {
     const SCSS_URI = "file:///fake/workspace/src/Button.module.scss";
     const TSX_URI = "file:///fake/workspace/src/App.tsx";
 
-    // Open TSX first so the reverse index is populated before the
+    // Open TSX first so semantic references are populated before the
     // SCSS unused-selector check runs.
     client.didOpen({
       textDocument: { uri: TSX_URI, languageId: "typescriptreact", version: 1, text: APP_TSX },
@@ -65,8 +65,8 @@ describe("reloadSettings reschedules open documents by language", () => {
     expect(initialScss.find((d) => d.message.includes("'.btn-primary'"))).toBeDefined();
 
     // Flip to `camelCase`. The class map now carries both
-    // `btn-primary` and its `btnPrimary` alias, so the reverse
-    // index resolves the TSX access to the canonical bucket and
+    // `btn-primary` and its `btnPrimary` alias, so the semantic
+    // query resolves the TSX access to the canonical bucket and
     // the selector is no longer unused — but only if the open
     // SCSS document is rescheduled by language. A reload handler
     // that routes every open document through `scheduleTsx`

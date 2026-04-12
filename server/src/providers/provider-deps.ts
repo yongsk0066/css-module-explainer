@@ -1,7 +1,7 @@
-import type { ScssClassMap } from "@css-module-explainer/shared";
 import type { ClassnameTransformMode } from "../core/scss/classname-transform";
 import type { DocumentAnalysisCache } from "../core/indexing/document-analysis-cache";
-import type { ReverseIndex } from "../core/indexing/reverse-index";
+import type { StyleDocumentHIR } from "../core/hir/style-types";
+import type { SemanticWorkspaceReferenceIndex } from "../core/semantic/workspace-reference-index";
 import type { TypeResolver } from "../core/ts/type-resolver";
 import type { Settings } from "../settings";
 
@@ -39,11 +39,11 @@ export interface CursorParams extends DocumentParams {
 export interface ProviderDeps {
   readonly analysisCache: DocumentAnalysisCache;
   /**
-   * Look up the ScssClassMap for a style module file path.
+   * Look up the style-document HIR for a style module file path.
    */
-  readonly scssClassMapForPath: (path: string) => ScssClassMap | null;
+  readonly styleDocumentForPath: (path: string) => StyleDocumentHIR | null;
   readonly typeResolver: TypeResolver;
-  readonly reverseIndex: ReverseIndex;
+  readonly semanticReferenceIndex: SemanticWorkspaceReferenceIndex;
   readonly workspaceRoot: string;
   /**
    * Log a provider-level exception. Wired to
@@ -66,7 +66,7 @@ export interface ProviderDeps {
   /**
    * Resolves when the initial indexer walk completes. Diagnostics
    * subscribers await this before running SCSS diagnostics that
-   * depend on the workspace-wide reverse index.
+   * depend on workspace-level reference data.
    */
   readonly indexerReady: Promise<void>;
   /**

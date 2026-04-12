@@ -3,23 +3,23 @@ import { FileChangeType } from "vscode-languageserver-protocol/node";
 import { createInProcessServer, type LspTestClient } from "./_harness/in-process-server";
 import { FakeTypeResolver } from "../_fixtures/fake-type-resolver";
 
-// Reverse-index TSX staleness on watched-file change.
+// Semantic reference TSX staleness on watched-file change.
 //
 // When a class is added to a `.module.scss` file, cached TSX
 // analysis entries still carry the pre-change classRefs
 // expansions. `analysisCache.get(uri, content, filePath, version)`
 // keys on the TSX buffer's version — if the user hasn't typed,
 // the version has not bumped, and the cache returns the stale
-// entry. `onAnalyze` never re-fires, so the reverse index's
-// template/variable "expanded" sites stay frozen against the
+// entry. `onAnalyze` never re-fires, so the semantic reference
+// sites stay frozen against the
 // previous classMap.
 //
 // `onDidChangeWatchedFiles` walks
-// `reverseIndex.findAllForScssPath(filePath)` and calls
+// `semanticReferenceIndex.findReferencingUris(filePath)` and calls
 // `analysisCache.invalidate(uri)` for every TSX URI that had a
 // site pointing at the changed SCSS file. The next debounced
 // `scheduleTsx` cycle cache-misses, re-analyzes, and
-// re-contributes fresh expanded sites.
+// re-contributes fresh semantic sites.
 
 const APP_TSX = `import classNames from 'classnames/bind';
 import styles from './app.module.scss';
@@ -30,7 +30,7 @@ export function App() {
 }
 `;
 
-describe("reverse-index staleness on watched SCSS change", () => {
+describe("semantic reference staleness on watched SCSS change", () => {
   let client: LspTestClient | null = null;
 
   afterEach(() => {
@@ -38,10 +38,10 @@ describe("reverse-index staleness on watched SCSS change", () => {
     client = null;
   });
 
-  it("adding a class to a watched SCSS module invalidates cached TSX reverse-index expansions", async () => {
+  it("adding a class to a watched SCSS module invalidates cached semantic reference expansions", async () => {
     // SCSS starts with only `.btn-small`. The template expansion
     // in the TSX should initially produce a single expanded
-    // reverse-index entry for `btn-small`.
+    // semantic reference for `btn-small`.
     let scssContent = ".btn-small { color: red; }\n";
     client = createInProcessServer({
       readStyleFile: () => scssContent,
@@ -63,7 +63,7 @@ describe("reverse-index staleness on watched SCSS change", () => {
     });
 
     // First diagnostics push — forces the initial analyze, which
-    // populates the reverse index with the template's expansion
+    // populates semantic references with the template's expansion
     // against the current classMap (`.btn-small` only).
     const first = await client.waitForDiagnostics(tsxUri);
     expect(first).toEqual([]);
@@ -81,7 +81,7 @@ describe("reverse-index staleness on watched SCSS change", () => {
     expect(initialRefs!.some((loc) => loc.uri === tsxUri)).toBe(true);
 
     // Now "change" the SCSS on disk: add `.btn-large {}`. The
-    // reverse index's existing expansion still only knows about
+    // current semantic expansion still only knows about
     // `btn-small` because it was computed from the previous
     // classMap. Find References on `.btn-large` MUST return the
     // template call site after the watched-file event debounces
@@ -101,10 +101,10 @@ describe("reverse-index staleness on watched SCSS change", () => {
     // Wait for the debounced diagnostics pipeline on the TSX file
     // to fire. `didChangeWatchedFiles` must have invalidated the
     // TSX analysis entry so this compute cache-misses and re-runs
-    // `onAnalyze`, refreshing the expanded reverse-index sites.
+    // `onAnalyze`, refreshing the expanded semantic sites.
     // If the invalidation is skipped the TSX cache hits its
     // pre-change version, `onAnalyze` never re-fires, and the
-    // reverse-index entry for `btn-large` is never recorded —
+    // semantic reference for `btn-large` is never recorded —
     // `handleReferences` then returns `null` on the empty bucket
     // and the assertion below fails.
     const second = await client.waitForDiagnostics(tsxUri);

@@ -1,15 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
 import type ts from "typescript";
-import type { ClassRef, CxBinding, ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
+import type { CxBinding } from "@css-module-explainer/shared";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
-import { NullReverseIndex } from "../../../server/src/core/indexing/reverse-index";
 import {
   hasAnyStyleImport,
-  withClassRefAtCursor,
+  withSourceExpressionAtCursor,
   type ProviderDeps,
 } from "../../../server/src/providers/cursor-dispatch";
-import { EMPTY_ALIAS_RESOLVER, makeBaseDeps } from "../../_fixtures/test-helpers";
+import {
+  EMPTY_ALIAS_RESOLVER,
+  buildTestClassExpressions,
+  info,
+  makeBaseDeps,
+} from "../../_fixtures/test-helpers";
 
 const TSX = `
 import classNames from 'classnames/bind';
@@ -20,16 +24,6 @@ const el2 = <div className={styles.active} />;
 `;
 
 const SCSS_PATH = "/fake/src/Button.module.scss";
-
-function makeInfo(name: string): SelectorInfo {
-  return {
-    name,
-    range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
-    fullSelector: `.${name}`,
-    declarations: "color: red",
-    ruleRange: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
-  };
-}
 
 const detectCxBindings = (sourceFile: ts.SourceFile): CxBinding[] => [
   {
@@ -44,29 +38,6 @@ const detectCxBindings = (sourceFile: ts.SourceFile): CxBinding[] => [
   },
 ];
 
-const parseClassRefs = (): ClassRef[] => [
-  {
-    kind: "static",
-    origin: "cxCall",
-    className: "indicator",
-    originRange: {
-      start: { line: 4, character: 15 },
-      end: { line: 4, character: 24 },
-    },
-    scssModulePath: SCSS_PATH,
-  },
-  {
-    kind: "static",
-    origin: "styleAccess",
-    className: "active",
-    originRange: {
-      start: { line: 5, character: 28 },
-      end: { line: 5, character: 34 },
-    },
-    scssModulePath: SCSS_PATH,
-  },
-];
-
 function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
   const analysisCache = new DocumentAnalysisCache({
@@ -77,17 +48,42 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     }),
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
-    parseClassRefs,
+    parseClassExpressions: (_sf, bindings, stylesBindings) =>
+      buildTestClassExpressions({
+        filePath: "/fake/a.tsx",
+        bindings,
+        stylesBindings,
+        expressions: [
+          {
+            kind: "literal",
+            origin: "cxCall",
+            className: "indicator",
+            range: {
+              start: { line: 4, character: 15 },
+              end: { line: 4, character: 24 },
+            },
+            scssModulePath: SCSS_PATH,
+          },
+          {
+            kind: "styleAccess",
+            className: "active",
+            range: {
+              start: { line: 5, character: 28 },
+              end: { line: 5, character: 34 },
+            },
+            scssModulePath: SCSS_PATH,
+          },
+        ],
+      }),
     max: 10,
   });
   return makeBaseDeps({
     analysisCache,
-    scssClassMapForPath: () =>
+    selectorMapForPath: () =>
       new Map([
-        ["indicator", makeInfo("indicator")],
-        ["active", makeInfo("active")],
-      ]) as ScssClassMap,
-    reverseIndex: new NullReverseIndex(),
+        ["indicator", info("indicator")],
+        ["active", info("active")],
+      ]),
     workspaceRoot: "/fake",
     ...overrides,
   });
@@ -107,11 +103,11 @@ describe("hasAnyStyleImport", () => {
   });
 });
 
-describe("withClassRefAtCursor / fast paths", () => {
+describe("withSourceExpressionAtCursor / fast paths", () => {
   it("returns null when the content has no style imports at all", () => {
     const deps = makeDeps();
     const transform = vi.fn();
-    const result = withClassRefAtCursor(
+    const result = withSourceExpressionAtCursor(
       {
         documentUri: "file:///fake/a.tsx",
         content: "const x = 1;",
@@ -127,23 +123,23 @@ describe("withClassRefAtCursor / fast paths", () => {
     expect(transform).not.toHaveBeenCalled();
   });
 
-  it("returns null when classRefs is empty for an otherwise-matching file", () => {
+  it("returns null when class expressions are empty for an otherwise-matching file", () => {
     const sourceFileCache = new SourceFileCache({ max: 10 });
     const analysisCache = new DocumentAnalysisCache({
       sourceFileCache,
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
       scanCxImports: () => ({ stylesBindings: new Map(), bindings: [] }),
-      parseClassRefs: () => [],
+      parseClassExpressions: () => [],
       max: 10,
     });
     const deps = makeBaseDeps({
       analysisCache,
-      scssClassMapForPath: () => null,
+      selectorMapForPath: () => null,
       workspaceRoot: "/fake",
     });
     const transform = vi.fn();
-    const result = withClassRefAtCursor(
+    const result = withSourceExpressionAtCursor(
       {
         documentUri: "file:///fake/a.tsx",
         content: TSX, // has `.module.` so the fast path passes
@@ -159,10 +155,10 @@ describe("withClassRefAtCursor / fast paths", () => {
     expect(transform).not.toHaveBeenCalled();
   });
 
-  it("returns null when the cursor is outside every classRef range", () => {
+  it("returns null when the cursor is outside every class expression range", () => {
     const deps = makeDeps();
     const transform = vi.fn();
-    const result = withClassRefAtCursor(
+    const result = withSourceExpressionAtCursor(
       {
         documentUri: "file:///fake/a.tsx",
         content: TSX,
@@ -178,10 +174,10 @@ describe("withClassRefAtCursor / fast paths", () => {
     expect(transform).not.toHaveBeenCalled();
   });
 
-  it("returns null when the classMap is missing for the resolved scss path", () => {
-    const deps = makeDeps({ scssClassMapForPath: () => null });
+  it("returns null when the style document cannot be resolved for the expression path", () => {
+    const deps = makeDeps({ selectorMapForPath: () => null });
     const transform = vi.fn();
-    const result = withClassRefAtCursor(
+    const result = withSourceExpressionAtCursor(
       {
         documentUri: "file:///fake/a.tsx",
         content: TSX,
@@ -198,11 +194,11 @@ describe("withClassRefAtCursor / fast paths", () => {
   });
 });
 
-describe("withClassRefAtCursor / dispatch", () => {
-  it("passes a ClassRefContext with a static cxCall ref when cursor lies inside it", () => {
+describe("withSourceExpressionAtCursor / dispatch", () => {
+  it("passes a literal cx expression when cursor lies inside it", () => {
     const deps = makeDeps();
-    const spy = vi.fn((ctx) => ({ kind: ctx.ref.kind, origin: ctx.ref.origin }));
-    const result = withClassRefAtCursor(
+    const spy = vi.fn((ctx) => ({ kind: ctx.expression.kind, origin: ctx.expression.origin }));
+    const result = withSourceExpressionAtCursor(
       {
         documentUri: "file:///fake/a.tsx",
         content: TSX,
@@ -215,13 +211,13 @@ describe("withClassRefAtCursor / dispatch", () => {
       spy,
     );
     expect(spy).toHaveBeenCalledTimes(1);
-    expect(result).toEqual({ kind: "static", origin: "cxCall" });
+    expect(result).toEqual({ kind: "literal", origin: "cxCall" });
   });
 
-  it("passes a styleAccess ClassRef when cursor is on a styles.x access", () => {
+  it("passes a styleAccess expression when cursor is on a styles.x access", () => {
     const deps = makeDeps();
-    const spy = vi.fn((ctx) => ({ kind: ctx.ref.kind, origin: ctx.ref.origin }));
-    const result = withClassRefAtCursor(
+    const spy = vi.fn((ctx) => ({ kind: ctx.expression.kind, origin: ctx.expression.origin }));
+    const result = withSourceExpressionAtCursor(
       {
         documentUri: "file:///fake/a.tsx",
         content: TSX,
@@ -234,13 +230,13 @@ describe("withClassRefAtCursor / dispatch", () => {
       spy,
     );
     expect(spy).toHaveBeenCalledTimes(1);
-    expect(result).toEqual({ kind: "static", origin: "styleAccess" });
+    expect(result).toEqual({ kind: "styleAccess", origin: "styleAccess" });
   });
 
   it("passes the AnalysisEntry so providers can skip a second cache lookup", () => {
     const deps = makeDeps();
     const spy = vi.fn((ctx) => ctx.entry);
-    const result = withClassRefAtCursor(
+    const result = withSourceExpressionAtCursor(
       {
         documentUri: "file:///fake/a.tsx",
         content: TSX,
@@ -253,6 +249,9 @@ describe("withClassRefAtCursor / dispatch", () => {
       spy,
     );
     expect(result).toBeTruthy();
-    expect((result as { classRefs: readonly unknown[] }).classRefs).toHaveLength(2);
+    expect(
+      (result as { sourceDocument: { classExpressions: readonly unknown[] } }).sourceDocument
+        .classExpressions,
+    ).toHaveLength(2);
   });
 });

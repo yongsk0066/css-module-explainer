@@ -1,6 +1,8 @@
 import * as nodeUrl from "node:url";
 import type ts from "typescript";
-import type { ClassRef, CxBinding, StyleImport } from "@css-module-explainer/shared";
+import type { CxBinding, StyleImport } from "@css-module-explainer/shared";
+import { buildSourceDocument } from "../hir/builders/ts-source-adapter";
+import type { ClassExpressionHIR, SourceDocumentHIR } from "../hir/source-types";
 import { contentHash } from "../util/hash";
 import { LruMap } from "../util/lru-map";
 import type { SourceFileCache } from "../ts/source-file-cache";
@@ -21,11 +23,10 @@ export interface AnalysisEntry {
   readonly sourceFile: ts.SourceFile;
   readonly bindings: readonly CxBinding[];
   /**
-   * Unified class-reference list. Produced by `parseClassRefs` —
-   * covers both cx() call arguments (`origin: "cxCall"`) and
-   * direct `styles.x` property access (`origin: "styleAccess"`).
+   * Document-level source HIR derived from the current scan/parser
+   * outputs.
    */
-  readonly classRefs: readonly ClassRef[];
+  readonly sourceDocument: SourceDocumentHIR;
   /**
    * Map of style-import local name → resolution outcome. The
    * `resolved` variant carries the absolute SCSS path; the
@@ -75,15 +76,14 @@ export interface DocumentAnalysisCacheDeps {
    */
   readonly aliasResolver: AliasResolver;
   /**
-   * Unified ClassRef producer. Optional so test helpers that
-   * construct a cache without wiring the class-ref parser still
-   * work — the cache falls back to `[]`.
+   * Direct source-expression parser. Optional for tests that do not
+   * care about class-expression analysis; falls back to `[]`.
    */
-  readonly parseClassRefs?: (
+  readonly parseClassExpressions?: (
     sourceFile: ts.SourceFile,
     bindings: readonly CxBinding[],
     stylesBindings: ReadonlyMap<string, StyleImport>,
-  ) => ClassRef[];
+  ) => readonly ClassExpressionHIR[];
   /**
    * Detect `clsx` / `clsx/lite` / `classnames` (not `/bind`) imports
    * and return their local identifier names. Optional for test
@@ -93,10 +93,10 @@ export interface DocumentAnalysisCacheDeps {
   readonly max: number;
   /**
    * Callback fired exactly once per (uri, version) when the cache
-   * produces a fresh AnalysisEntry. Wired to
-   * `WorkspaceReverseIndex.record` so each document contributes
-   * its cx() call sites to the reverse index once per document
-   * update — not once per hover/def/completion keystroke.
+   * produces a fresh AnalysisEntry. Composition root wires this to
+   * workspace-level reference stores so each document contributes
+   * its resolved class-reference data once per document update —
+   * not once per hover/def/completion keystroke.
    */
   readonly onAnalyze?: (uri: string, entry: AnalysisEntry) => void;
 }
@@ -105,9 +105,9 @@ export interface DocumentAnalysisCacheDeps {
  * The single-parse hub for every provider hot path.
  *
  * `get(uri, content, filePath, version)` returns an AnalysisEntry
- * containing the AST, bindings, and all class references. The cache
+ * containing the AST, bindings, and source expressions. The cache
  * guarantees that `ts.createSourceFile + detectCxBindings +
- * parseClassRefs` run at most once per (uri, version) — same-version
+ * parseClassExpressions` run at most once per (uri, version) — same-version
  * repeat calls are O(1), and a content-hash fallback catches the
  * case where the version bumped but the actual text is identical.
  *
@@ -142,7 +142,7 @@ export class DocumentAnalysisCache {
     }
     const entry = this.analyze(content, filePath, version, hash);
     this.lru.set(uri, entry);
-    // Single write point into the reverse index.
+    // Single write point into workspace-level analysis side effects.
     this.deps.onAnalyze?.(uri, entry);
     return entry;
   }
@@ -177,8 +177,8 @@ export class DocumentAnalysisCache {
     // Single-pass scan: resolves style imports (with `missing`
     // variants via `fileExists`) and collects cx bindings in one
     // traversal of the source file. Files without `classnames/bind`
-    // still get a populated `stylesBindings` so `parseClassRefs`
-    // can resolve `styles.x` accesses.
+    // still get a populated `stylesBindings` so source-expression
+    // parsing can resolve `styles.x` accesses.
     const { stylesBindings, bindings } = this.deps.scanCxImports(
       sourceFile,
       filePath,
@@ -186,17 +186,22 @@ export class DocumentAnalysisCache {
       this.deps.aliasResolver,
     );
 
-    // Unified class-ref parser — covers both cx() arguments and styles.x accesses.
-    const classRefs = this.deps.parseClassRefs?.(sourceFile, bindings, stylesBindings) ?? [];
-
     const classUtilNames = this.deps.detectClassUtilImports?.(sourceFile) ?? [];
+    const sourceDocument = buildSourceDocument({
+      filePath,
+      bindings,
+      stylesBindings,
+      classUtilNames,
+      classExpressions:
+        this.deps.parseClassExpressions?.(sourceFile, bindings, stylesBindings) ?? [],
+    });
 
     return {
       version,
       contentHash: hash,
       sourceFile,
       bindings,
-      classRefs,
+      sourceDocument,
       stylesBindings,
       classUtilNames,
     };

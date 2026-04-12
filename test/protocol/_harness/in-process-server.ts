@@ -1,6 +1,9 @@
+import path from "node:path";
 import { PassThrough } from "node:stream";
+import { pathToFileURL } from "node:url";
 import {
   CodeActionRequest,
+  CodeLensRequest,
   CompletionRequest,
   createProtocolConnection,
   DefinitionRequest,
@@ -20,6 +23,8 @@ import {
   ShutdownRequest,
   type CodeAction,
   type CodeActionParams,
+  type CodeLens,
+  type CodeLensParams,
   type Command,
   type CompletionItem,
   type CompletionList,
@@ -48,6 +53,31 @@ import { StreamMessageReader, StreamMessageWriter } from "vscode-jsonrpc/node";
 import ts from "typescript";
 import { createServer, type CreateServerOptions } from "../../../server/src/composition-root";
 import type { FileTask } from "../../../server/src/core/indexing/indexer-worker";
+
+const LEGACY_WORKSPACE_URI = "file:///fake/workspace";
+
+function mapWorkspaceUriString(value: string, from: string, to: string): string {
+  return value === from || value.startsWith(`${from}/`)
+    ? `${to}${value.slice(from.length)}`
+    : value;
+}
+
+function remapWorkspaceUris<T>(value: T, from: string, to: string): T {
+  if (typeof value === "string") {
+    return mapWorkspaceUriString(value, from, to) as T;
+  }
+  if (Array.isArray(value)) {
+    return value.map((entry) => remapWorkspaceUris(entry, from, to)) as T;
+  }
+  if (value && typeof value === "object") {
+    const remapped = Object.entries(value).map(([key, entry]) => [
+      mapWorkspaceUriString(key, from, to),
+      remapWorkspaceUris(entry, from, to),
+    ]);
+    return Object.fromEntries(remapped) as T;
+  }
+  return value;
+}
 
 /**
  * An exhausted AsyncIterable — yields nothing and completes
@@ -79,6 +109,7 @@ export interface LspTestClient {
   hover(params: HoverParams): Promise<Hover | null>;
   completion(params: CompletionParams): Promise<CompletionItem[] | CompletionList | null>;
   codeAction(params: CodeActionParams): Promise<(Command | CodeAction)[] | null>;
+  codeLens(params: CodeLensParams): Promise<CodeLens[] | null>;
   /**
    * Wait for the next publishDiagnostics notification matching
    * `uri`, or reject after `timeoutMs`. Use this to test the
@@ -119,6 +150,8 @@ export interface LspTestClient {
  * Tests MUST call it in afterEach to avoid resource leaks.
  */
 export function createInProcessServer(options: InProcessServerOptions = {}): LspTestClient {
+  const workspacePath = path.resolve(process.cwd(), ".lsp-test-workspace");
+  const workspaceUri = pathToFileURL(workspacePath).toString();
   const serverToClient = new PassThrough();
   const clientToServer = new PassThrough();
 
@@ -183,15 +216,16 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
   });
 
   client.onNotification(PublishDiagnosticsNotification.type, (params) => {
-    const waiters = diagnosticsWaiters.get(params.uri);
+    const mapped = remapWorkspaceUris(params, workspaceUri, LEGACY_WORKSPACE_URI);
+    const waiters = diagnosticsWaiters.get(mapped.uri);
     if (waiters && waiters.length > 0) {
       const waiter = waiters.shift()!;
-      waiter.resolve([...params.diagnostics]);
+      waiter.resolve([...mapped.diagnostics]);
       return;
     }
-    const queue = pendingDiagnostics.get(params.uri) ?? [];
-    queue.push(params);
-    pendingDiagnostics.set(params.uri, queue);
+    const queue = pendingDiagnostics.get(mapped.uri) ?? [];
+    queue.push(mapped);
+    pendingDiagnostics.set(mapped.uri, queue);
   });
   client.listen();
 
@@ -199,47 +233,97 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
     async initialize(overrides) {
       const base: InitializeParams = {
         processId: process.pid,
-        rootUri: "file:///fake/workspace",
+        rootUri: workspaceUri,
         capabilities: {},
-        workspaceFolders: [{ uri: "file:///fake/workspace", name: "fake" }],
+        workspaceFolders: [{ uri: workspaceUri, name: "fake" }],
       };
-      return client.sendRequest(InitializeRequest.type, { ...base, ...overrides });
+      return client.sendRequest(InitializeRequest.type, {
+        ...base,
+        ...remapWorkspaceUris(overrides ?? {}, LEGACY_WORKSPACE_URI, workspaceUri),
+      });
     },
     initialized() {
       client.sendNotification(InitializedNotification.type, {});
     },
     didOpen(params) {
-      client.sendNotification(DidOpenTextDocumentNotification.type, params);
+      client.sendNotification(
+        DidOpenTextDocumentNotification.type,
+        remapWorkspaceUris(params, LEGACY_WORKSPACE_URI, workspaceUri),
+      );
     },
     didClose(params) {
-      client.sendNotification(DidCloseTextDocumentNotification.type, params);
+      client.sendNotification(
+        DidCloseTextDocumentNotification.type,
+        remapWorkspaceUris(params, LEGACY_WORKSPACE_URI, workspaceUri),
+      );
     },
     didChange(params) {
-      client.sendNotification(DidChangeTextDocumentNotification.type, params);
+      client.sendNotification(
+        DidChangeTextDocumentNotification.type,
+        remapWorkspaceUris(params, LEGACY_WORKSPACE_URI, workspaceUri),
+      );
     },
     async definition(params) {
-      return client.sendRequest(DefinitionRequest.type, params);
+      const result = await client.sendRequest(
+        DefinitionRequest.type,
+        remapWorkspaceUris(params, LEGACY_WORKSPACE_URI, workspaceUri),
+      );
+      return remapWorkspaceUris(result, workspaceUri, LEGACY_WORKSPACE_URI);
     },
     async hover(params) {
-      return client.sendRequest(HoverRequest.type, params);
+      const result = await client.sendRequest(
+        HoverRequest.type,
+        remapWorkspaceUris(params, LEGACY_WORKSPACE_URI, workspaceUri),
+      );
+      return remapWorkspaceUris(result, workspaceUri, LEGACY_WORKSPACE_URI);
     },
     async completion(params) {
-      return client.sendRequest(CompletionRequest.type, params);
+      const result = await client.sendRequest(
+        CompletionRequest.type,
+        remapWorkspaceUris(params, LEGACY_WORKSPACE_URI, workspaceUri),
+      );
+      return remapWorkspaceUris(result, workspaceUri, LEGACY_WORKSPACE_URI);
     },
     async codeAction(params) {
-      return client.sendRequest(CodeActionRequest.type, params);
+      const result = await client.sendRequest(
+        CodeActionRequest.type,
+        remapWorkspaceUris(params, LEGACY_WORKSPACE_URI, workspaceUri),
+      );
+      return remapWorkspaceUris(result, workspaceUri, LEGACY_WORKSPACE_URI);
+    },
+    async codeLens(params) {
+      const result = await client.sendRequest(
+        CodeLensRequest.type,
+        remapWorkspaceUris(params, LEGACY_WORKSPACE_URI, workspaceUri),
+      );
+      return remapWorkspaceUris(result, workspaceUri, LEGACY_WORKSPACE_URI);
     },
     async prepareRename(params) {
-      return client.sendRequest(PrepareRenameRequest.type, params);
+      const result = await client.sendRequest(
+        PrepareRenameRequest.type,
+        remapWorkspaceUris(params, LEGACY_WORKSPACE_URI, workspaceUri),
+      );
+      return remapWorkspaceUris(result, workspaceUri, LEGACY_WORKSPACE_URI);
     },
     async references(params) {
-      return client.sendRequest(ReferencesRequest.type, params);
+      const result = await client.sendRequest(
+        ReferencesRequest.type,
+        remapWorkspaceUris(params, LEGACY_WORKSPACE_URI, workspaceUri),
+      );
+      return remapWorkspaceUris(result, workspaceUri, LEGACY_WORKSPACE_URI);
     },
     async rename(params) {
-      return client.sendRequest(RenameRequest.type, params);
+      const result = await client.sendRequest(
+        RenameRequest.type,
+        remapWorkspaceUris(params, LEGACY_WORKSPACE_URI, workspaceUri),
+      );
+      return remapWorkspaceUris(result, workspaceUri, LEGACY_WORKSPACE_URI);
     },
     didChangeWatchedFiles(params) {
-      client.sendNotification(DidChangeWatchedFilesNotification.type, params);
+      client.sendNotification(
+        DidChangeWatchedFilesNotification.type,
+        remapWorkspaceUris(params, LEGACY_WORKSPACE_URI, workspaceUri),
+      );
     },
     setConfiguration(section, value) {
       configBySection[section] = value;

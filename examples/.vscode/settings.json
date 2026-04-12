@@ -1,3 +1,4 @@
 {
-  "cssModuleExplainer.scss.classnameTransform": "asIs"
+  "cssModuleExplainer.scss.classnameTransform": "asIs",
+  "js/ts.tsdk.path": "../node_modules/typescript/lib"
 }

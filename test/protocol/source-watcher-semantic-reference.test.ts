@@ -4,18 +4,18 @@ import { createInProcessServer, type LspTestClient } from "./_harness/in-process
 import type { ResolvedType } from "@css-module-explainer/shared";
 import type { TypeResolver } from "../../server/src/core/ts/type-resolver";
 
-// Source-file watcher → reverse-index freshness.
+// Source-file watcher → semantic reference freshness.
 //
 // When a TS/JS source file is saved on disk, the server receives a
 // `didChangeWatchedFiles` notification. The handler must:
 //   1. Invalidate the workspace TypeResolver program.
 //   2. Invalidate the analysis cache for every open source document
-//      so `onAnalyze` re-fires and reverse-index expansions rebuild
+//      so `onAnalyze` re-fires and semantic reference expansions rebuild
 //      with fresh type data.
 //
 // Without step 2, `analysisCache.get()` returns the cached entry
 // (the TSX buffer version hasn't changed), `onAnalyze` never
-// re-fires, and reverse-index expansion buckets stay frozen against
+// re-fires, and semantic reference expansions stay frozen against
 // the previous type-resolver output.
 
 /**
@@ -41,7 +41,7 @@ class MutableFakeTypeResolver implements TypeResolver {
 }
 
 // Uses a bare variable `cx(size)` (not a template `cx(\`btn-${size}\`)`)
-// so the reverse-index expansion goes through `expandVariableRef` →
+// so the semantic expansion goes through `expandVariableRef` →
 // `typeResolver.resolve`, not `expandTemplateRef` (prefix match).
 const APP_TSX = `import classNames from 'classnames/bind';
 import styles from './app.module.scss';
@@ -52,7 +52,7 @@ export function App() {
 }
 `;
 
-describe("source-watcher → reverse-index freshness", () => {
+describe("source-watcher → semantic reference freshness", () => {
   let client: LspTestClient | null = null;
 
   afterEach(() => {
@@ -60,9 +60,9 @@ describe("source-watcher → reverse-index freshness", () => {
     client = null;
   });
 
-  it("source file save invalidates analysis cache and refreshes reverse-index expansions", async () => {
+  it("source file save invalidates analysis cache and refreshes semantic reference expansions", async () => {
     // TypeResolver initially resolves `size` to "small", so
-    // `expandVariableRef` records a reverse-index entry for `small`.
+    // `expandVariableRef` records a semantic reference for `small`.
     const typeResolver = new MutableFakeTypeResolver(["small"]);
     const scssContent = ".small { color: red; }\n.large { color: blue; }\n";
 
@@ -86,7 +86,7 @@ describe("source-watcher → reverse-index freshness", () => {
     });
 
     // Initial diagnostics — triggers onAnalyze, populates
-    // reverse-index with `small` expansion via expandVariableRef.
+    // semantic references with the `small` expansion via expandVariableRef.
     await client.waitForDiagnostics(tsxUri);
 
     // Sanity: Find References on `.small` returns the TSX site.

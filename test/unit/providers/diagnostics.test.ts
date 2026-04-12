@@ -1,16 +1,22 @@
 import { describe, expect, it, vi } from "vitest";
 import type ts from "typescript";
 import { DiagnosticSeverity } from "vscode-languageserver-protocol/node";
-import type { ClassRef, CxBinding, ScssClassMap } from "@css-module-explainer/shared";
+import type { CxBinding } from "@css-module-explainer/shared";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
-import { NullReverseIndex } from "../../../server/src/core/indexing/reverse-index";
+import { NullSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
 import { NOOP_LOG_ERROR, type ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
 import { computeDiagnostics } from "../../../server/src/providers/diagnostics";
 import { DEFAULT_SETTINGS } from "../../../server/src/settings";
 import type { TypeResolver } from "../../../server/src/core/ts/type-resolver";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
-import { EMPTY_ALIAS_RESOLVER, info, makeBaseDeps } from "../../_fixtures/test-helpers";
+import {
+  EMPTY_ALIAS_RESOLVER,
+  buildTestClassExpressions,
+  info,
+  makeBaseDeps,
+} from "../../_fixtures/test-helpers";
+import { buildStyleDocumentFromSelectorMap } from "../../_fixtures/style-documents";
 
 const TSX = `
 import classNames from 'classnames/bind';
@@ -33,25 +39,34 @@ const detectCxBindings = (sourceFile: ts.SourceFile): CxBinding[] => [
   },
 ];
 
-const parseClassRefs = (_sf: ts.SourceFile, bindings: readonly CxBinding[]): ClassRef[] =>
-  bindings.length === 0
-    ? []
-    : [
-        {
-          kind: "static",
-          origin: "cxCall",
-          className: "indicator",
-          originRange: { start: { line: 4, character: 14 }, end: { line: 4, character: 23 } },
-          scssModulePath: bindings[0]!.scssModulePath,
-        },
-        {
-          kind: "static",
-          origin: "cxCall",
-          className: "unknonw",
-          originRange: { start: { line: 5, character: 14 }, end: { line: 5, character: 21 } },
-          scssModulePath: bindings[0]!.scssModulePath,
-        },
-      ];
+const parseClassExpressions = (_sf: ts.SourceFile, bindings: readonly CxBinding[]) =>
+  buildTestClassExpressions({
+    filePath: "/fake/ws/src/Button.tsx",
+    bindings,
+    expressions:
+      bindings.length === 0
+        ? []
+        : [
+            {
+              kind: "literal",
+              origin: "cxCall",
+              className: "indicator",
+              range: { start: { line: 4, character: 14 }, end: { line: 4, character: 23 } },
+              scssModulePath: bindings[0]!.scssModulePath,
+            },
+            {
+              kind: "literal",
+              origin: "cxCall",
+              className: "unknonw",
+              range: { start: { line: 5, character: 14 }, end: { line: 5, character: 21 } },
+              scssModulePath: bindings[0]!.scssModulePath,
+            },
+          ],
+  });
+
+function styleDocumentForSelectors(selectors: ReadonlyMap<string, ReturnType<typeof info>>) {
+  return () => buildStyleDocumentFromSelectorMap("/fake/ws/src/Button.module.scss", selectors);
+}
 
 function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
@@ -60,16 +75,16 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
     scanCxImports: (sf, fp) => ({ stylesBindings: new Map(), bindings: detectCxBindings(sf, fp) }),
-    parseClassRefs,
+    parseClassExpressions,
     max: 10,
   });
   return makeBaseDeps({
     analysisCache,
-    scssClassMapForPath: () =>
+    selectorMapForPath: () =>
       new Map([
         ["indicator", info("indicator")],
         ["unknown", info("unknown")], // nearby typo target
-      ]) as ScssClassMap,
+      ]),
     ...overrides,
   });
 }
@@ -84,11 +99,11 @@ describe("computeDiagnostics", () => {
 
   it("returns an empty array when all classes resolve", () => {
     const deps = makeDeps({
-      scssClassMapForPath: () =>
+      selectorMapForPath: () =>
         new Map([
           ["indicator", info("indicator")],
           ["unknonw", info("unknonw")],
-        ]) as ScssClassMap,
+        ]),
     });
     const result = computeDiagnostics(baseParams, deps);
     expect(result).toEqual([]);
@@ -101,7 +116,13 @@ describe("computeDiagnostics", () => {
     expect(d.severity).toBe(DiagnosticSeverity.Warning);
     expect(d.message).toContain("'.unknonw'");
     expect(d.message).toContain("Did you mean 'unknown'?");
-    expect(d.data).toEqual({ suggestion: "unknown" });
+    expect(d.data).toMatchObject({
+      suggestion: "unknown",
+      createSelector: {
+        uri: "file:///fake/ws/src/Button.module.scss",
+        newText: "\n\n.unknonw {\n}\n",
+      },
+    });
   });
 
   it("returns an empty array when the file does not import classnames/bind", () => {
@@ -117,7 +138,7 @@ describe("computeDiagnostics", () => {
     const result = computeDiagnostics(
       baseParams,
       makeDeps({
-        scssClassMapForPath: () => {
+        styleDocumentForPath: () => {
           throw new Error("boom");
         },
         logError,
@@ -145,30 +166,39 @@ describe("computeDiagnostics", () => {
         stylesBindings: new Map(),
         bindings: detectCxBindings(sf, fp),
       }),
-      parseClassRefs: (_sf: ts.SourceFile, bindings: readonly CxBinding[]): ClassRef[] =>
-        bindings.length === 0
-          ? []
-          : [
-              {
-                kind: "template",
-                origin: "cxCall",
-                rawTemplate: "prefix-${x}",
-                staticPrefix: "prefix-",
-                originRange: { start: { line: 4, character: 14 }, end: { line: 4, character: 28 } },
-                scssModulePath: bindings[0]!.scssModulePath,
-              },
-            ],
+      parseClassExpressions: (_sf: ts.SourceFile, bindings: readonly CxBinding[]) =>
+        buildTestClassExpressions({
+          filePath: "/fake/ws/src/Button.tsx",
+          bindings,
+          expressions:
+            bindings.length === 0
+              ? []
+              : [
+                  {
+                    kind: "template",
+                    origin: "cxCall",
+                    rawTemplate: "prefix-${x}",
+                    staticPrefix: "prefix-",
+                    range: {
+                      start: { line: 4, character: 14 },
+                      end: { line: 4, character: 28 },
+                    },
+                    scssModulePath: bindings[0]!.scssModulePath,
+                  },
+                ],
+        }),
       max: 10,
     });
     const deps: ProviderDeps = {
       analysisCache,
-      scssClassMapForPath: () =>
+      styleDocumentForPath: styleDocumentForSelectors(
         new Map([
           ["indicator", info("indicator")],
           ["active", info("active")],
-        ]) as ScssClassMap,
+        ]),
+      ),
       typeResolver: new FakeTypeResolver(),
-      reverseIndex: new NullReverseIndex(),
+      semanticReferenceIndex: new NullSemanticWorkspaceReferenceIndex(),
       workspaceRoot: "/fake/ws",
       logError: NOOP_LOG_ERROR,
       invalidateStyle: () => {},
@@ -192,18 +222,26 @@ describe("computeDiagnostics", () => {
         stylesBindings: new Map(),
         bindings: detectCxBindings(sf, fp),
       }),
-      parseClassRefs: (_sf: ts.SourceFile, bindings: readonly CxBinding[]): ClassRef[] =>
-        bindings.length === 0
-          ? []
-          : [
-              {
-                kind: "variable",
-                origin: "cxCall",
-                variableName: "size",
-                originRange: { start: { line: 4, character: 14 }, end: { line: 4, character: 18 } },
-                scssModulePath: bindings[0]!.scssModulePath,
-              },
-            ],
+      parseClassExpressions: (_sf: ts.SourceFile, bindings: readonly CxBinding[]) =>
+        buildTestClassExpressions({
+          filePath: "/fake/ws/src/Button.tsx",
+          bindings,
+          expressions:
+            bindings.length === 0
+              ? []
+              : [
+                  {
+                    kind: "symbolRef",
+                    origin: "cxCall",
+                    rawReference: "size",
+                    range: {
+                      start: { line: 4, character: 14 },
+                      end: { line: 4, character: 18 },
+                    },
+                    scssModulePath: bindings[0]!.scssModulePath,
+                  },
+                ],
+        }),
       max: 10,
     });
     // Union has three values but classMap only has two of them.
@@ -216,13 +254,14 @@ describe("computeDiagnostics", () => {
     }
     const deps: ProviderDeps = {
       analysisCache,
-      scssClassMapForPath: () =>
+      styleDocumentForPath: styleDocumentForSelectors(
         new Map([
           ["small", info("small")],
           ["medium", info("medium")],
-        ]) as ScssClassMap,
+        ]),
+      ),
       typeResolver: new UnionResolver(),
-      reverseIndex: new NullReverseIndex(),
+      semanticReferenceIndex: new NullSemanticWorkspaceReferenceIndex(),
       workspaceRoot: "/fake/ws",
       logError: NOOP_LOG_ERROR,
       invalidateStyle: () => {},
@@ -237,6 +276,63 @@ describe("computeDiagnostics", () => {
     expect(result[0]!.message).toContain("'large'");
   });
 
+  it("warns on a variable call when local flow resolves a missing value", () => {
+    const flowTsx = `import classNames from 'classnames/bind';
+import styles from './Button.module.scss';
+const cx = classNames.bind(styles);
+const size = enabled ? 'small' : 'large';
+const a = cx(size);
+`;
+    const sourceFileCache = new SourceFileCache({ max: 10 });
+    const analysisCache = new DocumentAnalysisCache({
+      sourceFileCache,
+      fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
+      scanCxImports: (sf, fp) => ({
+        stylesBindings: new Map(),
+        bindings: detectCxBindings(sf, fp),
+      }),
+      parseClassExpressions: (_sf: ts.SourceFile, bindings: readonly CxBinding[]) =>
+        buildTestClassExpressions({
+          filePath: "/fake/ws/src/Button.tsx",
+          bindings,
+          expressions:
+            bindings.length === 0
+              ? []
+              : [
+                  {
+                    kind: "symbolRef",
+                    origin: "cxCall",
+                    rawReference: "size",
+                    range: {
+                      start: { line: 4, character: 13 },
+                      end: { line: 4, character: 17 },
+                    },
+                    scssModulePath: bindings[0]!.scssModulePath,
+                  },
+                ],
+        }),
+      max: 10,
+    });
+    const deps: ProviderDeps = {
+      analysisCache,
+      styleDocumentForPath: styleDocumentForSelectors(new Map([["small", info("small")]])),
+      typeResolver: new FakeTypeResolver(),
+      semanticReferenceIndex: new NullSemanticWorkspaceReferenceIndex(),
+      workspaceRoot: "/fake/ws",
+      logError: NOOP_LOG_ERROR,
+      invalidateStyle: () => {},
+      pushStyleFile: () => {},
+      indexerReady: Promise.resolve(),
+      stopIndexer: () => {},
+      settings: DEFAULT_SETTINGS,
+    };
+    const result = computeDiagnostics({ ...baseParams, content: flowTsx }, deps);
+    expect(result).toHaveLength(1);
+    expect(result[0]!.message).toContain("Missing class for possible value");
+    expect(result[0]!.message).toContain("'large'");
+  });
+
   it("skips variable calls with an unresolvable type (ignoreUnresolvableUnions)", () => {
     const sourceFileCache = new SourceFileCache({ max: 10 });
     const analysisCache = new DocumentAnalysisCache({
@@ -247,25 +343,33 @@ describe("computeDiagnostics", () => {
         stylesBindings: new Map(),
         bindings: detectCxBindings(sf, fp),
       }),
-      parseClassRefs: (_sf: ts.SourceFile, bindings: readonly CxBinding[]): ClassRef[] =>
-        bindings.length === 0
-          ? []
-          : [
-              {
-                kind: "variable",
-                origin: "cxCall",
-                variableName: "unknown",
-                originRange: { start: { line: 4, character: 14 }, end: { line: 4, character: 21 } },
-                scssModulePath: bindings[0]!.scssModulePath,
-              },
-            ],
+      parseClassExpressions: (_sf: ts.SourceFile, bindings: readonly CxBinding[]) =>
+        buildTestClassExpressions({
+          filePath: "/fake/ws/src/Button.tsx",
+          bindings,
+          expressions:
+            bindings.length === 0
+              ? []
+              : [
+                  {
+                    kind: "symbolRef",
+                    origin: "cxCall",
+                    rawReference: "unknown",
+                    range: {
+                      start: { line: 4, character: 14 },
+                      end: { line: 4, character: 21 },
+                    },
+                    scssModulePath: bindings[0]!.scssModulePath,
+                  },
+                ],
+        }),
       max: 10,
     });
     const deps: ProviderDeps = {
       analysisCache,
-      scssClassMapForPath: () => new Map([["indicator", info("indicator")]]) as ScssClassMap,
+      styleDocumentForPath: styleDocumentForSelectors(new Map([["indicator", info("indicator")]])),
       typeResolver: new FakeTypeResolver(), // always unresolvable
-      reverseIndex: new NullReverseIndex(),
+      semanticReferenceIndex: new NullSemanticWorkspaceReferenceIndex(),
       workspaceRoot: "/fake/ws",
       logError: NOOP_LOG_ERROR,
       invalidateStyle: () => {},
@@ -285,10 +389,10 @@ describe("computeDiagnostics", () => {
     const result = computeDiagnostics(
       baseParams,
       makeDeps({
-        scssClassMapForPath: () => {
+        selectorMapForPath: () => {
           callCount += 1;
           if (callCount === 2) throw new Error("only the second one");
-          return new Map([["indicator", info("indicator")]]) as ScssClassMap;
+          return new Map([["indicator", info("indicator")]]);
         },
         logError,
       }),
@@ -352,6 +456,11 @@ describe("missing-module diagnostics", () => {
     expect(result[0]!.message).toContain("./typo.module.scss");
     expect(result[0]!.range.start).toEqual({ line: 0, character: 19 });
     expect(result[0]!.range.end).toEqual({ line: 0, character: 38 });
+    expect(result[0]!.data).toEqual({
+      createModuleFile: {
+        uri: "file:///fake/ws/src/typo.module.scss",
+      },
+    });
   });
 
   it("does not emit when diagnostics.missingModule is false", () => {

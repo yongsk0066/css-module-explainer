@@ -4,15 +4,19 @@ import type {
   RenameParams,
   WorkspaceEdit,
 } from "vscode-languageserver/node";
-import type { BemSuffixInfo, SelectorInfo } from "@css-module-explainer/shared";
-import { canonicalNameOf } from "../../core/scss/classname-transform";
+import { LSPErrorCodes, ResponseError } from "vscode-languageserver/node";
+import type { SelectorDeclHIR, StyleDocumentHIR } from "../../core/hir/style-types";
+import { hasBlockingRenameReferences } from "../../core/query/prepare-rename";
+import { findCanonicalSelector, findSelectorAtCursor } from "../../core/query/find-style-selector";
 import { findLangForPath } from "../../core/scss/lang-registry";
 import { fileUrlToPath, pathToFileUrl } from "../../core/util/text-utils";
 import { toLspRange } from "../lsp-adapters";
 import { wrapHandler } from "../_wrap-handler";
-import { withClassRefAtCursor } from "../cursor-dispatch";
+import {
+  findSourceExpressionContextAtCursor,
+  withSourceExpressionAtCursor,
+} from "../cursor-dispatch";
 import type { CursorParams, ProviderDeps } from "../provider-deps";
-import { findSelectorAtCursor } from "../references";
 import { buildRenameEdit } from "./build-edit";
 
 /**
@@ -21,18 +25,18 @@ import { buildRenameEdit } from "./build-edit";
  * Returns `{ range, placeholder }` if the cursor sits on a renameable
  * class token, or `null` to reject the rename.
  *
- * Dispatches through the unified `withClassRefAtCursor` front stage.
- * Only `static` refs are renameable — template and variable refs are
- * rejected here so VS Code falls back to its default word-rename
- * behavior instead of editing a dynamic expression.
+ * Dispatches through the unified expression cursor stage. Only
+ * literal class expressions and direct style access are renameable.
+ * Template and symbol-ref expressions are rejected so VS Code falls
+ * back to its default word-rename behavior instead of editing a
+ * dynamic expression.
  */
-export const handlePrepareRename = wrapHandler<
-  PrepareRenameParams,
-  [cursorParams?: CursorParams],
-  { range: LspRange; placeholder: string } | null
->(
-  "prepareRename",
-  (params, deps, cursorParams) => {
+export function handlePrepareRename(
+  params: PrepareRenameParams,
+  deps: ProviderDeps,
+  cursorParams?: CursorParams,
+): { range: LspRange; placeholder: string } | null {
+  try {
     const filePath = fileUrlToPath(params.textDocument.uri);
 
     if (findLangForPath(filePath)) {
@@ -40,24 +44,30 @@ export const handlePrepareRename = wrapHandler<
     }
 
     if (!cursorParams) return null;
+    const ctx = findSourceExpressionContextAtCursor(cursorParams, deps);
+    if (!ctx) return null;
 
-    return withClassRefAtCursor(cursorParams, deps, (ctx) => {
-      if (ctx.ref.kind !== "static") return null;
-      return {
-        range: toLspRange(ctx.ref.originRange),
-        placeholder: ctx.ref.className,
-      };
-    });
-  },
-  null,
-);
+    if (ctx.expression.kind === "template" || ctx.expression.kind === "symbolRef") {
+      throwRenameBlocked("Dynamic class expressions cannot be renamed safely.");
+    }
+    if (ctx.expression.kind !== "literal" && ctx.expression.kind !== "styleAccess") return null;
+    return {
+      range: toLspRange(ctx.expression.range),
+      placeholder: ctx.expression.className,
+    };
+  } catch (err) {
+    if (isResponseError(err)) throw err;
+    deps.logError("prepareRename handler failed", err);
+    return null;
+  }
+}
 
 /**
  * Handle `textDocument/rename`.
  *
  * Builds a WorkspaceEdit with text edits across the SCSS file and
- * all referencing TS/TSX files. Only `static` class refs are
- * renameable — dynamic (template/variable) refs are skipped.
+ * all referencing TS/TSX files. Only literal class expressions and
+ * direct style access are renameable — dynamic expressions are skipped.
  */
 export const handleRename = wrapHandler<
   RenameParams,
@@ -74,14 +84,15 @@ export const handleRename = wrapHandler<
 
     if (!cursorParams) return null;
 
-    return withClassRefAtCursor(cursorParams, deps, (ctx) => {
-      if (ctx.ref.kind !== "static") return null;
-      const selectorInfo = ctx.classMap.get(ctx.ref.className);
-      if (!selectorInfo) return null;
+    return withSourceExpressionAtCursor(cursorParams, deps, (ctx) => {
+      if (ctx.expression.kind !== "literal" && ctx.expression.kind !== "styleAccess") return null;
+      const selector = findSelectorAtExpression(ctx.expression.className, ctx.styleDocument);
+      if (!selector) return null;
       return buildRenameEdit(
-        pathToFileUrl(ctx.ref.scssModulePath),
-        ctx.ref.scssModulePath,
-        selectorInfo,
+        pathToFileUrl(ctx.expression.scssModulePath),
+        ctx.expression.scssModulePath,
+        ctx.styleDocument,
+        selector,
         deps,
         params.newName,
       );
@@ -91,7 +102,7 @@ export const handleRename = wrapHandler<
 );
 
 /**
- * Resolve the cursor to a `SelectorInfo` and reject the nested
+ * Resolve the cursor to a selector and reject the nested
  * shapes that are not safe to rename (shapes outside the BEM
  * suffix set, or whose captured rawToken contains a `#{$var}`
  * interpolation). Shared by both rename entry points so the
@@ -102,38 +113,35 @@ function resolveRenameTarget(
   line: number,
   character: number,
   deps: ProviderDeps,
-): SelectorInfo | null {
-  const classMap = deps.scssClassMapForPath(filePath);
-  if (!classMap) return null;
+): { styleDocument: StyleDocumentHIR; selector: SelectorDeclHIR } | null {
+  const styleDocument = deps.styleDocumentForPath(filePath);
+  if (!styleDocument) return null;
 
-  const selectorInfo = findSelectorAtCursor(classMap, line, character);
-  if (!selectorInfo) return null;
+  const selector = findSelectorAtCursor(styleDocument, line, character);
+  if (!selector) return null;
 
-  // Alias unwrap: `classnameTransform` may expose an alias entry
-  // at the cursor (e.g. `styles.btnPrimary` when the SCSS has
-  // `.btn-primary`). The BEM-safe gate evaluates against the
-  // ORIGINAL entry because its `bemSuffix` / `isNested` are the
-  // authoritative source — the alias copies them via `...info`
-  // spread, so either works in practice, but routing through
-  // `originalName` makes the intent explicit and survives future
-  // schema changes.
-  const gateTarget = selectorInfo.originalName
-    ? (classMap.get(selectorInfo.originalName) ?? selectorInfo)
-    : selectorInfo;
-  if (gateTarget.isNested && !isBemRenameable(gateTarget)) return null;
-
-  const mode = deps.settings.scss.classnameTransform;
-  if ((mode === "camelCaseOnly" || mode === "dashesOnly") && selectorInfo.originalName) {
-    return null;
+  const gateTarget = findCanonicalSelector(styleDocument, selector);
+  if (!isRenameSafe(gateTarget)) {
+    if (gateTarget.bemSuffix?.rawToken.includes("#{")) {
+      throwRenameBlocked("Selectors containing interpolation cannot be renamed safely.");
+    }
+    throwRenameBlocked("Only flat selectors and safe BEM suffix selectors can be renamed.");
   }
 
-  return selectorInfo;
+  const mode = deps.settings.scss.classnameTransform;
+  if ((mode === "camelCaseOnly" || mode === "dashesOnly") && selector.viewKind === "alias") {
+    throwRenameBlocked(
+      "Alias selector views cannot be renamed under the current classnameTransform mode.",
+    );
+  }
+
+  return { styleDocument, selector };
 }
 
-function isBemRenameable(info: SelectorInfo): info is SelectorInfo & { bemSuffix: BemSuffixInfo } {
-  if (!info.bemSuffix) return false;
-  if (info.bemSuffix.rawToken.includes("#{")) return false;
-  return true;
+function isRenameSafe(selector: SelectorDeclHIR): boolean {
+  if (selector.nestedSafety === "flat") return true;
+  if (selector.nestedSafety !== "bemSuffixSafe" || !selector.bemSuffix) return false;
+  return !selector.bemSuffix.rawToken.includes("#{");
 }
 
 function hasExpandedReverseSite(
@@ -141,7 +149,7 @@ function hasExpandedReverseSite(
   filePath: string,
   canonicalName: string,
 ): boolean {
-  return deps.reverseIndex.find(filePath, canonicalName).some((s) => s.expansion !== "direct");
+  return hasBlockingRenameReferences(deps, filePath, canonicalName);
 }
 
 function prepareRenameFromScss(
@@ -149,19 +157,24 @@ function prepareRenameFromScss(
   params: PrepareRenameParams,
   deps: ProviderDeps,
 ): { range: LspRange; placeholder: string } | null {
-  const selectorInfo = resolveRenameTarget(
+  const target = resolveRenameTarget(
     filePath,
     params.position.line,
     params.position.character,
     deps,
   );
-  if (!selectorInfo) return null;
+  if (!target) return null;
 
-  const canonicalName = canonicalNameOf(selectorInfo);
-  if (hasExpandedReverseSite(deps, filePath, canonicalName)) return null;
+  const canonicalSelector = findCanonicalSelector(target.styleDocument, target.selector);
+  const canonicalName = canonicalSelector.canonicalName;
+  if (hasExpandedReverseSite(deps, filePath, canonicalName)) {
+    throwRenameBlocked(
+      "Rename is blocked because inferred or expanded references would make the edit unsafe.",
+    );
+  }
 
-  const placeholderRange = selectorInfo.bemSuffix?.rawTokenRange ?? selectorInfo.range;
-  return { range: toLspRange(placeholderRange), placeholder: selectorInfo.name };
+  const placeholderRange = target.selector.bemSuffix?.rawTokenRange ?? target.selector.range;
+  return { range: toLspRange(placeholderRange), placeholder: target.selector.name };
 }
 
 function renameFromScss(
@@ -169,13 +182,38 @@ function renameFromScss(
   params: RenameParams,
   deps: ProviderDeps,
 ): WorkspaceEdit | null {
-  const selectorInfo = resolveRenameTarget(
+  const target = resolveRenameTarget(
     filePath,
     params.position.line,
     params.position.character,
     deps,
   );
-  if (!selectorInfo) return null;
+  if (!target) return null;
 
-  return buildRenameEdit(params.textDocument.uri, filePath, selectorInfo, deps, params.newName);
+  return buildRenameEdit(
+    params.textDocument.uri,
+    filePath,
+    target.styleDocument,
+    target.selector,
+    deps,
+    params.newName,
+  );
+}
+
+function findSelectorAtExpression(
+  className: string,
+  styleDocument: StyleDocumentHIR,
+): SelectorDeclHIR | null {
+  const selector = styleDocument.selectors.find(
+    (candidate): candidate is SelectorDeclHIR => candidate.name === className,
+  );
+  return selector ?? null;
+}
+
+function throwRenameBlocked(message: string): never {
+  throw new ResponseError(LSPErrorCodes.RequestFailed, message);
+}
+
+function isResponseError(err: unknown): err is ResponseError<unknown> {
+  return err instanceof ResponseError;
 }

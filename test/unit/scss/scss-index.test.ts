@@ -4,13 +4,16 @@ import {
   buildChildContext,
   enumerateGroups,
   findBemSuffixSpan,
-  parseStyleModule,
   StyleIndexCache,
 } from "../../../server/src/core/scss/scss-index";
+import { parseStyleSelectorMap, selectorMapFromDocument } from "../../_fixtures/style-documents";
 
-describe("parseStyleModule / flat classes", () => {
+describe("parseStyleSelectorMap / flat classes", () => {
   it("extracts a single flat class", () => {
-    const map = parseStyleModule(`.button { color: red; padding: 8px; }`, "/fake/a.module.scss");
+    const map = parseStyleSelectorMap(
+      `.button { color: red; padding: 8px; }`,
+      "/fake/a.module.scss",
+    );
     expect(map.has("button")).toBe(true);
     const info = map.get("button")!;
     expect(info.name).toBe("button");
@@ -20,7 +23,7 @@ describe("parseStyleModule / flat classes", () => {
   });
 
   it("extracts multiple flat classes", () => {
-    const map = parseStyleModule(
+    const map = parseStyleSelectorMap(
       `.one { color: red; }\n.two { color: blue; }\n.three { color: green; }`,
       "/fake/a.module.scss",
     );
@@ -28,7 +31,7 @@ describe("parseStyleModule / flat classes", () => {
   });
 
   it("returns an empty map for files with no class selectors", () => {
-    const map = parseStyleModule(
+    const map = parseStyleSelectorMap(
       `:root { --bg: red; }\nbody { margin: 0; }`,
       "/fake/a.module.scss",
     );
@@ -37,17 +40,17 @@ describe("parseStyleModule / flat classes", () => {
 
   it("returns an empty map on parse error without throwing", () => {
     // Unterminated block — postcss throws; parser must catch.
-    const map = parseStyleModule(`.broken { color: `, "/fake/a.module.scss");
+    const map = parseStyleSelectorMap(`.broken { color: `, "/fake/a.module.scss");
     expect(map.size).toBe(0);
   });
 
   it("uses vanilla postcss for .module.css (no SCSS syntax)", () => {
-    const map = parseStyleModule(`.plain { color: red; }`, "/fake/a.module.css");
+    const map = parseStyleSelectorMap(`.plain { color: red; }`, "/fake/a.module.css");
     expect(map.has("plain")).toBe(true);
   });
 
   it("records the class token range (0-based)", () => {
-    const map = parseStyleModule(`.indicator { color: red; }`, "/fake/a.module.scss");
+    const map = parseStyleSelectorMap(`.indicator { color: red; }`, "/fake/a.module.scss");
     const info = map.get("indicator")!;
     // ".indicator" starts at col 0; the class name 'indicator' starts at col 1
     expect(info.range.start.line).toBe(0);
@@ -56,22 +59,22 @@ describe("parseStyleModule / flat classes", () => {
   });
 
   it("records the full rule block range (ruleRange)", () => {
-    const map = parseStyleModule(`.indicator {\n  color: red;\n}`, "/fake/a.module.scss");
+    const map = parseStyleSelectorMap(`.indicator {\n  color: red;\n}`, "/fake/a.module.scss");
     const info = map.get("indicator")!;
     expect(info.ruleRange.start.line).toBe(0);
     expect(info.ruleRange.end.line).toBeGreaterThanOrEqual(2);
   });
 });
 
-describe("parseStyleModule / edge cases", () => {
+describe("parseStyleSelectorMap / edge cases", () => {
   describe(":global() wrapping", () => {
     it("excludes :global(.foo) from the class map", () => {
-      const map = parseStyleModule(`:global(.btn) { color: red; }`, "/fake/a.module.scss");
+      const map = parseStyleSelectorMap(`:global(.btn) { color: red; }`, "/fake/a.module.scss");
       expect(map.has("btn")).toBe(false);
     });
 
     it("still includes sibling local classes in the same file", () => {
-      const map = parseStyleModule(
+      const map = parseStyleSelectorMap(
         `:global(.btn) { color: red; }\n.card { padding: 8px; }`,
         "/fake/a.module.scss",
       );
@@ -82,14 +85,14 @@ describe("parseStyleModule / edge cases", () => {
 
   describe(":local() wrapping", () => {
     it("includes :local(.foo) as 'foo'", () => {
-      const map = parseStyleModule(`:local(.btn) { color: red; }`, "/fake/a.module.scss");
+      const map = parseStyleSelectorMap(`:local(.btn) { color: red; }`, "/fake/a.module.scss");
       expect(map.has("btn")).toBe(true);
     });
   });
 
   describe("& nesting", () => {
     it("resolves .button { &--primary { ... } } to button--primary", () => {
-      const map = parseStyleModule(
+      const map = parseStyleSelectorMap(
         `.button { color: red; &--primary { background: blue; } }`,
         "/fake/a.module.scss",
       );
@@ -98,7 +101,7 @@ describe("parseStyleModule / edge cases", () => {
     });
 
     it("handles deeply nested ampersand", () => {
-      const map = parseStyleModule(
+      const map = parseStyleSelectorMap(
         `.card { &__header { &--large { font-size: 20px; } } }`,
         "/fake/a.module.scss",
       );
@@ -106,52 +109,58 @@ describe("parseStyleModule / edge cases", () => {
     });
 
     it("handles plain nested selectors without &", () => {
-      const map = parseStyleModule(`.wrapper { .inner { color: red; } }`, "/fake/a.module.scss");
+      const map = parseStyleSelectorMap(
+        `.wrapper { .inner { color: red; } }`,
+        "/fake/a.module.scss",
+      );
       // Only 'inner' is exposed on the styles object (last class wins).
       expect(map.has("inner")).toBe(true);
     });
 
-    it("does not flip the flat parent's isNested flag when nested is '&:hover'", () => {
-      const map = parseStyleModule(
+    it("keeps the flat parent in flat nested-safety when nested is '&:hover'", () => {
+      const map = parseStyleSelectorMap(
         `.button { color: red; &:hover { color: blue; } }`,
         "/fake/a.module.scss",
       );
       expect(map.has("button")).toBe(true);
       // `.button { &:hover {} }` must keep `.button` as a flat entry
       // so rename is not silently rejected on this BEM+SCSS shape.
-      expect(map.get("button")!.isNested).not.toBe(true);
+      expect(map.get("button")!.nestedSafety).toBe("flat");
     });
 
     it("&--suffix: flat parent stays flat, BEM variant is nested", () => {
-      const map = parseStyleModule(
+      const map = parseStyleSelectorMap(
         `.button { color: red; &--primary { background: blue; } }`,
         "/fake/a.module.scss",
       );
-      expect(map.get("button")!.isNested).not.toBe(true);
-      expect(map.get("button--primary")!.isNested).toBe(true);
+      expect(map.get("button")!.nestedSafety).toBe("flat");
+      expect(map.get("button--primary")!.nestedSafety).toBe("bemSuffixSafe");
     });
 
     it("&.active: flat parent stays flat, compound sibling is nested", () => {
-      const map = parseStyleModule(
+      const map = parseStyleSelectorMap(
         `.button { color: red; &.active { color: blue; } }`,
         "/fake/a.module.scss",
       );
-      expect(map.get("button")!.isNested).not.toBe(true);
+      expect(map.get("button")!.nestedSafety).toBe("flat");
       // `active` is a brand-new class introduced inside the nested rule,
       // so it inherits the nested flag.
-      expect(map.get("active")!.isNested).toBe(true);
+      expect(map.get("active")!.nestedSafety).toBe("nestedUnsafe");
     });
   });
 
   describe("group selectors", () => {
     it("indexes each class in '.a, .b'", () => {
-      const map = parseStyleModule(`.primary, .secondary { color: red; }`, "/fake/a.module.scss");
+      const map = parseStyleSelectorMap(
+        `.primary, .secondary { color: red; }`,
+        "/fake/a.module.scss",
+      );
       expect(map.has("primary")).toBe(true);
       expect(map.has("secondary")).toBe(true);
     });
 
     it("shares declarations across grouped selectors", () => {
-      const map = parseStyleModule(
+      const map = parseStyleSelectorMap(
         `.a, .b { color: red; font-size: 14px; }`,
         "/fake/a.module.scss",
       );
@@ -162,7 +171,7 @@ describe("parseStyleModule / edge cases", () => {
 
   describe("compound selectors", () => {
     it("indexes every class in '.foo.bar { ... }'", () => {
-      const map = parseStyleModule(`.foo.bar { color: red; }`, "/fake/a.module.scss");
+      const map = parseStyleSelectorMap(`.foo.bar { color: red; }`, "/fake/a.module.scss");
       expect(map.has("foo")).toBe(true);
       expect(map.has("bar")).toBe(true);
     });
@@ -171,7 +180,7 @@ describe("parseStyleModule / edge cases", () => {
       // CSS Modules exposes every class in the rightmost compound
       // segment. `.a` is an ancestor; `.b.c` is the compound that
       // keys the exported name.
-      const map = parseStyleModule(`.a .b.c { color: red; }`, "/fake/a.module.scss");
+      const map = parseStyleSelectorMap(`.a .b.c { color: red; }`, "/fake/a.module.scss");
       expect(map.has("b")).toBe(true);
       expect(map.has("c")).toBe(true);
       expect(map.has("a")).toBe(false);
@@ -180,7 +189,7 @@ describe("parseStyleModule / edge cases", () => {
 
   describe("token range word-boundary", () => {
     it("points to the standalone '.btn' in '.btn-primary .btn'", () => {
-      const map = parseStyleModule(`.btn-primary .btn { color: red; }`, "/fake/a.module.scss");
+      const map = parseStyleSelectorMap(`.btn-primary .btn { color: red; }`, "/fake/a.module.scss");
       const btnInfo = map.get("btn")!;
       // '.btn-primary ' is 13 characters. '.btn' starts at column 13,
       // the class name 'btn' starts at column 14.
@@ -189,7 +198,7 @@ describe("parseStyleModule / edge cases", () => {
     });
 
     it("does not collide class prefixes when .btn-primary is first", () => {
-      const map = parseStyleModule(
+      const map = parseStyleSelectorMap(
         `.btn-primary { color: red; }\n.btn { color: blue; }`,
         "/fake/a.module.scss",
       );
@@ -202,7 +211,7 @@ describe("parseStyleModule / edge cases", () => {
     it("returns an empty map when a late syntax error breaks the whole file", () => {
       // postcss throws on the broken trailing rule; parse failure
       // returns an empty map — no partial results.
-      const map = parseStyleModule(
+      const map = parseStyleSelectorMap(
         `.valid { color: red; }\n.broken { color: `,
         "/fake/a.module.scss",
       );
@@ -212,7 +221,10 @@ describe("parseStyleModule / edge cases", () => {
 
   describe("CSS variables", () => {
     it("includes --var-name declarations in the declarations text", () => {
-      const map = parseStyleModule(`.theme { --bg: red; --fg: white; }`, "/fake/a.module.scss");
+      const map = parseStyleSelectorMap(
+        `.theme { --bg: red; --fg: white; }`,
+        "/fake/a.module.scss",
+      );
       expect(map.get("theme")!.declarations).toContain("--bg: red");
       expect(map.get("theme")!.declarations).toContain("--fg: white");
     });
@@ -220,7 +232,7 @@ describe("parseStyleModule / edge cases", () => {
 
   describe("cascade last-wins", () => {
     it("uses the last declaration when a class is defined multiple times", () => {
-      const map = parseStyleModule(
+      const map = parseStyleSelectorMap(
         `.btn { color: red; }\n.btn { color: blue; }`,
         "/fake/a.module.scss",
       );
@@ -232,7 +244,7 @@ describe("parseStyleModule / edge cases", () => {
 
   describe("@keyframes / @font-face exclusion", () => {
     it("does not index identifiers inside @keyframes", () => {
-      const map = parseStyleModule(
+      const map = parseStyleSelectorMap(
         `@keyframes fade { from { opacity: 0; } to { opacity: 1; } }`,
         "/fake/a.module.scss",
       );
@@ -242,7 +254,7 @@ describe("parseStyleModule / edge cases", () => {
     });
 
     it("does not confuse @font-face blocks for rules", () => {
-      const map = parseStyleModule(
+      const map = parseStyleSelectorMap(
         `@font-face { font-family: 'Inter'; src: url('x.woff2'); }`,
         "/fake/a.module.scss",
       );
@@ -252,7 +264,7 @@ describe("parseStyleModule / edge cases", () => {
 
   describe("@media / @at-root unwrapping", () => {
     it("indexes classes inside @media", () => {
-      const map = parseStyleModule(
+      const map = parseStyleSelectorMap(
         `@media (min-width: 600px) { .wide { padding: 16px; } }`,
         "/fake/a.module.scss",
       );
@@ -260,7 +272,7 @@ describe("parseStyleModule / edge cases", () => {
     });
 
     it("indexes classes inside @at-root", () => {
-      const map = parseStyleModule(
+      const map = parseStyleSelectorMap(
         `.parent { @at-root .escaped { color: red; } }`,
         "/fake/a.module.scss",
       );
@@ -270,62 +282,85 @@ describe("parseStyleModule / edge cases", () => {
 });
 
 describe("StyleIndexCache", () => {
-  it("returns the same class map for identical content", () => {
+  it("returns the same style document for identical content", () => {
     const cache = new StyleIndexCache({ max: 10 });
-    const first = cache.get("/fake/a.module.scss", `.btn { color: red; }`);
-    const second = cache.get("/fake/a.module.scss", `.btn { color: red; }`);
+    const first = cache.getStyleDocument("/fake/a.module.scss", `.btn { color: red; }`);
+    const second = cache.getStyleDocument("/fake/a.module.scss", `.btn { color: red; }`);
     expect(second).toBe(first);
   });
 
   it("re-parses when content changes", () => {
     const cache = new StyleIndexCache({ max: 10 });
-    const first = cache.get("/fake/a.module.scss", `.btn { color: red; }`);
-    const second = cache.get("/fake/a.module.scss", `.btn { color: blue; }`);
+    const first = cache.getStyleDocument("/fake/a.module.scss", `.btn { color: red; }`);
+    const second = cache.getStyleDocument("/fake/a.module.scss", `.btn { color: blue; }`);
     expect(second).not.toBe(first);
-    expect(second.get("btn")!.declarations).toContain("color: blue");
+    expect(selectorMapFromDocument(second).get("btn")!.declarations).toContain("color: blue");
   });
 
   it("invalidate(path) drops the cached entry", () => {
     const cache = new StyleIndexCache({ max: 10 });
-    const first = cache.get("/fake/a.module.scss", `.btn { color: red; }`);
+    const first = cache.getStyleDocument("/fake/a.module.scss", `.btn { color: red; }`);
     cache.invalidate("/fake/a.module.scss");
-    const second = cache.get("/fake/a.module.scss", `.btn { color: red; }`);
+    const second = cache.getStyleDocument("/fake/a.module.scss", `.btn { color: red; }`);
     expect(second).not.toBe(first);
   });
 
   it("clear() drops everything", () => {
     const cache = new StyleIndexCache({ max: 10 });
-    cache.get("/fake/a.module.scss", `.a { color: red; }`);
-    cache.get("/fake/b.module.scss", `.b { color: red; }`);
+    cache.getStyleDocument("/fake/a.module.scss", `.a { color: red; }`);
+    cache.getStyleDocument("/fake/b.module.scss", `.b { color: red; }`);
     cache.clear();
-    const after = cache.get("/fake/a.module.scss", `.a { color: red; }`);
-    expect(after.has("a")).toBe(true);
+    const after = cache.getStyleDocument("/fake/a.module.scss", `.a { color: red; }`);
+    expect(selectorMapFromDocument(after).has("a")).toBe(true);
   });
 
   it("evicts the least-recently-used entry beyond the max", () => {
     const cache = new StyleIndexCache({ max: 2 });
-    const a = cache.get("/a.module.scss", `.a{}`);
-    cache.get("/b.module.scss", `.b{}`);
+    const a = cache.getStyleDocument("/a.module.scss", `.a{}`);
+    cache.getStyleDocument("/b.module.scss", `.b{}`);
     // LRU order: a, b
-    cache.get("/a.module.scss", `.a{}`); // touch a → order: b, a
-    cache.get("/c.module.scss", `.c{}`); // evicts b
-    const aAgain = cache.get("/a.module.scss", `.a{}`);
+    cache.getStyleDocument("/a.module.scss", `.a{}`); // touch a → order: b, a
+    cache.getStyleDocument("/c.module.scss", `.c{}`); // evicts b
+    const aAgain = cache.getStyleDocument("/a.module.scss", `.a{}`);
     expect(aAgain).toBe(a);
     // b was evicted, so re-getting it reparses (different content string
-    // still produces an equivalent map, but identity differs).
-    const bAgain = cache.get("/b.module.scss", `.b{}`);
-    expect(bAgain.has("b")).toBe(true);
+    // still produces an equivalent document, but identity differs).
+    const bAgain = cache.getStyleDocument("/b.module.scss", `.b{}`);
+    expect(selectorMapFromDocument(bAgain).has("b")).toBe(true);
+  });
+
+  it("stores a transformed style document entry", () => {
+    const cache = new StyleIndexCache({ max: 10 });
+    const entry = cache.getEntry(
+      "/fake/a.module.scss",
+      `.button { color: red; &--primary { color: blue; } }`,
+    );
+
+    expect(entry.styleDocument.filePath).toBe("/fake/a.module.scss");
+    expect(entry.styleDocument.selectors.map((selector) => selector.name)).toEqual([
+      "button",
+      "button--primary",
+    ]);
+  });
+
+  it("returns the same cached style document for identical content", () => {
+    const cache = new StyleIndexCache({ max: 10 });
+    const first = cache.getStyleDocument("/fake/a.module.scss", `.btn { color: red; }`);
+    const second = cache.getStyleDocument("/fake/a.module.scss", `.btn { color: red; }`);
+    expect(second).toBe(first);
   });
 
   // ── classnameTransform integration ──
 
-  it("setMode('camelCase') clears the cache and next get() returns expanded map", () => {
+  it("setMode('camelCase') clears the cache and next read returns alias views", () => {
     const cache = new StyleIndexCache({ max: 10 });
-    const asIsMap = cache.get("/f.module.scss", `.btn-primary { color: red; }`);
+    const asIsDoc = cache.getStyleDocument("/f.module.scss", `.btn-primary { color: red; }`);
+    const asIsMap = selectorMapFromDocument(asIsDoc);
     expect(asIsMap.has("btnPrimary")).toBe(false);
     cache.setMode("camelCase");
-    const expanded = cache.get("/f.module.scss", `.btn-primary { color: red; }`);
-    expect(expanded).not.toBe(asIsMap); // new reference
+    const expandedDoc = cache.getStyleDocument("/f.module.scss", `.btn-primary { color: red; }`);
+    const expanded = selectorMapFromDocument(expandedDoc);
+    expect(expandedDoc).not.toBe(asIsDoc);
     expect(expanded.has("btn-primary")).toBe(true);
     expect(expanded.has("btnPrimary")).toBe(true);
     expect(expanded.get("btnPrimary")?.originalName).toBe("btn-primary");
@@ -333,9 +368,9 @@ describe("StyleIndexCache", () => {
 
   it("setMode idempotent: setting the same mode does not clear", () => {
     const cache = new StyleIndexCache({ max: 10 });
-    const first = cache.get("/f.module.scss", `.btn-primary { color: red; }`);
+    const first = cache.getStyleDocument("/f.module.scss", `.btn-primary { color: red; }`);
     cache.setMode("asIs"); // no-op
-    const second = cache.get("/f.module.scss", `.btn-primary { color: red; }`);
+    const second = cache.getStyleDocument("/f.module.scss", `.btn-primary { color: red; }`);
     expect(second).toBe(first); // same reference — not cleared
   });
 });
@@ -497,10 +532,10 @@ describe("findBemSuffixSpan", () => {
 describe("BEM suffix info", () => {
   // Positive: bemSuffix populated
   it("populates bemSuffix for `.button { &--primary {} }`", () => {
-    const map = parseStyleModule(`.button { &--primary {} }`, "/f.module.scss");
+    const map = parseStyleSelectorMap(`.button { &--primary {} }`, "/f.module.scss");
     const info = map.get("button--primary");
     expect(info).toBeDefined();
-    expect(info!.isNested).toBe(true);
+    expect(info!.nestedSafety).toBe("bemSuffixSafe");
     expect(info!.bemSuffix).toBeDefined();
     expect(info!.bemSuffix!.rawToken).toBe("&--primary");
     expect(info!.bemSuffix!.parentResolvedName).toBe("button");
@@ -509,7 +544,7 @@ describe("BEM suffix info", () => {
   });
 
   it("populates bemSuffix for `.button { &__icon {} }`", () => {
-    const map = parseStyleModule(`.button { &__icon {} }`, "/f.module.scss");
+    const map = parseStyleSelectorMap(`.button { &__icon {} }`, "/f.module.scss");
     const info = map.get("button__icon");
     expect(info).toBeDefined();
     expect(info!.bemSuffix!.rawToken).toBe("&__icon");
@@ -520,7 +555,7 @@ describe("BEM suffix info", () => {
 
   it("populates bemSuffix on multi-line source — rawTokenRange lands on the `&` line", () => {
     const src = `.button {\n  &--primary {}\n}`;
-    const map = parseStyleModule(src, "/f.module.scss");
+    const map = parseStyleSelectorMap(src, "/f.module.scss");
     const info = map.get("button--primary");
     expect(info).toBeDefined();
     const r = info!.bemSuffix!.rawTokenRange;
@@ -533,7 +568,7 @@ describe("BEM suffix info", () => {
     // CRLF column-shift regression catcher: a handler that counted
     // \r into line length would drift by 1 character.
     const src = `.button {\r\n  &--primary {}\r\n}`;
-    const map = parseStyleModule(src, "/f.module.scss");
+    const map = parseStyleSelectorMap(src, "/f.module.scss");
     const info = map.get("button--primary");
     expect(info).toBeDefined();
     const r = info!.bemSuffix!.rawTokenRange;
@@ -543,7 +578,7 @@ describe("BEM suffix info", () => {
   });
 
   it("populates bemSuffix for deep-nested `.card { &__icon { &--small {} } }`", () => {
-    const map = parseStyleModule(`.card { &__icon { &--small {} } }`, "/f.module.scss");
+    const map = parseStyleSelectorMap(`.card { &__icon { &--small {} } }`, "/f.module.scss");
     const inner = map.get("card__icon--small");
     expect(inner).toBeDefined();
     expect(inner!.bemSuffix!.rawToken).toBe("&--small");
@@ -557,31 +592,31 @@ describe("BEM suffix info", () => {
 
   it("populates bemSuffix via comment-bearing parent `.a /* x */ { &--b {} }`", () => {
     const src = `.a /* x */ { &--b {} }`;
-    const map = parseStyleModule(src, "/f.module.scss");
+    const map = parseStyleSelectorMap(src, "/f.module.scss");
     const info = map.get("a--b");
     expect(info).toBeDefined();
     expect(info!.bemSuffix!.rawToken).toBe("&--b");
     expect(info!.bemSuffix!.parentResolvedName).toBe("a");
   });
 
-  // Negative: isNested true but bemSuffix undefined
+  // Negative: nested selector with no BEM-safe metadata
   it("leaves bemSuffix undefined for compound `.button { &.active {} }` (reject compound)", () => {
-    const map = parseStyleModule(`.button { &.active {} }`, "/f.module.scss");
+    const map = parseStyleSelectorMap(`.button { &.active {} }`, "/f.module.scss");
     const active = map.get("active");
     expect(active).toBeDefined();
-    expect(active!.isNested).toBe(true);
+    expect(active!.nestedSafety).toBe("nestedUnsafe");
     expect(active!.bemSuffix).toBeUndefined();
     // button parent entry must survive unchanged
     const button = map.get("button");
     expect(button).toBeDefined();
-    expect(button!.isNested).toBeUndefined();
+    expect(button!.nestedSafety).toBe("flat");
   });
 
   it("preserves flat parent for `.button { &:hover {} }` (dedup guard)", () => {
-    const map = parseStyleModule(`.button { &:hover {} }`, "/f.module.scss");
+    const map = parseStyleSelectorMap(`.button { &:hover {} }`, "/f.module.scss");
     const button = map.get("button");
     expect(button).toBeDefined();
-    expect(button!.isNested).toBeUndefined();
+    expect(button!.nestedSafety).toBe("flat");
     expect(button!.bemSuffix).toBeUndefined();
   });
 
@@ -592,24 +627,24 @@ describe("BEM suffix info", () => {
     // `.card:hover` entry from being downgraded. Net result: no
     // `card--primary` entry exists, and the flat `card` entry is
     // unchanged — safe.
-    const map = parseStyleModule(`.card:hover { &--primary {} }`, "/f.module.scss");
+    const map = parseStyleSelectorMap(`.card:hover { &--primary {} }`, "/f.module.scss");
     expect(map.has("card--primary")).toBe(false);
     const card = map.get("card");
     expect(card).toBeDefined();
-    expect(card!.isNested).toBeUndefined();
+    expect(card!.nestedSafety).toBe("flat");
     expect(card!.bemSuffix).toBeUndefined();
   });
 
   it("leaves bemSuffix undefined for grouped parent `.a, .b { &--c {} }`", () => {
-    const map = parseStyleModule(`.a, .b { &--c {} }`, "/f.module.scss");
+    const map = parseStyleSelectorMap(`.a, .b { &--c {} }`, "/f.module.scss");
     const info = map.get("a--c") ?? map.get("b--c");
     expect(info).toBeDefined();
-    expect(info!.isNested).toBe(true);
+    expect(info!.nestedSafety).toBe("nestedUnsafe");
     expect(info!.bemSuffix).toBeUndefined();
   });
 
   it("leaves bemSuffix undefined for grouped-nested child `.btn { &--a, &--b {} }`", () => {
-    const map = parseStyleModule(`.btn { &--a, &--b {} }`, "/f.module.scss");
+    const map = parseStyleSelectorMap(`.btn { &--a, &--b {} }`, "/f.module.scss");
     const a = map.get("btn--a");
     const b = map.get("btn--b");
     expect(a).toBeDefined();
@@ -619,7 +654,7 @@ describe("BEM suffix info", () => {
   });
 
   it("leaves bemSuffix undefined for multi-`&` `.btn { & + &--x {} }`", () => {
-    const map = parseStyleModule(`.btn { & + &--x {} }`, "/f.module.scss");
+    const map = parseStyleSelectorMap(`.btn { & + &--x {} }`, "/f.module.scss");
     const info = map.get("btn--x");
     if (info !== undefined) {
       expect(info.bemSuffix).toBeUndefined();
@@ -629,13 +664,13 @@ describe("BEM suffix info", () => {
   it("skips interpolated top-level rules `.#{$prefix}--primary {}`", () => {
     // extractClassNames doesn't match .#{...}, so no entry is
     // produced. No crash is the goal.
-    const map = parseStyleModule(`.#{$prefix}--primary { color: red; }`, "/f.module.scss");
+    const map = parseStyleSelectorMap(`.#{$prefix}--primary { color: red; }`, "/f.module.scss");
     expect(map.size).toBe(0);
   });
 
   it("does not crash on `@at-root &--escape {}`", () => {
     // Invalid SCSS shape — we just don't want a throw.
     const content = `.btn { @at-root &--escape {} }`;
-    expect(() => parseStyleModule(content, "/f.module.scss")).not.toThrow();
+    expect(() => parseStyleSelectorMap(content, "/f.module.scss")).not.toThrow();
   });
 });
