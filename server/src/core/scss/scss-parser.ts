@@ -6,6 +6,7 @@ import type {
   SelectorInfo,
 } from "@css-module-explainer/shared";
 import { parse as postcssParse, type AtRule, type ChildNode, type Root, type Rule } from "postcss";
+import { classifyBemSuffixSite } from "./bem-suffix";
 import { findLangForPath, getRuntimeSyntax } from "./lang-registry";
 
 /**
@@ -179,66 +180,6 @@ export function enumerateGroups(selectorSource: string): Array<{ raw: string; of
   return groups;
 }
 
-/**
- * Locate the BEM suffix fragment (`&--x` or `&__x`) inside a
- * raw nested selector group and convert its source offsets to
- * a 0-based LSP `Range`.
- *
- * Precondition (caller-enforced): called only when the raw group
- * is known to be nested (contains `&`) and to contain exactly one
- * `&`. Returns `null` for any shape that is not a safe BEM suffix:
- * compound (`&.active`), pseudo (`&:hover`), attribute (`&[x]`),
- * id (`&#foo`), combinator-before (`.a &--x`, `.a&--x`, etc.),
- * descendant-after (`&--x .y`), trailing compound (`&--x.other`).
- *
- * Exported for unit testing.
- */
-export function findBemSuffixSpan(
-  rule: Rule,
-  groupOffset: number,
-  rawGroup: string,
-): { rawToken: string; range: Range } | null {
-  const src = rule.source;
-  if (!src?.start) return null;
-  const startOffset = src.start.offset;
-
-  const ampIndex = rawGroup.indexOf("&");
-  if (ampIndex < 0) return null;
-  const groupAbsOffset = startOffset + groupOffset;
-
-  // Nothing before the `&`: rejects combinator-before (`.a &--x`),
-  // immediate-compound prefix (`.a&--x`, `#id&--x`, `[x]&--x`),
-  // and any non-whitespace prefix.
-  if (rawGroup.slice(0, ampIndex).trim() !== "") return null;
-
-  // Tail must start with `--<name>` or `__<name>`.
-  const tail = rawGroup.slice(ampIndex + 1);
-  const match = /^(--|__)[a-zA-Z_][\w-]*/.exec(tail);
-  if (!match) return null;
-
-  const fragment = "&" + match[0];
-
-  // Must be the last non-whitespace token in the group. Rejects
-  // descendant-after (`&--x .y`), trailing compound (`&--x.other`),
-  // trailing comments, etc.
-  if (rawGroup.slice(ampIndex + fragment.length).trim() !== "") return null;
-
-  const tokenStartOffset = groupAbsOffset + ampIndex;
-  const tokenEndOffset = tokenStartOffset + fragment.length;
-
-  const startPos = src.input.fromOffset(tokenStartOffset);
-  const endPos = src.input.fromOffset(tokenEndOffset);
-  if (!startPos || !endPos) return null;
-
-  return {
-    rawToken: fragment,
-    range: {
-      start: { line: startPos.line - 1, character: startPos.col - 1 },
-      end: { line: endPos.line - 1, character: endPos.col - 1 },
-    },
-  };
-}
-
 function recordRule(
   rule: Rule,
   parentCtx: ParentContext,
@@ -258,7 +199,14 @@ function recordRule(
   for (const { raw, offset } of groups) {
     const resolved = resolveSelector(raw, parentCtx.selector);
     resolvedSelectors.push(resolved);
-    const bemSuffix = classifyBemSuffixSite(rule, raw, offset, parentCtx, groups.length);
+    const bemSuffix = classifyBemSuffixSite(
+      rule,
+      raw,
+      offset,
+      parentCtx.className,
+      parentCtx.isGrouped,
+      groups.length,
+    );
     const isNested = raw.includes("&");
 
     for (const className of extractClassNames(resolved)) {
@@ -293,50 +241,6 @@ function recordRule(
   for (const nextResolved of parents) {
     walkStyleNodes(rule.nodes, buildChildContext(resolvedSelectors, nextResolved), classMap);
   }
-}
-
-/**
- * Classify whether a raw selector group is a BEM-safe nested
- * rename target and, if so, return the `BemSuffixInfo` the parser
- * should attach to the resulting map entry.
- *
- * All six conditions must hold:
- *   1. the group is nested (contains `&`)
- *   2. it contains exactly one `&`
- *   3. the parent rule is a bare single class
- *   4. the parent rule is not grouped
- *   5. the CURRENT rule is not grouped (groups.length === 1)
- *   6. `findBemSuffixSpan` returns a non-null span (pure BEM
- *      suffix form — `&--x` or `&__x`, last token in group,
- *      nothing before the `&`)
- *
- * Returns `null` for any non-BEM-safe shape. The caller still
- * marks the entry with `isNested: true` when applicable; this
- * function only decides whether the surgical-rename trio can
- * be produced.
- */
-function classifyBemSuffixSite(
-  rule: Rule,
-  raw: string,
-  groupOffset: number,
-  parentCtx: ParentContext,
-  groupsLength: number,
-): BemSuffixInfo | null {
-  if (!raw.includes("&")) return null;
-  const ampCount = raw.match(/&/g)?.length ?? 0;
-  if (ampCount !== 1) return null;
-  if (parentCtx.className === undefined) return null;
-  if (parentCtx.isGrouped === true) return null;
-  if (groupsLength !== 1) return null;
-
-  const span = findBemSuffixSpan(rule, groupOffset, raw);
-  if (!span) return null;
-
-  return {
-    rawToken: span.rawToken,
-    rawTokenRange: span.range,
-    parentResolvedName: parentCtx.className,
-  };
 }
 
 interface BuildEntryArgs {
