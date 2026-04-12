@@ -154,7 +154,6 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
     const diagnostics = computeScssUnusedDiagnostics(
       filePath,
       classMap,
-      providerDeps.reverseIndex,
       providerDeps.semanticReferenceIndex,
     );
     this.deps.connection.sendDiagnostics({ uri, diagnostics });

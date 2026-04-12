@@ -1,15 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import type {
-  CallSite,
-  ClassRef,
-  CxBinding,
-  ScssClassMap,
-  SelectorInfo,
-} from "@css-module-explainer/shared";
+import type { ClassRef, CxBinding, ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
 import type ts from "typescript";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
-import { WorkspaceReverseIndex } from "../../../server/src/core/indexing/reverse-index";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
 import type { CursorParams, ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
 import { handlePrepareRename, handleRename } from "../../../server/src/providers/rename";
@@ -21,7 +14,6 @@ import {
   EMPTY_ALIAS_RESOLVER,
   infoAtLine as info,
   makeBaseDeps,
-  siteAt,
 } from "../../_fixtures/test-helpers";
 
 const SCSS_PATH = "/fake/src/Button.module.scss";
@@ -111,12 +103,20 @@ describe("handlePrepareRename", () => {
 
 describe("handleRename", () => {
   it("builds WorkspaceEdit with SCSS selector and TS/TSX reference edits", () => {
-    const idx = new WorkspaceReverseIndex();
-    idx.record("file:///fake/src/App.tsx", [
-      siteAt("file:///fake/src/App.tsx", "indicator", 10, SCSS_PATH),
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    semanticReferenceIndex.record("file:///fake/src/App.tsx", [
+      semanticSite({
+        uri: "file:///fake/src/App.tsx",
+        canonicalName: "indicator",
+        line: 10,
+      }),
     ]);
-    idx.record("file:///fake/src/Other.tsx", [
-      siteAt("file:///fake/src/Other.tsx", "indicator", 20, SCSS_PATH),
+    semanticReferenceIndex.record("file:///fake/src/Other.tsx", [
+      semanticSite({
+        uri: "file:///fake/src/Other.tsx",
+        canonicalName: "indicator",
+        line: 20,
+      }),
     ]);
     const result = handleRename(
       {
@@ -124,7 +124,7 @@ describe("handleRename", () => {
         position: { line: 1, character: 3 },
         newName: "status",
       },
-      makeDeps({ reverseIndex: idx }),
+      makeDeps({ semanticReferenceIndex }),
     );
     expect(result).not.toBeNull();
     const changes = result!.changes!;
@@ -303,12 +303,22 @@ describe("handlePrepareRename from TS/TSX", () => {
 
 describe("handleRename from TS/TSX", () => {
   it("builds WorkspaceEdit when renaming from cx('indicator') in TSX", () => {
-    const idx = new WorkspaceReverseIndex();
-    idx.record("file:///fake/src/App.tsx", [
-      siteAt("file:///fake/src/App.tsx", "indicator", 3, SCSS_PATH),
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    semanticReferenceIndex.record("file:///fake/src/App.tsx", [
+      semanticSite({
+        uri: "file:///fake/src/App.tsx",
+        canonicalName: "indicator",
+        line: 3,
+        start: 14,
+        end: 23,
+      }),
     ]);
-    idx.record("file:///fake/src/Other.tsx", [
-      siteAt("file:///fake/src/Other.tsx", "indicator", 20, SCSS_PATH),
+    semanticReferenceIndex.record("file:///fake/src/Other.tsx", [
+      semanticSite({
+        uri: "file:///fake/src/Other.tsx",
+        canonicalName: "indicator",
+        line: 20,
+      }),
     ]);
     const cursorParams: CursorParams = {
       documentUri: "file:///fake/src/App.tsx",
@@ -324,7 +334,7 @@ describe("handleRename from TS/TSX", () => {
         position: { line: 3, character: 16 },
         newName: "status",
       },
-      makeTsxDeps({ reverseIndex: idx }),
+      makeTsxDeps({ semanticReferenceIndex }),
       cursorParams,
     );
     expect(result).not.toBeNull();
@@ -360,30 +370,34 @@ describe("rename template corruption guard", () => {
     end: { line: 5, character: 30 },
   };
 
-  function buildTemplateReverseIndex(): WorkspaceReverseIndex {
-    const idx = new WorkspaceReverseIndex();
-    const base = { uri: TEMPLATE_URI, range: TEMPLATE_RANGE, scssModulePath: SCSS_PATH };
-    const sites: CallSite[] = [
-      { ...base, match: { kind: "template", staticPrefix: "btn-" }, expansion: "direct" },
-      {
-        ...base,
-        match: { kind: "static", className: "btn-small", canonicalName: "btn-small" },
-        expansion: "expanded",
-      },
-      {
-        ...base,
-        match: { kind: "static", className: "btn-large", canonicalName: "btn-large" },
-        expansion: "expanded",
-      },
-    ];
-    idx.record(TEMPLATE_URI, sites);
+  function buildTemplateSemanticIndex(): WorkspaceSemanticWorkspaceReferenceIndex {
+    const idx = new WorkspaceSemanticWorkspaceReferenceIndex();
+    idx.record(TEMPLATE_URI, [
+      semanticSite({
+        uri: TEMPLATE_URI,
+        canonicalName: "btn-small",
+        className: "btn-small",
+        line: TEMPLATE_RANGE.start.line,
+        start: TEMPLATE_RANGE.start.character,
+        end: TEMPLATE_RANGE.end.character,
+        certainty: "inferred",
+        reason: "templatePrefix",
+      }),
+      semanticSite({
+        uri: TEMPLATE_URI,
+        canonicalName: "btn-large",
+        className: "btn-large",
+        line: TEMPLATE_RANGE.start.line,
+        start: TEMPLATE_RANGE.start.character,
+        end: TEMPLATE_RANGE.end.character,
+        certainty: "inferred",
+        reason: "templatePrefix",
+      }),
+    ]);
     return idx;
   }
 
-  function btnScssDeps(
-    idx: WorkspaceReverseIndex,
-    overrides: Partial<ProviderDeps> = {},
-  ): ProviderDeps {
+  function btnScssDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     return makeBaseDeps({
       scssClassMapForPath: () =>
         new Map([
@@ -391,20 +405,19 @@ describe("rename template corruption guard", () => {
           ["btn-large", info("btn-large", 3)],
         ]) as ScssClassMap,
       workspaceRoot: "/fake",
-      reverseIndex: idx,
       ...overrides,
     });
   }
 
   it("rename template-literal class does NOT rewrite the template range", () => {
-    const idx = buildTemplateReverseIndex();
+    const semanticReferenceIndex = buildTemplateSemanticIndex();
     const result = handleRename(
       {
         textDocument: { uri: SCSS_URI },
         position: { line: 1, character: 3 },
         newName: "btn-tiny",
       },
-      btnScssDeps(idx),
+      btnScssDeps({ semanticReferenceIndex }),
     );
     expect(result).not.toBeNull();
     const changes = result!.changes!;
@@ -420,16 +433,16 @@ describe("rename template corruption guard", () => {
   });
 
   it("SCSS-side prepareRename rejects class with template/variable references", () => {
-    const idx = buildTemplateReverseIndex();
+    const semanticReferenceIndex = buildTemplateSemanticIndex();
     const result = handlePrepareRename(
       {
         textDocument: { uri: SCSS_URI },
         position: { line: 1, character: 3 },
       },
-      btnScssDeps(idx),
+      btnScssDeps({ semanticReferenceIndex }),
     );
-    // Cursor is on `.btn-small`, which has an expanded reverse-index
-    // entry from the template. prepareRename must refuse.
+    // Cursor is on `.btn-small`, which has an inferred semantic
+    // site from the template expansion. prepareRename must refuse.
     expect(result).toBeNull();
   });
 
@@ -451,7 +464,7 @@ describe("rename template corruption guard", () => {
         textDocument: { uri: SCSS_URI },
         position: { line: 1, character: 3 },
       },
-      btnScssDeps(new WorkspaceReverseIndex(), { semanticReferenceIndex }),
+      btnScssDeps({ semanticReferenceIndex }),
     );
     expect(result).toBeNull();
   });
@@ -562,21 +575,21 @@ describe("&-nested BEM suffix rename", () => {
       `.button {\n  &--primary { color: white; }\n}`,
       "/fake/src/Button.module.scss",
     );
-    const reverseIndex = new WorkspaceReverseIndex();
-    const tsxRange = { start: { line: 3, character: 10 }, end: { line: 3, character: 25 } };
-    reverseIndex.record("file:///fake/src/App.tsx", [
-      {
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    semanticReferenceIndex.record("file:///fake/src/App.tsx", [
+      semanticSite({
         uri: "file:///fake/src/App.tsx",
-        range: tsxRange,
-        scssModulePath: SCSS_PATH,
-        match: { kind: "static", className: "button--primary", canonicalName: "button--primary" },
-        expansion: "direct",
-      },
+        canonicalName: "button--primary",
+        className: "button--primary",
+        line: 3,
+        start: 10,
+        end: 25,
+      }),
     ]);
     const deps = makeBaseDeps({
       scssClassMapForPath: () => classMap,
       workspaceRoot: "/fake",
-      reverseIndex,
+      semanticReferenceIndex,
     });
     const rawRange = classMap.get("button--primary")!.bemSuffix!.rawTokenRange;
     const result = handleRename(
@@ -848,29 +861,23 @@ describe("&-nested BEM suffix rename", () => {
       `.button {\n  &--primary {}\n}`,
       "/fake/src/Button.module.scss",
     );
-    const reverseIndex = new WorkspaceReverseIndex();
-    // Simulate a template-literal call site that expanded to
-    // include `button--primary`. Rename must still reject.
-    reverseIndex.record("file:///fake/src/App.tsx", [
-      {
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    semanticReferenceIndex.record("file:///fake/src/App.tsx", [
+      semanticSite({
         uri: "file:///fake/src/App.tsx",
-        range: { start: { line: 5, character: 10 }, end: { line: 5, character: 30 } },
-        scssModulePath: SCSS_PATH,
-        match: { kind: "template", staticPrefix: "button--" },
-        expansion: "direct",
-      },
-      {
-        uri: "file:///fake/src/App.tsx",
-        range: { start: { line: 5, character: 10 }, end: { line: 5, character: 30 } },
-        scssModulePath: SCSS_PATH,
-        match: { kind: "static", className: "button--primary", canonicalName: "button--primary" },
-        expansion: "expanded",
-      },
+        canonicalName: "button--primary",
+        className: "button--primary",
+        line: 5,
+        start: 10,
+        end: 30,
+        certainty: "inferred",
+        reason: "templatePrefix",
+      }),
     ]);
     const deps = makeBaseDeps({
       scssClassMapForPath: () => classMap,
       workspaceRoot: "/fake",
-      reverseIndex,
+      semanticReferenceIndex,
     });
     const rawRange = classMap.get("button--primary")!.bemSuffix!.rawTokenRange;
     const result = handlePrepareRename(
@@ -1094,21 +1101,31 @@ describe("classnameTransform alias-aware rename", () => {
     // Two real-world access patterns against the same SCSS class:
     //   - `cx('btn-primary')` in App.tsx — canonical form
     //   - `styles.btnPrimary`  in Other.tsx — alias form
-    // Production `collectCallSites` canonicalises both under
-    // `canonicalName: "btn-primary"` so the reverse index stores them
-    // in a single bucket.
-    const reverseIndex = new WorkspaceReverseIndex();
-    reverseIndex.record("file:///fake/src/App.tsx", [
-      siteAt("file:///fake/src/App.tsx", "btn-primary", 10, SCSS_PATH),
+    // Both access forms are keyed under the canonical selector.
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    semanticReferenceIndex.record("file:///fake/src/App.tsx", [
+      semanticSite({
+        uri: "file:///fake/src/App.tsx",
+        canonicalName: "btn-primary",
+        className: "btn-primary",
+        line: 10,
+      }),
     ]);
-    reverseIndex.record("file:///fake/src/Other.tsx", [
-      siteAt("file:///fake/src/Other.tsx", "btnPrimary", 20, SCSS_PATH, "btn-primary"),
+    semanticReferenceIndex.record("file:///fake/src/Other.tsx", [
+      semanticSite({
+        uri: "file:///fake/src/Other.tsx",
+        canonicalName: "btn-primary",
+        className: "btnPrimary",
+        line: 20,
+        reason: "styleAccess",
+        origin: "styleAccess",
+      }),
     ]);
 
     const deps = makeBaseDeps({
       scssClassMapForPath: () => classMap,
       workspaceRoot: "/fake",
-      reverseIndex,
+      semanticReferenceIndex,
       settings: withTransformMode("camelCase"),
     });
     const result = handleRename(
@@ -1193,16 +1210,24 @@ describe("classnameTransform alias-aware rename", () => {
 
     // Only an alias-form TSX site exists — no direct `cx('btn-primary')`.
     // SCSS cursor rename on the original must still rewrite the
-    // alias access because the reverse index canonicalises the key.
-    const reverseIndex = new WorkspaceReverseIndex();
-    reverseIndex.record("file:///fake/src/App.tsx", [
-      siteAt("file:///fake/src/App.tsx", "btnPrimary", 15, SCSS_PATH, "btn-primary"),
+    // alias access because the semantic index keys it under the
+    // canonical selector.
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    semanticReferenceIndex.record("file:///fake/src/App.tsx", [
+      semanticSite({
+        uri: "file:///fake/src/App.tsx",
+        canonicalName: "btn-primary",
+        className: "btnPrimary",
+        line: 15,
+        reason: "styleAccess",
+        origin: "styleAccess",
+      }),
     ]);
 
     const deps = makeBaseDeps({
       scssClassMapForPath: () => classMap,
       workspaceRoot: "/fake",
-      reverseIndex,
+      semanticReferenceIndex,
       settings: withTransformMode("camelCase"),
     });
     const result = handleRename(
@@ -1250,31 +1275,24 @@ describe("classnameTransform alias-aware rename", () => {
     const classMap = aliasFirstCamelCaseMap(base);
     const original = base.get("btn-primary")!;
 
-    // Simulate a `cx(`btn-${x}`)` template whose reverse-index
-    // emits one direct template site and one expanded static site
-    // keyed on the ORIGINAL name `btn-primary`.
-    const reverseIndex = new WorkspaceReverseIndex();
-    reverseIndex.record("file:///fake/src/App.tsx", [
-      {
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    semanticReferenceIndex.record("file:///fake/src/App.tsx", [
+      semanticSite({
         uri: "file:///fake/src/App.tsx",
-        range: { start: { line: 5, character: 10 }, end: { line: 5, character: 30 } },
-        scssModulePath: SCSS_PATH,
-        match: { kind: "template", staticPrefix: "btn-" },
-        expansion: "direct",
-      },
-      {
-        uri: "file:///fake/src/App.tsx",
-        range: { start: { line: 5, character: 10 }, end: { line: 5, character: 30 } },
-        scssModulePath: SCSS_PATH,
-        match: { kind: "static", className: "btn-primary", canonicalName: "btn-primary" },
-        expansion: "expanded",
-      },
+        canonicalName: "btn-primary",
+        className: "btn-primary",
+        line: 5,
+        start: 10,
+        end: 30,
+        certainty: "inferred",
+        reason: "templatePrefix",
+      }),
     ]);
 
     const deps = makeBaseDeps({
       scssClassMapForPath: () => classMap,
       workspaceRoot: "/fake",
-      reverseIndex,
+      semanticReferenceIndex,
       settings: withTransformMode("camelCase"),
     });
     // Cursor hits the alias first (alias-first iteration). Without

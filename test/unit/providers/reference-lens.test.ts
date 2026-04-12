@@ -1,10 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ScssClassMap } from "@css-module-explainer/shared";
-import { WorkspaceReverseIndex } from "../../../server/src/core/indexing/reverse-index";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
 import type { ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
 import { handleCodeLens } from "../../../server/src/providers/reference-lens";
-import { infoAtLine, makeBaseDeps, siteAt } from "../../_fixtures/test-helpers";
+import { infoAtLine, makeBaseDeps, semanticSiteAt } from "../../_fixtures/test-helpers";
 
 function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   return makeBaseDeps({
@@ -36,18 +35,13 @@ describe("handleCodeLens", () => {
   });
 
   it("shows reference count when sites exist", () => {
-    const idx = new WorkspaceReverseIndex();
+    const idx = new WorkspaceSemanticWorkspaceReferenceIndex();
     idx.record("file:///a.tsx", [
-      {
-        uri: "file:///a.tsx",
-        range: { start: { line: 10, character: 5 }, end: { line: 10, character: 14 } },
-        scssModulePath: "/fake/src/Button.module.scss",
-        match: { kind: "static", className: "indicator", canonicalName: "indicator" },
-      },
+      semanticSiteAt("file:///a.tsx", "indicator", 10, "/fake/src/Button.module.scss"),
     ]);
     const result = handleCodeLens(
       { textDocument: { uri: "file:///fake/src/Button.module.scss" } },
-      makeDeps({ reverseIndex: idx }),
+      makeDeps({ semanticReferenceIndex: idx }),
     );
     expect(result).not.toBeNull();
     const indicatorLens = result!.find((l) => l.command?.title.includes("1 reference"));
@@ -97,9 +91,12 @@ describe("handleCodeLens", () => {
     expect(classMap.has("btn-primary")).toBe(false);
     expect(classMap.has("btnPrimary")).toBe(true);
 
-    const idx = new WorkspaceReverseIndex();
+    const idx = new WorkspaceSemanticWorkspaceReferenceIndex();
     idx.record("file:///fake/src/App.tsx", [
-      siteAt("file:///fake/src/App.tsx", "btnPrimary", 5, SCSS_PATH, "btn-primary"),
+      semanticSiteAt("file:///fake/src/App.tsx", "btnPrimary", 5, SCSS_PATH, "btn-primary", {
+        reason: "styleAccess",
+        origin: "styleAccess",
+      }),
     ]);
 
     const result = handleCodeLens(
@@ -107,7 +104,7 @@ describe("handleCodeLens", () => {
       makeBaseDeps({
         scssClassMapForPath: () => classMap,
         workspaceRoot: "/fake",
-        reverseIndex: idx,
+        semanticReferenceIndex: idx,
       }),
     );
 
@@ -131,10 +128,13 @@ describe("handleCodeLens", () => {
     // Two real references — one via the original-form token, one
     // via the alias-form — so the canonical bucket holds a
     // distinguishable count.
-    const idx = new WorkspaceReverseIndex();
+    const idx = new WorkspaceSemanticWorkspaceReferenceIndex();
     idx.record("file:///fake/src/App.tsx", [
-      siteAt("file:///fake/src/App.tsx", "btn-primary", 5, SCSS_PATH, "btn-primary"),
-      siteAt("file:///fake/src/App.tsx", "btnPrimary", 9, SCSS_PATH, "btn-primary"),
+      semanticSiteAt("file:///fake/src/App.tsx", "btn-primary", 5, SCSS_PATH, "btn-primary"),
+      semanticSiteAt("file:///fake/src/App.tsx", "btnPrimary", 9, SCSS_PATH, "btn-primary", {
+        reason: "styleAccess",
+        origin: "styleAccess",
+      }),
     ]);
 
     const result = handleCodeLens(
@@ -142,7 +142,7 @@ describe("handleCodeLens", () => {
       makeBaseDeps({
         scssClassMapForPath: () => classMap,
         workspaceRoot: "/fake",
-        reverseIndex: idx,
+        semanticReferenceIndex: idx,
       }),
     );
 

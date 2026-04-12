@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { ScssClassMap } from "@css-module-explainer/shared";
-import { WorkspaceReverseIndex } from "../../../server/src/core/indexing/reverse-index";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
 import { findUnusedSelectors } from "../../../server/src/core/query/compute-unused-selectors";
-import { infoAtLine as info, siteAt } from "../../_fixtures/test-helpers";
+import { infoAtLine as info, semanticSiteAt } from "../../_fixtures/test-helpers";
 
 const SCSS_PATH = "/fake/Button.module.scss";
 
@@ -13,17 +12,12 @@ describe("findUnusedSelectors", () => {
       ["indicator", info("indicator", 1)],
       ["active", info("active", 3)],
     ]);
-    const reverseIndex = new WorkspaceReverseIndex();
-    reverseIndex.record("file:///a.tsx", [siteAt("file:///a.tsx", "indicator", 5, SCSS_PATH)]);
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    semanticReferenceIndex.record("file:///a.tsx", [
+      semanticSiteAt("file:///a.tsx", "indicator", 5, SCSS_PATH),
+    ]);
 
-    expect(
-      findUnusedSelectors(
-        SCSS_PATH,
-        classMap,
-        reverseIndex,
-        new WorkspaceSemanticWorkspaceReferenceIndex(),
-      ),
-    ).toEqual([
+    expect(findUnusedSelectors(SCSS_PATH, classMap, semanticReferenceIndex)).toEqual([
       {
         canonicalName: "active",
         range: { start: { line: 3, character: 1 }, end: { line: 3, character: 7 } },
@@ -55,9 +49,7 @@ describe("findUnusedSelectors", () => {
       ],
     );
 
-    expect(
-      findUnusedSelectors(SCSS_PATH, classMap, new WorkspaceReverseIndex(), semanticReferenceIndex),
-    ).toEqual([]);
+    expect(findUnusedSelectors(SCSS_PATH, classMap, semanticReferenceIndex)).toEqual([]);
   });
 
   it("keeps findings when dynamic refs were resolved semantically", () => {
@@ -100,9 +92,7 @@ describe("findUnusedSelectors", () => {
       ],
     );
 
-    expect(
-      findUnusedSelectors(SCSS_PATH, classMap, new WorkspaceReverseIndex(), semanticReferenceIndex),
-    ).toEqual([
+    expect(findUnusedSelectors(SCSS_PATH, classMap, semanticReferenceIndex)).toEqual([
       {
         canonicalName: "active",
         range: { start: { line: 3, character: 1 }, end: { line: 3, character: 7 } },
@@ -134,9 +124,7 @@ describe("findUnusedSelectors", () => {
       },
     ]);
 
-    expect(
-      findUnusedSelectors(SCSS_PATH, classMap, new WorkspaceReverseIndex(), semanticReferenceIndex),
-    ).toEqual([
+    expect(findUnusedSelectors(SCSS_PATH, classMap, semanticReferenceIndex)).toEqual([
       {
         canonicalName: "active",
         range: { start: { line: 3, character: 1 }, end: { line: 3, character: 7 } },

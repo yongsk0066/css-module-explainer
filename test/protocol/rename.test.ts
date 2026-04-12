@@ -30,7 +30,7 @@ describe("rename protocol", () => {
     await client.initialize();
     client.initialized();
 
-    // Open TSX file to populate reverse index.
+    // Open TSX file to populate semantic reference sites.
     client.didOpen({
       textDocument: {
         uri: "file:///fake/workspace/src/App.tsx",

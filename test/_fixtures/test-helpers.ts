@@ -1,7 +1,6 @@
 import type { CallSite, SelectorInfo } from "@css-module-explainer/shared";
 import { SourceFileCache } from "../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../server/src/core/indexing/document-analysis-cache";
-import { NullReverseIndex } from "../../server/src/core/indexing/reverse-index";
 import { NullSemanticWorkspaceReferenceIndex } from "../../server/src/core/semantic/workspace-reference-index";
 import { NOOP_LOG_ERROR, type ProviderDeps } from "../../server/src/providers/cursor-dispatch";
 import { DEFAULT_SETTINGS } from "../../server/src/settings";
@@ -69,6 +68,46 @@ export function siteAt(
   };
 }
 
+export function semanticSiteAt(
+  uri: string,
+  className: string,
+  line: number,
+  scssPath: string = "/fake/a.module.scss",
+  canonicalName: string = className,
+  options: {
+    start?: number;
+    end?: number;
+    certainty?: "exact" | "inferred" | "possible";
+    reason?:
+      | "literal"
+      | "styleAccess"
+      | "templatePrefix"
+      | "typeUnion"
+      | "flowLiteral"
+      | "flowBranch";
+    origin?: "cxCall" | "styleAccess";
+  } = {},
+) {
+  const certainty = options.certainty ?? "exact";
+  const start = options.start ?? 10;
+  const end = options.end ?? start + className.length;
+  return {
+    refId: `ref:${uri}:${line}:${start}`,
+    selectorId: `selector:${scssPath}:${canonicalName}`,
+    filePath: uri.replace("file://", ""),
+    uri,
+    range: { start: { line, character: start }, end: { line, character: end } },
+    origin: options.origin ?? "cxCall",
+    scssModulePath: scssPath,
+    selectorFilePath: scssPath,
+    canonicalName,
+    className,
+    certainty,
+    reason: options.reason ?? "literal",
+    expansion: certainty === "exact" ? "direct" : "expanded",
+  } as const;
+}
+
 /**
  * Build a default ProviderDeps with sensible empty defaults.
  *
@@ -89,7 +128,6 @@ export function makeBaseDeps(overrides: Partial<ProviderDeps> = {}): ProviderDep
     scssClassMapForPath: () => null,
     styleDocumentForPath: () => null,
     typeResolver: new FakeTypeResolver(),
-    reverseIndex: new NullReverseIndex(),
     semanticReferenceIndex: new NullSemanticWorkspaceReferenceIndex(),
     workspaceRoot: "/fake/ws",
     logError: NOOP_LOG_ERROR,

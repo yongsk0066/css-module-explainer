@@ -87,7 +87,6 @@ function registerSettingsHandler(state: HandlerState): () => void {
         // unused-selector diagnostic stale under the prior mode.
         if (aliasChanged || modeChanged) {
           deps.analysisCache.clear();
-          deps.reverseIndex.clear();
           deps.semanticReferenceIndex.clear();
           for (const doc of state.ctx.documents.all()) {
             const filePath = fileUrlToPath(doc.uri);
@@ -205,19 +204,8 @@ function registerDocumentHandlers(state: HandlerState): void {
     state.scheduler.handleDocumentClose(change.document.uri);
     const deps = state.ctx.getDeps();
     if (!deps) return;
-    // Three collaborators share one policy on close: drop every
-    // workspace-visible trace of the buffer before the next
-    // analyze or SCSS unused-selector check runs.
-    //  - `reverseIndex.forget` removes the cx() sites the TSX
-    //    buffer contributed; without it the canonical bucket
-    //    would keep treating a closed reference as live.
-    //  - `semanticReferenceIndex.forget` removes the matching
-    //    graph-derived reference contribution.
-    //  - `analysisCache.invalidate` drops the cached AnalysisEntry
-    //    so a later reopen re-runs `scanCxImports` against a
-    //    fresh buffer instead of replaying a cached entry whose
-    //    reverse-index contributions have already been forgotten.
-    deps.reverseIndex.forget(change.document.uri);
+    // Drop every workspace-visible trace of the closed buffer
+    // before the next analyze or unused-selector check runs.
     deps.semanticReferenceIndex.forget(change.document.uri);
     deps.analysisCache.invalidate(change.document.uri);
   });
@@ -272,18 +260,15 @@ function registerWatchedFilesHandler(state: HandlerState): void {
 }
 
 /**
- * Invalidate cached TSX analysis entries whose reverse-index
- * expansions depended on this SCSS file. Without this, the
+ * Invalidate cached TSX analysis entries whose semantic reference
+ * contribution depends on this SCSS file. Without this, the
  * debounced scheduleTsx hits `analysisCache.get`, finds the
  * version unchanged, and reuses the stale AnalysisEntry — so
- * `onAnalyze` never re-fires and expanded template/variable
- * reverse-index sites stay frozen against the old classMap.
+ * `onAnalyze` never re-fires and the semantic reference query
+ * keeps serving targets computed against the old classMap.
  */
 function invalidateDependentTsxEntries(deps: ProviderDeps, scssPath: string): void {
   const affectedUris = new Set(deps.semanticReferenceIndex.findReferencingUris(scssPath));
-  for (const site of deps.reverseIndex.findAllForScssPath(scssPath)) {
-    affectedUris.add(site.uri);
-  }
   for (const uri of affectedUris) {
     deps.analysisCache.invalidate(uri);
   }

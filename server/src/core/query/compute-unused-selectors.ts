@@ -1,6 +1,5 @@
 import type { Range, ScssClassMap } from "@css-module-explainer/shared";
 import { canonicalNameOf } from "../scss/classname-transform";
-import type { ReverseIndex } from "../indexing/reverse-index";
 import type { SemanticWorkspaceReferenceIndex } from "../semantic/workspace-reference-index";
 
 export interface UnusedSelectorFinding {
@@ -11,7 +10,6 @@ export interface UnusedSelectorFinding {
 export function findUnusedSelectors(
   scssPath: string,
   classMap: ScssClassMap,
-  reverseIndex: ReverseIndex,
   semanticReferenceIndex: SemanticWorkspaceReferenceIndex,
 ): readonly UnusedSelectorFinding[] {
   const hasUnresolvedDynamicUsage = semanticReferenceIndex
@@ -37,10 +35,7 @@ export function findUnusedSelectors(
     emittedCanonical.add(canonical);
     if (composedClasses.has(canonical)) continue;
 
-    const refCount = Math.max(
-      semanticReferenceIndex.countSelectorReferences(scssPath, canonical),
-      reverseIndex.count(scssPath, canonical),
-    );
+    const refCount = semanticReferenceIndex.countSelectorReferences(scssPath, canonical);
     if (refCount > 0) continue;
 
     findings.push({ canonicalName: canonical, range: info.range });

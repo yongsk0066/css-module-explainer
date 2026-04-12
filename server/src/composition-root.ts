@@ -26,7 +26,6 @@ import { WorkspaceTypeResolver, type TypeResolver } from "./core/ts/type-resolve
 import { DocumentAnalysisCache } from "./core/indexing/document-analysis-cache";
 import { scssFileSupplier } from "./core/indexing/file-supplier";
 import { IndexerWorker } from "./core/indexing/indexer-worker";
-import { collectCallSites, WorkspaceReverseIndex } from "./core/indexing/reverse-index";
 import {
   collectSemanticReferenceContribution,
   WorkspaceSemanticWorkspaceReferenceIndex,
@@ -210,7 +209,6 @@ function buildBundle(
   const aliasHolder = new AliasResolverHolder(workspaceRoot, DEFAULT_SETTINGS.pathAlias);
   const analysisCache = buildAnalysisCache({
     caches,
-    classMapForPath,
     styleDocumentForPath,
     workspaceRoot,
     typeResolver,
@@ -229,7 +227,6 @@ function buildBundle(
     scssClassMapForPath: classMapForPath,
     styleDocumentForPath,
     typeResolver,
-    reverseIndex: caches.reverseIndex,
     semanticReferenceIndex: caches.semanticReferenceIndex,
     workspaceRoot,
     logError: (message, err) => {
@@ -244,7 +241,6 @@ function buildBundle(
     rebuildAliasResolver: (pathAlias) => aliasHolder.rebuild(pathAlias),
     setClassnameTransform(mode) {
       caches.styleIndexCache.setMode(mode);
-      caches.reverseIndex.clear();
       caches.semanticReferenceIndex.clear();
     },
   };
@@ -253,7 +249,6 @@ function buildBundle(
 interface BundleCaches {
   readonly sourceFileCache: SourceFileCache;
   readonly styleIndexCache: StyleIndexCache;
-  readonly reverseIndex: WorkspaceReverseIndex;
   readonly semanticReferenceIndex: WorkspaceSemanticWorkspaceReferenceIndex;
 }
 
@@ -261,7 +256,6 @@ function buildCaches(): BundleCaches {
   return {
     sourceFileCache: new SourceFileCache({ max: 200 }),
     styleIndexCache: new StyleIndexCache({ max: 500 }),
-    reverseIndex: new WorkspaceReverseIndex(),
     semanticReferenceIndex: new WorkspaceSemanticWorkspaceReferenceIndex(),
   };
 }
@@ -316,7 +310,6 @@ function readStyleTextFromOpenDocuments(
 
 interface AnalysisCacheArgs {
   readonly caches: BundleCaches;
-  readonly classMapForPath: (path: string) => ScssClassMap | null;
   readonly styleDocumentForPath: (path: string) => StyleDocumentHIR | null;
   readonly workspaceRoot: string;
   readonly typeResolver: TypeResolver;
@@ -327,7 +320,6 @@ interface AnalysisCacheArgs {
 function buildAnalysisCache(args: AnalysisCacheArgs): DocumentAnalysisCache {
   const {
     caches,
-    classMapForPath,
     styleDocumentForPath,
     workspaceRoot,
     typeResolver,
@@ -358,15 +350,6 @@ function buildAnalysisCache(args: AnalysisCacheArgs): DocumentAnalysisCache {
         uri,
         semanticContribution.referenceSites,
         semanticContribution.moduleUsages,
-      );
-      caches.reverseIndex.record(
-        uri,
-        collectCallSites(uri, entry, {
-          classMapForPath,
-          typeResolver,
-          workspaceRoot,
-          filePath: fileUrlToPath(uri),
-        }),
       );
     },
   });

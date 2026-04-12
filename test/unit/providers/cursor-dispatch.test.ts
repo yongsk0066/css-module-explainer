@@ -3,7 +3,6 @@ import type ts from "typescript";
 import type { ClassRef, CxBinding, ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
-import { NullReverseIndex } from "../../../server/src/core/indexing/reverse-index";
 import {
   hasAnyStyleImport,
   withClassRefAtCursor,
@@ -87,7 +86,6 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
         ["indicator", makeInfo("indicator")],
         ["active", makeInfo("active")],
       ]) as ScssClassMap,
-    reverseIndex: new NullReverseIndex(),
     workspaceRoot: "/fake",
     ...overrides,
   });

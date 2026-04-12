@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { WorkspaceReverseIndex } from "../../../server/src/core/indexing/reverse-index";
 import {
   WorkspaceSemanticWorkspaceReferenceIndex,
   type SemanticWorkspaceReferenceIndex,
@@ -9,32 +8,16 @@ import {
   hasNonDirectSelectorReferenceSites,
 } from "../../../server/src/core/query/find-references";
 import type { SemanticReferenceSite } from "../../../server/src/core/semantic/reference-index";
-import { siteAt } from "../../_fixtures/test-helpers";
+import { semanticSiteAt } from "../../_fixtures/test-helpers";
 
 describe("findSelectorReferenceSites", () => {
-  it("prefers semantic sites when they exist", () => {
-    const reverseIndex = new WorkspaceReverseIndex();
-    reverseIndex.record("file:///src/Button.tsx", [
-      siteAt("file:///src/Button.tsx", "button", 3, "/src/Button.module.scss"),
-    ]);
-
+  it("returns semantic sites", () => {
     const semanticReferenceIndex = withSemanticSites([
-      semanticSite({
-        uri: "file:///src/Button.tsx",
-        line: 8,
-        selectorFilePath: "/src/Button.module.scss",
-        canonicalName: "button",
-        className: "button",
-        certainty: "exact",
-      }),
+      semanticSiteAt("file:///src/Button.tsx", "button", 8, "/src/Button.module.scss"),
     ]);
 
     expect(
-      findSelectorReferenceSites(
-        { reverseIndex, semanticReferenceIndex },
-        "/src/Button.module.scss",
-        "button",
-      ),
+      findSelectorReferenceSites({ semanticReferenceIndex }, "/src/Button.module.scss", "button"),
     ).toEqual([
       expect.objectContaining({
         uri: "file:///src/Button.tsx",
@@ -47,35 +30,17 @@ describe("findSelectorReferenceSites", () => {
     ]);
   });
 
-  it("falls back to reverse-index static sites when semantic data is absent", () => {
-    const reverseIndex = new WorkspaceReverseIndex();
-    reverseIndex.record("file:///src/Button.tsx", [
-      siteAt("file:///src/Button.tsx", "button", 3, "/src/Button.module.scss"),
-    ]);
-
+  it("returns [] when semantic data is absent", () => {
     expect(
       findSelectorReferenceSites(
-        {
-          reverseIndex,
-          semanticReferenceIndex: new WorkspaceSemanticWorkspaceReferenceIndex(),
-        },
+        { semanticReferenceIndex: new WorkspaceSemanticWorkspaceReferenceIndex() },
         "/src/Button.module.scss",
         "button",
       ),
-    ).toEqual([
-      expect.objectContaining({
-        uri: "file:///src/Button.tsx",
-        range: {
-          start: { line: 3, character: 10 },
-          end: { line: 3, character: 16 },
-        },
-        expansion: "direct",
-      }),
-    ]);
+    ).toEqual([]);
   });
 
   it("treats inferred semantic sites as blocking rename references", () => {
-    const reverseIndex = new WorkspaceReverseIndex();
     const semanticReferenceIndex = withSemanticSites([
       semanticSite({
         uri: "file:///src/Button.tsx",
@@ -89,7 +54,7 @@ describe("findSelectorReferenceSites", () => {
 
     expect(
       hasNonDirectSelectorReferenceSites(
-        { reverseIndex, semanticReferenceIndex },
+        { semanticReferenceIndex },
         "/src/Button.module.scss",
         "button",
       ),

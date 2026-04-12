@@ -2,7 +2,6 @@ import type { ScssClassMap } from "@css-module-explainer/shared";
 import type { ClassnameTransformMode } from "../core/scss/classname-transform";
 import type { DocumentAnalysisCache } from "../core/indexing/document-analysis-cache";
 import type { StyleDocumentHIR } from "../core/hir/style-types";
-import type { ReverseIndex } from "../core/indexing/reverse-index";
 import type { SemanticWorkspaceReferenceIndex } from "../core/semantic/workspace-reference-index";
 import type { TypeResolver } from "../core/ts/type-resolver";
 import type { Settings } from "../settings";
@@ -49,7 +48,6 @@ export interface ProviderDeps {
    */
   readonly styleDocumentForPath: (path: string) => StyleDocumentHIR | null;
   readonly typeResolver: TypeResolver;
-  readonly reverseIndex: ReverseIndex;
   readonly semanticReferenceIndex: SemanticWorkspaceReferenceIndex;
   readonly workspaceRoot: string;
   /**

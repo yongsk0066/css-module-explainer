@@ -39,7 +39,7 @@ describe("SCSS unused selector diagnostics protocol", () => {
     await client.initialize();
     client.initialized();
 
-    // Open the TSX file first so the reverse index is populated.
+    // Open the TSX file first so the semantic reference index is populated.
     client.didOpen({
       textDocument: {
         uri: "file:///fake/workspace/src/App.tsx",

@@ -1,10 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import type { CallSite, ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
-import { WorkspaceReverseIndex } from "../../../server/src/core/indexing/reverse-index";
+import type { ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
 import type { ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
 import { findSelectorAtCursor, handleReferences } from "../../../server/src/providers/references";
-import { infoAtLine, makeBaseDeps, siteAt } from "../../_fixtures/test-helpers";
+import { infoAtLine, makeBaseDeps, semanticSiteAt } from "../../_fixtures/test-helpers";
 
 function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   return makeBaseDeps({
@@ -40,14 +39,9 @@ describe("handleReferences", () => {
   });
 
   it("returns Location[] when references exist", () => {
-    const idx = new WorkspaceReverseIndex();
+    const idx = new WorkspaceSemanticWorkspaceReferenceIndex();
     idx.record("file:///fake/src/App.tsx", [
-      {
-        uri: "file:///fake/src/App.tsx",
-        range: { start: { line: 10, character: 5 }, end: { line: 10, character: 14 } },
-        scssModulePath: "/fake/src/Button.module.scss",
-        match: { kind: "static", className: "indicator", canonicalName: "indicator" },
-      },
+      semanticSiteAt("file:///fake/src/App.tsx", "indicator", 10, "/fake/src/Button.module.scss"),
     ]);
     const result = handleReferences(
       {
@@ -55,7 +49,7 @@ describe("handleReferences", () => {
         position: { line: 5, character: 3 },
         context: { includeDeclaration: true },
       },
-      makeDeps({ reverseIndex: idx }),
+      makeDeps({ semanticReferenceIndex: idx }),
     );
     expect(result).not.toBeNull();
     expect(result).toHaveLength(1);
@@ -101,10 +95,8 @@ describe("handleReferences", () => {
     });
   });
 
-  // Find-references keeps expanded template/variable sites. The
-  // rename provider filters them; Find Refs does not. This test
-  // prevents future "simplification" from dropping expanded
-  // entries at `collectCallSites`.
+  // Find-references keeps expanded sites. Rename filters them;
+  // Find Refs does not.
   it("find-references STILL surfaces template-expanded sites", () => {
     const SCSS_PATH = "/fake/src/Button.module.scss";
     const SCSS_URI = "file:///fake/src/Button.module.scss";
@@ -114,22 +106,21 @@ describe("handleReferences", () => {
       end: { line: 5, character: 30 },
     };
 
-    const idx = new WorkspaceReverseIndex();
-    const base = { uri: TEMPLATE_URI, range: TEMPLATE_RANGE, scssModulePath: SCSS_PATH };
-    const sites: CallSite[] = [
-      { ...base, match: { kind: "template", staticPrefix: "btn-" }, expansion: "direct" },
-      {
-        ...base,
-        match: { kind: "static", className: "btn-small", canonicalName: "btn-small" },
-        expansion: "expanded",
-      },
-      {
-        ...base,
-        match: { kind: "static", className: "btn-large", canonicalName: "btn-large" },
-        expansion: "expanded",
-      },
-    ];
-    idx.record(TEMPLATE_URI, sites);
+    const idx = new WorkspaceSemanticWorkspaceReferenceIndex();
+    idx.record(TEMPLATE_URI, [
+      semanticSiteAt(TEMPLATE_URI, "btn-small", 5, SCSS_PATH, "btn-small", {
+        start: TEMPLATE_RANGE.start.character,
+        end: TEMPLATE_RANGE.end.character,
+        certainty: "inferred",
+        reason: "templatePrefix",
+      }),
+      semanticSiteAt(TEMPLATE_URI, "btn-large", 5, SCSS_PATH, "btn-large", {
+        start: TEMPLATE_RANGE.start.character,
+        end: TEMPLATE_RANGE.end.character,
+        certainty: "inferred",
+        reason: "templatePrefix",
+      }),
+    ]);
 
     const result = handleReferences(
       {
@@ -144,11 +135,10 @@ describe("handleReferences", () => {
             ["btn-large", infoAtLine("btn-large", 3)],
           ]) as ScssClassMap,
         workspaceRoot: "/fake",
-        reverseIndex: idx,
+        semanticReferenceIndex: idx,
       }),
     );
 
-    // The expanded site must still surface in Find References.
     expect(result).not.toBeNull();
     expect(result!.length).toBeGreaterThanOrEqual(1);
     const matched = result!.find(
@@ -218,16 +208,19 @@ describe("handleReferences", () => {
     const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);
     const classMap = expandClassMapWithTransform(base, "camelCase");
 
-    const idx = new WorkspaceReverseIndex();
+    const idx = new WorkspaceSemanticWorkspaceReferenceIndex();
     idx.record("file:///fake/App.tsx", [
-      siteAt("file:///fake/App.tsx", "btnPrimary", 5, SCSS_PATH, "btn-primary"),
+      semanticSiteAt("file:///fake/App.tsx", "btnPrimary", 5, SCSS_PATH, "btn-primary", {
+        reason: "styleAccess",
+        origin: "styleAccess",
+      }),
     ]);
 
     // Cursor sits on `.btn-primary` in the SCSS file. Under camelCase
     // mode the class map holds both `btn-primary` (original) and
-    // `btnPrimary` (alias) entries — the reverse index bucket lives
-    // under the canonical `btn-primary` key regardless. The provider
-    // must route through `originalName` so the lookup hits the bucket.
+    // `btnPrimary` (alias) entries. The semantic index stores the
+    // alias access under the canonical `btn-primary` selector, so
+    // the provider must route through `originalName` to find it.
     const origInfo = classMap.get("btn-primary")!;
     const cursor = {
       line: origInfo.range.start.line,
@@ -242,7 +235,7 @@ describe("handleReferences", () => {
       makeBaseDeps({
         scssClassMapForPath: () => classMap,
         workspaceRoot: "/fake",
-        reverseIndex: idx,
+        semanticReferenceIndex: idx,
       }),
     );
 
@@ -251,7 +244,7 @@ describe("handleReferences", () => {
     expect(result![0]!.uri).toBe("file:///fake/App.tsx");
   });
 
-  it("classnameTransform (camelCaseOnly): alias-only entry still resolves to canonical reverse-index bucket", async () => {
+  it("classnameTransform (camelCaseOnly): alias-only entry still resolves to the canonical selector bucket", async () => {
     const { parseStyleModule } = await import("../../../server/src/core/scss/scss-parser");
     const { expandClassMapWithTransform } =
       await import("../../../server/src/core/scss/classname-transform");
@@ -265,9 +258,12 @@ describe("handleReferences", () => {
     expect(classMap.has("btn-primary")).toBe(false);
     expect(classMap.has("btnPrimary")).toBe(true);
 
-    const idx = new WorkspaceReverseIndex();
+    const idx = new WorkspaceSemanticWorkspaceReferenceIndex();
     idx.record("file:///fake/App.tsx", [
-      siteAt("file:///fake/App.tsx", "btnPrimary", 7, SCSS_PATH, "btn-primary"),
+      semanticSiteAt("file:///fake/App.tsx", "btnPrimary", 7, SCSS_PATH, "btn-primary", {
+        reason: "styleAccess",
+        origin: "styleAccess",
+      }),
     ]);
 
     const aliasInfo = classMap.get("btnPrimary")!;
@@ -283,7 +279,7 @@ describe("handleReferences", () => {
       makeBaseDeps({
         scssClassMapForPath: () => classMap,
         workspaceRoot: "/fake",
-        reverseIndex: idx,
+        semanticReferenceIndex: idx,
       }),
     );
 

@@ -1,7 +1,6 @@
 import { DiagnosticSeverity, DiagnosticTag, type Diagnostic } from "vscode-languageserver/node";
 import type { ScssClassMap } from "@css-module-explainer/shared";
 import { findUnusedSelectors } from "../core/query/compute-unused-selectors";
-import type { ReverseIndex } from "../core/indexing/reverse-index";
 import type { SemanticWorkspaceReferenceIndex } from "../core/semantic/workspace-reference-index";
 
 /**
@@ -18,18 +17,15 @@ import type { SemanticWorkspaceReferenceIndex } from "../core/semantic/workspace
 export function computeScssUnusedDiagnostics(
   scssPath: string,
   classMap: ScssClassMap,
-  reverseIndex: ReverseIndex,
   semanticReferenceIndex: SemanticWorkspaceReferenceIndex,
 ): Diagnostic[] {
-  return findUnusedSelectors(scssPath, classMap, reverseIndex, semanticReferenceIndex).map(
-    (finding) => ({
-      range: toLspRange(finding.range),
-      severity: DiagnosticSeverity.Hint,
-      source: "css-module-explainer",
-      message: `Selector '.${finding.canonicalName}' is declared but never used.`,
-      tags: [DiagnosticTag.Unnecessary],
-    }),
-  );
+  return findUnusedSelectors(scssPath, classMap, semanticReferenceIndex).map((finding) => ({
+    range: toLspRange(finding.range),
+    severity: DiagnosticSeverity.Hint,
+    source: "css-module-explainer",
+    message: `Selector '.${finding.canonicalName}' is declared but never used.`,
+    tags: [DiagnosticTag.Unnecessary],
+  }));
 }
 
 function toLspRange(range: {

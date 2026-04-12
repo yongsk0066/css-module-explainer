@@ -14,7 +14,7 @@ export function App() {
 }
 `;
 
-describe("document close forgets reverse-index contributions", () => {
+describe("document close forgets semantic reference contributions", () => {
   let client: LspTestClient | null = null;
 
   afterEach(() => {
@@ -22,7 +22,7 @@ describe("document close forgets reverse-index contributions", () => {
     client = null;
   });
 
-  it("closing a TSX file drops its reverse-index sites so SCSS unused-check re-flags the selector", async () => {
+  it("closing a TSX file drops its semantic reference sites so SCSS unused-check re-flags the selector", async () => {
     function supplier(): AsyncIterable<FileTask> {
       return {
         [Symbol.asyncIterator](): AsyncIterator<FileTask> {
@@ -57,7 +57,7 @@ describe("document close forgets reverse-index contributions", () => {
     expect(scssWhileTsxOpen.find((d) => d.message.includes("'.btn'"))).toBeUndefined();
 
     // Close the TSX file. The close handler must drop the workspace
-    // reverse-index contribution the TSX buffer owned — otherwise
+    // semantic contribution the TSX buffer owned — otherwise
     // a subsequent unused-selector check on the SCSS file would
     // keep seeing the closed cx() site and treat `.btn` as referenced.
     client.didClose({ textDocument: { uri: TSX_URI } });
