@@ -1,4 +1,6 @@
+import path from "node:path";
 import { PassThrough } from "node:stream";
+import { pathToFileURL } from "node:url";
 import {
   CodeActionRequest,
   CodeLensRequest,
@@ -123,6 +125,8 @@ export interface LspTestClient {
  * Tests MUST call it in afterEach to avoid resource leaks.
  */
 export function createInProcessServer(options: InProcessServerOptions = {}): LspTestClient {
+  const workspacePath = path.resolve(process.cwd(), ".lsp-test-workspace");
+  const workspaceUri = pathToFileURL(workspacePath).toString();
   const serverToClient = new PassThrough();
   const clientToServer = new PassThrough();
 
@@ -203,9 +207,9 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
     async initialize(overrides) {
       const base: InitializeParams = {
         processId: process.pid,
-        rootUri: "file:///fake/workspace",
+        rootUri: workspaceUri,
         capabilities: {},
-        workspaceFolders: [{ uri: "file:///fake/workspace", name: "fake" }],
+        workspaceFolders: [{ uri: workspaceUri, name: "fake" }],
       };
       return client.sendRequest(InitializeRequest.type, { ...base, ...overrides });
     },
