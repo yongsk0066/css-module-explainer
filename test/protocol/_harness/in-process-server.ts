@@ -1,6 +1,7 @@
 import { PassThrough } from "node:stream";
 import {
   CodeActionRequest,
+  CodeLensRequest,
   CompletionRequest,
   createProtocolConnection,
   DefinitionRequest,
@@ -20,6 +21,8 @@ import {
   ShutdownRequest,
   type CodeAction,
   type CodeActionParams,
+  type CodeLens,
+  type CodeLensParams,
   type Command,
   type CompletionItem,
   type CompletionList,
@@ -79,6 +82,7 @@ export interface LspTestClient {
   hover(params: HoverParams): Promise<Hover | null>;
   completion(params: CompletionParams): Promise<CompletionItem[] | CompletionList | null>;
   codeAction(params: CodeActionParams): Promise<(Command | CodeAction)[] | null>;
+  codeLens(params: CodeLensParams): Promise<CodeLens[] | null>;
   /**
    * Wait for the next publishDiagnostics notification matching
    * `uri`, or reject after `timeoutMs`. Use this to test the
@@ -228,6 +232,9 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
     },
     async codeAction(params) {
       return client.sendRequest(CodeActionRequest.type, params);
+    },
+    async codeLens(params) {
+      return client.sendRequest(CodeLensRequest.type, params);
     },
     async prepareRename(params) {
       return client.sendRequest(PrepareRenameRequest.type, params);
