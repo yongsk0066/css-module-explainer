@@ -36,51 +36,6 @@ export interface ComposesRef {
   readonly fromGlobal?: boolean;
 }
 
-/** A single class selector recovered from a CSS Module. */
-export interface SelectorInfo {
-  /** Resolved class name (e.g. `button--primary` after `&` nesting). */
-  readonly name: string;
-  /** Position of the class token within the source file. */
-  readonly range: Range;
-  /** Original selector string (e.g. `.button:hover .indicator`). */
-  readonly fullSelector: string;
-  /** Flattened declarations text (e.g. `color: red; font-size: 14px`). */
-  readonly declarations: string;
-  /** Full `{ ... }` rule block, used by peek views. */
-  readonly ruleRange: Range;
-  /** CSS Modules `composes` references, if any. */
-  readonly composes?: readonly ComposesRef[];
-  /**
-   * True if this selector was produced from a SCSS `&`-nested rule
-   * whose raw source contained `&`. Flag preserved separately from
-   * `bemSuffix` because some nested shapes (compound `&.active`,
-   * pseudo `&:hover`, grouped children, multi-`&`) are indexed
-   * without the BEM-safe rename information.
-   */
-  readonly isNested?: boolean;
-  /**
-   * Present iff this entry is a pure BEM-suffix nested rule
-   * (`&--x` or `&__x`) under a bare single-class parent. When
-   * present, rename uses it for a surgical suffix-only edit.
-   * When absent (flat entries, or nested shapes outside the
-   * BEM-safe set), rename falls back to flat-path behavior or
-   * rejects via the `isNested` flag.
-   */
-  readonly bemSuffix?: BemSuffixInfo;
-  /**
-   * Present iff this entry is an alias produced by
-   * `classnameTransform` (camelCase / dashes modes). Points to
-   * the original SCSS key this alias was derived from.
-   * `asIs`-mode entries never carry this field.
-   *
-   * Rename reads this to locate the original entry for SCSS
-   * edit range and to chain both keys in reverse-index lookups.
-   * `diagnostics.unusedSelector` skips entries with
-   * `originalName !== undefined` so aliases don't double-count.
-   */
-  readonly originalName?: string;
-}
-
 /**
  * Information needed to rewrite a BEM-suffix nested selector
  * (`&--primary`, `&__icon`) as a surgical suffix-only edit.
@@ -91,19 +46,12 @@ export interface SelectorInfo {
  *   - parentResolvedName: resolved class of the enclosing bare
  *     `.classname` rule, used for suffix-math via
  *     `name.slice(parent.length)`
- *
- * Typing them as one sub-object (rather than three sibling
- * optionals on `SelectorInfo`) lets TypeScript narrow the whole
- * trio with a single `if (!info.bemSuffix)` check.
  */
 export interface BemSuffixInfo {
   readonly rawTokenRange: Range;
   readonly rawToken: string;
   readonly parentResolvedName: string;
 }
-
-/** Immutable map from class name to its info, produced per style file. */
-export type ScssClassMap = ReadonlyMap<string, SelectorInfo>;
 
 /**
  * Outcome of resolving a CSS Module `import styles from '...'`
@@ -163,58 +111,6 @@ export interface CxBinding {
  * consumers that only read the discriminator.
  */
 export type ClassRefOrigin = "cxCall" | "styleAccess";
-
-/**
- * Common shape of every ClassRef variant. Internal; not exported.
- */
-interface ClassRefBase {
-  /**
-   * LSP highlight range for the class token, quote characters
-   * excluded. For `cx('indicator')` this covers `indicator` only.
-   */
-  readonly originRange: Range;
-  /** Absolute path of the `.module.scss|css` file this ref targets. */
-  readonly scssModulePath: string;
-  /** Which syntax produced this ref — cx() call or direct styles.x access. */
-  readonly origin: ClassRefOrigin;
-}
-
-/** A static class literal: `cx('button')` or `styles.button`. */
-export interface StaticClassRef extends ClassRefBase {
-  readonly kind: "static";
-  /** Fully-resolved class name as written. */
-  readonly className: string;
-}
-
-/**
- * A template literal with static prefix and interpolated suffix,
- * e.g. `` cx(`weight-${weight}`) ``. The literal prefix lets
- * `call-resolver` match against the class map via `startsWith`.
- */
-export interface TemplateClassRef extends ClassRefBase {
-  readonly kind: "template";
-  /** Literal prefix before the first `${`. May be empty. */
-  readonly staticPrefix: string;
-  /** Original template source including `${...}` fragments. */
-  readonly rawTemplate: string;
-}
-
-/**
- * A bare identifier reference: `cx(size)` where `size` has a
- * TypeScript union-of-string-literal type. Resolved by `type-resolver`.
- */
-export interface VariableClassRef extends ClassRefBase {
-  readonly kind: "variable";
-  readonly variableName: string;
-}
-
-/**
- * A reference to a SCSS class at a specific location in source —
- * the unified model for both `cx('btn')` arguments (origin =
- * "cxCall") and direct `styles.btn` accesses (origin =
- * "styleAccess").
- */
-export type ClassRef = StaticClassRef | TemplateClassRef | VariableClassRef;
 
 /**
  * Result of resolving a TypeScript identifier to its string-literal
