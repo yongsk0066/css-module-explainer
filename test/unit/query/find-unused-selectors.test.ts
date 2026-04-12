@@ -36,25 +36,78 @@ describe("findUnusedSelectors", () => {
       ["indicator", info("indicator", 1)],
       ["active", info("active", 3)],
     ]);
-    const reverseIndex = new WorkspaceReverseIndex();
-    reverseIndex.record("file:///a.tsx", [
-      {
-        uri: "file:///a.tsx",
-        range: { start: { line: 5, character: 10 }, end: { line: 5, character: 18 } },
-        scssModulePath: SCSS_PATH,
-        match: { kind: "variable", variableName: "size" },
-        expansion: "direct",
-      },
-    ]);
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    semanticReferenceIndex.record(
+      "file:///a.tsx",
+      [],
+      [
+        {
+          refId: "ref:size",
+          uri: "file:///a.tsx",
+          filePath: "/fake/a.tsx",
+          range: { start: { line: 5, character: 10 }, end: { line: 5, character: 18 } },
+          origin: "cxCall",
+          scssModulePath: SCSS_PATH,
+          expressionKind: "symbolRef",
+          hasResolvedTargets: false,
+          isDynamic: true,
+        },
+      ],
+    );
 
     expect(
-      findUnusedSelectors(
-        SCSS_PATH,
-        classMap,
-        reverseIndex,
-        new WorkspaceSemanticWorkspaceReferenceIndex(),
-      ),
+      findUnusedSelectors(SCSS_PATH, classMap, new WorkspaceReverseIndex(), semanticReferenceIndex),
     ).toEqual([]);
+  });
+
+  it("keeps findings when dynamic refs were resolved semantically", () => {
+    const classMap: ScssClassMap = new Map([
+      ["indicator", info("indicator", 1)],
+      ["active", info("active", 3)],
+    ]);
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    semanticReferenceIndex.record(
+      "file:///a.tsx",
+      [
+        {
+          refId: "ref:size",
+          selectorId: "selector:indicator",
+          filePath: "/fake/a.tsx",
+          uri: "file:///a.tsx",
+          range: { start: { line: 5, character: 10 }, end: { line: 5, character: 18 } },
+          origin: "cxCall",
+          scssModulePath: SCSS_PATH,
+          selectorFilePath: SCSS_PATH,
+          canonicalName: "indicator",
+          className: "indicator",
+          certainty: "inferred",
+          reason: "flowBranch",
+          expansion: "expanded",
+        },
+      ],
+      [
+        {
+          refId: "ref:size",
+          uri: "file:///a.tsx",
+          filePath: "/fake/a.tsx",
+          range: { start: { line: 5, character: 10 }, end: { line: 5, character: 18 } },
+          origin: "cxCall",
+          scssModulePath: SCSS_PATH,
+          expressionKind: "symbolRef",
+          hasResolvedTargets: true,
+          isDynamic: true,
+        },
+      ],
+    );
+
+    expect(
+      findUnusedSelectors(SCSS_PATH, classMap, new WorkspaceReverseIndex(), semanticReferenceIndex),
+    ).toEqual([
+      {
+        canonicalName: "active",
+        range: { start: { line: 3, character: 1 }, end: { line: 3, character: 7 } },
+      },
+    ]);
   });
 
   it("counts semantic references even when the compatibility index is empty", () => {

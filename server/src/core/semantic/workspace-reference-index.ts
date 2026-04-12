@@ -1,13 +1,14 @@
 import type { AnalysisEntry } from "../indexing/document-analysis-cache";
-import { resolveFlowClassValues } from "../flow/class-value-analysis";
 import type { StyleDocumentHIR } from "../hir/style-types";
 import type { TypeResolver } from "../ts/type-resolver";
 import { buildSourceSemanticGraph } from "./graph-builder";
+import type { RefNode } from "./graph-types";
 import {
   buildSemanticReferenceIndex,
   type ReferenceQueryOptions,
   type SemanticReferenceSite,
 } from "./reference-index";
+import { resolveSymbolExpressionValues } from "./resolve-symbol-values";
 
 export interface SemanticReferenceCollectionContext {
   readonly styleDocumentForPath: (path: string) => StyleDocumentHIR | null;
@@ -16,8 +17,24 @@ export interface SemanticReferenceCollectionContext {
   readonly filePath: string;
 }
 
+export interface SemanticModuleUsageSite {
+  readonly refId: string;
+  readonly uri: string;
+  readonly filePath: string;
+  readonly range: SemanticReferenceSite["range"];
+  readonly origin: SemanticReferenceSite["origin"];
+  readonly scssModulePath: string;
+  readonly expressionKind: RefNode["expressionKind"];
+  readonly hasResolvedTargets: boolean;
+  readonly isDynamic: boolean;
+}
+
 export interface SemanticWorkspaceReferenceIndex {
-  record(uri: string, sites: readonly SemanticReferenceSite[]): void;
+  record(
+    uri: string,
+    sites: readonly SemanticReferenceSite[],
+    moduleUsages?: readonly SemanticModuleUsageSite[],
+  ): void;
   forget(uri: string): void;
   findSelectorReferences(
     scssPath: string,
@@ -33,11 +50,17 @@ export interface SemanticWorkspaceReferenceIndex {
     scssPath: string,
     options?: ReferenceQueryOptions,
   ): readonly SemanticReferenceSite[];
+  findModuleUsages(scssPath: string): readonly SemanticModuleUsageSite[];
+  findReferencingUris(scssPath: string): readonly string[];
   clear(): void;
 }
 
 export class NullSemanticWorkspaceReferenceIndex implements SemanticWorkspaceReferenceIndex {
-  record(_uri: string, _sites: readonly SemanticReferenceSite[]): void {}
+  record(
+    _uri: string,
+    _sites: readonly SemanticReferenceSite[],
+    _moduleUsages?: readonly SemanticModuleUsageSite[],
+  ): void {}
   forget(_uri: string): void {}
   findSelectorReferences(
     _scssPath: string,
@@ -59,6 +82,12 @@ export class NullSemanticWorkspaceReferenceIndex implements SemanticWorkspaceRef
   ): readonly SemanticReferenceSite[] {
     return [];
   }
+  findModuleUsages(_scssPath: string): readonly SemanticModuleUsageSite[] {
+    return [];
+  }
+  findReferencingUris(_scssPath: string): readonly string[] {
+    return [];
+  }
   clear(): void {}
 }
 
@@ -72,15 +101,26 @@ export class NullSemanticWorkspaceReferenceIndex implements SemanticWorkspaceRef
  * legacy index.
  */
 export class WorkspaceSemanticWorkspaceReferenceIndex implements SemanticWorkspaceReferenceIndex {
-  private readonly contributions = new Map<string, readonly SemanticReferenceSite[]>();
+  private readonly contributions = new Map<
+    string,
+    {
+      readonly referenceSites: readonly SemanticReferenceSite[];
+      readonly moduleUsages: readonly SemanticModuleUsageSite[];
+    }
+  >();
   private readonly selectorToSites = new Map<string, readonly SemanticReferenceSite[]>();
   private readonly scssToSites = new Map<string, readonly SemanticReferenceSite[]>();
+  private readonly scssToModuleUsages = new Map<string, readonly SemanticModuleUsageSite[]>();
 
-  record(uri: string, sites: readonly SemanticReferenceSite[]): void {
-    if (sites.length === 0) {
+  record(
+    uri: string,
+    sites: readonly SemanticReferenceSite[],
+    moduleUsages: readonly SemanticModuleUsageSite[] = [],
+  ): void {
+    if (sites.length === 0 && moduleUsages.length === 0) {
       this.contributions.delete(uri);
     } else {
-      this.contributions.set(uri, sites);
+      this.contributions.set(uri, { referenceSites: sites, moduleUsages });
     }
     this.rebuild();
   }
@@ -115,29 +155,49 @@ export class WorkspaceSemanticWorkspaceReferenceIndex implements SemanticWorkspa
     return filterSites(sites, options);
   }
 
+  findModuleUsages(scssPath: string): readonly SemanticModuleUsageSite[] {
+    return this.scssToModuleUsages.get(scssPath) ?? [];
+  }
+
+  findReferencingUris(scssPath: string): readonly string[] {
+    const uris = new Set<string>();
+    for (const usage of this.findModuleUsages(scssPath)) {
+      uris.add(usage.uri);
+    }
+    return [...uris].toSorted();
+  }
+
   clear(): void {
     this.contributions.clear();
     this.selectorToSites.clear();
     this.scssToSites.clear();
+    this.scssToModuleUsages.clear();
   }
 
   private rebuild(): void {
     this.selectorToSites.clear();
     this.scssToSites.clear();
-    for (const sites of this.contributions.values()) {
-      for (const site of sites) {
+    this.scssToModuleUsages.clear();
+    for (const contribution of this.contributions.values()) {
+      for (const site of contribution.referenceSites) {
         push(this.selectorToSites, selectorKeyFor(site.selectorFilePath, site.canonicalName), site);
         push(this.scssToSites, site.selectorFilePath, site);
+      }
+      for (const usage of contribution.moduleUsages) {
+        push(this.scssToModuleUsages, usage.scssModulePath, usage);
       }
     }
   }
 }
 
-export function collectSemanticReferenceSites(
+export function collectSemanticReferenceContribution(
   uri: string,
   entry: AnalysisEntry,
   ctx: SemanticReferenceCollectionContext,
-): readonly SemanticReferenceSite[] {
+): {
+  readonly referenceSites: readonly SemanticReferenceSite[];
+  readonly moduleUsages: readonly SemanticModuleUsageSite[];
+} {
   const styleDocumentsByPath = new Map<string, StyleDocumentHIR>();
 
   for (const styleImport of entry.sourceDocument.styleImports) {
@@ -156,26 +216,40 @@ export function collectSemanticReferenceSites(
     }
   }
 
-  if (styleDocumentsByPath.size === 0) return [];
+  if (styleDocumentsByPath.size === 0) {
+    return { referenceSites: [], moduleUsages: [] };
+  }
 
   const graph = buildSourceSemanticGraph({
     sourceDocument: entry.sourceDocument,
     styleDocumentsByPath,
     resolveSymbolValues(ref) {
-      const flow = resolveFlowClassValues(entry.sourceFile, ref.range, ref.rootName);
-      if (flow) return flow;
-      const resolved = ctx.typeResolver.resolve(ctx.filePath, ref.rawReference, ctx.workspaceRoot);
-      return resolved.kind === "union"
-        ? { values: resolved.values, certainty: "inferred", reason: "typeUnion" }
-        : null;
+      return resolveSymbolExpressionValues(entry.sourceFile, ref, ctx);
     },
   });
 
   const index = buildSemanticReferenceIndex(graph);
-  return index
+  const referenceSites = index
     .listReferenceSites()
     .filter((site) => site.uri === uri)
     .toSorted((a, b) => compareSites(a, b));
+  const moduleUsages = entry.sourceDocument.classExpressions
+    .map((expr) => {
+      const targets = index.findTargetsForRef(expr.id);
+      return {
+        refId: expr.id,
+        uri,
+        filePath: ctx.filePath,
+        range: expr.range,
+        origin: expr.origin,
+        scssModulePath: expr.scssModulePath,
+        expressionKind: expr.kind,
+        hasResolvedTargets: targets.length > 0,
+        isDynamic: expr.kind === "template" || expr.kind === "symbolRef",
+      } satisfies SemanticModuleUsageSite;
+    })
+    .toSorted((a, b) => compareModuleUsages(a, b));
+  return { referenceSites, moduleUsages };
 }
 
 function compareSites(a: SemanticReferenceSite, b: SemanticReferenceSite): number {
@@ -188,15 +262,20 @@ function compareSites(a: SemanticReferenceSite, b: SemanticReferenceSite): numbe
   );
 }
 
+function compareModuleUsages(a: SemanticModuleUsageSite, b: SemanticModuleUsageSite): number {
+  return (
+    a.scssModulePath.localeCompare(b.scssModulePath) ||
+    a.range.start.line - b.range.start.line ||
+    a.range.start.character - b.range.start.character ||
+    a.refId.localeCompare(b.refId)
+  );
+}
+
 function selectorKeyFor(filePath: string, canonicalName: string): string {
   return `${filePath}::${canonicalName}`;
 }
 
-function push(
-  map: Map<string, readonly SemanticReferenceSite[]>,
-  key: string,
-  value: SemanticReferenceSite,
-): void {
+function push<T>(map: Map<string, readonly T[]>, key: string, value: T): void {
   const existing = map.get(key);
   if (existing) {
     map.set(key, [...existing, value]);

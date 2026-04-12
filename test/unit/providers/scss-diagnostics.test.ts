@@ -54,20 +54,29 @@ describe("computeScssUnusedDiagnostics", () => {
       ["indicator", info("indicator", 1)],
       ["active", info("active", 3)],
     ]);
-    const reverseIndex = new WorkspaceReverseIndex();
-    reverseIndex.record("file:///a.tsx", [
-      {
-        uri: "file:///a.tsx",
-        range: { start: { line: 5, character: 10 }, end: { line: 5, character: 14 } },
-        scssModulePath: SCSS_PATH,
-        match: { kind: "variable", variableName: "someVar" },
-      },
-    ]);
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    semanticReferenceIndex.record(
+      "file:///a.tsx",
+      [],
+      [
+        {
+          refId: "ref:variable",
+          uri: "file:///a.tsx",
+          filePath: "/a.tsx",
+          range: { start: { line: 5, character: 10 }, end: { line: 5, character: 14 } },
+          origin: "cxCall",
+          scssModulePath: SCSS_PATH,
+          expressionKind: "symbolRef",
+          hasResolvedTargets: false,
+          isDynamic: true,
+        },
+      ],
+    );
     const diagnostics = computeScssUnusedDiagnostics(
       SCSS_PATH,
       classMap,
-      reverseIndex,
-      new WorkspaceSemanticWorkspaceReferenceIndex(),
+      new WorkspaceReverseIndex(),
+      semanticReferenceIndex,
     );
     expect(diagnostics).toEqual([]);
   });
@@ -77,22 +86,86 @@ describe("computeScssUnusedDiagnostics", () => {
       ["btn-primary", info("btn-primary", 1)],
       ["btn-secondary", info("btn-secondary", 3)],
     ]);
-    const reverseIndex = new WorkspaceReverseIndex();
-    reverseIndex.record("file:///a.tsx", [
-      {
-        uri: "file:///a.tsx",
-        range: { start: { line: 5, character: 10 }, end: { line: 5, character: 14 } },
-        scssModulePath: SCSS_PATH,
-        match: { kind: "template", staticPrefix: "btn-" },
-      },
-    ]);
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    semanticReferenceIndex.record(
+      "file:///a.tsx",
+      [],
+      [
+        {
+          refId: "ref:template",
+          uri: "file:///a.tsx",
+          filePath: "/a.tsx",
+          range: { start: { line: 5, character: 10 }, end: { line: 5, character: 14 } },
+          origin: "cxCall",
+          scssModulePath: SCSS_PATH,
+          expressionKind: "template",
+          hasResolvedTargets: false,
+          isDynamic: true,
+        },
+      ],
+    );
     const diagnostics = computeScssUnusedDiagnostics(
       SCSS_PATH,
       classMap,
-      reverseIndex,
-      new WorkspaceSemanticWorkspaceReferenceIndex(),
+      new WorkspaceReverseIndex(),
+      semanticReferenceIndex,
     );
     expect(diagnostics).toEqual([]);
+  });
+
+  it("does not suppress diagnostics when dynamic refs were resolved", () => {
+    const classMap: ScssClassMap = new Map([
+      ["btn-primary", info("btn-primary", 1)],
+      ["btn-secondary", info("btn-secondary", 3)],
+      ["btn-tertiary", info("btn-tertiary", 5)],
+    ]);
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    semanticReferenceIndex.record(
+      "file:///a.tsx",
+      [
+        {
+          refId: "ref:branch",
+          selectorId: "selector:btn-primary",
+          filePath: "/a.tsx",
+          uri: "file:///a.tsx",
+          range: { start: { line: 5, character: 10 }, end: { line: 5, character: 14 } },
+          origin: "cxCall",
+          scssModulePath: SCSS_PATH,
+          selectorFilePath: SCSS_PATH,
+          canonicalName: "btn-primary",
+          className: "btn-primary",
+          certainty: "inferred",
+          reason: "flowBranch",
+          expansion: "expanded",
+        },
+      ],
+      [
+        {
+          refId: "ref:branch",
+          uri: "file:///a.tsx",
+          filePath: "/a.tsx",
+          range: { start: { line: 5, character: 10 }, end: { line: 5, character: 14 } },
+          origin: "cxCall",
+          scssModulePath: SCSS_PATH,
+          expressionKind: "symbolRef",
+          hasResolvedTargets: true,
+          isDynamic: true,
+        },
+      ],
+    );
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      classMap,
+      new WorkspaceReverseIndex(),
+      semanticReferenceIndex,
+    );
+    expect(diagnostics).toHaveLength(2);
+    expect(diagnostics.some((diagnostic) => diagnostic.message.includes("btn-secondary"))).toBe(
+      true,
+    );
+    expect(diagnostics.some((diagnostic) => diagnostic.message.includes("btn-tertiary"))).toBe(
+      true,
+    );
   });
 
   it("does not flag a class that is composed by another class in the same file", () => {

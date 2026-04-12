@@ -28,7 +28,7 @@ import { scssFileSupplier } from "./core/indexing/file-supplier";
 import { IndexerWorker } from "./core/indexing/indexer-worker";
 import { collectCallSites, WorkspaceReverseIndex } from "./core/indexing/reverse-index";
 import {
-  collectSemanticReferenceSites,
+  collectSemanticReferenceContribution,
   WorkspaceSemanticWorkspaceReferenceIndex,
 } from "./core/semantic/workspace-reference-index";
 import { fileUrlToPath, pathToFileUrl } from "./core/util/text-utils";
@@ -348,14 +348,16 @@ function buildAnalysisCache(args: AnalysisCacheArgs): DocumentAnalysisCache {
     },
     max: 200,
     onAnalyze: (uri, entry) => {
+      const semanticContribution = collectSemanticReferenceContribution(uri, entry, {
+        styleDocumentForPath,
+        typeResolver,
+        workspaceRoot,
+        filePath: fileUrlToPath(uri),
+      });
       caches.semanticReferenceIndex.record(
         uri,
-        collectSemanticReferenceSites(uri, entry, {
-          styleDocumentForPath,
-          typeResolver,
-          workspaceRoot,
-          filePath: fileUrlToPath(uri),
-        }),
+        semanticContribution.referenceSites,
+        semanticContribution.moduleUsages,
       );
       caches.reverseIndex.record(
         uri,

@@ -280,9 +280,10 @@ function registerWatchedFilesHandler(state: HandlerState): void {
  * reverse-index sites stay frozen against the old classMap.
  */
 function invalidateDependentTsxEntries(deps: ProviderDeps, scssPath: string): void {
-  const affectedUris = new Set(
-    deps.reverseIndex.findAllForScssPath(scssPath).map((site) => site.uri),
-  );
+  const affectedUris = new Set(deps.semanticReferenceIndex.findReferencingUris(scssPath));
+  for (const site of deps.reverseIndex.findAllForScssPath(scssPath)) {
+    affectedUris.add(site.uri);
+  }
   for (const uri of affectedUris) {
     deps.analysisCache.invalidate(uri);
   }

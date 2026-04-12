@@ -121,4 +121,47 @@ export function App() {
     const notFoundDiag = tsxDiagnostics.find((d) => d.message.includes("Class '.b' not found"));
     expect(notFoundDiag).toBeUndefined();
   });
+
+  it("keeps unused diagnostics when dynamic refs are resolved by local flow", async () => {
+    const FLOW_TSX = `import classNames from 'classnames/bind';
+import styles from './Button.module.scss';
+const cx = classNames.bind(styles);
+export function App(enabled: boolean) {
+  const state = enabled ? 'indicator' : 'active';
+  return <div className={cx(state)}>hi</div>;
+}
+`;
+    client = createInProcessServer({
+      readStyleFile: () => BUTTON_SCSS,
+      typeResolver: new FakeTypeResolver(),
+      fileSupplier: emptySupplier,
+    });
+    await client.initialize();
+    client.initialized();
+
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/App.tsx",
+        languageId: "typescriptreact",
+        version: 1,
+        text: FLOW_TSX,
+      },
+    });
+    await client.waitForDiagnostics("file:///fake/workspace/src/App.tsx");
+
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/Button.module.scss",
+        languageId: "scss",
+        version: 1,
+        text: BUTTON_SCSS,
+      },
+    });
+
+    const diagnostics = await client.waitForDiagnostics(
+      "file:///fake/workspace/src/Button.module.scss",
+    );
+    const unusedDiag = diagnostics.find((d) => d.message.includes("'.unused'"));
+    expect(unusedDiag).toBeDefined();
+  });
 });

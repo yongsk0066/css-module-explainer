@@ -14,11 +14,10 @@ export function findUnusedSelectors(
   reverseIndex: ReverseIndex,
   semanticReferenceIndex: SemanticWorkspaceReferenceIndex,
 ): readonly UnusedSelectorFinding[] {
-  const allSites = reverseIndex.findAllForScssPath(scssPath);
-  const hasUnresolvableRef = allSites.some(
-    (site) => site.match.kind === "variable" || site.match.kind === "template",
-  );
-  if (hasUnresolvableRef) return [];
+  const hasUnresolvedDynamicUsage = semanticReferenceIndex
+    .findModuleUsages(scssPath)
+    .some((usage) => usage.isDynamic && !usage.hasResolvedTargets);
+  if (hasUnresolvedDynamicUsage) return [];
 
   const composedClasses = new Set<string>();
   for (const selectorInfo of classMap.values()) {
