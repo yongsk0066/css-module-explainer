@@ -41,7 +41,9 @@ export function sourceDocumentToLegacyClassRefs(doc: SourceDocumentHIR): readonl
 
 function symbolRefToLegacyClassRef(expr: SymbolRefClassExpressionHIR): ClassRef {
   const variableName =
-    expr.pathSegments.length === 0 ? expr.rootName : [expr.rootName, ...expr.pathSegments].join(".");
+    expr.pathSegments.length === 0
+      ? expr.rootName
+      : [expr.rootName, ...expr.pathSegments].join(".");
 
   return {
     kind: "variable",

@@ -37,6 +37,7 @@ export type UtilityBindingHIR = ClassnamesBindUtilityBindingHIR | ClassUtilBindi
 interface ClassExpressionBase extends HirNodeBase {
   readonly origin: ClassRefOrigin;
   readonly scssModulePath: string;
+  readonly range: Range;
 }
 
 export interface LiteralClassExpressionHIR extends ClassExpressionBase {
@@ -90,8 +91,9 @@ export function makeStyleImportBinding(
   localName: string,
   resolved: StyleImport,
 ): StyleImportBindingHIR {
-  const range = resolved.kind === "missing" ? resolved.range : undefined;
-  return { kind: "styleImport", id, localName, resolved, range };
+  return resolved.kind === "missing"
+    ? { kind: "styleImport", id, localName, resolved, range: resolved.range }
+    : { kind: "styleImport", id, localName, resolved };
 }
 
 export function makeClassUtilBinding(id: string, localName: string): ClassUtilBindingHIR {

@@ -59,7 +59,10 @@ describe("buildSourceDocumentFromLegacy", () => {
       filePath: "/fake/App.tsx",
       bindings: [],
       stylesBindings: new Map([
-        ["styles", { kind: "resolved", absolutePath: "/fake/Button.module.scss" } satisfies StyleImport],
+        [
+          "styles",
+          { kind: "resolved", absolutePath: "/fake/Button.module.scss" } satisfies StyleImport,
+        ],
       ]),
       classUtilNames: ["clsx"],
       classRefs: refs,

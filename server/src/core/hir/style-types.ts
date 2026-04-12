@@ -12,6 +12,7 @@ export type NestedSelectorSafety = "flat" | "bemSuffixSafe" | "nestedUnsafe";
 
 export interface SelectorDeclHIR extends HirNodeBase {
   readonly kind: "selector";
+  readonly range: Range;
   readonly name: string;
   readonly canonicalName: string;
   readonly viewKind: SelectorViewKind;

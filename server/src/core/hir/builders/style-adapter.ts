@@ -1,6 +1,11 @@
 import type { ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
 import { canonicalNameOf } from "../../scss/classname-transform";
-import { makeStyleDocumentHIR, type NestedSelectorSafety, type SelectorDeclHIR, type StyleDocumentHIR } from "../style-types";
+import {
+  makeStyleDocumentHIR,
+  type NestedSelectorSafety,
+  type SelectorDeclHIR,
+  type StyleDocumentHIR,
+} from "../style-types";
 
 /**
  * Wave 1 compatibility adapter from the current `ScssClassMap` into

@@ -66,8 +66,20 @@ function toClassExpression(ref: ClassRef, index: number): ClassExpressionHIR {
   switch (ref.kind) {
     case "static":
       return ref.origin === "styleAccess"
-        ? makeStyleAccessClassExpression(id, ref.scssModulePath, ref.className, [ref.className], ref.originRange)
-        : makeLiteralClassExpression(id, ref.origin, ref.scssModulePath, ref.className, ref.originRange);
+        ? makeStyleAccessClassExpression(
+            id,
+            ref.scssModulePath,
+            ref.className,
+            [ref.className],
+            ref.originRange,
+          )
+        : makeLiteralClassExpression(
+            id,
+            ref.origin,
+            ref.scssModulePath,
+            ref.className,
+            ref.originRange,
+          );
     case "template":
       return makeTemplateClassExpression(
         id,
