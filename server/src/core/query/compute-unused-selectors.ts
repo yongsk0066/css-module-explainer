@@ -1,15 +1,19 @@
-import { DiagnosticSeverity, DiagnosticTag, type Diagnostic } from "vscode-languageserver/node";
 import type { Range, ScssClassMap } from "@css-module-explainer/shared";
 import { canonicalNameOf } from "../scss/classname-transform";
 import type { ReverseIndex } from "../indexing/reverse-index";
 import type { SemanticWorkspaceReferenceIndex } from "../semantic/workspace-reference-index";
 
-export function computeUnusedSelectorDiagnostics(
+export interface UnusedSelectorFinding {
+  readonly canonicalName: string;
+  readonly range: Range;
+}
+
+export function findUnusedSelectors(
   scssPath: string,
   classMap: ScssClassMap,
   reverseIndex: ReverseIndex,
   semanticReferenceIndex: SemanticWorkspaceReferenceIndex,
-): Diagnostic[] {
+): readonly UnusedSelectorFinding[] {
   const allSites = reverseIndex.findAllForScssPath(scssPath);
   const hasUnresolvableRef = allSites.some(
     (site) => site.match.kind === "variable" || site.match.kind === "template",
@@ -26,7 +30,7 @@ export function computeUnusedSelectorDiagnostics(
     }
   }
 
-  const diagnostics: Diagnostic[] = [];
+  const findings: UnusedSelectorFinding[] = [];
   const emittedCanonical = new Set<string>();
   for (const info of classMap.values()) {
     const canonical = canonicalNameOf(info);
@@ -40,21 +44,8 @@ export function computeUnusedSelectorDiagnostics(
     );
     if (refCount > 0) continue;
 
-    diagnostics.push({
-      range: toLspRange(info.range),
-      severity: DiagnosticSeverity.Hint,
-      source: "css-module-explainer",
-      message: `Selector '.${canonical}' is declared but never used.`,
-      tags: [DiagnosticTag.Unnecessary],
-    });
+    findings.push({ canonicalName: canonical, range: info.range });
   }
 
-  return diagnostics;
-}
-
-function toLspRange(range: Range): { start: Range["start"]; end: Range["end"] } {
-  return {
-    start: { line: range.start.line, character: range.start.character },
-    end: { line: range.end.line, character: range.end.character },
-  };
+  return findings;
 }

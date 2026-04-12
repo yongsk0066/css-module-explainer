@@ -4,7 +4,6 @@ import {
   type Range as LspRange,
 } from "vscode-languageserver/node";
 import type { ClassRef, ScssClassMap } from "@css-module-explainer/shared";
-import { resolveClassRefToSelectorInfos } from "../core/cx/call-resolver";
 import { findClosestMatch } from "../core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
 import { wrapHandler } from "./_wrap-handler";
@@ -163,16 +162,8 @@ function validateVariableRef(
   range: LspRange,
   severity: DiagnosticSeverity,
 ): Diagnostic | null {
-  const infos = resolveClassRefToSelectorInfos({
-    ref,
-    classMap,
-    typeResolver: deps.typeResolver,
-    filePath: params.filePath,
-    workspaceRoot: deps.workspaceRoot,
-  });
   const resolved = deps.typeResolver.resolve(params.filePath, ref.variableName, deps.workspaceRoot);
   if (resolved.kind !== "union") return null;
-  if (infos.length === resolved.values.length) return null;
   const missing = resolved.values.filter((v) => !classMap.has(v));
   if (missing.length === 0) return null;
   return {
