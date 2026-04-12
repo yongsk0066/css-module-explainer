@@ -1,11 +1,13 @@
 import { relative } from "node:path";
 import type { ClassExpressionHIR } from "../core/hir/source-types";
 import type { SelectorDeclHIR } from "../core/hir/style-types";
+import type { DynamicHoverExplanation } from "../core/query/resolve-ref";
 
 export interface RenderArgs {
   readonly expression: ClassExpressionHIR;
   readonly scssModulePath: string;
   readonly selectors: readonly SelectorDeclHIR[];
+  readonly dynamicExplanation?: DynamicHoverExplanation | null;
   readonly workspaceRoot: string;
   readonly maxCandidates?: number;
 }
@@ -34,12 +36,14 @@ function renderSingle(args: RenderArgs, selector: SelectorDeclHIR): string {
     args.workspaceRoot,
   );
   const body = buildRule(selector);
-  return `**\`.${selector.name}\`** — _${location}_\n\n\`\`\`scss\n${body}\n\`\`\``;
+  const explanation = renderDynamicExplanation(args.dynamicExplanation, args.maxCandidates);
+  return `**\`.${selector.name}\`** — _${location}_${explanation}\n\n\`\`\`scss\n${body}\n\`\`\``;
 }
 
 function renderMulti(args: RenderArgs): string {
   const max = args.maxCandidates ?? 10;
   const header = buildMultiHeader(args);
+  const explanation = renderDynamicExplanation(args.dynamicExplanation, max);
   const shown = args.selectors.slice(0, max);
   const sections = shown.map((selector) => {
     const location = formatLocation(
@@ -50,7 +54,7 @@ function renderMulti(args: RenderArgs): string {
     return `**\`.${selector.name}\`** — _${location}_\n\n\`\`\`scss\n${buildRule(selector)}\n\`\`\``;
   });
   const tail = args.selectors.length > max ? `\n\n_…and ${args.selectors.length - max} more_` : "";
-  return `${header}\n\n${sections.join("\n\n---\n\n")}${tail}`;
+  return `${header}${explanation}\n\n${sections.join("\n\n---\n\n")}${tail}`;
 }
 
 function buildMultiHeader(args: RenderArgs): string {
@@ -67,6 +71,51 @@ function buildMultiHeader(args: RenderArgs): string {
     default:
       expression satisfies never;
       return "";
+  }
+}
+
+function renderDynamicExplanation(
+  explanation: DynamicHoverExplanation | null | undefined,
+  maxCandidates = 10,
+): string {
+  if (!explanation) return "";
+
+  const lines: string[] = [];
+  if (explanation.kind === "symbolRef") {
+    lines.push(
+      `_Resolved from \`${explanation.subject}\` via ${formatReason(explanation.reason)}._`,
+    );
+    if (explanation.certainty) {
+      lines.push(`_Certainty: ${explanation.certainty}._`);
+    }
+  } else {
+    lines.push(`_Resolved by template prefix \`${explanation.subject}\`._`);
+  }
+
+  const shown = explanation.candidates
+    .slice(0, maxCandidates)
+    .map((candidate) => `\`${candidate}\``);
+  if (shown.length > 0) {
+    const suffix =
+      explanation.candidates.length > maxCandidates
+        ? `, …and ${explanation.candidates.length - maxCandidates} more`
+        : "";
+    lines.push(`_Candidates: ${shown.join(", ")}${suffix}._`);
+  }
+
+  return `\n\n${lines.join("\n\n")}`;
+}
+
+function formatReason(reason: DynamicHoverExplanation["reason"]): string {
+  switch (reason) {
+    case "flowLiteral":
+      return "local flow analysis";
+    case "flowBranch":
+      return "branched local flow analysis";
+    case "typeUnion":
+      return "TypeScript string-literal union analysis";
+    default:
+      return "semantic analysis";
   }
 }
 

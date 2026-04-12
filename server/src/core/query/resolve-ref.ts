@@ -3,6 +3,7 @@ import type { SelectorDeclHIR, StyleDocumentHIR } from "../hir/style-types";
 import { buildSourceSemanticGraph } from "../semantic/graph-builder";
 import { buildSemanticReferenceIndex } from "../semantic/reference-index";
 import { resolveSymbolExpressionValues } from "../semantic/resolve-symbol-values";
+import type { FlowResolution } from "../flow/lattice";
 import type { TypeResolver } from "../ts/type-resolver";
 import type { AnalysisEntry } from "../indexing/document-analysis-cache";
 
@@ -19,13 +20,35 @@ export interface ResolveRefQueryContext {
   readonly entry: AnalysisEntry;
 }
 
+export interface DynamicHoverExplanation {
+  readonly kind: "symbolRef" | "template";
+  readonly subject: string;
+  readonly candidates: readonly string[];
+  readonly certainty?: FlowResolution["certainty"];
+  readonly reason?: FlowResolution["reason"];
+}
+
+export interface ResolveRefDetails {
+  readonly selectors: readonly SelectorDeclHIR[];
+  readonly dynamicExplanation: DynamicHoverExplanation | null;
+}
+
 export function resolveRefSelectors(
   ctx: ResolveRefQueryContext,
   env: ResolveRefQueryEnv,
 ): readonly SelectorDeclHIR[] {
+  return resolveRefDetails(ctx, env).selectors;
+}
+
+export function resolveRefDetails(
+  ctx: ResolveRefQueryContext,
+  env: ResolveRefQueryEnv,
+): ResolveRefDetails {
   const styleDocument =
     ctx.styleDocument ?? env.styleDocumentForPath(ctx.expression.scssModulePath);
-  if (!styleDocument) return [];
+  if (!styleDocument) {
+    return { selectors: [], dynamicExplanation: null };
+  }
 
   const graph = buildSourceSemanticGraph({
     sourceDocument: ctx.entry.sourceDocument,
@@ -35,13 +58,26 @@ export function resolveRefSelectors(
     },
   });
   const targets = buildSemanticReferenceIndex(graph).findTargetsForRef(ctx.expression.id);
-  if (targets.length === 0) {
-    return resolveExpressionAgainstStyleDocument(
-      ctx.expression,
-      styleDocument,
-      ctx.entry.sourceFile,
-      env,
-    );
+  const fallbackSelectors =
+    targets.length === 0
+      ? resolveExpressionAgainstStyleDocument(
+          ctx.expression,
+          styleDocument,
+          ctx.entry.sourceFile,
+          env,
+        )
+      : null;
+
+  if (targets.length === 0 && fallbackSelectors) {
+    return {
+      selectors: fallbackSelectors,
+      dynamicExplanation: buildDynamicHoverExplanation(
+        ctx.expression,
+        fallbackSelectors,
+        ctx.entry.sourceFile,
+        env,
+      ),
+    };
   }
 
   const resolvedSelectors: SelectorDeclHIR[] = [];
@@ -57,14 +93,25 @@ export function resolveRefSelectors(
     if (selector) resolvedSelectors.push(selector);
   }
 
-  return resolvedSelectors.length > 0
-    ? resolvedSelectors
-    : resolveExpressionAgainstStyleDocument(
-        ctx.expression,
-        styleDocument,
-        ctx.entry.sourceFile,
-        env,
-      );
+  const selectors =
+    resolvedSelectors.length > 0
+      ? resolvedSelectors
+      : resolveExpressionAgainstStyleDocument(
+          ctx.expression,
+          styleDocument,
+          ctx.entry.sourceFile,
+          env,
+        );
+
+  return {
+    selectors,
+    dynamicExplanation: buildDynamicHoverExplanation(
+      ctx.expression,
+      selectors,
+      ctx.entry.sourceFile,
+      env,
+    ),
+  };
 }
 
 function resolveExpressionAgainstStyleDocument(
@@ -92,6 +139,41 @@ function resolveExpressionAgainstStyleDocument(
     default:
       expression satisfies never;
       return [];
+  }
+}
+
+function buildDynamicHoverExplanation(
+  expression: ClassExpressionHIR,
+  selectors: readonly SelectorDeclHIR[],
+  sourceFile: AnalysisEntry["sourceFile"],
+  env: Pick<ResolveRefQueryEnv, "typeResolver" | "filePath" | "workspaceRoot">,
+): DynamicHoverExplanation | null {
+  switch (expression.kind) {
+    case "symbolRef": {
+      const resolved = resolveExpressionSymbolValues(sourceFile, expression, env);
+      if (!resolved) return null;
+      return {
+        kind: "symbolRef",
+        subject: expression.rawReference,
+        candidates: resolved.values,
+        certainty: resolved.certainty,
+        reason: resolved.reason,
+      };
+    }
+    case "template":
+      return selectors.length > 0
+        ? {
+            kind: "template",
+            subject: expression.staticPrefix,
+            candidates: selectors.map((selector) => selector.name),
+          }
+        : null;
+    case "literal":
+    case "styleAccess":
+      return null;
+    default:
+      expression satisfies never;
+      return null;
   }
 }
 

@@ -122,4 +122,38 @@ describe("hover protocol", () => {
     });
     expect(hover).toBeNull();
   });
+
+  it("includes dynamic explanation for a flow-resolved symbol ref", async () => {
+    const FLOW_TSX = `import classNames from 'classnames/bind';
+import styles from './Button.module.scss';
+const cx = classNames.bind(styles);
+export function Button(enabled: boolean) {
+  const size = enabled ? 'indicator' : 'active';
+  return <div className={cx(size)}>hi</div>;
+}
+`;
+    client = createInProcessServer({
+      readStyleFile: (path) => (path.endsWith("Button.module.scss") ? BUTTON_SCSS : null),
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/Button.tsx",
+        languageId: "typescriptreact",
+        version: 1,
+        text: FLOW_TSX,
+      },
+    });
+    const hover = await client.hover({
+      textDocument: { uri: "file:///fake/workspace/src/Button.tsx" },
+      position: { line: 5, character: 29 },
+    });
+    expect(hover).not.toBeNull();
+    const value = (hover!.contents as { value: string }).value;
+    expect(value).toContain("Resolved from `size` via branched local flow analysis.");
+    expect(value).toContain("Certainty: inferred.");
+    expect(value).toContain("Candidates: `active`, `indicator`.");
+  });
 });

@@ -1,5 +1,5 @@
 import type { Hover } from "vscode-languageserver/node";
-import { resolveRefSelectors } from "../core/query/resolve-ref";
+import { resolveRefDetails } from "../core/query/resolve-ref";
 import { toLspRange } from "./lsp-adapters";
 import { renderHover } from "./hover-renderer";
 import { wrapHandler } from "./_wrap-handler";
@@ -32,7 +32,7 @@ function buildHover(
   deps: ProviderDeps,
   maxCandidates: number,
 ): Hover | null {
-  const selectors = resolveRefSelectors(ctx, {
+  const result = resolveRefDetails(ctx, {
     styleDocumentForPath: deps.styleDocumentForPath,
     typeResolver: deps.typeResolver,
     filePath: params.filePath,
@@ -41,7 +41,8 @@ function buildHover(
   const markdown = renderHover({
     expression: ctx.expression,
     scssModulePath: ctx.expression.scssModulePath,
-    selectors,
+    selectors: result.selectors,
+    dynamicExplanation: result.dynamicExplanation,
     workspaceRoot: deps.workspaceRoot,
     maxCandidates,
   });
