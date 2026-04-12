@@ -8,6 +8,28 @@ The format is based on
 this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] — 2026-04-12
+
+### Fixed
+
+- **Find References + CodeLens under `classnameTransform`** — under `camelCase` or `camelCaseOnly` modes, Find References from a SCSS selector returned empty results and CodeLens showed `0 references` or rendered duplicate lenses. The reverse-index query now routes through the canonical SCSS selector name regardless of which alias view the cursor sits on, and CodeLens deduplicates entries by canonical name so each logical class renders exactly one lens.
+- **SCSS diagnostics refresh on `classnameTransform` change** — switching the transform mode in settings left open `.module.scss` files with stale unused-selector diagnostics until the user edited the file. The reload handler now routes each open document to the right scheduler method by language, so SCSS unused-selector checks recompute immediately on a mode change.
+- **Reverse-index memory leak on document close** — closing a TSX file did not drop its contribution from the workspace reverse index. On a long session the index grew unbounded, and a SCSS unused-selector check run after close still treated the closed file's references as live. The `onDidClose` listener now calls `reverseIndex.forget(uri)`.
+- **Unicode class-name identifiers** — selectors like `.한글`, `.日本語`, or `.español-btn` were silently dropped from the class map because the extraction regex was ASCII-only. Widened to Unicode property classes (`\p{L}`, `\p{N}`, `\p{M}`) so every script CSS Modules accepts survives, including NFD-decomposed combining marks.
+
+### Changed
+
+- **`canonicalNameOf` helper** — the `info.originalName ?? info.name` pattern (5 call sites across references, reference-lens, scss-diagnostics, rename, and reverse-index) is extracted to a single `canonicalNameOf(info)` function in `classname-transform.ts`.
+- **Exhaustive ClassRef dispatch** — three switch statements over the `ClassRef` discriminated union (`hover-renderer`, `diagnostics`, `reverse-index`) now carry `never` sentinel defaults so a future union extension fails at compile time instead of silently falling through.
+- **Configuration table rewritten** — the README settings section is rebuilt from `package.json contributes.configuration` as the source of truth. Six fictional settings removed; ten real settings documented.
+- **CHANGELOG backfill** — 1.2.0 and 1.3.0 entries added from git history; 1.1.0 jargon rewritten.
+- **Benchmark wired through real parsers** — `providers.bench.ts` now measures the actual `scanCxImports` + `parseClassRefs` AST walkers instead of hardcoded stubs, and delegates ProviderDeps construction to `makeBaseDeps` so the shape stays current.
+
+### Removed
+
+- **Dead `ProviderDeps.aliasResolver` field** — no provider consumed it. The alias resolver the analysis cache depends on is wired separately through `DocumentAnalysisCacheDeps`.
+- **Section-divider comments** — `// ───` horizontal-rule comments removed from 7 files.
+
 ## [1.6.0] — 2026-04-11
 
 ### Added
