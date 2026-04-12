@@ -58,15 +58,30 @@ export class WorkspaceTypeResolver implements TypeResolver {
       return UNRESOLVABLE;
     }
     const checker = program.getTypeChecker();
-    // DFS finds the first variable/parameter/binding matching by
-    // name. Not scope-aware (a shadowed top-level `size` wins over
-    // a function-parameter `size`). Full scope resolution requires
-    // the call-site AST node, which is a future API extension.
-    const symbol = findIdentifierSymbol(sourceFile, variableName, checker);
+
+    const parts = variableName.split(".");
+    const rootName = parts[0]!;
+
+    let symbol = findIdentifierSymbol(sourceFile, rootName, checker);
     if (!symbol) {
       return UNRESOLVABLE;
     }
-    const type = checker.getTypeOfSymbolAtLocation(symbol, sourceFile);
+
+    // Follow import aliases so `import { sizes } from './theme'`
+    // resolves to the original exported symbol, not the local alias.
+    if (symbol.flags & ts.SymbolFlags.Alias) {
+      symbol = checker.getAliasedSymbol(symbol);
+    }
+
+    let type = checker.getTypeOfSymbolAtLocation(symbol, sourceFile);
+
+    // Walk the property chain for dotted paths like `sizes.large`.
+    for (let i = 1; i < parts.length; i++) {
+      const prop = type.getProperty(parts[i]!);
+      if (!prop) return UNRESOLVABLE;
+      type = checker.getTypeOfSymbolAtLocation(prop, sourceFile);
+    }
+
     return extractStringLiterals(type, checker);
   }
 
@@ -106,17 +121,45 @@ function findIdentifierSymbol(
   let found: ts.Symbol | null = null;
   function visit(node: ts.Node): void {
     if (found) return;
-    const nameNode =
-      ts.isVariableDeclaration(node) || ts.isParameter(node) || ts.isBindingElement(node)
-        ? node.name
-        : null;
-    if (nameNode && ts.isIdentifier(nameNode) && nameNode.text === variableName) {
-      const symbol = checker.getSymbolAtLocation(nameNode);
-      if (symbol) {
-        found = symbol;
-        return;
+
+    // Local declarations: variable, parameter, destructuring binding.
+    if (ts.isVariableDeclaration(node) || ts.isParameter(node) || ts.isBindingElement(node)) {
+      const nameNode = node.name;
+      if (ts.isIdentifier(nameNode) && nameNode.text === variableName) {
+        found = checker.getSymbolAtLocation(nameNode) ?? null;
+        if (found) return;
       }
     }
+
+    // Import bindings: `import { sizes } from ...` (named),
+    // `import sizes from ...` (default), `import * as sizes from ...`.
+    if (ts.isImportDeclaration(node) && node.importClause) {
+      const clause = node.importClause;
+      // Default import: `import sizes from './theme'`
+      if (clause.name && clause.name.text === variableName) {
+        found = checker.getSymbolAtLocation(clause.name) ?? null;
+        if (found) return;
+      }
+      if (clause.namedBindings) {
+        if (ts.isNamespaceImport(clause.namedBindings)) {
+          // `import * as sizes from './theme'`
+          if (clause.namedBindings.name.text === variableName) {
+            found = checker.getSymbolAtLocation(clause.namedBindings.name) ?? null;
+            if (found) return;
+          }
+        } else {
+          // `import { sizes } from './theme'` or `import { sizes as s }`
+          for (const spec of clause.namedBindings.elements) {
+            const localName = spec.name.text;
+            if (localName === variableName) {
+              found = checker.getSymbolAtLocation(spec.name) ?? null;
+              if (found) return;
+            }
+          }
+        }
+      }
+    }
+
     ts.forEachChild(node, visit);
   }
   visit(sourceFile);

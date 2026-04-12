@@ -144,6 +144,63 @@ describe("WorkspaceTypeResolver.resolve", () => {
     const result = resolver.resolve("/ws/nowhere.tsx", "size", "/ws");
     expect(result.kind).toBe("unresolvable");
   });
+
+  it("resolves a dotted property chain on a local const object", () => {
+    const resolver = makeResolver({
+      "/ws/a.tsx": `const sizes = { large: "lg", small: "sm" } as const; export {};`,
+    });
+    const result = resolver.resolve("/ws/a.tsx", "sizes.large", "/ws");
+    expect(result.kind).toBe("union");
+    expect(result.values).toEqual(["lg"]);
+  });
+
+  it("resolves a named import + property chain", () => {
+    const resolver = makeResolver({
+      "/ws/theme.ts": `export const sizes = { large: "lg", small: "sm" } as const;`,
+      "/ws/a.tsx": `import { sizes } from "./theme"; export {};`,
+    });
+    const result = resolver.resolve("/ws/a.tsx", "sizes.large", "/ws");
+    expect(result.kind).toBe("union");
+    expect(result.values).toEqual(["lg"]);
+  });
+
+  it("resolves a default import + property chain", () => {
+    const resolver = makeResolver({
+      "/ws/theme.ts": `const sizes = { large: "lg" } as const; export default sizes;`,
+      "/ws/a.tsx": `import sizes from "./theme"; export {};`,
+    });
+    const result = resolver.resolve("/ws/a.tsx", "sizes.large", "/ws");
+    expect(result.kind).toBe("union");
+    expect(result.values).toEqual(["lg"]);
+  });
+
+  it("resolves a namespace import + deep property chain", () => {
+    const resolver = makeResolver({
+      "/ws/theme.ts": `export const sizes = { large: "lg" } as const;`,
+      "/ws/a.tsx": `import * as theme from "./theme"; export {};`,
+    });
+    const result = resolver.resolve("/ws/a.tsx", "theme.sizes.large", "/ws");
+    expect(result.kind).toBe("union");
+    expect(result.values).toEqual(["lg"]);
+  });
+
+  it("resolves a renamed import binding", () => {
+    const resolver = makeResolver({
+      "/ws/theme.ts": `export const size = "lg" as const;`,
+      "/ws/a.tsx": `import { size as s } from "./theme"; export {};`,
+    });
+    const result = resolver.resolve("/ws/a.tsx", "s", "/ws");
+    expect(result.kind).toBe("union");
+    expect(result.values).toEqual(["lg"]);
+  });
+
+  it("returns unresolvable for a dotted path where the root exists but property does not", () => {
+    const resolver = makeResolver({
+      "/ws/a.tsx": `const sizes = { large: "lg" } as const; export {};`,
+    });
+    const result = resolver.resolve("/ws/a.tsx", "sizes.nonexistent", "/ws");
+    expect(result.kind).toBe("unresolvable");
+  });
 });
 
 describe("WorkspaceTypeResolver / program caching", () => {
