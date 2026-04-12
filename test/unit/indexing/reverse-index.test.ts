@@ -4,7 +4,7 @@ import {
   collectCallSites,
   NullReverseIndex,
   WorkspaceReverseIndex,
-} from "../../../server/src/core/indexing/reverse-index";
+} from "../../../server/src/core/semantic/compat/reverse-index-compat";
 import type { AnalysisEntry } from "../../../server/src/core/indexing/document-analysis-cache";
 import { buildSourceDocumentFromLegacy } from "../../../server/src/core/hir/compat/source-document-builder-compat";
 import ts from "typescript";

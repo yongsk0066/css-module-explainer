@@ -1,11 +1,11 @@
 import type { CallSite, ScssClassMap } from "@css-module-explainer/shared";
-import { resolveSymbolExpressionValues } from "../semantic/resolve-symbol-values";
-import { canonicalNameOf } from "../scss/classname-transform";
-import type { AnalysisEntry } from "./document-analysis-cache";
-import type { TypeResolver } from "../ts/type-resolver";
+import { resolveSymbolExpressionValues } from "../resolve-symbol-values";
+import { canonicalNameOf } from "../../scss/classname-transform";
+import type { AnalysisEntry } from "../../indexing/document-analysis-cache";
+import type { TypeResolver } from "../../ts/type-resolver";
 
 /**
- * Reverse index of cx() call sites, keyed by (scssPath, className).
+ * Compatibility reverse index used only by legacy comparison tests.
  */
 export interface ReverseIndex {
   /**
@@ -41,9 +41,7 @@ export interface ReverseIndex {
 }
 
 /**
- * No-op ReverseIndex. Kept so test doubles and benchmark harnesses
- * can exercise the ReverseIndex contract without maintaining a
- * real forward/back map.
+ * No-op ReverseIndex for compatibility tests.
  */
 export class NullReverseIndex implements ReverseIndex {
   record(_uri: string, _callSites: readonly CallSite[]): void {}
@@ -61,12 +59,8 @@ export class NullReverseIndex implements ReverseIndex {
 }
 
 /**
- * Two-level map (scssPath → className → CallSite[]) with
- * back-pointers for O(1) `forget(uri)` on document close.
- *
- * Only static call kinds are indexed. Template and variable
- * kinds are skipped — resolving them would require the classMap
- * at index time, which this layer does not hold.
+ * Two-level compatibility index kept for differential testing
+ * against the semantic reference graph.
  */
 export class WorkspaceReverseIndex implements ReverseIndex {
   private readonly forward = new Map<string, Map<string, CallSite[]>>();
@@ -146,8 +140,7 @@ export interface CallSiteResolverContext {
 }
 
 /**
- * Build the `CallSite[]` list the reverse index consumes from the
- * document's source-expression HIR.
+ * Build legacy `CallSite[]` entries from source-expression HIR.
  *
  * When `ctx` is provided, template and symbol-ref cx() refs are
  * EXPANDED into individual static-keyed entries so Find References

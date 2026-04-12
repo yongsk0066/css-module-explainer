@@ -236,10 +236,11 @@ function registerWatchedFilesHandler(state: HandlerState): void {
       deps.typeResolver.invalidate(deps.workspaceRoot);
       // Drop cached analysis for every open source document so
       // `onAnalyze` re-fires on the next `scheduleTsx` and the
-      // reverse-index rebuilds with fresh type data. We invalidate
-      // all open source docs because `typeResolver.invalidate`
-      // drops the entire workspace program — we cannot narrow
-      // which documents' expanded sites are affected.
+      // semantic reference index recomputes with fresh type data.
+      // We invalidate all open source docs because
+      // `typeResolver.invalidate` drops the entire workspace
+      // program — we cannot narrow which documents' symbol-based
+      // references are affected.
       for (const doc of documents.all()) {
         if (!findLangForPath(fileUrlToPath(doc.uri))) {
           deps.analysisCache.invalidate(doc.uri);

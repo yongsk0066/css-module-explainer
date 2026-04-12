@@ -5,7 +5,7 @@ import type { StyleImport } from "@css-module-explainer/shared";
 import {
   collectCallSites,
   WorkspaceReverseIndex,
-} from "../../../server/src/core/indexing/reverse-index";
+} from "../../../server/src/core/semantic/compat/reverse-index-compat";
 import { buildSourceSemanticGraph } from "../../../server/src/core/semantic/graph-builder";
 import { buildSemanticReferenceIndex } from "../../../server/src/core/semantic/reference-index";
 import type { AnalysisEntry } from "../../../server/src/core/indexing/document-analysis-cache";
