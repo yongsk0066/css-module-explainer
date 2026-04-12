@@ -1,8 +1,11 @@
 import * as nodeUrl from "node:url";
 import type ts from "typescript";
 import type { ClassRef, CxBinding, StyleImport } from "@css-module-explainer/shared";
-import { buildSourceDocumentFromLegacy } from "../hir/builders/ts-source-adapter";
-import type { SourceDocumentHIR } from "../hir/source-types";
+import {
+  buildSourceDocument,
+  buildSourceDocumentFromLegacy,
+} from "../hir/builders/ts-source-adapter";
+import type { ClassExpressionHIR, SourceDocumentHIR } from "../hir/source-types";
 import { contentHash } from "../util/hash";
 import { LruMap } from "../util/lru-map";
 import type { SourceFileCache } from "../ts/source-file-cache";
@@ -24,9 +27,7 @@ export interface AnalysisEntry {
   readonly bindings: readonly CxBinding[];
   /**
    * Document-level source HIR derived from the current scan/parser
-   * outputs. Providers still receive compatibility views from the
-   * same analysis result, so the cache remains the single source of
-   * truth for both representations.
+   * outputs.
    */
   readonly sourceDocument: SourceDocumentHIR;
   /**
@@ -88,6 +89,16 @@ export interface DocumentAnalysisCacheDeps {
     stylesBindings: ReadonlyMap<string, StyleImport>,
   ) => ClassRef[];
   /**
+   * Direct source-expression parser. When present, analysis builds
+   * `SourceDocumentHIR` without going through compatibility
+   * `ClassRef[]` output.
+   */
+  readonly parseClassExpressions?: (
+    sourceFile: ts.SourceFile,
+    bindings: readonly CxBinding[],
+    stylesBindings: ReadonlyMap<string, StyleImport>,
+  ) => readonly ClassExpressionHIR[];
+  /**
    * Detect `clsx` / `clsx/lite` / `classnames` (not `/bind`) imports
    * and return their local identifier names. Optional for test
    * helpers that don't care about completion; falls back to `[]`.
@@ -108,9 +119,9 @@ export interface DocumentAnalysisCacheDeps {
  * The single-parse hub for every provider hot path.
  *
  * `get(uri, content, filePath, version)` returns an AnalysisEntry
- * containing the AST, bindings, and all class references. The cache
+ * containing the AST, bindings, and source expressions. The cache
  * guarantees that `ts.createSourceFile + detectCxBindings +
- * parseClassRefs` run at most once per (uri, version) — same-version
+ * parseClassExpressions` run at most once per (uri, version) — same-version
  * repeat calls are O(1), and a content-hash fallback catches the
  * case where the version bumped but the actual text is identical.
  *
@@ -180,8 +191,8 @@ export class DocumentAnalysisCache {
     // Single-pass scan: resolves style imports (with `missing`
     // variants via `fileExists`) and collects cx bindings in one
     // traversal of the source file. Files without `classnames/bind`
-    // still get a populated `stylesBindings` so `parseClassRefs`
-    // can resolve `styles.x` accesses.
+    // still get a populated `stylesBindings` so source-expression
+    // parsing can resolve `styles.x` accesses.
     const { stylesBindings, bindings } = this.deps.scanCxImports(
       sourceFile,
       filePath,
@@ -189,17 +200,27 @@ export class DocumentAnalysisCache {
       this.deps.aliasResolver,
     );
 
-    // Unified class-ref parser — covers both cx() arguments and styles.x accesses.
-    const parsedClassRefs = this.deps.parseClassRefs?.(sourceFile, bindings, stylesBindings) ?? [];
-
     const classUtilNames = this.deps.detectClassUtilImports?.(sourceFile) ?? [];
-    const sourceDocument = buildSourceDocumentFromLegacy({
-      filePath,
+    const parsedExpressions = this.deps.parseClassExpressions?.(
+      sourceFile,
       bindings,
       stylesBindings,
-      classUtilNames,
-      classRefs: parsedClassRefs,
-    });
+    );
+    const sourceDocument = parsedExpressions
+      ? buildSourceDocument({
+          filePath,
+          bindings,
+          stylesBindings,
+          classUtilNames,
+          classExpressions: parsedExpressions,
+        })
+      : buildSourceDocumentFromLegacy({
+          filePath,
+          bindings,
+          stylesBindings,
+          classUtilNames,
+          classRefs: this.deps.parseClassRefs?.(sourceFile, bindings, stylesBindings) ?? [],
+        });
 
     return {
       version,

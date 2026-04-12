@@ -3,6 +3,7 @@ import type ts from "typescript";
 import type { ClassRef, CxBinding, StyleImport } from "@css-module-explainer/shared";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
+import { makeLiteralClassExpression } from "../../../server/src/core/hir/source-types";
 import { EMPTY_ALIAS_RESOLVER } from "../../_fixtures/test-helpers";
 
 const SOURCE = `
@@ -43,6 +44,51 @@ function makeCache() {
 }
 
 describe("DocumentAnalysisCache", () => {
+  it("prefers direct class-expression parsing when available", () => {
+    const sourceFileCache = new SourceFileCache({ max: 10 });
+    const parseClassExpressions = vi.fn(() => [
+      makeLiteralClassExpression(
+        "class-expr:0",
+        "cxCall",
+        "/fake/src/Button.module.scss",
+        "indicator",
+        { start: { line: 4, character: 16 }, end: { line: 4, character: 25 } },
+      ),
+    ]);
+    const parseClassRefs = vi.fn((): ClassRef[] => []);
+    const cache = new DocumentAnalysisCache({
+      sourceFileCache,
+      scanCxImports: (sf, _fp) => ({
+        stylesBindings: new Map(),
+        bindings: [
+          {
+            cxVarName: "cx",
+            stylesVarName: "styles",
+            scssModulePath: "/fake/src/Button.module.scss",
+            classNamesImportName: "classNames",
+            scope: {
+              startLine: 0,
+              endLine: sf.getLineAndCharacterOfPosition(sf.getEnd()).line,
+            },
+          },
+        ],
+      }),
+      fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
+      parseClassExpressions,
+      parseClassRefs,
+      max: 10,
+    });
+
+    const entry = cache.get("file:///fake/a.tsx", SOURCE, "/fake/a.tsx", 1);
+
+    expect(parseClassExpressions).toHaveBeenCalledTimes(1);
+    expect(parseClassRefs).not.toHaveBeenCalled();
+    expect(entry.sourceDocument.classExpressions).toMatchObject([
+      { kind: "literal", className: "indicator" },
+    ]);
+  });
+
   it("analyzes a document on the first get and caches the entry", () => {
     const { cache, detectSpy, parseSpy } = makeCache();
     const entry = cache.get("file:///fake/a.tsx", SOURCE, "/fake/a.tsx", 1);

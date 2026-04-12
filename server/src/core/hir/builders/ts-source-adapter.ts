@@ -21,14 +21,15 @@ export interface BuildSourceDocumentFromLegacyArgs {
   readonly classRefs: readonly ClassRef[];
 }
 
-/**
- * Builds source HIR from the existing scan/parser outputs so document
- * analysis can expose a stable typed representation without changing
- * provider behavior at the same time.
- */
-export function buildSourceDocumentFromLegacy(
-  args: BuildSourceDocumentFromLegacyArgs,
-): SourceDocumentHIR {
+export interface BuildSourceDocumentArgs {
+  readonly filePath: string;
+  readonly bindings: readonly CxBinding[];
+  readonly stylesBindings: ReadonlyMap<string, StyleImport>;
+  readonly classUtilNames: readonly string[];
+  readonly classExpressions: readonly ClassExpressionHIR[];
+}
+
+export function buildSourceDocument(args: BuildSourceDocumentArgs): SourceDocumentHIR {
   const styleImports = Array.from(args.stylesBindings.entries(), ([localName, resolved], index) =>
     makeStyleImportBinding(`style-import:${index}`, localName, resolved),
   );
@@ -46,14 +47,29 @@ export function buildSourceDocumentFromLegacy(
       makeClassUtilBinding(`utility-binding:util:${index}`, localName),
     ),
   ];
-  const classExpressions = args.classRefs.map(toClassExpression);
 
   return makeSourceDocumentHIR({
     filePath: args.filePath,
     language: inferSourceLanguage(args.filePath),
     styleImports,
     utilityBindings,
-    classExpressions,
+    classExpressions: args.classExpressions,
+  });
+}
+
+/**
+ * Builds source HIR from legacy class-ref output so compatibility
+ * fixtures and migration tests can still reconstruct the document.
+ */
+export function buildSourceDocumentFromLegacy(
+  args: BuildSourceDocumentFromLegacyArgs,
+): SourceDocumentHIR {
+  return buildSourceDocument({
+    filePath: args.filePath,
+    bindings: args.bindings,
+    stylesBindings: args.stylesBindings,
+    classUtilNames: args.classUtilNames,
+    classExpressions: args.classRefs.map(toClassExpression),
   });
 }
 

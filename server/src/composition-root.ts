@@ -18,7 +18,7 @@ import { buildStyleFileWatcherGlob, findLangForPath } from "./core/scss/lang-reg
 import { StyleIndexCache } from "./core/scss/scss-index";
 import type { StyleDocumentHIR } from "./core/hir/style-types";
 import { detectClassUtilImports, scanCxImports } from "./core/cx/binding-detector";
-import { parseClassRefs } from "./core/cx/class-ref-parser";
+import { parseClassExpressions } from "./core/cx/class-ref-parser";
 import { type AliasResolver, AliasResolverHolder } from "./core/cx/alias-resolver";
 import { SourceFileCache } from "./core/ts/source-file-cache";
 import { WorkspaceTypeResolver, type TypeResolver } from "./core/ts/type-resolver";
@@ -311,7 +311,7 @@ function buildAnalysisCache(args: AnalysisCacheArgs): DocumentAnalysisCache {
   return new DocumentAnalysisCache({
     sourceFileCache: caches.sourceFileCache,
     scanCxImports,
-    parseClassRefs,
+    parseClassExpressions,
     detectClassUtilImports,
     fileExists,
     // getter-over-closure: reads currentResolver at analyze() time,
