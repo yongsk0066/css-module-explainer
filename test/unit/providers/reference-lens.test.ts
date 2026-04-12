@@ -1,18 +1,20 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ScssClassMap } from "@css-module-explainer/shared";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
 import type { ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
 import { handleCodeLens } from "../../../server/src/providers/reference-lens";
 import { infoAtLine, makeBaseDeps, semanticSiteAt } from "../../_fixtures/test-helpers";
-import { expandClassMapWithTransform, parseStyleModule } from "../../_fixtures/style-compat";
+import {
+  expandSelectorMapWithTransform,
+  parseStyleSelectorMap,
+} from "../../_fixtures/style-documents";
 
 function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   return makeBaseDeps({
-    scssClassMapForPath: () =>
+    selectorMapForPath: () =>
       new Map([
         ["indicator", infoAtLine("indicator", 5)],
         ["active", infoAtLine("active", 10)],
-      ]) as ScssClassMap,
+      ]),
     workspaceRoot: "/fake",
     ...overrides,
   });
@@ -81,8 +83,8 @@ describe("handleCodeLens", () => {
   it("classnameTransform (camelCaseOnly): emits a lens for an alias-only entry whose bucket lives under canonical", async () => {
     const SCSS_PATH = "/fake/src/Button.module.scss";
     const SCSS_URI = "file:///fake/src/Button.module.scss";
-    const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);
-    const classMap = expandClassMapWithTransform(base, "camelCaseOnly");
+    const base = parseStyleSelectorMap(`.btn-primary { color: red; }`, SCSS_PATH);
+    const classMap = expandSelectorMapWithTransform(base, "camelCaseOnly");
     // Under camelCaseOnly the original key is gone; only the alias
     // entry remains, keyed by `btnPrimary` with `originalName`
     // pointing at `btn-primary`.
@@ -100,7 +102,7 @@ describe("handleCodeLens", () => {
     const result = handleCodeLens(
       { textDocument: { uri: SCSS_URI } },
       makeBaseDeps({
-        scssClassMapForPath: () => classMap,
+        selectorMapForPath: () => classMap,
         workspaceRoot: "/fake",
         semanticReferenceIndex: idx,
       }),
@@ -114,8 +116,8 @@ describe("handleCodeLens", () => {
   it("classnameTransform: emits one lens reflecting the canonical bucket across both class-map views", async () => {
     const SCSS_PATH = "/fake/src/Button.module.scss";
     const SCSS_URI = "file:///fake/src/Button.module.scss";
-    const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);
-    const classMap = expandClassMapWithTransform(base, "camelCase");
+    const base = parseStyleSelectorMap(`.btn-primary { color: red; }`, SCSS_PATH);
+    const classMap = expandSelectorMapWithTransform(base, "camelCase");
     // Under camelCase the map holds both views of the same class.
     expect(classMap.has("btn-primary")).toBe(true);
     expect(classMap.has("btnPrimary")).toBe(true);
@@ -135,7 +137,7 @@ describe("handleCodeLens", () => {
     const result = handleCodeLens(
       { textDocument: { uri: SCSS_URI } },
       makeBaseDeps({
-        scssClassMapForPath: () => classMap,
+        selectorMapForPath: () => classMap,
         workspaceRoot: "/fake",
         semanticReferenceIndex: idx,
       }),
@@ -163,7 +165,7 @@ describe("handleCodeLens", () => {
     const result = handleCodeLens(
       { textDocument: { uri: "file:///fake/src/Button.module.scss" } },
       makeDeps({
-        scssClassMapForPath: () => {
+        selectorMapForPath: () => {
           throw new Error("boom");
         },
         logError,

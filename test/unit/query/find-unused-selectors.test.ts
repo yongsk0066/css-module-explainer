@@ -1,19 +1,18 @@
 import { describe, expect, it } from "vitest";
-import type { ScssClassMap } from "@css-module-explainer/shared";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
 import { findUnusedSelectors } from "../../../server/src/core/query/compute-unused-selectors";
 import { infoAtLine as info, semanticSiteAt } from "../../_fixtures/test-helpers";
-import { buildStyleDocumentFromClassMap } from "../../_fixtures/style-compat";
+import { buildStyleDocumentFromSelectorMap } from "../../_fixtures/style-documents";
 
 const SCSS_PATH = "/fake/Button.module.scss";
 
-function styleDocument(classMap: ScssClassMap) {
-  return buildStyleDocumentFromClassMap(SCSS_PATH, classMap);
+function styleDocument(selectors: ReadonlyMap<string, ReturnType<typeof info>>) {
+  return buildStyleDocumentFromSelectorMap(SCSS_PATH, selectors);
 }
 
 describe("findUnusedSelectors", () => {
   it("returns canonical unused selectors once", () => {
-    const classMap: ScssClassMap = new Map([
+    const classMap = new Map([
       ["indicator", info("indicator", 1)],
       ["active", info("active", 3)],
     ]);
@@ -33,7 +32,7 @@ describe("findUnusedSelectors", () => {
   });
 
   it("suppresses findings when the module still has unresolved dynamic refs", () => {
-    const classMap: ScssClassMap = new Map([
+    const classMap = new Map([
       ["indicator", info("indicator", 1)],
       ["active", info("active", 3)],
     ]);
@@ -62,7 +61,7 @@ describe("findUnusedSelectors", () => {
   });
 
   it("keeps findings when dynamic refs were resolved semantically", () => {
-    const classMap: ScssClassMap = new Map([
+    const classMap = new Map([
       ["indicator", info("indicator", 1)],
       ["active", info("active", 3)],
     ]);
@@ -112,7 +111,7 @@ describe("findUnusedSelectors", () => {
   });
 
   it("counts semantic references even when the compatibility index is empty", () => {
-    const classMap: ScssClassMap = new Map([
+    const classMap = new Map([
       ["indicator", info("indicator", 1)],
       ["active", info("active", 3)],
     ]);

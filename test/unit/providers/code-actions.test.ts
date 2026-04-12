@@ -5,14 +5,13 @@ import {
   type CodeActionParams,
   type Diagnostic,
 } from "vscode-languageserver-protocol/node";
-import type { ScssClassMap } from "@css-module-explainer/shared";
 import type { ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
 import { handleCodeAction } from "../../../server/src/providers/code-actions";
 import { makeBaseDeps } from "../../_fixtures/test-helpers";
 
 function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   return makeBaseDeps({
-    scssClassMapForPath: () => new Map() as ScssClassMap,
+    selectorMapForPath: () => new Map(),
     workspaceRoot: "/fake",
     ...overrides,
   });

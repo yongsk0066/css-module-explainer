@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import ts from "typescript";
 import { CompletionItemKind } from "vscode-languageserver-protocol/node";
-import type { CxBinding, ScssClassMap } from "@css-module-explainer/shared";
+import type { CxBinding } from "@css-module-explainer/shared";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
 import type { ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
@@ -41,11 +41,11 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   });
   return makeBaseDeps({
     analysisCache,
-    scssClassMapForPath: () =>
+    selectorMapForPath: () =>
       new Map([
         ["indicator", info("indicator")],
         ["active", info("active")],
-      ]) as ScssClassMap,
+      ]),
     ...overrides,
   });
 }
@@ -109,7 +109,7 @@ describe("handleCompletion", () => {
         character: 16,
         version: 1,
       },
-      makeDeps({ scssClassMapForPath: () => new Map() as ScssClassMap }),
+      makeDeps({ selectorMapForPath: () => new Map() }),
     );
     expect(result).toBeNull();
   });
@@ -126,7 +126,7 @@ describe("handleCompletion", () => {
         version: 1,
       },
       makeDeps({
-        scssClassMapForPath: () => {
+        styleDocumentForPath: () => {
           throw new Error("boom");
         },
         logError,
@@ -242,12 +242,12 @@ const el = clsx(styles.
     });
     return makeBaseDeps({
       analysisCache,
-      scssClassMapForPath: (path: string) =>
+      selectorMapForPath: (path: string) =>
         path === "/fake/ws/src/Button.module.scss"
-          ? (new Map([
+          ? new Map([
               ["btn", info("btn")],
               ["active", info("active")],
-            ]) as ScssClassMap)
+            ])
           : null,
       ...overrides,
     });
@@ -383,7 +383,7 @@ const el = someFunc(styles.
         character: 23,
         version: 1,
       },
-      clsxMakeDeps({ scssClassMapForPath: () => new Map() as ScssClassMap }),
+      clsxMakeDeps({ selectorMapForPath: () => new Map() }),
     );
     expect(result).toBeNull();
   });

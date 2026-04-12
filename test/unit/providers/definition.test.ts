@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import type ts from "typescript";
-import type { CxBinding, ScssClassMap } from "@css-module-explainer/shared";
+import type { CxBinding } from "@css-module-explainer/shared";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
 import type { ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
 import { handleDefinition } from "../../../server/src/providers/definition";
 import {
   EMPTY_ALIAS_RESOLVER,
-  classExpressionsFromLegacy,
+  buildTestClassExpressions,
   info,
   makeBaseDeps,
 } from "../../_fixtures/test-helpers";
@@ -40,18 +40,18 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     aliasResolver: EMPTY_ALIAS_RESOLVER,
     scanCxImports: (sf, fp) => ({ stylesBindings: new Map(), bindings: detectCxBindings(sf, fp) }),
     parseClassExpressions: (_sf, bindings) =>
-      classExpressionsFromLegacy({
+      buildTestClassExpressions({
         filePath: "/fake/src/Button.tsx",
         bindings,
-        classRefs:
+        expressions:
           bindings.length === 0
             ? []
             : [
                 {
-                  kind: "static",
+                  kind: "literal",
                   origin: "cxCall",
                   className: "indicator",
-                  originRange: {
+                  range: {
                     start: { line: 4, character: 15 },
                     end: { line: 4, character: 24 },
                   },
@@ -63,7 +63,7 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   });
   return makeBaseDeps({
     analysisCache,
-    scssClassMapForPath: () => new Map([["indicator", info("indicator")]]) as ScssClassMap,
+    selectorMapForPath: () => new Map([["indicator", info("indicator")]]),
     workspaceRoot: "/fake",
     ...overrides,
   });
@@ -109,7 +109,7 @@ describe("handleDefinition", () => {
 
   it("returns null when classMap has no match for the class name", () => {
     const deps = makeDeps({
-      scssClassMapForPath: () => new Map() as ScssClassMap,
+      selectorMapForPath: () => new Map(),
     });
     const result = handleDefinition(baseParams, deps);
     expect(result).toBeNull();
@@ -126,10 +126,10 @@ describe("handleDefinition", () => {
         bindings: detectCxBindings(sf, fp),
       }),
       parseClassExpressions: (_sf, bindings) =>
-        classExpressionsFromLegacy({
+        buildTestClassExpressions({
           filePath: "/fake/src/Button.tsx",
           bindings,
-          classRefs:
+          expressions:
             bindings.length === 0
               ? []
               : [
@@ -138,7 +138,7 @@ describe("handleDefinition", () => {
                     origin: "cxCall",
                     rawTemplate: "btn-${variant}",
                     staticPrefix: "btn-",
-                    originRange: {
+                    range: {
                       start: { line: 4, character: 15 },
                       end: { line: 4, character: 28 },
                     },
@@ -150,13 +150,13 @@ describe("handleDefinition", () => {
     });
     const deps: ProviderDeps = makeBaseDeps({
       analysisCache,
-      scssClassMapForPath: () =>
+      selectorMapForPath: () =>
         new Map([
           ["btn", info("btn")],
           ["btn-primary", info("btn-primary")],
           ["btn-secondary", info("btn-secondary")],
           ["indicator", info("indicator")],
-        ]) as ScssClassMap,
+        ]),
       workspaceRoot: "/fake",
     });
     const result = handleDefinition(baseParams, deps);
@@ -168,7 +168,7 @@ describe("handleDefinition", () => {
   it("logs and returns null when the underlying transform raises", () => {
     const logError = vi.fn();
     const deps = makeDeps({
-      scssClassMapForPath: () => {
+      styleDocumentForPath: () => {
         throw new Error("boom");
       },
       logError,

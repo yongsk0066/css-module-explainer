@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type ts from "typescript";
 import { DiagnosticSeverity } from "vscode-languageserver-protocol/node";
-import type { CxBinding, ScssClassMap } from "@css-module-explainer/shared";
+import type { CxBinding } from "@css-module-explainer/shared";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
 import { NullSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
@@ -12,11 +12,11 @@ import type { TypeResolver } from "../../../server/src/core/ts/type-resolver";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
 import {
   EMPTY_ALIAS_RESOLVER,
-  classExpressionsFromLegacy,
+  buildTestClassExpressions,
   info,
   makeBaseDeps,
 } from "../../_fixtures/test-helpers";
-import { buildStyleDocumentFromClassMap } from "../../_fixtures/style-compat";
+import { buildStyleDocumentFromSelectorMap } from "../../_fixtures/style-documents";
 
 const TSX = `
 import classNames from 'classnames/bind';
@@ -40,32 +40,32 @@ const detectCxBindings = (sourceFile: ts.SourceFile): CxBinding[] => [
 ];
 
 const parseClassExpressions = (_sf: ts.SourceFile, bindings: readonly CxBinding[]) =>
-  classExpressionsFromLegacy({
+  buildTestClassExpressions({
     filePath: "/fake/ws/src/Button.tsx",
     bindings,
-    classRefs:
+    expressions:
       bindings.length === 0
         ? []
         : [
             {
-              kind: "static",
+              kind: "literal",
               origin: "cxCall",
               className: "indicator",
-              originRange: { start: { line: 4, character: 14 }, end: { line: 4, character: 23 } },
+              range: { start: { line: 4, character: 14 }, end: { line: 4, character: 23 } },
               scssModulePath: bindings[0]!.scssModulePath,
             },
             {
-              kind: "static",
+              kind: "literal",
               origin: "cxCall",
               className: "unknonw",
-              originRange: { start: { line: 5, character: 14 }, end: { line: 5, character: 21 } },
+              range: { start: { line: 5, character: 14 }, end: { line: 5, character: 21 } },
               scssModulePath: bindings[0]!.scssModulePath,
             },
           ],
   });
 
-function styleDocumentForClassMap(classMap: ScssClassMap) {
-  return () => buildStyleDocumentFromClassMap("/fake/ws/src/Button.module.scss", classMap);
+function styleDocumentForSelectors(selectors: ReadonlyMap<string, ReturnType<typeof info>>) {
+  return () => buildStyleDocumentFromSelectorMap("/fake/ws/src/Button.module.scss", selectors);
 }
 
 function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
@@ -80,11 +80,11 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   });
   return makeBaseDeps({
     analysisCache,
-    scssClassMapForPath: () =>
+    selectorMapForPath: () =>
       new Map([
         ["indicator", info("indicator")],
         ["unknown", info("unknown")], // nearby typo target
-      ]) as ScssClassMap,
+      ]),
     ...overrides,
   });
 }
@@ -99,11 +99,11 @@ describe("computeDiagnostics", () => {
 
   it("returns an empty array when all classes resolve", () => {
     const deps = makeDeps({
-      scssClassMapForPath: () =>
+      selectorMapForPath: () =>
         new Map([
           ["indicator", info("indicator")],
           ["unknonw", info("unknonw")],
-        ]) as ScssClassMap,
+        ]),
     });
     const result = computeDiagnostics(baseParams, deps);
     expect(result).toEqual([]);
@@ -132,7 +132,7 @@ describe("computeDiagnostics", () => {
     const result = computeDiagnostics(
       baseParams,
       makeDeps({
-        scssClassMapForPath: () => {
+        styleDocumentForPath: () => {
           throw new Error("boom");
         },
         logError,
@@ -161,10 +161,10 @@ describe("computeDiagnostics", () => {
         bindings: detectCxBindings(sf, fp),
       }),
       parseClassExpressions: (_sf: ts.SourceFile, bindings: readonly CxBinding[]) =>
-        classExpressionsFromLegacy({
+        buildTestClassExpressions({
           filePath: "/fake/ws/src/Button.tsx",
           bindings,
-          classRefs:
+          expressions:
             bindings.length === 0
               ? []
               : [
@@ -173,7 +173,7 @@ describe("computeDiagnostics", () => {
                     origin: "cxCall",
                     rawTemplate: "prefix-${x}",
                     staticPrefix: "prefix-",
-                    originRange: {
+                    range: {
                       start: { line: 4, character: 14 },
                       end: { line: 4, character: 28 },
                     },
@@ -185,11 +185,11 @@ describe("computeDiagnostics", () => {
     });
     const deps: ProviderDeps = {
       analysisCache,
-      styleDocumentForPath: styleDocumentForClassMap(
+      styleDocumentForPath: styleDocumentForSelectors(
         new Map([
           ["indicator", info("indicator")],
           ["active", info("active")],
-        ]) as ScssClassMap,
+        ]),
       ),
       typeResolver: new FakeTypeResolver(),
       semanticReferenceIndex: new NullSemanticWorkspaceReferenceIndex(),
@@ -217,18 +217,18 @@ describe("computeDiagnostics", () => {
         bindings: detectCxBindings(sf, fp),
       }),
       parseClassExpressions: (_sf: ts.SourceFile, bindings: readonly CxBinding[]) =>
-        classExpressionsFromLegacy({
+        buildTestClassExpressions({
           filePath: "/fake/ws/src/Button.tsx",
           bindings,
-          classRefs:
+          expressions:
             bindings.length === 0
               ? []
               : [
                   {
-                    kind: "variable",
+                    kind: "symbolRef",
                     origin: "cxCall",
-                    variableName: "size",
-                    originRange: {
+                    rawReference: "size",
+                    range: {
                       start: { line: 4, character: 14 },
                       end: { line: 4, character: 18 },
                     },
@@ -248,11 +248,11 @@ describe("computeDiagnostics", () => {
     }
     const deps: ProviderDeps = {
       analysisCache,
-      styleDocumentForPath: styleDocumentForClassMap(
+      styleDocumentForPath: styleDocumentForSelectors(
         new Map([
           ["small", info("small")],
           ["medium", info("medium")],
-        ]) as ScssClassMap,
+        ]),
       ),
       typeResolver: new UnionResolver(),
       semanticReferenceIndex: new NullSemanticWorkspaceReferenceIndex(),
@@ -287,18 +287,18 @@ const a = cx(size);
         bindings: detectCxBindings(sf, fp),
       }),
       parseClassExpressions: (_sf: ts.SourceFile, bindings: readonly CxBinding[]) =>
-        classExpressionsFromLegacy({
+        buildTestClassExpressions({
           filePath: "/fake/ws/src/Button.tsx",
           bindings,
-          classRefs:
+          expressions:
             bindings.length === 0
               ? []
               : [
                   {
-                    kind: "variable",
+                    kind: "symbolRef",
                     origin: "cxCall",
-                    variableName: "size",
-                    originRange: {
+                    rawReference: "size",
+                    range: {
                       start: { line: 4, character: 13 },
                       end: { line: 4, character: 17 },
                     },
@@ -310,9 +310,7 @@ const a = cx(size);
     });
     const deps: ProviderDeps = {
       analysisCache,
-      styleDocumentForPath: styleDocumentForClassMap(
-        new Map([["small", info("small")]]) as ScssClassMap,
-      ),
+      styleDocumentForPath: styleDocumentForSelectors(new Map([["small", info("small")]])),
       typeResolver: new FakeTypeResolver(),
       semanticReferenceIndex: new NullSemanticWorkspaceReferenceIndex(),
       workspaceRoot: "/fake/ws",
@@ -340,18 +338,18 @@ const a = cx(size);
         bindings: detectCxBindings(sf, fp),
       }),
       parseClassExpressions: (_sf: ts.SourceFile, bindings: readonly CxBinding[]) =>
-        classExpressionsFromLegacy({
+        buildTestClassExpressions({
           filePath: "/fake/ws/src/Button.tsx",
           bindings,
-          classRefs:
+          expressions:
             bindings.length === 0
               ? []
               : [
                   {
-                    kind: "variable",
+                    kind: "symbolRef",
                     origin: "cxCall",
-                    variableName: "unknown",
-                    originRange: {
+                    rawReference: "unknown",
+                    range: {
                       start: { line: 4, character: 14 },
                       end: { line: 4, character: 21 },
                     },
@@ -363,9 +361,7 @@ const a = cx(size);
     });
     const deps: ProviderDeps = {
       analysisCache,
-      styleDocumentForPath: styleDocumentForClassMap(
-        new Map([["indicator", info("indicator")]]) as ScssClassMap,
-      ),
+      styleDocumentForPath: styleDocumentForSelectors(new Map([["indicator", info("indicator")]])),
       typeResolver: new FakeTypeResolver(), // always unresolvable
       semanticReferenceIndex: new NullSemanticWorkspaceReferenceIndex(),
       workspaceRoot: "/fake/ws",
@@ -387,10 +383,10 @@ const a = cx(size);
     const result = computeDiagnostics(
       baseParams,
       makeDeps({
-        scssClassMapForPath: () => {
+        selectorMapForPath: () => {
           callCount += 1;
           if (callCount === 2) throw new Error("only the second one");
-          return new Map([["indicator", info("indicator")]]) as ScssClassMap;
+          return new Map([["indicator", info("indicator")]]);
         },
         logError,
       }),

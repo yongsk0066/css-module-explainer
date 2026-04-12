@@ -13,7 +13,7 @@ import {
 import type { StyleImport } from "@css-module-explainer/shared";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
 import { info } from "../../_fixtures/test-helpers";
-import { buildStyleDocumentFromClassMap } from "../../_fixtures/style-compat";
+import { buildStyleDocumentFromSelectorMap } from "../../_fixtures/style-documents";
 
 const FILE_PATH = "/fake/ws/src/App.tsx";
 const SCSS_PATH = "/fake/ws/src/Button.module.scss";
@@ -27,7 +27,7 @@ describe("WorkspaceSemanticWorkspaceReferenceIndex", () => {
       rootName: "size",
       token: "size",
     });
-    const styleDocument = buildStyleDocumentFromClassMap(
+    const styleDocument = buildStyleDocumentFromSelectorMap(
       SCSS_PATH,
       new Map([["indicator", info("indicator")]]),
     );
@@ -61,7 +61,7 @@ describe("WorkspaceSemanticWorkspaceReferenceIndex", () => {
       token: "size",
       tokenOccurrence: "last",
     });
-    const styleDocument = buildStyleDocumentFromClassMap(
+    const styleDocument = buildStyleDocumentFromSelectorMap(
       SCSS_PATH,
       new Map([["indicator", info("indicator")]]),
     );

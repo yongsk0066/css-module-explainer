@@ -1,18 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
 import type { ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
 import { findSelectorAtCursor, handleReferences } from "../../../server/src/providers/references";
 import { infoAtLine, makeBaseDeps, semanticSiteAt } from "../../_fixtures/test-helpers";
 import {
-  buildStyleDocumentFromClassMap,
-  expandClassMapWithTransform,
-  parseStyleModule,
-} from "../../_fixtures/style-compat";
+  buildStyleDocumentFromSelectorMap,
+  expandSelectorMapWithTransform,
+  parseStyleSelectorMap,
+} from "../../_fixtures/style-documents";
 
 function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   return makeBaseDeps({
-    scssClassMapForPath: () => new Map([["indicator", infoAtLine("indicator", 5)]]) as ScssClassMap,
+    selectorMapForPath: () => new Map([["indicator", infoAtLine("indicator", 5)]]),
     workspaceRoot: "/fake",
     ...overrides,
   });
@@ -134,11 +133,11 @@ describe("handleReferences", () => {
         context: { includeDeclaration: true },
       },
       makeBaseDeps({
-        scssClassMapForPath: () =>
+        selectorMapForPath: () =>
           new Map([
             ["btn-small", infoAtLine("btn-small", 1)],
             ["btn-large", infoAtLine("btn-large", 3)],
-          ]) as ScssClassMap,
+          ]),
         workspaceRoot: "/fake",
         semanticReferenceIndex: idx,
       }),
@@ -166,30 +165,27 @@ describe("handleReferences", () => {
     // on line 1, but it only covers `button--primary`'s ghost span
     // — the cursor on the `&` column (line 1, char 2) falls INSIDE
     // bemSuffix.rawTokenRange {start:{line:1,char:2}, end:{line:1,char:12}}.
-    const info: SelectorInfo = {
-      name: "button--primary",
+    const selector = {
+      ...infoAtLine("button--primary", 1),
       range: {
         start: { line: 1, character: 2 },
-        end: { line: 1, character: 17 }, // 15 chars for "button--primary"
+        end: { line: 1, character: 17 },
       },
       bemSuffix: {
         rawTokenRange: {
           start: { line: 1, character: 2 },
-          end: { line: 1, character: 12 }, // 10 chars for "&--primary"
+          end: { line: 1, character: 12 },
         },
         rawToken: "&--primary",
         parentResolvedName: "button",
       },
-      isNested: true,
-      fullSelector: ".button--primary",
-      declarations: "",
-      ruleRange: {
-        start: { line: 1, character: 0 },
-        end: { line: 1, character: 15 },
-      },
+      nestedSafety: "bemSuffixSafe" as const,
     };
-    const classMap = new Map([["button--primary", info]]) as ScssClassMap;
-    const styleDocument = buildStyleDocumentFromClassMap("/fake/src/Button.module.scss", classMap);
+    const classMap = new Map([["button--primary", selector]]);
+    const styleDocument = buildStyleDocumentFromSelectorMap(
+      "/fake/src/Button.module.scss",
+      classMap,
+    );
 
     // Cursor on the `&` character at (line 1, character 2). The
     // rawTokenRange covers exactly this position; the test locks
@@ -208,8 +204,8 @@ describe("handleReferences", () => {
   it("classnameTransform: finds alias-form TSX access from SCSS cursor on original selector", async () => {
     const SCSS_PATH = "/fake/Button.module.scss";
     const SCSS_URI = "file:///fake/Button.module.scss";
-    const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);
-    const classMap = expandClassMapWithTransform(base, "camelCase");
+    const base = parseStyleSelectorMap(`.btn-primary { color: red; }`, SCSS_PATH);
+    const classMap = expandSelectorMapWithTransform(base, "camelCase");
 
     const idx = new WorkspaceSemanticWorkspaceReferenceIndex();
     idx.record("file:///fake/App.tsx", [
@@ -236,7 +232,7 @@ describe("handleReferences", () => {
         context: { includeDeclaration: true },
       },
       makeBaseDeps({
-        scssClassMapForPath: () => classMap,
+        selectorMapForPath: () => classMap,
         workspaceRoot: "/fake",
         semanticReferenceIndex: idx,
       }),
@@ -250,8 +246,8 @@ describe("handleReferences", () => {
   it("classnameTransform (camelCaseOnly): alias-only entry still resolves to the canonical selector bucket", async () => {
     const SCSS_PATH = "/fake/Button.module.scss";
     const SCSS_URI = "file:///fake/Button.module.scss";
-    const base = parseStyleModule(`.btn-primary { color: red; }`, SCSS_PATH);
-    const classMap = expandClassMapWithTransform(base, "camelCaseOnly");
+    const base = parseStyleSelectorMap(`.btn-primary { color: red; }`, SCSS_PATH);
+    const classMap = expandSelectorMapWithTransform(base, "camelCaseOnly");
     // Under `camelCaseOnly` only the alias entry remains in the map;
     // the cursor falls on the alias entry's range but its
     // `originalName` still points at `btn-primary`.
@@ -277,7 +273,7 @@ describe("handleReferences", () => {
         context: { includeDeclaration: true },
       },
       makeBaseDeps({
-        scssClassMapForPath: () => classMap,
+        selectorMapForPath: () => classMap,
         workspaceRoot: "/fake",
         semanticReferenceIndex: idx,
       }),
@@ -297,7 +293,7 @@ describe("handleReferences", () => {
         context: { includeDeclaration: true },
       },
       makeDeps({
-        scssClassMapForPath: () => {
+        selectorMapForPath: () => {
           throw new Error("boom");
         },
         logError,

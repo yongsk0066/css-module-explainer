@@ -6,7 +6,7 @@ import type { AnalysisEntry } from "../../../server/src/core/indexing/document-a
 import { resolveRefSelectors } from "../../../server/src/core/query/resolve-ref";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
 import { loadSourceScenario, loadStyleScenario } from "../../_fixtures/scenario-corpus";
-import { buildSourceDocumentFromLegacy } from "../../_fixtures/source-compat";
+import { buildSourceDocumentFixture } from "../../_fixtures/source-documents";
 
 describe("resolveRefSelectors", () => {
   it("resolves selectors through the semantic query for symbol refs", () => {
@@ -101,12 +101,12 @@ function render(flag: boolean) {
       ts.ScriptKind.TSX,
     );
     const expression = variableExpressionAt(source, "size", styleScenario.filePath);
-    const sourceDocument = buildSourceDocumentFromLegacy({
+    const sourceDocument = buildSourceDocumentFixture({
       filePath: "/fake/Flow.tsx",
       bindings: [],
       stylesBindings: new Map(),
       classUtilNames: [],
-      classRefs: [legacyVariableRefAt(source, "size", styleScenario.filePath)],
+      expressions: [variableExpressionSpecAt(source, "size", styleScenario.filePath)],
     });
 
     const selectors = resolveRefSelectors(
@@ -155,18 +155,18 @@ function analysisEntryFor(sourceScenario: ReturnType<typeof loadSourceScenario>)
   };
 }
 
-function legacyVariableRefAt(source: string, variableName: string, scssModulePath: string) {
+function variableExpressionSpecAt(source: string, variableName: string, scssModulePath: string) {
   const tokenIndex = source.lastIndexOf(`cx(${variableName})`) + 3;
   const prefix = source.slice(0, tokenIndex);
   const line = prefix.split("\n").length - 1;
   const lastLineStart = prefix.lastIndexOf("\n");
   const character = tokenIndex - (lastLineStart + 1);
   return {
-    kind: "variable",
+    kind: "symbolRef" as const,
     origin: "cxCall",
-    variableName,
+    rawReference: variableName,
     scssModulePath,
-    originRange: {
+    range: {
       start: { line, character },
       end: { line, character: character + variableName.length },
     },
@@ -174,13 +174,13 @@ function legacyVariableRefAt(source: string, variableName: string, scssModulePat
 }
 
 function variableExpressionAt(source: string, variableName: string, scssModulePath: string) {
-  const ref = legacyVariableRefAt(source, variableName, scssModulePath);
-  return buildSourceDocumentFromLegacy({
+  const expression = variableExpressionSpecAt(source, variableName, scssModulePath);
+  return buildSourceDocumentFixture({
     filePath: "/fake/Flow.tsx",
     bindings: [],
     stylesBindings: new Map(),
     classUtilNames: [],
-    classRefs: [ref],
+    expressions: [expression],
   }).classExpressions[0]!;
 }
 

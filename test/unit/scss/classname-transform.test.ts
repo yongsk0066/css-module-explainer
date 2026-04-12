@@ -4,7 +4,10 @@ import {
   transformClassname,
 } from "../../../server/src/core/scss/classname-transform";
 import { parseStyleDocument } from "../../../server/src/core/scss/scss-parser";
-import { expandClassMapWithTransform, parseStyleModule } from "../../_fixtures/style-compat";
+import {
+  expandSelectorMapWithTransform,
+  parseStyleSelectorMap,
+} from "../../_fixtures/style-documents";
 
 // Parity snapshot tests ported from ts-plugin-css-modules
 // src/helpers/__tests__/__snapshots__/classTransforms.test.ts.snap
@@ -71,16 +74,16 @@ describe("transformClassname", () => {
   });
 });
 
-describe("expandClassMapWithTransform", () => {
+describe("expandSelectorMapWithTransform", () => {
   it("asIs short-circuits: returns the same reference", () => {
-    const base = parseStyleModule(`.btn-primary { color: red; }`, "/f.module.scss");
-    const out = expandClassMapWithTransform(base, "asIs");
+    const base = parseStyleSelectorMap(`.btn-primary { color: red; }`, "/f.module.scss");
+    const out = expandSelectorMapWithTransform(base, "asIs");
     expect(out).toBe(base); // reference identity
   });
 
   it("camelCase expands `.btn-primary` into original + alias", () => {
-    const base = parseStyleModule(`.btn-primary { color: red; }`, "/f.module.scss");
-    const out = expandClassMapWithTransform(base, "camelCase");
+    const base = parseStyleSelectorMap(`.btn-primary { color: red; }`, "/f.module.scss");
+    const out = expandSelectorMapWithTransform(base, "camelCase");
     expect(out.size).toBe(2);
     expect(out.get("btn-primary")?.name).toBe("btn-primary");
     expect(out.get("btn-primary")?.originalName).toBeUndefined();
@@ -89,8 +92,8 @@ describe("expandClassMapWithTransform", () => {
   });
 
   it("camelCaseOnly drops the original entry", () => {
-    const base = parseStyleModule(`.btn-primary { color: red; }`, "/f.module.scss");
-    const out = expandClassMapWithTransform(base, "camelCaseOnly");
+    const base = parseStyleSelectorMap(`.btn-primary { color: red; }`, "/f.module.scss");
+    const out = expandSelectorMapWithTransform(base, "camelCaseOnly");
     expect(out.size).toBe(1);
     expect(out.has("btn-primary")).toBe(false);
     expect(out.has("btnPrimary")).toBe(true);
@@ -98,16 +101,16 @@ describe("expandClassMapWithTransform", () => {
   });
 
   it("alias entries copy `range` by reference identity", () => {
-    const base = parseStyleModule(`.btn-primary { color: red; }`, "/f.module.scss");
-    const out = expandClassMapWithTransform(base, "camelCase");
+    const base = parseStyleSelectorMap(`.btn-primary { color: red; }`, "/f.module.scss");
+    const out = expandSelectorMapWithTransform(base, "camelCase");
     const original = out.get("btn-primary")!;
     const alias = out.get("btnPrimary")!;
     expect(alias.range).toBe(original.range); // same object reference
   });
 
   it("alias entries copy `bemSuffix` by reference for nested BEM", () => {
-    const base = parseStyleModule(`.btn-primary { &--xl {} }`, "/f.module.scss");
-    const out = expandClassMapWithTransform(base, "camelCase");
+    const base = parseStyleSelectorMap(`.btn-primary { &--xl {} }`, "/f.module.scss");
+    const out = expandSelectorMapWithTransform(base, "camelCase");
     const inner = out.get("btn-primary--xl");
     const alias = out.get("btnPrimaryXl");
     expect(inner?.bemSuffix).toBeDefined();
@@ -115,22 +118,22 @@ describe("expandClassMapWithTransform", () => {
     expect(alias?.originalName).toBe("btn-primary--xl");
   });
 
-  it("alias entries copy `isNested` flag", () => {
-    const base = parseStyleModule(`.btn-primary { &--xl {} }`, "/f.module.scss");
-    const out = expandClassMapWithTransform(base, "camelCase");
-    expect(out.get("btnPrimaryXl")?.isNested).toBe(true);
+  it("alias entries copy nested-safety metadata", () => {
+    const base = parseStyleSelectorMap(`.btn-primary { &--xl {} }`, "/f.module.scss");
+    const out = expandSelectorMapWithTransform(base, "camelCase");
+    expect(out.get("btnPrimaryXl")?.nestedSafety).toBe("bemSuffixSafe");
   });
 
   it("dedup: `.classNameB` in camelCase produces only the original", () => {
-    const base = parseStyleModule(`.classNameB { color: red; }`, "/f.module.scss");
-    const out = expandClassMapWithTransform(base, "camelCase");
+    const base = parseStyleSelectorMap(`.classNameB { color: red; }`, "/f.module.scss");
+    const out = expandSelectorMapWithTransform(base, "camelCase");
     expect(out.size).toBe(1);
     expect(out.has("classNameB")).toBe(true);
   });
 
   it("grouped-nested child `.btn { &--a, &--b {} }` preserves bemSuffix=undefined on aliases", () => {
-    const base = parseStyleModule(`.btn { &--a, &--b {} }`, "/f.module.scss");
-    const out = expandClassMapWithTransform(base, "camelCase");
+    const base = parseStyleSelectorMap(`.btn { &--a, &--b {} }`, "/f.module.scss");
+    const out = expandSelectorMapWithTransform(base, "camelCase");
     const btnA = out.get("btn--a");
     const btnAAlias = out.get("btnA");
     // Base parser marks the grouped-nested children with

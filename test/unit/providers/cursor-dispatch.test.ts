@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type ts from "typescript";
-import type { CxBinding, ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
+import type { CxBinding } from "@css-module-explainer/shared";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
 import {
@@ -10,7 +10,8 @@ import {
 } from "../../../server/src/providers/cursor-dispatch";
 import {
   EMPTY_ALIAS_RESOLVER,
-  classExpressionsFromLegacy,
+  buildTestClassExpressions,
+  info,
   makeBaseDeps,
 } from "../../_fixtures/test-helpers";
 
@@ -23,16 +24,6 @@ const el2 = <div className={styles.active} />;
 `;
 
 const SCSS_PATH = "/fake/src/Button.module.scss";
-
-function makeInfo(name: string): SelectorInfo {
-  return {
-    name,
-    range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
-    fullSelector: `.${name}`,
-    declarations: "color: red",
-    ruleRange: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
-  };
-}
 
 const detectCxBindings = (sourceFile: ts.SourceFile): CxBinding[] => [
   {
@@ -58,26 +49,25 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
     parseClassExpressions: (_sf, bindings, stylesBindings) =>
-      classExpressionsFromLegacy({
+      buildTestClassExpressions({
         filePath: "/fake/a.tsx",
         bindings,
         stylesBindings,
-        classRefs: [
+        expressions: [
           {
-            kind: "static",
+            kind: "literal",
             origin: "cxCall",
             className: "indicator",
-            originRange: {
+            range: {
               start: { line: 4, character: 15 },
               end: { line: 4, character: 24 },
             },
             scssModulePath: SCSS_PATH,
           },
           {
-            kind: "static",
-            origin: "styleAccess",
+            kind: "styleAccess",
             className: "active",
-            originRange: {
+            range: {
               start: { line: 5, character: 28 },
               end: { line: 5, character: 34 },
             },
@@ -89,11 +79,11 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   });
   return makeBaseDeps({
     analysisCache,
-    scssClassMapForPath: () =>
+    selectorMapForPath: () =>
       new Map([
-        ["indicator", makeInfo("indicator")],
-        ["active", makeInfo("active")],
-      ]) as ScssClassMap,
+        ["indicator", info("indicator")],
+        ["active", info("active")],
+      ]),
     workspaceRoot: "/fake",
     ...overrides,
   });
@@ -145,7 +135,7 @@ describe("withSourceExpressionAtCursor / fast paths", () => {
     });
     const deps = makeBaseDeps({
       analysisCache,
-      scssClassMapForPath: () => null,
+      selectorMapForPath: () => null,
       workspaceRoot: "/fake",
     });
     const transform = vi.fn();
@@ -185,7 +175,7 @@ describe("withSourceExpressionAtCursor / fast paths", () => {
   });
 
   it("returns null when the style document cannot be resolved for the expression path", () => {
-    const deps = makeDeps({ scssClassMapForPath: () => null });
+    const deps = makeDeps({ selectorMapForPath: () => null });
     const transform = vi.fn();
     const result = withSourceExpressionAtCursor(
       {

@@ -1,16 +1,15 @@
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
-import type { ScssClassMap } from "@css-module-explainer/shared";
 import type { ClassExpressionHIR } from "../../../server/src/core/hir/source-types";
 import { findInvalidClassReference } from "../../../server/src/core/query/find-invalid-class-references";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
 import { info } from "../../_fixtures/test-helpers";
-import { buildStyleDocumentFromClassMap } from "../../_fixtures/style-compat";
+import { buildStyleDocumentFromSelectorMap } from "../../_fixtures/style-documents";
 
 const SCSS_PATH = "/fake/ws/src/Button.module.scss";
 
-function styleDocument(classMap: ScssClassMap) {
-  return buildStyleDocumentFromClassMap(SCSS_PATH, classMap);
+function styleDocument(selectors: ReadonlyMap<string, ReturnType<typeof info>>) {
+  return buildStyleDocumentFromSelectorMap(SCSS_PATH, selectors);
 }
 
 describe("findInvalidClassReference", () => {
@@ -35,7 +34,7 @@ describe("findInvalidClassReference", () => {
       findInvalidClassReference(
         expression,
         sourceFile,
-        styleDocument(new Map([["indicator", info("indicator")]]) as ScssClassMap),
+        styleDocument(new Map([["indicator", info("indicator")]])),
         {
           typeResolver: new FakeTypeResolver(),
           filePath: "/fake/ws/src/Button.tsx",
@@ -72,7 +71,7 @@ describe("findInvalidClassReference", () => {
       findInvalidClassReference(
         expression,
         sourceFile,
-        styleDocument(new Map([["indicator", info("indicator")]]) as ScssClassMap),
+        styleDocument(new Map([["indicator", info("indicator")]])),
         {
           typeResolver: new FakeTypeResolver(),
           filePath: "/fake/ws/src/Button.tsx",
@@ -110,7 +109,7 @@ describe("findInvalidClassReference", () => {
       findInvalidClassReference(
         expression,
         sourceFile,
-        styleDocument(new Map([["small", info("small")]]) as ScssClassMap),
+        styleDocument(new Map([["small", info("small")]])),
         {
           typeResolver: new FakeTypeResolver(["small", "large"]),
           filePath: "/fake/ws/src/Button.tsx",
