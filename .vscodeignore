@@ -32,6 +32,10 @@ examples/
 .github/
 .vscode/
 .personal_docs/
+.changeset/
+scripts/
+RELEASING.md
+pnpm-workspace.yaml
 
 # Build artifacts we don't need
 **/*.tsbuildinfo

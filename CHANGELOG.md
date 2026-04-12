@@ -8,6 +8,23 @@ The format is based on
 this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] — 2026-04-13
+
+### Added
+
+- **Semantic runtime across the feature set** — source and style analysis now run through HIR documents, a semantic graph, shared queries, and flow-aware resolution. Hover, definition, references, rename, diagnostics, code actions, and unused-selector checks all resolve through the same runtime path.
+- **Missing-selector creation quick fix** — unresolved class diagnostics can now add the missing selector directly to the target CSS Module.
+- **Missing-module file quick fix** — unresolved CSS Module import diagnostics can now create the missing module file from the code action menu.
+- **Dynamic hover explanations** — hover now explains when a class reference was resolved through local flow, type-union fallback, or template-prefix expansion, including candidate lists for non-exact matches.
+- **Explicit rename block reasons** — rename now returns concrete failure reasons for dynamic expressions, alias-only views, unsafe nested selectors, and non-direct reference cases.
+
+### Changed
+
+- **Legacy compatibility layers removed from runtime** — the extension no longer routes live behavior through legacy class-ref or class-map compatibility shells. The runtime is now semantic-first end to end.
+- **Examples sandbox aligned with the workspace toolchain** — `examples/` now installs through the root workspace, uses a current React Vite plugin path, and ships with editor settings that match the baseline QA mode.
+- **README rewritten** — the project overview, configuration, architecture, and development sections now reflect the current runtime and release shape.
+- **Release workflows now sync server version before build** — CI and publish workflows run `scripts/release.sh` before building so `serverInfo.version` matches the packaged extension version.
+
 ## [1.8.0] — 2026-04-12
 
 ### Added

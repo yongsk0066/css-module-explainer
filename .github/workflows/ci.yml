@@ -1,20 +1,21 @@
 name: CI
 
 on:
-  push:
-    branches: [master]
   pull_request:
-    branches: [master]
+    branches: [master, next]
+  push:
+    branches: [master, next, feat/ir-stack-base]
+  workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  check:
+  verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,6 +25,7 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: ./scripts/release.sh
       - run: pnpm check
       - run: pnpm test
       - run: pnpm build
@@ -34,9 +36,27 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
+  smoke-matrix:
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: ./scripts/release.sh
+      - run: pnpm test:protocol
+
   package:
     runs-on: ubuntu-latest
-    needs: check
+    needs: verify
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
