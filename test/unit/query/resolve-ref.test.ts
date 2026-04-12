@@ -1,7 +1,9 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import ts from "typescript";
-import type { StyleImport } from "@css-module-explainer/shared";
+import type { ClassRef, StyleImport } from "@css-module-explainer/shared";
 import type { AnalysisEntry } from "../../../server/src/core/indexing/document-analysis-cache";
+import { buildSourceDocumentFromLegacy } from "../../../server/src/core/hir/builders/ts-source-adapter";
 import { resolveRefSelectorInfos } from "../../../server/src/core/query/resolve-ref";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
 import { loadSourceScenario, loadStyleScenario } from "../../_fixtures/scenario-corpus";
@@ -75,15 +77,73 @@ describe("resolveRefSelectorInfos", () => {
 
     expect(infos.map((info) => info.name)).toEqual(["button"]);
   });
+
+  it("resolves symbol refs from local flow when the type resolver is unresolvable", () => {
+    const styleScenario = loadStyleScenario({
+      id: "01-basic-style",
+      stylePath: "01-basic/Button.module.scss",
+    });
+    const source = `
+function render(flag: boolean) {
+  let size = "sm";
+  if (flag) {
+    size = "lg";
+  }
+  return cx(size);
+}
+`;
+    const sourceFile = ts.createSourceFile(
+      "/fake/Flow.tsx",
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
+    );
+    const ref = variableRefAt(source, "size", styleScenario.filePath);
+    const sourceDocument = buildSourceDocumentFromLegacy({
+      filePath: "/fake/Flow.tsx",
+      bindings: [],
+      stylesBindings: new Map(),
+      classUtilNames: [],
+      classRefs: [ref],
+    });
+
+    const infos = resolveRefSelectorInfos(
+      {
+        ref,
+        classMap: styleScenario.compatClassMap,
+        entry: {
+          version: 1,
+          contentHash: "fixture",
+          sourceFile,
+          bindings: [],
+          classRefs: [ref],
+          sourceDocument,
+          stylesBindings: new Map(),
+          classUtilNames: [],
+        },
+      },
+      {
+        styleDocumentForPath: (path) =>
+          path === styleScenario.filePath ? styleScenario.styleDocument : null,
+        typeResolver: new FakeTypeResolver(),
+        filePath: "/fake/Flow.tsx",
+        workspaceRoot: "/fake/ws",
+      },
+    );
+
+    expect(infos.map((info) => info.name).toSorted()).toEqual(["lg", "sm"]);
+  });
 });
 
 function analysisEntryFor(sourceScenario: ReturnType<typeof loadSourceScenario>): AnalysisEntry {
+  const content = readFileSync(sourceScenario.filePath, "utf8");
   return {
     version: 1,
     contentHash: "fixture",
     sourceFile: ts.createSourceFile(
       sourceScenario.filePath,
-      "",
+      content,
       ts.ScriptTarget.Latest,
       true,
       ts.ScriptKind.TSX,
@@ -93,6 +153,24 @@ function analysisEntryFor(sourceScenario: ReturnType<typeof loadSourceScenario>)
     sourceDocument: sourceScenario.sourceDocument,
     stylesBindings: toStyleBindingsMap(sourceScenario.sourceDocument.styleImports),
     classUtilNames: [],
+  };
+}
+
+function variableRefAt(source: string, variableName: string, scssModulePath: string): ClassRef {
+  const tokenIndex = source.lastIndexOf(`cx(${variableName})`) + 3;
+  const prefix = source.slice(0, tokenIndex);
+  const line = prefix.split("\n").length - 1;
+  const lastLineStart = prefix.lastIndexOf("\n");
+  const character = tokenIndex - (lastLineStart + 1);
+  return {
+    kind: "variable",
+    origin: "cxCall",
+    variableName,
+    scssModulePath,
+    originRange: {
+      start: { line, character },
+      end: { line, character: character + variableName.length },
+    },
   };
 }
 

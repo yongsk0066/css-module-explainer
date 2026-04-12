@@ -1,5 +1,6 @@
 import type { SourceDocumentHIR, SymbolRefClassExpressionHIR } from "../hir/source-types";
 import type { StyleDocumentHIR } from "../hir/style-types";
+import type { FlowResolution } from "../flow/lattice";
 import type {
   DocumentNode,
   RefNode,
@@ -23,7 +24,7 @@ export interface BuildSourceSemanticGraphArgs {
   readonly resolveSymbolValues?: (
     ref: SymbolRefClassExpressionHIR,
     sourceDocument: SourceDocumentHIR,
-  ) => readonly string[];
+  ) => FlowResolution | null;
 }
 
 export function buildStyleSemanticGraph(styleDocument: StyleDocumentHIR): SemanticGraph {
@@ -35,17 +36,23 @@ export function buildStyleSemanticGraph(styleDocument: StyleDocumentHIR): Semant
 export function buildSourceSemanticGraph(args: BuildSourceSemanticGraphArgs): SemanticGraph {
   const state = createState();
   appendSourceDocument(state, args.sourceDocument);
+  const appendedStyleDocuments = new Set<string>();
 
   for (const styleImport of args.sourceDocument.styleImports) {
     if (styleImport.resolved.kind !== "resolved") continue;
     const styleDocument = args.styleDocumentsByPath?.get(styleImport.resolved.absolutePath);
     if (!styleDocument) continue;
+    appendedStyleDocuments.add(styleDocument.filePath);
     appendStyleDocument(state, styleDocument);
   }
 
   for (const expr of args.sourceDocument.classExpressions) {
     const styleDocument = args.styleDocumentsByPath?.get(expr.scssModulePath);
     if (!styleDocument) continue;
+    if (!appendedStyleDocuments.has(styleDocument.filePath)) {
+      appendedStyleDocuments.add(styleDocument.filePath);
+      appendStyleDocument(state, styleDocument);
+    }
 
     switch (expr.kind) {
       case "literal": {
@@ -72,13 +79,14 @@ export function buildSourceSemanticGraph(args: BuildSourceSemanticGraphArgs): Se
         break;
       }
       case "symbolRef": {
-        const values = args.resolveSymbolValues?.(expr, args.sourceDocument) ?? [];
+        const resolved = args.resolveSymbolValues?.(expr, args.sourceDocument);
+        if (!resolved) break;
         const emitted = new Set<string>();
-        for (const value of values) {
+        for (const value of resolved.values) {
           const canonical = findCanonicalSelectorId(styleDocument, value);
           if (!canonical || emitted.has(canonical)) continue;
           emitted.add(canonical);
-          addEdge(state, expr.id, canonical, "typeUnion", "inferred");
+          addEdge(state, expr.id, canonical, resolved.reason, resolved.certainty);
         }
         break;
       }

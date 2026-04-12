@@ -17,7 +17,10 @@ describe("buildSemanticReferenceIndex", () => {
     const graph = buildSourceSemanticGraph({
       sourceDocument: sourceScenario.sourceDocument,
       styleDocumentsByPath: new Map([[styleScenario.filePath, styleScenario.styleDocument]]),
-      resolveSymbolValues: (ref) => (ref.rootName === "size" ? ["sm", "md", "lg"] : []),
+      resolveSymbolValues: (ref) =>
+        ref.rootName === "size"
+          ? { values: ["sm", "md", "lg"], certainty: "inferred", reason: "typeUnion" }
+          : null,
     });
     const index = buildSemanticReferenceIndex(graph);
 

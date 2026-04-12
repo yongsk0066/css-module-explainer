@@ -1,4 +1,5 @@
 import type { AnalysisEntry } from "../indexing/document-analysis-cache";
+import { resolveFlowClassValues } from "../flow/class-value-analysis";
 import type { StyleDocumentHIR } from "../hir/style-types";
 import type { TypeResolver } from "../ts/type-resolver";
 import { buildSourceSemanticGraph } from "./graph-builder";
@@ -161,8 +162,12 @@ export function collectSemanticReferenceSites(
     sourceDocument: entry.sourceDocument,
     styleDocumentsByPath,
     resolveSymbolValues(ref) {
+      const flow = resolveFlowClassValues(entry.sourceFile, ref.range, ref.rootName);
+      if (flow) return flow;
       const resolved = ctx.typeResolver.resolve(ctx.filePath, ref.rawReference, ctx.workspaceRoot);
-      return resolved.kind === "union" ? resolved.values : [];
+      return resolved.kind === "union"
+        ? { values: resolved.values, certainty: "inferred", reason: "typeUnion" }
+        : null;
     },
   });
 

@@ -1,6 +1,9 @@
 import { pathToFileURL } from "node:url";
+import { readFileSync } from "node:fs";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
+import type { ClassRef } from "@css-module-explainer/shared";
+import { buildSourceDocumentFromLegacy } from "../../../server/src/core/hir/builders/ts-source-adapter";
 import {
   collectSemanticReferenceSites,
   WorkspaceSemanticWorkspaceReferenceIndex,
@@ -28,7 +31,7 @@ describe("collectSemanticReferenceSites", () => {
         contentHash: "fixture",
         sourceFile: ts.createSourceFile(
           sourceScenario.filePath,
-          "",
+          readFileSync(sourceScenario.filePath, "utf8"),
           ts.ScriptTarget.Latest,
           true,
           ts.ScriptKind.TSX,
@@ -63,7 +66,93 @@ describe("collectSemanticReferenceSites", () => {
       ]),
     );
   });
+
+  it("collects branch-derived symbol references without type information", () => {
+    const styleScenario = loadStyleScenario({
+      id: "01-basic-style",
+      stylePath: "01-basic/Button.module.scss",
+    });
+    const source = `
+function render(flag: boolean) {
+  let size = "sm";
+  if (flag) {
+    size = "lg";
+  }
+  return cx(size);
+}
+`;
+    const sourceFile = ts.createSourceFile(
+      "/fake/Flow.tsx",
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
+    );
+
+    const ref = variableRefAt(source, "size", styleScenario.filePath);
+    const sourceDocument = buildSourceDocumentFromLegacy({
+      filePath: "/fake/Flow.tsx",
+      bindings: [],
+      stylesBindings: new Map(),
+      classUtilNames: [],
+      classRefs: [ref],
+    });
+
+    const sites = collectSemanticReferenceSites(
+      "file:///fake/Flow.tsx",
+      {
+        version: 1,
+        contentHash: "fixture",
+        sourceFile,
+        bindings: [],
+        classRefs: [ref],
+        sourceDocument,
+        stylesBindings: new Map(),
+        classUtilNames: [],
+      },
+      {
+        styleDocumentForPath: (path) =>
+          path === styleScenario.filePath ? styleScenario.styleDocument : null,
+        typeResolver: new FakeTypeResolver(),
+        workspaceRoot: "/fake/ws",
+        filePath: "/fake/Flow.tsx",
+      },
+    );
+
+    expect(sites).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          canonicalName: "sm",
+          certainty: "inferred",
+          reason: "flowBranch",
+        }),
+        expect.objectContaining({
+          canonicalName: "lg",
+          certainty: "inferred",
+          reason: "flowBranch",
+        }),
+      ]),
+    );
+  });
 });
+
+function variableRefAt(source: string, variableName: string, scssModulePath: string): ClassRef {
+  const tokenIndex = source.lastIndexOf(`cx(${variableName})`) + 3;
+  const prefix = source.slice(0, tokenIndex);
+  const line = prefix.split("\n").length - 1;
+  const lastLineStart = prefix.lastIndexOf("\n");
+  const character = tokenIndex - (lastLineStart + 1);
+  return {
+    kind: "variable",
+    origin: "cxCall",
+    variableName,
+    scssModulePath,
+    originRange: {
+      start: { line, character },
+      end: { line, character: character + variableName.length },
+    },
+  };
+}
 
 describe("WorkspaceSemanticWorkspaceReferenceIndex", () => {
   it("records, counts, and forgets selector contributions by uri", () => {

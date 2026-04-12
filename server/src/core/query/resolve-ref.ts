@@ -1,4 +1,5 @@
 import type { ClassRef, ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
+import { resolveFlowClassValues } from "../flow/class-value-analysis";
 import { buildStyleDocumentFromClassMap } from "../hir/builders/style-adapter";
 import { selectorDeclToLegacySelectorInfo } from "../hir/compat/style-document-compat";
 import type { SourceDocumentHIR } from "../hir/source-types";
@@ -37,8 +38,12 @@ export function resolveRefSelectorInfos(
     sourceDocument: ctx.entry.sourceDocument,
     styleDocumentsByPath: new Map([[ctx.ref.scssModulePath, styleDocument]]),
     resolveSymbolValues(ref) {
+      const flow = resolveFlowClassValues(ctx.entry.sourceFile, ref.range, ref.rootName);
+      if (flow) return flow;
       const resolved = env.typeResolver.resolve(env.filePath, ref.rawReference, env.workspaceRoot);
-      return resolved.kind === "union" ? resolved.values : [];
+      return resolved.kind === "union"
+        ? { values: resolved.values, certainty: "inferred", reason: "typeUnion" }
+        : null;
     },
   });
   const targets = buildSemanticReferenceIndex(graph).findTargetsForRef(sourceExpression.id);

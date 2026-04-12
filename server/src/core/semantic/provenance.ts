@@ -5,4 +5,6 @@ export type EdgeReason =
   | "literal"
   | "styleAccess"
   | "templatePrefix"
-  | "typeUnion";
+  | "typeUnion"
+  | "flowLiteral"
+  | "flowBranch";
