@@ -201,4 +201,43 @@ export function Sized({ size }: { size: 'small' | 'medium' }) {
     const links = result as Array<{ targetUri: string }>;
     expect(links).toHaveLength(2);
   });
+
+  it("returns multiple LocationLinks for a locally reassigned cx(variable) call", async () => {
+    const SIZED_TSX = `import classNames from 'classnames/bind';
+import styles from './Sized.module.scss';
+const cx = classNames.bind(styles);
+export function Sized(flag: boolean) {
+  let size = 'sm';
+  if (flag) {
+    size = 'lg';
+  }
+  return <div className={cx(size)}>hi</div>;
+}
+`;
+    const SIZED_SCSS = `
+.sm { font-size: 12px; }
+.lg { font-size: 20px; }
+`;
+    client = createInProcessServer({
+      readStyleFile: (path) => (path.endsWith("Sized.module.scss") ? SIZED_SCSS : null),
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/Sized.tsx",
+        languageId: "typescriptreact",
+        version: 1,
+        text: SIZED_TSX,
+      },
+    });
+    const result = await client.definition({
+      textDocument: { uri: "file:///fake/workspace/src/Sized.tsx" },
+      position: { line: 8, character: 30 },
+    });
+    expect(result).not.toBeNull();
+    const links = result as Array<{ targetUri: string }>;
+    expect(links).toHaveLength(2);
+  });
 });

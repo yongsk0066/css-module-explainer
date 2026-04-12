@@ -121,3 +121,49 @@ export function Button() {
   expect(result![0]!.uri).toBe(tsxUri);
   expect(result![0]!.range.start.line).toBe(2);
 });
+
+test("references protocol returns TSX sites for locally reassigned cx(variable)", async ({
+  makeClient,
+}) => {
+  const tsxUri = "file:///fake/workspace/src/Sized.tsx";
+  const tsx = `import classNames from 'classnames/bind';
+import styles from './Sized.module.scss';
+const cx = classNames.bind(styles);
+export function Sized(flag: boolean) {
+  let size = 'sm';
+  if (flag) {
+    size = 'lg';
+  }
+  return <div className={cx(size)}>hi</div>;
+}
+`;
+  const scss = `.sm { font-size: 12px; }\n.lg { font-size: 20px; }\n`;
+
+  const client = makeClient({
+    readStyleFile: (path) => (path.endsWith("Sized.module.scss") ? scss : null),
+    typeResolver: new FakeTypeResolver(),
+  });
+
+  await client.initialize();
+  client.initialized();
+  client.didOpen({
+    textDocument: {
+      uri: tsxUri,
+      languageId: "typescriptreact",
+      version: 1,
+      text: tsx,
+    },
+  });
+  await client.waitForDiagnostics(tsxUri);
+
+  const result = await client.references({
+    textDocument: { uri: "file:///fake/workspace/src/Sized.module.scss" },
+    position: { line: 0, character: 2 },
+    context: { includeDeclaration: false },
+  });
+
+  expect(result).not.toBeNull();
+  expect(result).toHaveLength(1);
+  expect(result![0]!.uri).toBe(tsxUri);
+  expect(result![0]!.range.start.line).toBe(8);
+});
