@@ -84,6 +84,21 @@ function collectReferenceEdits(
   mode: ClassnameTransformMode,
   changes: Record<string, Array<{ range: LspRange; newText: string }>>,
 ): void {
+  const semanticSites = deps.semanticReferenceIndex.findSelectorReferences(scssPath, canonicalName);
+  if (semanticSites.length > 0) {
+    for (const site of semanticSites) {
+      if (site.expansion !== "direct") continue;
+      const written = site.className;
+      const newText =
+        written === canonicalName ? newName : (pickAliasForm(mode, newName) ?? newName);
+      (changes[site.uri] ??= []).push({
+        range: toLspRange(site.range),
+        newText,
+      });
+    }
+    return;
+  }
+
   for (const site of deps.reverseIndex.find(scssPath, canonicalName)) {
     if (site.expansion !== "direct") continue;
     if (site.match.kind !== "static") continue;

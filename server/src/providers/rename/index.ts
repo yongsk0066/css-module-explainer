@@ -141,6 +141,10 @@ function hasExpandedReverseSite(
   filePath: string,
   canonicalName: string,
 ): boolean {
+  const semanticSites = deps.semanticReferenceIndex.findSelectorReferences(filePath, canonicalName);
+  if (semanticSites.length > 0) {
+    return semanticSites.some((site) => site.expansion !== "direct");
+  }
   return deps.reverseIndex.find(filePath, canonicalName).some((s) => s.expansion !== "direct");
 }
 
