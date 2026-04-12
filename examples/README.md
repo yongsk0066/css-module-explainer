@@ -14,11 +14,9 @@ through the sidebar.
 3. In the second window, open this `examples/` folder.
 4. Start the sandbox dev server in a terminal:
    ```bash
+   pnpm install      # run once at repo root
    cd examples
-   pnpm install
-   pnpm dev          # Vite+ (vp CLI) — preferred
-   # or, if vp regresses:
-   pnpm dev:vite     # plain vite fallback
+   pnpm dev
    ```
 5. Open any `src/scenarios/*/*.tsx` file in the attached VS
    Code window and exercise the providers:
@@ -111,25 +109,22 @@ through them whenever you update the provider layer.
   VS Code falls back to plain word-rename with no workspace
   edits.
 
-## Vite+ vs plain Vite
+## Vite+
 
-The primary runner is `vp` (the `vite-plus` CLI — the same
-binary the upstream project ships). It bundles `vite`,
-`oxlint`, and `oxfmt` as a single unified toolchain. When
-Vite+ alpha regresses (it is still `0.1.x`), switch to
-`pnpm dev:vite` — it uses the same `vite.config.ts` and the
-same React plugin, just without the `vp` wrapper.
+The sandbox intentionally uses `vp` from `vite-plus` instead of
+raw `vite`. This keeps the dogfood app on the same unified
+toolchain that VoidZero is pushing forward, while still using a
+normal `vite.config.ts`.
 
 ## What's not here
 
 - **Automated tests.** Tier 1 lives in `test/unit/`, Tier 2 in
   `test/protocol/`, benchmarks in `test/benchmark/`. This
   sandbox is manual-QA only.
-- **A workspace that the root `pnpm install` traverses into.**
-  `examples/` has its own isolated `package.json`; running
-  `pnpm install` from the repo root does NOT install this
-  folder's dependencies. Bootstrap it explicitly with
-  `cd examples && pnpm install`.
+- **A separately published package.** `examples/` has its own
+  `package.json`, but it is only a workspace QA sandbox. The
+  root `pnpm install` provisions its dependencies; it is not
+  shipped in the VSIX.
 
 ## Design decisions
 
