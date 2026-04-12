@@ -240,6 +240,56 @@ describe("computeDiagnostics", () => {
     expect(result[0]!.message).toContain("'large'");
   });
 
+  it("warns on a variable call when local flow resolves a missing value", () => {
+    const flowTsx = `import classNames from 'classnames/bind';
+import styles from './Button.module.scss';
+const cx = classNames.bind(styles);
+const size = enabled ? 'small' : 'large';
+const a = cx(size);
+`;
+    const sourceFileCache = new SourceFileCache({ max: 10 });
+    const analysisCache = new DocumentAnalysisCache({
+      sourceFileCache,
+      fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
+      scanCxImports: (sf, fp) => ({
+        stylesBindings: new Map(),
+        bindings: detectCxBindings(sf, fp),
+      }),
+      parseClassRefs: (_sf: ts.SourceFile, bindings: readonly CxBinding[]): ClassRef[] =>
+        bindings.length === 0
+          ? []
+          : [
+              {
+                kind: "variable",
+                origin: "cxCall",
+                variableName: "size",
+                originRange: { start: { line: 4, character: 13 }, end: { line: 4, character: 17 } },
+                scssModulePath: bindings[0]!.scssModulePath,
+              },
+            ],
+      max: 10,
+    });
+    const deps: ProviderDeps = {
+      analysisCache,
+      scssClassMapForPath: () => new Map([["small", info("small")]]) as ScssClassMap,
+      typeResolver: new FakeTypeResolver(),
+      reverseIndex: new NullReverseIndex(),
+      semanticReferenceIndex: new NullSemanticWorkspaceReferenceIndex(),
+      workspaceRoot: "/fake/ws",
+      logError: NOOP_LOG_ERROR,
+      invalidateStyle: () => {},
+      pushStyleFile: () => {},
+      indexerReady: Promise.resolve(),
+      stopIndexer: () => {},
+      settings: DEFAULT_SETTINGS,
+    };
+    const result = computeDiagnostics({ ...baseParams, content: flowTsx }, deps);
+    expect(result).toHaveLength(1);
+    expect(result[0]!.message).toContain("Missing class for possible value");
+    expect(result[0]!.message).toContain("'large'");
+  });
+
   it("skips variable calls with an unresolvable type (ignoreUnresolvableUnions)", () => {
     const sourceFileCache = new SourceFileCache({ max: 10 });
     const analysisCache = new DocumentAnalysisCache({

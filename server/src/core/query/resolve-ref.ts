@@ -1,11 +1,14 @@
 import type { ClassRef, ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
-import { resolveFlowClassValues } from "../flow/class-value-analysis";
 import { buildStyleDocumentFromClassMap } from "../hir/builders/style-adapter";
 import { selectorDeclToLegacySelectorInfo } from "../hir/compat/style-document-compat";
 import type { SourceDocumentHIR } from "../hir/source-types";
 import type { SelectorDeclHIR, StyleDocumentHIR } from "../hir/style-types";
 import { buildSourceSemanticGraph } from "../semantic/graph-builder";
 import { buildSemanticReferenceIndex } from "../semantic/reference-index";
+import {
+  resolveClassRefSymbolValues,
+  resolveSymbolExpressionValues,
+} from "../semantic/resolve-symbol-values";
 import type { TypeResolver } from "../ts/type-resolver";
 import type { AnalysisEntry } from "../indexing/document-analysis-cache";
 
@@ -31,24 +34,19 @@ export function resolveRefSelectorInfos(
     buildStyleDocumentFromClassMap(ctx.ref.scssModulePath, ctx.classMap);
   const sourceExpression = findMatchingExpressionId(ctx.entry.sourceDocument, ctx.ref);
   if (!sourceExpression) {
-    return resolveRefAgainstStyleDocument(ctx.ref, styleDocument, env);
+    return resolveRefAgainstStyleDocument(ctx.ref, styleDocument, ctx.entry.sourceFile, env);
   }
 
   const graph = buildSourceSemanticGraph({
     sourceDocument: ctx.entry.sourceDocument,
     styleDocumentsByPath: new Map([[ctx.ref.scssModulePath, styleDocument]]),
     resolveSymbolValues(ref) {
-      const flow = resolveFlowClassValues(ctx.entry.sourceFile, ref.range, ref.rootName);
-      if (flow) return flow;
-      const resolved = env.typeResolver.resolve(env.filePath, ref.rawReference, env.workspaceRoot);
-      return resolved.kind === "union"
-        ? { values: resolved.values, certainty: "inferred", reason: "typeUnion" }
-        : null;
+      return resolveSymbolExpressionValues(ctx.entry.sourceFile, ref, env);
     },
   });
   const targets = buildSemanticReferenceIndex(graph).findTargetsForRef(sourceExpression.id);
   if (targets.length === 0) {
-    return resolveRefAgainstStyleDocument(ctx.ref, styleDocument, env);
+    return resolveRefAgainstStyleDocument(ctx.ref, styleDocument, ctx.entry.sourceFile, env);
   }
 
   const resolvedInfos: SelectorInfo[] = [];
@@ -68,7 +66,7 @@ export function resolveRefSelectorInfos(
 
   return resolvedInfos.length > 0
     ? resolvedInfos
-    : resolveRefAgainstStyleDocument(ctx.ref, styleDocument, env);
+    : resolveRefAgainstStyleDocument(ctx.ref, styleDocument, ctx.entry.sourceFile, env);
 }
 
 function findMatchingExpressionId(
@@ -104,6 +102,7 @@ function findMatchingExpressionId(
 function resolveRefAgainstStyleDocument(
   ref: ClassRef,
   styleDocument: StyleDocumentHIR,
+  sourceFile: AnalysisEntry["sourceFile"],
   env: Pick<ResolveRefQueryEnv, "typeResolver" | "filePath" | "workspaceRoot">,
 ): readonly SelectorInfo[] {
   switch (ref.kind) {
@@ -114,8 +113,8 @@ function resolveRefAgainstStyleDocument(
     case "template":
       return resolveTemplateSelectors(ref.staticPrefix, styleDocument);
     case "variable": {
-      const resolved = env.typeResolver.resolve(env.filePath, ref.variableName, env.workspaceRoot);
-      if (resolved.kind !== "union") return [];
+      const resolved = resolveClassRefSymbolValues(sourceFile, ref, env);
+      if (!resolved) return [];
       return resolved.values.flatMap((value) => {
         const selector = findCanonicalSelector(styleDocument, value);
         return selector ? [selectorDeclToLegacySelectorInfo(selector)] : [];

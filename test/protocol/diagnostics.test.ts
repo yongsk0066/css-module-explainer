@@ -64,4 +64,33 @@ describe("diagnostics protocol", () => {
     const diagnostics = await client.waitForDiagnostics("file:///fake/workspace/src/Button.tsx");
     expect(diagnostics).toEqual([]);
   });
+
+  it("uses local flow to diagnose missing class values", async () => {
+    const FLOW_TSX = `import classNames from 'classnames/bind';
+import styles from './Button.module.scss';
+const cx = classNames.bind(styles);
+export function Button(enabled: boolean) {
+  const size = enabled ? 'indicator' : 'missing';
+  return <div className={cx(size)}>hi</div>;
+}
+`;
+    client = createInProcessServer({
+      readStyleFile: () => BUTTON_SCSS,
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/Button.tsx",
+        languageId: "typescriptreact",
+        version: 1,
+        text: FLOW_TSX,
+      },
+    });
+    const diagnostics = await client.waitForDiagnostics("file:///fake/workspace/src/Button.tsx");
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]!.message).toContain("Missing class for possible value");
+    expect(diagnostics[0]!.message).toContain("'missing'");
+  });
 });

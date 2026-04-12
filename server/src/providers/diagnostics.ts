@@ -3,8 +3,7 @@ import {
   type Diagnostic,
   type Range as LspRange,
 } from "vscode-languageserver/node";
-import type { ClassRef, ScssClassMap } from "@css-module-explainer/shared";
-import { findClosestMatch } from "../core/util/text-utils";
+import { findInvalidClassReference } from "../core/query/find-invalid-class-references";
 import { toLspRange } from "./lsp-adapters";
 import { wrapHandler } from "./_wrap-handler";
 import type { DocumentParams, ProviderDeps } from "./provider-deps";
@@ -83,8 +82,12 @@ export const computeDiagnostics = wrapHandler<
       try {
         const classMap = deps.scssClassMapForPath(ref.scssModulePath);
         if (!classMap) continue;
-        const d = validateCall(ref, classMap, params, deps, severity);
-        if (d) diagnostics.push(d);
+        const finding = findInvalidClassReference(ref, entry.sourceFile, classMap, {
+          typeResolver: deps.typeResolver,
+          filePath: params.filePath,
+          workspaceRoot: deps.workspaceRoot,
+        });
+        if (finding) diagnostics.push(toDiagnostic(finding, deps, severity));
       } catch (err) {
         deps.logError("diagnostics per-call validation failed", err);
         // continue to the next ref
@@ -97,88 +100,59 @@ export const computeDiagnostics = wrapHandler<
 
 const DIAGNOSTIC_SOURCE = "css-module-explainer";
 
-function validateCall(
-  ref: ClassRef,
-  classMap: ScssClassMap,
-  params: Pick<DocumentParams, "filePath">,
+function toDiagnostic(
+  finding: NonNullable<ReturnType<typeof findInvalidClassReference>>,
   deps: ProviderDeps,
   severity: DiagnosticSeverity,
-): Diagnostic | null {
-  const range = toLspRange(ref.originRange);
-  switch (ref.kind) {
-    case "static":
-      return validateStaticRef(ref, classMap, deps, range, severity);
-    case "template":
-      return validateTemplateRef(ref, classMap, deps, range, severity);
-    case "variable":
-      return validateVariableRef(ref, classMap, params, deps, range, severity);
-    default: {
-      const _exhaustive: never = ref;
-      return _exhaustive;
+): Diagnostic {
+  const range: LspRange = toLspRange(finding.range);
+
+  switch (finding.kind) {
+    case "missingStaticClass": {
+      const hint = finding.suggestion ? ` Did you mean '${finding.suggestion}'?` : "";
+      return {
+        range,
+        severity,
+        source: DIAGNOSTIC_SOURCE,
+        message: `Class '.${finding.ref.className}' not found in ${relativeScss(finding.ref.scssModulePath, deps.workspaceRoot)}.${hint}`,
+        data: finding.suggestion ? { suggestion: finding.suggestion } : undefined,
+      };
     }
+    case "missingTemplatePrefix":
+      return {
+        range,
+        severity,
+        source: DIAGNOSTIC_SOURCE,
+        message: `No class starting with '${finding.ref.staticPrefix}' found in ${relativeScss(finding.ref.scssModulePath, deps.workspaceRoot)}.`,
+      };
+    case "missingResolvedClassValues":
+      return {
+        range,
+        severity,
+        source: DIAGNOSTIC_SOURCE,
+        message: diagnosticMessageForResolvedValues(finding),
+      };
+    default:
+      finding satisfies never;
+      return finding;
   }
 }
 
-function validateStaticRef(
-  ref: Extract<ClassRef, { kind: "static" }>,
-  classMap: ScssClassMap,
-  deps: ProviderDeps,
-  range: LspRange,
-  severity: DiagnosticSeverity,
-): Diagnostic | null {
-  if (classMap.has(ref.className)) return null;
-  const suggestion = findClosestMatch(ref.className, classMap.keys());
-  const hint = suggestion ? ` Did you mean '${suggestion}'?` : "";
-  return {
-    range,
-    severity,
-    source: DIAGNOSTIC_SOURCE,
-    message: `Class '.${ref.className}' not found in ${relativeScss(ref.scssModulePath, deps.workspaceRoot)}.${hint}`,
-    data: suggestion ? { suggestion } : undefined,
-  };
-}
-
-function validateTemplateRef(
-  ref: Extract<ClassRef, { kind: "template" }>,
-  classMap: ScssClassMap,
-  deps: ProviderDeps,
-  range: LspRange,
-  severity: DiagnosticSeverity,
-): Diagnostic | null {
-  if (anyValueStartsWith(classMap, ref.staticPrefix)) return null;
-  return {
-    range,
-    severity,
-    source: DIAGNOSTIC_SOURCE,
-    message: `No class starting with '${ref.staticPrefix}' found in ${relativeScss(ref.scssModulePath, deps.workspaceRoot)}.`,
-  };
-}
-
-function validateVariableRef(
-  ref: Extract<ClassRef, { kind: "variable" }>,
-  classMap: ScssClassMap,
-  params: Pick<DocumentParams, "filePath">,
-  deps: ProviderDeps,
-  range: LspRange,
-  severity: DiagnosticSeverity,
-): Diagnostic | null {
-  const resolved = deps.typeResolver.resolve(params.filePath, ref.variableName, deps.workspaceRoot);
-  if (resolved.kind !== "union") return null;
-  const missing = resolved.values.filter((v) => !classMap.has(v));
-  if (missing.length === 0) return null;
-  return {
-    range,
-    severity,
-    source: DIAGNOSTIC_SOURCE,
-    message: `Missing class for union member${missing.length > 1 ? "s" : ""}: ${missing.map((m) => `'${m}'`).join(", ")}.`,
-  };
-}
-
-function anyValueStartsWith(classMap: ScssClassMap, prefix: string): boolean {
-  for (const name of classMap.keys()) {
-    if (name.startsWith(prefix)) return true;
+function diagnosticMessageForResolvedValues(
+  finding: Extract<
+    NonNullable<ReturnType<typeof findInvalidClassReference>>,
+    {
+      kind: "missingResolvedClassValues";
+    }
+  >,
+): string {
+  if (finding.reason === "typeUnion") {
+    return `Missing class for union member${finding.missingValues.length > 1 ? "s" : ""}: ${finding.missingValues.map((value) => `'${value}'`).join(", ")}.`;
   }
-  return false;
+  if (finding.missingValues.length === 1 && finding.certainty === "exact") {
+    return `Missing class for resolved value: '${finding.missingValues[0]}'.`;
+  }
+  return `Missing class for possible value${finding.missingValues.length > 1 ? "s" : ""}: ${finding.missingValues.map((value) => `'${value}'`).join(", ")}.`;
 }
 
 function relativeScss(scssPath: string, workspaceRoot: string): string {
