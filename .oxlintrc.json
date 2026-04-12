@@ -30,5 +30,14 @@
       "rules": { "import/no-default-export": "off" }
     }
   ],
-  "ignorePatterns": ["dist/**", "node_modules/**", "coverage/**", "examples/**", "**/*.d.ts"]
+  "ignorePatterns": [
+    "dist/**",
+    "node_modules/**",
+    "coverage/**",
+    "examples/**",
+    ".personal_docs/**",
+    ".vscode-test/**",
+    ".worktrees/**",
+    "**/*.d.ts"
+  ]
 }

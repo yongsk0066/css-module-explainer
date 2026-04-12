@@ -13,6 +13,7 @@
 - [ ] changeset added
 - [ ] no changeset needed
 
-If no changeset is included, explain why:
+If no changeset is included, explain why. For CI/doc/test-only work, add the
+`changeset:skip` label.
 
 - 

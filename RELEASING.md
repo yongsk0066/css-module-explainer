@@ -12,6 +12,9 @@ published with `--pre-release`.
 
 User-facing pull requests should include a changeset.
 
+PRs that only touch CI, docs, tests, or `examples/` can use the
+`changeset:skip` label.
+
 On `master`, the release-plan workflow opens or updates a release pull request
 that applies pending changesets and updates the changelog.
 
@@ -32,9 +35,10 @@ This workflow:
 1. syncs `SERVER_VERSION` from `package.json`
 2. runs `pnpm check`
 3. runs `pnpm test`
-4. builds and packages the extension
-5. publishes to VS Code Marketplace and/or Open VSX
-6. optionally creates a GitHub release
+4. runs the extension-host smoke test in CI
+5. builds and packages the extension
+6. publishes to VS Code Marketplace and/or Open VSX
+7. optionally creates a GitHub release
 
 ## Local verification
 
