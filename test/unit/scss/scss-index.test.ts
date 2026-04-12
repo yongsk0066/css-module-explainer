@@ -7,6 +7,7 @@ import {
   parseStyleModule,
   StyleIndexCache,
 } from "../../../server/src/core/scss/scss-index";
+import { styleDocumentToLegacyClassMap } from "../../../server/src/core/hir/compat/style-document-compat";
 
 describe("parseStyleModule / flat classes", () => {
   it("extracts a single flat class", () => {
@@ -315,6 +316,28 @@ describe("StyleIndexCache", () => {
     // still produces an equivalent map, but identity differs).
     const bAgain = cache.get("/b.module.scss", `.b{}`);
     expect(bAgain.has("b")).toBe(true);
+  });
+
+  it("stores a style document HIR alongside the compatibility class map", () => {
+    const cache = new StyleIndexCache({ max: 10 });
+    const entry = cache.getEntry(
+      "/fake/a.module.scss",
+      `.button { color: red; &--primary { color: blue; } }`,
+    );
+
+    expect(entry.styleDocument.filePath).toBe("/fake/a.module.scss");
+    expect(entry.styleDocument.selectors.map((selector) => selector.name)).toEqual([
+      "button",
+      "button--primary",
+    ]);
+    expect(entry.classMap).toEqual(styleDocumentToLegacyClassMap(entry.styleDocument));
+  });
+
+  it("returns the same cached style document for identical content", () => {
+    const cache = new StyleIndexCache({ max: 10 });
+    const first = cache.getStyleDocument("/fake/a.module.scss", `.btn { color: red; }`);
+    const second = cache.getStyleDocument("/fake/a.module.scss", `.btn { color: red; }`);
+    expect(second).toBe(first);
   });
 
   // ── classnameTransform integration ──
