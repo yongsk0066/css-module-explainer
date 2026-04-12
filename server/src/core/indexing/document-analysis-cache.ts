@@ -1,10 +1,7 @@
 import * as nodeUrl from "node:url";
 import type ts from "typescript";
-import type { ClassRef, CxBinding, StyleImport } from "@css-module-explainer/shared";
-import {
-  buildSourceDocument,
-  buildSourceDocumentFromLegacy,
-} from "../hir/builders/ts-source-adapter";
+import type { CxBinding, StyleImport } from "@css-module-explainer/shared";
+import { buildSourceDocument } from "../hir/builders/ts-source-adapter";
 import type { ClassExpressionHIR, SourceDocumentHIR } from "../hir/source-types";
 import { contentHash } from "../util/hash";
 import { LruMap } from "../util/lru-map";
@@ -79,19 +76,8 @@ export interface DocumentAnalysisCacheDeps {
    */
   readonly aliasResolver: AliasResolver;
   /**
-   * Unified ClassRef producer. Optional so test helpers that
-   * construct a cache without wiring the class-ref parser still
-   * work — the cache falls back to `[]`.
-   */
-  readonly parseClassRefs?: (
-    sourceFile: ts.SourceFile,
-    bindings: readonly CxBinding[],
-    stylesBindings: ReadonlyMap<string, StyleImport>,
-  ) => ClassRef[];
-  /**
-   * Direct source-expression parser. When present, analysis builds
-   * `SourceDocumentHIR` without going through compatibility
-   * `ClassRef[]` output.
+   * Direct source-expression parser. Optional for tests that do not
+   * care about class-expression analysis; falls back to `[]`.
    */
   readonly parseClassExpressions?: (
     sourceFile: ts.SourceFile,
@@ -201,26 +187,14 @@ export class DocumentAnalysisCache {
     );
 
     const classUtilNames = this.deps.detectClassUtilImports?.(sourceFile) ?? [];
-    const parsedExpressions = this.deps.parseClassExpressions?.(
-      sourceFile,
+    const sourceDocument = buildSourceDocument({
+      filePath,
       bindings,
       stylesBindings,
-    );
-    const sourceDocument = parsedExpressions
-      ? buildSourceDocument({
-          filePath,
-          bindings,
-          stylesBindings,
-          classUtilNames,
-          classExpressions: parsedExpressions,
-        })
-      : buildSourceDocumentFromLegacy({
-          filePath,
-          bindings,
-          stylesBindings,
-          classUtilNames,
-          classRefs: this.deps.parseClassRefs?.(sourceFile, bindings, stylesBindings) ?? [],
-        });
+      classUtilNames,
+      classExpressions:
+        this.deps.parseClassExpressions?.(sourceFile, bindings, stylesBindings) ?? [],
+    });
 
     return {
       version,

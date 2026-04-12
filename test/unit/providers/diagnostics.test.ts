@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type ts from "typescript";
 import { DiagnosticSeverity } from "vscode-languageserver-protocol/node";
-import type { ClassRef, CxBinding, ScssClassMap } from "@css-module-explainer/shared";
+import type { CxBinding, ScssClassMap } from "@css-module-explainer/shared";
 import { buildStyleDocumentFromClassMap } from "../../../server/src/core/hir/builders/style-adapter";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
@@ -11,7 +11,12 @@ import { computeDiagnostics } from "../../../server/src/providers/diagnostics";
 import { DEFAULT_SETTINGS } from "../../../server/src/settings";
 import type { TypeResolver } from "../../../server/src/core/ts/type-resolver";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
-import { EMPTY_ALIAS_RESOLVER, info, makeBaseDeps } from "../../_fixtures/test-helpers";
+import {
+  EMPTY_ALIAS_RESOLVER,
+  classExpressionsFromLegacy,
+  info,
+  makeBaseDeps,
+} from "../../_fixtures/test-helpers";
 
 const TSX = `
 import classNames from 'classnames/bind';
@@ -34,25 +39,30 @@ const detectCxBindings = (sourceFile: ts.SourceFile): CxBinding[] => [
   },
 ];
 
-const parseClassRefs = (_sf: ts.SourceFile, bindings: readonly CxBinding[]): ClassRef[] =>
-  bindings.length === 0
-    ? []
-    : [
-        {
-          kind: "static",
-          origin: "cxCall",
-          className: "indicator",
-          originRange: { start: { line: 4, character: 14 }, end: { line: 4, character: 23 } },
-          scssModulePath: bindings[0]!.scssModulePath,
-        },
-        {
-          kind: "static",
-          origin: "cxCall",
-          className: "unknonw",
-          originRange: { start: { line: 5, character: 14 }, end: { line: 5, character: 21 } },
-          scssModulePath: bindings[0]!.scssModulePath,
-        },
-      ];
+const parseClassExpressions = (_sf: ts.SourceFile, bindings: readonly CxBinding[]) =>
+  classExpressionsFromLegacy({
+    filePath: "/fake/ws/src/Button.tsx",
+    bindings,
+    classRefs:
+      bindings.length === 0
+        ? []
+        : [
+            {
+              kind: "static",
+              origin: "cxCall",
+              className: "indicator",
+              originRange: { start: { line: 4, character: 14 }, end: { line: 4, character: 23 } },
+              scssModulePath: bindings[0]!.scssModulePath,
+            },
+            {
+              kind: "static",
+              origin: "cxCall",
+              className: "unknonw",
+              originRange: { start: { line: 5, character: 14 }, end: { line: 5, character: 21 } },
+              scssModulePath: bindings[0]!.scssModulePath,
+            },
+          ],
+  });
 
 function styleDocumentForClassMap(classMap: ScssClassMap) {
   return () => buildStyleDocumentFromClassMap("/fake/ws/src/Button.module.scss", classMap);
@@ -65,7 +75,7 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
     scanCxImports: (sf, fp) => ({ stylesBindings: new Map(), bindings: detectCxBindings(sf, fp) }),
-    parseClassRefs,
+    parseClassExpressions,
     max: 10,
   });
   return makeBaseDeps({
@@ -150,19 +160,27 @@ describe("computeDiagnostics", () => {
         stylesBindings: new Map(),
         bindings: detectCxBindings(sf, fp),
       }),
-      parseClassRefs: (_sf: ts.SourceFile, bindings: readonly CxBinding[]): ClassRef[] =>
-        bindings.length === 0
-          ? []
-          : [
-              {
-                kind: "template",
-                origin: "cxCall",
-                rawTemplate: "prefix-${x}",
-                staticPrefix: "prefix-",
-                originRange: { start: { line: 4, character: 14 }, end: { line: 4, character: 28 } },
-                scssModulePath: bindings[0]!.scssModulePath,
-              },
-            ],
+      parseClassExpressions: (_sf: ts.SourceFile, bindings: readonly CxBinding[]) =>
+        classExpressionsFromLegacy({
+          filePath: "/fake/ws/src/Button.tsx",
+          bindings,
+          classRefs:
+            bindings.length === 0
+              ? []
+              : [
+                  {
+                    kind: "template",
+                    origin: "cxCall",
+                    rawTemplate: "prefix-${x}",
+                    staticPrefix: "prefix-",
+                    originRange: {
+                      start: { line: 4, character: 14 },
+                      end: { line: 4, character: 28 },
+                    },
+                    scssModulePath: bindings[0]!.scssModulePath,
+                  },
+                ],
+        }),
       max: 10,
     });
     const deps: ProviderDeps = {
@@ -198,18 +216,26 @@ describe("computeDiagnostics", () => {
         stylesBindings: new Map(),
         bindings: detectCxBindings(sf, fp),
       }),
-      parseClassRefs: (_sf: ts.SourceFile, bindings: readonly CxBinding[]): ClassRef[] =>
-        bindings.length === 0
-          ? []
-          : [
-              {
-                kind: "variable",
-                origin: "cxCall",
-                variableName: "size",
-                originRange: { start: { line: 4, character: 14 }, end: { line: 4, character: 18 } },
-                scssModulePath: bindings[0]!.scssModulePath,
-              },
-            ],
+      parseClassExpressions: (_sf: ts.SourceFile, bindings: readonly CxBinding[]) =>
+        classExpressionsFromLegacy({
+          filePath: "/fake/ws/src/Button.tsx",
+          bindings,
+          classRefs:
+            bindings.length === 0
+              ? []
+              : [
+                  {
+                    kind: "variable",
+                    origin: "cxCall",
+                    variableName: "size",
+                    originRange: {
+                      start: { line: 4, character: 14 },
+                      end: { line: 4, character: 18 },
+                    },
+                    scssModulePath: bindings[0]!.scssModulePath,
+                  },
+                ],
+        }),
       max: 10,
     });
     // Union has three values but classMap only has two of them.
@@ -260,18 +286,26 @@ const a = cx(size);
         stylesBindings: new Map(),
         bindings: detectCxBindings(sf, fp),
       }),
-      parseClassRefs: (_sf: ts.SourceFile, bindings: readonly CxBinding[]): ClassRef[] =>
-        bindings.length === 0
-          ? []
-          : [
-              {
-                kind: "variable",
-                origin: "cxCall",
-                variableName: "size",
-                originRange: { start: { line: 4, character: 13 }, end: { line: 4, character: 17 } },
-                scssModulePath: bindings[0]!.scssModulePath,
-              },
-            ],
+      parseClassExpressions: (_sf: ts.SourceFile, bindings: readonly CxBinding[]) =>
+        classExpressionsFromLegacy({
+          filePath: "/fake/ws/src/Button.tsx",
+          bindings,
+          classRefs:
+            bindings.length === 0
+              ? []
+              : [
+                  {
+                    kind: "variable",
+                    origin: "cxCall",
+                    variableName: "size",
+                    originRange: {
+                      start: { line: 4, character: 13 },
+                      end: { line: 4, character: 17 },
+                    },
+                    scssModulePath: bindings[0]!.scssModulePath,
+                  },
+                ],
+        }),
       max: 10,
     });
     const deps: ProviderDeps = {
@@ -305,18 +339,26 @@ const a = cx(size);
         stylesBindings: new Map(),
         bindings: detectCxBindings(sf, fp),
       }),
-      parseClassRefs: (_sf: ts.SourceFile, bindings: readonly CxBinding[]): ClassRef[] =>
-        bindings.length === 0
-          ? []
-          : [
-              {
-                kind: "variable",
-                origin: "cxCall",
-                variableName: "unknown",
-                originRange: { start: { line: 4, character: 14 }, end: { line: 4, character: 21 } },
-                scssModulePath: bindings[0]!.scssModulePath,
-              },
-            ],
+      parseClassExpressions: (_sf: ts.SourceFile, bindings: readonly CxBinding[]) =>
+        classExpressionsFromLegacy({
+          filePath: "/fake/ws/src/Button.tsx",
+          bindings,
+          classRefs:
+            bindings.length === 0
+              ? []
+              : [
+                  {
+                    kind: "variable",
+                    origin: "cxCall",
+                    variableName: "unknown",
+                    originRange: {
+                      start: { line: 4, character: 14 },
+                      end: { line: 4, character: 21 },
+                    },
+                    scssModulePath: bindings[0]!.scssModulePath,
+                  },
+                ],
+        }),
       max: 10,
     });
     const deps: ProviderDeps = {

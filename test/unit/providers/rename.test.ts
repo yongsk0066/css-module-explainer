@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ClassRef, CxBinding, ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
-import type ts from "typescript";
+import type { CxBinding, ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
 import { buildStyleDocumentFromClassMap } from "../../../server/src/core/hir/builders/style-adapter";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
@@ -13,6 +12,7 @@ import { DEFAULT_SETTINGS } from "../../../server/src/settings";
 import type { Settings } from "../../../server/src/settings";
 import {
   EMPTY_ALIAS_RESOLVER,
+  classExpressionsFromLegacy,
   infoAtLine as info,
   makeBaseDeps,
 } from "../../_fixtures/test-helpers";
@@ -254,21 +254,26 @@ function makeTsxDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
         },
       ],
     }),
-    parseClassRefs: (_sf: ts.SourceFile, bindings: readonly CxBinding[]): ClassRef[] =>
-      bindings.length === 0
-        ? []
-        : [
-            {
-              kind: "static",
-              origin: "cxCall",
-              className: "indicator",
-              originRange: {
-                start: { line: 3, character: 14 },
-                end: { line: 3, character: 23 },
-              },
-              scssModulePath: bindings[0]!.scssModulePath,
-            },
-          ],
+    parseClassExpressions: (_sf, bindings) =>
+      classExpressionsFromLegacy({
+        filePath: "/fake/src/App.tsx",
+        bindings,
+        classRefs:
+          bindings.length === 0
+            ? []
+            : [
+                {
+                  kind: "static",
+                  origin: "cxCall",
+                  className: "indicator",
+                  originRange: {
+                    start: { line: 3, character: 14 },
+                    end: { line: 3, character: 23 },
+                  },
+                  scssModulePath: bindings[0]!.scssModulePath,
+                },
+              ],
+      }),
     max: 10,
   });
   return makeBaseDeps({

@@ -1,11 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 import type ts from "typescript";
-import type { ClassRef, CxBinding, ScssClassMap } from "@css-module-explainer/shared";
+import type { CxBinding, ScssClassMap } from "@css-module-explainer/shared";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
 import type { ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
 import { handleDefinition } from "../../../server/src/providers/definition";
-import { EMPTY_ALIAS_RESOLVER, info, makeBaseDeps } from "../../_fixtures/test-helpers";
+import {
+  EMPTY_ALIAS_RESOLVER,
+  classExpressionsFromLegacy,
+  info,
+  makeBaseDeps,
+} from "../../_fixtures/test-helpers";
 
 const TSX = `
 import classNames from 'classnames/bind';
@@ -27,22 +32,6 @@ const detectCxBindings = (sourceFile: ts.SourceFile): CxBinding[] => [
   },
 ];
 
-const parseClassRefs = (_sf: ts.SourceFile, bindings: readonly CxBinding[]): ClassRef[] =>
-  bindings.length === 0
-    ? []
-    : [
-        {
-          kind: "static",
-          origin: "cxCall",
-          className: "indicator",
-          originRange: {
-            start: { line: 4, character: 15 },
-            end: { line: 4, character: 24 },
-          },
-          scssModulePath: bindings[0]!.scssModulePath,
-        },
-      ];
-
 function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
   const analysisCache = new DocumentAnalysisCache({
@@ -50,7 +39,26 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
     scanCxImports: (sf, fp) => ({ stylesBindings: new Map(), bindings: detectCxBindings(sf, fp) }),
-    parseClassRefs,
+    parseClassExpressions: (_sf, bindings) =>
+      classExpressionsFromLegacy({
+        filePath: "/fake/src/Button.tsx",
+        bindings,
+        classRefs:
+          bindings.length === 0
+            ? []
+            : [
+                {
+                  kind: "static",
+                  origin: "cxCall",
+                  className: "indicator",
+                  originRange: {
+                    start: { line: 4, character: 15 },
+                    end: { line: 4, character: 24 },
+                  },
+                  scssModulePath: bindings[0]!.scssModulePath,
+                },
+              ],
+      }),
     max: 10,
   });
   return makeBaseDeps({
@@ -117,22 +125,27 @@ describe("handleDefinition", () => {
         stylesBindings: new Map(),
         bindings: detectCxBindings(sf, fp),
       }),
-      parseClassRefs: (_sf, bindings) =>
-        bindings.length === 0
-          ? []
-          : [
-              {
-                kind: "template",
-                origin: "cxCall",
-                rawTemplate: "btn-${variant}",
-                staticPrefix: "btn-",
-                originRange: {
-                  start: { line: 4, character: 15 },
-                  end: { line: 4, character: 28 },
-                },
-                scssModulePath: bindings[0]!.scssModulePath,
-              },
-            ],
+      parseClassExpressions: (_sf, bindings) =>
+        classExpressionsFromLegacy({
+          filePath: "/fake/src/Button.tsx",
+          bindings,
+          classRefs:
+            bindings.length === 0
+              ? []
+              : [
+                  {
+                    kind: "template",
+                    origin: "cxCall",
+                    rawTemplate: "btn-${variant}",
+                    staticPrefix: "btn-",
+                    originRange: {
+                      start: { line: 4, character: 15 },
+                      end: { line: 4, character: 28 },
+                    },
+                    scssModulePath: bindings[0]!.scssModulePath,
+                  },
+                ],
+        }),
       max: 10,
     });
     const deps: ProviderDeps = makeBaseDeps({

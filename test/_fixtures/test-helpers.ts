@@ -1,5 +1,13 @@
-import type { CallSite, ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
+import type {
+  CallSite,
+  ClassRef,
+  CxBinding,
+  ScssClassMap,
+  SelectorInfo,
+  StyleImport,
+} from "@css-module-explainer/shared";
 import { buildStyleDocumentFromClassMap } from "../../server/src/core/hir/builders/style-adapter";
+import { buildSourceDocumentFromLegacy } from "../../server/src/core/hir/builders/ts-source-adapter";
 import { SourceFileCache } from "../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../server/src/core/indexing/document-analysis-cache";
 import { NullSemanticWorkspaceReferenceIndex } from "../../server/src/core/semantic/workspace-reference-index";
@@ -107,6 +115,22 @@ export function semanticSiteAt(
     reason: options.reason ?? "literal",
     expansion: certainty === "exact" ? "direct" : "expanded",
   } as const;
+}
+
+export function classExpressionsFromLegacy(args: {
+  readonly filePath: string;
+  readonly bindings: readonly CxBinding[];
+  readonly stylesBindings?: ReadonlyMap<string, StyleImport>;
+  readonly classUtilNames?: readonly string[];
+  readonly classRefs: readonly ClassRef[];
+}) {
+  return buildSourceDocumentFromLegacy({
+    filePath: args.filePath,
+    bindings: args.bindings,
+    stylesBindings: args.stylesBindings ?? new Map(),
+    classUtilNames: args.classUtilNames ?? [],
+    classRefs: args.classRefs,
+  }).classExpressions;
 }
 
 type BaseDepsOverrides = Partial<ProviderDeps> & {

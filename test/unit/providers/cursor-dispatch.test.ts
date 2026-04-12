@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type ts from "typescript";
-import type { ClassRef, CxBinding, ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
+import type { CxBinding, ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
 import {
@@ -8,7 +8,11 @@ import {
   withSourceExpressionAtCursor,
   type ProviderDeps,
 } from "../../../server/src/providers/cursor-dispatch";
-import { EMPTY_ALIAS_RESOLVER, makeBaseDeps } from "../../_fixtures/test-helpers";
+import {
+  EMPTY_ALIAS_RESOLVER,
+  classExpressionsFromLegacy,
+  makeBaseDeps,
+} from "../../_fixtures/test-helpers";
 
 const TSX = `
 import classNames from 'classnames/bind';
@@ -43,29 +47,6 @@ const detectCxBindings = (sourceFile: ts.SourceFile): CxBinding[] => [
   },
 ];
 
-const parseClassRefs = (): ClassRef[] => [
-  {
-    kind: "static",
-    origin: "cxCall",
-    className: "indicator",
-    originRange: {
-      start: { line: 4, character: 15 },
-      end: { line: 4, character: 24 },
-    },
-    scssModulePath: SCSS_PATH,
-  },
-  {
-    kind: "static",
-    origin: "styleAccess",
-    className: "active",
-    originRange: {
-      start: { line: 5, character: 28 },
-      end: { line: 5, character: 34 },
-    },
-    scssModulePath: SCSS_PATH,
-  },
-];
-
 function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
   const analysisCache = new DocumentAnalysisCache({
@@ -76,7 +57,34 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     }),
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
-    parseClassRefs,
+    parseClassExpressions: (_sf, bindings, stylesBindings) =>
+      classExpressionsFromLegacy({
+        filePath: "/fake/a.tsx",
+        bindings,
+        stylesBindings,
+        classRefs: [
+          {
+            kind: "static",
+            origin: "cxCall",
+            className: "indicator",
+            originRange: {
+              start: { line: 4, character: 15 },
+              end: { line: 4, character: 24 },
+            },
+            scssModulePath: SCSS_PATH,
+          },
+          {
+            kind: "static",
+            origin: "styleAccess",
+            className: "active",
+            originRange: {
+              start: { line: 5, character: 28 },
+              end: { line: 5, character: 34 },
+            },
+            scssModulePath: SCSS_PATH,
+          },
+        ],
+      }),
     max: 10,
   });
   return makeBaseDeps({
@@ -132,7 +140,7 @@ describe("withSourceExpressionAtCursor / fast paths", () => {
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
       scanCxImports: () => ({ stylesBindings: new Map(), bindings: [] }),
-      parseClassRefs: () => [],
+      parseClassExpressions: () => [],
       max: 10,
     });
     const deps = makeBaseDeps({

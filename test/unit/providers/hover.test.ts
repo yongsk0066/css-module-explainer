@@ -1,11 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 import type ts from "typescript";
-import type { ClassRef, CxBinding, ScssClassMap } from "@css-module-explainer/shared";
+import type { CxBinding, ScssClassMap } from "@css-module-explainer/shared";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
 import type { ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
 import { handleHover } from "../../../server/src/providers/hover";
-import { EMPTY_ALIAS_RESOLVER, info, makeBaseDeps } from "../../_fixtures/test-helpers";
+import {
+  EMPTY_ALIAS_RESOLVER,
+  classExpressionsFromLegacy,
+  info,
+  makeBaseDeps,
+} from "../../_fixtures/test-helpers";
 
 const TSX = `
 import classNames from 'classnames/bind';
@@ -27,19 +32,6 @@ const detectCxBindings = (sourceFile: ts.SourceFile): CxBinding[] => [
   },
 ];
 
-const stubParseClassRefs = (_sf: ts.SourceFile, bindings: readonly CxBinding[]): ClassRef[] =>
-  bindings.length === 0
-    ? []
-    : [
-        {
-          kind: "static",
-          origin: "cxCall",
-          className: "indicator",
-          originRange: { start: { line: 4, character: 15 }, end: { line: 4, character: 24 } },
-          scssModulePath: bindings[0]!.scssModulePath,
-        },
-      ];
-
 function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
   const analysisCache = new DocumentAnalysisCache({
@@ -47,7 +39,26 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
     scanCxImports: (sf, fp) => ({ stylesBindings: new Map(), bindings: detectCxBindings(sf, fp) }),
-    parseClassRefs: stubParseClassRefs,
+    parseClassExpressions: (_sf, bindings) =>
+      classExpressionsFromLegacy({
+        filePath: "/fake/ws/src/Button.tsx",
+        bindings,
+        classRefs:
+          bindings.length === 0
+            ? []
+            : [
+                {
+                  kind: "static",
+                  origin: "cxCall",
+                  className: "indicator",
+                  originRange: {
+                    start: { line: 4, character: 15 },
+                    end: { line: 4, character: 24 },
+                  },
+                  scssModulePath: bindings[0]!.scssModulePath,
+                },
+              ],
+      }),
     max: 10,
   });
   return makeBaseDeps({
@@ -99,21 +110,26 @@ const el = cx(
           stylesBindings: new Map(),
           bindings: detectCxBindings(sf, fp),
         }),
-        parseClassRefs: (_sf: ts.SourceFile, bindings: readonly CxBinding[]): ClassRef[] =>
-          bindings.length === 0
-            ? []
-            : [
-                {
-                  kind: "static",
-                  origin: "cxCall",
-                  className: "indicator",
-                  originRange: {
-                    start: { line: 5, character: 2 },
-                    end: { line: 5, character: 13 },
-                  },
-                  scssModulePath: bindings[0]!.scssModulePath,
-                },
-              ],
+        parseClassExpressions: (_sf, bindings) =>
+          classExpressionsFromLegacy({
+            filePath: "/fake/ws/src/Button.tsx",
+            bindings,
+            classRefs:
+              bindings.length === 0
+                ? []
+                : [
+                    {
+                      kind: "static",
+                      origin: "cxCall",
+                      className: "indicator",
+                      originRange: {
+                        start: { line: 5, character: 2 },
+                        end: { line: 5, character: 13 },
+                      },
+                      scssModulePath: bindings[0]!.scssModulePath,
+                    },
+                  ],
+          }),
         max: 10,
       }),
     });
@@ -173,20 +189,26 @@ const el = <div className={clsx(styles.indicator)} />;
       }),
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
-      parseClassRefs: (_sf, _bindings, stylesBindings) => {
-        if (stylesBindings.has("styles")) {
-          return [
-            {
-              kind: "static",
-              origin: "styleAccess",
-              className: "indicator",
-              scssModulePath: "/fake/ws/src/Button.module.scss",
-              originRange: { start: { line: 3, character: 39 }, end: { line: 3, character: 48 } },
-            },
-          ];
-        }
-        return [];
-      },
+      parseClassExpressions: (_sf, _bindings, stylesBindings) =>
+        classExpressionsFromLegacy({
+          filePath: "/fake/ws/src/Button.tsx",
+          stylesBindings,
+          bindings: [],
+          classRefs: stylesBindings.has("styles")
+            ? [
+                {
+                  kind: "static",
+                  origin: "styleAccess",
+                  className: "indicator",
+                  scssModulePath: "/fake/ws/src/Button.module.scss",
+                  originRange: {
+                    start: { line: 3, character: 39 },
+                    end: { line: 3, character: 48 },
+                  },
+                },
+              ]
+            : [],
+        }),
       max: 10,
     });
     const deps = makeDeps({
@@ -216,7 +238,7 @@ const el = <div className={clsx(styles.indicator)} />;
   });
 
   it("returns hover for styles['btn-primary'] bracket access", async () => {
-    const { parseClassRefs } = await import("../../../server/src/core/cx/class-ref-parser");
+    const { parseClassExpressions } = await import("../../../server/src/core/cx/class-ref-parser");
     const { scanCxImports } = await import("../../../server/src/core/cx/binding-detector");
     const bracketTsx = `
 import styles from './Button.module.scss';
@@ -227,7 +249,7 @@ const el = <div className={styles['btn-primary']} />;
     const analysisCache = new DocumentAnalysisCache({
       sourceFileCache,
       scanCxImports,
-      parseClassRefs,
+      parseClassExpressions,
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
       max: 10,

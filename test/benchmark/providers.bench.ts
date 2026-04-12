@@ -2,7 +2,7 @@ import { bench, describe } from "vitest";
 import type { ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
 import { SourceFileCache } from "../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../server/src/core/indexing/document-analysis-cache";
-import { parseClassRefs } from "../../server/src/core/cx/class-ref-parser";
+import { parseClassExpressions } from "../../server/src/core/cx/class-ref-parser";
 import { scanCxImports } from "../../server/src/core/cx/binding-detector";
 import type { ProviderDeps } from "../../server/src/providers/cursor-dispatch";
 import { handleDefinition } from "../../server/src/providers/definition";
@@ -54,7 +54,7 @@ function makeClassMap(): ScssClassMap {
 
 /**
  * Build a `ProviderDeps` wired through the real `scanCxImports` +
- * `parseClassRefs` walkers (the previous bench shape stubbed both
+ * source-expression parser (the previous bench shape stubbed both
  * to a single hardcoded ref, which meant the numbers it printed
  * were dominated by cache bookkeeping rather than AST traversal).
  * Delegates every non-analysis field to `makeBaseDeps` so bench
@@ -66,7 +66,7 @@ function makeDeps(): ProviderDeps {
   const analysisCache = new DocumentAnalysisCache({
     sourceFileCache,
     scanCxImports,
-    parseClassRefs,
+    parseClassExpressions,
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
     max: 10,
