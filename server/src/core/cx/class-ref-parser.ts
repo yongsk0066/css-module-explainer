@@ -202,12 +202,32 @@ function collectStyleAccessRefs(
         out.push(ref);
       }
     }
+    // Bracket access: `styles['foo-bar']` or `styles["foo-bar"]`.
+    // Kebab-case CSS Module classes require this form because the
+    // identifier is not a valid JS property name.
+    if (
+      ts.isElementAccessExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      ts.isStringLiteral(node.argumentExpression)
+    ) {
+      const objName = node.expression.text;
+      const styleImport = stylesBindings.get(objName);
+      if (styleImport) {
+        const strLiteral = node.argumentExpression;
+        const ref: StaticClassRef = {
+          kind: "static",
+          origin: "styleAccess",
+          className: strLiteral.text,
+          originRange: innerStringRange(strLiteral, sourceFile),
+          scssModulePath: styleImport.absolutePath,
+        };
+        out.push(ref);
+      }
+    }
     ts.forEachChild(node, visit);
   }
   visit(sourceFile);
 }
-
-// ── Builders ──────────────────────────────────────────────────
 
 function makeStaticCxRef(
   className: string,

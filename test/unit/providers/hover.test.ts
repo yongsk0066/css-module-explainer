@@ -212,4 +212,47 @@ const el = <div className={clsx(styles.indicator)} />;
     expect(hover).not.toBeNull();
     expect((hover!.contents as { value: string }).value).toContain("`.indicator`");
   });
+
+  it("returns hover for styles['btn-primary'] bracket access", async () => {
+    const { parseClassRefs } = await import("../../../server/src/core/cx/class-ref-parser");
+    const { scanCxImports } = await import("../../../server/src/core/cx/binding-detector");
+    const bracketTsx = `
+import styles from './Button.module.scss';
+const el = <div className={styles['btn-primary']} />;
+`;
+    const sourceFileCache = new SourceFileCache({ max: 10 });
+    const btnInfo = info("btn-primary");
+    const analysisCache = new DocumentAnalysisCache({
+      sourceFileCache,
+      scanCxImports,
+      parseClassRefs,
+      fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
+      max: 10,
+    });
+    const deps = makeDeps({
+      analysisCache,
+      scssClassMapForPath: (path: string) => {
+        if (path === "/fake/ws/src/Button.module.scss") {
+          return new Map([["btn-primary", btnInfo]]) as ScssClassMap;
+        }
+        return null;
+      },
+    });
+
+    const hover = handleHover(
+      {
+        documentUri: "file:///fake/ws/src/Button.tsx",
+        content: bracketTsx,
+        filePath: "/fake/ws/src/Button.tsx",
+        line: 2,
+        character: 35,
+        version: 1,
+      },
+      deps,
+    );
+
+    expect(hover).not.toBeNull();
+    expect((hover!.contents as { value: string }).value).toContain("`.btn-primary`");
+  });
 });
