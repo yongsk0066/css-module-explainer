@@ -8,6 +8,29 @@ The format is based on
 this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0] — 2026-04-12
+
+### Added
+
+- **Bracket-access style references** — `styles['foo-bar']` element-access expressions are now recognized alongside `styles.fooBar` dot-access. Hover, definition, diagnostics, references, and rename all work through bracket syntax.
+- **Dotted property chain resolution** — `cx(sizes.large)` where `sizes` is a `const` object with string-literal properties now resolves to the property's value. Works for local objects, named imports, default imports, namespace imports, and renamed imports.
+- **Import-aware type resolution** — the TypeResolver now follows import bindings (`import { sizes } from './theme'`) through `checker.getAliasedSymbol`, enabling cross-file variable/template expansion in the reverse index.
+
+### Fixed
+
+- **Source-file save staleness** — saving a `.ts`/`.tsx`/`.js`/`.jsx` file now invalidates the TypeResolver's cached `ts.Program` and drops stale analysis-cache entries for all open source documents, so reverse-index expansions rebuild with fresh type data. Previously, type changes were invisible until server restart.
+- **Reverse-index cascade on source change** — after a source-file watcher event, the analysis cache for open TSX/TS documents is invalidated so `onAnalyze` re-fires and the reverse index rebuilds. Without this, Find References, CodeLens, unused-selector diagnostics, and rename readiness stayed frozen against old type data.
+- **Import shadowing regression** — `findIdentifierSymbol` now uses a local-first / import-fallback 2-pass strategy. A local parameter `sizes` correctly shadows an import with the same name, matching TypeScript's scoping rules in the common case.
+
+### Changed
+
+- **Watcher glob expanded** — file watchers now cover `.d.ts`, `tsconfig*.json`, and `jsconfig*.json` in addition to source files, so declaration and config changes also trigger TypeResolver invalidation.
+- **SCSS parser split** — `scss-parser.ts` (was 436 lines) split into `scss-parser.ts` (pipeline) + `scss-selector-utils.ts` (pure utilities).
+- **BEM suffix extraction** — `classifyBemSuffixSite` 6-parameter data clump collapsed into `BemParentContext` interface; BEM logic extracted to `core/scss/bem-suffix.ts`.
+- **Rename module split** — `rename.ts` (372 lines) split into `rename/index.ts` + `rename/build-edit.ts`.
+- **AliasResolverHolder extraction** — shared-closure pattern extracted from inline composition-root code to a standalone class in `core/cx/alias-resolver.ts`.
+- **Lint cleanup** — all 9 lint warnings resolved (0 warnings, 0 errors).
+
 ## [1.7.0] — 2026-04-12
 
 ### Fixed
