@@ -59,7 +59,7 @@ export class AliasResolver {
   ) {
     this.sortedEntries = Object.entries(pathAlias)
       .map<[string, string]>(([k, v]) => [k, this.substituteWorkspace(v)])
-      .sort(([a], [b]) => b.length - a.length || a.localeCompare(b));
+      .toSorted(([a], [b]) => b.length - a.length || a.localeCompare(b));
   }
 
   /**

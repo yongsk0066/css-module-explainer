@@ -137,19 +137,6 @@ describe("computeDiagnostics", () => {
 
   it("warns on a template-literal call whose prefix matches nothing", () => {
     const sourceFileCache = new SourceFileCache({ max: 10 });
-    const localParseClassRefs = (_sf: ts.SourceFile, bindings: readonly CxBinding[]): ClassRef[] =>
-      bindings.length === 0
-        ? []
-        : [
-            {
-              kind: "template",
-              origin: "cxCall",
-              rawTemplate: "prefix-${x}",
-              staticPrefix: "prefix-",
-              originRange: { start: { line: 4, character: 14 }, end: { line: 4, character: 28 } },
-              scssModulePath: bindings[0]!.scssModulePath,
-            },
-          ];
     const analysisCache = new DocumentAnalysisCache({
       sourceFileCache,
       fileExists: () => true,
@@ -158,7 +145,19 @@ describe("computeDiagnostics", () => {
         stylesBindings: new Map(),
         bindings: detectCxBindings(sf, fp),
       }),
-      parseClassRefs: localParseClassRefs,
+      parseClassRefs: (_sf: ts.SourceFile, bindings: readonly CxBinding[]): ClassRef[] =>
+        bindings.length === 0
+          ? []
+          : [
+              {
+                kind: "template",
+                origin: "cxCall",
+                rawTemplate: "prefix-${x}",
+                staticPrefix: "prefix-",
+                originRange: { start: { line: 4, character: 14 }, end: { line: 4, character: 28 } },
+                scssModulePath: bindings[0]!.scssModulePath,
+              },
+            ],
       max: 10,
     });
     const deps: ProviderDeps = {
@@ -185,18 +184,6 @@ describe("computeDiagnostics", () => {
 
   it("warns on a variable call whose union has a missing member", () => {
     const sourceFileCache = new SourceFileCache({ max: 10 });
-    const localParseClassRefs = (_sf: ts.SourceFile, bindings: readonly CxBinding[]): ClassRef[] =>
-      bindings.length === 0
-        ? []
-        : [
-            {
-              kind: "variable",
-              origin: "cxCall",
-              variableName: "size",
-              originRange: { start: { line: 4, character: 14 }, end: { line: 4, character: 18 } },
-              scssModulePath: bindings[0]!.scssModulePath,
-            },
-          ];
     const analysisCache = new DocumentAnalysisCache({
       sourceFileCache,
       fileExists: () => true,
@@ -205,7 +192,18 @@ describe("computeDiagnostics", () => {
         stylesBindings: new Map(),
         bindings: detectCxBindings(sf, fp),
       }),
-      parseClassRefs: localParseClassRefs,
+      parseClassRefs: (_sf: ts.SourceFile, bindings: readonly CxBinding[]): ClassRef[] =>
+        bindings.length === 0
+          ? []
+          : [
+              {
+                kind: "variable",
+                origin: "cxCall",
+                variableName: "size",
+                originRange: { start: { line: 4, character: 14 }, end: { line: 4, character: 18 } },
+                scssModulePath: bindings[0]!.scssModulePath,
+              },
+            ],
       max: 10,
     });
     // Union has three values but classMap only has two of them.
@@ -241,18 +239,6 @@ describe("computeDiagnostics", () => {
 
   it("skips variable calls with an unresolvable type (ignoreUnresolvableUnions)", () => {
     const sourceFileCache = new SourceFileCache({ max: 10 });
-    const localParseClassRefs = (_sf: ts.SourceFile, bindings: readonly CxBinding[]): ClassRef[] =>
-      bindings.length === 0
-        ? []
-        : [
-            {
-              kind: "variable",
-              origin: "cxCall",
-              variableName: "unknown",
-              originRange: { start: { line: 4, character: 14 }, end: { line: 4, character: 21 } },
-              scssModulePath: bindings[0]!.scssModulePath,
-            },
-          ];
     const analysisCache = new DocumentAnalysisCache({
       sourceFileCache,
       fileExists: () => true,
@@ -261,7 +247,18 @@ describe("computeDiagnostics", () => {
         stylesBindings: new Map(),
         bindings: detectCxBindings(sf, fp),
       }),
-      parseClassRefs: localParseClassRefs,
+      parseClassRefs: (_sf: ts.SourceFile, bindings: readonly CxBinding[]): ClassRef[] =>
+        bindings.length === 0
+          ? []
+          : [
+              {
+                kind: "variable",
+                origin: "cxCall",
+                variableName: "unknown",
+                originRange: { start: { line: 4, character: 14 }, end: { line: 4, character: 21 } },
+                scssModulePath: bindings[0]!.scssModulePath,
+              },
+            ],
       max: 10,
     });
     const deps: ProviderDeps = {

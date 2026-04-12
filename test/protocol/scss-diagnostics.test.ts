@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { DiagnosticTag } from "vscode-languageserver-protocol/node";
-import { createInProcessServer, type LspTestClient } from "./_harness/in-process-server";
+import {
+  createInProcessServer,
+  emptySupplier,
+  type LspTestClient,
+} from "./_harness/in-process-server";
 import { FakeTypeResolver } from "../_fixtures/fake-type-resolver";
-import type { FileTask } from "../../server/src/core/indexing/indexer-worker";
 
 const BUTTON_SCSS = `
 .indicator { color: red; }
@@ -28,14 +31,10 @@ describe("SCSS unused selector diagnostics protocol", () => {
   });
 
   it("publishes Unnecessary hint for selectors with zero references after indexing completes", async () => {
-    async function* supplier(): AsyncIterable<FileTask> {
-      // No tasks -- the didOpen on App.tsx triggers analysisCache
-      // which records into the reverse index via onAnalyze.
-    }
     client = createInProcessServer({
       readStyleFile: () => BUTTON_SCSS,
       typeResolver: new FakeTypeResolver(),
-      fileSupplier: () => supplier(),
+      fileSupplier: emptySupplier,
     });
     await client.initialize();
     client.initialized();
@@ -90,13 +89,10 @@ export function App() {
   return <div className={cx('b')}>hi</div>;
 }
 `;
-    async function* supplier(): AsyncIterable<FileTask> {
-      // empty
-    }
     client = createInProcessServer({
       readStyleFile: () => DISK_SCSS,
       typeResolver: new FakeTypeResolver(),
-      fileSupplier: () => supplier(),
+      fileSupplier: emptySupplier,
     });
     await client.initialize();
     client.initialized();

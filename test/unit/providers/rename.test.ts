@@ -831,16 +831,17 @@ describe("&-nested BEM suffix rename", () => {
  * must be robust regardless of iteration order — and this helper
  * forces the alias branch.
  */
+const camelOf = (name: string): string =>
+  name
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((p, i) =>
+      i === 0 ? p.charAt(0).toLowerCase() + p.slice(1) : p.charAt(0).toUpperCase() + p.slice(1),
+    )
+    .join("");
+
 function aliasFirstCamelCaseMap(base: ScssClassMap): ScssClassMap {
   const expanded = new Map<string, SelectorInfo>();
-  const camelOf = (name: string): string =>
-    name
-      .split(/[\s_-]+/)
-      .filter(Boolean)
-      .map((p, i) =>
-        i === 0 ? p.charAt(0).toLowerCase() + p.slice(1) : p.charAt(0).toUpperCase() + p.slice(1),
-      )
-      .join("");
   for (const [name, entry] of base) {
     const alias = camelOf(name);
     if (alias !== name && !expanded.has(alias)) {

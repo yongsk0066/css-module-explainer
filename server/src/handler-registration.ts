@@ -100,21 +100,21 @@ function registerSettingsHandler(state: HandlerState): () => void {
       .catch((err: unknown) => safeLogError(connection, "settings fetch failed", err));
   }
 
-  function shallowEqualPathAlias(
-    a: Readonly<Record<string, string>>,
-    b: Readonly<Record<string, string>>,
-  ): boolean {
-    const aKeys = Object.keys(a);
-    const bKeys = Object.keys(b);
-    if (aKeys.length !== bKeys.length) return false;
-    for (const k of aKeys) {
-      if (a[k] !== b[k]) return false;
-    }
-    return true;
-  }
-
   connection.onDidChangeConfiguration(reloadSettings);
   return reloadSettings;
+}
+
+function shallowEqualPathAlias(
+  a: Readonly<Record<string, string>>,
+  b: Readonly<Record<string, string>>,
+): boolean {
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+  if (aKeys.length !== bKeys.length) return false;
+  for (const k of aKeys) {
+    if (a[k] !== b[k]) return false;
+  }
+  return true;
 }
 
 function registerCursorHandlers(state: HandlerState): void {

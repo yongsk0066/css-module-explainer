@@ -27,7 +27,7 @@ const detectCxBindings = (sourceFile: ts.SourceFile): CxBinding[] => [
   },
 ];
 
-const parseClassRefs = (_sf: ts.SourceFile, bindings: readonly CxBinding[]): ClassRef[] =>
+const stubParseClassRefs = (_sf: ts.SourceFile, bindings: readonly CxBinding[]): ClassRef[] =>
   bindings.length === 0
     ? []
     : [
@@ -47,7 +47,7 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
     scanCxImports: (sf, fp) => ({ stylesBindings: new Map(), bindings: detectCxBindings(sf, fp) }),
-    parseClassRefs,
+    parseClassRefs: stubParseClassRefs,
     max: 10,
   });
   return makeBaseDeps({
@@ -90,18 +90,6 @@ const el = cx(
   { active: true },
 );
 `;
-    const multiLineClassRefs = (_sf: ts.SourceFile, bindings: readonly CxBinding[]): ClassRef[] =>
-      bindings.length === 0
-        ? []
-        : [
-            {
-              kind: "static",
-              origin: "cxCall",
-              className: "indicator",
-              originRange: { start: { line: 5, character: 2 }, end: { line: 5, character: 13 } },
-              scssModulePath: bindings[0]!.scssModulePath,
-            },
-          ];
     const deps = makeDeps({
       analysisCache: new DocumentAnalysisCache({
         sourceFileCache: new SourceFileCache({ max: 10 }),
@@ -111,7 +99,21 @@ const el = cx(
           stylesBindings: new Map(),
           bindings: detectCxBindings(sf, fp),
         }),
-        parseClassRefs: multiLineClassRefs,
+        parseClassRefs: (_sf: ts.SourceFile, bindings: readonly CxBinding[]): ClassRef[] =>
+          bindings.length === 0
+            ? []
+            : [
+                {
+                  kind: "static",
+                  origin: "cxCall",
+                  className: "indicator",
+                  originRange: {
+                    start: { line: 5, character: 2 },
+                    end: { line: 5, character: 13 },
+                  },
+                  scssModulePath: bindings[0]!.scssModulePath,
+                },
+              ],
         max: 10,
       }),
     });

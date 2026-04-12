@@ -54,7 +54,7 @@ import type { FileTask } from "../../../server/src/core/indexing/indexer-worker"
  * immediately. Built without an `async function*` so it does
  * not trip the `require-await` rule.
  */
-function emptySupplier(): AsyncIterable<FileTask> {
+export function emptySupplier(): AsyncIterable<FileTask> {
   return {
     [Symbol.asyncIterator](): AsyncIterator<FileTask> {
       return {
