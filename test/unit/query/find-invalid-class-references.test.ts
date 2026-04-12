@@ -1,7 +1,7 @@
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import type { ScssClassMap } from "@css-module-explainer/shared";
-import { buildStyleDocumentFromClassMap } from "../../../server/src/core/hir/builders/style-adapter";
+import { buildStyleDocumentFromClassMap } from "../../../server/src/core/hir/compat/style-document-builder-compat";
 import type { ClassExpressionHIR } from "../../../server/src/core/hir/source-types";
 import { findInvalidClassReference } from "../../../server/src/core/query/find-invalid-class-references";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";

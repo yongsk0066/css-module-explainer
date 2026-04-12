@@ -6,7 +6,7 @@ import {
   WorkspaceReverseIndex,
 } from "../../../server/src/core/indexing/reverse-index";
 import type { AnalysisEntry } from "../../../server/src/core/indexing/document-analysis-cache";
-import { buildSourceDocumentFromLegacy } from "../../../server/src/core/hir/builders/ts-source-adapter";
+import { buildSourceDocumentFromLegacy } from "../../../server/src/core/hir/compat/source-document-builder-compat";
 import ts from "typescript";
 
 function makeCallSite(): CallSite {

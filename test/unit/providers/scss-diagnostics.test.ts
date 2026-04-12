@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DiagnosticSeverity, DiagnosticTag } from "vscode-languageserver-protocol/node";
 import type { ScssClassMap } from "@css-module-explainer/shared";
-import { buildStyleDocumentFromClassMap } from "../../../server/src/core/hir/builders/style-adapter";
+import { buildStyleDocumentFromClassMap } from "../../../server/src/core/hir/compat/style-document-builder-compat";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
 import { computeScssUnusedDiagnostics } from "../../../server/src/providers/scss-diagnostics";
 import { infoAtLine as info, semanticSiteAt } from "../../_fixtures/test-helpers";

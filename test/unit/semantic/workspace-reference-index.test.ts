@@ -1,7 +1,7 @@
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import type { AnalysisEntry } from "../../../server/src/core/indexing/document-analysis-cache";
-import { buildStyleDocumentFromClassMap } from "../../../server/src/core/hir/builders/style-adapter";
+import { buildStyleDocumentFromClassMap } from "../../../server/src/core/hir/compat/style-document-builder-compat";
 import {
   makeSourceDocumentHIR,
   makeStyleImportBinding,

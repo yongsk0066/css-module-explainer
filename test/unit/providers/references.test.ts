@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
-import { buildStyleDocumentFromClassMap } from "../../../server/src/core/hir/builders/style-adapter";
+import { buildStyleDocumentFromClassMap } from "../../../server/src/core/hir/compat/style-document-builder-compat";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
 import type { ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
 import { findSelectorAtCursor, handleReferences } from "../../../server/src/providers/references";

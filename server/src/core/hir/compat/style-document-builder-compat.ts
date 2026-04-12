@@ -7,11 +7,6 @@ import {
   type StyleDocumentHIR,
 } from "../style-types";
 
-/**
- * Builds style HIR from the current `ScssClassMap` so style parsing
- * keeps its existing behavior while the rest of the architecture
- * reads a typed document representation.
- */
 export function buildStyleDocumentFromClassMap(
   filePath: string,
   classMap: ScssClassMap,

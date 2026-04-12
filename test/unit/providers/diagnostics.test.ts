@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type ts from "typescript";
 import { DiagnosticSeverity } from "vscode-languageserver-protocol/node";
 import type { CxBinding, ScssClassMap } from "@css-module-explainer/shared";
-import { buildStyleDocumentFromClassMap } from "../../../server/src/core/hir/builders/style-adapter";
+import { buildStyleDocumentFromClassMap } from "../../../server/src/core/hir/compat/style-document-builder-compat";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
 import { NullSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
-import { buildStyleDocumentFromClassMap } from "../../../server/src/core/hir/builders/style-adapter";
+import { buildStyleDocumentFromClassMap } from "../../../server/src/core/hir/compat/style-document-builder-compat";
 import { styleDocumentToLegacyClassMap } from "../../../server/src/core/hir/compat/style-document-compat";
 
 const ZERO = { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } };

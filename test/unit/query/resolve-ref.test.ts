@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import ts from "typescript";
 import type { StyleImport } from "@css-module-explainer/shared";
 import type { AnalysisEntry } from "../../../server/src/core/indexing/document-analysis-cache";
-import { buildSourceDocumentFromLegacy } from "../../../server/src/core/hir/builders/ts-source-adapter";
+import { buildSourceDocumentFromLegacy } from "../../../server/src/core/hir/compat/source-document-builder-compat";
 import { resolveRefSelectors } from "../../../server/src/core/query/resolve-ref";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
 import { loadSourceScenario, loadStyleScenario } from "../../_fixtures/scenario-corpus";

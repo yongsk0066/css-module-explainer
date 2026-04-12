@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ClassRef, CxBinding, StyleImport } from "@css-module-explainer/shared";
-import { buildSourceDocumentFromLegacy } from "../../../server/src/core/hir/builders/ts-source-adapter";
+import { buildSourceDocumentFromLegacy } from "../../../server/src/core/hir/compat/source-document-builder-compat";
 
 const ZERO = { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } };
 
