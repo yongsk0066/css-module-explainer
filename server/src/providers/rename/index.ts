@@ -5,6 +5,7 @@ import type {
   WorkspaceEdit,
 } from "vscode-languageserver/node";
 import type { BemSuffixInfo, SelectorInfo } from "@css-module-explainer/shared";
+import { hasBlockingRenameReferences } from "../../core/query/prepare-rename";
 import { canonicalNameOf } from "../../core/scss/classname-transform";
 import { findLangForPath } from "../../core/scss/lang-registry";
 import { fileUrlToPath, pathToFileUrl } from "../../core/util/text-utils";
@@ -141,11 +142,7 @@ function hasExpandedReverseSite(
   filePath: string,
   canonicalName: string,
 ): boolean {
-  const semanticSites = deps.semanticReferenceIndex.findSelectorReferences(filePath, canonicalName);
-  if (semanticSites.length > 0) {
-    return semanticSites.some((site) => site.expansion !== "direct");
-  }
-  return deps.reverseIndex.find(filePath, canonicalName).some((s) => s.expansion !== "direct");
+  return hasBlockingRenameReferences(deps, filePath, canonicalName);
 }
 
 function prepareRenameFromScss(

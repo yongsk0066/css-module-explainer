@@ -22,13 +22,9 @@ export interface BuildSourceDocumentFromLegacyArgs {
 }
 
 /**
- * Wave 1 compatibility adapter.
- *
- * This builder intentionally starts from the current scan/parser
- * outputs so the project can introduce a document-level HIR without
- * forcing provider rewrites in the same change. Later waves can move
- * more AST-specific lowering into this adapter and make the HIR more
- * source-faithful.
+ * Builds source HIR from the existing scan/parser outputs so document
+ * analysis can expose a stable typed representation without changing
+ * provider behavior at the same time.
  */
 export function buildSourceDocumentFromLegacy(
   args: BuildSourceDocumentFromLegacyArgs,

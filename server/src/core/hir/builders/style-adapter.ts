@@ -8,10 +8,9 @@ import {
 } from "../style-types";
 
 /**
- * Wave 1 compatibility adapter from the current `ScssClassMap` into
- * a document-level style HIR. This keeps the migration incremental:
- * style parsing semantics stay unchanged while the rest of the
- * architecture gains an explicit, typed document representation.
+ * Builds style HIR from the current `ScssClassMap` so style parsing
+ * keeps its existing behavior while the rest of the architecture
+ * reads a typed document representation.
  */
 export function buildStyleDocumentFromClassMap(
   filePath: string,

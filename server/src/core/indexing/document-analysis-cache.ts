@@ -30,9 +30,10 @@ export interface AnalysisEntry {
    */
   readonly classRefs: readonly ClassRef[];
   /**
-   * Wave 1 document-level source HIR. This is compatibility-backed
-   * for now: it is derived from the current scan/parser outputs so
-   * provider behavior stays stable while the HIR layer is introduced.
+   * Document-level source HIR derived from the current scan/parser
+   * outputs. Providers still receive compatibility views from the
+   * same analysis result, so the cache remains the single source of
+   * truth for both representations.
    */
   readonly sourceDocument: SourceDocumentHIR;
   /**
@@ -102,10 +103,10 @@ export interface DocumentAnalysisCacheDeps {
   readonly max: number;
   /**
    * Callback fired exactly once per (uri, version) when the cache
-   * produces a fresh AnalysisEntry. Wired to
-   * `WorkspaceReverseIndex.record` so each document contributes
-   * its cx() call sites to the reverse index once per document
-   * update — not once per hover/def/completion keystroke.
+   * produces a fresh AnalysisEntry. Composition root wires this to
+   * workspace-level reference stores so each document contributes
+   * its resolved class-reference data once per document update —
+   * not once per hover/def/completion keystroke.
    */
   readonly onAnalyze?: (uri: string, entry: AnalysisEntry) => void;
 }
@@ -151,7 +152,7 @@ export class DocumentAnalysisCache {
     }
     const entry = this.analyze(content, filePath, version, hash);
     this.lru.set(uri, entry);
-    // Single write point into the reverse index.
+    // Single write point into workspace-level analysis side effects.
     this.deps.onAnalyze?.(uri, entry);
     return entry;
   }

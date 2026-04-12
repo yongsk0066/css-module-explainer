@@ -211,8 +211,8 @@ function registerDocumentHandlers(state: HandlerState): void {
     //  - `reverseIndex.forget` removes the cx() sites the TSX
     //    buffer contributed; without it the canonical bucket
     //    would keep treating a closed reference as live.
-    //  - `semanticReferenceIndex.forget` does the same for the
-    //    graph-backed reference layer introduced during Wave 2.
+    //  - `semanticReferenceIndex.forget` removes the matching
+    //    graph-derived reference contribution.
     //  - `analysisCache.invalidate` drops the cached AnalysisEntry
     //    so a later reopen re-runs `scanCxImports` against a
     //    fresh buffer instead of replaying a cached entry whose

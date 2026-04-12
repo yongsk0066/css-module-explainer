@@ -1,5 +1,5 @@
 import type { Hover } from "vscode-languageserver/node";
-import { resolveClassRefContext } from "../core/cx/call-resolver";
+import { resolveRefSelectorInfos } from "../core/query/resolve-ref";
 import { toLspRange } from "./lsp-adapters";
 import { renderHover } from "./hover-renderer";
 import { wrapHandler } from "./_wrap-handler";
@@ -10,11 +10,12 @@ import type { CursorParams, ProviderDeps } from "./provider-deps";
  * Handle `textDocument/hover` for any ClassRef under the cursor.
  *
  * Dispatches through the unified `withClassRefAtCursor` front
- * stage. For every ref kind the resolution is delegated to
- * `resolveClassRefContext`; the resulting `SelectorInfo` list
- * is handed to the pure `renderHover` markdown builder. An empty
- * match yields a `null` Hover; an exception is logged by
- * `wrapHandler` and also returns `null`.
+ * stage. Selector resolution runs through the shared ref query so
+ * hover, definition, and rename logic all see the same semantic
+ * targets. The resulting `SelectorInfo` list is handed to the pure
+ * `renderHover` markdown builder. An empty match yields a `null`
+ * Hover; an exception is logged by `wrapHandler` and also returns
+ * `null`.
  */
 export const handleHover = wrapHandler<CursorParams, [maxCandidates?: number], Hover | null>(
   "hover",
@@ -29,7 +30,8 @@ function buildHover(
   deps: ProviderDeps,
   maxCandidates: number,
 ): Hover | null {
-  const infos = resolveClassRefContext(ctx, {
+  const infos = resolveRefSelectorInfos(ctx, {
+    styleDocumentForPath: deps.styleDocumentForPath,
     typeResolver: deps.typeResolver,
     filePath: params.filePath,
     workspaceRoot: deps.workspaceRoot,

@@ -1,6 +1,6 @@
 import type { LocationLink } from "vscode-languageserver/node";
 import type { Range, SelectorInfo } from "@css-module-explainer/shared";
-import { resolveClassRefContext } from "../core/cx/call-resolver";
+import { findDefinitionSelectorInfos } from "../core/query/find-definitions";
 import { pathToFileUrl } from "../core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
 import { wrapHandler } from "./_wrap-handler";
@@ -12,12 +12,10 @@ import type { CursorParams, ProviderDeps } from "./provider-deps";
  * cursor.
  *
  * Dispatches through the unified `withClassRefAtCursor` front
- * stage and branches on `ctx.ref.kind`:
- *
- *   - `static`  — single classMap lookup, emits 0 or 1 link.
- *   - `template`/`variable` — delegates to
- *     `resolveClassRefContext` and emits one link per
- *     candidate (multi-match auto-picker in VS Code).
+ * stage and resolves selector targets through the shared ref
+ * query. Each target becomes a `LocationLink`, which lets VS Code
+ * offer multi-match selection when a ref resolves to more than one
+ * selector.
  *
  * Each `SelectorInfo` becomes a `LocationLink`:
  *   - `originSelectionRange` — the class token in source (drives
@@ -41,7 +39,8 @@ function buildLinks(
   params: CursorParams,
   deps: ProviderDeps,
 ): LocationLink[] | null {
-  const infos = resolveClassRefContext(ctx, {
+  const infos = findDefinitionSelectorInfos(ctx, {
+    styleDocumentForPath: deps.styleDocumentForPath,
     typeResolver: deps.typeResolver,
     filePath: params.filePath,
     workspaceRoot: deps.workspaceRoot,

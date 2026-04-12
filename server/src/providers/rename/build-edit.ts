@@ -1,5 +1,6 @@
 import type { Range as LspRange } from "vscode-languageserver/node";
 import type { BemSuffixInfo, ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
+import { findSelectorReferenceSites } from "../../core/query/find-references";
 import {
   type ClassnameTransformMode,
   transformClassname,
@@ -13,7 +14,7 @@ const IDENTIFIER_RE = /^[a-zA-Z_][\w-]*$/;
  * Resolve the canonical entry + canonical name for a cursor hit.
  * When the cursor landed on an alias view (e.g. `btnPrimary` in
  * camelCase mode), the SCSS edit must operate on the ORIGINAL
- * entry's `range` / `bemSuffix`, and the reverse-index query must
+ * entry's `range` / `bemSuffix`, and the shared reference query must
  * use the ORIGINAL key so every access form (original and alias)
  * is rewritten by a single rename.
  */
@@ -63,7 +64,7 @@ export function buildRenameEdit(
 
 /**
  * Append TS/TSX reference edits to `changes` for every direct
- * reverse-index site keyed under the canonical SCSS class name.
+ * reference site keyed under the canonical SCSS class name.
  * Template/variable expansions are skipped — rewriting them would
  * destroy the dynamic expression source.
  *
@@ -84,25 +85,9 @@ function collectReferenceEdits(
   mode: ClassnameTransformMode,
   changes: Record<string, Array<{ range: LspRange; newText: string }>>,
 ): void {
-  const semanticSites = deps.semanticReferenceIndex.findSelectorReferences(scssPath, canonicalName);
-  if (semanticSites.length > 0) {
-    for (const site of semanticSites) {
-      if (site.expansion !== "direct") continue;
-      const written = site.className;
-      const newText =
-        written === canonicalName ? newName : (pickAliasForm(mode, newName) ?? newName);
-      (changes[site.uri] ??= []).push({
-        range: toLspRange(site.range),
-        newText,
-      });
-    }
-    return;
-  }
-
-  for (const site of deps.reverseIndex.find(scssPath, canonicalName)) {
+  for (const site of findSelectorReferenceSites(deps, scssPath, canonicalName)) {
     if (site.expansion !== "direct") continue;
-    if (site.match.kind !== "static") continue;
-    const written = site.match.className;
+    const written = site.className;
     const newText = written === canonicalName ? newName : (pickAliasForm(mode, newName) ?? newName);
     (changes[site.uri] ??= []).push({
       range: toLspRange(site.range),

@@ -61,10 +61,10 @@ export interface SymbolRefClassExpressionHIR extends ClassExpressionBase {
 /**
  * Compatibility-backed source HIR for direct `styles.x` access.
  *
- * Wave 1 only knows the resolved class token and target module path.
- * Future adapters can enrich this with the actual object identifier
- * and a richer property/element-access shape once provider migration
- * stops depending on the legacy ClassRef model.
+ * This node currently preserves the resolved class token and target
+ * module path. It can grow into a richer property/element-access
+ * shape once more resolution logic moves away from the legacy
+ * `ClassRef` model.
  */
 export interface StyleAccessClassExpressionHIR extends ClassExpressionBase {
   readonly kind: "styleAccess";

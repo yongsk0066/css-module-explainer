@@ -227,6 +227,7 @@ function buildBundle(
   return {
     analysisCache,
     scssClassMapForPath: classMapForPath,
+    styleDocumentForPath,
     typeResolver,
     reverseIndex: caches.reverseIndex,
     semanticReferenceIndex: caches.semanticReferenceIndex,

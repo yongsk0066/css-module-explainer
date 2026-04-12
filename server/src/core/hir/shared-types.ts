@@ -3,9 +3,9 @@ import type { Range } from "@css-module-explainer/shared";
 /**
  * Base shape for document-local HIR nodes.
  *
- * IDs are intentionally document-scoped for Wave 1. They are stable
- * within one analysis result and deterministic for a given adapter
- * output, but they are not yet intended to be cross-version graph IDs.
+ * IDs are document-scoped and deterministic for one adapter output.
+ * They are stable within a single analysis result, but they are not
+ * intended to be cross-version graph identities.
  */
 export interface HirNodeBase {
   readonly id: string;

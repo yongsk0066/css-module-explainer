@@ -1,12 +1,12 @@
 import type { Location, ReferenceParams } from "vscode-languageserver/node";
 import type { ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
+import { findSelectorReferenceSites } from "../core/query/find-references";
 import { canonicalNameOf } from "../core/scss/classname-transform";
 import { findLangForPath } from "../core/scss/lang-registry";
 import { fileUrlToPath } from "../core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
 import { wrapHandler } from "./_wrap-handler";
 import { rangeContains } from "./cursor-dispatch";
-import type { ProviderDeps } from "./provider-deps";
 
 /**
  * Handle `textDocument/references` for a class selector inside a
@@ -17,8 +17,8 @@ import type { ProviderDeps } from "./provider-deps";
  * 2. Ask `deps.scssClassMapForPath` — null result also covers
  *    "file missing on disk", so no separate exists-check.
  * 3. Find the SelectorInfo whose `range` contains the cursor.
- * 4. Ask the ReverseIndex for every CallSite referencing that
- *    (scssPath, className) pair.
+ * 4. Ask the shared reference query for every site referencing
+ *    that `(scssPath, className)` pair.
  * 5. Convert each CallSite to an LSP `Location`.
  *
  * Error isolation is owned by `wrapHandler`.
@@ -35,12 +35,12 @@ export const handleReferences = wrapHandler<ReferenceParams, [], Location[] | nu
     const info = findSelectorAtCursor(classMap, params.position.line, params.position.character);
     if (!info) return null;
 
-    // The reverse index keys sites by the original SCSS selector
-    // name. Under `classnameTransform` modes that expose an alias
-    // view (e.g. `btnPrimary` for `.btn-primary`), `info.name` is
-    // the alias token; `canonicalNameOf` routes the lookup to the
-    // bucket stored under the original source name.
-    const sites = findReferenceSites(deps, filePath, canonicalNameOf(info));
+    // Under `classnameTransform` modes that expose an alias view
+    // (e.g. `btnPrimary` for `.btn-primary`), `info.name` is the
+    // alias token. `canonicalNameOf` routes the query to the
+    // original selector identity so every access form lands in the
+    // same reference set.
+    const sites = findSelectorReferenceSites(deps, filePath, canonicalNameOf(info));
     if (sites.length === 0) return null;
 
     // No expansion filter here — expanded sites are valid Find Refs
@@ -54,21 +54,6 @@ export const handleReferences = wrapHandler<ReferenceParams, [], Location[] | nu
   },
   null,
 );
-
-function findReferenceSites(
-  deps: ProviderDeps,
-  filePath: string,
-  canonicalName: string,
-): readonly { readonly uri: string; readonly range: SelectorInfo["range"] }[] {
-  const semanticSites = deps.semanticReferenceIndex.findSelectorReferences(filePath, canonicalName);
-  if (semanticSites.length > 0) {
-    return semanticSites.map((site) => ({
-      uri: site.uri,
-      range: site.range,
-    }));
-  }
-  return deps.reverseIndex.find(filePath, canonicalName);
-}
 
 export function findSelectorAtCursor(
   classMap: ScssClassMap,

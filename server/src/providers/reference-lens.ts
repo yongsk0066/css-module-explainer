@@ -4,6 +4,7 @@ import type {
   ShowReferencesArgs,
   ShowReferencesLocation,
 } from "@css-module-explainer/shared";
+import { findSelectorReferenceSites } from "../core/query/find-references";
 import { canonicalNameOf } from "../core/scss/classname-transform";
 import { findLangForPath } from "../core/scss/lang-registry";
 import { fileUrlToPath } from "../core/util/text-utils";
@@ -16,7 +17,7 @@ import type { ProviderDeps } from "./provider-deps";
  *
  * For every `SelectorInfo` in the file, emit a CodeLens anchored
  * at the class token's start position. The command resolves the
- * reference list via `reverseIndex.find` at codeLens request
+ * reference list via the shared reference query at codeLens request
  * time (not at resolve time — `resolveProvider: false`), and
  * invokes VS Code's built-in `editor.action.showReferences`.
  *
@@ -37,8 +38,8 @@ export const handleCodeLens = wrapHandler<CodeLensParams, [], CodeLens[] | null>
     // the class map can carry both the original and the alias entry
     // for the same logical class. Iterate once per canonical name
     // so we emit exactly one lens per class regardless of how many
-    // views point at it, and so the lookup always hits the
-    // canonical-keyed reverse-index bucket.
+    // views point at it, and so the lookup always targets the
+    // canonical selector identity.
     const lenses: CodeLens[] = [];
     const emittedCanonical = new Set<string>();
     for (const info of classMap.values()) {
@@ -59,7 +60,7 @@ function buildLens(
   info: SelectorInfo,
   deps: ProviderDeps,
 ): CodeLens | null {
-  const sites = findReferenceSites(deps, filePath, canonicalNameOf(info));
+  const sites = findSelectorReferenceSites(deps, filePath, canonicalNameOf(info));
   if (sites.length === 0) return null;
   const title = `${sites.length} reference${sites.length === 1 ? "" : "s"}`;
   const locations: ShowReferencesLocation[] = sites.map((site) => ({
@@ -83,19 +84,4 @@ function buildLens(
       arguments: [...args],
     },
   };
-}
-
-function findReferenceSites(
-  deps: ProviderDeps,
-  filePath: string,
-  canonicalName: string,
-): readonly { readonly uri: string; readonly range: SelectorInfo["range"] }[] {
-  const semanticSites = deps.semanticReferenceIndex.findSelectorReferences(filePath, canonicalName);
-  if (semanticSites.length > 0) {
-    return semanticSites.map((site) => ({
-      uri: site.uri,
-      range: site.range,
-    }));
-  }
-  return deps.reverseIndex.find(filePath, canonicalName);
 }

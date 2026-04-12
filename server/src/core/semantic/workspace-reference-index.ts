@@ -64,11 +64,11 @@ export class NullSemanticWorkspaceReferenceIndex implements SemanticWorkspaceRef
 /**
  * Workspace-scope semantic reference index.
  *
- * This is a transitional Wave 2 structure. It keeps per-document
- * contributions and rebuilds the selector/scss lookup tables on
- * every record/forget. That is intentionally simple: correctness
- * matters more than incremental optimality while the graph-backed
- * read path is being introduced.
+ * This keeps per-document contributions and rebuilds the
+ * selector/scss lookup tables on every record/forget. The rebuild
+ * strategy is intentionally simple so the graph-backed read path
+ * stays easy to validate while it is still running alongside the
+ * legacy index.
  */
 export class WorkspaceSemanticWorkspaceReferenceIndex implements SemanticWorkspaceReferenceIndex {
   private readonly contributions = new Map<string, readonly SemanticReferenceSite[]>();

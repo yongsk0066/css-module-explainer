@@ -87,6 +87,7 @@ export function makeBaseDeps(overrides: Partial<ProviderDeps> = {}): ProviderDep
   return {
     analysisCache,
     scssClassMapForPath: () => null,
+    styleDocumentForPath: () => null,
     typeResolver: new FakeTypeResolver(),
     reverseIndex: new NullReverseIndex(),
     semanticReferenceIndex: new NullSemanticWorkspaceReferenceIndex(),
