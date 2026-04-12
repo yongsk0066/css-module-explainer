@@ -21,19 +21,28 @@ import type { Rule } from "postcss";
  * function only decides whether the surgical-rename trio can
  * be produced.
  */
+/**
+ * Minimal view of the parent-rule context the BEM classifier
+ * needs. Structurally satisfied by the parser's `ParentContext`
+ * so the call site can pass it directly without unpacking.
+ */
+export interface BemParentContext {
+  readonly className?: string;
+  readonly isGrouped?: boolean;
+}
+
 export function classifyBemSuffixSite(
   rule: Rule,
   raw: string,
   groupOffset: number,
-  parentClassName: string | undefined,
-  parentIsGrouped: boolean | undefined,
+  parent: BemParentContext,
   groupsLength: number,
 ): BemSuffixInfo | null {
   if (!raw.includes("&")) return null;
   const ampCount = raw.match(/&/g)?.length ?? 0;
   if (ampCount !== 1) return null;
-  if (parentClassName === undefined) return null;
-  if (parentIsGrouped === true) return null;
+  if (parent.className === undefined) return null;
+  if (parent.isGrouped === true) return null;
   if (groupsLength !== 1) return null;
 
   const span = findBemSuffixSpan(rule, groupOffset, raw);
@@ -42,7 +51,7 @@ export function classifyBemSuffixSite(
   return {
     rawToken: span.rawToken,
     rawTokenRange: span.range,
-    parentResolvedName: parentClassName,
+    parentResolvedName: parent.className,
   };
 }
 

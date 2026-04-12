@@ -199,14 +199,7 @@ function recordRule(
   for (const { raw, offset } of groups) {
     const resolved = resolveSelector(raw, parentCtx.selector);
     resolvedSelectors.push(resolved);
-    const bemSuffix = classifyBemSuffixSite(
-      rule,
-      raw,
-      offset,
-      parentCtx.className,
-      parentCtx.isGrouped,
-      groups.length,
-    );
+    const bemSuffix = classifyBemSuffixSite(rule, raw, offset, parentCtx, groups.length);
     const isNested = raw.includes("&");
 
     for (const className of extractClassNames(resolved)) {
