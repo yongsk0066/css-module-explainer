@@ -24,6 +24,32 @@ import * as path from "node:path";
  * produces a missing-module diagnostic for dangling alias
  * targets.
  */
+/**
+ * Mutable holder for the workspace-scoped `AliasResolver`. The
+ * composition root creates one at startup; `rebuildAliasResolver`
+ * swaps the value on settings change. Consumers (the analysis
+ * cache's `aliasResolver` getter) call `get()` at analyze time
+ * so they always see the latest resolver without rewiring.
+ */
+export class AliasResolverHolder {
+  private current: AliasResolver;
+
+  constructor(
+    private readonly workspaceRoot: string,
+    initial: Readonly<Record<string, string>>,
+  ) {
+    this.current = new AliasResolver(workspaceRoot, initial);
+  }
+
+  get(): AliasResolver {
+    return this.current;
+  }
+
+  rebuild(pathAlias: Readonly<Record<string, string>>): void {
+    this.current = new AliasResolver(this.workspaceRoot, pathAlias);
+  }
+}
+
 export class AliasResolver {
   private readonly sortedEntries: ReadonlyArray<readonly [string, string]>;
 

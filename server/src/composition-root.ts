@@ -19,7 +19,7 @@ import { buildStyleFileWatcherGlob, findLangForPath } from "./core/scss/lang-reg
 import { StyleIndexCache } from "./core/scss/scss-index";
 import { detectClassUtilImports, scanCxImports } from "./core/cx/binding-detector";
 import { parseClassRefs } from "./core/cx/class-ref-parser";
-import { AliasResolver } from "./core/cx/alias-resolver";
+import { type AliasResolver, AliasResolverHolder } from "./core/cx/alias-resolver";
 import { SourceFileCache } from "./core/ts/source-file-cache";
 import { WorkspaceTypeResolver, type TypeResolver } from "./core/ts/type-resolver";
 import { DocumentAnalysisCache } from "./core/indexing/document-analysis-cache";
@@ -192,19 +192,14 @@ function buildBundle(
   const readStyleFile = options.readStyleFile ?? defaultReadStyleFile;
   const fileExists = options.fileExists ?? existsSync;
   const classMapForPath = buildClassMapForPath(caches.styleIndexCache, documents, readStyleFile);
-  // Closure variable for the path-alias resolver. `DocumentAnalysisCache`
-  // reads it via the `getAliasResolver` getter below; `rebuildAliasResolver`
-  // mutates it in place so a settings change propagates to the cache
-  // on its next analyze call without rewiring the cache instance.
-  let currentResolver = new AliasResolver(workspaceRoot, DEFAULT_SETTINGS.pathAlias);
-  const getAliasResolver = () => currentResolver;
+  const aliasHolder = new AliasResolverHolder(workspaceRoot, DEFAULT_SETTINGS.pathAlias);
   const analysisCache = buildAnalysisCache({
     caches,
     classMapForPath,
     workspaceRoot,
     typeResolver,
     fileExists,
-    getAliasResolver,
+    getAliasResolver: () => aliasHolder.get(),
   });
   const indexerWorker = buildIndexerWorker(
     options,
@@ -227,23 +222,10 @@ function buildBundle(
     pushStyleFile: (path) => indexerWorker.pushFile({ path }),
     indexerReady: indexerWorker.ready,
     stopIndexer: () => indexerWorker.stop(),
-    // Plain mutable field, replaced in handler-registration::reloadSettings.
-    // Initial value is DEFAULT_SETTINGS; the real config is fetched on
-    // onInitialized and overwrites this via `deps.settings = s`.
     settings: DEFAULT_SETTINGS,
-    rebuildAliasResolver(pathAlias) {
-      currentResolver = new AliasResolver(workspaceRoot, pathAlias);
-      // Caller (reloadSettings) is responsible for invalidating the
-      // analysis cache and rescheduling affected documents — see
-      // handler-registration.ts::reloadSettings.
-    },
+    rebuildAliasResolver: (pathAlias) => aliasHolder.rebuild(pathAlias),
     setClassnameTransform(mode) {
       caches.styleIndexCache.setMode(mode);
-      // reverseIndex keys may no longer exist in the new expanded
-      // classMap (e.g., `btnPrimary` was reachable in camelCase mode
-      // but disappears in asIs). analysisCache is cleared by the
-      // caller in reloadSettings — this mutator just handles the
-      // style-index and reverse-index side effects.
       caches.reverseIndex.clear();
     },
   };
