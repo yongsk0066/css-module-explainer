@@ -1,4 +1,9 @@
 import type { ScssClassMap, SelectorInfo } from "@css-module-explainer/shared";
+import {
+  makeStyleDocumentHIR,
+  type SelectorDeclHIR,
+  type StyleDocumentHIR,
+} from "../hir/style-types";
 
 /**
  * 5-mode classname transformation for CSS Modules. Mirrors
@@ -131,4 +136,31 @@ export function expandClassMapWithTransform(
     // `alias.originalName` as the back-pointer.
   }
   return expanded;
+}
+
+export function expandStyleDocumentWithTransform(
+  base: StyleDocumentHIR,
+  mode: ClassnameTransformMode,
+): StyleDocumentHIR {
+  if (mode === "asIs") return base;
+
+  const expandedSelectors: SelectorDeclHIR[] = [];
+  for (const selector of base.selectors) {
+    const aliases = transformClassname(mode, selector.name);
+    for (const alias of aliases) {
+      if (alias === selector.name) {
+        expandedSelectors.push(selector);
+        continue;
+      }
+      expandedSelectors.push({
+        ...selector,
+        id: `${selector.id}:alias:${alias}`,
+        name: alias,
+        viewKind: "alias",
+        originalName: selector.name,
+      });
+    }
+  }
+
+  return makeStyleDocumentHIR(base.filePath, expandedSelectors);
 }

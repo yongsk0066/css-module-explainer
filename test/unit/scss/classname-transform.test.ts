@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   expandClassMapWithTransform,
+  expandStyleDocumentWithTransform,
   transformClassname,
 } from "../../../server/src/core/scss/classname-transform";
-import { parseStyleModule } from "../../../server/src/core/scss/scss-parser";
+import { parseStyleDocument, parseStyleModule } from "../../../server/src/core/scss/scss-parser";
 
 // Parity snapshot tests ported from ts-plugin-css-modules
 // src/helpers/__tests__/__snapshots__/classTransforms.test.ts.snap
@@ -138,5 +139,37 @@ describe("expandClassMapWithTransform", () => {
     // spread — alias also has no bemSuffix.
     expect(btnA?.bemSuffix).toBeUndefined();
     expect(btnAAlias?.bemSuffix).toBeUndefined();
+  });
+});
+
+describe("expandStyleDocumentWithTransform", () => {
+  it("camelCase expands canonical selectors into canonical + alias views", () => {
+    const base = parseStyleDocument(`.btn-primary { color: red; }`, "/f.module.scss");
+    const out = expandStyleDocumentWithTransform(base, "camelCase");
+
+    expect(out.selectors.map((selector) => selector.name)).toEqual(["btn-primary", "btnPrimary"]);
+    expect(out.selectors[0]).toMatchObject({
+      name: "btn-primary",
+      canonicalName: "btn-primary",
+      viewKind: "canonical",
+    });
+    expect(out.selectors[1]).toMatchObject({
+      name: "btnPrimary",
+      canonicalName: "btn-primary",
+      viewKind: "alias",
+      originalName: "btn-primary",
+    });
+  });
+
+  it("carries nested rename metadata onto alias views", () => {
+    const base = parseStyleDocument(`.btn-primary { &--xl {} }`, "/f.module.scss");
+    const out = expandStyleDocumentWithTransform(base, "camelCase");
+    const canonical = out.selectors.find((selector) => selector.name === "btn-primary--xl");
+    const alias = out.selectors.find((selector) => selector.name === "btnPrimaryXl");
+
+    expect(canonical?.nestedSafety).toBe("bemSuffixSafe");
+    expect(alias?.nestedSafety).toBe("bemSuffixSafe");
+    expect(alias?.bemSuffix).toBe(canonical?.bemSuffix);
+    expect(alias?.originalName).toBe("btn-primary--xl");
   });
 });

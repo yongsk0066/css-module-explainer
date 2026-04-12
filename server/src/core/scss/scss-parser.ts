@@ -1,11 +1,12 @@
-import type {
-  BemSuffixInfo,
-  ComposesRef,
-  Range,
-  ScssClassMap,
-  SelectorInfo,
-} from "@css-module-explainer/shared";
+import type { BemSuffixInfo, ComposesRef, Range, ScssClassMap } from "@css-module-explainer/shared";
 import { parse as postcssParse, type AtRule, type ChildNode, type Root, type Rule } from "postcss";
+import { styleDocumentToLegacyClassMap } from "../hir/compat/style-document-compat";
+import {
+  makeStyleDocumentHIR,
+  type NestedSelectorSafety,
+  type SelectorDeclHIR,
+  type StyleDocumentHIR,
+} from "../hir/style-types";
 import { classifyBemSuffixSite } from "./bem-suffix";
 import { findLangForPath, getRuntimeSyntax } from "./lang-registry";
 import {
@@ -63,15 +64,15 @@ export function buildChildContext(
 }
 
 /**
- * Parse a CSS Module file into a map of class name → SelectorInfo.
+ * Parse a CSS Module file into style-document HIR.
  *
- * Parsing is best-effort: a parse error produces an empty map, never
- * throws. The caller (StyleIndexCache) treats an empty map as a
+ * Parsing is best-effort: a parse error produces an empty document, never
+ * throws. The caller (StyleIndexCache) treats an empty document as a
  * legitimate "no classes found" result, so upstream providers keep
  * running even when one file is broken.
  */
-export function parseStyleModule(content: string, filePath: string): ScssClassMap {
-  const classMap = new Map<string, SelectorInfo>();
+export function parseStyleDocument(content: string, filePath: string): StyleDocumentHIR {
+  const selectorsByName = new Map<string, SelectorDeclHIR>();
 
   const lang = findLangForPath(filePath);
   // shared.StyleLang.syntax is typed as `unknown` so the shared
@@ -91,11 +92,18 @@ export function parseStyleModule(content: string, filePath: string): ScssClassMa
   try {
     root = parse(content, { from: filePath }) as Root;
   } catch {
-    return classMap;
+    return makeStyleDocumentHIR(filePath, []);
   }
 
-  walkStyleNodes(root.nodes as ChildNode[], { selector: "" }, classMap);
-  return classMap;
+  walkStyleNodes(root.nodes as ChildNode[], { selector: "" }, selectorsByName);
+  return makeStyleDocumentHIR(
+    filePath,
+    Array.from(selectorsByName.values()).toSorted(compareSelectors),
+  );
+}
+
+export function parseStyleModule(content: string, filePath: string): ScssClassMap {
+  return styleDocumentToLegacyClassMap(parseStyleDocument(content, filePath));
 }
 
 /**
@@ -106,24 +114,24 @@ export function parseStyleModule(content: string, filePath: string): ScssClassMa
 function walkStyleNodes(
   nodes: ChildNode[] | undefined,
   parentCtx: ParentContext,
-  classMap: Map<string, SelectorInfo>,
+  selectorsByName: Map<string, SelectorDeclHIR>,
 ): void {
   if (!nodes) return;
   for (const node of nodes) {
     if (node.type === "rule") {
       if (isGlobalBlockRule(node.selector)) continue;
       if (isLocalBlockRule(node.selector)) {
-        walkStyleNodes(node.nodes, parentCtx, classMap);
+        walkStyleNodes(node.nodes, parentCtx, selectorsByName);
         continue;
       }
-      recordRule(node, parentCtx, classMap);
+      recordRule(node, parentCtx, selectorsByName);
     } else if (node.type === "atrule" && isTransparentAtRule(node.name)) {
       if (node.name === "at-root" && isInlineAtRoot(node)) {
-        recordAtRootInlineRule(node, classMap);
+        recordAtRootInlineRule(node, selectorsByName);
       } else if (node.name === "at-root") {
-        walkStyleNodes(node.nodes, { selector: "" }, classMap);
+        walkStyleNodes(node.nodes, { selector: "" }, selectorsByName);
       } else {
-        walkStyleNodes(node.nodes, parentCtx, classMap);
+        walkStyleNodes(node.nodes, parentCtx, selectorsByName);
       }
     }
   }
@@ -148,7 +156,7 @@ function isInlineAtRoot(atrule: AtRule): boolean {
 function recordRule(
   rule: Rule,
   parentCtx: ParentContext,
-  classMap: Map<string, SelectorInfo>,
+  selectorsByName: Map<string, SelectorDeclHIR>,
 ): void {
   const { declarations, composes } = collectDeclarationsAndComposes(rule.nodes);
   const ruleRange = rangeForSourceNode(rule);
@@ -164,12 +172,12 @@ function recordRule(
     const isNested = raw.includes("&");
 
     for (const className of extractClassNames(resolved)) {
-      const existing = classMap.get(className);
-      if (existing && existing.isNested !== true && isNested) continue;
+      const existing = selectorsByName.get(className);
+      if (existing && existing.nestedSafety === "flat" && isNested) continue;
 
-      classMap.set(
+      selectorsByName.set(
         className,
-        buildSelectorInfoEntry({
+        buildSelectorDecl({
           className,
           resolved,
           raw,
@@ -186,7 +194,7 @@ function recordRule(
 
   const parents = resolvedSelectors.length > 0 ? resolvedSelectors : [parentCtx.selector];
   for (const nextResolved of parents) {
-    walkStyleNodes(rule.nodes, buildChildContext(resolvedSelectors, nextResolved), classMap);
+    walkStyleNodes(rule.nodes, buildChildContext(resolvedSelectors, nextResolved), selectorsByName);
   }
 }
 
@@ -202,16 +210,20 @@ interface BuildEntryArgs {
   readonly bemSuffix: BemSuffixInfo | null;
 }
 
-function buildSelectorInfoEntry(args: BuildEntryArgs): SelectorInfo {
+function buildSelectorDecl(args: BuildEntryArgs): SelectorDeclHIR {
   const tokenRange = findClassTokenRange(args.rule.source?.start, args.className, args.raw);
   return {
+    kind: "selector",
+    id: `selector:${args.className}:${tokenRange.start.line}:${tokenRange.start.character}`,
     name: args.className,
+    canonicalName: args.className,
+    viewKind: "canonical",
     range: tokenRange,
     fullSelector: args.resolved,
     declarations: args.declarations,
     ruleRange: args.ruleRange,
-    ...(args.composes.length > 0 ? { composes: args.composes } : {}),
-    ...(args.isNested ? { isNested: true } : {}),
+    composes: args.composes,
+    nestedSafety: classifyNestedSafety(args.isNested, args.bemSuffix),
     ...(args.bemSuffix ? { bemSuffix: args.bemSuffix } : {}),
   };
 }
@@ -253,7 +265,10 @@ function parseComposesValue(value: string): ComposesRef | null {
   return classNames.length > 0 ? { classNames } : null;
 }
 
-function recordAtRootInlineRule(atrule: AtRule, classMap: Map<string, SelectorInfo>): void {
+function recordAtRootInlineRule(
+  atrule: AtRule,
+  selectorsByName: Map<string, SelectorDeclHIR>,
+): void {
   const selector = atrule.params.trim();
   const { declarations } = collectDeclarationsAndComposes(atrule.nodes);
   const ruleRange = rangeForSourceNode(atrule);
@@ -263,13 +278,36 @@ function recordAtRootInlineRule(atrule: AtRule, classMap: Map<string, SelectorIn
     for (const className of extractClassNames(raw)) {
       const start = atrule.source?.start;
       const baseColumn = (start?.column ?? 1) - 1 + "@at-root ".length;
-      classMap.set(className, {
+      selectorsByName.set(className, {
+        kind: "selector",
+        id: `selector:${className}:${start?.line ?? 1}:${baseColumn}`,
         name: className,
+        canonicalName: className,
+        viewKind: "canonical",
         range: atRootTokenRange(start?.line ?? 1, baseColumn, className, raw),
         fullSelector: raw,
         declarations,
         ruleRange,
+        composes: [],
+        nestedSafety: "flat",
       });
     }
   }
+}
+
+function classifyNestedSafety(
+  isNested: boolean,
+  bemSuffix: BemSuffixInfo | null,
+): NestedSelectorSafety {
+  if (bemSuffix) return "bemSuffixSafe";
+  if (isNested) return "nestedUnsafe";
+  return "flat";
+}
+
+function compareSelectors(a: SelectorDeclHIR, b: SelectorDeclHIR): number {
+  const line = a.range.start.line - b.range.start.line;
+  if (line !== 0) return line;
+  const character = a.range.start.character - b.range.start.character;
+  if (character !== 0) return character;
+  return a.name.localeCompare(b.name);
 }

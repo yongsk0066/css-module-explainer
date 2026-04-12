@@ -1,13 +1,20 @@
 import type { ScssClassMap } from "@css-module-explainer/shared";
-import { buildStyleDocumentFromClassMap } from "../hir/builders/style-adapter";
 import { styleDocumentToLegacyClassMap } from "../hir/compat/style-document-compat";
 import type { StyleDocumentHIR } from "../hir/style-types";
 import { contentHash } from "../util/hash";
 import { LruMap } from "../util/lru-map";
-import { expandClassMapWithTransform, type ClassnameTransformMode } from "./classname-transform";
-import { parseStyleModule } from "./scss-parser";
+import {
+  expandStyleDocumentWithTransform,
+  type ClassnameTransformMode,
+} from "./classname-transform";
+import { parseStyleDocument } from "./scss-parser";
 
-export { parseStyleModule, buildChildContext, type ParentContext } from "./scss-parser";
+export {
+  parseStyleDocument,
+  parseStyleModule,
+  buildChildContext,
+  type ParentContext,
+} from "./scss-parser";
 export { findBemSuffixSpan } from "./bem-suffix";
 export { enumerateGroups } from "./scss-selector-utils";
 
@@ -25,9 +32,8 @@ export interface StyleIndexEntry {
  * - Hit path: provider asks for a file + its current content; the
  *   cache returns the previously-built `StyleIndexEntry` by
  *   reference identity when (content-hash, mode) match.
- * - Miss path: parse → `expandClassMapWithTransform(base, mode)` →
- *   build `StyleDocumentHIR` → derive compatibility `ScssClassMap`
- *   from the HIR and store both.
+ * - Miss path: parse `StyleDocumentHIR` → apply transform aliases →
+ *   derive compatibility `ScssClassMap` and store both.
  * - Mode change: `setMode` clears the whole LRU. Keys that were
  *   valid under the old mode may not exist under the new one, so
  *   a full rebuild is correct. 500-entry LRU makes this cheap.
@@ -56,9 +62,8 @@ export class StyleIndexCache {
       return cached;
     }
 
-    const base = parseStyleModule(content, filePath);
-    const expandedClassMap = expandClassMapWithTransform(base, this.mode);
-    const styleDocument = buildStyleDocumentFromClassMap(filePath, expandedClassMap);
+    const base = parseStyleDocument(content, filePath);
+    const styleDocument = expandStyleDocumentWithTransform(base, this.mode);
     const classMap = styleDocumentToLegacyClassMap(styleDocument);
     const entry: StyleIndexEntry = {
       hash,
