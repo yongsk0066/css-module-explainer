@@ -2,6 +2,7 @@ import {
   CodeActionKind,
   type CodeAction,
   type CodeActionParams,
+  type CreateFile,
   type Diagnostic,
   type Range as LspRange,
   type WorkspaceEdit,
@@ -39,6 +40,10 @@ export const handleCodeAction = wrapHandler<CodeActionParams, [], CodeAction[] |
       if (createSelector) {
         actions.push(buildCreateSelectorQuickFix(diagnostic, createSelector));
       }
+      const createModuleFile = extractCreateModuleFile(diagnostic);
+      if (createModuleFile) {
+        actions.push(buildCreateModuleFileQuickFix(diagnostic, createModuleFile));
+      }
     }
     return actions.length > 0 ? actions : null;
   },
@@ -65,6 +70,14 @@ function extractCreateSelector(diagnostic: Diagnostic): {
   const range = payload.range;
   if (!isLspRange(range)) return null;
   return { uri: payload.uri, range, newText: payload.newText };
+}
+
+function extractCreateModuleFile(diagnostic: Diagnostic): { readonly uri: string } | null {
+  const data = diagnostic.data;
+  if (!isRecord(data)) return null;
+  const payload = data.createModuleFile;
+  if (!isRecord(payload)) return null;
+  return typeof payload.uri === "string" && payload.uri.length > 0 ? { uri: payload.uri } : null;
 }
 
 function isLspRange(value: unknown): value is LspRange {
@@ -123,5 +136,30 @@ function buildCreateSelectorQuickFix(
     kind: CodeActionKind.QuickFix,
     diagnostics: [diagnostic],
     edit,
+  };
+}
+
+function buildCreateModuleFileQuickFix(
+  diagnostic: Diagnostic,
+  createModuleFile: { readonly uri: string },
+): CodeAction {
+  const fileLabel = createModuleFile.uri.split("/").at(-1) ?? createModuleFile.uri;
+  const createFile: CreateFile = {
+    kind: "create",
+    uri: createModuleFile.uri,
+    options: {
+      overwrite: false,
+      ignoreIfExists: true,
+    },
+  };
+  const edit: WorkspaceEdit = {
+    documentChanges: [createFile],
+  };
+  return {
+    title: `Create ${fileLabel}`,
+    kind: CodeActionKind.QuickFix,
+    diagnostics: [diagnostic],
+    edit,
+    isPreferred: true,
   };
 }

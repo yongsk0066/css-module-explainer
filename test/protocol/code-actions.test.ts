@@ -111,4 +111,52 @@ describe("code-action protocol", () => {
     });
     expect(actions).toBeNull();
   });
+
+  it("returns a create-file action for a missing-module diagnostic", async () => {
+    const MISSING_MODULE_TSX = `import styles from './Missing.module.scss';
+export const Button = () => <div className={styles.root}>hi</div>;
+`;
+    client = createInProcessServer({
+      fileExists: () => false,
+      readStyleFile: () => null,
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/Button.tsx",
+        languageId: "typescriptreact",
+        version: 1,
+        text: MISSING_MODULE_TSX,
+      },
+    });
+    const diagnostics = await client.waitForDiagnostics("file:///fake/workspace/src/Button.tsx");
+    expect(diagnostics).toHaveLength(1);
+
+    const actions = await client.codeAction({
+      textDocument: { uri: "file:///fake/workspace/src/Button.tsx" },
+      range: diagnostics[0]!.range,
+      context: {
+        diagnostics,
+        triggerKind: 1,
+      },
+    });
+    expect(actions).not.toBeNull();
+    expect(actions).toHaveLength(1);
+    const action = actions![0] as {
+      title: string;
+      kind: string;
+      edit?: { documentChanges?: Array<{ kind: string; uri: string }> };
+    };
+    expect(action.title).toBe("Create Missing.module.scss");
+    expect(action.kind).toBe(CodeActionKind.QuickFix);
+    expect(action.edit?.documentChanges).toEqual([
+      {
+        kind: "create",
+        uri: "file:///fake/workspace/src/Missing.module.scss",
+        options: { overwrite: false, ignoreIfExists: true },
+      },
+    ]);
+  });
 });

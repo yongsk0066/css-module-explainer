@@ -99,4 +99,33 @@ export function Button(enabled: boolean) {
     expect(diagnostics[0]!.message).toContain("Missing class for possible value");
     expect(diagnostics[0]!.message).toContain("'missing'");
   });
+
+  it("publishes a missing-module diagnostic with create-file data", async () => {
+    const MISSING_MODULE_TSX = `import styles from './Missing.module.scss';
+export const Button = () => <div className={styles.root}>hi</div>;
+`;
+    client = createInProcessServer({
+      fileExists: () => false,
+      readStyleFile: () => null,
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/Button.tsx",
+        languageId: "typescriptreact",
+        version: 1,
+        text: MISSING_MODULE_TSX,
+      },
+    });
+    const diagnostics = await client.waitForDiagnostics("file:///fake/workspace/src/Button.tsx");
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]!.code).toBe("missing-module");
+    expect(diagnostics[0]!.data).toEqual({
+      createModuleFile: {
+        uri: "file:///fake/workspace/src/Missing.module.scss",
+      },
+    });
+  });
 });

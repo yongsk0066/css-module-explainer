@@ -133,6 +133,36 @@ describe("handleCodeAction", () => {
     expect(result![0]!.title).toBe("Add '.missing' to Button.module.scss");
   });
 
+  it("returns a create-module quick fix for a missing-module diagnostic", () => {
+    const d: Diagnostic = {
+      range: {
+        start: { line: 0, character: 19 },
+        end: { line: 0, character: 38 },
+      },
+      severity: DiagnosticSeverity.Warning,
+      source: "css-module-explainer",
+      message: "Cannot resolve CSS Module './Button.module.scss'. The file does not exist.",
+      code: "missing-module",
+      data: {
+        createModuleFile: {
+          uri: "file:///fake/src/Button.module.scss",
+        },
+      },
+    };
+    const result = handleCodeAction(makeParams([d]), makeDeps());
+    expect(result).toHaveLength(1);
+    expect(result![0]!.title).toBe("Create Button.module.scss");
+    expect(result![0]!.kind).toBe(CodeActionKind.QuickFix);
+    expect(result![0]!.isPreferred).toBe(true);
+    expect(result![0]!.edit?.documentChanges).toEqual([
+      {
+        kind: "create",
+        uri: "file:///fake/src/Button.module.scss",
+        options: { overwrite: false, ignoreIfExists: true },
+      },
+    ]);
+  });
+
   it("logs and returns null on exception", () => {
     const logError = vi.fn();
     // Poison the diagnostics iterable so for-of throws.

@@ -456,6 +456,11 @@ describe("missing-module diagnostics", () => {
     expect(result[0]!.message).toContain("./typo.module.scss");
     expect(result[0]!.range.start).toEqual({ line: 0, character: 19 });
     expect(result[0]!.range.end).toEqual({ line: 0, character: 38 });
+    expect(result[0]!.data).toEqual({
+      createModuleFile: {
+        uri: "file:///fake/ws/src/typo.module.scss",
+      },
+    });
   });
 
   it("does not emit when diagnostics.missingModule is false", () => {

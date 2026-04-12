@@ -64,6 +64,11 @@ export const computeDiagnostics = wrapHandler<
           source: DIAGNOSTIC_SOURCE,
           message: `Cannot resolve CSS Module '${imp.specifier}'. The file does not exist.`,
           code: "missing-module",
+          data: {
+            createModuleFile: {
+              uri: pathToFileUrl(imp.absolutePath),
+            },
+          },
         });
       }
     }
