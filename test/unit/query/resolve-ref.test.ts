@@ -192,6 +192,64 @@ function render(variant: string) {
       "btn-secondary",
     ]);
   });
+
+  it("widens symbol refs with conflicting concatenation prefixes to the full selector universe", () => {
+    const styleScenario = loadStyleScenario({
+      id: "04-dynamic-style",
+      stylePath: "04-dynamic/DynamicKeys.module.scss",
+    });
+    const source = `
+function render(flag: boolean, variant: string) {
+  const prefix = flag ? "btn-" : "card-";
+  const key = prefix + variant;
+  return cx(key);
+}
+`;
+    const sourceFile = ts.createSourceFile(
+      "/fake/Flow.tsx",
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
+    );
+    const expression = variableExpressionAt(source, "key", styleScenario.filePath);
+    const sourceDocument = buildSourceDocumentFixture({
+      filePath: "/fake/Flow.tsx",
+      bindings: [],
+      stylesBindings: new Map(),
+      classUtilNames: [],
+      expressions: [variableExpressionSpecAt(source, "key", styleScenario.filePath)],
+    });
+
+    const selectors = resolveRefSelectors(
+      {
+        expression,
+        styleDocument: styleScenario.styleDocument,
+        entry: {
+          version: 1,
+          contentHash: "fixture",
+          sourceFile,
+          sourceBinder: buildSourceBinder(sourceFile),
+          sourceDocument,
+          stylesBindings: new Map(),
+          classUtilNames: [],
+        },
+      },
+      {
+        styleDocumentForPath: (path) =>
+          path === styleScenario.filePath ? styleScenario.styleDocument : null,
+        typeResolver: new FakeTypeResolver(),
+        filePath: "/fake/Flow.tsx",
+        workspaceRoot: "/fake/ws",
+      },
+    );
+
+    expect(selectors.map((selector) => selector.name).toSorted()).toEqual([
+      "btn-danger",
+      "btn-primary",
+      "btn-secondary",
+    ]);
+  });
 });
 
 function analysisEntryFor(sourceScenario: ReturnType<typeof loadSourceScenario>): AnalysisEntry {

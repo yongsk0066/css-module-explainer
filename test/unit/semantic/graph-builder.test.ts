@@ -9,6 +9,7 @@ import type {
   SemanticNode,
 } from "../../../server/src/core/semantic/graph-types";
 import { loadSourceScenario, loadStyleScenario } from "../../_fixtures/scenario-corpus";
+import { buildSourceDocumentFixture } from "../../_fixtures/source-documents";
 
 describe("buildStyleSemanticGraph", () => {
   it("emits canonical selector nodes plus alias-view edges for camelCase style docs", () => {
@@ -149,6 +150,70 @@ describe("buildSourceSemanticGraph", () => {
           reason: "templatePrefix",
           certainty: "inferred",
           abstractValue: { kind: "prefix", prefix: "btn-" },
+          from: "class-expr:0",
+          to: `selector:${styleScenario.filePath}:btn-danger`,
+        },
+      ]),
+    });
+  });
+
+  it("emits possible edges for top-valued symbol refs across the full selector universe", () => {
+    const styleScenario = loadStyleScenario({
+      id: "04-dynamic-style",
+      stylePath: "04-dynamic/DynamicKeys.module.scss",
+    });
+    const sourceDocument = buildSourceDocumentFixture({
+      filePath: "/fake/ws/src/App.tsx",
+      bindings: [],
+      stylesBindings: new Map(),
+      classUtilNames: [],
+      expressions: [
+        {
+          kind: "symbolRef",
+          origin: "cxCall",
+          rawReference: "key",
+          rootName: "key",
+          pathSegments: [],
+          range: {
+            start: { line: 1, character: 3 },
+            end: { line: 1, character: 6 },
+          },
+          scssModulePath: styleScenario.filePath,
+        },
+      ],
+    });
+
+    const graph = buildSourceSemanticGraph({
+      sourceDocument,
+      styleDocumentsByPath: new Map([[styleScenario.filePath, styleScenario.styleDocument]]),
+      resolveSymbolValues: () => ({
+        abstractValue: { kind: "top" },
+        values: [],
+        certainty: "possible",
+        reason: "flowBranch",
+      }),
+    });
+
+    expect(normalizeGraph(graph)).toMatchObject({
+      edges: expect.arrayContaining([
+        {
+          reason: "flowBranch",
+          certainty: "possible",
+          abstractValue: { kind: "top" },
+          from: "class-expr:0",
+          to: `selector:${styleScenario.filePath}:btn-primary`,
+        },
+        {
+          reason: "flowBranch",
+          certainty: "possible",
+          abstractValue: { kind: "top" },
+          from: "class-expr:0",
+          to: `selector:${styleScenario.filePath}:btn-secondary`,
+        },
+        {
+          reason: "flowBranch",
+          certainty: "possible",
+          abstractValue: { kind: "top" },
           from: "class-expr:0",
           to: `selector:${styleScenario.filePath}:btn-danger`,
         },

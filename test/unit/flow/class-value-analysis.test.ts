@@ -114,6 +114,32 @@ function render(variant: string) {
       reason: "flowLiteral",
     });
   });
+
+  it("widens conflicting concatenation prefixes to top", () => {
+    const source = `
+function render(flag: boolean, variant: string) {
+  const prefix = flag ? "btn-" : "card-";
+  const size = prefix + variant;
+  return cx(size);
+}
+`;
+    const sourceFile = ts.createSourceFile(
+      "/fake/Flow.tsx",
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
+    );
+
+    expect(resolveFlowClassValues(sourceFile, rangeOf(source, "cx(size)"), "size")).toEqual({
+      abstractValue: {
+        kind: "top",
+      },
+      values: [],
+      certainty: "possible",
+      reason: "flowBranch",
+    });
+  });
 });
 
 function rangeOf(source: string, token: string) {

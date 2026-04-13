@@ -185,4 +185,62 @@ describe("buildSemanticReferenceIndex", () => {
       ]),
     );
   });
+
+  it("indexes possible top-domain references across the whole selector universe", () => {
+    const styleScenario = loadStyleScenario({
+      id: "04-dynamic-style",
+      stylePath: "04-dynamic/DynamicKeys.module.scss",
+    });
+    const sourceDocument = {
+      kind: "source" as const,
+      filePath: "/fake/ws/src/App.tsx",
+      language: "tsx" as const,
+      styleImports: [],
+      utilityBindings: [],
+      classExpressions: [
+        {
+          kind: "symbolRef" as const,
+          id: "class-expr:0",
+          origin: "cxCall" as const,
+          rawReference: "key",
+          rootName: "key",
+          pathSegments: [],
+          range: {
+            start: { line: 1, character: 3 },
+            end: { line: 1, character: 6 },
+          },
+          scssModulePath: styleScenario.filePath,
+        },
+      ],
+    };
+
+    const graph = buildSourceSemanticGraph({
+      sourceDocument,
+      styleDocumentsByPath: new Map([[styleScenario.filePath, styleScenario.styleDocument]]),
+      resolveSymbolValues: () => ({
+        abstractValue: { kind: "top" },
+        values: [],
+        certainty: "possible",
+        reason: "flowBranch",
+      }),
+    });
+    const index = buildSemanticReferenceIndex(graph);
+
+    expect(index.findTargetsForRef("class-expr:0")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          canonicalName: "btn-primary",
+          certainty: "possible",
+          reason: "flowBranch",
+          abstractValue: { kind: "top" },
+        }),
+        expect.objectContaining({
+          canonicalName: "btn-secondary",
+          certainty: "possible",
+          reason: "flowBranch",
+          abstractValue: { kind: "top" },
+        }),
+      ]),
+    );
+  });
 });
