@@ -250,6 +250,7 @@ describe("DocumentAnalysisCache / styleAccess without classnames/bind", () => {
             makeStyleAccessClassExpression(
               "class-expr:0",
               "/fake/src/Button.module.scss",
+              "synthetic-style-import-decl:test",
               "indicator",
               ["indicator"],
               { start: { line: 3, character: 42 }, end: { line: 3, character: 51 } },

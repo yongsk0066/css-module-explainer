@@ -1,4 +1,5 @@
 import type { StyleImport } from "@css-module-explainer/shared";
+import { findImportDeclId } from "../../binder/import-decls";
 import type { SourceBinderResult } from "../../binder/scope-types";
 import type { ResolvedCxBinding } from "../../cx/resolved-bindings";
 import {
@@ -25,7 +26,8 @@ export function buildSourceDocument(args: BuildSourceDocumentArgs): SourceDocume
     makeStyleImportBinding(
       `style-import:${index}`,
       localName,
-      resolveImportDeclId(args.sourceBinder, localName, undefined, index),
+      findImportDeclId(args.sourceBinder, localName) ??
+        `synthetic-import-decl:${localName}:${index}`,
       resolved,
     ),
   );
@@ -43,12 +45,11 @@ export function buildSourceDocument(args: BuildSourceDocumentArgs): SourceDocume
       makeClassUtilBinding(
         `utility-binding:util:${index}`,
         localName,
-        resolveImportDeclId(
+        findImportDeclId(
           args.sourceBinder,
           localName,
           new Set(["clsx", "clsx/lite", "classnames"]),
-          index,
-        ),
+        ) ?? `synthetic-import-decl:${localName}:${index}`,
       ),
     ),
   ];
@@ -60,25 +61,6 @@ export function buildSourceDocument(args: BuildSourceDocumentArgs): SourceDocume
     utilityBindings,
     classExpressions: args.classExpressions,
   });
-}
-
-function resolveImportDeclId(
-  sourceBinder: SourceBinderResult | undefined,
-  localName: string,
-  allowedImportPaths: ReadonlySet<string> | undefined,
-  index: number,
-): string {
-  if (!sourceBinder) {
-    return `synthetic-import-decl:${localName}:${index}`;
-  }
-
-  const match = sourceBinder.decls.find(
-    (decl) =>
-      decl.kind === "import" &&
-      decl.name === localName &&
-      (!allowedImportPaths || (decl.importPath && allowedImportPaths.has(decl.importPath))),
-  );
-  return match?.id ?? `synthetic-import-decl:${localName}:${index}`;
 }
 
 function inferSourceLanguage(filePath: string): SourceLanguage {

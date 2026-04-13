@@ -340,6 +340,7 @@ exports[`HIR scenario corpus / source > 02-style-access builds stable source HIR
       "accessPath": [
         "button",
       ],
+      "bindingDeclId": "decl:0",
       "className": "button",
       "kind": "styleAccess",
       "origin": "styleAccess",
@@ -355,6 +356,7 @@ exports[`HIR scenario corpus / source > 02-style-access builds stable source HIR
       "accessPath": [
         "buttonPrimary",
       ],
+      "bindingDeclId": "decl:0",
       "className": "buttonPrimary",
       "kind": "styleAccess",
       "origin": "styleAccess",
@@ -434,6 +436,7 @@ exports[`HIR scenario corpus / source > 10-clsx builds stable source HIR snapsho
       "accessPath": [
         "btn",
       ],
+      "bindingDeclId": "decl:2",
       "className": "btn",
       "kind": "styleAccess",
       "origin": "styleAccess",
@@ -449,6 +452,7 @@ exports[`HIR scenario corpus / source > 10-clsx builds stable source HIR snapsho
       "accessPath": [
         "primary",
       ],
+      "bindingDeclId": "decl:2",
       "className": "primary",
       "kind": "styleAccess",
       "origin": "styleAccess",
@@ -464,6 +468,7 @@ exports[`HIR scenario corpus / source > 10-clsx builds stable source HIR snapsho
       "accessPath": [
         "active",
       ],
+      "bindingDeclId": "decl:2",
       "className": "active",
       "kind": "styleAccess",
       "origin": "styleAccess",
@@ -479,6 +484,7 @@ exports[`HIR scenario corpus / source > 10-clsx builds stable source HIR snapsho
       "accessPath": [
         "btn",
       ],
+      "bindingDeclId": "decl:2",
       "className": "btn",
       "kind": "styleAccess",
       "origin": "styleAccess",
@@ -494,6 +500,7 @@ exports[`HIR scenario corpus / source > 10-clsx builds stable source HIR snapsho
       "accessPath": [
         "secondary",
       ],
+      "bindingDeclId": "decl:2",
       "className": "secondary",
       "kind": "styleAccess",
       "origin": "styleAccess",
@@ -509,6 +516,7 @@ exports[`HIR scenario corpus / source > 10-clsx builds stable source HIR snapsho
       "accessPath": [
         "active",
       ],
+      "bindingDeclId": "decl:2",
       "className": "active",
       "kind": "styleAccess",
       "origin": "styleAccess",
@@ -524,6 +532,7 @@ exports[`HIR scenario corpus / source > 10-clsx builds stable source HIR snapsho
       "accessPath": [
         "btn",
       ],
+      "bindingDeclId": "decl:2",
       "className": "btn",
       "kind": "styleAccess",
       "origin": "styleAccess",
@@ -539,6 +548,7 @@ exports[`HIR scenario corpus / source > 10-clsx builds stable source HIR snapsho
       "accessPath": [
         "primary",
       ],
+      "bindingDeclId": "decl:2",
       "className": "primary",
       "kind": "styleAccess",
       "origin": "styleAccess",
@@ -554,6 +564,7 @@ exports[`HIR scenario corpus / source > 10-clsx builds stable source HIR snapsho
       "accessPath": [
         "lg",
       ],
+      "bindingDeclId": "decl:2",
       "className": "lg",
       "kind": "styleAccess",
       "origin": "styleAccess",
@@ -569,6 +580,7 @@ exports[`HIR scenario corpus / source > 10-clsx builds stable source HIR snapsho
       "accessPath": [
         "disabled",
       ],
+      "bindingDeclId": "decl:2",
       "className": "disabled",
       "kind": "styleAccess",
       "origin": "styleAccess",
@@ -584,6 +596,7 @@ exports[`HIR scenario corpus / source > 10-clsx builds stable source HIR snapsho
       "accessPath": [
         "note",
       ],
+      "bindingDeclId": "decl:2",
       "className": "note",
       "kind": "styleAccess",
       "origin": "styleAccess",

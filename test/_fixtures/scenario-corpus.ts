@@ -162,6 +162,7 @@ export function normalizeSourceDocument(doc: SourceDocumentHIR): unknown {
         : {}),
       ...(expr.kind === "styleAccess"
         ? {
+            bindingDeclId: expr.bindingDeclId,
             className: expr.className,
             accessPath: [...expr.accessPath],
           }

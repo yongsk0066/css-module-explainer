@@ -1,5 +1,6 @@
 import ts from "typescript";
 import type { Range, StyleImport } from "@css-module-explainer/shared";
+import { findImportDeclId } from "../binder/import-decls";
 import { resolveIdentifierAtOffset } from "../binder/binder-builder";
 import type { SourceBinderResult } from "../binder/scope-types";
 import type { ResolvedCxBinding } from "./resolved-bindings";
@@ -34,7 +35,7 @@ export function parseClassExpressions(
   }
 
   if (stylesBindings.size > 0) {
-    collectStyleAccessExpressions(sourceFile, stylesBindings, expressions, allocateId);
+    collectStyleAccessExpressions(sourceFile, stylesBindings, binder, expressions, allocateId);
   }
 
   return expressions;
@@ -203,6 +204,7 @@ function extractObjectLiteral(
 function collectStyleAccessExpressions(
   sourceFile: ts.SourceFile,
   stylesBindings: ReadonlyMap<string, StyleImport>,
+  binder: SourceBinderResult,
   out: ClassExpressionHIR[],
   allocateId: () => string,
 ): void {
@@ -214,6 +216,15 @@ function collectStyleAccessExpressions(
     ) {
       const styleImport = stylesBindings.get(node.expression.text);
       if (styleImport) {
+        const bindingDeclId = resolveStyleImportDeclId(
+          binder,
+          node.expression.text,
+          node.expression.getStart(sourceFile),
+        );
+        if (!bindingDeclId) {
+          ts.forEachChild(node, visit);
+          return;
+        }
         const propName = node.name;
         const start = sourceFile.getLineAndCharacterOfPosition(propName.getStart(sourceFile));
         const end = sourceFile.getLineAndCharacterOfPosition(propName.getEnd());
@@ -221,6 +232,7 @@ function collectStyleAccessExpressions(
           makeStyleAccessClassExpression(
             allocateId(),
             styleImport.absolutePath,
+            bindingDeclId,
             propName.text,
             [propName.text],
             {
@@ -239,11 +251,21 @@ function collectStyleAccessExpressions(
     ) {
       const styleImport = stylesBindings.get(node.expression.text);
       if (styleImport) {
+        const bindingDeclId = resolveStyleImportDeclId(
+          binder,
+          node.expression.text,
+          node.expression.getStart(sourceFile),
+        );
+        if (!bindingDeclId) {
+          ts.forEachChild(node, visit);
+          return;
+        }
         const className = node.argumentExpression.text;
         out.push(
           makeStyleAccessClassExpression(
             allocateId(),
             styleImport.absolutePath,
+            bindingDeclId,
             className,
             [className],
             innerStringRange(node.argumentExpression, sourceFile),
@@ -256,6 +278,17 @@ function collectStyleAccessExpressions(
   }
 
   visit(sourceFile);
+}
+
+function resolveStyleImportDeclId(
+  binder: SourceBinderResult,
+  localName: string,
+  offset: number,
+): string | null {
+  const expectedDeclId = findImportDeclId(binder, localName);
+  if (!expectedDeclId) return null;
+  const resolution = resolveIdentifierAtOffset(binder, localName, offset);
+  return resolution?.declId === expectedDeclId ? expectedDeclId : null;
 }
 
 function unwrapTransparentExpression(expression: ts.Expression): ts.Expression {

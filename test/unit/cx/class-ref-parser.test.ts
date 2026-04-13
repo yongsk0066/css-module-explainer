@@ -72,4 +72,45 @@ describe("parseClassExpressions", () => {
       pathSegments: [],
     });
   });
+
+  it("records binder-linked styleAccess expressions for imported styles", () => {
+    const sourceFile = parse(`
+      import styles from './Button.module.scss';
+      const el = <div className={styles.button} />;
+    `);
+    const binder = buildSourceBinder(sourceFile);
+    const { stylesBindings } = scanCxImports(
+      sourceFile,
+      "/fake/src/Button.tsx",
+      () => true,
+      EMPTY_ALIAS_RESOLVER,
+    );
+    const expressions = parseClassExpressions(sourceFile, [], stylesBindings, binder);
+
+    expect(expressions).toHaveLength(1);
+    expect(expressions[0]).toMatchObject({
+      kind: "styleAccess",
+      className: "button",
+      bindingDeclId: "decl:0",
+    });
+  });
+
+  it("does not emit styleAccess when a local binding shadows the imported styles name", () => {
+    const sourceFile = parse(`
+      import styles from './Button.module.scss';
+      function render(styles: { button: string }) {
+        return <div className={styles.button} />;
+      }
+    `);
+    const binder = buildSourceBinder(sourceFile);
+    const { stylesBindings } = scanCxImports(
+      sourceFile,
+      "/fake/src/Button.tsx",
+      () => true,
+      EMPTY_ALIAS_RESOLVER,
+    );
+    const expressions = parseClassExpressions(sourceFile, [], stylesBindings, binder);
+
+    expect(expressions).toEqual([]);
+  });
 });

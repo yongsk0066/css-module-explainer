@@ -43,6 +43,7 @@ type SymbolRefExpressionSpec = {
 type StyleAccessExpressionSpec = {
   readonly kind: "styleAccess";
   readonly scssModulePath: string;
+  readonly bindingDeclId?: string;
   readonly className: string;
   readonly accessPath?: readonly string[];
   readonly range: ClassExpressionHIR["range"];
@@ -119,6 +120,7 @@ function toClassExpression(expression: TestClassExpressionSpec, index: number): 
       return makeStyleAccessClassExpression(
         id,
         expression.scssModulePath,
+        expression.bindingDeclId ?? "synthetic-style-import-decl:test",
         expression.className,
         expression.accessPath ?? [expression.className],
         expression.range,

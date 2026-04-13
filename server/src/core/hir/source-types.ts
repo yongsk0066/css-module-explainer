@@ -66,6 +66,7 @@ export interface SymbolRefClassExpressionHIR extends ClassExpressionBase {
  */
 export interface StyleAccessClassExpressionHIR extends ClassExpressionBase {
   readonly kind: "styleAccess";
+  readonly bindingDeclId: string;
   readonly className: string;
   readonly accessPath: readonly string[];
 }
@@ -159,6 +160,7 @@ export function makeSymbolRefClassExpression(
 export function makeStyleAccessClassExpression(
   id: string,
   scssModulePath: string,
+  bindingDeclId: string,
   className: string,
   accessPath: readonly string[],
   range: Range,
@@ -168,6 +170,7 @@ export function makeStyleAccessClassExpression(
     id,
     origin: "styleAccess",
     scssModulePath,
+    bindingDeclId,
     className,
     accessPath,
     range,
