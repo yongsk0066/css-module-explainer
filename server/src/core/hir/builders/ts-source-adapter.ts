@@ -1,4 +1,5 @@
 import type { StyleImport } from "@css-module-explainer/shared";
+import type { SourceBinderResult } from "../../binder/scope-types";
 import type { ResolvedCxBinding } from "../../cx/resolved-bindings";
 import {
   makeClassUtilBinding,
@@ -16,11 +17,17 @@ export interface BuildSourceDocumentArgs {
   readonly stylesBindings: ReadonlyMap<string, StyleImport>;
   readonly classUtilNames: readonly string[];
   readonly classExpressions: readonly ClassExpressionHIR[];
+  readonly sourceBinder?: SourceBinderResult;
 }
 
 export function buildSourceDocument(args: BuildSourceDocumentArgs): SourceDocumentHIR {
   const styleImports = Array.from(args.stylesBindings.entries(), ([localName, resolved], index) =>
-    makeStyleImportBinding(`style-import:${index}`, localName, resolved),
+    makeStyleImportBinding(
+      `style-import:${index}`,
+      localName,
+      resolveImportDeclId(args.sourceBinder, localName, undefined, index),
+      resolved,
+    ),
   );
   const utilityBindings: UtilityBindingHIR[] = [
     ...args.cxBindings.map((binding, index) => ({
@@ -33,7 +40,16 @@ export function buildSourceDocument(args: BuildSourceDocumentArgs): SourceDocume
       bindingDeclId: binding.bindingDeclId,
     })),
     ...args.classUtilNames.map((localName, index) =>
-      makeClassUtilBinding(`utility-binding:util:${index}`, localName),
+      makeClassUtilBinding(
+        `utility-binding:util:${index}`,
+        localName,
+        resolveImportDeclId(
+          args.sourceBinder,
+          localName,
+          new Set(["clsx", "clsx/lite", "classnames"]),
+          index,
+        ),
+      ),
     ),
   ];
 
@@ -44,6 +60,25 @@ export function buildSourceDocument(args: BuildSourceDocumentArgs): SourceDocume
     utilityBindings,
     classExpressions: args.classExpressions,
   });
+}
+
+function resolveImportDeclId(
+  sourceBinder: SourceBinderResult | undefined,
+  localName: string,
+  allowedImportPaths: ReadonlySet<string> | undefined,
+  index: number,
+): string {
+  if (!sourceBinder) {
+    return `synthetic-import-decl:${localName}:${index}`;
+  }
+
+  const match = sourceBinder.decls.find(
+    (decl) =>
+      decl.kind === "import" &&
+      decl.name === localName &&
+      (!allowedImportPaths || (decl.importPath && allowedImportPaths.has(decl.importPath))),
+  );
+  return match?.id ?? `synthetic-import-decl:${localName}:${index}`;
 }
 
 function inferSourceLanguage(filePath: string): SourceLanguage {

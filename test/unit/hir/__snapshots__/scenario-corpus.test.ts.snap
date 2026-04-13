@@ -144,6 +144,7 @@ exports[`HIR scenario corpus / source > 01-basic builds stable source HIR snapsh
   "language": "typescriptreact",
   "styleImports": [
     {
+      "bindingDeclId": "decl:2",
       "kind": "styleImport",
       "localName": "styles",
       "resolved": {
@@ -293,6 +294,7 @@ exports[`HIR scenario corpus / source > 02-multi-binding builds stable source HI
   "language": "typescriptreact",
   "styleImports": [
     {
+      "bindingDeclId": "decl:1",
       "kind": "styleImport",
       "localName": "cardStyles",
       "resolved": {
@@ -301,6 +303,7 @@ exports[`HIR scenario corpus / source > 02-multi-binding builds stable source HI
       },
     },
     {
+      "bindingDeclId": "decl:2",
       "kind": "styleImport",
       "localName": "buttonStyles",
       "resolved": {
@@ -368,6 +371,7 @@ exports[`HIR scenario corpus / source > 02-style-access builds stable source HIR
   "language": "typescriptreact",
   "styleImports": [
     {
+      "bindingDeclId": "decl:0",
       "kind": "styleImport",
       "localName": "styles",
       "resolved": {
@@ -401,6 +405,7 @@ exports[`HIR scenario corpus / source > 04-dynamic builds stable source HIR snap
   "language": "typescriptreact",
   "styleImports": [
     {
+      "bindingDeclId": "decl:1",
       "kind": "styleImport",
       "localName": "styles",
       "resolved": {
@@ -595,6 +600,7 @@ exports[`HIR scenario corpus / source > 10-clsx builds stable source HIR snapsho
   "language": "typescriptreact",
   "styleImports": [
     {
+      "bindingDeclId": "decl:2",
       "kind": "styleImport",
       "localName": "styles",
       "resolved": {
@@ -605,6 +611,7 @@ exports[`HIR scenario corpus / source > 10-clsx builds stable source HIR snapsho
   ],
   "utilityBindings": [
     {
+      "bindingDeclId": "decl:0",
       "kind": "classUtil",
       "localName": "clsx",
     },

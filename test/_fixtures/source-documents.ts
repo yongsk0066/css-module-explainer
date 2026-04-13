@@ -1,4 +1,5 @@
 import type { StyleImport } from "@css-module-explainer/shared";
+import type { SourceBinderResult } from "../../server/src/core/binder/scope-types";
 import type { ResolvedCxBinding } from "../../server/src/core/cx/resolved-bindings";
 import { buildSourceDocument } from "../../server/src/core/hir/builders/ts-source-adapter";
 import {
@@ -69,6 +70,7 @@ export function buildSourceDocumentFixture(args: {
   readonly stylesBindings?: ReadonlyMap<string, StyleImport>;
   readonly classUtilNames?: readonly string[];
   readonly expressions: readonly TestClassExpressionSpec[];
+  readonly sourceBinder?: SourceBinderResult;
 }): SourceDocumentHIR {
   return buildSourceDocument({
     filePath: args.filePath,
@@ -76,6 +78,7 @@ export function buildSourceDocumentFixture(args: {
     stylesBindings: args.stylesBindings ?? new Map(),
     classUtilNames: args.classUtilNames ?? [],
     classExpressions: args.expressions.map(toClassExpression),
+    sourceBinder: args.sourceBinder,
   });
 }
 

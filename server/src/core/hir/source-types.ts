@@ -12,6 +12,7 @@ export interface SourceDocumentHIR extends HirDocumentBase {
 export interface StyleImportBindingHIR extends HirNodeBase {
   readonly kind: "styleImport";
   readonly localName: string;
+  readonly bindingDeclId: string;
   readonly resolved: StyleImport;
 }
 
@@ -27,6 +28,7 @@ export interface ClassnamesBindUtilityBindingHIR extends HirNodeBase {
 export interface ClassUtilBindingHIR extends HirNodeBase {
   readonly kind: "classUtil";
   readonly localName: string;
+  readonly bindingDeclId: string;
 }
 
 export type UtilityBindingHIR = ClassnamesBindUtilityBindingHIR | ClassUtilBindingHIR;
@@ -85,15 +87,20 @@ export interface BuildSourceDocumentHIRArgs {
 export function makeStyleImportBinding(
   id: string,
   localName: string,
+  bindingDeclId: string,
   resolved: StyleImport,
 ): StyleImportBindingHIR {
   return resolved.kind === "missing"
-    ? { kind: "styleImport", id, localName, resolved, range: resolved.range }
-    : { kind: "styleImport", id, localName, resolved };
+    ? { kind: "styleImport", id, localName, bindingDeclId, resolved, range: resolved.range }
+    : { kind: "styleImport", id, localName, bindingDeclId, resolved };
 }
 
-export function makeClassUtilBinding(id: string, localName: string): ClassUtilBindingHIR {
-  return { kind: "classUtil", id, localName };
+export function makeClassUtilBinding(
+  id: string,
+  localName: string,
+  bindingDeclId: string,
+): ClassUtilBindingHIR {
+  return { kind: "classUtil", id, localName, bindingDeclId };
 }
 
 export function makeSourceDocumentHIR(args: BuildSourceDocumentHIRArgs): SourceDocumentHIR {

@@ -88,6 +88,7 @@ export function loadSourceScenario(def: SourceScenarioDef): LoadedSourceScenario
     cxBindings,
     stylesBindings,
     classUtilNames: detectClassUtilImports(sourceFile),
+    sourceBinder,
     classExpressions: parseClassExpressions(sourceFile, cxBindings, stylesBindings, sourceBinder),
   });
 
@@ -123,6 +124,7 @@ export function normalizeSourceDocument(doc: SourceDocumentHIR): unknown {
     styleImports: doc.styleImports.map((binding) => ({
       kind: binding.kind,
       localName: binding.localName,
+      bindingDeclId: binding.bindingDeclId,
       resolved: normalizeStyleImport(binding.resolved),
       ...(binding.range ? { range: normalizeRange(binding.range) } : {}),
     })),
@@ -139,6 +141,7 @@ export function normalizeSourceDocument(doc: SourceDocumentHIR): unknown {
         : {
             kind: binding.kind,
             localName: binding.localName,
+            bindingDeclId: binding.bindingDeclId,
           },
     ),
     classExpressions: doc.classExpressions.map((expr) => ({

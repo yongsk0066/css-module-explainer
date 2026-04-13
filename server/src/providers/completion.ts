@@ -88,6 +88,11 @@ function findCompletionContext(entry: AnalysisEntry, textBefore: string): Comple
   if (classUtilBindings.length === 0 || entry.sourceDocument.styleImports.length === 0) return null;
 
   for (const binding of classUtilBindings) {
+    const callOffset = findOpenCallOffset(textBefore, binding.localName);
+    if (callOffset === null) continue;
+    const resolution = resolveIdentifierAtOffset(entry.sourceBinder, binding.localName, callOffset);
+    const decl = resolution ? getDeclById(entry.sourceBinder, resolution.declId) : null;
+    if (!decl || binding.bindingDeclId !== decl.id) continue;
     if (!isInsideCall(textBefore, binding.localName)) continue;
     // Check if textBefore ends with `<varName>.` or `<varName>.<partial>`
     // for any known style import. Uses simple string check instead of

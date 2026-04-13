@@ -199,6 +199,7 @@ export class DocumentAnalysisCache {
       cxBindings,
       stylesBindings,
       classUtilNames,
+      sourceBinder,
       classExpressions:
         this.deps.parseClassExpressions?.(sourceFile, cxBindings, stylesBindings, sourceBinder) ??
         [],

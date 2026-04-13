@@ -270,6 +270,28 @@ const el = clsx(styles.
     expect(result!.map((r) => r.label).toSorted()).toEqual(["active", "btn"]);
   });
 
+  it("returns null when a local binding shadows the imported clsx identifier", () => {
+    const SHADOWED_TSX = `
+import clsx from 'clsx';
+import styles from './Button.module.scss';
+function render(clsx: (value: unknown) => string) {
+  return clsx(styles.
+}
+`;
+    const result = handleCompletion(
+      {
+        documentUri: "file:///fake/ws/src/Button.tsx",
+        content: SHADOWED_TSX,
+        filePath: "/fake/ws/src/Button.tsx",
+        line: 4,
+        character: 21,
+        version: 1,
+      },
+      clsxMakeDeps(),
+    );
+    expect(result).toBeNull();
+  });
+
   it("returns class completions with aliased import (cn from 'clsx')", () => {
     const CN_TSX = `
 import cn from 'clsx';
