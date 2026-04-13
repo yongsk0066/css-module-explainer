@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import ts from "typescript";
+import type { Range } from "@css-module-explainer/shared";
 import { WorkspaceTypeResolver } from "../../../server/src/core/ts/type-resolver";
 
 /**
@@ -51,6 +52,32 @@ function makeResolver(files: Record<string, string>, onCreate?: () => void): Wor
       });
     },
   });
+}
+
+function rangeOfOccurrence(filePath: string, text: string, needle: string, occurrence = 1): Range {
+  let fromIndex = 0;
+  let offset = -1;
+  for (let current = 0; current < occurrence; current += 1) {
+    offset = text.indexOf(needle, fromIndex);
+    if (offset < 0) {
+      throw new Error(`Could not find occurrence ${occurrence} of ${needle} in ${filePath}`);
+    }
+    fromIndex = offset + needle.length;
+  }
+
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    text,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+  const start = sourceFile.getLineAndCharacterOfPosition(offset);
+  const end = sourceFile.getLineAndCharacterOfPosition(offset + needle.length);
+  return {
+    start: { line: start.line, character: start.character },
+    end: { line: end.line, character: end.character },
+  };
 }
 
 describe("WorkspaceTypeResolver.resolve", () => {
@@ -217,6 +244,42 @@ describe("WorkspaceTypeResolver.resolve", () => {
     const result = resolver.resolve("/ws/a.tsx", "sizes", "/ws");
     expect(result.kind).toBe("union");
     expect(result.values.toSorted()).toEqual(["local-a", "local-b"]);
+  });
+
+  it("uses the call-site range to resolve the innermost shadowed local", () => {
+    const filePath = "/ws/a.tsx";
+    const fileText = `
+      function render(flag: boolean) {
+        const size = "outer" as const;
+        if (flag) {
+          const size = "inner" as const;
+          return size;
+        }
+        return size;
+      }
+      export {};
+    `;
+    const resolver = makeResolver({
+      [filePath]: fileText,
+    });
+
+    const innerResult = resolver.resolve(
+      filePath,
+      "size",
+      "/ws",
+      rangeOfOccurrence(filePath, fileText, "size", 3),
+    );
+    expect(innerResult.kind).toBe("union");
+    expect(innerResult.values).toEqual(["inner"]);
+
+    const outerResult = resolver.resolve(
+      filePath,
+      "size",
+      "/ws",
+      rangeOfOccurrence(filePath, fileText, "size", 4),
+    );
+    expect(outerResult.kind).toBe("union");
+    expect(outerResult.values).toEqual(["outer"]);
   });
 
   it("falls back to import when no local declaration matches", () => {

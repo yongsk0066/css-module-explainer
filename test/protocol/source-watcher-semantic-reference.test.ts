@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { FileChangeType } from "vscode-languageserver-protocol/node";
 import { createInProcessServer, type LspTestClient } from "./_harness/in-process-server";
-import type { ResolvedType } from "@css-module-explainer/shared";
+import type { Range, ResolvedType } from "@css-module-explainer/shared";
 import type { TypeResolver } from "../../server/src/core/ts/type-resolver";
 
 // Source-file watcher → semantic reference freshness.
@@ -30,7 +30,12 @@ class MutableFakeTypeResolver implements TypeResolver {
     this.values = values;
   }
 
-  resolve(): ResolvedType {
+  resolve(
+    _filePath?: string,
+    _variableName?: string,
+    _workspaceRoot?: string,
+    _range?: Range,
+  ): ResolvedType {
     return this.values.length > 0
       ? { kind: "union", values: [...this.values] }
       : { kind: "unresolvable", values: [] };

@@ -1,5 +1,10 @@
 import ts from "typescript";
-import type { ResolvedType } from "@css-module-explainer/shared";
+import type { Range, ResolvedType } from "@css-module-explainer/shared";
+import {
+  buildSourceBinder,
+  getDeclById,
+  resolveIdentifierAtOffset,
+} from "../binder/binder-builder";
 
 /**
  * Workspace tier of the 2-tier TypeScript strategy.
@@ -19,7 +24,12 @@ export interface TypeResolver {
    * The method must always return a ResolvedType — `unresolvable`
    * is a valid "the checker could not narrow this" result.
    */
-  resolve(filePath: string, variableName: string, workspaceRoot: string): ResolvedType;
+  resolve(
+    filePath: string,
+    variableName: string,
+    workspaceRoot: string,
+    range?: Range,
+  ): ResolvedType;
 
   /** Drop the cached program for one workspace (e.g. on tsconfig change). */
   invalidate(workspaceRoot: string): void;
@@ -51,7 +61,12 @@ export class WorkspaceTypeResolver implements TypeResolver {
     this.deps = deps;
   }
 
-  resolve(filePath: string, variableName: string, workspaceRoot: string): ResolvedType {
+  resolve(
+    filePath: string,
+    variableName: string,
+    workspaceRoot: string,
+    range?: Range,
+  ): ResolvedType {
     const program = this.getOrCreateProgram(workspaceRoot);
     const sourceFile = program.getSourceFile(filePath);
     if (!sourceFile) {
@@ -62,7 +77,7 @@ export class WorkspaceTypeResolver implements TypeResolver {
     const parts = variableName.split(".");
     const rootName = parts[0]!;
 
-    let symbol = findIdentifierSymbol(sourceFile, rootName, checker);
+    let symbol = findIdentifierSymbol(sourceFile, rootName, checker, range);
     if (!symbol) {
       return UNRESOLVABLE;
     }
@@ -108,20 +123,30 @@ const UNRESOLVABLE: ResolvedType = { kind: "unresolvable", values: [] };
  * Walk the source file for an identifier matching `variableName`
  * and return its checker symbol.
  *
- * Uses a **local-first, import-fallback** 2-pass strategy:
- *   1. First pass looks only at local declarations (variable,
- *      parameter, destructuring binding) via document-order DFS.
- *   2. If no local match, a second pass checks import bindings
- *      (named, default, namespace).
+ * Uses the lexical binder when a call-site range is available.
+ * This makes local shadowing resolution depend on the actual
+ * reference location rather than document-order heuristics.
  *
- * This ensures local declarations shadow imports with the same
- * name, matching TypeScript's own scoping rules in the common
- * case. Note: this is still NOT fully scope-aware — if the same
- * name appears in two different local scopes, the first one in
- * document order wins. Full scope-aware resolution requires
- * carrying the call-site node into the resolver (future work).
+ * When no range is provided, the resolver temporarily falls back
+ * to the older local-first/import-fallback DFS so direct unit
+ * tests can keep using the narrow API while Wave 1 migrates call
+ * sites to binder-aware resolution.
  */
 function findIdentifierSymbol(
+  sourceFile: ts.SourceFile,
+  variableName: string,
+  checker: ts.TypeChecker,
+  range?: Range,
+): ts.Symbol | null {
+  if (range) {
+    const bound = findBoundSymbol(sourceFile, variableName, checker, range);
+    if (bound) return bound;
+  }
+
+  return findIdentifierSymbolWithoutSite(sourceFile, variableName, checker);
+}
+
+function findIdentifierSymbolWithoutSite(
   sourceFile: ts.SourceFile,
   variableName: string,
   checker: ts.TypeChecker,
@@ -132,6 +157,71 @@ function findIdentifierSymbol(
 
   // Pass 2: import bindings as fallback.
   return findImportSymbol(sourceFile, variableName, checker);
+}
+
+function findBoundSymbol(
+  sourceFile: ts.SourceFile,
+  variableName: string,
+  checker: ts.TypeChecker,
+  range: Range,
+): ts.Symbol | null {
+  if (range.start.line >= sourceFile.getLineStarts().length) {
+    return null;
+  }
+
+  const offset = ts.getPositionOfLineAndCharacter(
+    sourceFile,
+    range.start.line,
+    range.start.character,
+  );
+  const binder = buildSourceBinder(sourceFile);
+  const resolution = resolveIdentifierAtOffset(binder, variableName, offset);
+  if (!resolution) {
+    return null;
+  }
+
+  const decl = getDeclById(binder, resolution.declId);
+  if (!decl) {
+    return null;
+  }
+
+  const identifier = findIdentifierNodeForDecl(
+    sourceFile,
+    decl.name,
+    decl.span.start,
+    decl.span.end,
+  );
+  if (!identifier) {
+    return null;
+  }
+
+  return checker.getSymbolAtLocation(identifier) ?? null;
+}
+
+function findIdentifierNodeForDecl(
+  sourceFile: ts.SourceFile,
+  name: string,
+  start: number,
+  end: number,
+): ts.Identifier | null {
+  let found: ts.Identifier | null = null;
+
+  const visit = (node: ts.Node): void => {
+    if (found) return;
+    if (
+      ts.isIdentifier(node) &&
+      node.text === name &&
+      node.getStart(sourceFile) === start &&
+      node.getEnd() === end
+    ) {
+      found = node;
+      return;
+    }
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+  return found;
 }
 
 function findLocalSymbol(

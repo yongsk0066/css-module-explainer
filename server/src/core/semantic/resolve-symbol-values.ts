@@ -27,7 +27,12 @@ export function resolveSymbolClassValues(
   const flow = resolveFlowClassValues(input.sourceFile, input.range, input.rootName);
   if (flow) return flow;
 
-  const resolved = env.typeResolver.resolve(env.filePath, input.rawReference, env.workspaceRoot);
+  const resolved = env.typeResolver.resolve(
+    env.filePath,
+    input.rawReference,
+    env.workspaceRoot,
+    input.range,
+  );
   return resolved.kind === "union"
     ? { values: resolved.values, certainty: "inferred", reason: "typeUnion" }
     : null;
