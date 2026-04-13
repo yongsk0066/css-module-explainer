@@ -3,6 +3,7 @@ import type { SelectorDeclHIR, StyleDocumentHIR } from "../hir/style-types";
 import { prefixClassValue } from "../abstract-value/class-value-domain";
 import { resolveAbstractValueSelectors } from "../abstract-value/selector-projection";
 import { buildSourceSemanticGraph } from "../semantic/graph-builder";
+import { deriveSelectorProjectionCertainty, type EdgeCertainty } from "../semantic/certainty";
 import { buildSemanticReferenceIndex } from "../semantic/reference-index";
 import { resolveSymbolExpressionValues } from "../semantic/resolve-symbol-values";
 import type { FlowResolution } from "../flow/lattice";
@@ -27,7 +28,7 @@ export interface DynamicHoverExplanation {
   readonly subject: string;
   readonly candidates: readonly string[];
   readonly abstractValue?: FlowResolution["abstractValue"];
-  readonly certainty?: FlowResolution["certainty"];
+  readonly certainty?: EdgeCertainty;
   readonly reason?: FlowResolution["reason"];
 }
 
@@ -81,6 +82,7 @@ export function resolveRefDetails(
       dynamicExplanation: buildDynamicHoverExplanation(
         ctx.expression,
         fallbackSelectors,
+        styleDocument,
         ctx.entry.sourceFile,
         ctx.entry.sourceBinder,
         env,
@@ -117,6 +119,7 @@ export function resolveRefDetails(
     dynamicExplanation: buildDynamicHoverExplanation(
       ctx.expression,
       selectors,
+      styleDocument,
       ctx.entry.sourceFile,
       ctx.entry.sourceBinder,
       env,
@@ -156,6 +159,7 @@ function resolveExpressionAgainstStyleDocument(
 function buildDynamicHoverExplanation(
   expression: ClassExpressionHIR,
   selectors: readonly SelectorDeclHIR[],
+  styleDocument: StyleDocumentHIR,
   sourceFile: AnalysisEntry["sourceFile"],
   sourceBinder: AnalysisEntry["sourceBinder"],
   env: Pick<ResolveRefQueryEnv, "typeResolver" | "filePath" | "workspaceRoot">,
@@ -170,7 +174,11 @@ function buildDynamicHoverExplanation(
         candidates:
           resolved.values.length > 0 ? resolved.values : selectors.map((selector) => selector.name),
         abstractValue: resolved.abstractValue,
-        certainty: resolved.certainty,
+        certainty: deriveSelectorProjectionCertainty(
+          resolved.abstractValue,
+          selectors.length,
+          countCanonicalSelectors(styleDocument),
+        ),
         reason: resolved.reason,
       };
     }
@@ -180,6 +188,12 @@ function buildDynamicHoverExplanation(
             kind: "template",
             subject: expression.staticPrefix,
             candidates: selectors.map((selector) => selector.name),
+            abstractValue: prefixClassValue(expression.staticPrefix),
+            certainty: deriveSelectorProjectionCertainty(
+              prefixClassValue(expression.staticPrefix),
+              selectors.length,
+              countCanonicalSelectors(styleDocument),
+            ),
           }
         : null;
     case "literal":
@@ -215,4 +229,8 @@ function findCanonicalSelector(
         selector.canonicalName === match.canonicalName && selector.viewKind === "canonical",
     ) ?? match
   );
+}
+
+function countCanonicalSelectors(styleDocument: StyleDocumentHIR): number {
+  return styleDocument.selectors.filter((selector) => selector.viewKind === "canonical").length;
 }

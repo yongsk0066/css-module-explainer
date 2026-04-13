@@ -60,6 +60,28 @@ describe("findSelectorReferenceSites", () => {
       ),
     ).toBe(true);
   });
+
+  it("treats exact-but-expanded semantic sites as blocking rename references", () => {
+    const semanticReferenceIndex = withSemanticSites([
+      semanticSite({
+        uri: "file:///src/Button.tsx",
+        line: 5,
+        selectorFilePath: "/src/Button.module.scss",
+        canonicalName: "button",
+        className: "button",
+        certainty: "exact",
+        expansion: "expanded",
+      }),
+    ]);
+
+    expect(
+      hasNonDirectSelectorReferenceSites(
+        { semanticReferenceIndex },
+        "/src/Button.module.scss",
+        "button",
+      ),
+    ).toBe(true);
+  });
 });
 
 function withSemanticSites(
@@ -77,7 +99,9 @@ function semanticSite(args: {
   readonly canonicalName: string;
   readonly className: string;
   readonly certainty: "exact" | "inferred" | "possible";
+  readonly expansion?: "direct" | "expanded";
 }): SemanticReferenceSite {
+  const expansion = args.expansion ?? (args.certainty === "exact" ? "direct" : "expanded");
   return {
     refId: `ref:${args.line}`,
     selectorId: `selector:${args.canonicalName}`,
@@ -94,6 +118,6 @@ function semanticSite(args: {
     className: args.className,
     certainty: args.certainty,
     reason: args.certainty === "exact" ? "literal" : "typeUnion",
-    expansion: args.certainty === "exact" ? "direct" : "expanded",
+    expansion,
   };
 }

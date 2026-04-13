@@ -1,7 +1,7 @@
 import { pathToFileURL } from "node:url";
 import type { ClassRefOrigin, Range } from "@css-module-explainer/shared";
 import type { AbstractClassValue } from "../abstract-value/class-value-domain";
-import { rankCertainty, type EdgeCertainty } from "./certainty";
+import { deriveReferenceExpansion, rankCertainty, type EdgeCertainty } from "./certainty";
 import type { EdgeReason } from "./provenance";
 import type { RefNode, SelectorNode, SemanticGraph, SemanticNode } from "./graph-types";
 
@@ -123,7 +123,7 @@ function toReferenceSite(
     className: refNode.className ?? selectorNode.canonicalName,
     certainty,
     reason,
-    expansion: certainty === "exact" ? "direct" : "expanded",
+    expansion: deriveReferenceExpansion(refNode.expressionKind),
     ...(abstractValue ? { abstractValue } : {}),
   };
 }
