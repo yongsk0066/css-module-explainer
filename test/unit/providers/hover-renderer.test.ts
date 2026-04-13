@@ -116,6 +116,30 @@ describe("renderHover", () => {
     expect(markdown).toContain("**2 matches** for `cx(size)`");
   });
 
+  it("renders abstract value summaries for dynamic explanations", () => {
+    const markdown = renderHover({
+      expression: symbolExpression,
+      scssModulePath: SCSS_PATH,
+      selectors: [
+        selector("small", 10, "font-size: 12px"),
+        selector("medium", 14, "font-size: 16px"),
+      ],
+      workspaceRoot: "/fake/ws",
+      dynamicExplanation: {
+        kind: "symbolRef",
+        subject: "size",
+        candidates: ["small", "medium"],
+        abstractValue: {
+          kind: "finiteSet",
+          values: ["medium", "small"],
+        },
+        certainty: "inferred",
+        reason: "typeUnion",
+      },
+    });
+    expect(markdown).toContain("Value domain: finite set (2).");
+  });
+
   it("caps multi-match at MAX_CANDIDATES=10 with a tail summary", () => {
     const many = Array.from({ length: 15 }, (_, i) => selector(`item-${i}`, i + 1, "color: red"));
     const markdown = renderHover({

@@ -212,7 +212,8 @@ const el = cx(size);
     const value = (hover!.contents as { value: string }).value;
     expect(value).toContain("Resolved from `size` via TypeScript string-literal union analysis.");
     expect(value).toContain("Certainty: inferred.");
-    expect(value).toContain("Candidates: `indicator`, `active`.");
+    expect(value).toContain("Value domain: finite set (2).");
+    expect(value).toContain("Candidates: `active`, `indicator`.");
   });
 
   it("logs and returns null when the underlying transform raises", () => {

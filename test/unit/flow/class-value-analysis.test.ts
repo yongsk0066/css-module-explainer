@@ -20,6 +20,10 @@ function render() {
     );
 
     expect(resolveFlowClassValues(sourceFile, rangeOf(source, "cx(size)"), "size")).toEqual({
+      abstractValue: {
+        kind: "exact",
+        value: "lg",
+      },
       values: ["lg"],
       certainty: "exact",
       reason: "flowLiteral",
@@ -45,6 +49,10 @@ function render(flag: boolean) {
     );
 
     expect(resolveFlowClassValues(sourceFile, rangeOf(source, "cx(size)"), "size")).toEqual({
+      abstractValue: {
+        kind: "finiteSet",
+        values: ["lg", "sm"],
+      },
       values: ["lg", "sm"],
       certainty: "inferred",
       reason: "flowBranch",
@@ -71,6 +79,10 @@ function render(flag: boolean) {
     );
 
     expect(resolveFlowClassValues(sourceFile, rangeOf(source, "cx(size)"), "size")).toEqual({
+      abstractValue: {
+        kind: "exact",
+        value: "sm",
+      },
       values: ["sm"],
       certainty: "exact",
       reason: "flowLiteral",

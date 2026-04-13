@@ -88,6 +88,10 @@ function renderDynamicExplanation(
     if (explanation.certainty) {
       lines.push(`_Certainty: ${explanation.certainty}._`);
     }
+    const domain = formatAbstractValue(explanation.abstractValue);
+    if (domain) {
+      lines.push(`_Value domain: ${domain}._`);
+    }
   } else {
     lines.push(`_Resolved by template prefix \`${explanation.subject}\`._`);
   }
@@ -116,6 +120,26 @@ function formatReason(reason: DynamicHoverExplanation["reason"]): string {
       return "TypeScript string-literal union analysis";
     default:
       return "semantic analysis";
+  }
+}
+
+function formatAbstractValue(explanation: DynamicHoverExplanation["abstractValue"]): string | null {
+  if (!explanation) return null;
+
+  switch (explanation.kind) {
+    case "bottom":
+      return "empty";
+    case "exact":
+      return `exact \`${explanation.value}\``;
+    case "finiteSet":
+      return explanation.values.length > 1 ? `finite set (${explanation.values.length})` : null;
+    case "prefix":
+      return `prefix \`${explanation.prefix}\``;
+    case "top":
+      return "unknown";
+    default:
+      explanation satisfies never;
+      return null;
   }
 }
 

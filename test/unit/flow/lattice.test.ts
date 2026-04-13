@@ -10,6 +10,10 @@ import {
 describe("flow/lattice", () => {
   it("keeps exact flow results exact", () => {
     expect(toFlowResolution(exactValue("button"))).toEqual({
+      abstractValue: {
+        kind: "exact",
+        value: "button",
+      },
       values: ["button"],
       certainty: "exact",
       reason: "flowLiteral",
@@ -18,6 +22,10 @@ describe("flow/lattice", () => {
 
   it("marks merged flow values as inferred branch results", () => {
     expect(toFlowResolution(mergeValues(exactValue("sm"), exactValue("lg")))).toEqual({
+      abstractValue: {
+        kind: "finiteSet",
+        values: ["lg", "sm"],
+      },
       values: ["lg", "sm"],
       certainty: "inferred",
       reason: "flowBranch",
@@ -27,6 +35,10 @@ describe("flow/lattice", () => {
   it("preserves exactness across branched-but-equal values", () => {
     expect(toFlowResolution(markBranched(mergeValues(exactValue("sm"), exactValue("sm"))))).toEqual(
       {
+        abstractValue: {
+          kind: "exact",
+          value: "sm",
+        },
         values: ["sm"],
         certainty: "exact",
         reason: "flowBranch",
@@ -36,11 +48,19 @@ describe("flow/lattice", () => {
 
   it("derives finite type-union results through the shared domain", () => {
     expect(typeUnionResolution(["lg", "sm", "lg"])).toEqual({
+      abstractValue: {
+        kind: "finiteSet",
+        values: ["lg", "sm"],
+      },
       values: ["lg", "sm"],
       certainty: "inferred",
       reason: "typeUnion",
     });
     expect(typeUnionResolution(["button"])).toEqual({
+      abstractValue: {
+        kind: "exact",
+        value: "button",
+      },
       values: ["button"],
       certainty: "exact",
       reason: "typeUnion",

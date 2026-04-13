@@ -24,6 +24,7 @@ export interface DynamicHoverExplanation {
   readonly kind: "symbolRef" | "template";
   readonly subject: string;
   readonly candidates: readonly string[];
+  readonly abstractValue?: FlowResolution["abstractValue"];
   readonly certainty?: FlowResolution["certainty"];
   readonly reason?: FlowResolution["reason"];
 }
@@ -165,6 +166,7 @@ function buildDynamicHoverExplanation(
         kind: "symbolRef",
         subject: expression.rawReference,
         candidates: resolved.values,
+        abstractValue: resolved.abstractValue,
         certainty: resolved.certainty,
         reason: resolved.reason,
       };

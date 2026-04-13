@@ -1,6 +1,7 @@
 import { findClosestMatch } from "../util/text-utils";
 import type { TypeResolver } from "../ts/type-resolver";
 import { resolveSymbolExpressionValues } from "../semantic/resolve-symbol-values";
+import type { FlowResolution } from "../flow/lattice";
 import type ts from "typescript";
 import type { SourceBinderResult } from "../binder/scope-types";
 import type {
@@ -35,6 +36,7 @@ export type InvalidClassReferenceFinding =
       readonly expression: SymbolRefClassExpressionHIR;
       readonly range: SymbolRefClassExpressionHIR["range"];
       readonly missingValues: readonly string[];
+      readonly abstractValue: FlowResolution["abstractValue"];
       readonly certainty: "exact" | "inferred" | "possible";
       readonly reason: "flowLiteral" | "flowBranch" | "typeUnion";
     };
@@ -81,6 +83,7 @@ export function findInvalidClassReference(
         expression,
         range: expression.range,
         missingValues,
+        abstractValue: resolved.abstractValue,
         certainty: resolved.certainty,
         reason: resolved.reason,
       };
