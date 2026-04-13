@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.1
+
+### Patch Changes
+
+- [#2](https://github.com/yongsk0066/css-module-explainer/pull/2) [`d8ee9bd`](https://github.com/yongsk0066/css-module-explainer/commit/d8ee9bda19f0107a8f4aebe4139a6f0eba182452) Thanks [@yongsk0066](https://github.com/yongsk0066)! - Refresh SCSS reference count code lenses when semantic reference data changes so reference counts stay in sync after source analysis.
+
 All notable changes to this project will be documented in this
 file.
 
@@ -311,7 +317,7 @@ hot paths stay under 1 ms):
   index write exactly once per (uri, version) — never on
   provider hot paths.
 - **Workspace reverse index** — `(scssPath, className) →
-  CallSite[]` forward map plus a `uri → keys` back
+CallSite[]` forward map plus a `uri → keys` back
   pointer for O(|callSites|) `forget(uri)` on document
   close. Static call kinds only; template/variable are
   explicitly skipped for this release.
