@@ -132,6 +132,23 @@ function extractFromArgument(
     return;
   }
 
+  if (ts.isBinaryExpression(value) && value.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+    const staticPrefix = extractStaticStringPrefix(value);
+    if (staticPrefix.length > 0) {
+      out.push(
+        makeTemplateClassExpression(
+          allocateId(),
+          "cxCall",
+          binding.scssModulePath,
+          value.getText(sourceFile),
+          staticPrefix,
+          rangeOfNode(value, sourceFile),
+        ),
+      );
+      return;
+    }
+  }
+
   if (ts.isPropertyAccessExpression(value) || ts.isIdentifier(value)) {
     const rawReference = ts.isIdentifier(value) ? value.text : value.getText(sourceFile);
     const [rootName, ...pathSegments] = rawReference.split(".");
@@ -319,6 +336,27 @@ function unwrapTransparentExpression(expression: ts.Expression): ts.Expression {
     current = current.expression;
   }
   return current;
+}
+
+function extractStaticStringPrefix(expression: ts.Expression): string {
+  const value = unwrapTransparentExpression(expression);
+
+  if (ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value)) {
+    return value.text;
+  }
+
+  if (ts.isTemplateExpression(value)) {
+    return value.head.text;
+  }
+
+  if (ts.isBinaryExpression(value) && value.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+    const leftPrefix = extractStaticStringPrefix(value.left);
+    if (leftPrefix.length === 0) return "";
+    const rightPrefix = extractStaticStringPrefix(value.right);
+    return rightPrefix.length > 0 ? leftPrefix + rightPrefix : leftPrefix;
+  }
+
+  return "";
 }
 
 function rangeOfNode(node: ts.Node, sourceFile: ts.SourceFile): Range {

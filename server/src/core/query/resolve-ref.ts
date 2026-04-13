@@ -167,7 +167,8 @@ function buildDynamicHoverExplanation(
       return {
         kind: "symbolRef",
         subject: expression.rawReference,
-        candidates: resolved.values,
+        candidates:
+          resolved.values.length > 0 ? resolved.values : selectors.map((selector) => selector.name),
         abstractValue: resolved.abstractValue,
         certainty: resolved.certainty,
         reason: resolved.reason,

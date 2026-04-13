@@ -46,6 +46,68 @@ export function prefixClassValue(prefix: string): PrefixClassValue {
   return { kind: "prefix", prefix };
 }
 
+export function concatenateClassValues(
+  left: AbstractClassValue,
+  right: AbstractClassValue,
+): AbstractClassValue {
+  if (left.kind === "bottom" || right.kind === "bottom") return BOTTOM_CLASS_VALUE;
+  if (left.kind === "top" || right.kind === "top") return TOP_CLASS_VALUE;
+
+  if (left.kind === "exact") {
+    switch (right.kind) {
+      case "exact":
+        return exactClassValue(left.value + right.value);
+      case "finiteSet":
+        return finiteSetClassValue(right.values.map((value) => left.value + value));
+      case "prefix":
+        return prefixClassValue(left.value + right.prefix);
+      default:
+        right satisfies never;
+        return TOP_CLASS_VALUE;
+    }
+  }
+
+  if (right.kind === "exact") {
+    switch (left.kind) {
+      case "finiteSet":
+        return finiteSetClassValue(left.values.map((value) => value + right.value));
+      case "prefix":
+        return TOP_CLASS_VALUE;
+      default:
+        left satisfies never;
+        return TOP_CLASS_VALUE;
+    }
+  }
+
+  if (left.kind === "finiteSet" && right.kind === "finiteSet") {
+    return finiteSetClassValue(
+      left.values.flatMap((leftValue) => right.values.map((rightValue) => leftValue + rightValue)),
+    );
+  }
+
+  return TOP_CLASS_VALUE;
+}
+
+export function concatenateWithUnknownRight(value: AbstractClassValue): AbstractClassValue {
+  switch (value.kind) {
+    case "bottom":
+      return BOTTOM_CLASS_VALUE;
+    case "exact":
+      return value.value.length > 0 ? prefixClassValue(value.value) : TOP_CLASS_VALUE;
+    case "finiteSet": {
+      const prefix = longestCommonPrefix(value.values);
+      return prefix.length > 0 ? prefixClassValue(prefix) : TOP_CLASS_VALUE;
+    }
+    case "prefix":
+      return value;
+    case "top":
+      return TOP_CLASS_VALUE;
+    default:
+      value satisfies never;
+      return TOP_CLASS_VALUE;
+  }
+}
+
 export function joinClassValues(
   left: AbstractClassValue,
   right: AbstractClassValue,
@@ -120,4 +182,22 @@ function toFiniteValues(
 
 function normalizeValues(values: readonly string[]): readonly string[] {
   return Array.from(new Set(values)).toSorted();
+}
+
+function longestCommonPrefix(values: readonly string[]): string {
+  if (values.length === 0) return "";
+  let prefix = values[0]!;
+  for (let index = 1; index < values.length && prefix.length > 0; index++) {
+    const value = values[index]!;
+    let matchLength = 0;
+    while (
+      matchLength < prefix.length &&
+      matchLength < value.length &&
+      prefix[matchLength] === value[matchLength]
+    ) {
+      matchLength++;
+    }
+    prefix = prefix.slice(0, matchLength);
+  }
+  return prefix;
 }

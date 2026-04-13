@@ -84,6 +84,36 @@ describe("parseClassExpressions", () => {
     });
   });
 
+  it("emits template expressions for string concatenation with a static prefix", () => {
+    const sourceFile = parse(`
+      import classNames from 'classnames/bind';
+      import styles from './Button.module.scss';
+      const cx = classNames.bind(styles);
+      const variant = 'primary';
+      const el = cx('btn-' + variant);
+    `);
+    const binder = buildSourceBinder(sourceFile);
+    const { stylesBindings, bindings } = scanCxImports(
+      sourceFile,
+      "/fake/src/Button.tsx",
+      () => true,
+      EMPTY_ALIAS_RESOLVER,
+    );
+    const expressions = parseClassExpressions(
+      sourceFile,
+      resolveCxBindings(bindings, binder, sourceFile),
+      stylesBindings,
+      binder,
+    );
+
+    expect(expressions).toHaveLength(1);
+    expect(expressions[0]).toMatchObject({
+      kind: "template",
+      rawTemplate: "'btn-' + variant",
+      staticPrefix: "btn-",
+    });
+  });
+
   it("records binder-linked styleAccess expressions for imported styles", () => {
     const sourceFile = parse(`
       import styles from './Button.module.scss';

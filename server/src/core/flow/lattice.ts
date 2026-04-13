@@ -49,8 +49,17 @@ export function markBranched(value: ClassValueLattice | null): ClassValueLattice
 
 export function toFlowResolution(value: ClassValueLattice | null): FlowResolution | null {
   if (!value) return null;
+  if (value.abstractValue.kind === "bottom") return null;
   const values = enumerateFiniteClassValues(value.abstractValue);
-  if (!values || values.length === 0) return null;
+  if (!values) {
+    return {
+      abstractValue: value.abstractValue,
+      values: [],
+      certainty: value.abstractValue.kind === "top" ? "possible" : "inferred",
+      reason: value.reason,
+    };
+  }
+  if (values.length === 0) return null;
   return {
     abstractValue: value.abstractValue,
     values,

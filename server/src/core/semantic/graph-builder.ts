@@ -5,6 +5,7 @@ import {
   prefixClassValue,
   type AbstractClassValue,
 } from "../abstract-value/class-value-domain";
+import { resolveAbstractValueSelectors } from "../abstract-value/selector-projection";
 import type { FlowResolution } from "../flow/lattice";
 import type {
   DocumentNode,
@@ -74,8 +75,10 @@ export function buildSourceSemanticGraph(args: BuildSourceSemanticGraphArgs): Se
       }
       case "template": {
         const emitted = new Set<string>();
-        for (const selector of styleDocument.selectors) {
-          if (!selector.name.startsWith(expr.staticPrefix)) continue;
+        for (const selector of resolveAbstractValueSelectors(
+          prefixClassValue(expr.staticPrefix),
+          styleDocument,
+        )) {
           const canonical = selectorNodeId(styleDocument.filePath, selector.canonicalName);
           if (emitted.has(canonical)) continue;
           emitted.add(canonical);
@@ -94,9 +97,12 @@ export function buildSourceSemanticGraph(args: BuildSourceSemanticGraphArgs): Se
         const resolved = args.resolveSymbolValues?.(expr, args.sourceDocument);
         if (!resolved) break;
         const emitted = new Set<string>();
-        for (const value of resolved.values) {
-          const canonical = findCanonicalSelectorId(styleDocument, value);
-          if (!canonical || emitted.has(canonical)) continue;
+        for (const selector of resolveAbstractValueSelectors(
+          resolved.abstractValue,
+          styleDocument,
+        )) {
+          const canonical = selectorNodeId(styleDocument.filePath, selector.canonicalName);
+          if (emitted.has(canonical)) continue;
           emitted.add(canonical);
           addEdge(
             state,

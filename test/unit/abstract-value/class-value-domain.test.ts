@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   BOTTOM_CLASS_VALUE,
   TOP_CLASS_VALUE,
+  concatenateClassValues,
+  concatenateWithUnknownRight,
   enumerateFiniteClassValues,
   exactClassValue,
   finiteSetClassValue,
@@ -62,5 +64,27 @@ describe("class-value-domain", () => {
     expect(enumerateFiniteClassValues(finiteSetClassValue(["sm", "lg"]))).toEqual(["lg", "sm"]);
     expect(enumerateFiniteClassValues(prefixClassValue("btn-"))).toBeNull();
     expect(enumerateFiniteClassValues(TOP_CLASS_VALUE)).toBeNull();
+  });
+
+  it("concatenates exact and finite values into derived exact/finite results", () => {
+    expect(concatenateClassValues(exactClassValue("btn-"), exactClassValue("lg"))).toEqual(
+      exactClassValue("btn-lg"),
+    );
+    expect(
+      concatenateClassValues(exactClassValue("btn-"), finiteSetClassValue(["sm", "lg"])),
+    ).toEqual({
+      kind: "finiteSet",
+      values: ["btn-lg", "btn-sm"],
+    });
+  });
+
+  it("derives prefixes from known left concatenation with unknown suffixes", () => {
+    expect(concatenateWithUnknownRight(exactClassValue("btn-"))).toEqual(prefixClassValue("btn-"));
+    expect(concatenateWithUnknownRight(finiteSetClassValue(["btn-", "btn--"]))).toEqual(
+      prefixClassValue("btn-"),
+    );
+    expect(concatenateWithUnknownRight(finiteSetClassValue(["btn-", "card-"]))).toBe(
+      TOP_CLASS_VALUE,
+    );
   });
 });

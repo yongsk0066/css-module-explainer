@@ -88,6 +88,32 @@ function render(flag: boolean) {
       reason: "flowLiteral",
     });
   });
+
+  it("derives a prefix domain from concatenation with an unknown suffix", () => {
+    const source = `
+function render(variant: string) {
+  const size = "btn-" + variant;
+  return cx(size);
+}
+`;
+    const sourceFile = ts.createSourceFile(
+      "/fake/Flow.tsx",
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
+    );
+
+    expect(resolveFlowClassValues(sourceFile, rangeOf(source, "cx(size)"), "size")).toEqual({
+      abstractValue: {
+        kind: "prefix",
+        prefix: "btn-",
+      },
+      values: [],
+      certainty: "inferred",
+      reason: "flowLiteral",
+    });
+  });
 });
 
 function rangeOf(source: string, token: string) {

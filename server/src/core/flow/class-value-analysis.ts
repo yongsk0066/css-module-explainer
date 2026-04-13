@@ -1,5 +1,9 @@
 import ts from "typescript";
 import type { Range } from "@css-module-explainer/shared";
+import {
+  concatenateClassValues,
+  concatenateWithUnknownRight,
+} from "../abstract-value/class-value-domain";
 import { buildFlowSlice } from "./flow-slice";
 import {
   exactValue,
@@ -103,6 +107,31 @@ function resolveExpression(
     const whenTrue = resolveExpression(expression.whenTrue, env);
     const whenFalse = resolveExpression(expression.whenFalse, env);
     return markBranched(mergeValues(whenTrue, whenFalse));
+  }
+
+  if (
+    ts.isBinaryExpression(expression) &&
+    expression.operatorToken.kind === ts.SyntaxKind.PlusToken
+  ) {
+    const left = resolveExpression(expression.left, env);
+    const right = resolveExpression(expression.right, env);
+
+    if (left && right) {
+      return {
+        abstractValue: concatenateClassValues(left.abstractValue, right.abstractValue),
+        reason:
+          left.reason === "flowBranch" || right.reason === "flowBranch"
+            ? "flowBranch"
+            : "flowLiteral",
+      };
+    }
+
+    if (left) {
+      return {
+        abstractValue: concatenateWithUnknownRight(left.abstractValue),
+        reason: left.reason,
+      };
+    }
   }
 
   return null;
