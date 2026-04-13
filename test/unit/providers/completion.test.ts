@@ -16,18 +16,21 @@ const cx = classNames.bind(styles);
 const el = cx('
 `;
 
-const detectCxBindings = (_sourceFile: ts.SourceFile): CxBinding[] => [
-  {
-    cxVarName: "cx",
-    stylesVarName: "styles",
-    scssModulePath: "/fake/ws/src/Button.module.scss",
-    classNamesImportName: "classNames",
-    bindingRange: {
-      start: { line: 3, character: 6 },
-      end: { line: 3, character: 8 },
-    },
-  },
-];
+const detectCxBindings = (sourceFile: ts.SourceFile): CxBinding[] =>
+  sourceFile.text.includes("classnames/bind") && sourceFile.text.includes(".module.")
+    ? [
+        {
+          cxVarName: "cx",
+          stylesVarName: "styles",
+          scssModulePath: "/fake/ws/src/Button.module.scss",
+          classNamesImportName: "classNames",
+          bindingRange: {
+            start: { line: 3, character: 6 },
+            end: { line: 3, character: 8 },
+          },
+        },
+      ]
+    : [];
 
 function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
@@ -410,7 +413,7 @@ const el = someFunc(styles.
     expect(result).toBeNull();
   });
 
-  it("returns null quickly for files with no clsx/classnames import (fast-path)", () => {
+  it("returns null for files whose analyzed entry has no relevant bindings", () => {
     const PLAIN_TSX = `
 import React from 'react';
 const el = <div className="foo">
@@ -426,8 +429,6 @@ const el = <div className="foo">
       },
       clsxMakeDeps(),
     );
-    // hasAnyStyleImport returns false, so computeCompletion exits
-    // before touching the AST or analysis cache.
     expect(result).toBeNull();
   });
 });

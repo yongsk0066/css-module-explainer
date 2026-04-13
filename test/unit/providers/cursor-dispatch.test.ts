@@ -4,7 +4,6 @@ import type { CxBinding } from "../../../server/src/core/cx/cx-types";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
 import {
-  hasAnyStyleImport,
   withSourceExpressionAtCursor,
   type ProviderDeps,
 } from "../../../server/src/providers/cursor-dispatch";
@@ -25,18 +24,21 @@ const el2 = <div className={styles.active} />;
 
 const SCSS_PATH = "/fake/src/Button.module.scss";
 
-const detectCxBindings = (_sourceFile: ts.SourceFile): CxBinding[] => [
-  {
-    cxVarName: "cx",
-    stylesVarName: "styles",
-    scssModulePath: SCSS_PATH,
-    classNamesImportName: "classNames",
-    bindingRange: {
-      start: { line: 3, character: 6 },
-      end: { line: 3, character: 8 },
-    },
-  },
-];
+const detectCxBindings = (sourceFile: ts.SourceFile): CxBinding[] =>
+  sourceFile.text.includes("classnames/bind") && sourceFile.text.includes(".module.")
+    ? [
+        {
+          cxVarName: "cx",
+          stylesVarName: "styles",
+          scssModulePath: SCSS_PATH,
+          classNamesImportName: "classNames",
+          bindingRange: {
+            start: { line: 3, character: 6 },
+            end: { line: 3, character: 8 },
+          },
+        },
+      ]
+    : [];
 
 function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
@@ -89,22 +91,8 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   });
 }
 
-describe("hasAnyStyleImport", () => {
-  it("matches `.module.` imports", () => {
-    expect(hasAnyStyleImport(`import x from './a.module.scss';`)).toBe(true);
-  });
-
-  it("matches classnames/bind imports", () => {
-    expect(hasAnyStyleImport(`import cn from 'classnames/bind';`)).toBe(true);
-  });
-
-  it("returns false when neither signal is present", () => {
-    expect(hasAnyStyleImport(`const x = 1;`)).toBe(false);
-  });
-});
-
-describe("withSourceExpressionAtCursor / fast paths", () => {
-  it("returns null when the content has no style imports at all", () => {
+describe("withSourceExpressionAtCursor / entry gating", () => {
+  it("returns null when the analyzed entry has no class expressions", () => {
     const deps = makeDeps();
     const transform = vi.fn();
     const result = withSourceExpressionAtCursor(
@@ -142,7 +130,7 @@ describe("withSourceExpressionAtCursor / fast paths", () => {
     const result = withSourceExpressionAtCursor(
       {
         documentUri: "file:///fake/a.tsx",
-        content: TSX, // has `.module.` so the fast path passes
+        content: TSX,
         filePath: "/fake/a.tsx",
         line: 4,
         character: 18,
@@ -253,5 +241,69 @@ describe("withSourceExpressionAtCursor / dispatch", () => {
       (result as { sourceDocument: { classExpressions: readonly unknown[] } }).sourceDocument
         .classExpressions,
     ).toHaveLength(2);
+  });
+
+  it("chooses the most specific expression when ranges overlap", () => {
+    const sourceFileCache = new SourceFileCache({ max: 10 });
+    const analysisCache = new DocumentAnalysisCache({
+      sourceFileCache,
+      scanCxImports: (sf, fp) => ({
+        stylesBindings: new Map([
+          ["styles", { kind: "resolved" as const, absolutePath: SCSS_PATH }],
+        ]),
+        bindings: detectCxBindings(sf, fp),
+      }),
+      fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
+      parseClassExpressions: (_sf, bindings, stylesBindings) =>
+        buildTestClassExpressions({
+          filePath: "/fake/a.tsx",
+          bindings,
+          stylesBindings,
+          expressions: [
+            {
+              kind: "symbolRef",
+              origin: "cxCall",
+              rawReference: "size",
+              range: {
+                start: { line: 4, character: 12 },
+                end: { line: 4, character: 24 },
+              },
+              scssModulePath: SCSS_PATH,
+            },
+            {
+              kind: "literal",
+              origin: "cxCall",
+              className: "indicator",
+              range: {
+                start: { line: 4, character: 15 },
+                end: { line: 4, character: 24 },
+              },
+              scssModulePath: SCSS_PATH,
+            },
+          ],
+        }),
+      max: 10,
+    });
+    const deps = makeBaseDeps({
+      analysisCache,
+      selectorMapForPath: () => new Map([["indicator", info("indicator")]]),
+      workspaceRoot: "/fake",
+    });
+    const spy = vi.fn((ctx) => ({ kind: ctx.expression.kind }));
+    const result = withSourceExpressionAtCursor(
+      {
+        documentUri: "file:///fake/a.tsx",
+        content: TSX,
+        filePath: "/fake/a.tsx",
+        line: 4,
+        character: 18,
+        version: 1,
+      },
+      deps,
+      spy,
+    );
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ kind: "literal" });
   });
 });

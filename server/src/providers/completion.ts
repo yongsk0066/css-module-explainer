@@ -2,7 +2,6 @@ import { CompletionItemKind, type CompletionItem } from "vscode-languageserver/n
 import type { AnalysisEntry } from "../core/indexing/document-analysis-cache";
 import type { SelectorDeclHIR } from "../core/hir/style-types";
 import { getDeclById, resolveIdentifierAtOffset } from "../core/binder/binder-builder";
-import { hasAnyStyleImport } from "./cursor-dispatch";
 import type { CursorParams, ProviderDeps } from "./provider-deps";
 import { wrapHandler } from "./_wrap-handler";
 
@@ -10,14 +9,12 @@ import { wrapHandler } from "./_wrap-handler";
  * Handle `textDocument/completion` inside a class-util call.
  *
  * Pipeline:
- * 1. Fast-path on `hasAnyStyleImport` — file imports something
- *    we care about (`.module.*` or `classnames/bind`).
- * 2. Fetch the single AnalysisEntry. Bail if it has neither
+ * 1. Fetch the single AnalysisEntry. Bail if it has neither
  *    `bindings` (cx pipeline) nor `stylesBindings` (clsx path).
- * 3. Ask `findCompletionContext` for the SCSS module whose
+ * 2. Ask `findCompletionContext` for the SCSS module whose
  *    style document should feed completions at the cursor. It walks
  *    cx bindings first, then class-util imports.
- * 4. Convert every selector in that style document to a CompletionItem.
+ * 3. Convert every selector in that style document to a CompletionItem.
  */
 export const handleCompletion = wrapHandler<CursorParams, [], CompletionItem[] | null>(
   "completion",
@@ -26,8 +23,6 @@ export const handleCompletion = wrapHandler<CursorParams, [], CompletionItem[] |
 );
 
 function computeCompletion(params: CursorParams, deps: ProviderDeps): CompletionItem[] | null {
-  if (!hasAnyStyleImport(params.content)) return null;
-
   const entry = deps.analysisCache.get(
     params.documentUri,
     params.content,
