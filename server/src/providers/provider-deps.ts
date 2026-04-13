@@ -98,6 +98,11 @@ export interface ProviderDeps {
    * contract.
    */
   setClassnameTransform(mode: ClassnameTransformMode): void;
+  /**
+   * Ask the client to refresh visible CodeLens entries after the
+   * semantic reference graph changes.
+   */
+  refreshCodeLens(): void;
 }
 
 /** No-op logError stub for tests — keeps `ProviderDeps.logError` required. */

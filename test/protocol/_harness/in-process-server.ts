@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 import {
   CodeActionRequest,
   CodeLensRequest,
+  CodeLensRefreshRequest,
   CompletionRequest,
   createProtocolConnection,
   DefinitionRequest,
@@ -116,6 +117,7 @@ export interface LspTestClient {
    * debounced push-based diagnostics pipeline .
    */
   waitForDiagnostics(uri: string, timeoutMs?: number): Promise<Diagnostic[]>;
+  waitForCodeLensRefresh(timeoutMs?: number): Promise<void>;
   prepareRename(
     params: PrepareRenameParams,
   ): Promise<{ range: LspRange; placeholder: string } | null>;
@@ -203,6 +205,8 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
     string,
     Array<{ resolve: (d: Diagnostic[]) => void; reject: (e: unknown) => void }>
   >();
+  let pendingCodeLensRefreshes = 0;
+  const codeLensRefreshWaiters: Array<{ resolve: () => void; reject: (e: unknown) => void }> = [];
   // Handle workspace/configuration requests from the server. The
   // server's `fetchSettings` asks for two sections
   // (`cssModuleExplainer` + `cssModules`) in separate requests, so
@@ -227,6 +231,15 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
     queue.push(mapped);
     pendingDiagnostics.set(mapped.uri, queue);
   });
+  client.onRequest(CodeLensRefreshRequest.type, async () => {
+    if (codeLensRefreshWaiters.length > 0) {
+      const waiter = codeLensRefreshWaiters.shift()!;
+      waiter.resolve();
+    } else {
+      pendingCodeLensRefreshes += 1;
+    }
+    return undefined;
+  });
   client.listen();
 
   return {
@@ -234,7 +247,11 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
       const base: InitializeParams = {
         processId: process.pid,
         rootUri: workspaceUri,
-        capabilities: {},
+        capabilities: {
+          workspace: {
+            codeLens: { refreshSupport: true },
+          },
+        },
         workspaceFolders: [{ uri: workspaceUri, name: "fake" }],
       };
       return client.sendRequest(InitializeRequest.type, {
@@ -297,6 +314,29 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
         remapWorkspaceUris(params, LEGACY_WORKSPACE_URI, workspaceUri),
       );
       return remapWorkspaceUris(result, workspaceUri, LEGACY_WORKSPACE_URI);
+    },
+    async waitForCodeLensRefresh(timeoutMs = 1500) {
+      if (pendingCodeLensRefreshes > 0) {
+        pendingCodeLensRefreshes -= 1;
+        return;
+      }
+      return new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => {
+          const index = codeLensRefreshWaiters.findIndex((waiter) => waiter.resolve === resolve);
+          if (index >= 0) codeLensRefreshWaiters.splice(index, 1);
+          reject(new Error(`waitForCodeLensRefresh timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
+        codeLensRefreshWaiters.push({
+          resolve: () => {
+            clearTimeout(timer);
+            resolve();
+          },
+          reject: (e) => {
+            clearTimeout(timer);
+            reject(e);
+          },
+        });
+      });
     },
     async prepareRename(params) {
       const result = await client.sendRequest(
