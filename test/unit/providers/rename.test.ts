@@ -33,9 +33,11 @@ function semanticSite(args: {
   certainty?: "exact" | "inferred" | "possible";
   reason?: "literal" | "styleAccess" | "templatePrefix" | "typeUnion";
   origin?: "cxCall" | "styleAccess";
+  expansion?: "direct" | "expanded";
 }) {
   const certainty = args.certainty ?? "exact";
   const start = args.start ?? 10;
+  const expansion = args.expansion ?? (certainty === "exact" ? "direct" : "expanded");
   return {
     refId: `ref:${args.uri}:${args.line}:${start}`,
     selectorId: `selector:${SCSS_PATH}:${args.canonicalName}`,
@@ -52,7 +54,7 @@ function semanticSite(args: {
     className: args.className ?? args.canonicalName,
     certainty,
     reason: args.reason ?? "literal",
-    expansion: certainty === "exact" ? "direct" : "expanded",
+    expansion,
   } as const;
 }
 
@@ -570,6 +572,33 @@ describe("rename template corruption guard", () => {
         end: 30,
         certainty: "inferred",
         reason: "templatePrefix",
+      }),
+    ]);
+    expectPrepareRenameBlocked(
+      () =>
+        handlePrepareRename(
+          {
+            textDocument: { uri: SCSS_URI },
+            position: { line: 1, character: 3 },
+          },
+          btnScssDeps({ semanticReferenceIndex }),
+        ),
+      "Rename is blocked because inferred or expanded references would make the edit unsafe.",
+    );
+  });
+
+  it("SCSS-side prepareRename rejects exact-but-expanded semantic references", () => {
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    semanticReferenceIndex.record("file:///fake/src/App.tsx", [
+      semanticSite({
+        uri: "file:///fake/src/App.tsx",
+        canonicalName: "btn-small",
+        line: 5,
+        start: 10,
+        end: 30,
+        certainty: "exact",
+        reason: "templatePrefix",
+        expansion: "expanded",
       }),
     ]);
     expectPrepareRenameBlocked(
