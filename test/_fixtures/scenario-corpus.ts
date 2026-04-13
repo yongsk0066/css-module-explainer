@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
 import type { Range, StyleImport } from "@css-module-explainer/shared";
+import { buildSourceBinder } from "../../server/src/core/binder/binder-builder";
 import { detectClassUtilImports, scanCxImports } from "../../server/src/core/cx/binding-detector";
 import { parseClassExpressions } from "../../server/src/core/cx/class-ref-parser";
 import { buildSourceDocument } from "../../server/src/core/hir/builders/ts-source-adapter";
@@ -79,12 +80,13 @@ export function loadSourceScenario(def: SourceScenarioDef): LoadedSourceScenario
     existsSync,
     EMPTY_ALIAS_RESOLVER,
   );
+  const sourceBinder = buildSourceBinder(sourceFile);
   const sourceDocument = buildSourceDocument({
     filePath,
     bindings,
     stylesBindings,
     classUtilNames: detectClassUtilImports(sourceFile),
-    classExpressions: parseClassExpressions(sourceFile, bindings, stylesBindings),
+    classExpressions: parseClassExpressions(sourceFile, bindings, stylesBindings, sourceBinder),
   });
 
   return {

@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import ts from "typescript";
 import type { StyleImport } from "@css-module-explainer/shared";
+import { buildSourceBinder } from "../../../server/src/core/binder/binder-builder";
 import type { AnalysisEntry } from "../../../server/src/core/indexing/document-analysis-cache";
 import { resolveRefSelectors } from "../../../server/src/core/query/resolve-ref";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
@@ -117,6 +118,7 @@ function render(flag: boolean) {
           version: 1,
           contentHash: "fixture",
           sourceFile,
+          sourceBinder: buildSourceBinder(sourceFile),
           bindings: [],
           sourceDocument,
           stylesBindings: new Map(),
@@ -138,16 +140,18 @@ function render(flag: boolean) {
 
 function analysisEntryFor(sourceScenario: ReturnType<typeof loadSourceScenario>): AnalysisEntry {
   const content = readFileSync(sourceScenario.filePath, "utf8");
+  const sourceFile = ts.createSourceFile(
+    sourceScenario.filePath,
+    content,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
   return {
     version: 1,
     contentHash: "fixture",
-    sourceFile: ts.createSourceFile(
-      sourceScenario.filePath,
-      content,
-      ts.ScriptTarget.Latest,
-      true,
-      ts.ScriptKind.TSX,
-    ),
+    sourceFile,
+    sourceBinder: buildSourceBinder(sourceFile),
     bindings: [],
     sourceDocument: sourceScenario.sourceDocument,
     stylesBindings: toStyleBindingsMap(sourceScenario.sourceDocument.styleImports),

@@ -1,6 +1,8 @@
 import * as nodeUrl from "node:url";
 import type ts from "typescript";
 import type { CxBinding, StyleImport } from "@css-module-explainer/shared";
+import type { SourceBinderResult } from "../binder/scope-types";
+import { buildSourceBinder } from "../binder/binder-builder";
 import { buildSourceDocument } from "../hir/builders/ts-source-adapter";
 import type { ClassExpressionHIR, SourceDocumentHIR } from "../hir/source-types";
 import { contentHash } from "../util/hash";
@@ -21,6 +23,7 @@ export interface AnalysisEntry {
   readonly version: number;
   readonly contentHash: string;
   readonly sourceFile: ts.SourceFile;
+  readonly sourceBinder: SourceBinderResult;
   readonly bindings: readonly CxBinding[];
   /**
    * Document-level source HIR derived from the current scan/parser
@@ -83,6 +86,7 @@ export interface DocumentAnalysisCacheDeps {
     sourceFile: ts.SourceFile,
     bindings: readonly CxBinding[],
     stylesBindings: ReadonlyMap<string, StyleImport>,
+    sourceBinder: SourceBinderResult,
   ) => readonly ClassExpressionHIR[];
   /**
    * Detect `clsx` / `clsx/lite` / `classnames` (not `/bind`) imports
@@ -174,6 +178,7 @@ export class DocumentAnalysisCache {
 
   private analyze(content: string, filePath: string, version: number, hash: string): AnalysisEntry {
     const sourceFile = this.deps.sourceFileCache.get(filePath, content);
+    const sourceBinder = buildSourceBinder(sourceFile);
     // Single-pass scan: resolves style imports (with `missing`
     // variants via `fileExists`) and collects cx bindings in one
     // traversal of the source file. Files without `classnames/bind`
@@ -193,13 +198,14 @@ export class DocumentAnalysisCache {
       stylesBindings,
       classUtilNames,
       classExpressions:
-        this.deps.parseClassExpressions?.(sourceFile, bindings, stylesBindings) ?? [],
+        this.deps.parseClassExpressions?.(sourceFile, bindings, stylesBindings, sourceBinder) ?? [],
     });
 
     return {
       version,
       contentHash: hash,
       sourceFile,
+      sourceBinder,
       bindings,
       sourceDocument,
       stylesBindings,

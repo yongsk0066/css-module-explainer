@@ -2,11 +2,7 @@ import { CompletionItemKind, type CompletionItem } from "vscode-languageserver/n
 import type ts from "typescript";
 import type { AnalysisEntry } from "../core/indexing/document-analysis-cache";
 import type { SelectorDeclHIR } from "../core/hir/style-types";
-import {
-  buildSourceBinder,
-  getDeclById,
-  resolveIdentifierAtOffset,
-} from "../core/binder/binder-builder";
+import { getDeclById, resolveIdentifierAtOffset } from "../core/binder/binder-builder";
 import type { Range } from "@css-module-explainer/shared";
 import { hasAnyStyleImport } from "./cursor-dispatch";
 import type { CursorParams, ProviderDeps } from "./provider-deps";
@@ -75,14 +71,12 @@ interface CompletionContext {
  * First hit wins; returns `null` when nothing matches.
  */
 function findCompletionContext(entry: AnalysisEntry, textBefore: string): CompletionContext | null {
-  const binder = buildSourceBinder(entry.sourceFile);
-
   for (const binding of entry.sourceDocument.utilityBindings) {
     if (binding.kind !== "classnamesBind") continue;
     const callOffset = findOpenCallOffset(textBefore, binding.localName);
     if (callOffset === null) continue;
-    const resolution = resolveIdentifierAtOffset(binder, binding.localName, callOffset);
-    const decl = resolution ? getDeclById(binder, resolution.declId) : null;
+    const resolution = resolveIdentifierAtOffset(entry.sourceBinder, binding.localName, callOffset);
+    const decl = resolution ? getDeclById(entry.sourceBinder, resolution.declId) : null;
     if (!decl) continue;
     if (!sameRange(binding.bindingRange, rangeFromSpan(entry.sourceFile, decl.span))) continue;
     if (isInsideCall(textBefore, binding.localName)) {

@@ -1,10 +1,7 @@
 import ts from "typescript";
 import type { CxBinding, Range, StyleImport } from "@css-module-explainer/shared";
-import {
-  buildSourceBinder,
-  getDeclById,
-  resolveIdentifierAtOffset,
-} from "../binder/binder-builder";
+import { getDeclById, resolveIdentifierAtOffset } from "../binder/binder-builder";
+import type { SourceBinderResult } from "../binder/scope-types";
 import {
   makeLiteralClassExpression,
   makeStyleAccessClassExpression,
@@ -25,13 +22,14 @@ export function parseClassExpressions(
   sourceFile: ts.SourceFile,
   bindings: readonly CxBinding[],
   stylesBindings: ReadonlyMap<string, StyleImport>,
+  binder: SourceBinderResult,
 ): ClassExpressionHIR[] {
   const expressions: ClassExpressionHIR[] = [];
   let nextId = 0;
   const allocateId = () => `class-expr:${nextId++}`;
 
   for (const binding of bindings) {
-    collectCxCallExpressions(sourceFile, binding, expressions, allocateId);
+    collectCxCallExpressions(sourceFile, binding, binder, expressions, allocateId);
   }
 
   if (stylesBindings.size > 0) {
@@ -44,11 +42,10 @@ export function parseClassExpressions(
 function collectCxCallExpressions(
   sourceFile: ts.SourceFile,
   binding: CxBinding,
+  binder: SourceBinderResult,
   out: ClassExpressionHIR[],
   allocateId: () => string,
 ): void {
-  const binder = buildSourceBinder(sourceFile);
-
   function visit(node: ts.Node): void {
     if (ts.isCallExpression(node) && isMatchingCxCall(node, binding, sourceFile, binder)) {
       for (const arg of node.arguments) {
@@ -65,7 +62,7 @@ function isMatchingCxCall(
   call: ts.CallExpression,
   binding: CxBinding,
   sourceFile: ts.SourceFile,
-  binder: ReturnType<typeof buildSourceBinder>,
+  binder: SourceBinderResult,
 ): boolean {
   if (!ts.isIdentifier(call.expression)) return false;
   if (call.expression.text !== binding.cxVarName) return false;

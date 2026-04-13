@@ -1,5 +1,6 @@
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
+import { buildSourceBinder } from "../../../server/src/core/binder/binder-builder";
 import type { AnalysisEntry } from "../../../server/src/core/indexing/document-analysis-cache";
 import {
   makeSourceDocumentHIR,
@@ -125,6 +126,7 @@ function makeEntry(args: {
     version: 1,
     contentHash: "fixture",
     sourceFile,
+    sourceBinder: buildSourceBinder(sourceFile),
     bindings: [],
     sourceDocument,
     stylesBindings: new Map([
