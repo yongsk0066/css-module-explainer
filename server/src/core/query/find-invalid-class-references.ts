@@ -1,8 +1,6 @@
 import { enumerateFiniteClassValues } from "../abstract-value/class-value-domain";
-import { projectAbstractValueSelectors } from "../abstract-value/selector-projection";
 import { findClosestMatch } from "../util/text-utils";
 import type { TypeResolver } from "../ts/type-resolver";
-import { resolveSymbolExpressionValues } from "../semantic/resolve-symbol-values";
 import type { FlowResolution } from "../flow/lattice";
 import type ts from "typescript";
 import type { SourceBinderResult } from "../binder/scope-types";
@@ -13,6 +11,7 @@ import type {
   TemplateClassExpressionHIR,
 } from "../hir/source-types";
 import type { StyleDocumentHIR } from "../hir/style-types";
+import { projectExpressionSelectors } from "./project-expression-selectors";
 
 export interface InvalidClassReferenceQueryEnv {
   readonly typeResolver: TypeResolver;
@@ -89,28 +88,20 @@ export function findInvalidClassReference(
       };
     }
     case "symbolRef": {
-      const symbolResolutionEnv = {
-        typeResolver: env.typeResolver,
-        filePath: env.filePath,
-        workspaceRoot: env.workspaceRoot,
-        ...(env.sourceBinder ? { sourceBinder: env.sourceBinder } : {}),
-      };
-      const resolved =
-        env.resolveSymbolValues?.(sourceFile, expression, symbolResolutionEnv) ??
-        resolveSymbolExpressionValues(sourceFile, expression, env);
-      if (!resolved) return null;
-      const projection = projectAbstractValueSelectors(resolved.abstractValue, styleDocument);
-      const finiteValues = enumerateFiniteClassValues(resolved.abstractValue);
+      const projection = projectExpressionSelectors(expression, styleDocument, sourceFile, env);
+      if (!projection.abstractValue || !projection.reason || !projection.valueCertainty)
+        return null;
+      const finiteValues = enumerateFiniteClassValues(projection.abstractValue);
       if (!finiteValues) {
         return projection.selectors.length === 0
           ? {
               kind: "missingResolvedClassDomain",
               expression,
               range: expression.range,
-              abstractValue: resolved.abstractValue,
-              valueCertainty: resolved.valueCertainty,
-              selectorCertainty: projection.certainty,
-              reason: resolved.reason,
+              abstractValue: projection.abstractValue,
+              valueCertainty: projection.valueCertainty,
+              selectorCertainty: projection.selectorCertainty,
+              reason: projection.reason,
             }
           : null;
       }
@@ -121,10 +112,10 @@ export function findInvalidClassReference(
         expression,
         range: expression.range,
         missingValues,
-        abstractValue: resolved.abstractValue,
-        valueCertainty: resolved.valueCertainty,
-        selectorCertainty: projection.certainty,
-        reason: resolved.reason,
+        abstractValue: projection.abstractValue,
+        valueCertainty: projection.valueCertainty,
+        selectorCertainty: projection.selectorCertainty,
+        reason: projection.reason,
       };
     }
     case "styleAccess":

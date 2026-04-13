@@ -1,10 +1,6 @@
-import type { ClassExpressionHIR, SymbolRefClassExpressionHIR } from "../hir/source-types";
+import type { ClassExpressionHIR } from "../hir/source-types";
 import type { SelectorDeclHIR, StyleDocumentHIR } from "../hir/style-types";
-import { enumerateFiniteClassValues, prefixClassValue } from "../abstract-value/class-value-domain";
-import {
-  projectAbstractValueSelectors,
-  resolveAbstractValueSelectors,
-} from "../abstract-value/selector-projection";
+import { enumerateFiniteClassValues } from "../abstract-value/class-value-domain";
 import { buildSourceSemanticGraph } from "../semantic/graph-builder";
 import type { EdgeCertainty } from "../semantic/certainty";
 import { buildSemanticReferenceIndex } from "../semantic/reference-index";
@@ -12,6 +8,7 @@ import { resolveSymbolExpressionValues } from "../semantic/resolve-symbol-values
 import type { FlowResolution } from "../flow/lattice";
 import type { TypeResolver } from "../ts/type-resolver";
 import type { AnalysisEntry } from "../indexing/document-analysis-cache";
+import { projectExpressionSelectors } from "./project-expression-selectors";
 
 export interface ResolveRefQueryEnv {
   readonly styleDocumentForPath: (path: string) => StyleDocumentHIR | null;
@@ -138,26 +135,10 @@ function resolveExpressionAgainstStyleDocument(
   sourceBinder: AnalysisEntry["sourceBinder"],
   env: Pick<ResolveRefQueryEnv, "typeResolver" | "filePath" | "workspaceRoot">,
 ): readonly SelectorDeclHIR[] {
-  switch (expression.kind) {
-    case "literal":
-    case "styleAccess": {
-      const selector = findCanonicalSelector(styleDocument, expression.className);
-      return selector ? [selector] : [];
-    }
-    case "template":
-      return resolveAbstractValueSelectors(
-        prefixClassValue(expression.staticPrefix),
-        styleDocument,
-      );
-    case "symbolRef": {
-      const resolved = resolveExpressionSymbolValues(sourceFile, sourceBinder, expression, env);
-      if (!resolved) return [];
-      return resolveAbstractValueSelectors(resolved.abstractValue, styleDocument);
-    }
-    default:
-      expression satisfies never;
-      return [];
-  }
+  return projectExpressionSelectors(expression, styleDocument, sourceFile, {
+    ...env,
+    sourceBinder,
+  }).selectors;
 }
 
 function buildDynamicHoverExplanation(
@@ -170,10 +151,12 @@ function buildDynamicHoverExplanation(
 ): DynamicHoverExplanation | null {
   switch (expression.kind) {
     case "symbolRef": {
-      const resolved = resolveExpressionSymbolValues(sourceFile, sourceBinder, expression, env);
-      if (!resolved) return null;
-      const projection = projectAbstractValueSelectors(resolved.abstractValue, styleDocument);
-      const finiteValues = enumerateFiniteClassValues(resolved.abstractValue);
+      const projection = projectExpressionSelectors(expression, styleDocument, sourceFile, {
+        ...env,
+        sourceBinder,
+      });
+      if (!projection.abstractValue || !projection.reason) return null;
+      const finiteValues = enumerateFiniteClassValues(projection.abstractValue);
       return {
         kind: "symbolRef",
         subject: expression.rawReference,
@@ -181,23 +164,28 @@ function buildDynamicHoverExplanation(
           finiteValues && finiteValues.length > 0
             ? finiteValues
             : selectors.map((selector) => selector.name),
-        abstractValue: resolved.abstractValue,
-        valueCertainty: resolved.valueCertainty,
-        selectorCertainty: projection.certainty,
-        reason: resolved.reason,
+        reason: projection.reason,
+        ...(projection.abstractValue ? { abstractValue: projection.abstractValue } : {}),
+        ...(projection.valueCertainty ? { valueCertainty: projection.valueCertainty } : {}),
+        ...(projection.selectorCertainty
+          ? { selectorCertainty: projection.selectorCertainty }
+          : {}),
       };
     }
     case "template":
       if (selectors.length === 0) return null;
+      const projection = projectExpressionSelectors(expression, styleDocument, sourceFile, {
+        ...env,
+        sourceBinder,
+      });
       return {
         kind: "template",
         subject: expression.staticPrefix,
         candidates: selectors.map((selector) => selector.name),
-        abstractValue: prefixClassValue(expression.staticPrefix),
-        selectorCertainty: projectAbstractValueSelectors(
-          prefixClassValue(expression.staticPrefix),
-          styleDocument,
-        ).certainty,
+        ...(projection.abstractValue ? { abstractValue: projection.abstractValue } : {}),
+        ...(projection.selectorCertainty
+          ? { selectorCertainty: projection.selectorCertainty }
+          : {}),
       };
     case "literal":
     case "styleAccess":
@@ -206,30 +194,4 @@ function buildDynamicHoverExplanation(
       expression satisfies never;
       return null;
   }
-}
-
-function resolveExpressionSymbolValues(
-  sourceFile: AnalysisEntry["sourceFile"],
-  sourceBinder: AnalysisEntry["sourceBinder"],
-  expression: SymbolRefClassExpressionHIR,
-  env: Pick<ResolveRefQueryEnv, "typeResolver" | "filePath" | "workspaceRoot">,
-) {
-  return resolveSymbolExpressionValues(sourceFile, expression, {
-    ...env,
-    sourceBinder,
-  });
-}
-
-function findCanonicalSelector(
-  styleDocument: StyleDocumentHIR,
-  viewName: string,
-): SelectorDeclHIR | null {
-  const match = styleDocument.selectors.find((selector) => selector.name === viewName);
-  if (!match) return null;
-  return (
-    styleDocument.selectors.find(
-      (selector) =>
-        selector.canonicalName === match.canonicalName && selector.viewKind === "canonical",
-    ) ?? match
-  );
 }
