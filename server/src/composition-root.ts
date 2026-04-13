@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import type { MessageReader, MessageWriter } from "vscode-languageserver/node";
 import {
+  CodeLensRefreshRequest,
   createConnection,
   DidChangeWatchedFilesNotification,
   ProposedFeatures,
@@ -108,6 +109,7 @@ export function createServer(options: CreateServerOptions): CreatedServer {
   let bundle: ProviderDeps | null = null;
   let watchedFilesDisposable: Promise<{ dispose(): void }> | null = null;
   let clientSupportsDynamicWatchers = false;
+  let clientSupportsCodeLensRefresh = false;
 
   // ── Lifecycle ──────────────────────────────────────────────
 
@@ -116,7 +118,15 @@ export function createServer(options: CreateServerOptions): CreatedServer {
     const workspaceRoot = resolveWorkspaceRoot(params);
     clientSupportsDynamicWatchers =
       params.capabilities.workspace?.didChangeWatchedFiles?.dynamicRegistration ?? false;
-    bundle = buildBundle(workspaceRoot, options, connection, documents);
+    clientSupportsCodeLensRefresh =
+      params.capabilities.workspace?.codeLens?.refreshSupport ?? false;
+    bundle = buildBundle(
+      workspaceRoot,
+      options,
+      connection,
+      documents,
+      clientSupportsCodeLensRefresh,
+    );
     return {
       capabilities: buildCapabilities(),
       serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
@@ -194,7 +204,15 @@ function buildBundle(
   options: CreateServerOptions,
   connection: Connection,
   documents: TextDocuments<TextDocument>,
+  supportsCodeLensRefresh: boolean,
 ): ProviderDeps {
+  const refreshCodeLens = (): void => {
+    if (!supportsCodeLensRefresh) return;
+    // Clients advertise support via `workspace.codeLens.refreshSupport`.
+    // Unsupported clients may reject the request; swallow that rather
+    // than surfacing noisy transport errors.
+    void connection.sendRequest(CodeLensRefreshRequest.type).catch(() => {});
+  };
   const caches = buildCaches();
   const typeResolver = buildTypeResolver(options);
   const readStyleFile = options.readStyleFile ?? defaultReadStyleFile;
@@ -212,6 +230,7 @@ function buildBundle(
     typeResolver,
     fileExists,
     getAliasResolver: () => aliasHolder.get(),
+    refreshCodeLens,
   });
   const indexerWorker = buildIndexerWorker(
     options,
@@ -240,6 +259,7 @@ function buildBundle(
       caches.styleIndexCache.setMode(mode);
       caches.semanticReferenceIndex.clear();
     },
+    refreshCodeLens,
   };
 }
 
@@ -297,6 +317,7 @@ interface AnalysisCacheArgs {
   readonly typeResolver: TypeResolver;
   readonly fileExists: (path: string) => boolean;
   readonly getAliasResolver: () => AliasResolver;
+  readonly refreshCodeLens: () => void;
 }
 
 function buildAnalysisCache(args: AnalysisCacheArgs): DocumentAnalysisCache {
@@ -307,6 +328,7 @@ function buildAnalysisCache(args: AnalysisCacheArgs): DocumentAnalysisCache {
     typeResolver,
     fileExists,
     getAliasResolver,
+    refreshCodeLens,
   } = args;
   return new DocumentAnalysisCache({
     sourceFileCache: caches.sourceFileCache,
@@ -333,6 +355,7 @@ function buildAnalysisCache(args: AnalysisCacheArgs): DocumentAnalysisCache {
         semanticContribution.referenceSites,
         semanticContribution.moduleUsages,
       );
+      refreshCodeLens();
     },
   });
 }

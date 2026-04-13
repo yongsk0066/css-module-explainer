@@ -88,6 +88,7 @@ function registerSettingsHandler(state: HandlerState): () => void {
         if (aliasChanged || modeChanged) {
           deps.analysisCache.clear();
           deps.semanticReferenceIndex.clear();
+          deps.refreshCodeLens();
           for (const doc of state.ctx.documents.all()) {
             const filePath = fileUrlToPath(doc.uri);
             if (findLangForPath(filePath)) {
@@ -208,6 +209,7 @@ function registerDocumentHandlers(state: HandlerState): void {
     // before the next analyze or unused-selector check runs.
     deps.semanticReferenceIndex.forget(change.document.uri);
     deps.analysisCache.invalidate(change.document.uri);
+    deps.refreshCodeLens();
   });
 }
 
