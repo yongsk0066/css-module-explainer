@@ -1,6 +1,6 @@
-import type { CxBinding, StyleImport } from "@css-module-explainer/shared";
+import type { StyleImport } from "@css-module-explainer/shared";
+import type { ResolvedCxBinding } from "../../server/src/core/cx/resolved-bindings";
 import { buildSourceDocument } from "../../server/src/core/hir/builders/ts-source-adapter";
-import type { SourceBinderResult } from "../../server/src/core/binder/scope-types";
 import {
   makeLiteralClassExpression,
   makeStyleAccessClassExpression,
@@ -55,7 +55,7 @@ export type TestClassExpressionSpec =
 
 export function buildClassExpressions(args: {
   readonly filePath: string;
-  readonly bindings: readonly CxBinding[];
+  readonly bindings: readonly ResolvedCxBinding[];
   readonly stylesBindings?: ReadonlyMap<string, StyleImport>;
   readonly classUtilNames?: readonly string[];
   readonly expressions: readonly TestClassExpressionSpec[];
@@ -65,16 +65,14 @@ export function buildClassExpressions(args: {
 
 export function buildSourceDocumentFixture(args: {
   readonly filePath: string;
-  readonly bindings: readonly CxBinding[];
+  readonly bindings: readonly ResolvedCxBinding[];
   readonly stylesBindings?: ReadonlyMap<string, StyleImport>;
   readonly classUtilNames?: readonly string[];
   readonly expressions: readonly TestClassExpressionSpec[];
-  readonly sourceBinder?: SourceBinderResult;
 }): SourceDocumentHIR {
   return buildSourceDocument({
     filePath: args.filePath,
-    sourceBinder: args.sourceBinder,
-    bindings: args.bindings,
+    cxBindings: args.bindings,
     stylesBindings: args.stylesBindings ?? new Map(),
     classUtilNames: args.classUtilNames ?? [],
     classExpressions: args.expressions.map(toClassExpression),

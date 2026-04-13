@@ -127,7 +127,6 @@ function makeEntry(args: {
     contentHash: "fixture",
     sourceFile,
     sourceBinder: buildSourceBinder(sourceFile),
-    bindings: [],
     sourceDocument,
     stylesBindings: new Map([
       [

@@ -1,7 +1,8 @@
 import ts from "typescript";
-import type { CxBinding, Range, StyleImport } from "@css-module-explainer/shared";
-import { getDeclById, resolveIdentifierAtOffset } from "../binder/binder-builder";
+import type { Range, StyleImport } from "@css-module-explainer/shared";
+import { resolveIdentifierAtOffset } from "../binder/binder-builder";
 import type { SourceBinderResult } from "../binder/scope-types";
+import type { ResolvedCxBinding } from "./resolved-bindings";
 import {
   makeLiteralClassExpression,
   makeStyleAccessClassExpression,
@@ -20,7 +21,7 @@ import {
  */
 export function parseClassExpressions(
   sourceFile: ts.SourceFile,
-  bindings: readonly CxBinding[],
+  bindings: readonly ResolvedCxBinding[],
   stylesBindings: ReadonlyMap<string, StyleImport>,
   binder: SourceBinderResult,
 ): ClassExpressionHIR[] {
@@ -41,7 +42,7 @@ export function parseClassExpressions(
 
 function collectCxCallExpressions(
   sourceFile: ts.SourceFile,
-  binding: CxBinding,
+  binding: ResolvedCxBinding,
   binder: SourceBinderResult,
   out: ClassExpressionHIR[],
   allocateId: () => string,
@@ -60,7 +61,7 @@ function collectCxCallExpressions(
 
 function isMatchingCxCall(
   call: ts.CallExpression,
-  binding: CxBinding,
+  binding: ResolvedCxBinding,
   sourceFile: ts.SourceFile,
   binder: SourceBinderResult,
 ): boolean {
@@ -71,15 +72,12 @@ function isMatchingCxCall(
     binding.cxVarName,
     call.expression.getStart(sourceFile),
   );
-  if (!resolution) return false;
-  const decl = getDeclById(binder, resolution.declId);
-  if (!decl) return false;
-  return sameRange(binding.bindingRange, rangeOfSpan(decl.span, sourceFile));
+  return resolution?.declId === binding.bindingDeclId;
 }
 
 function extractFromArgument(
   arg: ts.Expression,
-  binding: CxBinding,
+  binding: ResolvedCxBinding,
   sourceFile: ts.SourceFile,
   out: ClassExpressionHIR[],
   allocateId: () => string,
@@ -163,7 +161,7 @@ function extractFromArgument(
 
 function extractObjectLiteral(
   arg: ts.ObjectLiteralExpression,
-  binding: CxBinding,
+  binding: ResolvedCxBinding,
   sourceFile: ts.SourceFile,
   out: ClassExpressionHIR[],
   allocateId: () => string,
@@ -265,27 +263,6 @@ function rangeOfNode(node: ts.Node, sourceFile: ts.SourceFile): Range {
     start: { line: start.line, character: start.character },
     end: { line: end.line, character: end.character },
   };
-}
-
-function rangeOfSpan(
-  span: { readonly start: number; readonly end: number },
-  sourceFile: ts.SourceFile,
-): Range {
-  const start = sourceFile.getLineAndCharacterOfPosition(span.start);
-  const end = sourceFile.getLineAndCharacterOfPosition(span.end);
-  return {
-    start: { line: start.line, character: start.character },
-    end: { line: end.line, character: end.character },
-  };
-}
-
-function sameRange(left: Range, right: Range): boolean {
-  return (
-    left.start.line === right.start.line &&
-    left.start.character === right.start.character &&
-    left.end.line === right.end.line &&
-    left.end.character === right.end.character
-  );
 }
 
 function innerStringRange(

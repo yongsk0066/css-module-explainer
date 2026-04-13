@@ -3,6 +3,7 @@ import type ts from "typescript";
 import type { CxBinding, StyleImport } from "@css-module-explainer/shared";
 import type { SourceBinderResult } from "../binder/scope-types";
 import { buildSourceBinder } from "../binder/binder-builder";
+import { resolveCxBindings, type ResolvedCxBinding } from "../cx/resolved-bindings";
 import { buildSourceDocument } from "../hir/builders/ts-source-adapter";
 import type { ClassExpressionHIR, SourceDocumentHIR } from "../hir/source-types";
 import { contentHash } from "../util/hash";
@@ -24,7 +25,6 @@ export interface AnalysisEntry {
   readonly contentHash: string;
   readonly sourceFile: ts.SourceFile;
   readonly sourceBinder: SourceBinderResult;
-  readonly bindings: readonly CxBinding[];
   /**
    * Document-level source HIR derived from the current scan/parser
    * outputs.
@@ -84,7 +84,7 @@ export interface DocumentAnalysisCacheDeps {
    */
   readonly parseClassExpressions?: (
     sourceFile: ts.SourceFile,
-    bindings: readonly CxBinding[],
+    bindings: readonly ResolvedCxBinding[],
     stylesBindings: ReadonlyMap<string, StyleImport>,
     sourceBinder: SourceBinderResult,
   ) => readonly ClassExpressionHIR[];
@@ -190,17 +190,17 @@ export class DocumentAnalysisCache {
       this.deps.fileExists,
       this.deps.aliasResolver,
     );
+    const cxBindings = resolveCxBindings(bindings, sourceBinder, sourceFile);
 
     const classUtilNames = this.deps.detectClassUtilImports?.(sourceFile) ?? [];
     const sourceDocument = buildSourceDocument({
       filePath,
-      sourceFile,
-      bindings,
+      cxBindings,
       stylesBindings,
       classUtilNames,
       classExpressions:
-        this.deps.parseClassExpressions?.(sourceFile, bindings, stylesBindings, sourceBinder) ?? [],
-      sourceBinder,
+        this.deps.parseClassExpressions?.(sourceFile, cxBindings, stylesBindings, sourceBinder) ??
+        [],
     });
 
     return {
@@ -208,7 +208,6 @@ export class DocumentAnalysisCache {
       contentHash: hash,
       sourceFile,
       sourceBinder,
-      bindings,
       sourceDocument,
       stylesBindings,
       classUtilNames,

@@ -5,6 +5,7 @@ import type { Range, StyleImport } from "@css-module-explainer/shared";
 import { buildSourceBinder } from "../../server/src/core/binder/binder-builder";
 import { detectClassUtilImports, scanCxImports } from "../../server/src/core/cx/binding-detector";
 import { parseClassExpressions } from "../../server/src/core/cx/class-ref-parser";
+import { resolveCxBindings } from "../../server/src/core/cx/resolved-bindings";
 import { buildSourceDocument } from "../../server/src/core/hir/builders/ts-source-adapter";
 import type { SourceDocumentHIR } from "../../server/src/core/hir/source-types";
 import type { StyleDocumentHIR } from "../../server/src/core/hir/style-types";
@@ -81,14 +82,13 @@ export function loadSourceScenario(def: SourceScenarioDef): LoadedSourceScenario
     EMPTY_ALIAS_RESOLVER,
   );
   const sourceBinder = buildSourceBinder(sourceFile);
+  const cxBindings = resolveCxBindings(bindings, sourceBinder, sourceFile);
   const sourceDocument = buildSourceDocument({
     filePath,
-    sourceFile,
-    sourceBinder,
-    bindings,
+    cxBindings,
     stylesBindings,
     classUtilNames: detectClassUtilImports(sourceFile),
-    classExpressions: parseClassExpressions(sourceFile, bindings, stylesBindings, sourceBinder),
+    classExpressions: parseClassExpressions(sourceFile, cxBindings, stylesBindings, sourceBinder),
   });
 
   return {
