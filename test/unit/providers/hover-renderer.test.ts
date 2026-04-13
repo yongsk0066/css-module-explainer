@@ -133,11 +133,14 @@ describe("renderHover", () => {
           kind: "finiteSet",
           values: ["medium", "small"],
         },
-        certainty: "inferred",
+        valueCertainty: "exact",
+        selectorCertainty: "inferred",
         reason: "typeUnion",
       },
     });
     expect(markdown).toContain("Value domain: finite set (2).");
+    expect(markdown).toContain("Value certainty: exact.");
+    expect(markdown).toContain("Selector certainty: inferred.");
   });
 
   it("caps multi-match at MAX_CANDIDATES=10 with a tail summary", () => {

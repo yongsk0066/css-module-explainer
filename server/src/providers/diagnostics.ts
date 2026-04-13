@@ -34,20 +34,18 @@ export const computeDiagnostics = wrapHandler<
 >(
   "diagnostics",
   (params, deps, severity: DiagnosticSeverity = DiagnosticSeverity.Warning) => {
-    // Fast path 1: file has no style import of any kind → nothing
-    // to diagnose. The `.module.` check keeps files that only use
-    // `styles.x` (no `classnames/bind` helpers) in scope so they
-    // still receive the missing-module diagnostic below.
-    if (!params.content.includes(".module.") && !params.content.includes("classnames/bind")) {
-      return [];
-    }
-
     const entry = deps.analysisCache.get(
       params.documentUri,
       params.content,
       params.filePath,
       params.version,
     );
+    const cxExpressions = entry.sourceDocument.classExpressions.filter(
+      (expression) => expression.origin === "cxCall",
+    );
+    if (entry.stylesBindings.size === 0 && cxExpressions.length === 0) {
+      return [];
+    }
 
     const diagnostics: Diagnostic[] = [];
 
@@ -73,14 +71,6 @@ export const computeDiagnostics = wrapHandler<
       }
     }
 
-    // Fast path 2: cx-pipeline class diagnostics only fire when
-    // `classnames/bind` is present. Pure `styles.x` access is
-    // covered by TypeScript's own type checker.
-    if (!params.content.includes("classnames/bind")) return diagnostics;
-
-    const cxExpressions = entry.sourceDocument.classExpressions.filter(
-      (expression) => expression.origin === "cxCall",
-    );
     if (cxExpressions.length === 0) return diagnostics;
 
     // Per-ref isolation: a single throwing ref (e.g. a malformed

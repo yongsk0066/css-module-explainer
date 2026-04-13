@@ -128,9 +128,18 @@ describe("computeDiagnostics", () => {
   });
 
   it("returns an empty array when the file does not import classnames/bind", () => {
+    const sourceFileCache = new SourceFileCache({ max: 10 });
     const result = computeDiagnostics(
-      { ...baseParams, content: "const x = 1;\n", filePath: "/fake/ws/src/Plain.tsx" },
-      makeDeps(),
+      { ...baseParams, content: "const x = 1;\n", filePath: "/fake/ws/src/Plain.tsx", version: 2 },
+      makeDeps({
+        analysisCache: new DocumentAnalysisCache({
+          sourceFileCache,
+          fileExists: () => true,
+          aliasResolver: EMPTY_ALIAS_RESOLVER,
+          scanCxImports: () => ({ stylesBindings: new Map(), bindings: [] }),
+          max: 10,
+        }),
+      }),
     );
     expect(result).toEqual([]);
   });

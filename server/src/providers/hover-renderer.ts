@@ -85,8 +85,11 @@ function renderDynamicExplanation(
     lines.push(
       `_Resolved from \`${explanation.subject}\` via ${formatReason(explanation.reason)}._`,
     );
-    if (explanation.certainty) {
-      lines.push(`_Certainty: ${explanation.certainty}._`);
+    if (explanation.valueCertainty) {
+      lines.push(`_Value certainty: ${explanation.valueCertainty}._`);
+    }
+    if (explanation.selectorCertainty) {
+      lines.push(`_Selector certainty: ${explanation.selectorCertainty}._`);
     }
     const domain = formatAbstractValue(explanation.abstractValue);
     if (domain) {
@@ -94,6 +97,9 @@ function renderDynamicExplanation(
     }
   } else {
     lines.push(`_Resolved by template prefix \`${explanation.subject}\`._`);
+    if (explanation.selectorCertainty) {
+      lines.push(`_Selector certainty: ${explanation.selectorCertainty}._`);
+    }
   }
 
   const shown = explanation.candidates

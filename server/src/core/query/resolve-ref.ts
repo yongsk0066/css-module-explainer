@@ -31,7 +31,8 @@ export interface DynamicHoverExplanation {
   readonly subject: string;
   readonly candidates: readonly string[];
   readonly abstractValue?: FlowResolution["abstractValue"];
-  readonly certainty?: EdgeCertainty;
+  readonly valueCertainty?: EdgeCertainty;
+  readonly selectorCertainty?: EdgeCertainty;
   readonly reason?: FlowResolution["reason"];
 }
 
@@ -178,7 +179,8 @@ function buildDynamicHoverExplanation(
         candidates:
           resolved.values.length > 0 ? resolved.values : selectors.map((selector) => selector.name),
         abstractValue: resolved.abstractValue,
-        certainty: projection.certainty,
+        valueCertainty: resolved.valueCertainty,
+        selectorCertainty: projection.certainty,
         reason: resolved.reason,
       };
     }
@@ -189,7 +191,7 @@ function buildDynamicHoverExplanation(
         subject: expression.staticPrefix,
         candidates: selectors.map((selector) => selector.name),
         abstractValue: prefixClassValue(expression.staticPrefix),
-        certainty: projectAbstractValueSelectors(
+        selectorCertainty: projectAbstractValueSelectors(
           prefixClassValue(expression.staticPrefix),
           styleDocument,
         ).certainty,
