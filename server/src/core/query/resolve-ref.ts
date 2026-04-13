@@ -1,5 +1,7 @@
 import type { ClassExpressionHIR, SymbolRefClassExpressionHIR } from "../hir/source-types";
 import type { SelectorDeclHIR, StyleDocumentHIR } from "../hir/style-types";
+import { prefixClassValue } from "../abstract-value/class-value-domain";
+import { resolveAbstractValueSelectors } from "../abstract-value/selector-projection";
 import { buildSourceSemanticGraph } from "../semantic/graph-builder";
 import { buildSemanticReferenceIndex } from "../semantic/reference-index";
 import { resolveSymbolExpressionValues } from "../semantic/resolve-symbol-values";
@@ -136,14 +138,14 @@ function resolveExpressionAgainstStyleDocument(
       return selector ? [selector] : [];
     }
     case "template":
-      return resolveTemplateSelectors(expression.staticPrefix, styleDocument);
+      return resolveAbstractValueSelectors(
+        prefixClassValue(expression.staticPrefix),
+        styleDocument,
+      );
     case "symbolRef": {
       const resolved = resolveExpressionSymbolValues(sourceFile, sourceBinder, expression, env);
       if (!resolved) return [];
-      return resolved.values.flatMap((value) => {
-        const selector = findCanonicalSelector(styleDocument, value);
-        return selector ? [selector] : [];
-      });
+      return resolveAbstractValueSelectors(resolved.abstractValue, styleDocument);
     }
     default:
       expression satisfies never;
@@ -198,24 +200,6 @@ function resolveExpressionSymbolValues(
     ...env,
     sourceBinder,
   });
-}
-
-function resolveTemplateSelectors(
-  staticPrefix: string,
-  styleDocument: StyleDocumentHIR,
-): readonly SelectorDeclHIR[] {
-  const emitted = new Set<string>();
-  const resolved: SelectorDeclHIR[] = [];
-
-  for (const selector of styleDocument.selectors) {
-    if (!selector.name.startsWith(staticPrefix)) continue;
-    const canonical = findCanonicalSelector(styleDocument, selector.name);
-    if (!canonical || emitted.has(canonical.canonicalName)) continue;
-    emitted.add(canonical.canonicalName);
-    resolved.push(canonical);
-  }
-
-  return resolved;
 }
 
 function findCanonicalSelector(
