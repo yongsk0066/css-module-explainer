@@ -1,7 +1,7 @@
 import type { Range as LspRange } from "vscode-languageserver/node";
 import type { BemSuffixInfo } from "@css-module-explainer/shared";
-import { findSelectorReferenceSites } from "../../core/query/find-references";
 import { findCanonicalSelector } from "../../core/query/find-style-selector";
+import { readSelectorUsageSummary } from "../../core/query/read-selector-usage";
 import {
   type ClassnameTransformMode,
   transformClassname,
@@ -81,9 +81,8 @@ function collectReferenceEdits(
   mode: ClassnameTransformMode,
   changes: Record<string, Array<{ range: LspRange; newText: string }>>,
 ): void {
-  for (const site of findSelectorReferenceSites(deps, scssPath, canonicalName, {
-    includeExpanded: false,
-  })) {
+  const usage = readSelectorUsageSummary(deps, scssPath, canonicalName);
+  for (const site of usage.directSites) {
     const written = site.className;
     const newText = written === canonicalName ? newName : (pickAliasForm(mode, newName) ?? newName);
     (changes[site.uri] ??= []).push({

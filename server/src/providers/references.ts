@@ -1,6 +1,6 @@
 import type { Location, ReferenceParams } from "vscode-languageserver/node";
-import { findSelectorReferenceSites } from "../core/query/find-references";
 import { findSelectorAtCursor } from "../core/query/find-style-selector";
+import { readSelectorUsageSummary } from "../core/query/read-selector-usage";
 import { findLangForPath } from "../core/scss/lang-registry";
 import { fileUrlToPath } from "../core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
@@ -37,16 +37,14 @@ export const handleReferences = wrapHandler<ReferenceParams, [], Location[] | nu
     );
     if (!selector) return null;
 
-    const sites = findSelectorReferenceSites(deps, filePath, selector.canonicalName, {
-      includeExpanded: true,
-    });
-    if (sites.length === 0) return null;
+    const usage = readSelectorUsageSummary(deps, filePath, selector.canonicalName);
+    if (!usage.hasAnyReferences) return null;
 
     // No expansion filter here — expanded sites are valid Find Refs
     // results (they represent where a rename WOULD edit if the user
     // changed the template/variable resolution). Rename is the only
     // provider that filters `expansion === "expanded"`; see rename.ts.
-    return sites.map<Location>((site) => ({
+    return usage.allSites.map<Location>((site) => ({
       uri: site.uri,
       range: toLspRange(site.range),
     }));
