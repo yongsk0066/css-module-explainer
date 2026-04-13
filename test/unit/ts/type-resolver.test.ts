@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import ts from "typescript";
 import type { Range } from "@css-module-explainer/shared";
+import {
+  buildSourceBinder,
+  resolveIdentifierAtOffset,
+} from "../../../server/src/core/binder/binder-builder";
 import { WorkspaceTypeResolver } from "../../../server/src/core/ts/type-resolver";
 
 /**
@@ -220,6 +224,45 @@ describe("WorkspaceTypeResolver.resolve", () => {
     });
     const result = resolveAt(resolver, filePath, fileText, "name");
     expect(result.kind).toBe("unresolvable");
+  });
+
+  it("resolves through a provided binder and root decl id", () => {
+    const filePath = "/ws/a.tsx";
+    const fileText = `
+      const size = "outer" as const;
+      function render() {
+        const size = "inner" as const;
+        return size;
+      }
+      export {};
+    `;
+    const resolver = makeResolver({
+      [filePath]: fileText,
+    });
+    const sourceFile = ts.createSourceFile(
+      filePath,
+      fileText,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
+    );
+    const binder = buildSourceBinder(sourceFile);
+    const offset = fileText.lastIndexOf("size;");
+    const resolution = resolveIdentifierAtOffset(binder, "size", offset);
+
+    const result = resolver.resolve(
+      filePath,
+      "size",
+      "/ws",
+      rangeOfIdentifierOccurrence(filePath, fileText, "size", 3),
+      {
+        sourceBinder: binder,
+        rootBindingDeclId: resolution?.declId,
+      },
+    );
+
+    expect(result.kind).toBe("union");
+    expect(result.values).toEqual(["inner"]);
   });
 
   it("returns unresolvable when the source file is not part of the program", () => {

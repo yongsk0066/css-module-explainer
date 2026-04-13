@@ -158,6 +158,7 @@ export function normalizeSourceDocument(doc: SourceDocumentHIR): unknown {
             rawReference: expr.rawReference,
             rootName: expr.rootName,
             pathSegments: [...expr.pathSegments],
+            ...(expr.rootBindingDeclId ? { rootBindingDeclId: expr.rootBindingDeclId } : {}),
           }
         : {}),
       ...(expr.kind === "styleAccess"

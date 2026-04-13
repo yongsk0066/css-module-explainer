@@ -2,6 +2,7 @@ import { findClosestMatch } from "../util/text-utils";
 import type { TypeResolver } from "../ts/type-resolver";
 import { resolveSymbolExpressionValues } from "../semantic/resolve-symbol-values";
 import type ts from "typescript";
+import type { SourceBinderResult } from "../binder/scope-types";
 import type {
   ClassExpressionHIR,
   LiteralClassExpressionHIR,
@@ -14,6 +15,7 @@ export interface InvalidClassReferenceQueryEnv {
   readonly typeResolver: TypeResolver;
   readonly filePath: string;
   readonly workspaceRoot: string;
+  readonly sourceBinder?: SourceBinderResult;
 }
 
 export type InvalidClassReferenceFinding =

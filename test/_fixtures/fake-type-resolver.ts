@@ -1,5 +1,5 @@
 import type { Range, ResolvedType } from "@css-module-explainer/shared";
-import type { TypeResolver } from "../../server/src/core/ts/type-resolver";
+import type { ResolveTypeOptions, TypeResolver } from "../../server/src/core/ts/type-resolver";
 
 /**
  * Shared test double for `TypeResolver`. Defaults to
@@ -17,6 +17,7 @@ export class FakeTypeResolver implements TypeResolver {
     _variableName?: string,
     _workspaceRoot?: string,
     _range?: Range,
+    _options?: ResolveTypeOptions,
   ): ResolvedType {
     return this.values.length > 0
       ? { kind: "union", values: this.values }

@@ -55,6 +55,7 @@ export interface SymbolRefClassExpressionHIR extends ClassExpressionBase {
   readonly rawReference: string;
   readonly rootName: string;
   readonly pathSegments: readonly string[];
+  readonly rootBindingDeclId?: string;
 }
 
 /**
@@ -144,6 +145,7 @@ export function makeSymbolRefClassExpression(
   rootName: string,
   pathSegments: readonly string[],
   range: Range,
+  rootBindingDeclId?: string,
 ): SymbolRefClassExpressionHIR {
   return {
     kind: "symbolRef",
@@ -154,6 +156,7 @@ export function makeSymbolRefClassExpression(
     rootName,
     pathSegments,
     range,
+    ...(rootBindingDeclId ? { rootBindingDeclId } : {}),
   };
 }
 

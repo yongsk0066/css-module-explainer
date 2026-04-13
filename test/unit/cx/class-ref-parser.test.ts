@@ -4,7 +4,10 @@ import { scanCxImports } from "../../../server/src/core/cx/binding-detector";
 import { parseClassExpressions } from "../../../server/src/core/cx/class-ref-parser";
 import { resolveCxBindings } from "../../../server/src/core/cx/resolved-bindings";
 import { AliasResolver } from "../../../server/src/core/cx/alias-resolver";
-import { buildSourceBinder } from "../../../server/src/core/binder/binder-builder";
+import {
+  buildSourceBinder,
+  resolveIdentifierAtOffset,
+} from "../../../server/src/core/binder/binder-builder";
 
 const EMPTY_ALIAS_RESOLVER = new AliasResolver("/fake", {});
 
@@ -70,6 +73,14 @@ describe("parseClassExpressions", () => {
       rawReference: "size",
       rootName: "size",
       pathSegments: [],
+    });
+    const resolution = resolveIdentifierAtOffset(
+      binder,
+      "size",
+      sourceFile.text.indexOf("size as string"),
+    );
+    expect(expressions[0]).toMatchObject({
+      rootBindingDeclId: resolution?.declId,
     });
   });
 

@@ -224,7 +224,10 @@ export function collectSemanticReferenceContribution(
     sourceDocument: entry.sourceDocument,
     styleDocumentsByPath,
     resolveSymbolValues(ref) {
-      return resolveSymbolExpressionValues(entry.sourceFile, ref, ctx);
+      return resolveSymbolExpressionValues(entry.sourceFile, ref, {
+        ...ctx,
+        sourceBinder: entry.sourceBinder,
+      });
     },
   });
 

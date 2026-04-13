@@ -60,6 +60,7 @@ export interface RefNode extends SemanticNodeBase {
   readonly staticPrefix?: string;
   readonly rawReference?: string;
   readonly rootName?: string;
+  readonly rootBindingDeclId?: string;
   readonly pathSegments?: readonly string[];
   readonly accessPath?: readonly string[];
 }

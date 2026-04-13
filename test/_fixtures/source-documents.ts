@@ -37,6 +37,7 @@ type SymbolRefExpressionSpec = {
   readonly rawReference: string;
   readonly rootName?: string;
   readonly pathSegments?: readonly string[];
+  readonly rootBindingDeclId?: string;
   readonly range: ClassExpressionHIR["range"];
 };
 
@@ -114,6 +115,7 @@ function toClassExpression(expression: TestClassExpressionSpec, index: number): 
         rootName,
         pathSegments,
         expression.range,
+        expression.rootBindingDeclId,
       );
     }
     case "styleAccess":

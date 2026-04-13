@@ -54,7 +54,10 @@ export function resolveRefDetails(
     sourceDocument: ctx.entry.sourceDocument,
     styleDocumentsByPath: new Map([[ctx.expression.scssModulePath, styleDocument]]),
     resolveSymbolValues(ref) {
-      return resolveSymbolExpressionValues(ctx.entry.sourceFile, ref, env);
+      return resolveSymbolExpressionValues(ctx.entry.sourceFile, ref, {
+        ...env,
+        sourceBinder: ctx.entry.sourceBinder,
+      });
     },
   });
   const targets = buildSemanticReferenceIndex(graph).findTargetsForRef(ctx.expression.id);
@@ -64,6 +67,7 @@ export function resolveRefDetails(
           ctx.expression,
           styleDocument,
           ctx.entry.sourceFile,
+          ctx.entry.sourceBinder,
           env,
         )
       : null;
@@ -75,6 +79,7 @@ export function resolveRefDetails(
         ctx.expression,
         fallbackSelectors,
         ctx.entry.sourceFile,
+        ctx.entry.sourceBinder,
         env,
       ),
     };
@@ -100,6 +105,7 @@ export function resolveRefDetails(
           ctx.expression,
           styleDocument,
           ctx.entry.sourceFile,
+          ctx.entry.sourceBinder,
           env,
         );
 
@@ -109,6 +115,7 @@ export function resolveRefDetails(
       ctx.expression,
       selectors,
       ctx.entry.sourceFile,
+      ctx.entry.sourceBinder,
       env,
     ),
   };
@@ -118,6 +125,7 @@ function resolveExpressionAgainstStyleDocument(
   expression: ClassExpressionHIR,
   styleDocument: StyleDocumentHIR,
   sourceFile: AnalysisEntry["sourceFile"],
+  sourceBinder: AnalysisEntry["sourceBinder"],
   env: Pick<ResolveRefQueryEnv, "typeResolver" | "filePath" | "workspaceRoot">,
 ): readonly SelectorDeclHIR[] {
   switch (expression.kind) {
@@ -129,7 +137,7 @@ function resolveExpressionAgainstStyleDocument(
     case "template":
       return resolveTemplateSelectors(expression.staticPrefix, styleDocument);
     case "symbolRef": {
-      const resolved = resolveExpressionSymbolValues(sourceFile, expression, env);
+      const resolved = resolveExpressionSymbolValues(sourceFile, sourceBinder, expression, env);
       if (!resolved) return [];
       return resolved.values.flatMap((value) => {
         const selector = findCanonicalSelector(styleDocument, value);
@@ -146,11 +154,12 @@ function buildDynamicHoverExplanation(
   expression: ClassExpressionHIR,
   selectors: readonly SelectorDeclHIR[],
   sourceFile: AnalysisEntry["sourceFile"],
+  sourceBinder: AnalysisEntry["sourceBinder"],
   env: Pick<ResolveRefQueryEnv, "typeResolver" | "filePath" | "workspaceRoot">,
 ): DynamicHoverExplanation | null {
   switch (expression.kind) {
     case "symbolRef": {
-      const resolved = resolveExpressionSymbolValues(sourceFile, expression, env);
+      const resolved = resolveExpressionSymbolValues(sourceFile, sourceBinder, expression, env);
       if (!resolved) return null;
       return {
         kind: "symbolRef",
@@ -179,10 +188,14 @@ function buildDynamicHoverExplanation(
 
 function resolveExpressionSymbolValues(
   sourceFile: AnalysisEntry["sourceFile"],
+  sourceBinder: AnalysisEntry["sourceBinder"],
   expression: SymbolRefClassExpressionHIR,
   env: Pick<ResolveRefQueryEnv, "typeResolver" | "filePath" | "workspaceRoot">,
 ) {
-  return resolveSymbolExpressionValues(sourceFile, expression, env);
+  return resolveSymbolExpressionValues(sourceFile, expression, {
+    ...env,
+    sourceBinder,
+  });
 }
 
 function resolveTemplateSelectors(

@@ -51,7 +51,7 @@ function collectCxCallExpressions(
   function visit(node: ts.Node): void {
     if (ts.isCallExpression(node) && isMatchingCxCall(node, binding, sourceFile, binder)) {
       for (const arg of node.arguments) {
-        extractFromArgument(arg, binding, sourceFile, out, allocateId);
+        extractFromArgument(arg, binding, binder, sourceFile, out, allocateId);
       }
     }
     ts.forEachChild(node, visit);
@@ -79,6 +79,7 @@ function isMatchingCxCall(
 function extractFromArgument(
   arg: ts.Expression,
   binding: ResolvedCxBinding,
+  binder: SourceBinderResult,
   sourceFile: ts.SourceFile,
   out: ClassExpressionHIR[],
   allocateId: () => string,
@@ -107,13 +108,13 @@ function extractFromArgument(
     ts.isBinaryExpression(value) &&
     value.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken
   ) {
-    extractFromArgument(value.right, binding, sourceFile, out, allocateId);
+    extractFromArgument(value.right, binding, binder, sourceFile, out, allocateId);
     return;
   }
 
   if (ts.isConditionalExpression(value)) {
-    extractFromArgument(value.whenTrue, binding, sourceFile, out, allocateId);
-    extractFromArgument(value.whenFalse, binding, sourceFile, out, allocateId);
+    extractFromArgument(value.whenTrue, binding, binder, sourceFile, out, allocateId);
+    extractFromArgument(value.whenFalse, binding, binder, sourceFile, out, allocateId);
     return;
   }
 
@@ -134,6 +135,11 @@ function extractFromArgument(
   if (ts.isPropertyAccessExpression(value) || ts.isIdentifier(value)) {
     const rawReference = ts.isIdentifier(value) ? value.text : value.getText(sourceFile);
     const [rootName, ...pathSegments] = rawReference.split(".");
+    const rootBindingDeclId = resolveRootBindingDeclId(
+      binder,
+      rootName ?? rawReference,
+      value.getStart(sourceFile),
+    );
     out.push(
       makeSymbolRefClassExpression(
         allocateId(),
@@ -143,6 +149,7 @@ function extractFromArgument(
         rootName ?? rawReference,
         pathSegments,
         rangeOfNode(value, sourceFile),
+        rootBindingDeclId ?? undefined,
       ),
     );
     return;
@@ -150,14 +157,14 @@ function extractFromArgument(
 
   if (ts.isArrayLiteralExpression(value)) {
     for (const el of value.elements) {
-      extractFromArgument(el, binding, sourceFile, out, allocateId);
+      extractFromArgument(el, binding, binder, sourceFile, out, allocateId);
     }
     return;
   }
 
   if (ts.isSpreadElement(value) && ts.isArrayLiteralExpression(value.expression)) {
     for (const el of value.expression.elements) {
-      extractFromArgument(el, binding, sourceFile, out, allocateId);
+      extractFromArgument(el, binding, binder, sourceFile, out, allocateId);
     }
   }
 }
@@ -289,6 +296,15 @@ function resolveStyleImportDeclId(
   if (!expectedDeclId) return null;
   const resolution = resolveIdentifierAtOffset(binder, localName, offset);
   return resolution?.declId === expectedDeclId ? expectedDeclId : null;
+}
+
+function resolveRootBindingDeclId(
+  binder: SourceBinderResult,
+  rootName: string,
+  offset: number,
+): string | null {
+  const resolution = resolveIdentifierAtOffset(binder, rootName, offset);
+  return resolution?.declId ?? null;
 }
 
 function unwrapTransparentExpression(expression: ts.Expression): ts.Expression {

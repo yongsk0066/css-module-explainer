@@ -95,6 +95,7 @@ export const computeDiagnostics = wrapHandler<
           typeResolver: deps.typeResolver,
           filePath: params.filePath,
           workspaceRoot: deps.workspaceRoot,
+          sourceBinder: entry.sourceBinder,
         });
         if (finding) diagnostics.push(toDiagnostic(finding, styleDocument, deps, severity));
       } catch (err) {

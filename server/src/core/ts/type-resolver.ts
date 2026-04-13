@@ -5,6 +5,7 @@ import {
   getDeclById,
   resolveIdentifierAtOffset,
 } from "../binder/binder-builder";
+import type { SourceBinderResult } from "../binder/scope-types";
 
 /**
  * Workspace tier of the 2-tier TypeScript strategy.
@@ -29,6 +30,7 @@ export interface TypeResolver {
     variableName: string,
     workspaceRoot: string,
     range: Range,
+    options?: ResolveTypeOptions,
   ): ResolvedType;
 
   /** Drop the cached program for one workspace (e.g. on tsconfig change). */
@@ -36,6 +38,11 @@ export interface TypeResolver {
 
   /** Drop every cached program. */
   clear(): void;
+}
+
+export interface ResolveTypeOptions {
+  readonly sourceBinder?: SourceBinderResult;
+  readonly rootBindingDeclId?: string | null;
 }
 
 export interface WorkspaceTypeResolverDeps {
@@ -66,6 +73,7 @@ export class WorkspaceTypeResolver implements TypeResolver {
     variableName: string,
     workspaceRoot: string,
     range: Range,
+    options?: ResolveTypeOptions,
   ): ResolvedType {
     const program = this.getOrCreateProgram(workspaceRoot);
     const sourceFile = program.getSourceFile(filePath);
@@ -77,7 +85,7 @@ export class WorkspaceTypeResolver implements TypeResolver {
     const parts = variableName.split(".");
     const rootName = parts[0]!;
 
-    let symbol = findIdentifierSymbol(sourceFile, rootName, checker, range);
+    let symbol = findIdentifierSymbol(sourceFile, rootName, checker, range, options);
     if (!symbol) {
       return UNRESOLVABLE;
     }
@@ -132,8 +140,9 @@ function findIdentifierSymbol(
   variableName: string,
   checker: ts.TypeChecker,
   range: Range,
+  options?: ResolveTypeOptions,
 ): ts.Symbol | null {
-  return findBoundSymbol(sourceFile, variableName, checker, range);
+  return findBoundSymbol(sourceFile, variableName, checker, range, options);
 }
 
 function findBoundSymbol(
@@ -141,24 +150,20 @@ function findBoundSymbol(
   variableName: string,
   checker: ts.TypeChecker,
   range: Range,
+  options?: ResolveTypeOptions,
 ): ts.Symbol | null {
   if (range.start.line >= sourceFile.getLineStarts().length) {
     return null;
   }
 
-  const offset = ts.getPositionOfLineAndCharacter(
-    sourceFile,
-    range.start.line,
-    range.start.character,
-  );
-  const binder = buildSourceBinder(sourceFile);
-  const resolution = resolveIdentifierAtOffset(binder, variableName, offset);
-  if (!resolution) {
+  const binder = options?.sourceBinder ?? buildSourceBinder(sourceFile);
+  const decl = options?.rootBindingDeclId
+    ? getDeclById(binder, options.rootBindingDeclId)
+    : resolveDeclFromRange(binder, sourceFile, variableName, range);
+  if (!decl) {
     return null;
   }
-
-  const decl = getDeclById(binder, resolution.declId);
-  if (!decl) {
+  if (decl.name !== variableName) {
     return null;
   }
 
@@ -173,6 +178,24 @@ function findBoundSymbol(
   }
 
   return checker.getSymbolAtLocation(identifier) ?? null;
+}
+
+function resolveDeclFromRange(
+  binder: SourceBinderResult,
+  sourceFile: ts.SourceFile,
+  variableName: string,
+  range: Range,
+) {
+  const offset = ts.getPositionOfLineAndCharacter(
+    sourceFile,
+    range.start.line,
+    range.start.character,
+  );
+  const resolution = resolveIdentifierAtOffset(binder, variableName, offset);
+  if (!resolution) {
+    return null;
+  }
+  return getDeclById(binder, resolution.declId);
 }
 
 function findIdentifierNodeForDecl(

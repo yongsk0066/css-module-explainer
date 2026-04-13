@@ -240,6 +240,7 @@ function toRefNode(filePath: string, expr: SourceDocumentHIR["classExpressions"]
         range: expr.range,
         rawReference: expr.rawReference,
         rootName: expr.rootName,
+        ...(expr.rootBindingDeclId ? { rootBindingDeclId: expr.rootBindingDeclId } : {}),
         pathSegments: expr.pathSegments,
       };
     case "styleAccess":

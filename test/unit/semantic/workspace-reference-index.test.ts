@@ -103,7 +103,7 @@ function makeEntry(args: {
     filePath: FILE_PATH,
     language: "tsx",
     styleImports: [
-      makeStyleImportBinding("style:styles", "styles", {
+      makeStyleImportBinding("style:styles", "styles", "decl:0", {
         kind: "resolved",
         absolutePath: SCSS_PATH,
       } satisfies StyleImport),
