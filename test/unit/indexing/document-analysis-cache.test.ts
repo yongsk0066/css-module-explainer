@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import type ts from "typescript";
-import type { CxBinding, StyleImport } from "@css-module-explainer/shared";
+import type { StyleImport } from "@css-module-explainer/shared";
+import type { CxBinding } from "../../../server/src/core/cx/cx-types";
+import type { ResolvedCxBinding } from "../../../server/src/core/cx/resolved-bindings";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
 import {
@@ -32,7 +34,9 @@ function makeCache() {
       },
     ];
   });
-  const parseSpy = vi.fn((_sourceFile: ts.SourceFile, _bindings: readonly CxBinding[]) => []);
+  const parseSpy = vi.fn(
+    (_sourceFile: ts.SourceFile, _bindings: readonly ResolvedCxBinding[]) => [],
+  );
   const cache = new DocumentAnalysisCache({
     sourceFileCache,
     scanCxImports: (sf, fp) => ({ stylesBindings: new Map(), bindings: detectSpy(sf, fp) }),
@@ -238,7 +242,7 @@ describe("DocumentAnalysisCache / styleAccess without classnames/bind", () => {
     const parseClassExpressionsSpy = vi.fn(
       (
         _sf: ts.SourceFile,
-        _bindings: readonly CxBinding[],
+        _bindings: readonly ResolvedCxBinding[],
         stylesBindings: ReadonlyMap<string, StyleImport>,
       ) => {
         if (stylesBindings.size > 0 && stylesBindings.has("styles")) {

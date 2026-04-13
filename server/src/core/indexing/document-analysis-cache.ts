@@ -1,8 +1,9 @@
 import * as nodeUrl from "node:url";
 import type ts from "typescript";
-import type { CxBinding, StyleImport } from "@css-module-explainer/shared";
+import type { StyleImport } from "@css-module-explainer/shared";
 import type { SourceBinderResult } from "../binder/scope-types";
 import { buildSourceBinder } from "../binder/binder-builder";
+import type { CxBinding } from "../cx/cx-types";
 import { resolveCxBindings, type ResolvedCxBinding } from "../cx/resolved-bindings";
 import { buildSourceDocument } from "../hir/builders/ts-source-adapter";
 import type { ClassExpressionHIR, SourceDocumentHIR } from "../hir/source-types";

@@ -1,6 +1,6 @@
 import ts from "typescript";
-import type { CxBinding } from "@css-module-explainer/shared";
 import type { SourceBinderResult } from "../binder/scope-types";
+import type { CxBinding } from "./cx-types";
 import { resolveIdentifierAtOffset } from "../binder/binder-builder";
 
 export interface ResolvedCxBinding {

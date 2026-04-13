@@ -1,7 +1,8 @@
 import * as path from "node:path";
 import ts from "typescript";
-import type { CxBinding, Range, StyleImport } from "@css-module-explainer/shared";
+import type { Range, StyleImport } from "@css-module-explainer/shared";
 import type { AliasResolver } from "./alias-resolver";
+import type { CxBinding } from "./cx-types";
 // Source of truth for supported style extensions (.scss, .css, .less).
 import { getAllStyleExtensions } from "../scss/lang-registry";
 

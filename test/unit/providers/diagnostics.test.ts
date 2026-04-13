@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import type ts from "typescript";
 import { DiagnosticSeverity } from "vscode-languageserver-protocol/node";
-import type { CxBinding, Range } from "@css-module-explainer/shared";
+import type { Range } from "@css-module-explainer/shared";
+import type { CxBinding } from "../../../server/src/core/cx/cx-types";
+import type { ResolvedCxBinding } from "../../../server/src/core/cx/resolved-bindings";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
 import { NullSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
@@ -39,7 +41,7 @@ const detectCxBindings = (_sourceFile: ts.SourceFile): CxBinding[] => [
   },
 ];
 
-const parseClassExpressions = (_sf: ts.SourceFile, bindings: readonly CxBinding[]) =>
+const parseClassExpressions = (_sf: ts.SourceFile, bindings: readonly ResolvedCxBinding[]) =>
   buildTestClassExpressions({
     filePath: "/fake/ws/src/Button.tsx",
     bindings,
@@ -166,7 +168,7 @@ describe("computeDiagnostics", () => {
         stylesBindings: new Map(),
         bindings: detectCxBindings(sf, fp),
       }),
-      parseClassExpressions: (_sf: ts.SourceFile, bindings: readonly CxBinding[]) =>
+      parseClassExpressions: (_sf: ts.SourceFile, bindings: readonly ResolvedCxBinding[]) =>
         buildTestClassExpressions({
           filePath: "/fake/ws/src/Button.tsx",
           bindings,
@@ -222,7 +224,7 @@ describe("computeDiagnostics", () => {
         stylesBindings: new Map(),
         bindings: detectCxBindings(sf, fp),
       }),
-      parseClassExpressions: (_sf: ts.SourceFile, bindings: readonly CxBinding[]) =>
+      parseClassExpressions: (_sf: ts.SourceFile, bindings: readonly ResolvedCxBinding[]) =>
         buildTestClassExpressions({
           filePath: "/fake/ws/src/Button.tsx",
           bindings,
@@ -292,7 +294,7 @@ const a = cx(size);
         stylesBindings: new Map(),
         bindings: detectCxBindings(sf, fp),
       }),
-      parseClassExpressions: (_sf: ts.SourceFile, bindings: readonly CxBinding[]) =>
+      parseClassExpressions: (_sf: ts.SourceFile, bindings: readonly ResolvedCxBinding[]) =>
         buildTestClassExpressions({
           filePath: "/fake/ws/src/Button.tsx",
           bindings,
@@ -343,7 +345,7 @@ const a = cx(size);
         stylesBindings: new Map(),
         bindings: detectCxBindings(sf, fp),
       }),
-      parseClassExpressions: (_sf: ts.SourceFile, bindings: readonly CxBinding[]) =>
+      parseClassExpressions: (_sf: ts.SourceFile, bindings: readonly ResolvedCxBinding[]) =>
         buildTestClassExpressions({
           filePath: "/fake/ws/src/Button.tsx",
           bindings,
