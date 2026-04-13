@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.1.0
+
+### Minor Changes
+
+- [#7](https://github.com/yongsk0066/css-module-explainer/pull/7) [`0d9462a`](https://github.com/yongsk0066/css-module-explainer/commit/0d9462a76337d0c9a6fa5234b4b06f3ef84657c8) Thanks [@yongsk0066](https://github.com/yongsk0066)! - Add support for resolving CSS Module imports through `tsconfig.json` and `jsconfig.json`
+  `compilerOptions.paths`, including wildcard aliases.
+
+  This release also refreshes the examples sandbox with a dedicated tsconfig-path scenario
+  so alias-import regressions are exercised outside the test harness.
+
 ## 2.0.1
 
 ### Patch Changes
