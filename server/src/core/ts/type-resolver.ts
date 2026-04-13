@@ -28,7 +28,7 @@ export interface TypeResolver {
     filePath: string,
     variableName: string,
     workspaceRoot: string,
-    range?: Range,
+    range: Range,
   ): ResolvedType;
 
   /** Drop the cached program for one workspace (e.g. on tsconfig change). */
@@ -65,7 +65,7 @@ export class WorkspaceTypeResolver implements TypeResolver {
     filePath: string,
     variableName: string,
     workspaceRoot: string,
-    range?: Range,
+    range: Range,
   ): ResolvedType {
     const program = this.getOrCreateProgram(workspaceRoot);
     const sourceFile = program.getSourceFile(filePath);
@@ -123,40 +123,17 @@ const UNRESOLVABLE: ResolvedType = { kind: "unresolvable", values: [] };
  * Walk the source file for an identifier matching `variableName`
  * and return its checker symbol.
  *
- * Uses the lexical binder when a call-site range is available.
- * This makes local shadowing resolution depend on the actual
+ * Uses the lexical binder and the actual call-site range.
+ * Local shadowing and import visibility now depend on the
  * reference location rather than document-order heuristics.
- *
- * When no range is provided, the resolver temporarily falls back
- * to the older local-first/import-fallback DFS so direct unit
- * tests can keep using the narrow API while Wave 1 migrates call
- * sites to binder-aware resolution.
  */
 function findIdentifierSymbol(
   sourceFile: ts.SourceFile,
   variableName: string,
   checker: ts.TypeChecker,
-  range?: Range,
+  range: Range,
 ): ts.Symbol | null {
-  if (range) {
-    const bound = findBoundSymbol(sourceFile, variableName, checker, range);
-    if (bound) return bound;
-  }
-
-  return findIdentifierSymbolWithoutSite(sourceFile, variableName, checker);
-}
-
-function findIdentifierSymbolWithoutSite(
-  sourceFile: ts.SourceFile,
-  variableName: string,
-  checker: ts.TypeChecker,
-): ts.Symbol | null {
-  // Pass 1: local declarations only.
-  const local = findLocalSymbol(sourceFile, variableName, checker);
-  if (local) return local;
-
-  // Pass 2: import bindings as fallback.
-  return findImportSymbol(sourceFile, variableName, checker);
+  return findBoundSymbol(sourceFile, variableName, checker, range);
 }
 
 function findBoundSymbol(
@@ -220,68 +197,6 @@ function findIdentifierNodeForDecl(
     ts.forEachChild(node, visit);
   };
 
-  visit(sourceFile);
-  return found;
-}
-
-function findLocalSymbol(
-  sourceFile: ts.SourceFile,
-  variableName: string,
-  checker: ts.TypeChecker,
-): ts.Symbol | null {
-  let found: ts.Symbol | null = null;
-  function visit(node: ts.Node): void {
-    if (found) return;
-    if (ts.isVariableDeclaration(node) || ts.isParameter(node) || ts.isBindingElement(node)) {
-      const nameNode = node.name;
-      if (ts.isIdentifier(nameNode) && nameNode.text === variableName) {
-        found = checker.getSymbolAtLocation(nameNode) ?? null;
-        if (found) return;
-      }
-    }
-    ts.forEachChild(node, visit);
-  }
-  visit(sourceFile);
-  return found;
-}
-
-function findImportSymbol(
-  sourceFile: ts.SourceFile,
-  variableName: string,
-  checker: ts.TypeChecker,
-): ts.Symbol | null {
-  let found: ts.Symbol | null = null;
-  function visit(node: ts.Node): void {
-    if (found) return;
-    if (ts.isImportDeclaration(node) && node.importClause) {
-      const clause = node.importClause;
-      // Default import: `import sizes from './theme'`
-      if (clause.name && clause.name.text === variableName) {
-        found = checker.getSymbolAtLocation(clause.name) ?? null;
-        if (found) return;
-      }
-      if (clause.namedBindings) {
-        if (ts.isNamespaceImport(clause.namedBindings)) {
-          // `import * as sizes from './theme'`
-          if (clause.namedBindings.name.text === variableName) {
-            found = checker.getSymbolAtLocation(clause.namedBindings.name) ?? null;
-            if (found) return;
-          }
-        } else {
-          // `import { sizes } from './theme'` or `import { sizes as s }`
-          for (const spec of clause.namedBindings.elements) {
-            if (spec.name.text === variableName) {
-              found = checker.getSymbolAtLocation(spec.name) ?? null;
-              if (found) return;
-            }
-          }
-        }
-      }
-    }
-    // Only recurse into non-import top-level children (imports are
-    // always top-level, but this keeps the visitor generic).
-    ts.forEachChild(node, visit);
-  }
   visit(sourceFile);
   return found;
 }
