@@ -1,10 +1,7 @@
 import type { ClassExpressionHIR } from "../hir/source-types";
 import type { SelectorDeclHIR, StyleDocumentHIR } from "../hir/style-types";
 import { enumerateFiniteClassValues } from "../abstract-value/class-value-domain";
-import { buildSourceSemanticGraph } from "../semantic/graph-builder";
 import type { EdgeCertainty } from "../semantic/certainty";
-import { buildSemanticReferenceIndex } from "../semantic/reference-index";
-import { resolveSymbolExpressionValues } from "../semantic/resolve-symbol-values";
 import type { FlowResolution } from "../flow/lattice";
 import type { TypeResolver } from "../ts/type-resolver";
 import type { AnalysisEntry } from "../indexing/document-analysis-cache";
@@ -55,65 +52,13 @@ export function resolveRefDetails(
     return { selectors: [], dynamicExplanation: null };
   }
 
-  const graph = buildSourceSemanticGraph({
-    sourceDocument: ctx.entry.sourceDocument,
-    styleDocumentsByPath: new Map([[ctx.expression.scssModulePath, styleDocument]]),
-    resolveSymbolValues(ref) {
-      return resolveSymbolExpressionValues(ctx.entry.sourceFile, ref, {
-        ...env,
-        sourceBinder: ctx.entry.sourceBinder,
-      });
-    },
-  });
-  const targets = buildSemanticReferenceIndex(graph).findTargetsForRef(ctx.expression.id);
-  const fallbackSelectors =
-    targets.length === 0
-      ? resolveExpressionAgainstStyleDocument(
-          ctx.expression,
-          styleDocument,
-          ctx.entry.sourceFile,
-          ctx.entry.sourceBinder,
-          env,
-        )
-      : null;
-
-  if (targets.length === 0 && fallbackSelectors) {
-    return {
-      selectors: fallbackSelectors,
-      dynamicExplanation: buildDynamicHoverExplanation(
-        ctx.expression,
-        fallbackSelectors,
-        styleDocument,
-        ctx.entry.sourceFile,
-        ctx.entry.sourceBinder,
-        env,
-      ),
-    };
-  }
-
-  const resolvedSelectors: SelectorDeclHIR[] = [];
-  const emitted = new Set<string>();
-  for (const target of targets) {
-    const key = `${target.selectorFilePath}::${target.canonicalName}`;
-    if (emitted.has(key)) continue;
-    emitted.add(key);
-    const selector = styleDocument.selectors.find(
-      (candidate) =>
-        candidate.canonicalName === target.canonicalName && candidate.viewKind === "canonical",
-    );
-    if (selector) resolvedSelectors.push(selector);
-  }
-
-  const selectors =
-    resolvedSelectors.length > 0
-      ? resolvedSelectors
-      : resolveExpressionAgainstStyleDocument(
-          ctx.expression,
-          styleDocument,
-          ctx.entry.sourceFile,
-          ctx.entry.sourceBinder,
-          env,
-        );
+  const selectors = resolveExpressionAgainstStyleDocument(
+    ctx.expression,
+    styleDocument,
+    ctx.entry.sourceFile,
+    ctx.entry.sourceBinder,
+    env,
+  );
 
   return {
     selectors,
