@@ -221,6 +221,7 @@ function registerWatchedFilesHandler(state: HandlerState): void {
     if (!deps) return;
     let hasStyleChange = false;
     let hasSourceChange = false;
+    let hasProjectConfigChange = false;
     for (const change of params.changes) {
       const filePath = fileUrlToPath(change.uri);
       if (findLangForPath(filePath)) {
@@ -232,7 +233,13 @@ function registerWatchedFilesHandler(state: HandlerState): void {
         invalidateDependentTsxEntries(deps, filePath);
       } else {
         hasSourceChange = true;
+        if (isProjectConfigPath(filePath)) {
+          hasProjectConfigChange = true;
+        }
       }
+    }
+    if (hasProjectConfigChange) {
+      deps.rebuildAliasResolver(deps.settings.pathAlias);
     }
     if (hasSourceChange) {
       deps.typeResolver.invalidate(deps.workspaceRoot);
@@ -260,6 +267,13 @@ function registerWatchedFilesHandler(state: HandlerState): void {
       }
     }
   });
+}
+
+function isProjectConfigPath(filePath: string): boolean {
+  const base = filePath.split(/[\\/]/u).pop();
+  return (
+    base !== undefined && (/^tsconfig.*\.json$/u.test(base) || /^jsconfig.*\.json$/u.test(base))
+  );
 }
 
 /**

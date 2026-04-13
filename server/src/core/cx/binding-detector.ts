@@ -71,7 +71,13 @@ export function scanCxImports(
   const stylesBindings = new Map<string, StyleImport>();
 
   for (const stmt of sourceFile.statements) {
-    const resolved = tryResolveImportStatement(stmt, sourceFile, filePath, aliasResolver);
+    const resolved = tryResolveImportStatement(
+      stmt,
+      sourceFile,
+      filePath,
+      fileExists,
+      aliasResolver,
+    );
     if (!resolved) continue;
     if (resolved.kind === "classnamesBind") {
       classNamesNames.add(resolved.importName);
@@ -131,6 +137,7 @@ function tryResolveImportStatement(
   stmt: ts.Statement,
   sourceFile: ts.SourceFile,
   filePath: string,
+  fileExists: (p: string) => boolean,
   aliasResolver: AliasResolver,
 ): ResolvedImport | null {
   if (!ts.isImportDeclaration(stmt)) return null;
@@ -157,7 +164,7 @@ function tryResolveImportStatement(
   if (specifier.startsWith(".")) {
     absolutePath = path.resolve(path.dirname(filePath), specifier);
   } else {
-    absolutePath = aliasResolver.resolve(specifier);
+    absolutePath = aliasResolver.resolve(specifier, fileExists);
     if (!absolutePath) return null;
   }
 
