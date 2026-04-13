@@ -1,6 +1,11 @@
 import ts from "typescript";
 import type { CxBinding, Range, StyleImport } from "@css-module-explainer/shared";
 import {
+  buildSourceBinder,
+  getDeclById,
+  resolveIdentifierAtOffset,
+} from "../binder/binder-builder";
+import {
   makeLiteralClassExpression,
   makeStyleAccessClassExpression,
   makeSymbolRefClassExpression,
@@ -42,8 +47,10 @@ function collectCxCallExpressions(
   out: ClassExpressionHIR[],
   allocateId: () => string,
 ): void {
+  const binder = buildSourceBinder(sourceFile);
+
   function visit(node: ts.Node): void {
-    if (ts.isCallExpression(node) && isMatchingCxCall(node, binding, sourceFile)) {
+    if (ts.isCallExpression(node) && isMatchingCxCall(node, binding, sourceFile, binder)) {
       for (const arg of node.arguments) {
         extractFromArgument(arg, binding, sourceFile, out, allocateId);
       }
@@ -58,11 +65,19 @@ function isMatchingCxCall(
   call: ts.CallExpression,
   binding: CxBinding,
   sourceFile: ts.SourceFile,
+  binder: ReturnType<typeof buildSourceBinder>,
 ): boolean {
   if (!ts.isIdentifier(call.expression)) return false;
   if (call.expression.text !== binding.cxVarName) return false;
-  const pos = sourceFile.getLineAndCharacterOfPosition(call.getStart(sourceFile));
-  return pos.line >= binding.scope.startLine && pos.line <= binding.scope.endLine;
+  const resolution = resolveIdentifierAtOffset(
+    binder,
+    binding.cxVarName,
+    call.expression.getStart(sourceFile),
+  );
+  if (!resolution) return false;
+  const decl = getDeclById(binder, resolution.declId);
+  if (!decl) return false;
+  return sameRange(binding.bindingRange, rangeOfSpan(decl.span, sourceFile));
 }
 
 function extractFromArgument(
@@ -253,6 +268,27 @@ function rangeOfNode(node: ts.Node, sourceFile: ts.SourceFile): Range {
     start: { line: start.line, character: start.character },
     end: { line: end.line, character: end.character },
   };
+}
+
+function rangeOfSpan(
+  span: { readonly start: number; readonly end: number },
+  sourceFile: ts.SourceFile,
+): Range {
+  const start = sourceFile.getLineAndCharacterOfPosition(span.start);
+  const end = sourceFile.getLineAndCharacterOfPosition(span.end);
+  return {
+    start: { line: start.line, character: start.character },
+    end: { line: end.line, character: end.character },
+  };
+}
+
+function sameRange(left: Range, right: Range): boolean {
+  return (
+    left.start.line === right.start.line &&
+    left.start.character === right.start.character &&
+    left.end.line === right.end.line &&
+    left.end.character === right.end.character
+  );
 }
 
 function innerStringRange(

@@ -130,7 +130,7 @@ export function normalizeSourceDocument(doc: SourceDocumentHIR): unknown {
             stylesLocalName: binding.stylesLocalName,
             scssModulePath: toRepoRelative(binding.scssModulePath),
             classNamesImportName: binding.classNamesImportName,
-            scope: binding.scope,
+            bindingRange: normalizeRange(binding.bindingRange),
           }
         : {
             kind: binding.kind,

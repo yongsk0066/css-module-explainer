@@ -1,6 +1,13 @@
 import { CompletionItemKind, type CompletionItem } from "vscode-languageserver/node";
+import type ts from "typescript";
 import type { AnalysisEntry } from "../core/indexing/document-analysis-cache";
 import type { SelectorDeclHIR } from "../core/hir/style-types";
+import {
+  buildSourceBinder,
+  getDeclById,
+  resolveIdentifierAtOffset,
+} from "../core/binder/binder-builder";
+import type { Range } from "@css-module-explainer/shared";
 import { hasAnyStyleImport } from "./cursor-dispatch";
 import type { CursorParams, ProviderDeps } from "./provider-deps";
 import { wrapHandler } from "./_wrap-handler";
@@ -41,7 +48,7 @@ function computeCompletion(params: CursorParams, deps: ProviderDeps): Completion
   }
 
   const textBefore = getTextBefore(params.content, params.line, params.character);
-  const ctx = findCompletionContext(entry, textBefore, params.line);
+  const ctx = findCompletionContext(entry, textBefore);
   if (!ctx) return null;
 
   const styleDocument = deps.styleDocumentForPath(ctx.scssModulePath);
@@ -67,14 +74,17 @@ interface CompletionContext {
  *
  * First hit wins; returns `null` when nothing matches.
  */
-function findCompletionContext(
-  entry: AnalysisEntry,
-  textBefore: string,
-  line: number,
-): CompletionContext | null {
+function findCompletionContext(entry: AnalysisEntry, textBefore: string): CompletionContext | null {
+  const binder = buildSourceBinder(entry.sourceFile);
+
   for (const binding of entry.sourceDocument.utilityBindings) {
     if (binding.kind !== "classnamesBind") continue;
-    if (line < binding.scope.startLine || line > binding.scope.endLine) continue;
+    const callOffset = findOpenCallOffset(textBefore, binding.localName);
+    if (callOffset === null) continue;
+    const resolution = resolveIdentifierAtOffset(binder, binding.localName, callOffset);
+    const decl = resolution ? getDeclById(binder, resolution.declId) : null;
+    if (!decl) continue;
+    if (!sameRange(binding.bindingRange, rangeFromSpan(entry.sourceFile, decl.span))) continue;
     if (isInsideCall(textBefore, binding.localName)) {
       return { scssModulePath: binding.scssModulePath };
     }
@@ -178,4 +188,33 @@ function getTextBefore(content: string, line: number, character: number): string
     offset = nl + 1;
   }
   return content.slice(0, offset + character);
+}
+
+function findOpenCallOffset(textBefore: string, callName: string): number | null {
+  const needle = `${callName}(`;
+  const callIdx = textBefore.lastIndexOf(needle);
+  if (callIdx === -1) return null;
+  if (!isInsideCall(textBefore, callName)) return null;
+  return callIdx;
+}
+
+function rangeFromSpan(
+  sourceFile: ts.SourceFile,
+  span: { readonly start: number; readonly end: number },
+): Range {
+  const start = sourceFile.getLineAndCharacterOfPosition(span.start);
+  const end = sourceFile.getLineAndCharacterOfPosition(span.end);
+  return {
+    start: { line: start.line, character: start.character },
+    end: { line: end.line, character: end.character },
+  };
+}
+
+function sameRange(left: Range, right: Range): boolean {
+  return (
+    left.start.line === right.start.line &&
+    left.start.character === right.start.character &&
+    left.end.line === right.end.line &&
+    left.end.character === right.end.character
+  );
 }

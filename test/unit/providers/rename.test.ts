@@ -269,7 +269,10 @@ const BINDING: CxBinding = {
   stylesVarName: "styles",
   scssModulePath: "/fake/src/Button.module.scss",
   classNamesImportName: "classNames",
-  scope: { startLine: 0, endLine: 100 },
+  bindingRange: {
+    start: { line: 2, character: 6 },
+    end: { line: 2, character: 8 },
+  },
 };
 
 function makeTsxDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
@@ -278,16 +281,16 @@ function makeTsxDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     sourceFileCache,
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
-    scanCxImports: (sourceFile) => ({
+    scanCxImports: (_sourceFile) => ({
       stylesBindings: new Map([
         ["styles", { kind: "resolved" as const, absolutePath: BINDING.scssModulePath }],
       ]),
       bindings: [
         {
           ...BINDING,
-          scope: {
-            startLine: 0,
-            endLine: sourceFile.getLineAndCharacterOfPosition(sourceFile.getEnd()).line,
+          bindingRange: {
+            start: { line: 2, character: 6 },
+            end: { line: 2, character: 8 },
           },
         },
       ],
@@ -350,16 +353,16 @@ describe("handlePrepareRename from TS/TSX", () => {
       sourceFileCache,
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
-      scanCxImports: (sourceFile) => ({
+      scanCxImports: (_sourceFile) => ({
         stylesBindings: new Map([
           ["styles", { kind: "resolved" as const, absolutePath: BINDING.scssModulePath }],
         ]),
         bindings: [
           {
             ...BINDING,
-            scope: {
-              startLine: 0,
-              endLine: sourceFile.getLineAndCharacterOfPosition(sourceFile.getEnd()).line,
+            bindingRange: {
+              start: { line: 2, character: 6 },
+              end: { line: 2, character: 8 },
             },
           },
         ],

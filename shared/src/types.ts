@@ -87,15 +87,8 @@ export interface CxBinding {
   readonly stylesVarName: string;
   /** Absolute path of the `.module.scss|css` file the binding resolves to. */
   readonly scssModulePath: string;
-  /**
-   * Scope in which this binding is visible. Top-level bindings have
-   * `{ startLine: 0, endLine: sourceFileLastLine }`. Function-scoped
-   * bindings carry the enclosing function's line range.
-   */
-  readonly scope: {
-    readonly startLine: number;
-    readonly endLine: number;
-  };
+  /** Source range covering the binding identifier declaration. */
+  readonly bindingRange: Range;
   /**
    * Identifier the `classnames/bind` default import was bound to
    * in this file. Usually `"classNames"`, but aliased imports allow any

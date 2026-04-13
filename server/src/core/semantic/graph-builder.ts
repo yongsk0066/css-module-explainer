@@ -133,7 +133,7 @@ function appendSourceDocument(state: GraphBuilderState, sourceDocument: SourceDo
             scssModulePath: utilityBinding.scssModulePath,
             stylesLocalName: utilityBinding.stylesLocalName,
             classNamesImportName: utilityBinding.classNamesImportName,
-            scope: utilityBinding.scope,
+            bindingRange: utilityBinding.bindingRange,
           }
         : {
             id: utilityBindingNodeId(sourceDocument.filePath, utilityBinding.id),

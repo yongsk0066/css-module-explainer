@@ -240,51 +240,16 @@ function tryParseCxBinding(
     cxVarName,
     stylesVarName: stylesName,
     scssModulePath: styleImport.absolutePath,
-    scope: computeScope(decl, sourceFile),
+    bindingRange: rangeOfIdentifier(decl.name, sourceFile),
     classNamesImportName: classNamesName,
   };
 }
 
-/**
- * Return the scope in which a binding is visible.
- * - Top-level bindings span the whole source file.
- * - Function-scoped bindings span the enclosing function body.
- *
- * Line numbers are 0-based to match LSP conventions.
- */
-function computeScope(
-  decl: ts.VariableDeclaration,
-  sourceFile: ts.SourceFile,
-): { startLine: number; endLine: number } {
-  const enclosingFn = findEnclosingFunctionLike(decl);
-  if (enclosingFn) {
-    const startPos = enclosingFn.getStart(sourceFile);
-    const endPos = enclosingFn.getEnd();
-    return {
-      startLine: sourceFile.getLineAndCharacterOfPosition(startPos).line,
-      endLine: sourceFile.getLineAndCharacterOfPosition(endPos).line,
-    };
-  }
+function rangeOfIdentifier(name: ts.Identifier, sourceFile: ts.SourceFile): Range {
+  const start = sourceFile.getLineAndCharacterOfPosition(name.getStart(sourceFile));
+  const end = sourceFile.getLineAndCharacterOfPosition(name.getEnd());
   return {
-    startLine: 0,
-    endLine: sourceFile.getLineAndCharacterOfPosition(sourceFile.getEnd()).line,
+    start: { line: start.line, character: start.character },
+    end: { line: end.line, character: end.character },
   };
-}
-
-function findEnclosingFunctionLike(node: ts.Node): ts.Node | null {
-  let current: ts.Node | undefined = node.parent;
-  while (current) {
-    if (
-      ts.isFunctionDeclaration(current) ||
-      ts.isFunctionExpression(current) ||
-      ts.isArrowFunction(current) ||
-      ts.isMethodDeclaration(current) ||
-      ts.isConstructorDeclaration(current) ||
-      ts.isAccessor(current)
-    ) {
-      return current;
-    }
-    current = current.parent;
-  }
-  return null;
 }

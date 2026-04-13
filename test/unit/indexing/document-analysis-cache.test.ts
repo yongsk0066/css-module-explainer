@@ -18,16 +18,16 @@ const SOURCE = `
 
 function makeCache() {
   const sourceFileCache = new SourceFileCache({ max: 10 });
-  const detectSpy = vi.fn((sourceFile: ts.SourceFile, _filePath: string): CxBinding[] => {
+  const detectSpy = vi.fn((_sourceFile: ts.SourceFile, _filePath: string): CxBinding[] => {
     return [
       {
         cxVarName: "cx",
         stylesVarName: "styles",
         scssModulePath: "/fake/src/Button.module.scss",
         classNamesImportName: "classNames",
-        scope: {
-          startLine: 0,
-          endLine: sourceFile.getLineAndCharacterOfPosition(sourceFile.getEnd()).line,
+        bindingRange: {
+          start: { line: 3, character: 8 },
+          end: { line: 3, character: 10 },
         },
       },
     ];
@@ -58,7 +58,7 @@ describe("DocumentAnalysisCache", () => {
     ]);
     const cache = new DocumentAnalysisCache({
       sourceFileCache,
-      scanCxImports: (sf, _fp) => ({
+      scanCxImports: (_sf, _fp) => ({
         stylesBindings: new Map(),
         bindings: [
           {
@@ -66,9 +66,9 @@ describe("DocumentAnalysisCache", () => {
             stylesVarName: "styles",
             scssModulePath: "/fake/src/Button.module.scss",
             classNamesImportName: "classNames",
-            scope: {
-              startLine: 0,
-              endLine: sf.getLineAndCharacterOfPosition(sf.getEnd()).line,
+            bindingRange: {
+              start: { line: 3, character: 8 },
+              end: { line: 3, character: 10 },
             },
           },
         ],

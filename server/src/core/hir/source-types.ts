@@ -21,10 +21,7 @@ export interface ClassnamesBindUtilityBindingHIR extends HirNodeBase {
   readonly stylesLocalName: string;
   readonly scssModulePath: string;
   readonly classNamesImportName: string;
-  readonly scope: {
-    readonly startLine: number;
-    readonly endLine: number;
-  };
+  readonly bindingRange: Range;
 }
 
 export interface ClassUtilBindingHIR extends HirNodeBase {

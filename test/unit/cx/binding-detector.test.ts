@@ -153,9 +153,8 @@ describe("detectCxBindings / function-scoped binding", () => {
     expect(bindings).toHaveLength(1);
     const b = bindings[0]!;
     expect(b.cxVarName).toBe("cx");
-    // Scope should be the Button function body, not the whole file.
-    expect(b.scope.startLine).toBeGreaterThan(0);
-    expect(b.scope.endLine).toBeGreaterThan(b.scope.startLine);
+    expect(b.bindingRange.start.line).toBeGreaterThan(0);
+    expect(b.bindingRange.end.line).toBeGreaterThanOrEqual(b.bindingRange.start.line);
   });
 
   it("gives a top-level binding the file scope", () => {
@@ -166,9 +165,8 @@ describe("detectCxBindings / function-scoped binding", () => {
     `);
     const bindings = detectCxBindings(src, "/fake/src/Button.tsx", EMPTY_ALIAS_RESOLVER);
     const b = bindings[0]!;
-    expect(b.scope.startLine).toBe(0);
-    // End line should be close to the last line of source.
-    expect(b.scope.endLine).toBeGreaterThanOrEqual(3);
+    expect(b.bindingRange.start.line).toBe(3);
+    expect(b.bindingRange.end.line).toBe(3);
   });
 });
 

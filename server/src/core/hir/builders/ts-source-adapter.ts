@@ -29,7 +29,7 @@ export function buildSourceDocument(args: BuildSourceDocumentArgs): SourceDocume
       stylesLocalName: binding.stylesVarName,
       scssModulePath: binding.scssModulePath,
       classNamesImportName: binding.classNamesImportName,
-      scope: binding.scope,
+      bindingRange: binding.bindingRange,
     })),
     ...args.classUtilNames.map((localName, index) =>
       makeClassUtilBinding(`utility-binding:util:${index}`, localName),
