@@ -153,7 +153,8 @@ export function Button(enabled: boolean) {
     expect(hover).not.toBeNull();
     const value = (hover!.contents as { value: string }).value;
     expect(value).toContain("Resolved from `size` via branched local flow analysis.");
-    expect(value).toContain("Certainty: inferred.");
+    expect(value).toContain("Value certainty: inferred.");
+    expect(value).toContain("Selector certainty: inferred.");
     expect(value).toContain("Candidates: `active`, `indicator`.");
   });
 });

@@ -11,7 +11,7 @@ import type {
   TemplateClassExpressionHIR,
 } from "../hir/source-types";
 import type { StyleDocumentHIR } from "../hir/style-types";
-import { projectExpressionSelectors } from "./project-expression-selectors";
+import { readSourceExpressionResolution } from "./read-source-expression-resolution";
 
 export interface InvalidClassReferenceQueryEnv {
   readonly typeResolver: TypeResolver;
@@ -88,20 +88,28 @@ export function findInvalidClassReference(
       };
     }
     case "symbolRef": {
-      const projection = projectExpressionSelectors(expression, styleDocument, sourceFile, env);
-      if (!projection.abstractValue || !projection.reason || !projection.valueCertainty)
+      const resolution = readSourceExpressionResolution(
+        {
+          expression,
+          sourceFile,
+          styleDocument,
+        },
+        env,
+      );
+      if (!resolution.abstractValue || !resolution.reason || !resolution.valueCertainty)
         return null;
-      const finiteValues = enumerateFiniteClassValues(projection.abstractValue);
+      const finiteValues =
+        resolution.finiteValues ?? enumerateFiniteClassValues(resolution.abstractValue);
       if (!finiteValues) {
-        return projection.selectors.length === 0
+        return resolution.selectors.length === 0
           ? {
               kind: "missingResolvedClassDomain",
               expression,
               range: expression.range,
-              abstractValue: projection.abstractValue,
-              valueCertainty: projection.valueCertainty,
-              selectorCertainty: projection.selectorCertainty,
-              reason: projection.reason,
+              abstractValue: resolution.abstractValue,
+              valueCertainty: resolution.valueCertainty,
+              selectorCertainty: resolution.selectorCertainty,
+              reason: resolution.reason,
             }
           : null;
       }
@@ -112,10 +120,10 @@ export function findInvalidClassReference(
         expression,
         range: expression.range,
         missingValues,
-        abstractValue: projection.abstractValue,
-        valueCertainty: projection.valueCertainty,
-        selectorCertainty: projection.selectorCertainty,
-        reason: projection.reason,
+        abstractValue: resolution.abstractValue,
+        valueCertainty: resolution.valueCertainty,
+        selectorCertainty: resolution.selectorCertainty,
+        reason: resolution.reason,
       };
     }
     case "styleAccess":

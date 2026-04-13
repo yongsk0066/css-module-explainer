@@ -1,11 +1,10 @@
 import type { ClassExpressionHIR } from "../hir/source-types";
 import type { SelectorDeclHIR, StyleDocumentHIR } from "../hir/style-types";
-import { enumerateFiniteClassValues } from "../abstract-value/class-value-domain";
 import type { EdgeCertainty } from "../semantic/certainty";
 import type { FlowResolution } from "../flow/lattice";
 import type { TypeResolver } from "../ts/type-resolver";
 import type { AnalysisEntry } from "../indexing/document-analysis-cache";
-import { projectExpressionSelectors } from "./project-expression-selectors";
+import { readSourceExpressionResolution } from "./read-source-expression-resolution";
 
 export interface ResolveRefQueryEnv {
   readonly styleDocumentForPath: (path: string) => StyleDocumentHIR | null;
@@ -46,90 +45,69 @@ export function resolveRefDetails(
   ctx: ResolveRefQueryContext,
   env: ResolveRefQueryEnv,
 ): ResolveRefDetails {
-  const styleDocument =
-    ctx.styleDocument ?? env.styleDocumentForPath(ctx.expression.scssModulePath);
-  if (!styleDocument) {
+  const resolution = readSourceExpressionResolution(
+    {
+      expression: ctx.expression,
+      sourceFile: ctx.entry.sourceFile,
+      styleDocument: ctx.styleDocument,
+    },
+    {
+      styleDocumentForPath: env.styleDocumentForPath,
+      typeResolver: env.typeResolver,
+      filePath: env.filePath,
+      workspaceRoot: env.workspaceRoot,
+      sourceBinder: ctx.entry.sourceBinder,
+    },
+  );
+  if (!resolution.styleDocument) {
     return { selectors: [], dynamicExplanation: null };
   }
 
-  const selectors = resolveExpressionAgainstStyleDocument(
-    ctx.expression,
-    styleDocument,
-    ctx.entry.sourceFile,
-    ctx.entry.sourceBinder,
-    env,
-  );
-
   return {
-    selectors,
-    dynamicExplanation: buildDynamicHoverExplanation(
-      ctx.expression,
-      selectors,
-      styleDocument,
-      ctx.entry.sourceFile,
-      ctx.entry.sourceBinder,
-      env,
-    ),
+    selectors: resolution.selectors,
+    dynamicExplanation: buildDynamicHoverExplanation(ctx.expression, resolution),
   };
-}
-
-function resolveExpressionAgainstStyleDocument(
-  expression: ClassExpressionHIR,
-  styleDocument: StyleDocumentHIR,
-  sourceFile: AnalysisEntry["sourceFile"],
-  sourceBinder: AnalysisEntry["sourceBinder"],
-  env: Pick<ResolveRefQueryEnv, "typeResolver" | "filePath" | "workspaceRoot">,
-): readonly SelectorDeclHIR[] {
-  return projectExpressionSelectors(expression, styleDocument, sourceFile, {
-    ...env,
-    sourceBinder,
-  }).selectors;
 }
 
 function buildDynamicHoverExplanation(
   expression: ClassExpressionHIR,
-  selectors: readonly SelectorDeclHIR[],
-  styleDocument: StyleDocumentHIR,
-  sourceFile: AnalysisEntry["sourceFile"],
-  sourceBinder: AnalysisEntry["sourceBinder"],
-  env: Pick<ResolveRefQueryEnv, "typeResolver" | "filePath" | "workspaceRoot">,
+  resolution: Pick<
+    ReturnType<typeof readSourceExpressionResolution>,
+    | "selectors"
+    | "finiteValues"
+    | "abstractValue"
+    | "valueCertainty"
+    | "selectorCertainty"
+    | "reason"
+  >,
 ): DynamicHoverExplanation | null {
   switch (expression.kind) {
     case "symbolRef": {
-      const projection = projectExpressionSelectors(expression, styleDocument, sourceFile, {
-        ...env,
-        sourceBinder,
-      });
-      if (!projection.abstractValue || !projection.reason) return null;
-      const finiteValues = enumerateFiniteClassValues(projection.abstractValue);
+      if (!resolution.abstractValue || !resolution.reason) return null;
       return {
         kind: "symbolRef",
         subject: expression.rawReference,
         candidates:
-          finiteValues && finiteValues.length > 0
-            ? finiteValues
-            : selectors.map((selector) => selector.name),
-        reason: projection.reason,
-        ...(projection.abstractValue ? { abstractValue: projection.abstractValue } : {}),
-        ...(projection.valueCertainty ? { valueCertainty: projection.valueCertainty } : {}),
-        ...(projection.selectorCertainty
-          ? { selectorCertainty: projection.selectorCertainty }
+          resolution.finiteValues && resolution.finiteValues.length > 0
+            ? resolution.finiteValues
+            : resolution.selectors.map((selector) => selector.name),
+        reason: resolution.reason,
+        abstractValue: resolution.abstractValue,
+        ...(resolution.valueCertainty ? { valueCertainty: resolution.valueCertainty } : {}),
+        ...(resolution.selectorCertainty
+          ? { selectorCertainty: resolution.selectorCertainty }
           : {}),
       };
     }
     case "template":
-      if (selectors.length === 0) return null;
-      const projection = projectExpressionSelectors(expression, styleDocument, sourceFile, {
-        ...env,
-        sourceBinder,
-      });
+      if (resolution.selectors.length === 0) return null;
       return {
         kind: "template",
         subject: expression.staticPrefix,
-        candidates: selectors.map((selector) => selector.name),
-        ...(projection.abstractValue ? { abstractValue: projection.abstractValue } : {}),
-        ...(projection.selectorCertainty
-          ? { selectorCertainty: projection.selectorCertainty }
+        candidates: resolution.selectors.map((selector) => selector.name),
+        ...(resolution.abstractValue ? { abstractValue: resolution.abstractValue } : {}),
+        ...(resolution.selectorCertainty
+          ? { selectorCertainty: resolution.selectorCertainty }
           : {}),
       };
     case "literal":
