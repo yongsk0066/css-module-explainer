@@ -2,6 +2,7 @@ import type { Range } from "@css-module-explainer/shared";
 import type { StyleDocumentHIR } from "../hir/style-types";
 import { listCanonicalSelectors } from "./find-style-selector";
 import type { SemanticWorkspaceReferenceIndex } from "../semantic/workspace-reference-index";
+import { readSelectorUsageSummary } from "./read-selector-usage";
 
 export interface UnusedSelectorFinding {
   readonly canonicalName: string;
@@ -31,11 +32,12 @@ export function findUnusedSelectors(
   for (const selector of listCanonicalSelectors(styleDocument)) {
     if (composedClasses.has(selector.canonicalName)) continue;
 
-    const refCount = semanticReferenceIndex.countSelectorReferences(
+    const usage = readSelectorUsageSummary(
+      { semanticReferenceIndex },
       scssPath,
       selector.canonicalName,
     );
-    if (refCount > 0) continue;
+    if (usage.hasAnyReferences) continue;
 
     findings.push({ canonicalName: selector.canonicalName, range: selector.range });
   }
