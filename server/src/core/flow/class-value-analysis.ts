@@ -3,6 +3,7 @@ import type { Range } from "@css-module-explainer/shared";
 import { buildFlowSlice } from "./flow-slice";
 import {
   exactValue,
+  markBranched,
   mergeValues,
   toFlowResolution,
   type ClassValueLattice,
@@ -101,8 +102,7 @@ function resolveExpression(
   if (ts.isConditionalExpression(expression)) {
     const whenTrue = resolveExpression(expression.whenTrue, env);
     const whenFalse = resolveExpression(expression.whenFalse, env);
-    const merged = mergeValues(whenTrue, whenFalse);
-    return merged ? { values: merged.values, branched: true } : null;
+    return markBranched(mergeValues(whenTrue, whenFalse));
   }
 
   return null;
@@ -129,7 +129,5 @@ function mergeEnvs(base: FlowEnv, left: FlowState, right: FlowState): FlowState 
 }
 
 function cloneEnv(env: FlowEnv): FlowEnv {
-  return new Map(
-    Array.from(env.entries(), ([key, value]) => [key, { ...value, values: [...value.values] }]),
-  );
+  return new Map(Array.from(env.entries(), ([key, value]) => [key, { ...value }]));
 }

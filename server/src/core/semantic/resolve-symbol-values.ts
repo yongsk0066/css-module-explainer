@@ -1,7 +1,7 @@
 import type ts from "typescript";
 import { resolveFlowClassValues } from "../flow/class-value-analysis";
 import type { SymbolRefClassExpressionHIR } from "../hir/source-types";
-import type { FlowResolution } from "../flow/lattice";
+import { typeUnionResolution, type FlowResolution } from "../flow/lattice";
 import type { TypeResolver } from "../ts/type-resolver";
 import type { SourceBinderResult } from "../binder/scope-types";
 
@@ -40,9 +40,7 @@ export function resolveSymbolClassValues(
       ...(input.rootBindingDeclId ? { rootBindingDeclId: input.rootBindingDeclId } : {}),
     },
   );
-  return resolved.kind === "union"
-    ? { values: resolved.values, certainty: "inferred", reason: "typeUnion" }
-    : null;
+  return resolved.kind === "union" ? typeUnionResolution(resolved.values) : null;
 }
 
 export function resolveSymbolExpressionValues(
