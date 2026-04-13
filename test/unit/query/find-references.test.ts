@@ -26,6 +26,7 @@ describe("findSelectorReferenceSites", () => {
           end: { line: 8, character: 16 },
         },
         expansion: "direct",
+        certainty: "exact",
       }),
     ]);
   });
@@ -38,6 +39,80 @@ describe("findSelectorReferenceSites", () => {
         "button",
       ),
     ).toEqual([]);
+  });
+
+  it("can filter out expanded sites explicitly", () => {
+    const semanticReferenceIndex = withSemanticSites([
+      semanticSite({
+        uri: "file:///src/Button.tsx",
+        line: 5,
+        selectorFilePath: "/src/Button.module.scss",
+        canonicalName: "button",
+        className: "button",
+        certainty: "exact",
+        expansion: "expanded",
+      }),
+      semanticSite({
+        uri: "file:///src/Button.tsx",
+        line: 8,
+        selectorFilePath: "/src/Button.module.scss",
+        canonicalName: "button",
+        className: "button",
+        certainty: "exact",
+        expansion: "direct",
+      }),
+    ]);
+
+    expect(
+      findSelectorReferenceSites({ semanticReferenceIndex }, "/src/Button.module.scss", "button", {
+        includeExpanded: false,
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        range: {
+          start: { line: 8, character: 10 },
+          end: { line: 8, character: 16 },
+        },
+        expansion: "direct",
+      }),
+    ]);
+  });
+
+  it("can filter by minimum certainty independently of expansion", () => {
+    const semanticReferenceIndex = withSemanticSites([
+      semanticSite({
+        uri: "file:///src/Button.tsx",
+        line: 5,
+        selectorFilePath: "/src/Button.module.scss",
+        canonicalName: "button",
+        className: "button",
+        certainty: "possible",
+      }),
+      semanticSite({
+        uri: "file:///src/Button.tsx",
+        line: 8,
+        selectorFilePath: "/src/Button.module.scss",
+        canonicalName: "button",
+        className: "button",
+        certainty: "exact",
+        expansion: "expanded",
+      }),
+    ]);
+
+    expect(
+      findSelectorReferenceSites({ semanticReferenceIndex }, "/src/Button.module.scss", "button", {
+        minimumCertainty: "exact",
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        range: {
+          start: { line: 8, character: 10 },
+          end: { line: 8, character: 16 },
+        },
+        certainty: "exact",
+        expansion: "expanded",
+      }),
+    ]);
   });
 
   it("treats inferred semantic sites as blocking rename references", () => {
