@@ -83,7 +83,8 @@ describe("findInvalidClassReference", () => {
       kind: "missingResolvedClassValues",
       missingValues: ["missing"],
       reason: "flowBranch",
-      certainty: "inferred",
+      valueCertainty: "inferred",
+      selectorCertainty: "inferred",
     });
   });
 
@@ -121,7 +122,8 @@ describe("findInvalidClassReference", () => {
       kind: "missingResolvedClassValues",
       missingValues: ["large"],
       reason: "typeUnion",
-      certainty: "inferred",
+      valueCertainty: "inferred",
+      selectorCertainty: "inferred",
     });
   });
 
@@ -165,7 +167,8 @@ describe("findInvalidClassReference", () => {
       kind: "missingResolvedClassDomain",
       abstractValue: { kind: "prefix", prefix: "ghost-" },
       reason: "flowBranch",
-      certainty: "inferred",
+      valueCertainty: "inferred",
+      selectorCertainty: "possible",
     });
   });
 });

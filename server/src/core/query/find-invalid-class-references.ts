@@ -1,5 +1,5 @@
 import { enumerateFiniteClassValues } from "../abstract-value/class-value-domain";
-import { resolveAbstractValueSelectors } from "../abstract-value/selector-projection";
+import { projectAbstractValueSelectors } from "../abstract-value/selector-projection";
 import { findClosestMatch } from "../util/text-utils";
 import type { TypeResolver } from "../ts/type-resolver";
 import { resolveSymbolExpressionValues } from "../semantic/resolve-symbol-values";
@@ -44,7 +44,8 @@ export type InvalidClassReferenceFinding =
       readonly range: SymbolRefClassExpressionHIR["range"];
       readonly missingValues: readonly string[];
       readonly abstractValue: FlowResolution["abstractValue"];
-      readonly certainty: "exact" | "inferred" | "possible";
+      readonly valueCertainty: "exact" | "inferred" | "possible";
+      readonly selectorCertainty: "exact" | "inferred" | "possible";
       readonly reason: "flowLiteral" | "flowBranch" | "typeUnion";
     }
   | {
@@ -52,7 +53,8 @@ export type InvalidClassReferenceFinding =
       readonly expression: SymbolRefClassExpressionHIR;
       readonly range: SymbolRefClassExpressionHIR["range"];
       readonly abstractValue: FlowResolution["abstractValue"];
-      readonly certainty: "exact" | "inferred" | "possible";
+      readonly valueCertainty: "exact" | "inferred" | "possible";
+      readonly selectorCertainty: "exact" | "inferred" | "possible";
       readonly reason: "flowLiteral" | "flowBranch" | "typeUnion";
     };
 
@@ -97,15 +99,17 @@ export function findInvalidClassReference(
         env.resolveSymbolValues?.(sourceFile, expression, symbolResolutionEnv) ??
         resolveSymbolExpressionValues(sourceFile, expression, env);
       if (!resolved) return null;
+      const projection = projectAbstractValueSelectors(resolved.abstractValue, styleDocument);
       const finiteValues = enumerateFiniteClassValues(resolved.abstractValue);
       if (!finiteValues) {
-        return resolveAbstractValueSelectors(resolved.abstractValue, styleDocument).length === 0
+        return projection.selectors.length === 0
           ? {
               kind: "missingResolvedClassDomain",
               expression,
               range: expression.range,
               abstractValue: resolved.abstractValue,
-              certainty: resolved.certainty,
+              valueCertainty: resolved.certainty,
+              selectorCertainty: projection.certainty,
               reason: resolved.reason,
             }
           : null;
@@ -118,7 +122,8 @@ export function findInvalidClassReference(
         range: expression.range,
         missingValues,
         abstractValue: resolved.abstractValue,
-        certainty: resolved.certainty,
+        valueCertainty: resolved.certainty,
+        selectorCertainty: projection.certainty,
         reason: resolved.reason,
       };
     }

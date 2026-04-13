@@ -214,7 +214,7 @@ function diagnosticMessageForResolvedValues(
   if (finding.reason === "typeUnion") {
     return `Missing class for union member${finding.missingValues.length > 1 ? "s" : ""}: ${finding.missingValues.map((value) => `'${value}'`).join(", ")}.`;
   }
-  if (finding.missingValues.length === 1 && finding.certainty === "exact") {
+  if (finding.missingValues.length === 1 && finding.valueCertainty === "exact") {
     return `Missing class for resolved value: '${finding.missingValues[0]}'.`;
   }
   return `Missing class for possible value${finding.missingValues.length > 1 ? "s" : ""}: ${finding.missingValues.map((value) => `'${value}'`).join(", ")}.`;

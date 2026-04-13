@@ -1,9 +1,12 @@
 import type { ClassExpressionHIR, SymbolRefClassExpressionHIR } from "../hir/source-types";
 import type { SelectorDeclHIR, StyleDocumentHIR } from "../hir/style-types";
 import { prefixClassValue } from "../abstract-value/class-value-domain";
-import { resolveAbstractValueSelectors } from "../abstract-value/selector-projection";
+import {
+  projectAbstractValueSelectors,
+  resolveAbstractValueSelectors,
+} from "../abstract-value/selector-projection";
 import { buildSourceSemanticGraph } from "../semantic/graph-builder";
-import { deriveSelectorProjectionCertainty, type EdgeCertainty } from "../semantic/certainty";
+import type { EdgeCertainty } from "../semantic/certainty";
 import { buildSemanticReferenceIndex } from "../semantic/reference-index";
 import { resolveSymbolExpressionValues } from "../semantic/resolve-symbol-values";
 import type { FlowResolution } from "../flow/lattice";
@@ -168,34 +171,29 @@ function buildDynamicHoverExplanation(
     case "symbolRef": {
       const resolved = resolveExpressionSymbolValues(sourceFile, sourceBinder, expression, env);
       if (!resolved) return null;
+      const projection = projectAbstractValueSelectors(resolved.abstractValue, styleDocument);
       return {
         kind: "symbolRef",
         subject: expression.rawReference,
         candidates:
           resolved.values.length > 0 ? resolved.values : selectors.map((selector) => selector.name),
         abstractValue: resolved.abstractValue,
-        certainty: deriveSelectorProjectionCertainty(
-          resolved.abstractValue,
-          selectors.length,
-          countCanonicalSelectors(styleDocument),
-        ),
+        certainty: projection.certainty,
         reason: resolved.reason,
       };
     }
     case "template":
-      return selectors.length > 0
-        ? {
-            kind: "template",
-            subject: expression.staticPrefix,
-            candidates: selectors.map((selector) => selector.name),
-            abstractValue: prefixClassValue(expression.staticPrefix),
-            certainty: deriveSelectorProjectionCertainty(
-              prefixClassValue(expression.staticPrefix),
-              selectors.length,
-              countCanonicalSelectors(styleDocument),
-            ),
-          }
-        : null;
+      if (selectors.length === 0) return null;
+      return {
+        kind: "template",
+        subject: expression.staticPrefix,
+        candidates: selectors.map((selector) => selector.name),
+        abstractValue: prefixClassValue(expression.staticPrefix),
+        certainty: projectAbstractValueSelectors(
+          prefixClassValue(expression.staticPrefix),
+          styleDocument,
+        ).certainty,
+      };
     case "literal":
     case "styleAccess":
       return null;
@@ -229,8 +227,4 @@ function findCanonicalSelector(
         selector.canonicalName === match.canonicalName && selector.viewKind === "canonical",
     ) ?? match
   );
-}
-
-function countCanonicalSelectors(styleDocument: StyleDocumentHIR): number {
-  return styleDocument.selectors.filter((selector) => selector.viewKind === "canonical").length;
 }

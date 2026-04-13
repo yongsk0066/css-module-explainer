@@ -5,9 +5,8 @@ import {
   prefixClassValue,
   type AbstractClassValue,
 } from "../abstract-value/class-value-domain";
-import { resolveAbstractValueSelectors } from "../abstract-value/selector-projection";
+import { projectAbstractValueSelectors } from "../abstract-value/selector-projection";
 import type { FlowResolution } from "../flow/lattice";
-import { deriveSelectorProjectionCertainty } from "./certainty";
 import type {
   DocumentNode,
   RefNode,
@@ -75,17 +74,12 @@ export function buildSourceSemanticGraph(args: BuildSourceSemanticGraphArgs): Se
         break;
       }
       case "template": {
-        const selectors = resolveAbstractValueSelectors(
+        const projection = projectAbstractValueSelectors(
           prefixClassValue(expr.staticPrefix),
           styleDocument,
         );
-        const certainty = deriveSelectorProjectionCertainty(
-          prefixClassValue(expr.staticPrefix),
-          selectors.length,
-          countCanonicalSelectors(styleDocument),
-        );
         const emitted = new Set<string>();
-        for (const selector of selectors) {
+        for (const selector of projection.selectors) {
           const canonical = selectorNodeId(styleDocument.filePath, selector.canonicalName);
           if (emitted.has(canonical)) continue;
           emitted.add(canonical);
@@ -94,7 +88,7 @@ export function buildSourceSemanticGraph(args: BuildSourceSemanticGraphArgs): Se
             expr.id,
             canonical,
             "templatePrefix",
-            certainty,
+            projection.certainty,
             prefixClassValue(expr.staticPrefix),
           );
         }
@@ -103,18 +97,20 @@ export function buildSourceSemanticGraph(args: BuildSourceSemanticGraphArgs): Se
       case "symbolRef": {
         const resolved = args.resolveSymbolValues?.(expr, args.sourceDocument);
         if (!resolved) break;
-        const selectors = resolveAbstractValueSelectors(resolved.abstractValue, styleDocument);
-        const certainty = deriveSelectorProjectionCertainty(
-          resolved.abstractValue,
-          selectors.length,
-          countCanonicalSelectors(styleDocument),
-        );
+        const projection = projectAbstractValueSelectors(resolved.abstractValue, styleDocument);
         const emitted = new Set<string>();
-        for (const selector of selectors) {
+        for (const selector of projection.selectors) {
           const canonical = selectorNodeId(styleDocument.filePath, selector.canonicalName);
           if (emitted.has(canonical)) continue;
           emitted.add(canonical);
-          addEdge(state, expr.id, canonical, resolved.reason, certainty, resolved.abstractValue);
+          addEdge(
+            state,
+            expr.id,
+            canonical,
+            resolved.reason,
+            projection.certainty,
+            resolved.abstractValue,
+          );
         }
         break;
       }
@@ -354,8 +350,4 @@ function selectorNodeId(filePath: string, canonicalName: string): string {
 
 function selectorViewNodeId(filePath: string, viewName: string): string {
   return `selector-view:${filePath}:${viewName}`;
-}
-
-function countCanonicalSelectors(styleDocument: StyleDocumentHIR): number {
-  return styleDocument.selectors.filter((selector) => selector.viewKind === "canonical").length;
 }
