@@ -6,7 +6,7 @@ export interface ResolvedReferenceSite {
   readonly uri: string;
   readonly range: Range;
   readonly className: string;
-  readonly certainty: EdgeCertainty;
+  readonly selectorCertainty: EdgeCertainty;
   readonly expansion: "direct" | "expanded";
 }
 
@@ -15,7 +15,7 @@ export interface ReferenceQueryEnv {
 }
 
 export interface ReferenceSiteQueryOptions {
-  readonly minimumCertainty?: EdgeCertainty;
+  readonly minimumSelectorCertainty?: EdgeCertainty;
   readonly includeExpanded?: boolean;
 }
 
@@ -25,8 +25,8 @@ export function findSelectorReferenceSites(
   canonicalName: string,
   options?: ReferenceSiteQueryOptions,
 ): readonly ResolvedReferenceSite[] {
-  const queryOptions = options?.minimumCertainty
-    ? { minimumCertainty: options.minimumCertainty }
+  const queryOptions = options?.minimumSelectorCertainty
+    ? { minimumSelectorCertainty: options.minimumSelectorCertainty }
     : undefined;
   return deps.semanticReferenceIndex
     .findSelectorReferences(scssPath, canonicalName, queryOptions)
@@ -34,7 +34,7 @@ export function findSelectorReferenceSites(
       uri: site.uri,
       range: site.range,
       className: site.className,
-      certainty: site.certainty,
+      selectorCertainty: site.selectorCertainty,
       expansion: site.expansion,
     }))
     .filter((site) => (options?.includeExpanded === false ? site.expansion === "direct" : true));

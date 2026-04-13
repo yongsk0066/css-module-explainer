@@ -21,8 +21,7 @@ describe("buildSemanticReferenceIndex", () => {
         ref.rootName === "size"
           ? {
               abstractValue: { kind: "finiteSet", values: ["lg", "md", "sm"] },
-              values: ["sm", "md", "lg"],
-              certainty: "inferred",
+              valueCertainty: "inferred",
               reason: "typeUnion",
             }
           : null,
@@ -35,7 +34,7 @@ describe("buildSemanticReferenceIndex", () => {
         origin: "cxCall",
         canonicalName: "button",
         className: "button",
-        certainty: "exact",
+        selectorCertainty: "exact",
         reason: "literal",
         expansion: "direct",
         abstractValue: { kind: "exact", value: "button" },
@@ -45,7 +44,7 @@ describe("buildSemanticReferenceIndex", () => {
         origin: "cxCall",
         canonicalName: "button",
         className: "button",
-        certainty: "exact",
+        selectorCertainty: "exact",
         reason: "literal",
         expansion: "direct",
       }),
@@ -54,7 +53,7 @@ describe("buildSemanticReferenceIndex", () => {
         origin: "cxCall",
         canonicalName: "button",
         className: "button",
-        certainty: "exact",
+        selectorCertainty: "exact",
         reason: "literal",
         expansion: "direct",
       }),
@@ -66,7 +65,7 @@ describe("buildSemanticReferenceIndex", () => {
           refId: "class-expr:2",
           canonicalName: "sm",
           className: "sm",
-          certainty: "exact",
+          selectorCertainty: "exact",
           reason: "typeUnion",
           expansion: "expanded",
           abstractValue: { kind: "finiteSet", values: ["lg", "md", "sm"] },
@@ -75,7 +74,7 @@ describe("buildSemanticReferenceIndex", () => {
           refId: "class-expr:6",
           canonicalName: "sm",
           className: "sm",
-          certainty: "exact",
+          selectorCertainty: "exact",
           reason: "typeUnion",
           expansion: "expanded",
         }),
@@ -83,12 +82,14 @@ describe("buildSemanticReferenceIndex", () => {
     );
     expect(index.countSelectorReferences(styleScenario.filePath, "sm")).toBe(2);
     expect(
-      index.findSelectorReferences(styleScenario.filePath, "sm", { minimumCertainty: "exact" }),
+      index.findSelectorReferences(styleScenario.filePath, "sm", {
+        minimumSelectorCertainty: "exact",
+      }),
     ).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           refId: "class-expr:2",
-          certainty: "exact",
+          selectorCertainty: "exact",
           expansion: "expanded",
         }),
       ]),
@@ -97,18 +98,18 @@ describe("buildSemanticReferenceIndex", () => {
       expect.arrayContaining([
         expect.objectContaining({
           canonicalName: "sm",
-          certainty: "exact",
+          selectorCertainty: "exact",
           reason: "typeUnion",
           abstractValue: { kind: "finiteSet", values: ["lg", "md", "sm"] },
         }),
         expect.objectContaining({
           canonicalName: "md",
-          certainty: "exact",
+          selectorCertainty: "exact",
           reason: "typeUnion",
         }),
         expect.objectContaining({
           canonicalName: "lg",
-          certainty: "exact",
+          selectorCertainty: "exact",
           reason: "typeUnion",
         }),
       ]),
@@ -138,7 +139,7 @@ describe("buildSemanticReferenceIndex", () => {
         origin: "styleAccess",
         canonicalName: "button--primary",
         className: "buttonPrimary",
-        certainty: "exact",
+        selectorCertainty: "exact",
         reason: "styleAccess",
         expansion: "direct",
         abstractValue: { kind: "exact", value: "buttonPrimary" },
@@ -165,18 +166,18 @@ describe("buildSemanticReferenceIndex", () => {
     expect(index.findTargetsForRef("class-expr:0")).toEqual([
       expect.objectContaining({
         canonicalName: "btn-danger",
-        certainty: "exact",
+        selectorCertainty: "exact",
         reason: "templatePrefix",
         abstractValue: { kind: "prefix", prefix: "btn-" },
       }),
       expect.objectContaining({
         canonicalName: "btn-primary",
-        certainty: "exact",
+        selectorCertainty: "exact",
         reason: "templatePrefix",
       }),
       expect.objectContaining({
         canonicalName: "btn-secondary",
-        certainty: "exact",
+        selectorCertainty: "exact",
         reason: "templatePrefix",
       }),
     ]);
@@ -185,20 +186,22 @@ describe("buildSemanticReferenceIndex", () => {
       expect.arrayContaining([
         expect.objectContaining({
           refId: "class-expr:0",
-          certainty: "exact",
+          selectorCertainty: "exact",
           expansion: "expanded",
         }),
       ]),
     );
 
     expect(
-      index.findAllForScssPath(styleScenario.filePath, { minimumCertainty: "inferred" }),
+      index.findAllForScssPath(styleScenario.filePath, {
+        minimumSelectorCertainty: "inferred",
+      }),
     ).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           refId: "class-expr:0",
           canonicalName: "btn-primary",
-          certainty: "exact",
+          selectorCertainty: "exact",
         }),
       ]),
     );
@@ -237,8 +240,7 @@ describe("buildSemanticReferenceIndex", () => {
       styleDocumentsByPath: new Map([[styleScenario.filePath, styleScenario.styleDocument]]),
       resolveSymbolValues: () => ({
         abstractValue: { kind: "top" },
-        values: [],
-        certainty: "possible",
+        valueCertainty: "possible",
         reason: "flowBranch",
       }),
     });
@@ -248,13 +250,13 @@ describe("buildSemanticReferenceIndex", () => {
       expect.arrayContaining([
         expect.objectContaining({
           canonicalName: "btn-primary",
-          certainty: "possible",
+          selectorCertainty: "possible",
           reason: "flowBranch",
           abstractValue: { kind: "top" },
         }),
         expect.objectContaining({
           canonicalName: "btn-secondary",
-          certainty: "possible",
+          selectorCertainty: "possible",
           reason: "flowBranch",
           abstractValue: { kind: "top" },
         }),

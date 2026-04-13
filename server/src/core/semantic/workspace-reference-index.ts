@@ -291,19 +291,19 @@ function filterSites(
   sites: readonly SemanticReferenceSite[],
   options?: ReferenceQueryOptions,
 ): readonly SemanticReferenceSite[] {
-  const minimumCertainty = options?.minimumCertainty;
-  if (!minimumCertainty) return sites;
+  const minimumSelectorCertainty = options?.minimumSelectorCertainty;
+  if (!minimumSelectorCertainty) return sites;
   return sites.filter((site) => {
-    switch (minimumCertainty) {
+    switch (minimumSelectorCertainty) {
       case "exact":
-        return site.certainty === "exact";
+        return site.selectorCertainty === "exact";
       case "inferred":
-        return site.certainty === "exact" || site.certainty === "inferred";
+        return site.selectorCertainty === "exact" || site.selectorCertainty === "inferred";
       case "possible":
         return true;
       default:
-        minimumCertainty satisfies never;
-        return minimumCertainty;
+        minimumSelectorCertainty satisfies never;
+        return minimumSelectorCertainty;
     }
   });
 }

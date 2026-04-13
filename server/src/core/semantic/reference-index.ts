@@ -16,7 +16,7 @@ export interface SemanticReferenceSite {
   readonly selectorFilePath: string;
   readonly canonicalName: string;
   readonly className: string;
-  readonly certainty: EdgeCertainty;
+  readonly selectorCertainty: EdgeCertainty;
   readonly reason: EdgeReason;
   readonly expansion: "direct" | "expanded";
   readonly abstractValue?: AbstractClassValue;
@@ -27,13 +27,13 @@ export interface SemanticRefTarget {
   readonly selectorId: string;
   readonly selectorFilePath: string;
   readonly canonicalName: string;
-  readonly certainty: EdgeCertainty;
+  readonly selectorCertainty: EdgeCertainty;
   readonly reason: EdgeReason;
   readonly abstractValue?: AbstractClassValue;
 }
 
 export interface ReferenceQueryOptions {
-  readonly minimumCertainty?: EdgeCertainty;
+  readonly minimumSelectorCertainty?: EdgeCertainty;
 }
 
 export interface SemanticReferenceIndex {
@@ -75,7 +75,7 @@ export function buildSemanticReferenceIndex(graph: SemanticGraph): SemanticRefer
       selectorId: to.id,
       selectorFilePath: to.filePath,
       canonicalName: to.canonicalName,
-      certainty: edge.certainty,
+      selectorCertainty: edge.certainty,
       reason: edge.reason,
       ...(edge.abstractValue ? { abstractValue: edge.abstractValue } : {}),
     });
@@ -107,7 +107,7 @@ function toReferenceSite(
   refNode: RefNode,
   selectorNode: SelectorNode,
   reason: EdgeReason,
-  certainty: EdgeCertainty,
+  selectorCertainty: EdgeCertainty,
   abstractValue?: AbstractClassValue,
 ): SemanticReferenceSite {
   return {
@@ -121,21 +121,21 @@ function toReferenceSite(
     selectorFilePath: selectorNode.filePath,
     canonicalName: selectorNode.canonicalName,
     className: refNode.className ?? selectorNode.canonicalName,
-    certainty,
+    selectorCertainty,
     reason,
     expansion: deriveReferenceExpansion(refNode.expressionKind),
     ...(abstractValue ? { abstractValue } : {}),
   };
 }
 
-function filterByCertainty<T extends { readonly certainty: EdgeCertainty }>(
+function filterByCertainty<T extends { readonly selectorCertainty: EdgeCertainty }>(
   entries: readonly T[],
   options: ReferenceQueryOptions | undefined,
 ): readonly T[] {
-  const minimumCertainty = options?.minimumCertainty;
-  if (!minimumCertainty) return entries;
-  const minimumRank = rankCertainty(minimumCertainty);
-  return entries.filter((entry) => rankCertainty(entry.certainty) >= minimumRank);
+  const minimumSelectorCertainty = options?.minimumSelectorCertainty;
+  if (!minimumSelectorCertainty) return entries;
+  const minimumRank = rankCertainty(minimumSelectorCertainty);
+  return entries.filter((entry) => rankCertainty(entry.selectorCertainty) >= minimumRank);
 }
 
 function push<T>(map: Map<string, T[]>, key: string, value: T): void {

@@ -26,7 +26,7 @@ describe("findSelectorReferenceSites", () => {
           end: { line: 8, character: 16 },
         },
         expansion: "direct",
-        certainty: "exact",
+        selectorCertainty: "exact",
       }),
     ]);
   });
@@ -101,7 +101,7 @@ describe("findSelectorReferenceSites", () => {
 
     expect(
       findSelectorReferenceSites({ semanticReferenceIndex }, "/src/Button.module.scss", "button", {
-        minimumCertainty: "exact",
+        minimumSelectorCertainty: "exact",
       }),
     ).toEqual([
       expect.objectContaining({
@@ -109,7 +109,7 @@ describe("findSelectorReferenceSites", () => {
           start: { line: 8, character: 10 },
           end: { line: 8, character: 16 },
         },
-        certainty: "exact",
+        selectorCertainty: "exact",
         expansion: "expanded",
       }),
     ]);
@@ -191,7 +191,7 @@ function semanticSite(args: {
     selectorFilePath: args.selectorFilePath,
     canonicalName: args.canonicalName,
     className: args.className,
-    certainty: args.certainty,
+    selectorCertainty: args.certainty,
     reason: args.certainty === "exact" ? "literal" : "typeUnion",
     expansion,
   };

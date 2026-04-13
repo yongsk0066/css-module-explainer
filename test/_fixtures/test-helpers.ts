@@ -93,7 +93,7 @@ export function semanticSiteAt(
     selectorFilePath: scssPath,
     canonicalName,
     className,
-    certainty,
+    selectorCertainty: certainty,
     reason: options.reason ?? "literal",
     expansion: certainty === "exact" ? "direct" : "expanded",
   } as const;
