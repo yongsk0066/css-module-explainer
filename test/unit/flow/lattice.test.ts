@@ -14,7 +14,6 @@ describe("flow/lattice", () => {
         kind: "exact",
         value: "button",
       },
-      values: ["button"],
       valueCertainty: "exact",
       reason: "flowLiteral",
     });
@@ -26,7 +25,6 @@ describe("flow/lattice", () => {
         kind: "finiteSet",
         values: ["lg", "sm"],
       },
-      values: ["lg", "sm"],
       valueCertainty: "inferred",
       reason: "flowBranch",
     });
@@ -39,7 +37,6 @@ describe("flow/lattice", () => {
           kind: "exact",
           value: "sm",
         },
-        values: ["sm"],
         valueCertainty: "exact",
         reason: "flowBranch",
       },
@@ -52,7 +49,6 @@ describe("flow/lattice", () => {
         kind: "finiteSet",
         values: ["lg", "sm"],
       },
-      values: ["lg", "sm"],
       valueCertainty: "inferred",
       reason: "typeUnion",
     });
@@ -61,7 +57,6 @@ describe("flow/lattice", () => {
         kind: "exact",
         value: "button",
       },
-      values: ["button"],
       valueCertainty: "exact",
       reason: "typeUnion",
     });

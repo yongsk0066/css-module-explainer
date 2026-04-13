@@ -24,7 +24,6 @@ function render() {
         kind: "exact",
         value: "lg",
       },
-      values: ["lg"],
       valueCertainty: "exact",
       reason: "flowLiteral",
     });
@@ -53,7 +52,6 @@ function render(flag: boolean) {
         kind: "finiteSet",
         values: ["lg", "sm"],
       },
-      values: ["lg", "sm"],
       valueCertainty: "inferred",
       reason: "flowBranch",
     });
@@ -83,7 +81,6 @@ function render(flag: boolean) {
         kind: "exact",
         value: "sm",
       },
-      values: ["sm"],
       valueCertainty: "exact",
       reason: "flowLiteral",
     });
@@ -109,7 +106,6 @@ function render(variant: string) {
         kind: "prefix",
         prefix: "btn-",
       },
-      values: [],
       valueCertainty: "inferred",
       reason: "flowLiteral",
     });
@@ -135,7 +131,6 @@ function render(flag: boolean, variant: string) {
       abstractValue: {
         kind: "top",
       },
-      values: [],
       valueCertainty: "possible",
       reason: "flowBranch",
     });

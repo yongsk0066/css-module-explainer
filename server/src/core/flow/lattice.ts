@@ -14,7 +14,6 @@ export interface ClassValueLattice {
 
 export interface FlowResolution {
   readonly abstractValue: AbstractClassValue;
-  readonly values: readonly string[];
   readonly valueCertainty: EdgeCertainty;
   readonly reason: "flowLiteral" | "flowBranch" | "typeUnion";
 }
@@ -54,7 +53,6 @@ export function toFlowResolution(value: ClassValueLattice | null): FlowResolutio
   if (!values) {
     return {
       abstractValue: value.abstractValue,
-      values: [],
       valueCertainty: value.abstractValue.kind === "top" ? "possible" : "inferred",
       reason: value.reason,
     };
@@ -62,7 +60,6 @@ export function toFlowResolution(value: ClassValueLattice | null): FlowResolutio
   if (values.length === 0) return null;
   return {
     abstractValue: value.abstractValue,
-    values,
     valueCertainty: value.abstractValue.kind === "exact" ? "exact" : "inferred",
     reason: value.reason,
   };
@@ -74,7 +71,6 @@ export function typeUnionResolution(values: readonly string[]): FlowResolution |
   if (!finiteValues || finiteValues.length === 0) return null;
   return {
     abstractValue,
-    values: finiteValues,
     valueCertainty: abstractValue.kind === "exact" ? "exact" : "inferred",
     reason: "typeUnion",
   };

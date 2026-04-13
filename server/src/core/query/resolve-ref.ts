@@ -1,6 +1,6 @@
 import type { ClassExpressionHIR, SymbolRefClassExpressionHIR } from "../hir/source-types";
 import type { SelectorDeclHIR, StyleDocumentHIR } from "../hir/style-types";
-import { prefixClassValue } from "../abstract-value/class-value-domain";
+import { enumerateFiniteClassValues, prefixClassValue } from "../abstract-value/class-value-domain";
 import {
   projectAbstractValueSelectors,
   resolveAbstractValueSelectors,
@@ -173,11 +173,14 @@ function buildDynamicHoverExplanation(
       const resolved = resolveExpressionSymbolValues(sourceFile, sourceBinder, expression, env);
       if (!resolved) return null;
       const projection = projectAbstractValueSelectors(resolved.abstractValue, styleDocument);
+      const finiteValues = enumerateFiniteClassValues(resolved.abstractValue);
       return {
         kind: "symbolRef",
         subject: expression.rawReference,
         candidates:
-          resolved.values.length > 0 ? resolved.values : selectors.map((selector) => selector.name),
+          finiteValues && finiteValues.length > 0
+            ? finiteValues
+            : selectors.map((selector) => selector.name),
         abstractValue: resolved.abstractValue,
         valueCertainty: resolved.valueCertainty,
         selectorCertainty: projection.certainty,
