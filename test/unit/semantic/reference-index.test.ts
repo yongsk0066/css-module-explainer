@@ -19,7 +19,12 @@ describe("buildSemanticReferenceIndex", () => {
       styleDocumentsByPath: new Map([[styleScenario.filePath, styleScenario.styleDocument]]),
       resolveSymbolValues: (ref) =>
         ref.rootName === "size"
-          ? { values: ["sm", "md", "lg"], certainty: "inferred", reason: "typeUnion" }
+          ? {
+              abstractValue: { kind: "finiteSet", values: ["lg", "md", "sm"] },
+              values: ["sm", "md", "lg"],
+              certainty: "inferred",
+              reason: "typeUnion",
+            }
           : null,
     });
     const index = buildSemanticReferenceIndex(graph);
@@ -33,6 +38,7 @@ describe("buildSemanticReferenceIndex", () => {
         certainty: "exact",
         reason: "literal",
         expansion: "direct",
+        abstractValue: { kind: "exact", value: "button" },
       }),
       expect.objectContaining({
         refId: "class-expr:4",
@@ -63,6 +69,7 @@ describe("buildSemanticReferenceIndex", () => {
           certainty: "inferred",
           reason: "typeUnion",
           expansion: "expanded",
+          abstractValue: { kind: "finiteSet", values: ["lg", "md", "sm"] },
         }),
         expect.objectContaining({
           refId: "class-expr:6",
@@ -84,6 +91,7 @@ describe("buildSemanticReferenceIndex", () => {
           canonicalName: "sm",
           certainty: "inferred",
           reason: "typeUnion",
+          abstractValue: { kind: "finiteSet", values: ["lg", "md", "sm"] },
         }),
         expect.objectContaining({
           canonicalName: "md",
@@ -125,6 +133,7 @@ describe("buildSemanticReferenceIndex", () => {
         certainty: "exact",
         reason: "styleAccess",
         expansion: "direct",
+        abstractValue: { kind: "exact", value: "buttonPrimary" },
       }),
     ]);
   });
@@ -150,6 +159,7 @@ describe("buildSemanticReferenceIndex", () => {
         canonicalName: "btn-danger",
         certainty: "inferred",
         reason: "templatePrefix",
+        abstractValue: { kind: "prefix", prefix: "btn-" },
       }),
       expect.objectContaining({
         canonicalName: "btn-primary",

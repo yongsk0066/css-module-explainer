@@ -70,7 +70,12 @@ describe("buildSourceSemanticGraph", () => {
       styleDocumentsByPath: new Map([[styleScenario.filePath, styleScenario.styleDocument]]),
       resolveSymbolValues: (ref) =>
         ref.rootName === "size"
-          ? { values: ["sm", "md", "lg"], certainty: "inferred", reason: "typeUnion" }
+          ? {
+              abstractValue: { kind: "finiteSet", values: ["lg", "md", "sm"] },
+              values: ["sm", "md", "lg"],
+              certainty: "inferred",
+              reason: "typeUnion",
+            }
           : null,
     });
 
@@ -80,24 +85,28 @@ describe("buildSourceSemanticGraph", () => {
         {
           reason: "literal",
           certainty: "exact",
+          abstractValue: { kind: "exact", value: "button" },
           from: "class-expr:0",
           to: `selector:${styleScenario.filePath}:button`,
         },
         {
           reason: "typeUnion",
           certainty: "inferred",
+          abstractValue: { kind: "finiteSet", values: ["lg", "md", "sm"] },
           from: "class-expr:2",
           to: `selector:${styleScenario.filePath}:sm`,
         },
         {
           reason: "typeUnion",
           certainty: "inferred",
+          abstractValue: { kind: "finiteSet", values: ["lg", "md", "sm"] },
           from: "class-expr:2",
           to: `selector:${styleScenario.filePath}:md`,
         },
         {
           reason: "typeUnion",
           certainty: "inferred",
+          abstractValue: { kind: "finiteSet", values: ["lg", "md", "sm"] },
           from: "class-expr:2",
           to: `selector:${styleScenario.filePath}:lg`,
         },
@@ -125,18 +134,21 @@ describe("buildSourceSemanticGraph", () => {
         {
           reason: "templatePrefix",
           certainty: "inferred",
+          abstractValue: { kind: "prefix", prefix: "btn-" },
           from: "class-expr:0",
           to: `selector:${styleScenario.filePath}:btn-primary`,
         },
         {
           reason: "templatePrefix",
           certainty: "inferred",
+          abstractValue: { kind: "prefix", prefix: "btn-" },
           from: "class-expr:0",
           to: `selector:${styleScenario.filePath}:btn-secondary`,
         },
         {
           reason: "templatePrefix",
           certainty: "inferred",
+          abstractValue: { kind: "prefix", prefix: "btn-" },
           from: "class-expr:0",
           to: `selector:${styleScenario.filePath}:btn-danger`,
         },
@@ -221,5 +233,6 @@ function normalizeEdge(edge: SemanticEdge): unknown {
     to: edge.to,
     reason: edge.reason,
     certainty: edge.certainty,
+    ...(edge.abstractValue ? { abstractValue: edge.abstractValue } : {}),
   };
 }

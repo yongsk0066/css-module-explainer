@@ -1,5 +1,6 @@
 import { pathToFileURL } from "node:url";
 import type { ClassRefOrigin, Range } from "@css-module-explainer/shared";
+import type { AbstractClassValue } from "../abstract-value/class-value-domain";
 import { rankCertainty, type EdgeCertainty } from "./certainty";
 import type { EdgeReason } from "./provenance";
 import type { RefNode, SelectorNode, SemanticGraph, SemanticNode } from "./graph-types";
@@ -18,6 +19,7 @@ export interface SemanticReferenceSite {
   readonly certainty: EdgeCertainty;
   readonly reason: EdgeReason;
   readonly expansion: "direct" | "expanded";
+  readonly abstractValue?: AbstractClassValue;
 }
 
 export interface SemanticRefTarget {
@@ -27,6 +29,7 @@ export interface SemanticRefTarget {
   readonly canonicalName: string;
   readonly certainty: EdgeCertainty;
   readonly reason: EdgeReason;
+  readonly abstractValue?: AbstractClassValue;
 }
 
 export interface ReferenceQueryOptions {
@@ -63,7 +66,7 @@ export function buildSemanticReferenceIndex(graph: SemanticGraph): SemanticRefer
     const to = nodesById.get(edge.to);
     if (!isRefNode(from) || !isSelectorNode(to)) continue;
 
-    const site = toReferenceSite(from, to, edge.reason, edge.certainty);
+    const site = toReferenceSite(from, to, edge.reason, edge.certainty, edge.abstractValue);
     const selectorKey = selectorKeyFor(to.filePath, to.canonicalName);
     push(selectorToSites, selectorKey, site);
     push(scssToSites, to.filePath, site);
@@ -74,6 +77,7 @@ export function buildSemanticReferenceIndex(graph: SemanticGraph): SemanticRefer
       canonicalName: to.canonicalName,
       certainty: edge.certainty,
       reason: edge.reason,
+      ...(edge.abstractValue ? { abstractValue: edge.abstractValue } : {}),
     });
   }
 
@@ -104,6 +108,7 @@ function toReferenceSite(
   selectorNode: SelectorNode,
   reason: EdgeReason,
   certainty: EdgeCertainty,
+  abstractValue?: AbstractClassValue,
 ): SemanticReferenceSite {
   return {
     refId: refNode.id,
@@ -119,6 +124,7 @@ function toReferenceSite(
     certainty,
     reason,
     expansion: certainty === "exact" ? "direct" : "expanded",
+    ...(abstractValue ? { abstractValue } : {}),
   };
 }
 

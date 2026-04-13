@@ -1,5 +1,10 @@
 import type { SourceDocumentHIR, SymbolRefClassExpressionHIR } from "../hir/source-types";
 import type { StyleDocumentHIR } from "../hir/style-types";
+import {
+  exactClassValue,
+  prefixClassValue,
+  type AbstractClassValue,
+} from "../abstract-value/class-value-domain";
 import type { FlowResolution } from "../flow/lattice";
 import type {
   DocumentNode,
@@ -58,13 +63,13 @@ export function buildSourceSemanticGraph(args: BuildSourceSemanticGraphArgs): Se
       case "literal": {
         const canonical = findCanonicalSelectorId(styleDocument, expr.className);
         if (!canonical) break;
-        addEdge(state, expr.id, canonical, "literal", "exact");
+        addEdge(state, expr.id, canonical, "literal", "exact", exactClassValue(expr.className));
         break;
       }
       case "styleAccess": {
         const canonical = findCanonicalSelectorId(styleDocument, expr.className);
         if (!canonical) break;
-        addEdge(state, expr.id, canonical, "styleAccess", "exact");
+        addEdge(state, expr.id, canonical, "styleAccess", "exact", exactClassValue(expr.className));
         break;
       }
       case "template": {
@@ -74,7 +79,14 @@ export function buildSourceSemanticGraph(args: BuildSourceSemanticGraphArgs): Se
           const canonical = selectorNodeId(styleDocument.filePath, selector.canonicalName);
           if (emitted.has(canonical)) continue;
           emitted.add(canonical);
-          addEdge(state, expr.id, canonical, "templatePrefix", "inferred");
+          addEdge(
+            state,
+            expr.id,
+            canonical,
+            "templatePrefix",
+            "inferred",
+            prefixClassValue(expr.staticPrefix),
+          );
         }
         break;
       }
@@ -86,7 +98,14 @@ export function buildSourceSemanticGraph(args: BuildSourceSemanticGraphArgs): Se
           const canonical = findCanonicalSelectorId(styleDocument, value);
           if (!canonical || emitted.has(canonical)) continue;
           emitted.add(canonical);
-          addEdge(state, expr.id, canonical, resolved.reason, resolved.certainty);
+          addEdge(
+            state,
+            expr.id,
+            canonical,
+            resolved.reason,
+            resolved.certainty,
+            resolved.abstractValue,
+          );
         }
         break;
       }
@@ -279,6 +298,7 @@ function addEdge(
   to: string,
   reason: SemanticEdge["reason"],
   certainty: SemanticEdge["certainty"],
+  abstractValue?: AbstractClassValue,
 ): void {
   const edge: SemanticEdge = {
     id: `${from}->${to}:${reason}:${certainty}`,
@@ -286,6 +306,7 @@ function addEdge(
     to,
     reason,
     certainty,
+    ...(abstractValue ? { abstractValue } : {}),
   };
   if (!state.edges.has(edge.id)) {
     state.edges.set(edge.id, edge);

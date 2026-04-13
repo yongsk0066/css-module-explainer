@@ -1,4 +1,5 @@
 import type { ClassRefOrigin, Range, StyleImport } from "@css-module-explainer/shared";
+import type { AbstractClassValue } from "../abstract-value/class-value-domain";
 import type { EdgeCertainty } from "./certainty";
 import type { EdgeReason } from "./provenance";
 
@@ -90,6 +91,7 @@ export interface SemanticEdge {
   readonly to: string;
   readonly reason: EdgeReason;
   readonly certainty: EdgeCertainty;
+  readonly abstractValue?: AbstractClassValue;
 }
 
 export interface SemanticGraph {
