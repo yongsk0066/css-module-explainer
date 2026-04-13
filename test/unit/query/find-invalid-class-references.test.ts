@@ -158,7 +158,7 @@ describe("findInvalidClassReference", () => {
           resolveSymbolValues: () => ({
             abstractValue: prefixClassValue("ghost-"),
             values: [],
-            certainty: "inferred",
+            valueCertainty: "inferred",
             reason: "flowBranch",
           }),
         },

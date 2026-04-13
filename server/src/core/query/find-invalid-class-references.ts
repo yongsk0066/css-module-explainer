@@ -108,7 +108,7 @@ export function findInvalidClassReference(
               expression,
               range: expression.range,
               abstractValue: resolved.abstractValue,
-              valueCertainty: resolved.certainty,
+              valueCertainty: resolved.valueCertainty,
               selectorCertainty: projection.certainty,
               reason: resolved.reason,
             }
@@ -122,7 +122,7 @@ export function findInvalidClassReference(
         range: expression.range,
         missingValues,
         abstractValue: resolved.abstractValue,
-        valueCertainty: resolved.certainty,
+        valueCertainty: resolved.valueCertainty,
         selectorCertainty: projection.certainty,
         reason: resolved.reason,
       };

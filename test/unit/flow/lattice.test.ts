@@ -15,7 +15,7 @@ describe("flow/lattice", () => {
         value: "button",
       },
       values: ["button"],
-      certainty: "exact",
+      valueCertainty: "exact",
       reason: "flowLiteral",
     });
   });
@@ -27,7 +27,7 @@ describe("flow/lattice", () => {
         values: ["lg", "sm"],
       },
       values: ["lg", "sm"],
-      certainty: "inferred",
+      valueCertainty: "inferred",
       reason: "flowBranch",
     });
   });
@@ -40,7 +40,7 @@ describe("flow/lattice", () => {
           value: "sm",
         },
         values: ["sm"],
-        certainty: "exact",
+        valueCertainty: "exact",
         reason: "flowBranch",
       },
     );
@@ -53,7 +53,7 @@ describe("flow/lattice", () => {
         values: ["lg", "sm"],
       },
       values: ["lg", "sm"],
-      certainty: "inferred",
+      valueCertainty: "inferred",
       reason: "typeUnion",
     });
     expect(typeUnionResolution(["button"])).toEqual({
@@ -62,7 +62,7 @@ describe("flow/lattice", () => {
         value: "button",
       },
       values: ["button"],
-      certainty: "exact",
+      valueCertainty: "exact",
       reason: "typeUnion",
     });
   });

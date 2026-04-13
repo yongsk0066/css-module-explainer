@@ -15,7 +15,7 @@ export interface ClassValueLattice {
 export interface FlowResolution {
   readonly abstractValue: AbstractClassValue;
   readonly values: readonly string[];
-  readonly certainty: EdgeCertainty;
+  readonly valueCertainty: EdgeCertainty;
   readonly reason: "flowLiteral" | "flowBranch" | "typeUnion";
 }
 
@@ -55,7 +55,7 @@ export function toFlowResolution(value: ClassValueLattice | null): FlowResolutio
     return {
       abstractValue: value.abstractValue,
       values: [],
-      certainty: value.abstractValue.kind === "top" ? "possible" : "inferred",
+      valueCertainty: value.abstractValue.kind === "top" ? "possible" : "inferred",
       reason: value.reason,
     };
   }
@@ -63,7 +63,7 @@ export function toFlowResolution(value: ClassValueLattice | null): FlowResolutio
   return {
     abstractValue: value.abstractValue,
     values,
-    certainty: value.abstractValue.kind === "exact" ? "exact" : "inferred",
+    valueCertainty: value.abstractValue.kind === "exact" ? "exact" : "inferred",
     reason: value.reason,
   };
 }
@@ -75,7 +75,7 @@ export function typeUnionResolution(values: readonly string[]): FlowResolution |
   return {
     abstractValue,
     values: finiteValues,
-    certainty: abstractValue.kind === "exact" ? "exact" : "inferred",
+    valueCertainty: abstractValue.kind === "exact" ? "exact" : "inferred",
     reason: "typeUnion",
   };
 }

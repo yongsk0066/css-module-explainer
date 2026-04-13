@@ -25,7 +25,7 @@ function render() {
         value: "lg",
       },
       values: ["lg"],
-      certainty: "exact",
+      valueCertainty: "exact",
       reason: "flowLiteral",
     });
   });
@@ -54,7 +54,7 @@ function render(flag: boolean) {
         values: ["lg", "sm"],
       },
       values: ["lg", "sm"],
-      certainty: "inferred",
+      valueCertainty: "inferred",
       reason: "flowBranch",
     });
   });
@@ -84,7 +84,7 @@ function render(flag: boolean) {
         value: "sm",
       },
       values: ["sm"],
-      certainty: "exact",
+      valueCertainty: "exact",
       reason: "flowLiteral",
     });
   });
@@ -110,7 +110,7 @@ function render(variant: string) {
         prefix: "btn-",
       },
       values: [],
-      certainty: "inferred",
+      valueCertainty: "inferred",
       reason: "flowLiteral",
     });
   });
@@ -136,7 +136,7 @@ function render(flag: boolean, variant: string) {
         kind: "top",
       },
       values: [],
-      certainty: "possible",
+      valueCertainty: "possible",
       reason: "flowBranch",
     });
   });
