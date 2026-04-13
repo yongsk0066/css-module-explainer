@@ -47,7 +47,9 @@ function buildLens(
   selector: SelectorDeclHIR,
   deps: ProviderDeps,
 ): CodeLens | null {
-  const sites = findSelectorReferenceSites(deps, filePath, selector.canonicalName);
+  const sites = findSelectorReferenceSites(deps, filePath, selector.canonicalName, {
+    includeExpanded: true,
+  });
   if (sites.length === 0) return null;
   const title = `${sites.length} reference${sites.length === 1 ? "" : "s"}`;
   const locations: ShowReferencesLocation[] = sites.map((site) => ({

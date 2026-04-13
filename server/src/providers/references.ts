@@ -37,7 +37,9 @@ export const handleReferences = wrapHandler<ReferenceParams, [], Location[] | nu
     );
     if (!selector) return null;
 
-    const sites = findSelectorReferenceSites(deps, filePath, selector.canonicalName);
+    const sites = findSelectorReferenceSites(deps, filePath, selector.canonicalName, {
+      includeExpanded: true,
+    });
     if (sites.length === 0) return null;
 
     // No expansion filter here — expanded sites are valid Find Refs

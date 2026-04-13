@@ -81,8 +81,9 @@ function collectReferenceEdits(
   mode: ClassnameTransformMode,
   changes: Record<string, Array<{ range: LspRange; newText: string }>>,
 ): void {
-  for (const site of findSelectorReferenceSites(deps, scssPath, canonicalName)) {
-    if (site.expansion !== "direct") continue;
+  for (const site of findSelectorReferenceSites(deps, scssPath, canonicalName, {
+    includeExpanded: false,
+  })) {
     const written = site.className;
     const newText = written === canonicalName ? newName : (pickAliasForm(mode, newName) ?? newName);
     (changes[site.uri] ??= []).push({
