@@ -1,26 +1,111 @@
 import * as path from "node:path";
+import ts from "typescript";
 
 /**
- * Workspace-scoped path-alias resolver for CSS Module imports.
+ * Workspace-scoped path resolver for CSS Module imports.
  *
- * Reads the legacy-compatible `cssModules.pathAlias` record and
- * matches non-relative import specifiers against it using
- * longest-prefix semantics. `${workspaceFolder}` in target values
- * is substituted at construction time; relative targets are
- * resolved against `workspaceRoot`.
+ * Merges two alias sources:
+ *   - legacy-compatible `cssModules.pathAlias`
+ *   - `compilerOptions.paths` from the workspace tsconfig/jsconfig
  *
- * Alias matching uses longest-prefix order instead of relying on
- * object insertion order. A config like
- * `{ "@": "src", "@styles": "src/styles" }` therefore routes
- * `@styles/button` to `src/styles/button` regardless of key order.
+ * `${workspaceFolder}` in settings targets is substituted at
+ * construction time; relative settings targets are resolved
+ * against `workspaceRoot`. tsconfig/jsconfig targets are resolved
+ * against `compilerOptions.baseUrl` when present, otherwise the
+ * config file directory (`pathsBasePath` in the parsed TS config).
  *
- * No wildcard (`*`) support — tsconfig `compilerOptions.paths`
- * is the natural home for that and lives on a separate axis. No
- * filesystem check — the returned path may not exist; the
- * `fileExists` DI in `DocumentAnalysisCache` runs after and
- * produces a missing-module diagnostic for dangling alias
- * targets.
+ * Matching uses longest-pattern order instead of relying on
+ * insertion order. Explicit settings aliases win ties over
+ * tsconfig paths so user-authored extension config can override
+ * project config when needed.
+ *
+ * The resolver returns an absolute path even when the file does
+ * not exist. When multiple tsconfig targets exist for one pattern,
+ * an optional `fileExists` callback lets callers prefer the first
+ * candidate that exists on disk; otherwise the first target wins.
  */
+
+export interface TsconfigPathAliases {
+  readonly basePath: string;
+  readonly paths: Readonly<Record<string, readonly string[]>>;
+}
+
+type AliasEntry =
+  | {
+      readonly kind: "prefix";
+      readonly source: "settings" | "tsconfig";
+      readonly pattern: string;
+      readonly target: string;
+    }
+  | {
+      readonly kind: "wildcard";
+      readonly source: "tsconfig";
+      readonly pattern: string;
+      readonly prefix: string;
+      readonly suffix: string;
+      readonly targets: readonly string[];
+    };
+
+interface TsconfigPathAliasSystem extends Pick<
+  typeof ts.sys,
+  "fileExists" | "readFile" | "readDirectory" | "useCaseSensitiveFileNames"
+> {
+  readonly onUnRecoverableConfigFileDiagnostic?: (diagnostic: ts.Diagnostic) => void;
+}
+
+function compareAliasEntries(a: AliasEntry, b: AliasEntry): number {
+  if (a.pattern.length !== b.pattern.length) {
+    return b.pattern.length - a.pattern.length;
+  }
+  if (a.source !== b.source) {
+    return a.source === "settings" ? -1 : 1;
+  }
+  return a.pattern.localeCompare(b.pattern);
+}
+
+function findWorkspaceConfigPath(
+  workspaceRoot: string,
+  sys: Pick<typeof ts.sys, "fileExists">,
+): string | null {
+  return (
+    ts.findConfigFile(workspaceRoot, sys.fileExists, "tsconfig.json") ??
+    ts.findConfigFile(workspaceRoot, sys.fileExists, "jsconfig.json") ??
+    null
+  );
+}
+
+export function loadWorkspaceTsconfigPathAliases(
+  workspaceRoot: string,
+  system: TsconfigPathAliasSystem = {
+    fileExists: ts.sys.fileExists,
+    readFile: ts.sys.readFile,
+    readDirectory: ts.sys.readDirectory,
+    useCaseSensitiveFileNames: ts.sys.useCaseSensitiveFileNames,
+    onUnRecoverableConfigFileDiagnostic: () => {},
+  },
+): TsconfigPathAliases | null {
+  try {
+    const configPath = findWorkspaceConfigPath(workspaceRoot, system);
+    if (!configPath) return null;
+
+    const parsed = ts.getParsedCommandLineOfConfigFile(configPath, undefined, {
+      ...ts.sys,
+      ...system,
+      onUnRecoverableConfigFileDiagnostic: system.onUnRecoverableConfigFileDiagnostic ?? (() => {}),
+    });
+    if (!parsed || !parsed.options.paths) return null;
+    const baseUrl = typeof parsed.options.baseUrl === "string" ? parsed.options.baseUrl : undefined;
+    const pathsBasePath =
+      typeof parsed.options.pathsBasePath === "string" ? parsed.options.pathsBasePath : undefined;
+
+    return {
+      basePath: baseUrl ?? pathsBasePath ?? path.dirname(configPath),
+      paths: parsed.options.paths,
+    };
+  } catch {
+    return null;
+  }
+}
 /**
  * Mutable holder for the workspace-scoped `AliasResolver`. The
  * composition root creates one at startup; `rebuildAliasResolver`
@@ -30,33 +115,52 @@ import * as path from "node:path";
  */
 export class AliasResolverHolder {
   private current: AliasResolver;
+  private settingsPathAlias: Readonly<Record<string, string>>;
 
   constructor(
     private readonly workspaceRoot: string,
     initial: Readonly<Record<string, string>>,
   ) {
-    this.current = new AliasResolver(workspaceRoot, initial);
+    this.settingsPathAlias = initial;
+    this.current = this.build();
   }
 
   get(): AliasResolver {
     return this.current;
   }
 
-  rebuild(pathAlias: Readonly<Record<string, string>>): void {
-    this.current = new AliasResolver(this.workspaceRoot, pathAlias);
+  rebuild(pathAlias: Readonly<Record<string, string>> = this.settingsPathAlias): void {
+    this.settingsPathAlias = pathAlias;
+    this.current = this.build();
+  }
+
+  private build(): AliasResolver {
+    return new AliasResolver(
+      this.workspaceRoot,
+      this.settingsPathAlias,
+      loadWorkspaceTsconfigPathAliases(this.workspaceRoot),
+    );
   }
 }
 
 export class AliasResolver {
-  private readonly sortedEntries: ReadonlyArray<readonly [string, string]>;
+  private readonly settingsEntries: readonly AliasEntry[];
+  private readonly tsconfigEntries: readonly AliasEntry[];
 
   constructor(
     private readonly workspaceRoot: string,
     pathAlias: Readonly<Record<string, string>>,
+    tsconfigPaths: TsconfigPathAliases | null = null,
   ) {
-    this.sortedEntries = Object.entries(pathAlias)
-      .map<[string, string]>(([k, v]) => [k, this.substituteWorkspace(v)])
-      .toSorted(([a], [b]) => b.length - a.length || a.localeCompare(b));
+    this.settingsEntries = Object.entries(pathAlias)
+      .map<AliasEntry>(([pattern, target]) => ({
+        kind: "prefix",
+        source: "settings",
+        pattern,
+        target: this.substituteWorkspace(target),
+      }))
+      .toSorted(compareAliasEntries);
+    this.tsconfigEntries = tsconfigPaths ? this.buildTsconfigEntries(tsconfigPaths) : [];
   }
 
   /**
@@ -65,15 +169,81 @@ export class AliasResolver {
    * back to relative resolution before accepting the specifier as
    * unresolved.
    */
-  resolve(specifier: string): string | null {
-    for (const [prefix, target] of this.sortedEntries) {
-      if (specifier === prefix) return target;
-      const normalised = prefix.endsWith("/") ? prefix : prefix + "/";
-      if (specifier.startsWith(normalised)) {
-        return path.resolve(target, specifier.slice(normalised.length));
+  resolve(specifier: string, fileExists?: (candidate: string) => boolean): string | null {
+    const resolvedFromSettings = this.resolveFromEntries(
+      this.settingsEntries,
+      specifier,
+      fileExists,
+    );
+    if (resolvedFromSettings) return resolvedFromSettings;
+    return this.resolveFromEntries(this.tsconfigEntries, specifier, fileExists);
+  }
+
+  private resolveFromEntries(
+    entries: readonly AliasEntry[],
+    specifier: string,
+    fileExists?: (candidate: string) => boolean,
+  ): string | null {
+    for (const entry of entries) {
+      if (entry.kind === "prefix") {
+        if (specifier === entry.pattern) return entry.target;
+        const normalised = entry.pattern.endsWith("/") ? entry.pattern : entry.pattern + "/";
+        if (specifier.startsWith(normalised)) {
+          return path.resolve(entry.target, specifier.slice(normalised.length));
+        }
+        continue;
       }
+
+      if (!specifier.startsWith(entry.prefix) || !specifier.endsWith(entry.suffix)) {
+        continue;
+      }
+      const matched = specifier.slice(entry.prefix.length, specifier.length - entry.suffix.length);
+      const candidates = entry.targets.map((targetPattern) =>
+        this.resolveTsconfigTarget(targetPattern, matched),
+      );
+      if (!fileExists) return candidates[0] ?? null;
+      const existing = candidates.find((candidate) => fileExists(candidate));
+      return existing ?? candidates[0] ?? null;
     }
     return null;
+  }
+
+  private buildTsconfigEntries(tsconfigPaths: TsconfigPathAliases): readonly AliasEntry[] {
+    const entries: AliasEntry[] = [];
+    for (const [pattern, targets] of Object.entries(tsconfigPaths.paths)) {
+      if (targets.length === 0) continue;
+      const wildcardIndex = pattern.indexOf("*");
+      if (wildcardIndex === -1) {
+        for (const target of targets) {
+          entries.push({
+            kind: "prefix",
+            source: "tsconfig",
+            pattern,
+            target: this.resolveTsconfigBaseTarget(tsconfigPaths.basePath, target),
+          });
+        }
+        continue;
+      }
+      entries.push({
+        kind: "wildcard",
+        source: "tsconfig",
+        pattern,
+        prefix: pattern.slice(0, wildcardIndex),
+        suffix: pattern.slice(wildcardIndex + 1),
+        targets: targets.map((target) =>
+          this.resolveTsconfigBaseTarget(tsconfigPaths.basePath, target),
+        ),
+      });
+    }
+    return entries;
+  }
+
+  private resolveTsconfigBaseTarget(basePath: string, target: string): string {
+    return path.isAbsolute(target) ? target : path.resolve(basePath, target);
+  }
+
+  private resolveTsconfigTarget(targetPattern: string, matched: string): string {
+    return targetPattern.includes("*") ? targetPattern.replaceAll("*", matched) : targetPattern;
   }
 
   private substituteWorkspace(target: string): string {

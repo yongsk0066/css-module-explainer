@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import * as path from "node:path";
-import { AliasResolver } from "../../../server/src/core/cx/alias-resolver";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import {
+  AliasResolver,
+  loadWorkspaceTsconfigPathAliases,
+} from "../../../server/src/core/cx/alias-resolver";
 
 const WORKSPACE = "/fake/ws";
 
@@ -74,5 +79,107 @@ describe("AliasResolver", () => {
     const r = new AliasResolver(WORKSPACE, { "@s": "src/styles" });
     // Equivalent to the commented plan behavior — workspace-relative default.
     expect(r.resolve("@s/button")).toBe(path.resolve(WORKSPACE, "src/styles/button"));
+  });
+
+  it("loads tsconfig wildcard paths and resolves them against baseUrl", () => {
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "ts-path-alias-"));
+    fs.writeFileSync(
+      path.join(workspace, "tsconfig.json"),
+      JSON.stringify(
+        {
+          compilerOptions: {
+            baseUrl: "./src",
+            paths: {
+              "$components/*": ["components/*"],
+              $styles: ["styles/Button.module.scss"],
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    const tsconfigPaths = loadWorkspaceTsconfigPathAliases(workspace);
+    expect(tsconfigPaths).not.toBeNull();
+
+    const resolver = new AliasResolver(workspace, {}, tsconfigPaths);
+    expect(resolver.resolve("$components/Button.module.scss")).toBe(
+      path.resolve(workspace, "src/components/Button.module.scss"),
+    );
+    expect(resolver.resolve("$styles")).toBe(
+      path.resolve(workspace, "src/styles/Button.module.scss"),
+    );
+  });
+
+  it("falls back to jsconfig.json when tsconfig.json is absent", () => {
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "js-path-alias-"));
+    fs.writeFileSync(
+      path.join(workspace, "jsconfig.json"),
+      JSON.stringify(
+        {
+          compilerOptions: {
+            paths: {
+              "$components/*": ["src/components/*"],
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    const resolver = new AliasResolver(workspace, {}, loadWorkspaceTsconfigPathAliases(workspace));
+    expect(resolver.resolve("$components/Button.module.scss")).toBe(
+      path.resolve(workspace, "src/components/Button.module.scss"),
+    );
+  });
+
+  it("prefers explicit settings aliases over equal tsconfig patterns", () => {
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "settings-overrides-"));
+    fs.writeFileSync(
+      path.join(workspace, "tsconfig.json"),
+      JSON.stringify(
+        {
+          compilerOptions: {
+            baseUrl: ".",
+            paths: {
+              "@styles/*": ["from-tsconfig/*"],
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    const resolver = new AliasResolver(
+      workspace,
+      { "@styles": "from-settings" },
+      loadWorkspaceTsconfigPathAliases(workspace),
+    );
+    expect(resolver.resolve("@styles/Button.module.scss")).toBe(
+      path.resolve(workspace, "from-settings/Button.module.scss"),
+    );
+  });
+
+  it("prefers the first existing tsconfig target when multiple candidates exist", () => {
+    const resolver = new AliasResolver(
+      WORKSPACE,
+      {},
+      {
+        basePath: path.resolve(WORKSPACE, "src"),
+        paths: {
+          "$components/*": ["missing/*", "real/*"],
+        },
+      },
+    );
+
+    expect(
+      resolver.resolve(
+        "$components/Button.module.scss",
+        (candidate) => candidate === path.resolve(WORKSPACE, "src/real/Button.module.scss"),
+      ),
+    ).toBe(path.resolve(WORKSPACE, "src/real/Button.module.scss"));
   });
 });

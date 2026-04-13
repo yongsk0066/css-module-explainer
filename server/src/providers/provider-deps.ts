@@ -81,12 +81,13 @@ export interface ProviderDeps {
    */
   settings: Settings;
   /**
-   * Rebuild the workspace-scoped path-alias resolver against a new
-   * `pathAlias` map. Callers (handler-registration's reloadSettings)
-   * MUST also call `analysisCache.clear()` after invoking this to
-   * discard stale entries that referenced the old resolver's output.
-   * The resolver itself lives inside `DocumentAnalysisCache` — no
-   * provider reads it directly.
+   * Rebuild the workspace-scoped import-path resolver against the
+   * latest extension `pathAlias` map plus the current tsconfig/jsconfig
+   * `compilerOptions.paths` state. Callers (handler-registration's
+   * reloadSettings and config-file watcher) MUST also clear cached
+   * analysis so stale import resolutions are discarded. The resolver
+   * itself lives inside `DocumentAnalysisCache` — no provider reads it
+   * directly.
    */
   rebuildAliasResolver(pathAlias: Readonly<Record<string, string>>): void;
   /**

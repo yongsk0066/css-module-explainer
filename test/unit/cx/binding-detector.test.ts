@@ -505,6 +505,26 @@ describe("collectStyleImports", () => {
     }
   });
 
+  it("resolves tsconfig wildcard aliases via AliasResolver", () => {
+    const src = parse(`import s from '$components/button.module.scss';`);
+    const resolver = new AliasResolver(
+      "/fake",
+      {},
+      {
+        basePath: "/fake/src",
+        paths: {
+          "$components/*": ["components/*"],
+        },
+      },
+    );
+    const result = collectStyleImports(src, "/fake/src/Button.tsx", () => true, resolver);
+    expect(result.size).toBe(1);
+    expect(result.get("s")?.kind).toBe("resolved");
+    if (result.get("s")?.kind === "resolved") {
+      expect(result.get("s")!.absolutePath).toBe("/fake/src/components/button.module.scss");
+    }
+  });
+
   it("drops aliased imports with no matching alias (fallthrough)", () => {
     const src = parse(`import s from '@nope/button.module.scss';`);
     const resolver = new AliasResolver("/fake", { "@styles": "src/styles" });

@@ -98,7 +98,9 @@ export function emptySupplier(): AsyncIterable<FileTask> {
 export interface InProcessServerOptions extends Omit<
   Extract<CreateServerOptions, { transport?: "auto" }>,
   "transport"
-> {}
+> {
+  readonly workspacePath?: string;
+}
 
 export interface LspTestClient {
   initialize(overrides?: Partial<InitializeParams>): Promise<InitializeResult>;
@@ -152,7 +154,8 @@ export interface LspTestClient {
  * Tests MUST call it in afterEach to avoid resource leaks.
  */
 export function createInProcessServer(options: InProcessServerOptions = {}): LspTestClient {
-  const workspacePath = path.resolve(process.cwd(), ".lsp-test-workspace");
+  const { workspacePath: customWorkspacePath, ...serverOptions } = options;
+  const workspacePath = customWorkspacePath ?? path.resolve(process.cwd(), ".lsp-test-workspace");
   const workspaceUri = pathToFileURL(workspacePath).toString();
   const serverToClient = new PassThrough();
   const clientToServer = new PassThrough();
@@ -189,7 +192,7 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
     // diagnostics. Tests that exercise missing-module specifically
     // override via the `fileExists` option.
     fileExists: () => true,
-    ...options,
+    ...serverOptions,
     transport: "streams",
     reader: new StreamMessageReader(clientToServer),
     writer: new StreamMessageWriter(serverToClient),

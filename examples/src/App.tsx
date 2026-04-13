@@ -9,6 +9,7 @@ import { FunctionScopedScenario } from "./scenarios/07-function-scoped/FunctionS
 import { CssOnlyScenario } from "./scenarios/08-css-only/CssOnlyScenario";
 import { LargeScenario } from "./scenarios/09-large/LargeScenario";
 import { ClsxScenario } from "./scenarios/10-clsx/ClsxScenario";
+import { TsPathScenario } from "./scenarios/11-ts-path/TsPathScenario";
 
 interface Scenario {
   readonly id: string;
@@ -78,6 +79,12 @@ const SCENARIOS: readonly Scenario[] = [
     title: "10 · clsx + styles.x",
     description: "clsx(styles.btn, cond && styles.active) and direct styles.x access.",
     render: () => <ClsxScenario />,
+  },
+  {
+    id: "11-ts-path",
+    title: "11 · tsconfig paths",
+    description: "Styles import resolved through compilerOptions.paths instead of a relative path.",
+    render: () => <TsPathScenario />,
   },
 ];
 
