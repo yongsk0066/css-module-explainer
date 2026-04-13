@@ -23,4 +23,8 @@ export interface CxBinding {
    * name.
    */
   readonly classNamesImportName: string;
+  /** Source offset of the `classnames/bind` identifier in `<cn>.bind(...)`. */
+  readonly classNamesReferenceOffset?: number;
+  /** Source offset of the styles identifier in `.bind(<styles>)`. */
+  readonly stylesReferenceOffset?: number;
 }

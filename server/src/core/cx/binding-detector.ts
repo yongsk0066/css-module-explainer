@@ -241,6 +241,8 @@ function tryParseCxBinding(
     scssModulePath: styleImport.absolutePath,
     bindingRange: rangeOfIdentifier(decl.name, sourceFile),
     classNamesImportName: classNamesName,
+    classNamesReferenceOffset: bindTarget.getStart(sourceFile),
+    stylesReferenceOffset: firstArg.getStart(sourceFile),
   };
 }
 
