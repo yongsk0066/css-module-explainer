@@ -1,14 +1,17 @@
 import type { AnalysisEntry } from "../indexing/document-analysis-cache";
 import type { StyleDocumentHIR } from "../hir/style-types";
-import type { TypeResolver } from "../ts/type-resolver";
-import { buildSourceSemanticGraph } from "./graph-builder";
-import type { RefNode } from "./graph-types";
 import {
-  buildSemanticReferenceIndex,
-  type ReferenceQueryOptions,
-  type SemanticReferenceSite,
-} from "./reference-index";
-import { resolveSymbolExpressionValues } from "./resolve-symbol-values";
+  exactClassValue,
+  prefixClassValue,
+  type AbstractClassValue,
+} from "../abstract-value/class-value-domain";
+import { buildSourceBindingGraph, listStyleModulePaths } from "../binder/source-binding-graph";
+import type { TypeResolver } from "../ts/type-resolver";
+import { readSourceExpressionResolution } from "../query/read-source-expression-resolution";
+import { deriveReferenceExpansion, type EdgeCertainty } from "./certainty";
+import type { RefNode } from "./graph-types";
+import { type ReferenceQueryOptions, type SemanticReferenceSite } from "./reference-index";
+import type { EdgeReason } from "./provenance";
 
 export interface SemanticReferenceCollectionContext {
   readonly styleDocumentForPath: (path: string) => StyleDocumentHIR | null;
@@ -198,21 +201,13 @@ export function collectSemanticReferenceContribution(
   readonly referenceSites: readonly SemanticReferenceSite[];
   readonly moduleUsages: readonly SemanticModuleUsageSite[];
 } {
+  const bindingGraph = buildSourceBindingGraph(entry.sourceDocument, entry.sourceBinder);
   const styleDocumentsByPath = new Map<string, StyleDocumentHIR>();
 
-  for (const styleImport of entry.sourceDocument.styleImports) {
-    if (styleImport.resolved.kind !== "resolved") continue;
-    const styleDocument = ctx.styleDocumentForPath(styleImport.resolved.absolutePath);
+  for (const scssModulePath of listStyleModulePaths(bindingGraph)) {
+    const styleDocument = ctx.styleDocumentForPath(scssModulePath);
     if (styleDocument) {
-      styleDocumentsByPath.set(styleImport.resolved.absolutePath, styleDocument);
-    }
-  }
-
-  for (const expr of entry.sourceDocument.classExpressions) {
-    if (styleDocumentsByPath.has(expr.scssModulePath)) continue;
-    const styleDocument = ctx.styleDocumentForPath(expr.scssModulePath);
-    if (styleDocument) {
-      styleDocumentsByPath.set(expr.scssModulePath, styleDocument);
+      styleDocumentsByPath.set(scssModulePath, styleDocument);
     }
   }
 
@@ -220,25 +215,39 @@ export function collectSemanticReferenceContribution(
     return { referenceSites: [], moduleUsages: [] };
   }
 
-  const graph = buildSourceSemanticGraph({
-    sourceDocument: entry.sourceDocument,
-    styleDocumentsByPath,
-    resolveSymbolValues(ref) {
-      return resolveSymbolExpressionValues(entry.sourceFile, ref, {
-        ...ctx,
-        sourceBinder: entry.sourceBinder,
-      });
-    },
-  });
-
-  const index = buildSemanticReferenceIndex(graph);
-  const referenceSites = index
-    .listReferenceSites()
-    .filter((site) => site.uri === uri)
-    .toSorted((a, b) => compareSites(a, b));
+  const referenceSites: SemanticReferenceSite[] = [];
   const moduleUsages = entry.sourceDocument.classExpressions
     .map((expr) => {
-      const targets = index.findTargetsForRef(expr.id);
+      const styleDocument = styleDocumentsByPath.get(expr.scssModulePath) ?? null;
+      const resolution = readSourceExpressionResolution(
+        {
+          expression: expr,
+          sourceFile: entry.sourceFile,
+          styleDocument,
+        },
+        {
+          typeResolver: ctx.typeResolver,
+          filePath: ctx.filePath,
+          workspaceRoot: ctx.workspaceRoot,
+          sourceBinder: entry.sourceBinder,
+        },
+      );
+      if (resolution.styleDocument) {
+        for (const selector of resolution.selectors) {
+          referenceSites.push(
+            toReferenceSite(
+              uri,
+              ctx.filePath,
+              expr,
+              resolution.styleDocument.filePath,
+              selector.canonicalName,
+              resolution.selectorCertainty,
+              reasonForExpression(expr, resolution.reason),
+              abstractValueForExpression(expr, resolution.abstractValue),
+            ),
+          );
+        }
+      }
       return {
         refId: expr.id,
         uri,
@@ -247,12 +256,15 @@ export function collectSemanticReferenceContribution(
         origin: expr.origin,
         scssModulePath: expr.scssModulePath,
         expressionKind: expr.kind,
-        hasResolvedTargets: targets.length > 0,
+        hasResolvedTargets: resolution.selectors.length > 0,
         isDynamic: expr.kind === "template" || expr.kind === "symbolRef",
       } satisfies SemanticModuleUsageSite;
     })
     .toSorted((a, b) => compareModuleUsages(a, b));
-  return { referenceSites, moduleUsages };
+  return {
+    referenceSites: referenceSites.toSorted((a, b) => compareSites(a, b)),
+    moduleUsages,
+  };
 }
 
 function compareSites(a: SemanticReferenceSite, b: SemanticReferenceSite): number {
@@ -306,4 +318,72 @@ function filterSites(
         return minimumSelectorCertainty;
     }
   });
+}
+
+function toReferenceSite(
+  uri: string,
+  filePath: string,
+  expression: AnalysisEntry["sourceDocument"]["classExpressions"][number],
+  selectorFilePath: string,
+  canonicalName: string,
+  selectorCertainty: EdgeCertainty,
+  reason: EdgeReason,
+  abstractValue?: AbstractClassValue,
+): SemanticReferenceSite {
+  return {
+    refId: expression.id,
+    selectorId: `selector:${selectorFilePath}:${canonicalName}`,
+    filePath,
+    uri,
+    range: expression.range,
+    origin: expression.origin,
+    scssModulePath: expression.scssModulePath,
+    selectorFilePath,
+    canonicalName,
+    className:
+      expression.kind === "literal" || expression.kind === "styleAccess"
+        ? expression.className
+        : canonicalName,
+    selectorCertainty,
+    reason,
+    expansion: deriveReferenceExpansion(expression.kind),
+    ...(abstractValue ? { abstractValue } : {}),
+  };
+}
+
+function reasonForExpression(
+  expression: AnalysisEntry["sourceDocument"]["classExpressions"][number],
+  dynamicReason?: EdgeReason,
+): EdgeReason {
+  switch (expression.kind) {
+    case "literal":
+      return "literal";
+    case "styleAccess":
+      return "styleAccess";
+    case "template":
+      return "templatePrefix";
+    case "symbolRef":
+      return dynamicReason ?? "typeUnion";
+    default:
+      expression satisfies never;
+      return "typeUnion";
+  }
+}
+
+function abstractValueForExpression(
+  expression: AnalysisEntry["sourceDocument"]["classExpressions"][number],
+  abstractValue?: AbstractClassValue,
+): AbstractClassValue | undefined {
+  switch (expression.kind) {
+    case "literal":
+    case "styleAccess":
+      return exactClassValue(expression.className);
+    case "template":
+      return prefixClassValue(expression.staticPrefix);
+    case "symbolRef":
+      return abstractValue;
+    default:
+      expression satisfies never;
+      return abstractValue;
+  }
 }
