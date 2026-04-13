@@ -1,5 +1,6 @@
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
+import { prefixClassValue } from "../../../server/src/core/abstract-value/class-value-domain";
 import type { ClassExpressionHIR } from "../../../server/src/core/hir/source-types";
 import { findInvalidClassReference } from "../../../server/src/core/query/find-invalid-class-references";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
@@ -120,6 +121,50 @@ describe("findInvalidClassReference", () => {
       kind: "missingResolvedClassValues",
       missingValues: ["large"],
       reason: "typeUnion",
+      certainty: "inferred",
+    });
+  });
+
+  it("reports unresolved non-finite domains when no selector matches the resolved prefix", () => {
+    const sourceFile = ts.createSourceFile(
+      "/fake/ws/src/Button.tsx",
+      "cx(size);",
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
+    );
+    const expression: ClassExpressionHIR = {
+      kind: "symbolRef",
+      id: "expr:symbol",
+      origin: "cxCall",
+      rawReference: "size",
+      rootName: "size",
+      pathSegments: [],
+      range: rangeForToken(sourceFile, "size"),
+      scssModulePath: SCSS_PATH,
+    };
+
+    expect(
+      findInvalidClassReference(
+        expression,
+        sourceFile,
+        styleDocument(new Map([["button", info("button")]])),
+        {
+          typeResolver: new FakeTypeResolver(),
+          filePath: "/fake/ws/src/Button.tsx",
+          workspaceRoot: "/fake/ws",
+          resolveSymbolValues: () => ({
+            abstractValue: prefixClassValue("ghost-"),
+            values: [],
+            certainty: "inferred",
+            reason: "flowBranch",
+          }),
+        },
+      ),
+    ).toMatchObject({
+      kind: "missingResolvedClassDomain",
+      abstractValue: { kind: "prefix", prefix: "ghost-" },
+      reason: "flowBranch",
       certainty: "inferred",
     });
   });

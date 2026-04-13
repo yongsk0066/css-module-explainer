@@ -1,3 +1,5 @@
+import { enumerateFiniteClassValues } from "../abstract-value/class-value-domain";
+import { resolveAbstractValueSelectors } from "../abstract-value/selector-projection";
 import { findClosestMatch } from "../util/text-utils";
 import type { TypeResolver } from "../ts/type-resolver";
 import { resolveSymbolExpressionValues } from "../semantic/resolve-symbol-values";
@@ -17,6 +19,11 @@ export interface InvalidClassReferenceQueryEnv {
   readonly filePath: string;
   readonly workspaceRoot: string;
   readonly sourceBinder?: SourceBinderResult;
+  readonly resolveSymbolValues?: (
+    sourceFile: ts.SourceFile,
+    expression: SymbolRefClassExpressionHIR,
+    env: Omit<InvalidClassReferenceQueryEnv, "resolveSymbolValues">,
+  ) => FlowResolution | null;
 }
 
 export type InvalidClassReferenceFinding =
@@ -36,6 +43,14 @@ export type InvalidClassReferenceFinding =
       readonly expression: SymbolRefClassExpressionHIR;
       readonly range: SymbolRefClassExpressionHIR["range"];
       readonly missingValues: readonly string[];
+      readonly abstractValue: FlowResolution["abstractValue"];
+      readonly certainty: "exact" | "inferred" | "possible";
+      readonly reason: "flowLiteral" | "flowBranch" | "typeUnion";
+    }
+  | {
+      readonly kind: "missingResolvedClassDomain";
+      readonly expression: SymbolRefClassExpressionHIR;
+      readonly range: SymbolRefClassExpressionHIR["range"];
       readonly abstractValue: FlowResolution["abstractValue"];
       readonly certainty: "exact" | "inferred" | "possible";
       readonly reason: "flowLiteral" | "flowBranch" | "typeUnion";
@@ -72,11 +87,30 @@ export function findInvalidClassReference(
       };
     }
     case "symbolRef": {
-      const resolved = resolveSymbolExpressionValues(sourceFile, expression, env);
+      const symbolResolutionEnv = {
+        typeResolver: env.typeResolver,
+        filePath: env.filePath,
+        workspaceRoot: env.workspaceRoot,
+        ...(env.sourceBinder ? { sourceBinder: env.sourceBinder } : {}),
+      };
+      const resolved =
+        env.resolveSymbolValues?.(sourceFile, expression, symbolResolutionEnv) ??
+        resolveSymbolExpressionValues(sourceFile, expression, env);
       if (!resolved) return null;
-      const missingValues = resolved.values.filter(
-        (value) => !hasSelectorNamed(styleDocument, value),
-      );
+      const finiteValues = enumerateFiniteClassValues(resolved.abstractValue);
+      if (!finiteValues) {
+        return resolveAbstractValueSelectors(resolved.abstractValue, styleDocument).length === 0
+          ? {
+              kind: "missingResolvedClassDomain",
+              expression,
+              range: expression.range,
+              abstractValue: resolved.abstractValue,
+              certainty: resolved.certainty,
+              reason: resolved.reason,
+            }
+          : null;
+      }
+      const missingValues = finiteValues.filter((value) => !hasSelectorNamed(styleDocument, value));
       if (missingValues.length === 0) return null;
       return {
         kind: "missingResolvedClassValues",

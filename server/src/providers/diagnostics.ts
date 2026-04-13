@@ -150,6 +150,13 @@ function toDiagnostic(
         source: DIAGNOSTIC_SOURCE,
         message: diagnosticMessageForResolvedValues(finding),
       };
+    case "missingResolvedClassDomain":
+      return {
+        range,
+        severity,
+        source: DIAGNOSTIC_SOURCE,
+        message: diagnosticMessageForResolvedDomain(finding),
+      };
     default:
       finding satisfies never;
       return finding;
@@ -211,6 +218,24 @@ function diagnosticMessageForResolvedValues(
     return `Missing class for resolved value: '${finding.missingValues[0]}'.`;
   }
   return `Missing class for possible value${finding.missingValues.length > 1 ? "s" : ""}: ${finding.missingValues.map((value) => `'${value}'`).join(", ")}.`;
+}
+
+function diagnosticMessageForResolvedDomain(
+  finding: Extract<
+    NonNullable<ReturnType<typeof findInvalidClassReference>>,
+    {
+      kind: "missingResolvedClassDomain";
+    }
+  >,
+): string {
+  switch (finding.abstractValue.kind) {
+    case "prefix":
+      return `No class matched resolved prefix '${finding.abstractValue.prefix}'.`;
+    case "top":
+      return "Dynamic class value could not be matched to any known selector.";
+    default:
+      return "Resolved dynamic class domain did not match any known selector.";
+  }
 }
 
 function relativeScss(scssPath: string, workspaceRoot: string): string {
