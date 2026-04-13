@@ -82,54 +82,56 @@ function extractFromArgument(
   out: ClassExpressionHIR[],
   allocateId: () => string,
 ): void {
-  if (ts.isStringLiteral(arg) || ts.isNoSubstitutionTemplateLiteral(arg)) {
+  const value = unwrapTransparentExpression(arg);
+
+  if (ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value)) {
     out.push(
       makeLiteralClassExpression(
         allocateId(),
         "cxCall",
         binding.scssModulePath,
-        arg.text,
-        innerStringRange(arg, sourceFile),
+        value.text,
+        innerStringRange(value, sourceFile),
       ),
     );
     return;
   }
 
-  if (ts.isObjectLiteralExpression(arg)) {
-    extractObjectLiteral(arg, binding, sourceFile, out, allocateId);
+  if (ts.isObjectLiteralExpression(value)) {
+    extractObjectLiteral(value, binding, sourceFile, out, allocateId);
     return;
   }
 
   if (
-    ts.isBinaryExpression(arg) &&
-    arg.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken
+    ts.isBinaryExpression(value) &&
+    value.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken
   ) {
-    extractFromArgument(arg.right, binding, sourceFile, out, allocateId);
+    extractFromArgument(value.right, binding, sourceFile, out, allocateId);
     return;
   }
 
-  if (ts.isConditionalExpression(arg)) {
-    extractFromArgument(arg.whenTrue, binding, sourceFile, out, allocateId);
-    extractFromArgument(arg.whenFalse, binding, sourceFile, out, allocateId);
+  if (ts.isConditionalExpression(value)) {
+    extractFromArgument(value.whenTrue, binding, sourceFile, out, allocateId);
+    extractFromArgument(value.whenFalse, binding, sourceFile, out, allocateId);
     return;
   }
 
-  if (ts.isTemplateExpression(arg)) {
+  if (ts.isTemplateExpression(value)) {
     out.push(
       makeTemplateClassExpression(
         allocateId(),
         "cxCall",
         binding.scssModulePath,
-        arg.getText(sourceFile),
-        arg.head.text,
-        rangeOfNode(arg, sourceFile),
+        value.getText(sourceFile),
+        value.head.text,
+        rangeOfNode(value, sourceFile),
       ),
     );
     return;
   }
 
-  if (ts.isPropertyAccessExpression(arg) || ts.isIdentifier(arg)) {
-    const rawReference = ts.isIdentifier(arg) ? arg.text : arg.getText(sourceFile);
+  if (ts.isPropertyAccessExpression(value) || ts.isIdentifier(value)) {
+    const rawReference = ts.isIdentifier(value) ? value.text : value.getText(sourceFile);
     const [rootName, ...pathSegments] = rawReference.split(".");
     out.push(
       makeSymbolRefClassExpression(
@@ -139,21 +141,21 @@ function extractFromArgument(
         rawReference,
         rootName ?? rawReference,
         pathSegments,
-        rangeOfNode(arg, sourceFile),
+        rangeOfNode(value, sourceFile),
       ),
     );
     return;
   }
 
-  if (ts.isArrayLiteralExpression(arg)) {
-    for (const el of arg.elements) {
+  if (ts.isArrayLiteralExpression(value)) {
+    for (const el of value.elements) {
       extractFromArgument(el, binding, sourceFile, out, allocateId);
     }
     return;
   }
 
-  if (ts.isSpreadElement(arg) && ts.isArrayLiteralExpression(arg.expression)) {
-    for (const el of arg.expression.elements) {
+  if (ts.isSpreadElement(value) && ts.isArrayLiteralExpression(value.expression)) {
+    for (const el of value.expression.elements) {
       extractFromArgument(el, binding, sourceFile, out, allocateId);
     }
   }
@@ -254,6 +256,20 @@ function collectStyleAccessExpressions(
   }
 
   visit(sourceFile);
+}
+
+function unwrapTransparentExpression(expression: ts.Expression): ts.Expression {
+  let current = expression;
+  while (
+    ts.isParenthesizedExpression(current) ||
+    ts.isAsExpression(current) ||
+    ts.isTypeAssertionExpression(current) ||
+    ts.isNonNullExpression(current) ||
+    ts.isSatisfiesExpression(current)
+  ) {
+    current = current.expression;
+  }
+  return current;
 }
 
 function rangeOfNode(node: ts.Node, sourceFile: ts.SourceFile): Range {

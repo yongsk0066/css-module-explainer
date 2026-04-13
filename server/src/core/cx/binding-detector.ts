@@ -217,17 +217,15 @@ function tryParseCxBinding(
   const init = decl.initializer;
   if (!init || !ts.isCallExpression(init)) return null;
 
-  // `initializer` must be `<classNamesName>.bind(<stylesName>)`.
-  // Does not unwrap ParenthesizedExpression or AsExpression,
-  // so `(classNames as typeof cn).bind(...)` is silently skipped.
-  const callee = init.expression;
+  const callee = unwrapTransparentExpression(init.expression);
   if (!ts.isPropertyAccessExpression(callee)) return null;
   if (callee.name.text !== "bind") return null;
-  if (!ts.isIdentifier(callee.expression)) return null;
-  const classNamesName = callee.expression.text;
+  const bindTarget = unwrapTransparentExpression(callee.expression);
+  if (!ts.isIdentifier(bindTarget)) return null;
+  const classNamesName = bindTarget.text;
   if (!imports.classNamesNames.has(classNamesName)) return null;
 
-  const [firstArg] = init.arguments;
+  const firstArg = init.arguments[0] ? unwrapTransparentExpression(init.arguments[0]) : null;
   if (!firstArg || !ts.isIdentifier(firstArg)) return null;
   const stylesName = firstArg.text;
   const styleImport = imports.stylesBindings.get(stylesName);
@@ -244,6 +242,20 @@ function tryParseCxBinding(
     bindingRange: rangeOfIdentifier(decl.name, sourceFile),
     classNamesImportName: classNamesName,
   };
+}
+
+function unwrapTransparentExpression(expression: ts.Expression): ts.Expression {
+  let current = expression;
+  while (
+    ts.isParenthesizedExpression(current) ||
+    ts.isAsExpression(current) ||
+    ts.isTypeAssertionExpression(current) ||
+    ts.isNonNullExpression(current) ||
+    ts.isSatisfiesExpression(current)
+  ) {
+    current = current.expression;
+  }
+  return current;
 }
 
 function rangeOfIdentifier(name: ts.Identifier, sourceFile: ts.SourceFile): Range {

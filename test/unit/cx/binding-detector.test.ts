@@ -109,6 +109,22 @@ describe("detectCxBindings / aliased classnames import", () => {
     const bindings = detectCxBindings(src, "/fake/src/Button.tsx", EMPTY_ALIAS_RESOLVER);
     expect(bindings).toHaveLength(0);
   });
+
+  it("unwraps transparent expressions around the bind target and styles argument", () => {
+    const src = parse(`
+      import classNames from 'classnames/bind';
+      import styles from './Button.module.scss';
+      const cx = (classNames as typeof classNames).bind((styles satisfies typeof styles));
+    `);
+    const bindings = detectCxBindings(src, "/fake/src/Button.tsx", EMPTY_ALIAS_RESOLVER);
+    expect(bindings).toHaveLength(1);
+    expect(bindings[0]).toMatchObject({
+      cxVarName: "cx",
+      stylesVarName: "styles",
+      classNamesImportName: "classNames",
+      scssModulePath: "/fake/src/Button.module.scss",
+    });
+  });
 });
 
 describe("detectCxBindings / free styles name", () => {
