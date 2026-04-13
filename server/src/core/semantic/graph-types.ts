@@ -45,7 +45,7 @@ export interface UtilityBindingNode extends SemanticNodeBase {
   readonly scssModulePath?: string;
   readonly stylesLocalName?: string;
   readonly classNamesImportName?: string;
-  readonly bindingRange?: Range;
+  readonly bindingDeclId?: string;
 }
 
 export interface RefNode extends SemanticNodeBase {

@@ -194,11 +194,13 @@ export class DocumentAnalysisCache {
     const classUtilNames = this.deps.detectClassUtilImports?.(sourceFile) ?? [];
     const sourceDocument = buildSourceDocument({
       filePath,
+      sourceFile,
       bindings,
       stylesBindings,
       classUtilNames,
       classExpressions:
         this.deps.parseClassExpressions?.(sourceFile, bindings, stylesBindings, sourceBinder) ?? [],
+      sourceBinder,
     });
 
     return {

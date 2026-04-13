@@ -1,9 +1,7 @@
 import { CompletionItemKind, type CompletionItem } from "vscode-languageserver/node";
-import type ts from "typescript";
 import type { AnalysisEntry } from "../core/indexing/document-analysis-cache";
 import type { SelectorDeclHIR } from "../core/hir/style-types";
 import { getDeclById, resolveIdentifierAtOffset } from "../core/binder/binder-builder";
-import type { Range } from "@css-module-explainer/shared";
 import { hasAnyStyleImport } from "./cursor-dispatch";
 import type { CursorParams, ProviderDeps } from "./provider-deps";
 import { wrapHandler } from "./_wrap-handler";
@@ -78,7 +76,7 @@ function findCompletionContext(entry: AnalysisEntry, textBefore: string): Comple
     const resolution = resolveIdentifierAtOffset(entry.sourceBinder, binding.localName, callOffset);
     const decl = resolution ? getDeclById(entry.sourceBinder, resolution.declId) : null;
     if (!decl) continue;
-    if (!sameRange(binding.bindingRange, rangeFromSpan(entry.sourceFile, decl.span))) continue;
+    if (binding.bindingDeclId !== decl.id) continue;
     if (isInsideCall(textBefore, binding.localName)) {
       return { scssModulePath: binding.scssModulePath };
     }
@@ -190,25 +188,4 @@ function findOpenCallOffset(textBefore: string, callName: string): number | null
   if (callIdx === -1) return null;
   if (!isInsideCall(textBefore, callName)) return null;
   return callIdx;
-}
-
-function rangeFromSpan(
-  sourceFile: ts.SourceFile,
-  span: { readonly start: number; readonly end: number },
-): Range {
-  const start = sourceFile.getLineAndCharacterOfPosition(span.start);
-  const end = sourceFile.getLineAndCharacterOfPosition(span.end);
-  return {
-    start: { line: start.line, character: start.character },
-    end: { line: end.line, character: end.character },
-  };
-}
-
-function sameRange(left: Range, right: Range): boolean {
-  return (
-    left.start.line === right.start.line &&
-    left.start.character === right.start.character &&
-    left.end.line === right.end.line &&
-    left.end.character === right.end.character
-  );
 }

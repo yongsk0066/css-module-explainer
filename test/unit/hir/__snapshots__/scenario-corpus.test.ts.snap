@@ -154,13 +154,10 @@ exports[`HIR scenario corpus / source > 01-basic builds stable source HIR snapsh
   ],
   "utilityBindings": [
     {
+      "bindingDeclId": "decl:3",
       "classNamesImportName": "classNames",
       "kind": "classnamesBind",
       "localName": "cx",
-      "scope": {
-        "endLine": 58,
-        "startLine": 0,
-      },
       "scssModulePath": "examples/src/scenarios/01-basic/Button.module.scss",
       "stylesLocalName": "styles",
     },
@@ -314,24 +311,18 @@ exports[`HIR scenario corpus / source > 02-multi-binding builds stable source HI
   ],
   "utilityBindings": [
     {
+      "bindingDeclId": "decl:3",
       "classNamesImportName": "classNames",
       "kind": "classnamesBind",
       "localName": "cxCard",
-      "scope": {
-        "endLine": 51,
-        "startLine": 0,
-      },
       "scssModulePath": "examples/src/scenarios/02-multi-binding/Card.module.scss",
       "stylesLocalName": "cardStyles",
     },
     {
+      "bindingDeclId": "decl:4",
       "classNamesImportName": "classNames",
       "kind": "classnamesBind",
       "localName": "cxButton",
-      "scope": {
-        "endLine": 51,
-        "startLine": 0,
-      },
       "scssModulePath": "examples/src/scenarios/02-multi-binding/Button.module.scss",
       "stylesLocalName": "buttonStyles",
     },
@@ -420,13 +411,10 @@ exports[`HIR scenario corpus / source > 04-dynamic builds stable source HIR snap
   ],
   "utilityBindings": [
     {
+      "bindingDeclId": "decl:2",
       "classNamesImportName": "classNames",
       "kind": "classnamesBind",
       "localName": "cx",
-      "scope": {
-        "endLine": 27,
-        "startLine": 0,
-      },
       "scssModulePath": "examples/src/scenarios/04-dynamic/DynamicKeys.module.scss",
       "stylesLocalName": "styles",
     },

@@ -21,7 +21,7 @@ export interface ClassnamesBindUtilityBindingHIR extends HirNodeBase {
   readonly stylesLocalName: string;
   readonly scssModulePath: string;
   readonly classNamesImportName: string;
-  readonly bindingRange: Range;
+  readonly bindingDeclId: string;
 }
 
 export interface ClassUtilBindingHIR extends HirNodeBase {

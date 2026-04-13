@@ -83,6 +83,8 @@ export function loadSourceScenario(def: SourceScenarioDef): LoadedSourceScenario
   const sourceBinder = buildSourceBinder(sourceFile);
   const sourceDocument = buildSourceDocument({
     filePath,
+    sourceFile,
+    sourceBinder,
     bindings,
     stylesBindings,
     classUtilNames: detectClassUtilImports(sourceFile),
@@ -132,7 +134,7 @@ export function normalizeSourceDocument(doc: SourceDocumentHIR): unknown {
             stylesLocalName: binding.stylesLocalName,
             scssModulePath: toRepoRelative(binding.scssModulePath),
             classNamesImportName: binding.classNamesImportName,
-            bindingRange: normalizeRange(binding.bindingRange),
+            bindingDeclId: binding.bindingDeclId,
           }
         : {
             kind: binding.kind,

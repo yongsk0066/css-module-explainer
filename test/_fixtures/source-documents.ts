@@ -1,5 +1,6 @@
 import type { CxBinding, StyleImport } from "@css-module-explainer/shared";
 import { buildSourceDocument } from "../../server/src/core/hir/builders/ts-source-adapter";
+import type { SourceBinderResult } from "../../server/src/core/binder/scope-types";
 import {
   makeLiteralClassExpression,
   makeStyleAccessClassExpression,
@@ -68,9 +69,11 @@ export function buildSourceDocumentFixture(args: {
   readonly stylesBindings?: ReadonlyMap<string, StyleImport>;
   readonly classUtilNames?: readonly string[];
   readonly expressions: readonly TestClassExpressionSpec[];
+  readonly sourceBinder?: SourceBinderResult;
 }): SourceDocumentHIR {
   return buildSourceDocument({
     filePath: args.filePath,
+    sourceBinder: args.sourceBinder,
     bindings: args.bindings,
     stylesBindings: args.stylesBindings ?? new Map(),
     classUtilNames: args.classUtilNames ?? [],
