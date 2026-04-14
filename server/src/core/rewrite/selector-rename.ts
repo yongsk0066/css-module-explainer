@@ -19,7 +19,8 @@ export type RenameBlockReason =
   | "unsafeSelectorShape"
   | "interpolatedSelector"
   | "aliasViewBlocked"
-  | "expandedReferences";
+  | "expandedReferences"
+  | "styleDependencyReferences";
 
 export type RenameEditBlockReason =
   | "invalidNewName"
@@ -157,6 +158,8 @@ export function renameBlockReasonMessage(reason: RenameBlockReason): string {
       return "Alias selector views cannot be renamed under the current classnameTransform mode.";
     case "expandedReferences":
       return "Rename is blocked because inferred or expanded references would make the edit unsafe.";
+    case "styleDependencyReferences":
+      return "Rename is blocked because composed-style references are not rewritten automatically.";
     default:
       reason satisfies never;
       return "Rename cannot be performed safely.";
@@ -198,6 +201,9 @@ function finalizeSelectorRenameTarget(
     args.scssPath,
     canonicalSelector.canonicalName,
   );
+  if (rewriteSafety.hasBlockingStyleDependencyReferences) {
+    return { kind: "blocked", reason: "styleDependencyReferences" };
+  }
   if (rewriteSafety.hasBlockingExpandedReferences) {
     return { kind: "blocked", reason: "expandedReferences" };
   }

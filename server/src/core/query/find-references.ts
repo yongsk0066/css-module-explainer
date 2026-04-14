@@ -16,6 +16,7 @@ export interface ResolvedReferenceSite {
   readonly className: string;
   readonly selectorCertainty: EdgeCertainty;
   readonly expansion: "direct" | "expanded";
+  readonly referenceKind: "source" | "styleDependency";
 }
 
 export interface ReferenceQueryEnv {
@@ -45,6 +46,7 @@ export function findSelectorReferenceSites(
           className: site.className,
           selectorCertainty: site.selectorCertainty,
           expansion: site.expansion,
+          referenceKind: "source" as const,
         })),
       ...collectStyleDependencyReferenceSites(deps, scssPath, canonicalName),
     ],
@@ -102,6 +104,7 @@ function collectStyleDependencyReferenceSites(
           className: incoming.canonicalName,
           selectorCertainty: "exact",
           expansion: "direct",
+          referenceKind: "styleDependency",
         });
       }
 
