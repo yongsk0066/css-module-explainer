@@ -523,7 +523,7 @@ describe("rename template corruption guard", () => {
     });
   }
 
-  it("rename template-literal class does NOT rewrite the template range", () => {
+  it("rename template-literal class is blocked when expanded references exist", () => {
     const semanticReferenceIndex = buildTemplateSemanticIndex();
     const result = handleRename(
       {
@@ -533,17 +533,7 @@ describe("rename template corruption guard", () => {
       },
       btnScssDeps({ semanticReferenceIndex }),
     );
-    expect(result).not.toBeNull();
-    const changes = result!.changes!;
-
-    // The SCSS selector must still be edited.
-    expect(changes[SCSS_URI]).toHaveLength(1);
-    expect(changes[SCSS_URI]![0]!.newText).toBe("btn-tiny");
-
-    // The template range R must NOT appear in the App.tsx edits.
-    // With the bug, this key would exist and point at TEMPLATE_RANGE,
-    // destroying `btn-${weight}`. With the fix, no App.tsx edits.
-    expect(changes[TEMPLATE_URI]).toBeUndefined();
+    expect(result).toBeNull();
   });
 
   it("SCSS-side prepareRename rejects class with template/variable references", () => {
@@ -609,6 +599,69 @@ describe("rename template corruption guard", () => {
             position: { line: 1, character: 3 },
           },
           btnScssDeps({ semanticReferenceIndex }),
+        ),
+      "Rename is blocked because inferred or expanded references would make the edit unsafe.",
+    );
+  });
+
+  it("source-side prepareRename rejects classes with expanded semantic references", () => {
+    const semanticReferenceIndex = buildTemplateSemanticIndex();
+    const sourceFileCache = new SourceFileCache({ max: 10 });
+    const analysisCache = new DocumentAnalysisCache({
+      sourceFileCache,
+      fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
+      scanCxImports: (_sourceFile) => ({
+        stylesBindings: new Map([
+          ["styles", { kind: "resolved" as const, absolutePath: BINDING.scssModulePath }],
+        ]),
+        bindings: [BINDING],
+      }),
+      parseClassExpressions: (_sf, bindings) =>
+        buildTestClassExpressions({
+          filePath: "/fake/src/App.tsx",
+          bindings,
+          expressions: [
+            {
+              kind: "literal",
+              origin: "cxCall",
+              className: "btn-small",
+              range: {
+                start: { line: 3, character: 14 },
+                end: { line: 3, character: 23 },
+              },
+              scssModulePath: bindings[0]!.scssModulePath,
+            },
+          ],
+        }),
+      max: 10,
+    });
+    const cursorParams: CursorParams = {
+      documentUri: "file:///fake/src/App.tsx",
+      content: TSX_CONTENT.replace("indicator", "btn-small"),
+      filePath: "/fake/src/App.tsx",
+      line: 3,
+      character: 16,
+      version: 1,
+    };
+    expectPrepareRenameBlocked(
+      () =>
+        handlePrepareRename(
+          {
+            textDocument: { uri: "file:///fake/src/App.tsx" },
+            position: { line: 3, character: 16 },
+          },
+          makeBaseDeps({
+            analysisCache,
+            semanticReferenceIndex,
+            selectorMapForPath: () =>
+              new Map([
+                ["btn-small", info("btn-small", 1)],
+                ["btn-large", info("btn-large", 3)],
+              ]),
+            workspaceRoot: "/fake",
+          }),
+          cursorParams,
         ),
       "Rename is blocked because inferred or expanded references would make the edit unsafe.",
     );

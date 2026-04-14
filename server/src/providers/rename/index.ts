@@ -5,19 +5,18 @@ import type {
   WorkspaceEdit,
 } from "vscode-languageserver/node";
 import { LSPErrorCodes, ResponseError } from "vscode-languageserver/node";
-import type { SelectorDeclHIR, StyleDocumentHIR } from "../../core/hir/style-types";
-import { hasBlockingRenameReferences } from "../../core/query/prepare-rename";
-import { findCanonicalSelector, findSelectorAtCursor } from "../../core/query/find-style-selector";
+import {
+  planSelectorRename,
+  readExpressionRenameTarget,
+  readStyleSelectorRenameTargetAtCursor,
+  renameBlockReasonMessage,
+} from "../../core/rewrite/selector-rename";
 import { findLangForPath } from "../../core/scss/lang-registry";
-import { fileUrlToPath, pathToFileUrl } from "../../core/util/text-utils";
+import { fileUrlToPath } from "../../core/util/text-utils";
 import { toLspRange } from "../lsp-adapters";
 import { wrapHandler } from "../_wrap-handler";
-import {
-  findSourceExpressionContextAtCursor,
-  withSourceExpressionAtCursor,
-} from "../cursor-dispatch";
+import { findSourceExpressionContextAtCursor } from "../cursor-dispatch";
 import type { CursorParams, ProviderDeps } from "../provider-deps";
-import { buildRenameEdit } from "./build-edit";
 
 /**
  * Handle `textDocument/prepareRename`.
@@ -40,21 +39,25 @@ export function handlePrepareRename(
     const filePath = fileUrlToPath(params.textDocument.uri);
 
     if (findLangForPath(filePath)) {
-      return prepareRenameFromScss(filePath, params, deps);
+      const styleDocument = deps.styleDocumentForPath(filePath);
+      if (!styleDocument) return null;
+      return toPrepareRenameResult(
+        readStyleSelectorRenameTargetAtCursor(
+          filePath,
+          params.position.line,
+          params.position.character,
+          styleDocument,
+          deps,
+        ),
+      );
     }
 
     if (!cursorParams) return null;
     const ctx = findSourceExpressionContextAtCursor(cursorParams, deps);
     if (!ctx) return null;
-
-    if (ctx.expression.kind === "template" || ctx.expression.kind === "symbolRef") {
-      throwRenameBlocked("Dynamic class expressions cannot be renamed safely.");
-    }
-    if (ctx.expression.kind !== "literal" && ctx.expression.kind !== "styleAccess") return null;
-    return {
-      range: toLspRange(ctx.expression.range),
-      placeholder: ctx.expression.className,
-    };
+    return toPrepareRenameResult(
+      readExpressionRenameTarget(ctx.expression, ctx.styleDocument, deps),
+    );
   } catch (err) {
     if (isResponseError(err)) throw err;
     deps.logError("prepareRename handler failed", err);
@@ -79,136 +82,34 @@ export const handleRename = wrapHandler<
     const filePath = fileUrlToPath(params.textDocument.uri);
 
     if (findLangForPath(filePath)) {
-      return renameFromScss(filePath, params, deps);
+      const styleDocument = deps.styleDocumentForPath(filePath);
+      if (!styleDocument) return null;
+      return toWorkspaceEdit(
+        planFromResult(
+          readStyleSelectorRenameTargetAtCursor(
+            filePath,
+            params.position.line,
+            params.position.character,
+            styleDocument,
+            deps,
+          ),
+          params.newName,
+        ),
+      );
     }
 
     if (!cursorParams) return null;
-
-    return withSourceExpressionAtCursor(cursorParams, deps, (ctx) => {
-      if (ctx.expression.kind !== "literal" && ctx.expression.kind !== "styleAccess") return null;
-      const selector = findSelectorAtExpression(ctx.expression.className, ctx.styleDocument);
-      if (!selector) return null;
-      return buildRenameEdit(
-        pathToFileUrl(ctx.expression.scssModulePath),
-        ctx.expression.scssModulePath,
-        ctx.styleDocument,
-        selector,
-        deps,
+    const ctx = findSourceExpressionContextAtCursor(cursorParams, deps);
+    if (!ctx) return null;
+    return toWorkspaceEdit(
+      planFromResult(
+        readExpressionRenameTarget(ctx.expression, ctx.styleDocument, deps),
         params.newName,
-      );
-    });
+      ),
+    );
   },
   null,
 );
-
-/**
- * Resolve the cursor to a selector and reject the nested
- * shapes that are not safe to rename (shapes outside the BEM
- * suffix set, or whose captured rawToken contains a `#{$var}`
- * interpolation). Shared by both rename entry points so the
- * BEM-safe gate exists in exactly one place.
- */
-function resolveRenameTarget(
-  filePath: string,
-  line: number,
-  character: number,
-  deps: ProviderDeps,
-): { styleDocument: StyleDocumentHIR; selector: SelectorDeclHIR } | null {
-  const styleDocument = deps.styleDocumentForPath(filePath);
-  if (!styleDocument) return null;
-
-  const selector = findSelectorAtCursor(styleDocument, line, character);
-  if (!selector) return null;
-
-  const gateTarget = findCanonicalSelector(styleDocument, selector);
-  if (!isRenameSafe(gateTarget)) {
-    if (gateTarget.bemSuffix?.rawToken.includes("#{")) {
-      throwRenameBlocked("Selectors containing interpolation cannot be renamed safely.");
-    }
-    throwRenameBlocked("Only flat selectors and safe BEM suffix selectors can be renamed.");
-  }
-
-  const mode = deps.settings.scss.classnameTransform;
-  if ((mode === "camelCaseOnly" || mode === "dashesOnly") && selector.viewKind === "alias") {
-    throwRenameBlocked(
-      "Alias selector views cannot be renamed under the current classnameTransform mode.",
-    );
-  }
-
-  return { styleDocument, selector };
-}
-
-function isRenameSafe(selector: SelectorDeclHIR): boolean {
-  if (selector.nestedSafety === "flat") return true;
-  if (selector.nestedSafety !== "bemSuffixSafe" || !selector.bemSuffix) return false;
-  return !selector.bemSuffix.rawToken.includes("#{");
-}
-
-function hasExpandedReverseSite(
-  deps: ProviderDeps,
-  filePath: string,
-  canonicalName: string,
-): boolean {
-  return hasBlockingRenameReferences(deps, filePath, canonicalName);
-}
-
-function prepareRenameFromScss(
-  filePath: string,
-  params: PrepareRenameParams,
-  deps: ProviderDeps,
-): { range: LspRange; placeholder: string } | null {
-  const target = resolveRenameTarget(
-    filePath,
-    params.position.line,
-    params.position.character,
-    deps,
-  );
-  if (!target) return null;
-
-  const canonicalSelector = findCanonicalSelector(target.styleDocument, target.selector);
-  const canonicalName = canonicalSelector.canonicalName;
-  if (hasExpandedReverseSite(deps, filePath, canonicalName)) {
-    throwRenameBlocked(
-      "Rename is blocked because inferred or expanded references would make the edit unsafe.",
-    );
-  }
-
-  const placeholderRange = target.selector.bemSuffix?.rawTokenRange ?? target.selector.range;
-  return { range: toLspRange(placeholderRange), placeholder: target.selector.name };
-}
-
-function renameFromScss(
-  filePath: string,
-  params: RenameParams,
-  deps: ProviderDeps,
-): WorkspaceEdit | null {
-  const target = resolveRenameTarget(
-    filePath,
-    params.position.line,
-    params.position.character,
-    deps,
-  );
-  if (!target) return null;
-
-  return buildRenameEdit(
-    params.textDocument.uri,
-    filePath,
-    target.styleDocument,
-    target.selector,
-    deps,
-    params.newName,
-  );
-}
-
-function findSelectorAtExpression(
-  className: string,
-  styleDocument: StyleDocumentHIR,
-): SelectorDeclHIR | null {
-  const selector = styleDocument.selectors.find(
-    (candidate): candidate is SelectorDeclHIR => candidate.name === className,
-  );
-  return selector ?? null;
-}
 
 function throwRenameBlocked(message: string): never {
   throw new ResponseError(LSPErrorCodes.RequestFailed, message);
@@ -216,4 +117,42 @@ function throwRenameBlocked(message: string): never {
 
 function isResponseError(err: unknown): err is ResponseError<unknown> {
   return err instanceof ResponseError;
+}
+
+function toPrepareRenameResult(
+  result:
+    | ReturnType<typeof readStyleSelectorRenameTargetAtCursor>
+    | ReturnType<typeof readExpressionRenameTarget>,
+): { range: LspRange; placeholder: string } | null {
+  if (result.kind === "miss") return null;
+  if (result.kind === "blocked") {
+    throwRenameBlocked(renameBlockReasonMessage(result.reason));
+  }
+  return {
+    range: toLspRange(result.target.placeholderRange),
+    placeholder: result.target.placeholder,
+  };
+}
+
+function planFromResult(
+  result:
+    | ReturnType<typeof readStyleSelectorRenameTargetAtCursor>
+    | ReturnType<typeof readExpressionRenameTarget>,
+  newName: string,
+) {
+  if (result.kind !== "target") return null;
+  return planSelectorRename(result.target, newName);
+}
+
+function toWorkspaceEdit(plan: ReturnType<typeof planSelectorRename> | null): WorkspaceEdit | null {
+  if (!plan || plan.kind !== "plan") return null;
+
+  const changes: WorkspaceEdit["changes"] = {};
+  for (const edit of plan.plan.edits) {
+    (changes[edit.uri] ??= []).push({
+      range: toLspRange(edit.range),
+      newText: edit.newText,
+    });
+  }
+  return { changes };
 }
