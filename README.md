@@ -114,7 +114,8 @@ import theme from "@styles/theme.module.scss";
 
 `cssModules.pathAlias` remains a compatibility input. The server logs a
 deprecation notice when a workspace falls back to that key. New setups should
-prefer `cssModuleExplainer.pathAlias`.
+prefer `cssModuleExplainer.pathAlias`. The compatibility key is read only as a
+fallback and is not the long-term configuration surface.
 
 ## Architecture
 

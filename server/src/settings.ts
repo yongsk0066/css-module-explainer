@@ -159,6 +159,18 @@ export function resourceSettingsDependencyKey(settings: ResourceSettings): strin
   return `transform:${settings.scss.classnameTransform};alias:${pathAlias}`;
 }
 
+export function shouldWarnCompatPathAlias(
+  info: ParsedResourceSettings,
+  warnedWorkspaceRoots: ReadonlySet<string>,
+  workspaceRoot: string,
+): boolean {
+  return info.pathAliasSource === "compat" && !warnedWorkspaceRoots.has(workspaceRoot);
+}
+
+export function formatCompatPathAliasDeprecationMessage(workspaceRoot: string): string {
+  return `[css-module-explainer] cssModules.pathAlias is deprecated for '${workspaceRoot}'. Use cssModuleExplainer.pathAlias instead.`;
+}
+
 /**
  * Parse a path alias record into `Record<string, string>`.
  * Non-record inputs fall back to `{}`; record values that are not strings

@@ -15,10 +15,12 @@ import { findLangForPath } from "./core/scss/lang-registry";
 import { styleDocumentSemanticFingerprint } from "./core/scss/scss-index";
 import {
   DEFAULT_WINDOW_SETTINGS,
+  formatCompatPathAliasDeprecationMessage,
   fetchResourceSettingsInfo,
   fetchWindowSettings,
   mergeSettings,
   resourceSettingsDependencyKey,
+  shouldWarnCompatPathAlias,
   type WindowSettings,
 } from "./settings";
 import { createDiagnosticsScheduler, type DiagnosticsScheduler } from "./diagnostics-scheduler";
@@ -122,13 +124,14 @@ function registerSettingsHandler(state: HandlerState): () => void {
           deps.settings = nextSettings;
 
           if (
-            resourceSettingsInfo.pathAliasSource === "compat" &&
-            !state.warnedCompatPathAliasRoots.has(deps.workspaceRoot)
+            shouldWarnCompatPathAlias(
+              resourceSettingsInfo,
+              state.warnedCompatPathAliasRoots,
+              deps.workspaceRoot,
+            )
           ) {
             state.warnedCompatPathAliasRoots.add(deps.workspaceRoot);
-            connection.console.info(
-              `[css-module-explainer] cssModules.pathAlias is deprecated for '${deps.workspaceRoot}'. Use cssModuleExplainer.pathAlias instead.`,
-            );
+            connection.console.info(formatCompatPathAliasDeprecationMessage(deps.workspaceRoot));
           }
 
           const aliasChanged = !shallowEqualPathAlias(

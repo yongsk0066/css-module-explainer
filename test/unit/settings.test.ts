@@ -8,6 +8,8 @@ import {
   parseResourceSettingsInfo,
   parseResourceSettings,
   parseWindowSettings,
+  shouldWarnCompatPathAlias,
+  formatCompatPathAliasDeprecationMessage,
 } from "../../server/src/settings";
 
 describe("parseWindowSettings", () => {
@@ -143,6 +145,23 @@ describe("mergeSettings", () => {
   it("combines window and resource settings into the runtime Settings shape", () => {
     expect(mergeSettings(DEFAULT_WINDOW_SETTINGS, DEFAULT_RESOURCE_SETTINGS)).toEqual(
       DEFAULT_SETTINGS,
+    );
+  });
+});
+
+describe("compat pathAlias deprecation helpers", () => {
+  it("warns only for compat pathAlias roots that were not warned yet", () => {
+    const compat = parseResourceSettingsInfo({}, { pathAlias: { "@compat": "src/compat" } });
+    const native = parseResourceSettingsInfo({ pathAlias: { "@native": "src/native" } });
+
+    expect(shouldWarnCompatPathAlias(compat, new Set(), "/fake/ws")).toBe(true);
+    expect(shouldWarnCompatPathAlias(compat, new Set(["/fake/ws"]), "/fake/ws")).toBe(false);
+    expect(shouldWarnCompatPathAlias(native, new Set(), "/fake/ws")).toBe(false);
+  });
+
+  it("formats a stable deprecation message", () => {
+    expect(formatCompatPathAliasDeprecationMessage("/fake/ws")).toBe(
+      "[css-module-explainer] cssModules.pathAlias is deprecated for '/fake/ws'. Use cssModuleExplainer.pathAlias instead.",
     );
   });
 });
