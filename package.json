@@ -1,7 +1,7 @@
 {
   "name": "css-module-explainer",
   "displayName": "CSS Module Explainer",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "private": true,
   "description": "Go to Definition, Hover, Autocomplete, Diagnostics, Quick Fixes, and Find References for classnames/bind cx() patterns with CSS Modules.",
   "categories": [
@@ -131,6 +131,12 @@
           "maximum": 50,
           "description": "Maximum template/variable candidates shown in hover."
         },
+        "cssModuleExplainer.pathAlias": {
+          "type": "object",
+          "default": {},
+          "scope": "resource",
+          "markdownDescription": "Resource-scoped import alias map for CSS Module paths. Keys are non-relative import prefixes, values are workspace-relative or absolute target paths. This key takes precedence over the compatibility fallback from `cssModules.pathAlias`."
+        },
         "cssModuleExplainer.scss.classnameTransform": {
           "type": "string",
           "enum": [
@@ -141,6 +147,7 @@
             "dashesOnly"
           ],
           "default": "asIs",
+          "scope": "resource",
           "markdownDescription": "Mirror of css-loader's `modules.localsConvention`. Controls how CSS class selectors are exposed to JS/TS — e.g. `.btn-primary` is reachable as `styles['btn-primary']` (`asIs`), both that and `styles.btnPrimary` (`camelCase`), or only `styles.btnPrimary` (`camelCaseOnly`). Port your `css-loader` setting verbatim."
         }
       }

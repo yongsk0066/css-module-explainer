@@ -4,6 +4,7 @@ import { SourceFileCache } from "../../server/src/core/ts/source-file-cache";
 import type { SelectorDeclHIR } from "../../server/src/core/hir/style-types";
 import { DocumentAnalysisCache } from "../../server/src/core/indexing/document-analysis-cache";
 import { NullSemanticWorkspaceReferenceIndex } from "../../server/src/core/semantic/workspace-reference-index";
+import { WorkspaceStyleDependencyGraph } from "../../server/src/core/semantic/style-dependency-graph";
 import { NOOP_LOG_ERROR, type ProviderDeps } from "../../server/src/providers/cursor-dispatch";
 import { DEFAULT_SETTINGS } from "../../server/src/settings";
 import { AliasResolver } from "../../server/src/core/cx/alias-resolver";
@@ -145,15 +146,24 @@ export function makeBaseDeps(overrides: BaseDepsOverrides = {}): ProviderDeps {
       }),
     typeResolver: new FakeTypeResolver(),
     semanticReferenceIndex: new NullSemanticWorkspaceReferenceIndex(),
+    styleDependencyGraph: new WorkspaceStyleDependencyGraph(),
     workspaceRoot: "/fake/ws",
+    workspaceFolderUri: "file:///fake/ws",
     logError: NOOP_LOG_ERROR,
     invalidateStyle: () => {},
+    peekStyleDocument: () => null,
+    buildStyleDocument: (path: string) => {
+      const selectors = selectorMapForPath(path);
+      return selectors
+        ? buildStyleDocumentFromSelectorMap(path, selectors)
+        : buildStyleDocumentFromSelectorMap(path, new Map());
+    },
+    readStyleFile: () => null,
     pushStyleFile: () => {},
     indexerReady: Promise.resolve(),
     stopIndexer: () => {},
     settings: DEFAULT_SETTINGS,
     rebuildAliasResolver: () => {},
-    setClassnameTransform: () => {},
     ...providerOverrides,
   };
 }

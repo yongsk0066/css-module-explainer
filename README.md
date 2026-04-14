@@ -26,14 +26,17 @@ export function Button({ active, size }: { active: boolean; size: "sm" | "lg" })
   - Diagnostics for unknown classes and missing module imports
   - Quick fixes to replace a misspelled class, add a missing selector, or create a missing module file
 - Style-side language features
-  - Find References and CodeLens from `.module.css`, `.module.scss`, and `.module.less`
+  - Hover, Find References, and CodeLens from `.module.css`, `.module.scss`, and `.module.less`
   - Rename across style files and source call sites
   - Unused selector diagnostics
+  - `composes` token definition/references/hover inside style modules
+  - Diagnostics and quick fixes for unresolved composed modules
 - Resolution behavior
   - `classnames/bind` bindings, multiple bindings per file, and function-local bindings
   - `classnames` / `clsx` calls that use `styles.foo` or `styles["foo-bar"]`
   - Template literals and symbol references with local flow analysis and TypeScript union fallback
   - `css-loader`-compatible class name transform modes
+  - Multi-root workspaces with resource-scoped transform and path-alias settings
 
 ## Supported patterns
 
@@ -99,6 +102,7 @@ because the reverse mapping back to the original selector is lossy.
 The extension resolves non-relative CSS Module imports from:
 
 - `compilerOptions.paths` in the workspace `tsconfig.json` or `jsconfig.json`
+- native `cssModuleExplainer.pathAlias`
 - legacy `cssModules.pathAlias` settings, when a workspace already uses that key
 
 This allows imports such as:
@@ -108,9 +112,9 @@ import styles from "@/components/Button.module.scss";
 import theme from "@styles/theme.module.scss";
 ```
 
-`cssModules.pathAlias` remains a compatibility input. It is not part of the
-core runtime architecture and can be retired later without changing semantic
-resolution.
+`cssModules.pathAlias` remains a compatibility input. The server logs a
+deprecation notice when a workspace falls back to that key. New setups should
+prefer `cssModuleExplainer.pathAlias`.
 
 ## Architecture
 

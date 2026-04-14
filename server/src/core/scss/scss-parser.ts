@@ -1,4 +1,9 @@
-import type { BemSuffixInfo, ComposesRef, Range } from "@css-module-explainer/shared";
+import type {
+  BemSuffixInfo,
+  ComposesClassToken,
+  ComposesRef,
+  Range,
+} from "@css-module-explainer/shared";
 import { parse as postcssParse, type AtRule, type ChildNode, type Root, type Rule } from "postcss";
 import {
   makeStyleDocumentHIR,
@@ -236,7 +241,7 @@ function collectDeclarationsAndComposes(nodes: ChildNode[] | undefined): {
   for (const node of nodes) {
     if (node.type !== "decl") continue;
     if (node.prop === "composes") {
-      const ref = parseComposesValue(node.value);
+      const ref = parseComposesValue(node);
       if (ref) composes.push(ref);
     } else {
       declParts.push(`${node.prop}: ${node.value}`);
@@ -248,17 +253,64 @@ function collectDeclarationsAndComposes(nodes: ChildNode[] | undefined): {
 
 const COMPOSES_FROM_RE = /^(.+?)\s+from\s+(?:'([^']+)'|"([^"]+)"|(global))\s*$/;
 
-function parseComposesValue(value: string): ComposesRef | null {
+function parseComposesValue(node: Extract<ChildNode, { type: "decl" }>): ComposesRef | null {
+  const value = node.value;
   const trimmed = value.trim();
   const match = COMPOSES_FROM_RE.exec(trimmed);
   if (match) {
     const classNames = match[1]!.trim().split(/\s+/);
     const from = match[2] ?? match[3];
     const fromGlobal = match[4] === "global" || undefined;
-    return { classNames, ...(from ? { from } : {}), ...(fromGlobal ? { fromGlobal } : {}) };
+    const classTokens = findComposesClassTokens(node, classNames);
+    return {
+      classNames,
+      ...(classTokens.length > 0 ? { classTokens } : {}),
+      ...(from ? { from } : {}),
+      ...(fromGlobal ? { fromGlobal } : {}),
+    };
   }
   const classNames = trimmed.split(/\s+/).filter((s) => s.length > 0);
-  return classNames.length > 0 ? { classNames } : null;
+  if (classNames.length === 0) return null;
+  const classTokens = findComposesClassTokens(node, classNames);
+  return {
+    classNames,
+    ...(classTokens.length > 0 ? { classTokens } : {}),
+  };
+}
+
+function findComposesClassTokens(
+  node: Extract<ChildNode, { type: "decl" }>,
+  classNames: readonly string[],
+): readonly ComposesClassToken[] {
+  const source = node.source;
+  if (!source?.start) return [];
+  const propIndex = node.toString().indexOf(node.prop);
+  const valueIndex = node.toString().indexOf(node.value, propIndex + node.prop.length);
+  if (valueIndex < 0) return [];
+  const baseOffset = source.start.offset + valueIndex;
+  const tokens: ComposesClassToken[] = [];
+  let searchStart = 0;
+
+  for (const className of classNames) {
+    const localOffset = node.value.indexOf(className, searchStart);
+    if (localOffset < 0) continue;
+    const startOffset = baseOffset + localOffset;
+    const endOffset = startOffset + className.length;
+    const startPos = source.input.fromOffset(startOffset);
+    const endPos = source.input.fromOffset(endOffset);
+    if (startPos && endPos) {
+      tokens.push({
+        className,
+        range: {
+          start: { line: startPos.line - 1, character: startPos.col - 1 },
+          end: { line: endPos.line - 1, character: endPos.col - 1 },
+        },
+      });
+    }
+    searchStart = localOffset + className.length;
+  }
+
+  return tokens;
 }
 
 function recordAtRootInlineRule(

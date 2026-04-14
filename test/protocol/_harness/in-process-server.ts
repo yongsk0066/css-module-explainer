@@ -11,6 +11,7 @@ import {
   DidChangeConfigurationNotification,
   DidChangeTextDocumentNotification,
   DidChangeWatchedFilesNotification,
+  DidChangeWorkspaceFoldersNotification,
   DidCloseTextDocumentNotification,
   DidOpenTextDocumentNotification,
   ExitNotification,
@@ -34,6 +35,7 @@ import {
   type Diagnostic,
   type DidChangeTextDocumentParams,
   type DidChangeWatchedFilesParams,
+  type DidChangeWorkspaceFoldersParams,
   type DidCloseTextDocumentParams,
   type DidOpenTextDocumentParams,
   type Hover,
@@ -126,6 +128,7 @@ export interface LspTestClient {
   references(params: ReferenceParams): Promise<Location[] | null>;
   rename(params: RenameParams): Promise<WorkspaceEdit | null>;
   didChangeWatchedFiles(params: DidChangeWatchedFilesParams): void;
+  didChangeWorkspaceFolders(params: DidChangeWorkspaceFoldersParams): void;
   /**
    * Replace the workspace configuration the server will see on the
    * next `workspace/configuration` request. The server triggers
@@ -133,6 +136,7 @@ export interface LspTestClient {
    * `workspace/didChangeConfiguration` notification.
    */
   setConfiguration(section: string, value: unknown): void;
+  setScopedConfiguration(section: string, scopeUri: string, value: unknown): void;
   didChangeConfiguration(): void;
   shutdown(): Promise<void>;
   exit(): void;
@@ -216,11 +220,21 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
   // we return a per-section object that tests can swap out between
   // didChangeConfiguration reloads.
   const configBySection: Record<string, unknown> = {};
-  client.onRequest("workspace/configuration", (params: { items: Array<{ section?: string }> }) => {
-    return params.items.map((item) =>
-      item.section && item.section in configBySection ? configBySection[item.section] : {},
-    );
-  });
+  const scopedConfigBySection = new Map<string, unknown>();
+  client.onRequest(
+    "workspace/configuration",
+    (params: { items: Array<{ section?: string; scopeUri?: string }> }) => {
+      return params.items.map((item) => {
+        if (item.section && item.scopeUri) {
+          const scopedKey = `${item.section}\u0000${item.scopeUri}`;
+          if (scopedConfigBySection.has(scopedKey)) {
+            return scopedConfigBySection.get(scopedKey);
+          }
+        }
+        return item.section && item.section in configBySection ? configBySection[item.section] : {};
+      });
+    },
+  );
 
   client.onNotification(PublishDiagnosticsNotification.type, (params) => {
     const mapped = remapWorkspaceUris(params, workspaceUri, LEGACY_WORKSPACE_URI);
@@ -253,6 +267,7 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
         capabilities: {
           workspace: {
             codeLens: { refreshSupport: true },
+            workspaceFolders: true,
           },
         },
         workspaceFolders: [{ uri: workspaceUri, name: "fake" }],
@@ -368,8 +383,17 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
         remapWorkspaceUris(params, LEGACY_WORKSPACE_URI, workspaceUri),
       );
     },
+    didChangeWorkspaceFolders(params) {
+      client.sendNotification(
+        DidChangeWorkspaceFoldersNotification.type,
+        remapWorkspaceUris(params, LEGACY_WORKSPACE_URI, workspaceUri),
+      );
+    },
     setConfiguration(section, value) {
       configBySection[section] = value;
+    },
+    setScopedConfiguration(section, scopeUri, value) {
+      scopedConfigBySection.set(`${section}\u0000${scopeUri}`, value);
     },
     didChangeConfiguration() {
       client.sendNotification(DidChangeConfigurationNotification.type, { settings: null });

@@ -1,5 +1,9 @@
 import type { Location, ReferenceParams } from "vscode-languageserver/node";
-import { findSelectorAtCursor } from "../core/query/find-style-selector";
+import {
+  findComposesTokenAtCursor,
+  findSelectorAtCursor,
+  resolveComposesTarget,
+} from "../core/query/find-style-selector";
 import { readSelectorUsageSummary } from "../core/query/read-selector-usage";
 import { findLangForPath } from "../core/scss/lang-registry";
 import { fileUrlToPath } from "../core/util/text-utils";
@@ -35,9 +39,29 @@ export const handleReferences = wrapHandler<ReferenceParams, [], Location[] | nu
       params.position.line,
       params.position.character,
     );
-    if (!selector) return null;
+    const composesHit = selector
+      ? null
+      : findComposesTokenAtCursor(styleDocument, params.position.line, params.position.character);
+    const target = selector
+      ? {
+          filePath,
+          canonicalName: selector.canonicalName,
+        }
+      : (() => {
+          const resolved = resolveComposesTarget(
+            deps.styleDocumentForPath,
+            styleDocument.filePath,
+            composesHit,
+          );
+          if (!resolved) return null;
+          return {
+            filePath: resolved.filePath,
+            canonicalName: resolved.selector.canonicalName,
+          };
+        })();
+    if (!target) return null;
 
-    const usage = readSelectorUsageSummary(deps, filePath, selector.canonicalName);
+    const usage = readSelectorUsageSummary(deps, target.filePath, target.canonicalName);
     if (!usage.hasAnyReferences) return null;
 
     // No expansion filter here — expanded sites are valid Find Refs

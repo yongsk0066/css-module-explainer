@@ -1,7 +1,7 @@
-import type { ClassnameTransformMode } from "../core/scss/classname-transform";
 import type { DocumentAnalysisCache } from "../core/indexing/document-analysis-cache";
 import type { StyleDocumentHIR } from "../core/hir/style-types";
 import type { SemanticWorkspaceReferenceIndex } from "../core/semantic/workspace-reference-index";
+import type { StyleDependencyGraph } from "../core/semantic/style-dependency-graph";
 import type { TypeResolver } from "../core/ts/type-resolver";
 import type { Settings } from "../settings";
 
@@ -44,7 +44,9 @@ export interface ProviderDeps {
   readonly styleDocumentForPath: (path: string) => StyleDocumentHIR | null;
   readonly typeResolver: TypeResolver;
   readonly semanticReferenceIndex: SemanticWorkspaceReferenceIndex;
+  readonly styleDependencyGraph: StyleDependencyGraph;
   readonly workspaceRoot: string;
+  readonly workspaceFolderUri: string;
   /**
    * Log a provider-level exception. Wired to
    * `connection.console.error` in production; tests pass
@@ -57,6 +59,9 @@ export interface ProviderDeps {
    * Used by the file-watcher when a `.module.*` file changes.
    */
   readonly invalidateStyle: (path: string) => void;
+  readonly peekStyleDocument: (path: string) => StyleDocumentHIR | null;
+  readonly buildStyleDocument: (path: string, content: string) => StyleDocumentHIR;
+  readonly readStyleFile: (path: string) => string | null;
   /**
    * Queue a single style file for incremental re-indexing by the
    * background indexer worker. Used by the file-watcher alongside
@@ -90,15 +95,6 @@ export interface ProviderDeps {
    * directly.
    */
   rebuildAliasResolver(pathAlias: Readonly<Record<string, string>>): void;
-  /**
-   * Switch the classname-transform mode on the style-index cache
-   * and clear dependent caches. Callers (handler-registration's
-   * reloadSettings) must additionally call `analysisCache.clear()`
-   * and reschedule open documents for the new mode to reach
-   * running requests — mirroring the `rebuildAliasResolver`
-   * contract.
-   */
-  setClassnameTransform(mode: ClassnameTransformMode): void;
   /**
    * Ask the client to refresh visible CodeLens entries after the
    * semantic reference graph changes.

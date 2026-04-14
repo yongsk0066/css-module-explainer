@@ -13,6 +13,7 @@ import { contentHash } from "../util/hash";
 import { LruMap } from "../util/lru-map";
 import type { SourceFileCache } from "../ts/source-file-cache";
 import type { AliasResolver } from "../cx/alias-resolver";
+import { collectSourceDependencyPaths } from "../ts/source-dependencies";
 
 /**
  * Single-parse analysis result for one TS/JS source file.
@@ -48,6 +49,7 @@ export interface AnalysisEntry {
    * when the file has no such imports.
    */
   readonly classUtilNames: readonly string[];
+  readonly sourceDependencyPaths: readonly string[];
 }
 
 export interface DocumentAnalysisCacheDeps {
@@ -197,6 +199,11 @@ export class DocumentAnalysisCache {
     const cxBindings = resolveCxBindings(bindings, sourceBinder, sourceFile);
 
     const classUtilNames = this.deps.detectClassUtilImports?.(sourceFile) ?? [];
+    const sourceDependencyPaths = collectSourceDependencyPaths(
+      sourceFile,
+      filePath,
+      this.deps.aliasResolver,
+    );
     const sourceDocument = buildSourceDocument({
       filePath,
       cxBindings,
@@ -218,6 +225,7 @@ export class DocumentAnalysisCache {
       sourceDocument,
       stylesBindings,
       classUtilNames,
+      sourceDependencyPaths,
     };
   }
 }

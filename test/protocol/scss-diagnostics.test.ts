@@ -164,4 +164,90 @@ export function App(enabled: boolean) {
     const unusedDiag = diagnostics.find((d) => d.message.includes("'.unused'"));
     expect(unusedDiag).toBeDefined();
   });
+
+  it("reports an unresolved cross-file composes module", async () => {
+    const COMPOSING_SCSS = `
+.button {
+  composes: base from './Base.module.scss';
+  color: red;
+}
+`;
+    client = createInProcessServer({
+      readStyleFile: (filePath) =>
+        filePath.endsWith("Button.module.scss") ? COMPOSING_SCSS : null,
+      typeResolver: new FakeTypeResolver(),
+      fileSupplier: emptySupplier,
+    });
+    await client.initialize();
+    client.initialized();
+
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/Button.module.scss",
+        languageId: "scss",
+        version: 1,
+        text: COMPOSING_SCSS,
+      },
+    });
+
+    const diagnostics = await client.waitForDiagnostics(
+      "file:///fake/workspace/src/Button.module.scss",
+    );
+    expect(
+      diagnostics.find((d) =>
+        d.message.includes("Cannot resolve composed CSS Module './Base.module.scss'."),
+      ),
+    ).toBeDefined();
+  });
+
+  it("reports a missing selector in a composed module", async () => {
+    const COMPOSING_SCSS = `
+.button {
+  composes: base from './Base.module.scss';
+  color: red;
+}
+`;
+    const BASE_SCSS = `
+.other {
+  color: blue;
+}
+`;
+    client = createInProcessServer({
+      readStyleFile: (filePath) => {
+        if (filePath.endsWith("Button.module.scss")) return COMPOSING_SCSS;
+        if (filePath.endsWith("Base.module.scss")) return BASE_SCSS;
+        return null;
+      },
+      typeResolver: new FakeTypeResolver(),
+      fileSupplier: emptySupplier,
+    });
+    await client.initialize();
+    client.initialized();
+
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/Button.module.scss",
+        languageId: "scss",
+        version: 1,
+        text: COMPOSING_SCSS,
+      },
+    });
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/Base.module.scss",
+        languageId: "scss",
+        version: 1,
+        text: BASE_SCSS,
+      },
+    });
+
+    const diagnostics = await client.waitForDiagnostics(
+      "file:///fake/workspace/src/Button.module.scss",
+    );
+    expect(
+      diagnostics.find((d) =>
+        d.message.includes("Selector '.base' not found in composed module './Base.module.scss'."),
+      ),
+    ).toBeDefined();
+  });
 });

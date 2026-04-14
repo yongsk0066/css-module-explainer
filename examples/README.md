@@ -1,7 +1,7 @@
 # css-module-explainer examples sandbox
 
-**Single React app** containing every supported `cx()` pattern
-as a separate component. Launch once, browse all scenarios
+**Single React app** containing source-side and style-side CSS Modules
+scenarios as separate components. Launch once, browse all scenarios
 through the sidebar.
 
 ## How to use
@@ -73,6 +73,7 @@ listed in `src/App.tsx`'s sidebar.
 |---|---|---|
 | 05 | `05-global-local/` | `:global` / `:local` selectors |
 | 12 | `12-nested-style-facts/` | `&.class`, plain nesting, and BEM suffix selector registration |
+| 15 | `15-composes/` | same-file and cross-file `composes` navigation and references |
 
 ### Resolution
 
@@ -118,6 +119,12 @@ through them whenever you update the provider layer.
   hover on `size`, `"btn-" + variant`, and `resolveStatusClass(status)`.
   The sandbox should expose finite-set, prefix, and possible/top-like
   behavior in one place.
+- **`composes` inspect surface**: in `15-composes`, hover, go to
+  definition, and find references on `base`, `toneInfo`,
+  `toneSuccess`, and `badgeFrame` inside `composes:` declarations.
+  Cross-file tokens should resolve to the source module selector, and
+  the target selector hover / CodeLens should reflect composed-style
+  usage.
 - **Unsaved SCSS edits reflect in diagnostics immediately**: open
   any scenario's `.module.scss`, add or remove a class without
   saving, and any diagnostic in the matching `.tsx` file updates

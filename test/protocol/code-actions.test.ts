@@ -159,4 +159,61 @@ export const Button = () => <div className={styles.root}>hi</div>;
       },
     ]);
   });
+
+  it("returns a create-file action for an unresolved composes module diagnostic", async () => {
+    const COMPOSING_SCSS = `
+.button {
+  composes: base from './Base.module.scss';
+  color: red;
+}
+`;
+    client = createInProcessServer({
+      readStyleFile: (filePath) =>
+        filePath.endsWith("Button.module.scss") ? COMPOSING_SCSS : null,
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/Button.module.scss",
+        languageId: "scss",
+        version: 1,
+        text: COMPOSING_SCSS,
+      },
+    });
+
+    const diagnostics = await client.waitForDiagnostics(
+      "file:///fake/workspace/src/Button.module.scss",
+    );
+    const missingModule = diagnostics.find((diagnostic) =>
+      diagnostic.message.includes("Cannot resolve composed CSS Module './Base.module.scss'."),
+    );
+    expect(missingModule).toBeDefined();
+
+    const actions = await client.codeAction({
+      textDocument: { uri: "file:///fake/workspace/src/Button.module.scss" },
+      range: missingModule!.range,
+      context: {
+        diagnostics,
+        triggerKind: 1,
+      },
+    });
+    expect(actions).not.toBeNull();
+    expect(actions).toHaveLength(1);
+    const action = actions![0] as {
+      title: string;
+      kind: string;
+      edit?: { documentChanges?: Array<{ kind: string; uri: string }> };
+    };
+    expect(action.title).toBe("Create Base.module.scss");
+    expect(action.kind).toBe(CodeActionKind.QuickFix);
+    expect(action.edit?.documentChanges).toEqual([
+      {
+        kind: "create",
+        uri: "file:///fake/workspace/src/Base.module.scss",
+        options: { overwrite: false, ignoreIfExists: true },
+      },
+    ]);
+  });
 });

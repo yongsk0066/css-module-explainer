@@ -3,7 +3,7 @@ import type { ClassnameTransformMode } from "./core/scss/classname-transform";
 import { isRecord } from "./core/util/value-guards";
 import { parseBool, parseFiniteNumber } from "./core/util/value-utils";
 
-export interface Settings {
+export interface WindowSettings {
   readonly features: {
     readonly definition: boolean;
     readonly hover: boolean;
@@ -19,29 +19,42 @@ export interface Settings {
   readonly hover: {
     readonly maxCandidates: number;
   };
+}
+
+export interface ResourceSettings {
   readonly scss: {
     readonly classnameTransform: ClassnameTransformMode;
   };
   /**
-   * Path alias map compat-read from the `cssModules.pathAlias`
-   * config key. Keys are import prefixes (e.g. `"@styles"`),
-   * values are workspace-relative or absolute target paths.
-   * Defaults to `{}`.
-   *
-   * A native `cssModuleExplainer.pathAlias` key is intentionally
-   * not exposed yet — the compat read covers the zero-config
-   * migration path until real user feedback justifies a separate
-   * key.
+   * Native key: `cssModuleExplainer.pathAlias`
+   * Fallback compat key: `cssModules.pathAlias`
    */
   readonly pathAlias: Readonly<Record<string, string>>;
 }
 
-const DEFAULTS: Settings = {
+export type PathAliasSource = "native" | "compat" | "none";
+
+export interface ParsedResourceSettings {
+  readonly settings: ResourceSettings;
+  readonly pathAliasSource: PathAliasSource;
+}
+
+export type Settings = WindowSettings & ResourceSettings;
+
+const DEFAULT_WINDOW_SETTINGS: WindowSettings = {
   features: { definition: true, hover: true, completion: true, references: true, rename: true },
   diagnostics: { severity: "warning", unusedSelector: true, missingModule: true },
   hover: { maxCandidates: 10 },
+};
+
+const DEFAULT_RESOURCE_SETTINGS: ResourceSettings = {
   scss: { classnameTransform: "asIs" },
   pathAlias: {},
+};
+
+const DEFAULTS: Settings = {
+  ...DEFAULT_WINDOW_SETTINGS,
+  ...DEFAULT_RESOURCE_SETTINGS,
 };
 
 const CLASSNAME_TRANSFORM_VALUES = [
@@ -63,44 +76,93 @@ function isSeverity(v: unknown): v is Severity {
   return typeof v === "string" && (SEVERITY_VALUES as readonly string[]).includes(v);
 }
 
-export function parseSettings(raw: unknown): Settings {
+export function parseWindowSettings(raw: unknown): WindowSettings {
   const r = isRecord(raw) ? raw : {};
   const features = isRecord(r.features) ? r.features : {};
   const diagnostics = isRecord(r.diagnostics) ? r.diagnostics : {};
   const hover = isRecord(r.hover) ? r.hover : {};
-  const scss = isRecord(r.scss) ? r.scss : {};
   return {
     features: {
-      definition: parseBool(features.definition, DEFAULTS.features.definition),
-      hover: parseBool(features.hover, DEFAULTS.features.hover),
-      completion: parseBool(features.completion, DEFAULTS.features.completion),
-      references: parseBool(features.references, DEFAULTS.features.references),
-      rename: parseBool(features.rename, DEFAULTS.features.rename),
+      definition: parseBool(features.definition, DEFAULT_WINDOW_SETTINGS.features.definition),
+      hover: parseBool(features.hover, DEFAULT_WINDOW_SETTINGS.features.hover),
+      completion: parseBool(features.completion, DEFAULT_WINDOW_SETTINGS.features.completion),
+      references: parseBool(features.references, DEFAULT_WINDOW_SETTINGS.features.references),
+      rename: parseBool(features.rename, DEFAULT_WINDOW_SETTINGS.features.rename),
     },
     diagnostics: {
       severity: isSeverity(diagnostics.severity)
         ? diagnostics.severity
-        : DEFAULTS.diagnostics.severity,
-      unusedSelector: parseBool(diagnostics.unusedSelector, DEFAULTS.diagnostics.unusedSelector),
-      missingModule: parseBool(diagnostics.missingModule, DEFAULTS.diagnostics.missingModule),
+        : DEFAULT_WINDOW_SETTINGS.diagnostics.severity,
+      unusedSelector: parseBool(
+        diagnostics.unusedSelector,
+        DEFAULT_WINDOW_SETTINGS.diagnostics.unusedSelector,
+      ),
+      missingModule: parseBool(
+        diagnostics.missingModule,
+        DEFAULT_WINDOW_SETTINGS.diagnostics.missingModule,
+      ),
     },
     hover: {
-      maxCandidates: parseFiniteNumber(hover.maxCandidates, DEFAULTS.hover.maxCandidates),
+      maxCandidates: parseFiniteNumber(
+        hover.maxCandidates,
+        DEFAULT_WINDOW_SETTINGS.hover.maxCandidates,
+      ),
     },
-    scss: {
-      classnameTransform: isClassnameTransform(scss.classnameTransform)
-        ? scss.classnameTransform
-        : DEFAULTS.scss.classnameTransform,
-    },
-    pathAlias: {},
   };
 }
 
+export function parseResourceSettings(raw: unknown, compat: unknown = undefined): ResourceSettings {
+  return parseResourceSettingsInfo(raw, compat).settings;
+}
+
+export function parseResourceSettingsInfo(
+  raw: unknown,
+  compat: unknown = undefined,
+): ParsedResourceSettings {
+  const r = isRecord(raw) ? raw : {};
+  const scss = isRecord(r.scss) ? r.scss : {};
+  const nativePathAlias = parsePathAlias(r.pathAlias);
+  const compatPathAlias = parsePathAlias(isRecord(compat) ? compat.pathAlias : undefined);
+  return {
+    settings: {
+      scss: {
+        classnameTransform: isClassnameTransform(scss.classnameTransform)
+          ? scss.classnameTransform
+          : DEFAULT_RESOURCE_SETTINGS.scss.classnameTransform,
+      },
+      pathAlias: Object.keys(nativePathAlias).length > 0 ? nativePathAlias : compatPathAlias,
+    },
+    pathAliasSource:
+      Object.keys(nativePathAlias).length > 0
+        ? "native"
+        : Object.keys(compatPathAlias).length > 0
+          ? "compat"
+          : "none",
+  };
+}
+
+export function mergeSettings(
+  windowSettings: WindowSettings,
+  resourceSettings: ResourceSettings,
+): Settings {
+  return {
+    ...windowSettings,
+    ...resourceSettings,
+  };
+}
+
+export function resourceSettingsDependencyKey(settings: ResourceSettings): string {
+  const pathAlias = Object.entries(settings.pathAlias)
+    .toSorted(([a], [b]) => a.localeCompare(b))
+    .map(([key, value]) => `${key}=${value}`)
+    .join("|");
+  return `transform:${settings.scss.classnameTransform};alias:${pathAlias}`;
+}
+
 /**
- * Parse the `cssModules.pathAlias` record into a `Record<string, string>`.
+ * Parse a path alias record into `Record<string, string>`.
  * Non-record inputs fall back to `{}`; record values that are not strings
- * are dropped (no coercion). Used only by `fetchSettings` which merges the
- * result into `Settings.pathAlias`.
+ * are dropped without coercion.
  */
 export function parsePathAlias(v: unknown): Record<string, string> {
   if (!isRecord(v)) return {};
@@ -111,14 +173,45 @@ export function parsePathAlias(v: unknown): Record<string, string> {
   return out;
 }
 
-export async function fetchSettings(connection: Connection): Promise<Settings> {
-  const [raw, compat]: [unknown, unknown] = await Promise.all([
-    connection.workspace.getConfiguration("cssModuleExplainer"),
-    connection.workspace.getConfiguration("cssModules"),
-  ]);
-  const base = parseSettings(raw);
-  const pathAlias = parsePathAlias(isRecord(compat) ? compat.pathAlias : undefined);
-  return { ...base, pathAlias };
+function getConfigurationForSection(
+  connection: Connection,
+  section: string,
+  scopeUri?: string,
+): Promise<unknown> {
+  return scopeUri
+    ? connection.workspace.getConfiguration({ section, scopeUri })
+    : connection.workspace.getConfiguration(section);
 }
 
-export { DEFAULTS as DEFAULT_SETTINGS };
+export async function fetchWindowSettings(connection: Connection): Promise<WindowSettings> {
+  const raw = await getConfigurationForSection(connection, "cssModuleExplainer");
+  return parseWindowSettings(raw);
+}
+
+export async function fetchResourceSettings(
+  connection: Connection,
+  scopeUri?: string,
+): Promise<ResourceSettings> {
+  return (await fetchResourceSettingsInfo(connection, scopeUri)).settings;
+}
+
+export async function fetchResourceSettingsInfo(
+  connection: Connection,
+  scopeUri?: string,
+): Promise<ParsedResourceSettings> {
+  const [raw, compat]: [unknown, unknown] = await Promise.all([
+    getConfigurationForSection(connection, "cssModuleExplainer", scopeUri),
+    getConfigurationForSection(connection, "cssModules", scopeUri),
+  ]);
+  return parseResourceSettingsInfo(raw, compat);
+}
+
+export async function fetchSettings(connection: Connection, scopeUri?: string): Promise<Settings> {
+  const [windowSettings, resourceSettings] = await Promise.all([
+    fetchWindowSettings(connection),
+    fetchResourceSettings(connection, scopeUri),
+  ]);
+  return mergeSettings(windowSettings, resourceSettings);
+}
+
+export { DEFAULTS as DEFAULT_SETTINGS, DEFAULT_RESOURCE_SETTINGS, DEFAULT_WINDOW_SETTINGS };

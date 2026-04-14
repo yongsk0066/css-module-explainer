@@ -109,4 +109,37 @@ describe("file watcher", () => {
     const second = await client.waitForDiagnostics("file:///fake/workspace/src/Button.tsx");
     expect(second).toEqual([]);
   });
+
+  it("skips TSX recomputation when a watched SCSS change is declaration-only", async () => {
+    let scssContent = ".indicator { color: red; }";
+    client = createInProcessServer({
+      readStyleFile: () => scssContent,
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    const tsxUri = "file:///fake/workspace/src/Button.tsx";
+    client.didOpen({
+      textDocument: {
+        uri: tsxUri,
+        languageId: "typescriptreact",
+        version: 1,
+        text: BUTTON_TSX,
+      },
+    });
+
+    expect(await client.waitForDiagnostics(tsxUri)).toEqual([]);
+
+    scssContent = ".indicator { color: blue; }";
+    client.didChangeWatchedFiles({
+      changes: [
+        {
+          uri: "file:///fake/workspace/src/Button.module.scss",
+          type: FileChangeType.Changed,
+        },
+      ],
+    });
+
+    await expect(client.waitForDiagnostics(tsxUri, 200)).rejects.toThrow(/timed out/u);
+  });
 });

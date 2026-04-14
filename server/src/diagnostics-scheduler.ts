@@ -1,27 +1,28 @@
 import type { Connection } from "vscode-languageserver/node";
 import type { TextDocument } from "vscode-languageserver-textdocument";
 import type { TextDocuments } from "vscode-languageserver/node";
-import { DiagnosticSeverity } from "vscode-languageserver/node";
+import { DiagnosticSeverity, type Diagnostic } from "vscode-languageserver/node";
 import { computeDiagnostics } from "./providers/diagnostics";
 import { computeScssUnusedDiagnostics } from "./providers/scss-diagnostics";
 import type { ProviderDeps } from "./providers/provider-deps";
 import { fileUrlToPath } from "./core/util/text-utils";
 import { findLangForPath } from "./core/scss/lang-registry";
-import type { Settings } from "./settings";
+import type { WindowSettings } from "./settings";
 
 const DIAGNOSTICS_DEBOUNCE_MS = 200;
 
 export interface DiagnosticsSchedulerDeps {
   readonly connection: Connection;
   readonly documents: TextDocuments<TextDocument>;
-  getDeps(): ProviderDeps | null;
+  getDeps(uri: string): ProviderDeps | null;
+  getAllDeps(): readonly ProviderDeps[];
 }
 
 export interface DiagnosticsScheduler {
   scheduleTsx(uri: string): void;
   scheduleScss(uri: string): void;
   shutdown(): void;
-  refreshSettings(s: Settings): void;
+  refreshSettings(s: WindowSettings): void;
   /** Subscribe to indexer readiness so SCSS diagnostics fire after the initial walk. */
   ensureReadySubscribed(): void;
   /** Cancel pending timers for a closed document and clear its diagnostics. */
@@ -41,7 +42,7 @@ function parseSeverity(value: string): DiagnosticSeverity {
 
 export function createDiagnosticsScheduler(
   deps: DiagnosticsSchedulerDeps,
-  settings: Settings,
+  settings: WindowSettings,
 ): DiagnosticsScheduler {
   return new DiagnosticsSchedulerImpl(deps, settings);
 }
@@ -57,13 +58,14 @@ export function createDiagnosticsScheduler(
 class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
   private readonly tsxTimers = new Map<string, NodeJS.Timeout>();
   private readonly scssTimers = new Map<string, NodeJS.Timeout>();
-  private currentSettings: Settings;
+  private currentSettings: WindowSettings;
   private indexReady = false;
-  private readySubscribed = false;
+  private stopped = false;
+  private readonly readySubscribed = new Set<string>();
 
   constructor(
     private readonly deps: DiagnosticsSchedulerDeps,
-    settings: Settings,
+    settings: WindowSettings,
   ) {
     this.currentSettings = settings;
   }
@@ -80,40 +82,44 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
   }
 
   shutdown(): void {
+    this.stopped = true;
     clearAll(this.tsxTimers);
     clearAll(this.scssTimers);
   }
 
-  refreshSettings(s: Settings): void {
+  refreshSettings(s: WindowSettings): void {
     this.currentSettings = s;
   }
 
   ensureReadySubscribed(): void {
-    if (this.readySubscribed) return;
-    const providerDeps = this.deps.getDeps();
-    if (!providerDeps) return;
-    this.readySubscribed = true;
-    providerDeps.indexerReady
-      .then(() => {
-        this.indexReady = true;
-        for (const doc of this.deps.documents.all()) {
-          if (findLangForPath(fileUrlToPath(doc.uri))) {
-            this.scheduleScss(doc.uri);
+    const providerDeps = this.deps.getAllDeps();
+    if (providerDeps.length === 0) return;
+    for (const deps of providerDeps) {
+      if (this.readySubscribed.has(deps.workspaceFolderUri)) continue;
+      this.readySubscribed.add(deps.workspaceFolderUri);
+      deps.indexerReady
+        .then(() => {
+          if (this.stopped) return;
+          this.indexReady = true;
+          for (const doc of this.deps.documents.all()) {
+            if (findLangForPath(fileUrlToPath(doc.uri))) {
+              this.scheduleScss(doc.uri);
+            }
           }
-        }
-      })
-      .catch((err: unknown) => {
-        const message = err instanceof Error ? err.message : String(err);
-        this.deps.connection.console.error(
-          `[css-module-explainer] indexer readiness failed: ${message}`,
-        );
-      });
+        })
+        .catch((err: unknown) => {
+          const message = err instanceof Error ? err.message : String(err);
+          this.deps.connection.console.error(
+            `[css-module-explainer] indexer readiness failed: ${message}`,
+          );
+        });
+    }
   }
 
   handleDocumentClose(uri: string): void {
     cancelTimer(this.tsxTimers, uri);
     cancelTimer(this.scssTimers, uri);
-    this.deps.connection.sendDiagnostics({ uri, diagnostics: [] });
+    this.safeSendDiagnostics(uri, []);
   }
 
   private debounce(timers: Map<string, NodeJS.Timeout>, uri: string, run: () => void): void {
@@ -121,13 +127,14 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
     if (existing) clearTimeout(existing);
     const timer = setTimeout(() => {
       timers.delete(uri);
+      if (this.stopped) return;
       run();
     }, DIAGNOSTICS_DEBOUNCE_MS);
     timers.set(uri, timer);
   }
 
   private runTsxDiagnostics(uri: string): void {
-    const providerDeps = this.deps.getDeps();
+    const providerDeps = this.deps.getDeps(uri);
     const doc = this.deps.documents.get(uri);
     if (!providerDeps || !doc) return;
     const severity = parseSeverity(this.currentSettings.diagnostics.severity);
@@ -141,11 +148,11 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
       providerDeps,
       severity,
     );
-    this.deps.connection.sendDiagnostics({ uri, diagnostics });
+    this.safeSendDiagnostics(uri, diagnostics);
   }
 
   private runScssDiagnostics(uri: string): void {
-    const providerDeps = this.deps.getDeps();
+    const providerDeps = this.deps.getDeps(uri);
     const doc = this.deps.documents.get(uri);
     if (!providerDeps || !doc) return;
     const filePath = fileUrlToPath(uri);
@@ -155,8 +162,19 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
       filePath,
       styleDocument,
       providerDeps.semanticReferenceIndex,
+      providerDeps.styleDependencyGraph,
+      providerDeps.styleDocumentForPath,
     );
-    this.deps.connection.sendDiagnostics({ uri, diagnostics });
+    this.safeSendDiagnostics(uri, diagnostics);
+  }
+
+  private safeSendDiagnostics(uri: string, diagnostics: readonly Diagnostic[]): void {
+    if (this.stopped) return;
+    try {
+      this.deps.connection.sendDiagnostics({ uri, diagnostics: [...diagnostics] });
+    } catch {
+      this.stopped = true;
+    }
   }
 }
 

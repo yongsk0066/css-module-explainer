@@ -49,7 +49,7 @@ function buildLens(
 ): CodeLens | null {
   const usage = readSelectorUsageSummary(deps, filePath, selector.canonicalName);
   if (!usage.hasAnyReferences) return null;
-  const title = `${usage.totalReferences} reference${usage.totalReferences === 1 ? "" : "s"}`;
+  const title = formatReferenceLensTitle(usage);
   const locations: ShowReferencesLocation[] = usage.allSites.map((site) => ({
     uri: site.uri,
     range: toLspRange(site.range),
@@ -71,4 +71,19 @@ function buildLens(
       arguments: [...args],
     },
   };
+}
+
+function formatReferenceLensTitle(usage: ReturnType<typeof readSelectorUsageSummary>): string {
+  const base = `${usage.totalReferences} reference${usage.totalReferences === 1 ? "" : "s"}`;
+  const details: string[] = [];
+  if (usage.totalReferences !== usage.directReferenceCount) {
+    details.push(`${usage.directReferenceCount} direct`);
+  }
+  if (usage.hasStyleDependencyReferences) {
+    details.push("composed");
+  }
+  if (usage.hasExpandedReferences) {
+    details.push("dynamic");
+  }
+  return details.length > 0 ? `${base} (${details.join(", ")})` : base;
 }

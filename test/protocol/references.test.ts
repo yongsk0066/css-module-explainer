@@ -167,3 +167,91 @@ export function Sized(flag: boolean) {
   expect(result![0]!.uri).toBe(tsxUri);
   expect(result![0]!.range.start.line).toBe(8);
 });
+
+test("references protocol resolves a cross-file composes token to the target selector usage", async ({
+  makeClient,
+}) => {
+  const tsxUri = "file:///fake/workspace/src/Button.tsx";
+  const baseTsxUri = "file:///fake/workspace/src/Base.tsx";
+  const tsx = `import classNames from 'classnames/bind';
+import styles from './Button.module.scss';
+const cx = classNames.bind(styles);
+export function Button() {
+  return <div className={cx('button')}>hi</div>;
+}
+`;
+  const baseTsx = `import classNames from 'classnames/bind';
+import styles from './Base.module.scss';
+const cx = classNames.bind(styles);
+export function Base() {
+  return <div className={cx('base')}>hi</div>;
+}
+`;
+  const buttonScss = `
+.button {
+  composes: base from './Base.module.scss';
+  color: red;
+}
+`;
+  const baseScss = `
+.base {
+  color: blue;
+}
+`;
+
+  const client = makeClient({
+    readStyleFile: (path) => {
+      if (path.endsWith("Button.module.scss")) return buttonScss;
+      if (path.endsWith("Base.module.scss")) return baseScss;
+      return null;
+    },
+    typeResolver: new FakeTypeResolver(),
+  });
+
+  await client.initialize();
+  client.initialized();
+  client.didOpen({
+    textDocument: {
+      uri: tsxUri,
+      languageId: "typescriptreact",
+      version: 1,
+      text: tsx,
+    },
+  });
+  client.didOpen({
+    textDocument: {
+      uri: baseTsxUri,
+      languageId: "typescriptreact",
+      version: 1,
+      text: baseTsx,
+    },
+  });
+  client.didOpen({
+    textDocument: {
+      uri: "file:///fake/workspace/src/Button.module.scss",
+      languageId: "scss",
+      version: 1,
+      text: buttonScss,
+    },
+  });
+  client.didOpen({
+    textDocument: {
+      uri: "file:///fake/workspace/src/Base.module.scss",
+      languageId: "scss",
+      version: 1,
+      text: baseScss,
+    },
+  });
+  await client.waitForDiagnostics(tsxUri);
+  await client.waitForDiagnostics(baseTsxUri);
+
+  const result = await client.references({
+    textDocument: { uri: "file:///fake/workspace/src/Button.module.scss" },
+    position: { line: 2, character: 13 },
+    context: { includeDeclaration: false },
+  });
+
+  expect(result).not.toBeNull();
+  expect(result!.some((location) => location.uri === baseTsxUri)).toBe(true);
+  expect(result!.some((location) => location.uri.endsWith("Button.module.scss"))).toBe(true);
+});

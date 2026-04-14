@@ -1,7 +1,13 @@
 import type { LocationLink } from "vscode-languageserver/node";
 import type { Range } from "@css-module-explainer/shared";
+import {
+  findCanonicalSelector,
+  findComposesTokenAtCursor,
+  resolveComposesTarget,
+} from "../core/query/find-style-selector";
 import { readSourceExpressionResolution } from "../core/query/read-source-expression-resolution";
 import type { SelectorDeclHIR } from "../core/hir/style-types";
+import { findLangForPath } from "../core/scss/lang-registry";
 import { pathToFileUrl } from "../core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
 import { wrapHandler } from "./_wrap-handler";
@@ -31,8 +37,12 @@ import type { CursorParams, ProviderDeps } from "./provider-deps";
  */
 export const handleDefinition = wrapHandler<CursorParams, [], LocationLink[] | null>(
   "definition",
-  (params, deps) =>
-    withSourceExpressionAtCursor(params, deps, (ctx) => buildLinks(ctx, params, deps)),
+  (params, deps) => {
+    if (findLangForPath(params.filePath)) {
+      return buildStyleDefinition(params, deps);
+    }
+    return withSourceExpressionAtCursor(params, deps, (ctx) => buildLinks(ctx, params, deps));
+  },
   null,
 );
 
@@ -77,4 +87,22 @@ function toLocationLink(
     targetRange: toLspRange(selector.ruleRange),
     targetSelectionRange: toLspRange(selector.range),
   };
+}
+
+function buildStyleDefinition(params: CursorParams, deps: ProviderDeps): LocationLink[] | null {
+  const styleDocument = deps.styleDocumentForPath(params.filePath);
+  if (!styleDocument) return null;
+
+  const hit = findComposesTokenAtCursor(styleDocument, params.line, params.character);
+  if (!hit) return null;
+  const target = resolveComposesTarget(deps.styleDocumentForPath, styleDocument.filePath, hit);
+  if (!target) return null;
+
+  return [
+    toLocationLink(
+      hit.token.range,
+      pathToFileUrl(target.filePath),
+      findCanonicalSelector(target.styleDocument, target.selector),
+    ),
+  ];
 }

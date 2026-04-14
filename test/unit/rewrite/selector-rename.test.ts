@@ -5,6 +5,7 @@ import {
   readStyleSelectorRenameTargetAtCursor,
 } from "../../../server/src/core/rewrite/selector-rename";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
+import { WorkspaceStyleDependencyGraph } from "../../../server/src/core/semantic/style-dependency-graph";
 import { DEFAULT_SETTINGS } from "../../../server/src/settings";
 import {
   makeLiteralClassExpression,
@@ -17,6 +18,8 @@ const SCSS_PATH = "/fake/src/Button.module.scss";
 function makeEnv() {
   return {
     semanticReferenceIndex: new WorkspaceSemanticWorkspaceReferenceIndex(),
+    styleDependencyGraph: new WorkspaceStyleDependencyGraph(),
+    styleDocumentForPath: () => null,
     settings: DEFAULT_SETTINGS,
   };
 }
@@ -48,6 +51,28 @@ describe("selector rename planner", () => {
 
     const result = readStyleSelectorRenameTargetAtCursor(SCSS_PATH, 1, 3, styleDocument, env);
     expect(result).toEqual({ kind: "blocked", reason: "expandedReferences" });
+  });
+
+  it("blocks style-side rename targets that are referenced through composes", () => {
+    const env = makeEnv();
+    env.styleDependencyGraph.record(
+      "/fake/src/Card.module.scss",
+      makeStyleDocumentFixture("/fake/src/Card.module.scss", [
+        makeTestSelector("card", 1, {
+          composes: [{ classNames: ["button"], from: "./Button.module.scss" }],
+        }),
+      ]),
+    );
+    env.styleDocumentForPath = (path: string) => {
+      if (path === "/fake/src/Card.module.scss") {
+        return makeStyleDocumentFixture(path, [makeTestSelector("card", 1)]);
+      }
+      return null;
+    };
+    const styleDocument = makeStyleDocumentFixture(SCSS_PATH, [makeTestSelector("button", 1)]);
+
+    const result = readStyleSelectorRenameTargetAtCursor(SCSS_PATH, 1, 3, styleDocument, env);
+    expect(result).toEqual({ kind: "blocked", reason: "styleDependencyReferences" });
   });
 
   it("blocks dynamic source expressions before rewrite planning", () => {

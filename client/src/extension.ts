@@ -29,7 +29,7 @@ export function activate(context: vscode.ExtensionContext): void {
       { scheme: "file", language: "css" },
     ],
     synchronize: {
-      configurationSection: "cssModuleExplainer",
+      configurationSection: ["cssModuleExplainer", "cssModules"],
     },
     outputChannelName: "CSS Module Explainer",
     progressOnInitialization: true,

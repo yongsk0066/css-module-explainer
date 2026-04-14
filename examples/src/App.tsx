@@ -13,6 +13,7 @@ import { TsPathScenario } from "./scenarios/11-ts-path/TsPathScenario";
 import { NestedStyleFactsScenario } from "./scenarios/12-nested-style-facts/NestedStyleFactsScenario";
 import { ShadowingScenario } from "./scenarios/13-shadowing/ShadowingScenario";
 import { NonFiniteDynamicScenario } from "./scenarios/14-non-finite-dynamic/NonFiniteDynamicScenario";
+import { ComposesScenario } from "./scenarios/15-composes/ComposesScenario";
 
 type ScenarioGroup = "Basics" | "Binding" | "Dynamic" | "Style-side" | "Resolution";
 
@@ -131,6 +132,13 @@ const SCENARIOS: readonly Scenario[] = [
     title: "14 · non-finite dynamic",
     description: "Finite set, prefix, and top-like dynamic class resolution.",
     render: () => <NonFiniteDynamicScenario />,
+  },
+  {
+    id: "15-composes",
+    group: "Style-side",
+    title: "15 · composes graph",
+    description: "Same-file and cross-file composes navigation, references, and hover.",
+    render: () => <ComposesScenario />,
   },
 ];
 

@@ -30,10 +30,16 @@ export interface StyleLang {
  */
 export interface ComposesRef {
   readonly classNames: readonly string[];
+  readonly classTokens?: readonly ComposesClassToken[];
   /** Relative path to the source module. Undefined = same file. */
   readonly from?: string;
   /** `composes: x from global` — global (non-module) scope. */
   readonly fromGlobal?: boolean;
+}
+
+export interface ComposesClassToken {
+  readonly className: string;
+  readonly range: Range;
 }
 
 /**

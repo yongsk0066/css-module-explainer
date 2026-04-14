@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
+import { WorkspaceStyleDependencyGraph } from "../../../server/src/core/semantic/style-dependency-graph";
 import { findUnusedSelectors } from "../../../server/src/core/query/compute-unused-selectors";
 import { infoAtLine as info, semanticSiteAt } from "../../_fixtures/test-helpers";
-import { buildStyleDocumentFromSelectorMap } from "../../_fixtures/style-documents";
+import {
+  buildStyleDocumentFromSelectorMap,
+  makeTestSelector,
+} from "../../_fixtures/style-documents";
 
 const SCSS_PATH = "/fake/Button.module.scss";
 
@@ -142,5 +146,38 @@ describe("findUnusedSelectors", () => {
         },
       ],
     );
+  });
+
+  it("treats selectors reached through cross-file composes as used", () => {
+    const classMap = new Map([["base", info("base", 1)]]);
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    const styleDependencyGraph = new WorkspaceStyleDependencyGraph();
+    styleDependencyGraph.record(
+      "/fake/button.module.scss",
+      buildStyleDocumentFromSelectorMap(
+        "/fake/button.module.scss",
+        new Map([
+          [
+            "button",
+            {
+              ...makeTestSelector("button", 5),
+              composes: [{ classNames: ["base"], from: "./Button.module.scss" }],
+            },
+          ],
+        ]),
+      ),
+    );
+    semanticReferenceIndex.record("file:///a.tsx", [
+      semanticSiteAt("file:///a.tsx", "button", 5, "/fake/button.module.scss"),
+    ]);
+
+    expect(
+      findUnusedSelectors(
+        SCSS_PATH,
+        styleDocument(classMap),
+        semanticReferenceIndex,
+        styleDependencyGraph,
+      ),
+    ).toEqual([]);
   });
 });

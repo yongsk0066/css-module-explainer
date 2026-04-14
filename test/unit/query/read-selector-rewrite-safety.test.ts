@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
+import { WorkspaceStyleDependencyGraph } from "../../../server/src/core/semantic/style-dependency-graph";
 import { readSelectorRewriteSafetySummary } from "../../../server/src/core/query/read-selector-rewrite-safety";
+import { buildStyleDocumentFromSelectorMap } from "../../_fixtures/style-documents";
+import { infoAtLine } from "../../_fixtures/test-helpers";
 
 const SCSS_PATH = "/fake/src/Button.module.scss";
 
@@ -72,6 +75,46 @@ describe("readSelectorRewriteSafetySummary", () => {
     );
     expect(summary.referenceRewritePolicy).toBe("blockedByExpandedReferences");
     expect(summary.hasBlockingExpandedReferences).toBe(true);
+    expect(summary.directSites).toHaveLength(0);
+  });
+
+  it("blocks direct rewrite when CSS-side composes references exist", () => {
+    const styleDependencyGraph = new WorkspaceStyleDependencyGraph();
+    styleDependencyGraph.record(
+      "/fake/src/card.module.scss",
+      buildStyleDocumentFromSelectorMap(
+        "/fake/src/card.module.scss",
+        new Map([
+          [
+            "card",
+            {
+              ...infoAtLine("card", 5),
+              composes: [{ classNames: ["button"], from: "./Button.module.scss" }],
+            },
+          ],
+        ]),
+      ),
+    );
+
+    const summary = readSelectorRewriteSafetySummary(
+      {
+        semanticReferenceIndex: new WorkspaceSemanticWorkspaceReferenceIndex(),
+        styleDependencyGraph,
+        styleDocumentForPath: (path) => {
+          if (path === "/fake/src/card.module.scss") {
+            return buildStyleDocumentFromSelectorMap(
+              path,
+              new Map([["card", infoAtLine("card", 5)]]),
+            );
+          }
+          return null;
+        },
+      },
+      SCSS_PATH,
+      "button",
+    );
+    expect(summary.referenceRewritePolicy).toBe("blockedByStyleDependencies");
+    expect(summary.hasBlockingStyleDependencyReferences).toBe(true);
     expect(summary.directSites).toHaveLength(0);
   });
 });
