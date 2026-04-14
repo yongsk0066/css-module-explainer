@@ -46,6 +46,19 @@ html,
   gap: 4px;
 }
 
+.scenarioGroup + .scenarioGroup {
+  margin-top: 16px;
+}
+
+.scenarioGroup h2 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
 .sidebar nav button {
   width: 100%;
   text-align: left;
@@ -131,7 +144,8 @@ html,
   }
   .stage header p,
   .sidebar .subtitle,
-  .sidebar nav button small {
+  .sidebar nav button small,
+  .scenarioGroup h2 {
     color: #94a3b8;
   }
 }
