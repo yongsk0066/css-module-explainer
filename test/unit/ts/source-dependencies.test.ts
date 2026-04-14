@@ -1,5 +1,6 @@
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
+import { AliasResolver } from "../../../server/src/core/cx/alias-resolver";
 import { collectSourceDependencyPaths } from "../../../server/src/core/ts/source-dependencies";
 
 function parse(filePath: string, text: string): ts.SourceFile {
@@ -43,5 +44,30 @@ describe("collectSourceDependencyPaths", () => {
       "/fake/ws/src/App.tsx",
       "/fake/ws/src/theme.ts",
     ]);
+  });
+
+  it("collects aliased source candidates through the shared alias resolver", () => {
+    const sourceFile = parse(
+      "/fake/ws/src/App.tsx",
+      ["import { size } from '@/theme';", "import styles from '@/Button.module.scss';"].join("\n"),
+    );
+    const aliasResolver = new AliasResolver(
+      "/fake/ws",
+      {},
+      {
+        basePath: "/fake/ws/src",
+        paths: {
+          "@/*": ["*"],
+        },
+      },
+    );
+
+    expect(collectSourceDependencyPaths(sourceFile, sourceFile.fileName, aliasResolver)).toEqual(
+      expect.arrayContaining([
+        "/fake/ws/src/App.tsx",
+        "/fake/ws/src/theme.ts",
+        "/fake/ws/src/theme/index.ts",
+      ]),
+    );
   });
 });

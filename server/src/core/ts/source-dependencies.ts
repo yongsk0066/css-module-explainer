@@ -1,5 +1,6 @@
 import path from "node:path";
 import ts from "typescript";
+import type { AliasResolver } from "../cx/alias-resolver";
 
 const SOURCE_FILE_EXTENSIONS = [
   ".ts",
@@ -16,13 +17,14 @@ const SOURCE_FILE_EXTENSIONS = [
 export function collectSourceDependencyPaths(
   sourceFile: ts.SourceFile,
   filePath: string,
+  aliasResolver?: AliasResolver,
 ): readonly string[] {
   const dependencyPaths = new Set<string>([path.normalize(filePath)]);
 
   for (const statement of sourceFile.statements) {
-    const specifier = getRelativeModuleSpecifier(statement);
+    const specifier = getModuleSpecifier(statement);
     if (!specifier) continue;
-    for (const candidate of resolveRelativeSourceDependencyCandidates(filePath, specifier)) {
+    for (const candidate of resolveSourceDependencyCandidates(filePath, specifier, aliasResolver)) {
       dependencyPaths.add(candidate);
     }
   }
@@ -30,14 +32,10 @@ export function collectSourceDependencyPaths(
   return [...dependencyPaths].toSorted();
 }
 
-function getRelativeModuleSpecifier(statement: ts.Statement): string | null {
+function getModuleSpecifier(statement: ts.Statement): string | null {
   if (ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)) {
     const moduleSpecifier = statement.moduleSpecifier;
-    if (
-      moduleSpecifier &&
-      ts.isStringLiteral(moduleSpecifier) &&
-      moduleSpecifier.text.startsWith(".")
-    ) {
+    if (moduleSpecifier && ts.isStringLiteral(moduleSpecifier)) {
       return moduleSpecifier.text;
     }
   }
@@ -46,8 +44,7 @@ function getRelativeModuleSpecifier(statement: ts.Statement): string | null {
     if (
       ts.isExternalModuleReference(moduleReference) &&
       moduleReference.expression &&
-      ts.isStringLiteral(moduleReference.expression) &&
-      moduleReference.expression.text.startsWith(".")
+      ts.isStringLiteral(moduleReference.expression)
     ) {
       return moduleReference.expression.text;
     }
@@ -55,12 +52,22 @@ function getRelativeModuleSpecifier(statement: ts.Statement): string | null {
   return null;
 }
 
-function resolveRelativeSourceDependencyCandidates(
+function resolveSourceDependencyCandidates(
   containingFilePath: string,
   specifier: string,
+  aliasResolver?: AliasResolver,
 ): readonly string[] {
-  const resolvedBase = path.normalize(path.resolve(path.dirname(containingFilePath), specifier));
+  if (specifier.startsWith(".")) {
+    const resolvedBase = path.normalize(path.resolve(path.dirname(containingFilePath), specifier));
+    return expandSourceCandidates(resolvedBase);
+  }
 
+  const aliasedBase = aliasResolver?.resolve(specifier);
+  if (!aliasedBase) return [];
+  return expandSourceCandidates(path.normalize(aliasedBase));
+}
+
+function expandSourceCandidates(resolvedBase: string): readonly string[] {
   if (SOURCE_FILE_EXTENSIONS.some((ext) => resolvedBase.endsWith(ext))) {
     return [resolvedBase];
   }

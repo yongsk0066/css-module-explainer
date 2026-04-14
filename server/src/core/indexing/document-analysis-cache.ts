@@ -199,7 +199,11 @@ export class DocumentAnalysisCache {
     const cxBindings = resolveCxBindings(bindings, sourceBinder, sourceFile);
 
     const classUtilNames = this.deps.detectClassUtilImports?.(sourceFile) ?? [];
-    const sourceDependencyPaths = collectSourceDependencyPaths(sourceFile, filePath);
+    const sourceDependencyPaths = collectSourceDependencyPaths(
+      sourceFile,
+      filePath,
+      this.deps.aliasResolver,
+    );
     const sourceDocument = buildSourceDocument({
       filePath,
       cxBindings,
