@@ -23,6 +23,13 @@ import {
 } from "./settings";
 import { createDiagnosticsScheduler, type DiagnosticsScheduler } from "./diagnostics-scheduler";
 import type { WorkspaceRegistry } from "./workspace/workspace-registry";
+import {
+  planSettingsReload,
+  planWatchedFileInvalidation,
+  type OpenDocumentSnapshot,
+  type SettingsReloadWorkspaceChange,
+  type WatchedFileChangeInput,
+} from "./runtime/invalidation-planner";
 
 export interface HandlerContext {
   readonly connection: Connection;
@@ -93,10 +100,8 @@ function registerSettingsHandler(state: HandlerState): () => void {
         const registry = state.ctx.getRegistry();
         if (!registry) return;
 
-        let resourceChanged = false;
-        const affectedSourceUris = new Set<string>();
-        const affectedStyleRoots = new Set<string>();
         const bundles = registry.allDeps();
+        const openDocuments = snapshotOpenDocuments(state.ctx);
         const resourceSettingsByBundle = await Promise.all(
           bundles.map(async (deps) => ({
             deps,
@@ -106,6 +111,7 @@ function registerSettingsHandler(state: HandlerState): () => void {
             ),
           })),
         );
+        const workspaceChanges: SettingsReloadWorkspaceChange[] = [];
         for (const { deps, resourceSettingsInfo } of resourceSettingsByBundle) {
           const resourceSettings = resourceSettingsInfo.settings;
           const nextSettings = mergeSettings(windowSettings, resourceSettings);
@@ -130,48 +136,45 @@ function registerSettingsHandler(state: HandlerState): () => void {
           );
           const modeChanged =
             prevSettings.scss.classnameTransform !== nextSettings.scss.classnameTransform;
-          if (aliasChanged) deps.rebuildAliasResolver(nextSettings.pathAlias);
-          if (!aliasChanged && !modeChanged) continue;
-
-          resourceChanged = true;
-          if (modeChanged) {
-            affectedStyleRoots.add(deps.workspaceRoot);
-            for (const uri of deps.semanticReferenceIndex.findUrisBySettingsDependency(
-              deps.workspaceRoot,
-              prevSettingsKey,
-            )) {
-              affectedSourceUris.add(uri);
-            }
-          }
-          if (aliasChanged || prevSettingsKey !== nextSettingsKey) {
-            for (const doc of state.ctx.documents.all()) {
-              const filePath = fileUrlToPath(doc.uri);
-              if (findLangForPath(filePath)) continue;
-              if (state.ctx.getDeps(doc.uri)?.workspaceRoot === deps.workspaceRoot) {
-                affectedSourceUris.add(doc.uri);
-              }
-            }
-          }
+          workspaceChanges.push({
+            workspaceRoot: deps.workspaceRoot,
+            aliasChanged,
+            modeChanged,
+            settingsKeyChanged: prevSettingsKey !== nextSettingsKey,
+            affectedSettingsDependencyUris:
+              deps.semanticReferenceIndex.findUrisBySettingsDependency(
+                deps.workspaceRoot,
+                prevSettingsKey,
+              ),
+          });
         }
 
-        if (resourceChanged) {
-          for (const uri of affectedSourceUris) {
+        const plan = planSettingsReload(workspaceChanges, openDocuments);
+        for (const deps of bundles) {
+          if (!plan.aliasRebuildRoots.includes(deps.workspaceRoot)) continue;
+          deps.rebuildAliasResolver(deps.settings.pathAlias);
+        }
+
+        if (plan.resourceChanged) {
+          for (const uri of plan.affectedSourceUris) {
             const deps = state.ctx.getDeps(uri);
             if (!deps) continue;
             deps.semanticReferenceIndex.forget(uri);
             deps.analysisCache.invalidate(uri);
           }
           bundles[0]?.refreshCodeLens();
-          for (const doc of state.ctx.documents.all()) {
-            const filePath = fileUrlToPath(doc.uri);
-            if (findLangForPath(filePath)) {
-              if (affectedStyleRoots.has(state.ctx.getDeps(doc.uri)?.workspaceRoot ?? "")) {
+          for (const doc of openDocuments) {
+            if (doc.isStyle) {
+              if (
+                doc.workspaceRoot !== null &&
+                plan.affectedStyleRoots.includes(doc.workspaceRoot)
+              ) {
                 state.scheduler.scheduleScss(doc.uri);
               }
-            } else {
-              if (affectedSourceUris.has(doc.uri)) {
-                state.scheduler.scheduleTsx(doc.uri);
-              }
+              continue;
+            }
+            if (plan.affectedSourceUris.includes(doc.uri)) {
+              state.scheduler.scheduleTsx(doc.uri);
             }
           }
         }
@@ -296,95 +299,87 @@ function registerWatchedFilesHandler(state: HandlerState): void {
   connection.onDidChangeWatchedFiles((params: DidChangeWatchedFilesParams) => {
     const registry = state.ctx.getRegistry();
     if (!registry) return;
-    let hasStyleChange = false;
-    let hasSourceChange = false;
-    let hasProjectConfigChange = false;
-    const affectedWorkspaceRoots = new Set<string>();
-    const typeResolverInvalidationRoots = new Set<string>();
-    const affectedSourceUris = new Set<string>();
+    const openDocuments = snapshotOpenDocuments(state.ctx);
+    const changes: WatchedFileChangeInput[] = [];
     for (const change of params.changes) {
       const filePath = fileUrlToPath(change.uri);
       const deps = registry.getDepsForFilePath(filePath);
       if (!deps) continue;
-      affectedWorkspaceRoots.add(deps.workspaceRoot);
       if (findLangForPath(filePath)) {
         const semanticsChanged = hasStyleSemanticChange(filePath, change.type, deps, documents);
-        hasStyleChange = true;
-        if (semanticsChanged) {
-          deps.invalidateStyle(filePath);
-          if (change.type !== FileChangeType.Deleted) {
-            deps.pushStyleFile(filePath);
-          }
-          for (const uri of invalidateDependentTsxEntries(
-            state.ctx.getDeps,
-            deps.semanticReferenceIndex,
-            filePath,
-          )) {
-            affectedSourceUris.add(uri);
-          }
-        }
+        changes.push({
+          kind: "style",
+          workspaceRoot: deps.workspaceRoot,
+          filePath,
+          changeType: change.type,
+          semanticsChanged,
+          dependentSourceUris: semanticsChanged
+            ? [
+                ...invalidateDependentTsxEntries(
+                  state.ctx.getDeps,
+                  deps.semanticReferenceIndex,
+                  filePath,
+                ),
+              ]
+            : [],
+        });
       } else {
-        hasSourceChange = true;
-        if (isProjectConfigPath(filePath)) {
-          hasProjectConfigChange = true;
-          typeResolverInvalidationRoots.add(deps.workspaceRoot);
-        } else {
-          const dependentUris = deps.semanticReferenceIndex.findUrisBySourceDependency(
+        changes.push({
+          kind: "source",
+          workspaceRoot: deps.workspaceRoot,
+          filePath,
+          projectConfigChange: isProjectConfigPath(filePath),
+          dependentSourceUris: deps.semanticReferenceIndex.findUrisBySourceDependency(
             deps.workspaceRoot,
             filePath,
-          );
-          if (dependentUris.length > 0) {
-            typeResolverInvalidationRoots.add(deps.workspaceRoot);
-          }
-          for (const uri of dependentUris) {
-            affectedSourceUris.add(uri);
-          }
-        }
+          ),
+        });
       }
     }
+    const plan = planWatchedFileInvalidation(changes, openDocuments);
     const affectedDeps = registry
       .allDeps()
-      .filter((deps) => affectedWorkspaceRoots.has(deps.workspaceRoot));
-    if (hasProjectConfigChange) {
-      for (const deps of affectedDeps) {
+      .filter(
+        (deps) =>
+          plan.aliasRebuildRoots.includes(deps.workspaceRoot) ||
+          plan.typeResolverInvalidationRoots.includes(deps.workspaceRoot),
+      );
+    for (const change of changes) {
+      if (change.kind !== "style" || !change.semanticsChanged) continue;
+      const deps = registry.getDepsForFilePath(change.filePath);
+      if (!deps) continue;
+      if (plan.stylePathsToInvalidate.includes(change.filePath)) {
+        deps.invalidateStyle(change.filePath);
+      }
+      if (plan.stylePathsToPush.includes(change.filePath)) {
+        deps.pushStyleFile(change.filePath);
+      }
+    }
+    for (const deps of affectedDeps) {
+      if (plan.aliasRebuildRoots.includes(deps.workspaceRoot)) {
         deps.rebuildAliasResolver(deps.settings.pathAlias);
       }
-    }
-    if (hasSourceChange) {
-      for (const deps of affectedDeps) {
-        if (!typeResolverInvalidationRoots.has(deps.workspaceRoot)) continue;
+      if (plan.typeResolverInvalidationRoots.includes(deps.workspaceRoot)) {
         deps.typeResolver.invalidate(deps.workspaceRoot);
       }
-      if (hasProjectConfigChange) {
-        for (const doc of documents.all()) {
-          const deps = state.ctx.getDeps(doc.uri);
-          if (!deps || !affectedWorkspaceRoots.has(deps.workspaceRoot)) continue;
-          if (findLangForPath(fileUrlToPath(doc.uri))) continue;
-          affectedSourceUris.add(doc.uri);
-        }
-      }
-      for (const uri of affectedSourceUris) {
-        const deps = state.ctx.getDeps(uri);
-        if (!deps) continue;
-        deps.semanticReferenceIndex.forget(uri);
-        deps.analysisCache.invalidate(uri);
-      }
     }
-    if (hasStyleChange || hasSourceChange) {
-      for (const doc of documents.all()) {
-        const deps = state.ctx.getDeps(doc.uri);
-        if (!deps) continue;
-        const docPath = fileUrlToPath(doc.uri);
-        const rootAffected = affectedWorkspaceRoots.has(deps.workspaceRoot);
-        const sourceAffected = affectedSourceUris.has(doc.uri);
-        if (!rootAffected && !sourceAffected) continue;
-        if (findLangForPath(docPath)) {
-          if (!rootAffected) continue;
-          state.scheduler.scheduleScss(doc.uri);
-        } else {
-          if (!sourceAffected) continue;
-          state.scheduler.scheduleTsx(doc.uri);
-        }
+    for (const uri of plan.affectedSourceUris) {
+      const deps = state.ctx.getDeps(uri);
+      if (!deps) continue;
+      deps.semanticReferenceIndex.forget(uri);
+      deps.analysisCache.invalidate(uri);
+    }
+    for (const doc of openDocuments) {
+      const rootAffected =
+        doc.workspaceRoot !== null && plan.affectedWorkspaceRoots.includes(doc.workspaceRoot);
+      const sourceAffected = plan.affectedSourceUris.includes(doc.uri);
+      if (!rootAffected && !sourceAffected) continue;
+      if (doc.isStyle) {
+        if (rootAffected) state.scheduler.scheduleScss(doc.uri);
+        continue;
+      }
+      if (sourceAffected) {
+        state.scheduler.scheduleTsx(doc.uri);
       }
     }
   });
@@ -467,4 +462,16 @@ function toCursorParams(
     character: p.position.character,
     version: doc.version,
   };
+}
+
+function snapshotOpenDocuments(ctx: HandlerContext): readonly OpenDocumentSnapshot[] {
+  return ctx.documents.all().map((doc) => {
+    const filePath = fileUrlToPath(doc.uri);
+    return {
+      uri: doc.uri,
+      filePath,
+      isStyle: findLangForPath(filePath) !== null,
+      workspaceRoot: ctx.getDeps(doc.uri)?.workspaceRoot ?? null,
+    };
+  });
 }
