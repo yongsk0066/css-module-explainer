@@ -1,5 +1,23 @@
 # Changelog
 
+## [3.1.0] — 2026-04-14
+
+### Added
+
+- **Multi-root workspace routing** — workspace folders now carry resource-scoped settings and path alias resolution independently, so mixed repos can use different CSS Modules conventions without restarting the server.
+- **`composes` dependency graph** — cross-file and same-file `composes` edges now participate in selector usage, Find References, hover, definition, rename safety, and CodeLens.
+- **Style-side inspect surface** — selector hover now reports usage and dependency context, `composes` tokens support hover/definition/references, and CodeLens titles distinguish composed and dynamic references.
+- **Source and style dependency invalidation** — watched file changes now recompute only affected open documents for source imports, style dependencies, and settings-driven reanalysis.
+
+### Changed
+
+- **Compatibility path alias guidance** — the native `cssModuleExplainer.pathAlias` key is now the preferred setting; falling back to `cssModules.pathAlias` logs a deprecation notice per workspace root.
+- **Examples sandbox expanded** — the manual QA matrix now includes dedicated `composes` coverage alongside the multi-root, shadowing, non-finite dynamic, and nested style fact scenarios.
+
+### Fixed
+
+- **Nested and composed style diagnostics** — unresolved `composes` modules/selectors now surface SCSS diagnostics, and missing composed modules offer the same create-file quick fix flow as missing source-side module imports.
+
 ## 2.1.0
 
 ### Minor Changes

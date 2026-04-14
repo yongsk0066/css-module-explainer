@@ -165,7 +165,7 @@
   "extensionKind": [
     "workspace"
   ],
-  "preview": true,
+  "preview": false,
   "engines": {
     "node": ">=22",
     "vscode": "^1.115.0"
