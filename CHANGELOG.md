@@ -19,7 +19,6 @@
 ### Fixed
 
 - **Local packaging from development checkouts** — `.worktrees/` and `.pnpm-store/` are now excluded from the VSIX, preventing `vsce package` failures and accidental bundling of local development artifacts.
-
 ## [3.1.1] — 2026-04-14
 
 ### Added
