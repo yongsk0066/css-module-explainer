@@ -122,6 +122,46 @@ Runtime transport effects are also explicit.
 
 Runtime modules should not depend directly on LSP transport types.
 
+## Dependency Direction
+
+The runtime is intentionally kept package-ready even though it is still shipped
+as one extension codebase.
+
+Allowed direction:
+
+```text
+providers / lsp adapters
+  -> core/query
+  -> core/rewrite
+  -> core/*
+
+runtime
+  -> core/*
+
+core/*
+  -> core/*
+```
+
+Disallowed direction:
+
+```text
+core/* -> providers/*
+core/* -> runtime/*
+runtime/* -> providers/provider-deps
+runtime/* -> vscode-languageserver*
+providers/* -> deep core/query/* or core/rewrite/*
+```
+
+Current façade boundaries:
+
+- `server/src/core/query/index.ts`
+- `server/src/core/rewrite/index.ts`
+- `server/src/core/semantic/index.ts`
+- `server/src/runtime/index.ts`
+
+These entrypoints are the intended future extraction seams if the project ever
+needs a separate engine package.
+
 ## Reference Collection and Storage
 
 Reference ingestion and reference storage are separate responsibilities.
@@ -198,6 +238,11 @@ This is why the old semantic graph builders were moved out of runtime.
 `cssModules.pathAlias` is still accepted as a compatibility fallback in 3.x.
 The server emits a deprecation notice per workspace root when that fallback is
 used.
+
+Current deprecation policy:
+
+- warning starts: `3.1.x`
+- planned removal: `4.0.0`
 
 Compatibility behavior belongs in `server/src/settings.ts`. Runtime consumers
 should read the normalized settings shape only.
