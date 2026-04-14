@@ -142,7 +142,7 @@ function registerSettingsHandler(state: HandlerState): () => void {
             modeChanged,
             settingsKeyChanged: prevSettingsKey !== nextSettingsKey,
             affectedSettingsDependencyUris:
-              deps.semanticReferenceIndex.findUrisBySettingsDependency(
+              deps.semanticReferenceIndex.dependencies.findUrisBySettingsDependency(
                 deps.workspaceRoot,
                 prevSettingsKey,
               ),
@@ -317,7 +317,7 @@ function registerWatchedFilesHandler(state: HandlerState): void {
             ? [
                 ...invalidateDependentTsxEntries(
                   state.ctx.getDeps,
-                  deps.semanticReferenceIndex,
+                  deps.semanticReferenceIndex.dependencies,
                   filePath,
                 ),
               ]
@@ -329,7 +329,7 @@ function registerWatchedFilesHandler(state: HandlerState): void {
           workspaceRoot: deps.workspaceRoot,
           filePath,
           projectConfigChange: isProjectConfigPath(filePath),
-          dependentSourceUris: deps.semanticReferenceIndex.findUrisBySourceDependency(
+          dependentSourceUris: deps.semanticReferenceIndex.dependencies.findUrisBySourceDependency(
             deps.workspaceRoot,
             filePath,
           ),
@@ -402,10 +402,10 @@ function isProjectConfigPath(filePath: string): boolean {
  */
 function invalidateDependentTsxEntries(
   getDeps: (uri: string) => ProviderDeps | null,
-  semanticReferenceIndex: ProviderDeps["semanticReferenceIndex"],
+  semanticReferenceDependencies: ProviderDeps["semanticReferenceIndex"]["dependencies"],
   scssPath: string,
 ): ReadonlySet<string> {
-  const affectedUris = new Set(semanticReferenceIndex.findReferencingUris(scssPath));
+  const affectedUris = new Set(semanticReferenceDependencies.findReferencingUris(scssPath));
   for (const uri of affectedUris) {
     getDeps(uri)?.analysisCache.invalidate(uri);
   }

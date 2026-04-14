@@ -1,8 +1,15 @@
 import type { SemanticContributionDeps, SemanticModuleUsageSite } from "./reference-collector";
 import { filterSelectorReferencePolicy } from "./reference-policy";
 import { type ReferenceQueryOptions, type SemanticReferenceSite } from "./reference-types";
+import {
+  NullSemanticReferenceDependencies,
+  type ReferenceDependencyContribution,
+  type SemanticReferenceDependencyLookup,
+  WorkspaceSemanticReferenceDependencies,
+} from "./reference-dependencies";
 
 export interface SemanticWorkspaceReferenceIndex {
+  readonly dependencies: SemanticReferenceDependencyLookup;
   record(
     uri: string,
     sites: readonly SemanticReferenceSite[],
@@ -32,6 +39,7 @@ export interface SemanticWorkspaceReferenceIndex {
 }
 
 export class NullSemanticWorkspaceReferenceIndex implements SemanticWorkspaceReferenceIndex {
+  readonly dependencies = new NullSemanticReferenceDependencies();
   record(
     _uri: string,
     _sites: readonly SemanticReferenceSite[],
@@ -86,17 +94,13 @@ export class NullSemanticWorkspaceReferenceIndex implements SemanticWorkspaceRef
 export class WorkspaceSemanticWorkspaceReferenceIndex implements SemanticWorkspaceReferenceIndex {
   private readonly contributions = new Map<
     string,
-    {
+    ReferenceDependencyContribution & {
       readonly referenceSites: readonly SemanticReferenceSite[];
-      readonly moduleUsages: readonly SemanticModuleUsageSite[];
-      readonly deps: SemanticContributionDeps;
     }
   >();
+  readonly dependencies = new WorkspaceSemanticReferenceDependencies();
   private readonly selectorToSites = new Map<string, readonly SemanticReferenceSite[]>();
   private readonly scssToSites = new Map<string, readonly SemanticReferenceSite[]>();
-  private readonly scssToModuleUsages = new Map<string, readonly SemanticModuleUsageSite[]>();
-  private readonly settingsDependencyToUris = new Map<string, readonly string[]>();
-  private readonly sourceDependencyToUris = new Map<string, readonly string[]>();
 
   record(
     uri: string,
@@ -148,76 +152,43 @@ export class WorkspaceSemanticWorkspaceReferenceIndex implements SemanticWorkspa
   }
 
   findModuleUsages(scssPath: string): readonly SemanticModuleUsageSite[] {
-    return this.scssToModuleUsages.get(scssPath) ?? [];
+    return this.dependencies.findModuleUsages(scssPath);
   }
 
   findReferencingUris(scssPath: string): readonly string[] {
-    const uris = new Set<string>();
-    for (const usage of this.findModuleUsages(scssPath)) {
-      uris.add(usage.uri);
-    }
-    return [...uris].toSorted();
+    return this.dependencies.findReferencingUris(scssPath);
   }
 
   findUrisBySettingsDependency(workspaceRoot: string, settingsKey: string): readonly string[] {
-    return (
-      this.settingsDependencyToUris.get(settingsDependencyKey(workspaceRoot, settingsKey)) ?? []
-    );
+    return this.dependencies.findUrisBySettingsDependency(workspaceRoot, settingsKey);
   }
 
   findUrisBySourceDependency(workspaceRoot: string, sourcePath: string): readonly string[] {
-    return this.sourceDependencyToUris.get(sourceDependencyKey(workspaceRoot, sourcePath)) ?? [];
+    return this.dependencies.findUrisBySourceDependency(workspaceRoot, sourcePath);
   }
 
   clear(): void {
     this.contributions.clear();
     this.selectorToSites.clear();
     this.scssToSites.clear();
-    this.scssToModuleUsages.clear();
-    this.settingsDependencyToUris.clear();
-    this.sourceDependencyToUris.clear();
+    this.dependencies.clear();
   }
 
   private rebuild(): void {
     this.selectorToSites.clear();
     this.scssToSites.clear();
-    this.scssToModuleUsages.clear();
-    this.settingsDependencyToUris.clear();
-    this.sourceDependencyToUris.clear();
-    for (const [uri, contribution] of this.contributions.entries()) {
+    for (const contribution of this.contributions.values()) {
       for (const site of contribution.referenceSites) {
         push(this.selectorToSites, selectorKeyFor(site.selectorFilePath, site.canonicalName), site);
         push(this.scssToSites, site.selectorFilePath, site);
       }
-      for (const usage of contribution.moduleUsages) {
-        push(this.scssToModuleUsages, usage.scssModulePath, usage);
-      }
-      push(
-        this.settingsDependencyToUris,
-        settingsDependencyKey(contribution.deps.workspaceRoot, contribution.deps.settingsKey),
-        uri,
-      );
-      for (const sourcePath of contribution.deps.sourcePaths) {
-        push(
-          this.sourceDependencyToUris,
-          sourceDependencyKey(contribution.deps.workspaceRoot, sourcePath),
-          uri,
-        );
-      }
     }
+    this.dependencies.rebuild(this.contributions);
   }
 }
 
 function selectorKeyFor(filePath: string, canonicalName: string): string {
   return `${filePath}::${canonicalName}`;
-}
-
-function settingsDependencyKey(workspaceRoot: string, settingsKey: string): string {
-  return `${workspaceRoot}::${settingsKey}`;
-}
-
-function sourceDependencyKey(workspaceRoot: string, sourcePath: string): string {
-  return `${workspaceRoot}::${sourcePath}`;
 }
 
 function push<T>(map: Map<string, readonly T[]>, key: string, value: T): void {
