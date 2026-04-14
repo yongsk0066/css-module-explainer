@@ -2,7 +2,7 @@ import type { BemSuffixInfo, Range } from "@css-module-explainer/shared";
 import type { ClassExpressionHIR } from "../hir/source-types";
 import type { SelectorDeclHIR, StyleDocumentHIR } from "../hir/style-types";
 import type { ReferenceQueryEnv } from "../query/find-references";
-import { findCanonicalSelector, findSelectorAtCursor } from "../query/find-style-selector";
+import { findSelectorAtCursor } from "../query/find-style-selector";
 import {
   readSelectorRewriteSafetySummary,
   type SelectorRewriteSafetySummary,
@@ -11,6 +11,10 @@ import type { PlannedTextEdit, TextRewritePlan } from "./text-rewrite-plan";
 import { type ClassnameTransformMode, transformClassname } from "../scss/classname-transform";
 import { pathToFileUrl } from "../util/text-utils";
 import type { Settings } from "../../settings";
+import {
+  readStyleSelectorRewritePolicy,
+  type StyleSelectorRewritePolicySummary,
+} from "./read-style-rewrite-policy";
 
 const IDENTIFIER_RE = /^[a-zA-Z_][\w-]*$/;
 
@@ -37,8 +41,7 @@ export interface SelectorRenameTarget {
   readonly scssUri: string;
   readonly styleDocument: StyleDocumentHIR;
   readonly selector: SelectorDeclHIR;
-  readonly canonicalSelector: SelectorDeclHIR;
-  readonly canonicalName: string;
+  readonly styleRewritePolicy: StyleSelectorRewritePolicySummary;
   readonly placeholder: string;
   readonly placeholderRange: Range;
   readonly rewriteSafety: SelectorRewriteSafetySummary;
@@ -115,25 +118,26 @@ export function planSelectorRename(
     return { kind: "blocked", reason: "invalidNewName" };
   }
 
-  const scssEdit = target.canonicalSelector.bemSuffix
-    ? buildBemSuffixEdit(
-        target.scssUri,
-        target.canonicalSelector.bemSuffix,
-        target.canonicalSelector.name,
-        newName,
-      )
-    : {
-        uri: target.scssUri,
-        range: target.canonicalSelector.range,
-        newText: newName,
-      };
+  const scssEdit =
+    target.styleRewritePolicy.rewriteShape === "bemSuffix" && target.styleRewritePolicy.bemSuffix
+      ? buildBemSuffixEdit(
+          target.scssUri,
+          target.styleRewritePolicy.bemSuffix,
+          target.styleRewritePolicy.canonicalSelector.name,
+          newName,
+        )
+      : {
+          uri: target.scssUri,
+          range: target.styleRewritePolicy.canonicalSelector.range,
+          newText: newName,
+        };
   if ("kind" in scssEdit) return scssEdit;
 
   const edits: PlannedTextEdit[] = [scssEdit];
   for (const site of target.rewriteSafety.directSites) {
     const written = site.className;
     const newText =
-      written === target.canonicalName
+      written === target.styleRewritePolicy.canonicalName
         ? newName
         : (pickAliasForm(target.aliasMode, newName) ?? newName);
     edits.push({
@@ -179,27 +183,21 @@ function finalizeSelectorRenameTarget(
   args: FinalizeRenameTargetArgs,
   env: SelectorRenamePlannerEnv,
 ): SelectorRenameReadResult {
-  const canonicalSelector = findCanonicalSelector(args.styleDocument, args.selector);
-  if (!isRenameSafe(canonicalSelector)) {
-    if (canonicalSelector.bemSuffix?.rawToken.includes("#{")) {
-      return { kind: "blocked", reason: "interpolatedSelector" };
-    }
-    return { kind: "blocked", reason: "unsafeSelectorShape" };
-  }
-
   const aliasMode = env.settings.scss.classnameTransform;
-  if (
-    args.rejectAliasSelectorViews &&
-    (aliasMode === "camelCaseOnly" || aliasMode === "dashesOnly") &&
-    args.selector.viewKind === "alias"
-  ) {
-    return { kind: "blocked", reason: "aliasViewBlocked" };
+  const rewritePolicy = readStyleSelectorRewritePolicy({
+    styleDocument: args.styleDocument,
+    selector: args.selector,
+    aliasMode,
+    rejectAliasSelectorViews: args.rejectAliasSelectorViews,
+  });
+  if (rewritePolicy.kind === "blocked") {
+    return rewritePolicy;
   }
 
   const rewriteSafety = readSelectorRewriteSafetySummary(
     env,
     args.scssPath,
-    canonicalSelector.canonicalName,
+    rewritePolicy.summary.canonicalName,
   );
   if (rewriteSafety.hasBlockingStyleDependencyReferences) {
     return { kind: "blocked", reason: "styleDependencyReferences" };
@@ -215,20 +213,13 @@ function finalizeSelectorRenameTarget(
       scssUri: pathToFileUrl(args.scssPath),
       styleDocument: args.styleDocument,
       selector: args.selector,
-      canonicalSelector,
-      canonicalName: canonicalSelector.canonicalName,
+      styleRewritePolicy: rewritePolicy.summary,
       placeholder: args.placeholder,
       placeholderRange: args.placeholderRange,
       rewriteSafety,
       aliasMode,
     },
   };
-}
-
-function isRenameSafe(selector: SelectorDeclHIR): boolean {
-  if (selector.nestedSafety === "flat") return true;
-  if (selector.nestedSafety !== "bemSuffixSafe" || !selector.bemSuffix) return false;
-  return !selector.bemSuffix.rawToken.includes("#{");
 }
 
 function pickAliasForm(mode: ClassnameTransformMode, newName: string): string | null {
