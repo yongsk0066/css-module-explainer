@@ -1,110 +1,157 @@
 # Releasing
 
+This document defines the current release process.
+
+It is an operations document, not a rollout diary.
+
 ## Branches
 
 - `master`: stable releases
 - `next`: preview releases
 
-Stable and preview releases use numeric extension versions. Preview releases are
-published with `--pre-release`.
+## Versioning Rules
 
-## Pre-release rules
+Stable and preview releases both use numeric extension versions.
 
-VS Code Marketplace pre-release publishing has two hard constraints:
+Use:
 
-1. publish with `vsce package --pre-release` / `vsce publish --pre-release`
-2. keep extension versions in plain `major.minor.patch` form
+- `3.2.0`
+- `3.2.1`
+- `3.3.0`
 
-Do not use versions such as `3.0.0-alpha.1` or `3.0.0-beta.2`. Marketplace
-does not support semver pre-release tags for extension versions.
+Do not use:
 
-Versions must also stay distinct across channels. If `3.1.0` is published as a
-pre-release, the next stable release cannot reuse `3.1.0`.
+- `3.2.0-alpha.1`
+- `3.2.0-beta.1`
 
-Official guidance:
+VS Code Marketplace pre-release publishing requires:
 
-- VS Code Marketplace pre-release docs:
-  https://code.visualstudio.com/api/working-with-extensions/publishing-extension#pre-release-extensions
+1. numeric `major.minor.patch` versions
+2. `--pre-release` packaging/publishing for preview builds
 
-## 3.0 alpha plan
+Stable and preview versions must stay distinct. If a version has already been
+used for a preview publish, the next stable release must use a different
+version number.
 
-For the 3.0 architecture rollout:
+Reference:
 
-- keep `master` on stable `2.x`
-- publish alpha builds from `next`
-- use numeric preview versions on `next`
-- publish Marketplace previews with `channel=preview`
+- https://code.visualstudio.com/api/working-with-extensions/publishing-extension#pre-release-extensions
 
-Recommended version policy:
+## Channels
 
-- `master`: stable line
-  - current stable remains `2.x`
-  - final cutover can ship as `3.0.0`
-- `next`: preview line
-  - use `3.1.x` for `3.0` alpha and beta builds
-  - publish every preview with `--pre-release`
+### Stable
 
-This keeps the final stable `3.0.0` available while still following the VS Code
-pre-release versioning rules.
+- branch: `master`
+- workflow input: `channel=stable`
+- publishes a normal Marketplace release
 
-Open VSX is different. Its publishing guide documents packaging and upload, but
-does not document a Marketplace-style pre-release channel. Treat Open VSX as a
-secondary distribution target for alpha builds, not as the authoritative
-preview channel.
+### Preview
 
-Official Open VSX publishing guide:
+- branch: `next`
+- workflow input: `channel=preview`
+- publishes a Marketplace pre-release
+
+Open VSX does not document Marketplace-style preview behavior in the same way.
+Treat preview publishing there as optional.
+
+Reference:
 
 - https://github.com/eclipse-openvsx/openvsx/wiki/Publishing-Extensions
 
-## Release planning
+## Release Planning
 
 User-facing pull requests should include a changeset.
 
-PRs that only touch CI, docs, tests, or `examples/` can use the
-`changeset:skip` label.
+PRs that only touch docs, tests, CI, or `examples/` can use:
 
-On `master`, the release-plan workflow opens or updates a release pull request
-that applies pending changesets and updates the changelog.
+- `changeset:skip`
 
-## Manual publish
+On `master`, the release-plan workflow prepares version/changelog updates from
+pending changesets.
+
+## Verification
+
+Before a release:
+
+```bash
+pnpm install
+pnpm release:verify
+pnpm test:extension-host
+pnpm --dir examples exec tsc -p tsconfig.json --noEmit
+pnpm --dir examples build
+pnpm exec vsce package --no-dependencies
+```
+
+`pnpm release:verify` does:
+
+1. sync `SERVER_VERSION`
+2. run `pnpm check`
+3. run `pnpm test`
+4. run `pnpm build`
+
+## Publish Workflow
 
 Publishing is done through the `Publish Extension` GitHub Actions workflow.
 
 Inputs:
 
-- `ref`: branch or tag to publish
-- `channel`: `stable` or `preview`
+- `ref`
+- `channel`
 - `publish_marketplace`
 - `publish_openvsx`
 - `create_github_release`
 
-This workflow:
+The workflow:
 
-1. syncs `SERVER_VERSION` from `package.json`
-2. runs `pnpm check`
-3. runs `pnpm test`
-4. runs the extension-host smoke test in CI
-5. builds and packages the extension
-6. publishes to VS Code Marketplace and/or Open VSX
-7. optionally creates a GitHub release
+1. checks out the requested ref
+2. installs dependencies
+3. runs `./scripts/publish-extension.sh`
+4. packages the VSIX
+5. publishes to Marketplace and/or Open VSX
+6. optionally creates a GitHub release
 
-For a 3.0 alpha release:
+## Stable Release Procedure
 
-1. merge the target changes into `next`
-2. bump `next` to the next preview version, for example `3.1.0`
+1. merge the target release branch into `master`
+2. run `Publish Extension`
+3. set:
+   - `ref=master`
+   - `channel=stable`
+   - `publish_marketplace=true`
+   - `publish_openvsx=true` or `false`
+   - `create_github_release=true`
+
+## Preview Release Procedure
+
+1. merge the target preview work into `next`
+2. bump `next` to the preview version
 3. run `Publish Extension`
 4. set:
    - `ref=next`
    - `channel=preview`
    - `publish_marketplace=true`
-   - `publish_openvsx=false` or `true` depending on whether you want a secondary package upload
+   - `publish_openvsx=false` or `true`
    - `create_github_release=true`
 
-## Local verification
+## Compatibility Deprecations
+
+Current path-alias deprecation policy:
+
+- legacy key: `cssModules.pathAlias`
+- replacement key: `cssModuleExplainer.pathAlias`
+- warning starts: `3.1.x`
+- planned removal: `4.0.0`
+
+Removal must update:
+
+- `server/src/settings.ts`
+- `README.md`
+- `package.json` configuration metadata
+- changelog / release notes
+
+## Local Publish
 
 ```bash
-pnpm install
-pnpm release:verify
 pnpm release:publish
 ```
 
@@ -116,12 +163,4 @@ Environment variables used by the publish script:
 - `VSCE_PAT`
 - `OVSX_PAT`
 
-For local publishing, you can also place `VSCE_PAT` and `OVSX_PAT` in a repo
-root `.env` file. The publish script loads it automatically when present.
-
-Example:
-
-```bash
-VSCE_PAT=...
-OVSX_PAT=...
-```
+The publish script also loads a repo-root `.env` file when present.
