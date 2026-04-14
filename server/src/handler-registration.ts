@@ -17,6 +17,7 @@ import {
   fetchResourceSettings,
   fetchWindowSettings,
   mergeSettings,
+  resourceSettingsDependencyKey,
   type WindowSettings,
 } from "./settings";
 import { createDiagnosticsScheduler, type DiagnosticsScheduler } from "./diagnostics-scheduler";
@@ -90,6 +91,8 @@ function registerSettingsHandler(state: HandlerState): () => void {
         if (!registry) return;
 
         let resourceChanged = false;
+        const affectedSourceUris = new Set<string>();
+        const affectedStyleRoots = new Set<string>();
         const bundles = registry.allDeps();
         const resourceSettingsByBundle = await Promise.all(
           bundles.map(async (deps) => ({
@@ -100,6 +103,8 @@ function registerSettingsHandler(state: HandlerState): () => void {
         for (const { deps, resourceSettings } of resourceSettingsByBundle) {
           const nextSettings = mergeSettings(windowSettings, resourceSettings);
           const prevSettings = deps.settings;
+          const prevSettingsKey = resourceSettingsDependencyKey(prevSettings);
+          const nextSettingsKey = resourceSettingsDependencyKey(nextSettings);
           deps.settings = nextSettings;
 
           const aliasChanged = !shallowEqualPathAlias(
@@ -109,21 +114,47 @@ function registerSettingsHandler(state: HandlerState): () => void {
           const modeChanged =
             prevSettings.scss.classnameTransform !== nextSettings.scss.classnameTransform;
           if (aliasChanged) deps.rebuildAliasResolver(nextSettings.pathAlias);
-          if (aliasChanged || modeChanged) resourceChanged = true;
+          if (!aliasChanged && !modeChanged) continue;
+
+          resourceChanged = true;
+          if (modeChanged) {
+            affectedStyleRoots.add(deps.workspaceRoot);
+            for (const uri of deps.semanticReferenceIndex.findUrisBySettingsDependency(
+              deps.workspaceRoot,
+              prevSettingsKey,
+            )) {
+              affectedSourceUris.add(uri);
+            }
+          }
+          if (aliasChanged || prevSettingsKey !== nextSettingsKey) {
+            for (const doc of state.ctx.documents.all()) {
+              const filePath = fileUrlToPath(doc.uri);
+              if (findLangForPath(filePath)) continue;
+              if (state.ctx.getDeps(doc.uri)?.workspaceRoot === deps.workspaceRoot) {
+                affectedSourceUris.add(doc.uri);
+              }
+            }
+          }
         }
 
         if (resourceChanged) {
-          for (const deps of bundles) {
-            deps.analysisCache.clear();
+          for (const uri of affectedSourceUris) {
+            const deps = state.ctx.getDeps(uri);
+            if (!deps) continue;
+            deps.semanticReferenceIndex.forget(uri);
+            deps.analysisCache.invalidate(uri);
           }
-          bundles[0]?.semanticReferenceIndex.clear();
           bundles[0]?.refreshCodeLens();
           for (const doc of state.ctx.documents.all()) {
             const filePath = fileUrlToPath(doc.uri);
             if (findLangForPath(filePath)) {
-              state.scheduler.scheduleScss(doc.uri);
+              if (affectedStyleRoots.has(state.ctx.getDeps(doc.uri)?.workspaceRoot ?? "")) {
+                state.scheduler.scheduleScss(doc.uri);
+              }
             } else {
-              state.scheduler.scheduleTsx(doc.uri);
+              if (affectedSourceUris.has(doc.uri)) {
+                state.scheduler.scheduleTsx(doc.uri);
+              }
             }
           }
         }

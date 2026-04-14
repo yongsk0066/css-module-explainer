@@ -129,6 +129,14 @@ export function mergeSettings(
   };
 }
 
+export function resourceSettingsDependencyKey(settings: ResourceSettings): string {
+  const pathAlias = Object.entries(settings.pathAlias)
+    .toSorted(([a], [b]) => a.localeCompare(b))
+    .map(([key, value]) => `${key}=${value}`)
+    .join("|");
+  return `transform:${settings.scss.classnameTransform};alias:${pathAlias}`;
+}
+
 /**
  * Parse a path alias record into `Record<string, string>`.
  * Non-record inputs fall back to `{}`; record values that are not strings

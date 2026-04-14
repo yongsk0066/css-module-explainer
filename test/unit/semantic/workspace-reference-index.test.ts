@@ -39,6 +39,7 @@ describe("WorkspaceSemanticWorkspaceReferenceIndex", () => {
       typeResolver: new FakeTypeResolver(),
       filePath: FILE_PATH,
       workspaceRoot: "/fake/ws",
+      settingsKey: "transform:asIs;alias:",
     });
 
     expect(contribution.referenceSites).toEqual([]);
@@ -73,6 +74,7 @@ describe("WorkspaceSemanticWorkspaceReferenceIndex", () => {
       typeResolver: new FakeTypeResolver(),
       filePath: FILE_PATH,
       workspaceRoot: "/fake/ws",
+      settingsKey: "transform:asIs;alias:",
     });
 
     expect(contribution.referenceSites).toHaveLength(1);
@@ -82,6 +84,39 @@ describe("WorkspaceSemanticWorkspaceReferenceIndex", () => {
         isDynamic: true,
         hasResolvedTargets: true,
       },
+    ]);
+  });
+
+  it("indexes contribution dependencies by workspaceRoot and settingsKey", () => {
+    const index = new WorkspaceSemanticWorkspaceReferenceIndex();
+    index.record(
+      "file:///fake/ws/src/App.tsx",
+      [],
+      [
+        {
+          refId: "ref:1",
+          uri: "file:///fake/ws/src/App.tsx",
+          filePath: "/fake/ws/src/App.tsx",
+          range: {
+            start: { line: 0, character: 0 },
+            end: { line: 0, character: 1 },
+          },
+          origin: "cxCall",
+          scssModulePath: SCSS_PATH,
+          expressionKind: "symbolRef",
+          hasResolvedTargets: false,
+          isDynamic: true,
+        },
+      ],
+      {
+        workspaceRoot: "/fake/ws",
+        settingsKey: "transform:asIs;alias:",
+        stylePaths: [SCSS_PATH],
+      },
+    );
+
+    expect(index.findUrisBySettingsDependency("/fake/ws", "transform:asIs;alias:")).toEqual([
+      "file:///fake/ws/src/App.tsx",
     ]);
   });
 });

@@ -14,7 +14,12 @@ import {
 } from "vscode-languageserver/node";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import ts from "typescript";
-import { DEFAULT_RESOURCE_SETTINGS, DEFAULT_SETTINGS, type ResourceSettings } from "./settings";
+import {
+  DEFAULT_RESOURCE_SETTINGS,
+  DEFAULT_SETTINGS,
+  resourceSettingsDependencyKey,
+  type ResourceSettings,
+} from "./settings";
 import { buildStyleFileWatcherGlob, findLangForPath } from "./core/scss/lang-registry";
 import { StyleIndexCache } from "./core/scss/scss-index";
 import type { StyleDocumentHIR } from "./core/hir/style-types";
@@ -316,6 +321,7 @@ function buildBundle(
     typeResolver,
     fileExists,
     getAliasResolver: () => aliasHolder.get(),
+    getSettingsKey: () => resourceSettingsDependencyKey(currentSettings),
     refreshCodeLens,
   });
   const indexerWorker = buildIndexerWorker(
@@ -433,6 +439,7 @@ interface AnalysisCacheArgs {
   readonly typeResolver: TypeResolver;
   readonly fileExists: (path: string) => boolean;
   readonly getAliasResolver: () => AliasResolver;
+  readonly getSettingsKey: () => string;
   readonly refreshCodeLens: () => void;
 }
 
@@ -444,6 +451,7 @@ function buildAnalysisCache(args: AnalysisCacheArgs): DocumentAnalysisCache {
     typeResolver,
     fileExists,
     getAliasResolver,
+    getSettingsKey,
     refreshCodeLens,
   } = args;
   return new DocumentAnalysisCache({
@@ -465,11 +473,13 @@ function buildAnalysisCache(args: AnalysisCacheArgs): DocumentAnalysisCache {
         typeResolver,
         workspaceRoot,
         filePath: fileUrlToPath(uri),
+        settingsKey: getSettingsKey(),
       });
       caches.semanticReferenceIndex.record(
         uri,
         semanticContribution.referenceSites,
         semanticContribution.moduleUsages,
+        semanticContribution.deps,
       );
       refreshCodeLens();
     },
