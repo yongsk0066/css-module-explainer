@@ -12,7 +12,7 @@ import { DocumentAnalysisCache } from "../core/indexing/document-analysis-cache"
 import { IndexerWorker } from "../core/indexing/indexer-worker";
 import { scssFileSupplier } from "../core/indexing/file-supplier";
 import type { FileTask } from "../core/indexing/indexer-worker";
-import { collectSemanticReferenceContribution } from "../core/semantic/workspace-reference-index";
+import { collectSemanticReferenceContribution } from "../core/semantic/reference-collector";
 import type { TypeResolver } from "../core/ts/type-resolver";
 import { fileUrlToPath } from "../core/util/text-utils";
 import type { WorkspaceFolderInfo, WorkspaceProviderDeps } from "../workspace/workspace-registry";

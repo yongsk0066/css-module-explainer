@@ -8,10 +8,8 @@ import {
   makeStyleImportBinding,
   makeSymbolRefClassExpression,
 } from "../../../server/src/core/hir/source-types";
-import {
-  collectSemanticReferenceContribution,
-  WorkspaceSemanticWorkspaceReferenceIndex,
-} from "../../../server/src/core/semantic/workspace-reference-index";
+import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
+import { collectSemanticReferenceContribution } from "../../../server/src/core/semantic/reference-collector";
 import type { StyleImport } from "@css-module-explainer/shared";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
 import { info } from "../../_fixtures/test-helpers";
