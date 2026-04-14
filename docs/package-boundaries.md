@@ -31,6 +31,7 @@ Disallowed direction:
 core/* -> providers/*
 core/* -> runtime/*
 runtime/* -> providers/provider-deps
+runtime/* -> vscode-languageserver*
 providers/* -> deep core/query/* or core/rewrite/*
 ```
 
@@ -38,6 +39,7 @@ providers/* -> deep core/query/* or core/rewrite/*
 
 - `core` must describe semantic behavior without LSP transport concerns
 - `runtime` must orchestrate work without depending on provider-specific contracts
+- `runtime` must not know about LSP transport types directly
 - `providers` should consume stable façade entrypoints, not internal deep files
 
 ## Current Façade Boundaries

@@ -1,4 +1,5 @@
 import type { Connection, TextDocumentPositionParams } from "vscode-languageserver/node";
+import { FileChangeType } from "vscode-languageserver/node";
 import type { DidChangeWatchedFilesParams } from "vscode-languageserver/node";
 import type { TextDocument } from "vscode-languageserver-textdocument";
 import type { TextDocuments } from "vscode-languageserver/node";
@@ -31,6 +32,7 @@ import {
   createRuntimeDependencySnapshot,
   snapshotOpenDocuments,
   collectWatchedFileChangeInputs,
+  type RuntimeFileEvent,
 } from "./runtime";
 
 export interface HandlerContext {
@@ -315,7 +317,7 @@ function registerWatchedFilesHandler(state: HandlerState): void {
       }),
     );
     const changes = collectWatchedFileChangeInputs(
-      params.changes,
+      params.changes.map(toRuntimeFileEvent),
       {
         documents: state.ctx.documents,
         getDepsForFilePath: (filePath) => registry.getDepsForFilePath(filePath),
@@ -369,6 +371,20 @@ function registerWatchedFilesHandler(state: HandlerState): void {
       }
     }
   });
+}
+
+function toRuntimeFileEvent(
+  change: DidChangeWatchedFilesParams["changes"][number],
+): RuntimeFileEvent {
+  return {
+    uri: change.uri,
+    type:
+      change.type === FileChangeType.Created
+        ? "created"
+        : change.type === FileChangeType.Deleted
+          ? "deleted"
+          : "changed",
+  };
 }
 
 function safeLogError(connection: Connection, context: string, err: unknown): void {

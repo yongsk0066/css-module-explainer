@@ -1,4 +1,9 @@
-import { FileChangeType } from "vscode-languageserver/node";
+export type RuntimeFileChangeType = "created" | "changed" | "deleted";
+
+export interface RuntimeFileEvent {
+  readonly uri: string;
+  readonly type: RuntimeFileChangeType;
+}
 
 export interface OpenDocumentSnapshot {
   readonly uri: string;
@@ -28,7 +33,7 @@ export interface WatchedStyleChangeInput {
   readonly kind: "style";
   readonly workspaceRoot: string;
   readonly filePath: string;
-  readonly changeType: FileChangeType;
+  readonly changeType: RuntimeFileChangeType;
   readonly semanticsChanged: boolean;
   readonly dependentSourceUris: readonly string[];
 }
@@ -111,7 +116,7 @@ export function planWatchedFileInvalidation(
       hasStyleChange = true;
       if (!change.semanticsChanged) continue;
       stylePathsToInvalidate.add(change.filePath);
-      if (change.changeType !== FileChangeType.Deleted) {
+      if (change.changeType !== "deleted") {
         stylePathsToPush.add(change.filePath);
       }
       addAll(affectedSourceUris, change.dependentSourceUris);

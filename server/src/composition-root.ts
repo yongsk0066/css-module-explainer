@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import type { MessageReader, MessageWriter } from "vscode-languageserver/node";
 import {
+  CodeLensRefreshRequest,
   createConnection,
   DidChangeWatchedFilesNotification,
   ProposedFeatures,
@@ -26,6 +27,7 @@ import { WorkspaceRegistry, type WorkspaceFolderInfo } from "./workspace/workspa
 import {
   buildSharedRuntimeCaches,
   createWorkspaceRuntime,
+  type RuntimeSink,
   type SharedRuntimeCaches,
   type WorkspaceRuntime,
   type WorkspaceRuntimeIO,
@@ -145,10 +147,9 @@ export function createServer(options: CreateServerOptions): CreatedServer {
         typeResolver,
         styleDocumentForPath,
         io: buildRuntimeIO(options, readStyleFile),
-        connection,
+        sink: buildRuntimeSink(connection, clientSupportsCodeLensRefresh),
         fileExists,
-        supportsCodeLensRefresh: clientSupportsCodeLensRefresh,
-        getServerName: () => SERVER_NAME,
+        serverName: SERVER_NAME,
         getModeForStylePath: (stylePath) =>
           registry?.getDepsForFilePath(stylePath)?.settings.scss.classnameTransform ??
           DEFAULT_RESOURCE_SETTINGS.scss.classnameTransform,
@@ -212,10 +213,9 @@ export function createServer(options: CreateServerOptions): CreatedServer {
             typeResolver,
             styleDocumentForPath,
             io: buildRuntimeIO(options, readStyleFile),
-            connection,
+            sink: buildRuntimeSink(connection, clientSupportsCodeLensRefresh),
             fileExists,
-            supportsCodeLensRefresh: clientSupportsCodeLensRefresh,
-            getServerName: () => SERVER_NAME,
+            serverName: SERVER_NAME,
             getModeForStylePath: (stylePath) =>
               registry?.getDepsForFilePath(stylePath)?.settings.scss.classnameTransform ??
               DEFAULT_RESOURCE_SETTINGS.scss.classnameTransform,
@@ -353,6 +353,24 @@ function buildRuntimeIO(
     readStyleFile,
     ...(options.readStyleFileAsync ? { readStyleFileAsync: options.readStyleFileAsync } : {}),
     ...(options.fileSupplier ? { fileSupplier: options.fileSupplier } : {}),
+  };
+}
+
+function buildRuntimeSink(connection: Connection, supportsCodeLensRefresh: boolean): RuntimeSink {
+  return {
+    info(message: string): void {
+      connection.console.info(message);
+    },
+    error(message: string): void {
+      connection.console.error(message);
+    },
+    clearDiagnostics(uri: string): void {
+      connection.sendDiagnostics({ uri, diagnostics: [] });
+    },
+    requestCodeLensRefresh(): void {
+      if (!supportsCodeLensRefresh) return;
+      void connection.sendRequest(CodeLensRefreshRequest.type).catch(() => {});
+    },
   };
 }
 

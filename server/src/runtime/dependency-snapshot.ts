@@ -1,8 +1,6 @@
 import { findLangForPath } from "../core/scss/lang-registry";
 import type { SemanticWorkspaceReferenceIndex } from "../core/semantic";
 import { fileUrlToPath } from "../core/util/text-utils";
-import type { TextDocument } from "vscode-languageserver-textdocument";
-import type { TextDocuments } from "vscode-languageserver/node";
 import type { OpenDocumentSnapshot } from "./invalidation-planner";
 
 export interface RuntimeDependencySnapshot {
@@ -13,8 +11,16 @@ export interface RuntimeDependencySnapshot {
 }
 
 export interface OpenDocumentSnapshotContext {
-  readonly documents: Pick<TextDocuments<TextDocument>, "all">;
+  readonly documents: RuntimeDocumentsReader;
   getWorkspaceRoot(uri: string): string | null;
+}
+
+export interface RuntimeDocumentsReader {
+  all(): readonly RuntimeDocumentLike[];
+}
+
+export interface RuntimeDocumentLike {
+  readonly uri: string;
 }
 
 export interface RuntimeDependencyBundle {

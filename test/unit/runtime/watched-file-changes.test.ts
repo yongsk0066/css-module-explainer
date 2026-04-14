@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { FileChangeType } from "vscode-languageserver-protocol/node";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
 import { createRuntimeDependencySnapshot } from "../../../server/src/runtime/dependency-snapshot";
 import { collectWatchedFileChangeInputs } from "../../../server/src/runtime/watched-file-changes";
@@ -38,7 +37,7 @@ describe("collectWatchedFileChangeInputs", () => {
     const snapshot = createRuntimeDependencySnapshot([deps], []);
 
     const changes = collectWatchedFileChangeInputs(
-      [{ uri: "file:///fake/ws/tsconfig.json", type: FileChangeType.Changed }],
+      [{ uri: "file:///fake/ws/tsconfig.json", type: "changed" }],
       {
         documents: { get: () => undefined },
         getDepsForFilePath: () => deps,
@@ -76,7 +75,7 @@ describe("collectWatchedFileChangeInputs", () => {
     const snapshot = createRuntimeDependencySnapshot([deps], []);
 
     const changes = collectWatchedFileChangeInputs(
-      [{ uri: "file:///fake/ws/src/Button.module.scss", type: FileChangeType.Changed }],
+      [{ uri: "file:///fake/ws/src/Button.module.scss", type: "changed" }],
       {
         documents: { get: () => undefined },
         getDepsForFilePath: () => deps,
@@ -89,7 +88,7 @@ describe("collectWatchedFileChangeInputs", () => {
         kind: "style",
         workspaceRoot: "/fake/ws",
         filePath: "/fake/ws/src/Button.module.scss",
-        changeType: FileChangeType.Changed,
+        changeType: "changed",
         semanticsChanged: false,
         dependentSourceUris: [],
       },

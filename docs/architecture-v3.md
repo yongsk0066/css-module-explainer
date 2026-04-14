@@ -103,11 +103,24 @@ Runtime assembly is explicit.
   - process-wide caches shared across workspace runtimes
 - `server/src/runtime/workspace-runtime.ts`
   - one runtime bundle per workspace root
+- `server/src/runtime/workspace-runtime-settings.ts`
+  - workspace-scoped settings and alias-resolver state
+- `server/src/runtime/workspace-analysis-runtime.ts`
+  - analysis-cache assembly and semantic contribution ingestion wiring
+- `server/src/runtime/workspace-style-runtime.ts`
+  - style indexing and style-cache/dependency-graph coordination
 - `server/src/composition-root.ts`
   - orchestration only
 
 `composition-root.ts` wires runtimes together. It should not grow feature
 logic back into the top-level assembly path.
+
+Runtime transport effects are also explicit.
+
+- `server/src/runtime/runtime-sink.ts`
+  - runtime-facing logging / diagnostics-clear / code-lens-refresh sink
+
+Runtime modules should not depend directly on LSP transport types.
 
 ## Reference Collection and Storage
 

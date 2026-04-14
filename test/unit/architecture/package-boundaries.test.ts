@@ -23,6 +23,7 @@ describe("package-ready boundaries", () => {
     for (const filePath of walkTsFiles(RUNTIME_ROOT)) {
       const source = readFileSync(filePath, "utf8");
       expect(source, relativePath(filePath)).not.toMatch(/provider-deps/);
+      expect(source, relativePath(filePath)).not.toMatch(/vscode-languageserver/);
     }
   });
 

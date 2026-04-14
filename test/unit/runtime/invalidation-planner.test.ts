@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { FileChangeType } from "vscode-languageserver-protocol/node";
 import {
   planSettingsReload,
   planWatchedFileInvalidation,
@@ -94,7 +93,7 @@ describe("planWatchedFileInvalidation", () => {
           kind: "style",
           workspaceRoot: root,
           filePath: "/ws/src/Button.module.scss",
-          changeType: FileChangeType.Changed,
+          changeType: "changed",
           semanticsChanged: true,
           dependentSourceUris: ["file:///ws/src/App.tsx"],
         },
@@ -148,7 +147,7 @@ describe("planWatchedFileInvalidation", () => {
           kind: "style",
           workspaceRoot: root,
           filePath: "/ws/src/Button.module.scss",
-          changeType: FileChangeType.Changed,
+          changeType: "changed",
           semanticsChanged: false,
           dependentSourceUris: [],
         },

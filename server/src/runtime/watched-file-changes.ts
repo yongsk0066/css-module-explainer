@@ -1,12 +1,13 @@
-import type { TextDocument } from "vscode-languageserver-textdocument";
-import { FileChangeType, type FileEvent } from "vscode-languageserver/node";
-import type { TextDocuments } from "vscode-languageserver/node";
 import type { StyleDocumentHIR } from "../core/hir/style-types";
 import { findLangForPath } from "../core/scss/lang-registry";
 import { styleDocumentSemanticFingerprint } from "../core/scss/scss-index";
 import { fileUrlToPath, pathToFileUrl } from "../core/util/text-utils";
 import type { RuntimeDependencySnapshot } from "./dependency-snapshot";
-import type { WatchedFileChangeInput } from "./invalidation-planner";
+import type {
+  RuntimeFileChangeType,
+  RuntimeFileEvent,
+  WatchedFileChangeInput,
+} from "./invalidation-planner";
 
 export interface WatchedFileDeps {
   readonly workspaceRoot: string;
@@ -16,12 +17,16 @@ export interface WatchedFileDeps {
 }
 
 export interface WatchedFileChangeCollectionContext {
-  readonly documents: Pick<TextDocuments<TextDocument>, "get">;
+  readonly documents: RuntimeOpenDocumentLookup;
   getDepsForFilePath(filePath: string): WatchedFileDeps | null;
 }
 
+export interface RuntimeOpenDocumentLookup {
+  get(uri: string): { readonly getText: () => string } | undefined;
+}
+
 export function collectWatchedFileChangeInputs(
-  events: readonly FileEvent[],
+  events: readonly RuntimeFileEvent[],
   ctx: WatchedFileChangeCollectionContext,
   snapshot: RuntimeDependencySnapshot,
 ): readonly WatchedFileChangeInput[] {
@@ -68,11 +73,11 @@ function isProjectConfigPath(filePath: string): boolean {
 
 function hasStyleSemanticChange(
   filePath: string,
-  changeType: FileChangeType,
+  changeType: RuntimeFileChangeType,
   deps: WatchedFileDeps,
-  documents: Pick<TextDocuments<TextDocument>, "get">,
+  documents: RuntimeOpenDocumentLookup,
 ): boolean {
-  if (changeType === FileChangeType.Deleted) return true;
+  if (changeType === "deleted") return true;
   const previous = deps.peekStyleDocument(filePath);
   if (!previous) return true;
   const nextContent = readCurrentStyleContent(filePath, deps, documents);
@@ -84,7 +89,7 @@ function hasStyleSemanticChange(
 function readCurrentStyleContent(
   filePath: string,
   deps: WatchedFileDeps,
-  documents: Pick<TextDocuments<TextDocument>, "get">,
+  documents: RuntimeOpenDocumentLookup,
 ): string | null {
   const openDocument = documents.get(pathToFileUrl(filePath));
   if (openDocument) {
