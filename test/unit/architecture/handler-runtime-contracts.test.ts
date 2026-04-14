@@ -9,7 +9,7 @@ describe("handler/runtime contracts", () => {
   it("keeps watched-file classification in runtime helpers", () => {
     const source = readFileSync(HANDLER, "utf8");
 
-    expect(source).toContain("/runtime/watched-file-changes");
+    expect(source).toContain('from "./runtime"');
     expect(source).not.toContain("/core/scss/scss-index");
     expect(source).not.toContain("function isProjectConfigPath(");
     expect(source).not.toContain("function hasStyleSemanticChange(");

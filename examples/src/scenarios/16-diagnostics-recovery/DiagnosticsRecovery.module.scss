@@ -1,0 +1,39 @@
+.panel {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid #d1d5db;
+  border-radius: 16px;
+  background: white;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.typoTarget {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: #e0f2fe;
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.hint {
+  margin: 0;
+  color: #475569;
+  line-height: 1.6;
+}
+
+.checklist {
+  margin: 0;
+  padding-left: 18px;
+  color: #334155;
+  line-height: 1.6;
+}

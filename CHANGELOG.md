@@ -1,5 +1,58 @@
 # Changelog
 
+## [3.2.0] — 2026-04-15
+
+### Added
+
+- **Architecture hardening runtime split** — workspace execution is now explicitly divided into settings, analysis, and style runtimes, with a transport-agnostic runtime sink for logging, diagnostics clearing, and CodeLens refresh requests.
+- **Incremental reference storage** — selector references, module usages, and dependency reverse lookups now update contribution-by-contribution instead of rebuilding whole derived maps on every record or forget.
+- **Package-ready entry boundaries** — core query, rewrite, semantic, and runtime entrypoints are now explicit, with architecture tests enforcing dependency direction for future extraction into standalone engine packages.
+
+### Changed
+
+- **Runtime invalidation is now explicit** — watched-file classification, dependency snapshots, and invalidation planning are separated into dedicated runtime contracts instead of being assembled ad hoc inside handler wiring.
+- **Semantic storage is now collector/store based** — reference contribution collection, reference storage, and dependency storage now have distinct responsibilities, which makes the runtime easier to reason about and cheaper to update incrementally.
+- **Style rewrite policy is derived, not embedded** — rename and rewrite planning now consume a style rewrite policy summary instead of directly interpreting raw nested/BEM policy fields.
+- **Provider boundaries are stricter** — providers read query/rewrite façades instead of deep semantic, binder, or runtime internals, and architecture invariant tests lock that boundary in place.
+- **Examples QA matrix expanded again** — the sandbox now includes dedicated diagnostics-recovery, bracket-access, and `.module.less` coverage so the remaining runtime surfaces can be checked without ad hoc setup.
+
+### Fixed
+
+- **Local packaging from development checkouts** — `.worktrees/` and `.pnpm-store/` are now excluded from the VSIX, preventing `vsce package` failures and accidental bundling of local development artifacts.
+
+## [3.1.1] — 2026-04-14
+
+### Added
+
+- **Multi-root workspace routing** — workspace folders now carry resource-scoped settings and path alias resolution independently, so mixed repos can use different CSS Modules conventions without restarting the server.
+- **`composes` dependency graph** — cross-file and same-file `composes` edges now participate in selector usage, Find References, hover, definition, rename safety, and CodeLens.
+- **Style-side inspect surface** — selector hover now reports usage and dependency context, `composes` tokens support hover/definition/references, and CodeLens titles distinguish composed and dynamic references.
+- **Source and style dependency invalidation** — watched file changes now recompute only affected open documents for source imports, style dependencies, and settings-driven reanalysis.
+
+### Changed
+
+- **Stable promotion version** — the `3.1.0` version number was already consumed by the Marketplace pre-release channel, so the first stable cut of this feature line ships as `3.1.1`.
+- **Compatibility path alias guidance** — the native `cssModuleExplainer.pathAlias` key is now the preferred setting; falling back to `cssModules.pathAlias` logs a deprecation notice per workspace root.
+- **Examples sandbox expanded** — the manual QA matrix now includes dedicated `composes` coverage alongside the multi-root, shadowing, non-finite dynamic, and nested style fact scenarios.
+
+### Fixed
+
+- **Nested and composed style diagnostics** — unresolved `composes` modules/selectors now surface SCSS diagnostics, and missing composed modules offer the same create-file quick fix flow as missing source-side module imports.
+
+## 3.0.0
+
+### Major Changes
+
+- Replace the old heuristic runtime with the 3.0 semantic pipeline: document facts, scoped binding, abstract class-value analysis, provider-facing read models, and generic rewrite planning now form the production path.
+- Make source-side binding scope-aware across `cx`, `styles`, imports, locals, and shadowing instead of relying on line-range and document-order heuristics.
+- Unify dynamic class reasoning under a shared abstract-value domain so flow, unions, template prefixes, and non-finite cases follow one contract.
+- Move provider behavior onto explicit read models and rewrite policies, reducing provider-local semantic glue and removing the old semantic-graph-first runtime path.
+- Expand the examples sandbox into a 3.0 manual QA matrix covering nested style facts, shadowing, and non-finite dynamic resolution.
+
+### Patch Changes
+
+- Fix nested `&.class` compound selector registration so classes introduced inside nested compounds resolve to the selector that actually introduced them without overwriting parent facts.
+
 ## 2.1.0
 
 ### Minor Changes

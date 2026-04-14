@@ -34,7 +34,7 @@ import {
 } from "./runtime";
 
 const SERVER_NAME = "css-module-explainer";
-const SERVER_VERSION = "3.1.0";
+const SERVER_VERSION = "3.2.0";
 
 /**
  * Transport-agnostic shared options consumed by every
