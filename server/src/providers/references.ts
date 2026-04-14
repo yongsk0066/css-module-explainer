@@ -1,5 +1,10 @@
+import path from "node:path";
 import type { Location, ReferenceParams } from "vscode-languageserver/node";
-import { findSelectorAtCursor } from "../core/query/find-style-selector";
+import {
+  findCanonicalSelector,
+  findComposesTokenAtCursor,
+  findSelectorAtCursor,
+} from "../core/query/find-style-selector";
 import { readSelectorUsageSummary } from "../core/query/read-selector-usage";
 import { findLangForPath } from "../core/scss/lang-registry";
 import { fileUrlToPath } from "../core/util/text-utils";
@@ -35,9 +40,18 @@ export const handleReferences = wrapHandler<ReferenceParams, [], Location[] | nu
       params.position.line,
       params.position.character,
     );
-    if (!selector) return null;
+    const composesHit = selector
+      ? null
+      : findComposesTokenAtCursor(styleDocument, params.position.line, params.position.character);
+    const target = selector
+      ? {
+          filePath,
+          canonicalName: selector.canonicalName,
+        }
+      : resolveComposesTarget(deps, styleDocument.filePath, composesHit);
+    if (!target) return null;
 
-    const usage = readSelectorUsageSummary(deps, filePath, selector.canonicalName);
+    const usage = readSelectorUsageSummary(deps, target.filePath, target.canonicalName);
     if (!usage.hasAnyReferences) return null;
 
     // No expansion filter here — expanded sites are valid Find Refs
@@ -52,3 +66,27 @@ export const handleReferences = wrapHandler<ReferenceParams, [], Location[] | nu
   null,
 );
 export { findSelectorAtCursor } from "../core/query/find-style-selector";
+
+function resolveComposesTarget(
+  deps: Parameters<typeof handleReferences>[1],
+  styleFilePath: string,
+  hit: ReturnType<typeof findComposesTokenAtCursor>,
+): { filePath: string; canonicalName: string } | null {
+  if (!hit || hit.ref.fromGlobal) return null;
+  const targetFilePath = hit.ref.from
+    ? path.resolve(path.dirname(styleFilePath), hit.ref.from)
+    : styleFilePath;
+  const targetDocument = deps.styleDocumentForPath(targetFilePath);
+  if (!targetDocument) return null;
+  const selector =
+    targetDocument.selectors.find(
+      (candidate) =>
+        candidate.canonicalName === hit.token.className && candidate.viewKind === "canonical",
+    ) ??
+    targetDocument.selectors.find((candidate) => candidate.canonicalName === hit.token.className);
+  if (!selector) return null;
+  return {
+    filePath: targetDocument.filePath,
+    canonicalName: findCanonicalSelector(targetDocument, selector).canonicalName,
+  };
+}
