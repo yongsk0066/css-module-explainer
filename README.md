@@ -112,18 +112,9 @@ import styles from "@/components/Button.module.scss";
 import theme from "@styles/theme.module.scss";
 ```
 
-`cssModules.pathAlias` remains a compatibility input. The server logs a
-deprecation notice when a workspace falls back to that key. New setups should
-prefer `cssModuleExplainer.pathAlias`. The compatibility key is read only as a
-fallback and is not the long-term configuration surface. Compatibility behavior
-is normalized in `server/src/settings.ts`; runtime consumers read the merged
-native settings shape only.
-
-Migration policy:
-
-- warning starts in `3.1.x`
-- planned removal is `4.0.0`
-- migrate by moving entries from `cssModules.pathAlias` to `cssModuleExplainer.pathAlias`
+`cssModules.pathAlias` is a compatibility fallback. New setups should use
+`cssModuleExplainer.pathAlias`. The compatibility key is deprecated and planned
+for removal in `4.0.0`.
 
 Example migration:
 
@@ -141,46 +132,49 @@ Example migration:
 
 ## Architecture
 
-The runtime is organized around one semantic pipeline.
+The runtime follows one semantic pipeline:
 
 ```text
 source/style text
   -> HIR documents
-  -> scoped binding layer
-  -> abstract state layer
+  -> source binding
+  -> abstract class-value analysis
   -> read models
   -> LSP providers
 ```
 
-Relevant directories:
+Current structure:
 
 ```text
 server/src/
 ├── core/
 │   ├── hir/             # source/style document facts
-│   ├── binder/          # source-side scopes, declarations, and binding graph
+│   ├── binder/          # source-side scopes and binding graph
 │   ├── abstract-value/  # class-value domain and selector projection
-│   ├── query/           # provider-facing read models and semantic contracts
-│   ├── rewrite/         # text rewrite planning
-│   ├── semantic/        # workspace reference collection and shared policy
-│   ├── scss/            # style parsing and transform views
-│   ├── cx/              # TypeScript AST walkers for bindings and expressions
-│   ├── ts/              # TypeScript program and source-file utilities
-│   ├── indexing/        # document analysis cache and file indexing
-│   └── util/            # small runtime helpers
-├── runtime/             # workspace runtime assembly and invalidation contracts
-├── providers/           # LSP adapters over read models
-├── composition-root.ts  # orchestration only
+│   ├── query/           # provider-facing semantic summaries
+│   ├── rewrite/         # rename and rewrite planning
+│   ├── semantic/        # workspace references, dependencies, composes graph
+│   ├── scss/            # style parsing
+│   ├── cx/              # source-side AST walkers
+│   ├── ts/              # TypeScript integration
+│   └── indexing/        # analysis cache and background indexing
+├── runtime/             # workspace routing, snapshots, invalidation
+├── providers/           # LSP adapters
+├── composition-root.ts  # top-level assembly
 └── server.ts
 ```
 
-HIR keeps source-preserving document facts. Binding lives in the binder layer.
-Dynamic class reasoning lives in the abstract-value layer. Providers read stable
-semantic summaries instead of recomputing resolution ad hoc.
+At a high level:
 
-Runtime orchestration, invalidation, and provider shaping are split into
-explicit modules. New behavior should extend those modules rather than
-reintroducing feature-specific logic into providers or top-level wiring.
+- HIR preserves document facts from source and style files.
+- Binder resolves source-side names such as `cx`, `styles`, imports, locals, and shadowing.
+- The abstract-value layer models dynamic class expressions such as flow branches, unions, and template prefixes.
+- Semantic storage keeps workspace references, dependency lookups, and style-to-style relationships such as `composes`.
+- Read models turn low-level semantic state into stable summaries that providers consume.
+- Providers adapt those summaries to LSP features such as hover, definition, references, diagnostics, and rename.
+
+The important constraint is that providers do not recompute semantic meaning on
+their own. They read the shared pipeline.
 
 For a fuller design explanation, see [docs/architecture-v3.md](./docs/architecture-v3.md).
 
