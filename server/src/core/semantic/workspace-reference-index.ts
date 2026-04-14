@@ -1,4 +1,5 @@
 import type { AnalysisEntry } from "../indexing/document-analysis-cache";
+import type { SourceExpressionKind } from "../hir/source-types";
 import type { StyleDocumentHIR } from "../hir/style-types";
 import {
   exactClassValue,
@@ -9,7 +10,6 @@ import { buildSourceBindingGraph, listStyleModulePaths } from "../binder/source-
 import type { TypeResolver } from "../ts/type-resolver";
 import { readSourceExpressionResolution } from "../query/read-source-expression-resolution";
 import { deriveReferenceExpansion, type EdgeCertainty } from "./certainty";
-import type { RefNode } from "./graph-types";
 import { filterSelectorReferencePolicy } from "./reference-policy";
 import { type ReferenceQueryOptions, type SemanticReferenceSite } from "./reference-types";
 import type { EdgeReason } from "./provenance";
@@ -28,7 +28,7 @@ export interface SemanticModuleUsageSite {
   readonly range: SemanticReferenceSite["range"];
   readonly origin: SemanticReferenceSite["origin"];
   readonly scssModulePath: string;
-  readonly expressionKind: RefNode["expressionKind"];
+  readonly expressionKind: SourceExpressionKind;
   readonly hasResolvedTargets: boolean;
   readonly isDynamic: boolean;
 }

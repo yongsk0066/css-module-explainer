@@ -2,7 +2,7 @@ import {
   enumerateFiniteClassValues,
   type AbstractClassValue,
 } from "../abstract-value/class-value-domain";
-import type { RefNode } from "./graph-types";
+import type { SourceExpressionKind } from "../hir/source-types";
 
 export type EdgeCertainty = "exact" | "inferred" | "possible";
 
@@ -51,7 +51,7 @@ export function deriveSelectorProjectionCertainty(
 }
 
 export function deriveReferenceExpansion(
-  expressionKind: RefNode["expressionKind"],
+  expressionKind: SourceExpressionKind,
 ): "direct" | "expanded" {
   switch (expressionKind) {
     case "literal":

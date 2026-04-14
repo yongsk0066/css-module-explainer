@@ -1,5 +1,6 @@
 import type { ClassRefOrigin, Range, StyleImport } from "@css-module-explainer/shared";
 import type { AbstractClassValue } from "../abstract-value/class-value-domain";
+import type { SourceExpressionKind } from "../hir/source-types";
 import type { EdgeCertainty } from "./certainty";
 import type { EdgeReason } from "./provenance";
 
@@ -52,7 +53,7 @@ export interface UtilityBindingNode extends SemanticNodeBase {
 export interface RefNode extends SemanticNodeBase {
   readonly kind: "ref";
   readonly filePath: string;
-  readonly expressionKind: "literal" | "template" | "symbolRef" | "styleAccess";
+  readonly expressionKind: SourceExpressionKind;
   readonly origin: ClassRefOrigin;
   readonly scssModulePath: string;
   readonly range: Range;

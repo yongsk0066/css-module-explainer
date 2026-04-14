@@ -78,6 +78,8 @@ export type ClassExpressionHIR =
   | SymbolRefClassExpressionHIR
   | StyleAccessClassExpressionHIR;
 
+export type SourceExpressionKind = ClassExpressionHIR["kind"];
+
 export interface BuildSourceDocumentHIRArgs {
   readonly filePath: string;
   readonly language: SourceLanguage;
