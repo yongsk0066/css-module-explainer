@@ -12,7 +12,7 @@ import type {
   TemplateClassExpressionHIR,
 } from "../hir/source-types";
 import type { StyleDocumentHIR } from "../hir/style-types";
-import { readSourceExpressionResolution } from "./read-source-expression-resolution";
+import { readExpressionSemantics } from "./read-expression-semantics";
 
 export interface InvalidClassReferenceQueryEnv {
   readonly typeResolver: TypeResolver;
@@ -90,7 +90,7 @@ export function findInvalidClassReference(
       };
     }
     case "symbolRef": {
-      const resolution = readSourceExpressionResolution(
+      const semantics = readExpressionSemantics(
         {
           expression,
           sourceFile,
@@ -98,20 +98,19 @@ export function findInvalidClassReference(
         },
         env,
       );
-      if (!resolution.abstractValue || !resolution.reason || !resolution.valueCertainty)
-        return null;
+      if (!semantics.abstractValue || !semantics.reason || !semantics.valueCertainty) return null;
       const finiteValues =
-        resolution.finiteValues ?? enumerateFiniteClassValues(resolution.abstractValue);
+        semantics.finiteValues ?? enumerateFiniteClassValues(semantics.abstractValue);
       if (!finiteValues) {
-        return resolution.selectors.length === 0
+        return semantics.selectors.length === 0
           ? {
               kind: "missingResolvedClassDomain",
               expression,
               range: expression.range,
-              abstractValue: resolution.abstractValue,
-              valueCertainty: resolution.valueCertainty,
-              selectorCertainty: resolution.selectorCertainty,
-              reason: resolution.reason,
+              abstractValue: semantics.abstractValue,
+              valueCertainty: semantics.valueCertainty,
+              selectorCertainty: semantics.selectorCertainty,
+              reason: semantics.reason,
             }
           : null;
       }
@@ -122,10 +121,10 @@ export function findInvalidClassReference(
         expression,
         range: expression.range,
         missingValues,
-        abstractValue: resolution.abstractValue,
-        valueCertainty: resolution.valueCertainty,
-        selectorCertainty: resolution.selectorCertainty,
-        reason: resolution.reason,
+        abstractValue: semantics.abstractValue,
+        valueCertainty: semantics.valueCertainty,
+        selectorCertainty: semantics.selectorCertainty,
+        reason: semantics.reason,
       };
     }
     case "styleAccess":

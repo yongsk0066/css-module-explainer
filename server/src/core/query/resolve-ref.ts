@@ -4,7 +4,7 @@ import type { EdgeCertainty } from "../semantic/certainty";
 import type { FlowResolution } from "../flow/lattice";
 import type { TypeResolver } from "../ts/type-resolver";
 import type { AnalysisEntry } from "../indexing/document-analysis-cache";
-import { readSourceExpressionResolution } from "./read-source-expression-resolution";
+import { readExpressionSemantics } from "./read-expression-semantics";
 
 export interface ResolveRefQueryEnv {
   readonly styleDocumentForPath: (path: string) => StyleDocumentHIR | null;
@@ -45,7 +45,7 @@ export function resolveRefDetails(
   ctx: ResolveRefQueryContext,
   env: ResolveRefQueryEnv,
 ): ResolveRefDetails {
-  const resolution = readSourceExpressionResolution(
+  const semantics = readExpressionSemantics(
     {
       expression: ctx.expression,
       sourceFile: ctx.entry.sourceFile,
@@ -60,56 +60,41 @@ export function resolveRefDetails(
       sourceBindingGraph: ctx.entry.sourceBindingGraph,
     },
   );
-  if (!resolution.styleDocument) {
+  if (!semantics.styleDocument) {
     return { selectors: [], dynamicExplanation: null };
   }
 
   return {
-    selectors: resolution.selectors,
-    dynamicExplanation: buildDynamicHoverExplanation(ctx.expression, resolution),
+    selectors: semantics.selectors,
+    dynamicExplanation: buildDynamicHoverExplanation(ctx.expression, semantics),
   };
 }
 
 function buildDynamicHoverExplanation(
   expression: ClassExpressionHIR,
-  resolution: Pick<
-    ReturnType<typeof readSourceExpressionResolution>,
-    | "selectors"
-    | "finiteValues"
-    | "abstractValue"
-    | "valueCertainty"
-    | "selectorCertainty"
-    | "reason"
-  >,
+  semantics: ReturnType<typeof readExpressionSemantics>,
 ): DynamicHoverExplanation | null {
   switch (expression.kind) {
     case "symbolRef": {
-      if (!resolution.abstractValue || !resolution.reason) return null;
+      if (!semantics.abstractValue || !semantics.reason) return null;
       return {
         kind: "symbolRef",
         subject: expression.rawReference,
-        candidates:
-          resolution.finiteValues && resolution.finiteValues.length > 0
-            ? resolution.finiteValues
-            : resolution.selectors.map((selector) => selector.name),
-        reason: resolution.reason,
-        abstractValue: resolution.abstractValue,
-        ...(resolution.valueCertainty ? { valueCertainty: resolution.valueCertainty } : {}),
-        ...(resolution.selectorCertainty
-          ? { selectorCertainty: resolution.selectorCertainty }
-          : {}),
+        candidates: semantics.candidateNames,
+        reason: semantics.reason,
+        abstractValue: semantics.abstractValue,
+        ...(semantics.valueCertainty ? { valueCertainty: semantics.valueCertainty } : {}),
+        ...(semantics.selectorCertainty ? { selectorCertainty: semantics.selectorCertainty } : {}),
       };
     }
     case "template":
-      if (resolution.selectors.length === 0) return null;
+      if (semantics.selectors.length === 0) return null;
       return {
         kind: "template",
         subject: expression.staticPrefix,
-        candidates: resolution.selectors.map((selector) => selector.name),
-        ...(resolution.abstractValue ? { abstractValue: resolution.abstractValue } : {}),
-        ...(resolution.selectorCertainty
-          ? { selectorCertainty: resolution.selectorCertainty }
-          : {}),
+        candidates: semantics.candidateNames,
+        ...(semantics.abstractValue ? { abstractValue: semantics.abstractValue } : {}),
+        ...(semantics.selectorCertainty ? { selectorCertainty: semantics.selectorCertainty } : {}),
       };
     case "literal":
     case "styleAccess":
