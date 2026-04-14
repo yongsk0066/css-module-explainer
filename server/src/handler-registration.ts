@@ -15,7 +15,7 @@ import { findLangForPath } from "./core/scss/lang-registry";
 import { styleDocumentSemanticFingerprint } from "./core/scss/scss-index";
 import {
   DEFAULT_WINDOW_SETTINGS,
-  fetchResourceSettings,
+  fetchResourceSettingsInfo,
   fetchWindowSettings,
   mergeSettings,
   resourceSettingsDependencyKey,
@@ -39,6 +39,7 @@ export interface HandlerCleanup {
 interface HandlerState {
   readonly ctx: HandlerContext;
   readonly scheduler: DiagnosticsScheduler;
+  readonly warnedCompatPathAliasRoots: Set<string>;
   windowSettings: WindowSettings;
 }
 
@@ -60,6 +61,7 @@ export function registerHandlers(ctx: HandlerContext): HandlerCleanup {
       },
       DEFAULT_WINDOW_SETTINGS,
     ),
+    warnedCompatPathAliasRoots: new Set<string>(),
     windowSettings: DEFAULT_WINDOW_SETTINGS,
   };
 
@@ -98,15 +100,29 @@ function registerSettingsHandler(state: HandlerState): () => void {
         const resourceSettingsByBundle = await Promise.all(
           bundles.map(async (deps) => ({
             deps,
-            resourceSettings: await fetchResourceSettings(connection, deps.workspaceFolderUri),
+            resourceSettingsInfo: await fetchResourceSettingsInfo(
+              connection,
+              deps.workspaceFolderUri,
+            ),
           })),
         );
-        for (const { deps, resourceSettings } of resourceSettingsByBundle) {
+        for (const { deps, resourceSettingsInfo } of resourceSettingsByBundle) {
+          const resourceSettings = resourceSettingsInfo.settings;
           const nextSettings = mergeSettings(windowSettings, resourceSettings);
           const prevSettings = deps.settings;
           const prevSettingsKey = resourceSettingsDependencyKey(prevSettings);
           const nextSettingsKey = resourceSettingsDependencyKey(nextSettings);
           deps.settings = nextSettings;
+
+          if (
+            resourceSettingsInfo.pathAliasSource === "compat" &&
+            !state.warnedCompatPathAliasRoots.has(deps.workspaceRoot)
+          ) {
+            state.warnedCompatPathAliasRoots.add(deps.workspaceRoot);
+            connection.console.info(
+              `[css-module-explainer] cssModules.pathAlias is deprecated for '${deps.workspaceRoot}'. Use cssModuleExplainer.pathAlias instead.`,
+            );
+          }
 
           const aliasChanged = !shallowEqualPathAlias(
             prevSettings.pathAlias,

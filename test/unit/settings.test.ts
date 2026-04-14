@@ -5,6 +5,7 @@ import {
   DEFAULT_WINDOW_SETTINGS,
   mergeSettings,
   parsePathAlias,
+  parseResourceSettingsInfo,
   parseResourceSettings,
   parseWindowSettings,
 } from "../../server/src/settings";
@@ -120,6 +121,21 @@ describe("parseResourceSettings", () => {
   it("falls back to compat pathAlias when native key is absent", () => {
     const result = parseResourceSettings({}, { pathAlias: { "@compat": "src/compat" } });
     expect(result.pathAlias).toEqual({ "@compat": "src/compat" });
+  });
+
+  it("reports compat pathAlias source when the fallback key is used", () => {
+    const result = parseResourceSettingsInfo({}, { pathAlias: { "@compat": "src/compat" } });
+    expect(result.settings.pathAlias).toEqual({ "@compat": "src/compat" });
+    expect(result.pathAliasSource).toBe("compat");
+  });
+
+  it("reports native pathAlias source when the native key is used", () => {
+    const result = parseResourceSettingsInfo(
+      { pathAlias: { "@native": "src/native" } },
+      { pathAlias: { "@compat": "src/compat" } },
+    );
+    expect(result.settings.pathAlias).toEqual({ "@native": "src/native" });
+    expect(result.pathAliasSource).toBe("native");
   });
 });
 

@@ -32,6 +32,13 @@ export interface ResourceSettings {
   readonly pathAlias: Readonly<Record<string, string>>;
 }
 
+export type PathAliasSource = "native" | "compat" | "none";
+
+export interface ParsedResourceSettings {
+  readonly settings: ResourceSettings;
+  readonly pathAliasSource: PathAliasSource;
+}
+
 export type Settings = WindowSettings & ResourceSettings;
 
 const DEFAULT_WINDOW_SETTINGS: WindowSettings = {
@@ -105,17 +112,32 @@ export function parseWindowSettings(raw: unknown): WindowSettings {
 }
 
 export function parseResourceSettings(raw: unknown, compat: unknown = undefined): ResourceSettings {
+  return parseResourceSettingsInfo(raw, compat).settings;
+}
+
+export function parseResourceSettingsInfo(
+  raw: unknown,
+  compat: unknown = undefined,
+): ParsedResourceSettings {
   const r = isRecord(raw) ? raw : {};
   const scss = isRecord(r.scss) ? r.scss : {};
   const nativePathAlias = parsePathAlias(r.pathAlias);
   const compatPathAlias = parsePathAlias(isRecord(compat) ? compat.pathAlias : undefined);
   return {
-    scss: {
-      classnameTransform: isClassnameTransform(scss.classnameTransform)
-        ? scss.classnameTransform
-        : DEFAULT_RESOURCE_SETTINGS.scss.classnameTransform,
+    settings: {
+      scss: {
+        classnameTransform: isClassnameTransform(scss.classnameTransform)
+          ? scss.classnameTransform
+          : DEFAULT_RESOURCE_SETTINGS.scss.classnameTransform,
+      },
+      pathAlias: Object.keys(nativePathAlias).length > 0 ? nativePathAlias : compatPathAlias,
     },
-    pathAlias: Object.keys(nativePathAlias).length > 0 ? nativePathAlias : compatPathAlias,
+    pathAliasSource:
+      Object.keys(nativePathAlias).length > 0
+        ? "native"
+        : Object.keys(compatPathAlias).length > 0
+          ? "compat"
+          : "none",
   };
 }
 
@@ -170,11 +192,18 @@ export async function fetchResourceSettings(
   connection: Connection,
   scopeUri?: string,
 ): Promise<ResourceSettings> {
+  return (await fetchResourceSettingsInfo(connection, scopeUri)).settings;
+}
+
+export async function fetchResourceSettingsInfo(
+  connection: Connection,
+  scopeUri?: string,
+): Promise<ParsedResourceSettings> {
   const [raw, compat]: [unknown, unknown] = await Promise.all([
     getConfigurationForSection(connection, "cssModuleExplainer", scopeUri),
     getConfigurationForSection(connection, "cssModules", scopeUri),
   ]);
-  return parseResourceSettings(raw, compat);
+  return parseResourceSettingsInfo(raw, compat);
 }
 
 export async function fetchSettings(connection: Connection, scopeUri?: string): Promise<Settings> {
