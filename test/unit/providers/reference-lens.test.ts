@@ -118,7 +118,36 @@ describe("handleCodeLens", () => {
 
     expect(result).not.toBeNull();
     expect(result).toHaveLength(1);
-    expect(result![0]!.command?.title).toBe("1 reference");
+    expect(result![0]!.command?.title).toBe("1 reference (composed)");
+  });
+
+  it("annotates dynamic references in the code lens title", () => {
+    const idx = new WorkspaceSemanticWorkspaceReferenceIndex();
+    idx.record("file:///a.tsx", [
+      {
+        refId: "ref:dynamic",
+        selectorId: "selector:/fake/src/Button.module.scss:indicator",
+        filePath: "/fake/src/App.tsx",
+        uri: "file:///fake/src/App.tsx",
+        range: { start: { line: 10, character: 5 }, end: { line: 10, character: 18 } },
+        origin: "cxCall",
+        scssModulePath: "/fake/src/Button.module.scss",
+        selectorFilePath: "/fake/src/Button.module.scss",
+        canonicalName: "indicator",
+        className: "indicator",
+        certainty: "inferred",
+        reason: "templatePrefix",
+        expansion: "expanded",
+      },
+    ]);
+
+    const result = handleCodeLens(
+      { textDocument: { uri: "file:///fake/src/Button.module.scss" } },
+      makeDeps({ semanticReferenceIndex: idx }),
+    );
+
+    expect(result).not.toBeNull();
+    expect(result![0]!.command?.title).toBe("1 reference (0 direct, dynamic)");
   });
 
   it("classnameTransform (camelCaseOnly): emits a lens for an alias-only entry whose bucket lives under canonical", async () => {
