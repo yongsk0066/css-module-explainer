@@ -1,19 +1,20 @@
 # Releasing
 
-This document defines the current release process.
+This document describes the current release procedure.
 
-It is an operations document, not a rollout diary.
+It is an operations document. It should not contain rollout history or project
+planning notes.
 
 ## Branches
 
 - `master`: stable releases
 - `next`: preview releases
 
-## Versioning Rules
+## Version rules
 
 Stable and preview releases both use numeric extension versions.
 
-Use:
+Allowed:
 
 - `3.2.0`
 - `3.2.1`
@@ -24,14 +25,12 @@ Do not use:
 - `3.2.0-alpha.1`
 - `3.2.0-beta.1`
 
-VS Code Marketplace pre-release publishing requires:
+VS Code Marketplace preview publishing requires:
 
-1. numeric `major.minor.patch` versions
-2. `--pre-release` packaging/publishing for preview builds
+1. `major.minor.patch` version strings
+2. `--pre-release` packaging and publishing for preview builds
 
-Stable and preview versions must stay distinct. If a version has already been
-used for a preview publish, the next stable release must use a different
-version number.
+A version used for preview must not be reused later for stable.
 
 Reference:
 
@@ -39,37 +38,25 @@ Reference:
 
 ## Channels
 
-### Stable
+Stable:
 
 - branch: `master`
 - workflow input: `channel=stable`
-- publishes a normal Marketplace release
 
-### Preview
+Preview:
 
 - branch: `next`
 - workflow input: `channel=preview`
-- publishes a Marketplace pre-release
 
-Open VSX does not document Marketplace-style preview behavior in the same way.
-Treat preview publishing there as optional.
+Open VSX does not document preview behavior the same way Marketplace does. Use
+Marketplace as the primary preview channel. Treat Open VSX preview publishing as
+optional.
 
 Reference:
 
 - https://github.com/eclipse-openvsx/openvsx/wiki/Publishing-Extensions
 
-## Release Planning
-
-User-facing pull requests should include a changeset.
-
-PRs that only touch docs, tests, CI, or `examples/` can use:
-
-- `changeset:skip`
-
-On `master`, the release-plan workflow prepares version/changelog updates from
-pending changesets.
-
-## Verification
+## Pre-release verification
 
 Before a release:
 
@@ -89,7 +76,7 @@ pnpm exec vsce package --no-dependencies
 3. run `pnpm test`
 4. run `pnpm build`
 
-## Publish Workflow
+## Publish workflow
 
 Publishing is done through the `Publish Extension` GitHub Actions workflow.
 
@@ -110,46 +97,59 @@ The workflow:
 5. publishes to Marketplace and/or Open VSX
 6. optionally creates a GitHub release
 
-## Stable Release Procedure
+## Stable release procedure
 
-1. merge the target release branch into `master`
+1. merge the release branch into `master`
 2. run `Publish Extension`
-3. set:
+3. use:
    - `ref=master`
    - `channel=stable`
    - `publish_marketplace=true`
    - `publish_openvsx=true` or `false`
    - `create_github_release=true`
 
-## Preview Release Procedure
+## Preview release procedure
 
 1. merge the target preview work into `next`
-2. bump `next` to the preview version
+2. update the preview version
 3. run `Publish Extension`
-4. set:
+4. use:
    - `ref=next`
    - `channel=preview`
    - `publish_marketplace=true`
    - `publish_openvsx=false` or `true`
    - `create_github_release=true`
 
-## Compatibility Deprecations
+## Changesets
 
-Current path-alias deprecation policy:
+User-facing pull requests should include a changeset.
+
+PRs that only touch:
+
+- docs
+- tests
+- CI
+- `examples/`
+
+can use `changeset:skip`.
+
+## Compatibility deprecations
+
+Current path alias deprecation policy:
 
 - legacy key: `cssModules.pathAlias`
 - replacement key: `cssModuleExplainer.pathAlias`
 - warning starts: `3.1.x`
 - planned removal: `4.0.0`
 
-Removal must update:
+When that compat path is removed, update:
 
 - `server/src/settings.ts`
 - `README.md`
 - `package.json` configuration metadata
 - changelog / release notes
 
-## Local Publish
+## Local publish
 
 ```bash
 pnpm release:publish
@@ -163,4 +163,4 @@ Environment variables used by the publish script:
 - `VSCE_PAT`
 - `OVSX_PAT`
 
-The publish script also loads a repo-root `.env` file when present.
+The publish script also reads a repo-root `.env` file when present.
