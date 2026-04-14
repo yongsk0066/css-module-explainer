@@ -1,5 +1,5 @@
 import type { Connection, TextDocumentPositionParams } from "vscode-languageserver/node";
-import { FileChangeType, type DidChangeWatchedFilesParams } from "vscode-languageserver/node";
+import type { DidChangeWatchedFilesParams } from "vscode-languageserver/node";
 import type { TextDocument } from "vscode-languageserver-textdocument";
 import type { TextDocuments } from "vscode-languageserver/node";
 import { handleCodeAction } from "./providers/code-actions";
@@ -10,9 +10,8 @@ import { handleCodeLens } from "./providers/reference-lens";
 import { handleReferences } from "./providers/references";
 import { handlePrepareRename, handleRename } from "./providers/rename";
 import type { CursorParams, ProviderDeps } from "./providers/provider-deps";
-import { fileUrlToPath, pathToFileUrl } from "./core/util/text-utils";
+import { fileUrlToPath } from "./core/util/text-utils";
 import { findLangForPath } from "./core/scss/lang-registry";
-import { styleDocumentSemanticFingerprint } from "./core/scss/scss-index";
 import {
   DEFAULT_WINDOW_SETTINGS,
   formatCompatPathAliasDeprecationMessage,
@@ -29,12 +28,12 @@ import {
   planSettingsReload,
   planWatchedFileInvalidation,
   type SettingsReloadWorkspaceChange,
-  type WatchedFileChangeInput,
 } from "./runtime/invalidation-planner";
 import {
   createRuntimeDependencySnapshot,
   snapshotOpenDocuments,
 } from "./runtime/dependency-snapshot";
+import { collectWatchedFileChangeInputs } from "./runtime/watched-file-changes";
 
 export interface HandlerContext {
   readonly connection: Connection;
@@ -299,7 +298,7 @@ function registerDocumentHandlers(state: HandlerState): void {
 }
 
 function registerWatchedFilesHandler(state: HandlerState): void {
-  const { connection, documents } = state.ctx;
+  const { connection } = state.ctx;
 
   connection.onDidChangeWatchedFiles((params: DidChangeWatchedFilesParams) => {
     const registry = state.ctx.getRegistry();
@@ -308,33 +307,14 @@ function registerWatchedFilesHandler(state: HandlerState): void {
       registry.allDeps(),
       snapshotOpenDocuments(state.ctx),
     );
-    const changes: WatchedFileChangeInput[] = [];
-    for (const change of params.changes) {
-      const filePath = fileUrlToPath(change.uri);
-      const deps = registry.getDepsForFilePath(filePath);
-      if (!deps) continue;
-      if (findLangForPath(filePath)) {
-        const semanticsChanged = hasStyleSemanticChange(filePath, change.type, deps, documents);
-        changes.push({
-          kind: "style",
-          workspaceRoot: deps.workspaceRoot,
-          filePath,
-          changeType: change.type,
-          semanticsChanged,
-          dependentSourceUris: semanticsChanged
-            ? snapshot.findStyleDependentSourceUris(deps.workspaceRoot, filePath)
-            : [],
-        });
-      } else {
-        changes.push({
-          kind: "source",
-          workspaceRoot: deps.workspaceRoot,
-          filePath,
-          projectConfigChange: isProjectConfigPath(filePath),
-          dependentSourceUris: snapshot.findSourceDependencyUris(deps.workspaceRoot, filePath),
-        });
-      }
-    }
+    const changes = collectWatchedFileChangeInputs(
+      params.changes,
+      {
+        documents: state.ctx.documents,
+        getDepsForFilePath: (filePath) => registry.getDepsForFilePath(filePath),
+      },
+      snapshot,
+    );
     const plan = planWatchedFileInvalidation(changes, snapshot.openDocuments);
     const affectedDeps = registry
       .allDeps()
@@ -382,40 +362,6 @@ function registerWatchedFilesHandler(state: HandlerState): void {
       }
     }
   });
-}
-
-function isProjectConfigPath(filePath: string): boolean {
-  const base = filePath.split(/[\\/]/u).pop();
-  return (
-    base !== undefined && (/^tsconfig.*\.json$/u.test(base) || /^jsconfig.*\.json$/u.test(base))
-  );
-}
-
-function hasStyleSemanticChange(
-  filePath: string,
-  changeType: FileChangeType,
-  deps: ProviderDeps,
-  documents: TextDocuments<TextDocument>,
-): boolean {
-  if (changeType === FileChangeType.Deleted) return true;
-  const previous = deps.peekStyleDocument(filePath);
-  if (!previous) return true;
-  const nextContent = readCurrentStyleContent(filePath, deps, documents);
-  if (nextContent === null) return true;
-  const next = deps.buildStyleDocument(filePath, nextContent);
-  return styleDocumentSemanticFingerprint(previous) !== styleDocumentSemanticFingerprint(next);
-}
-
-function readCurrentStyleContent(
-  filePath: string,
-  deps: ProviderDeps,
-  documents: TextDocuments<TextDocument>,
-): string | null {
-  const openDocument = documents.get(pathToFileUrl(filePath));
-  if (openDocument) {
-    return openDocument.getText();
-  }
-  return deps.readStyleFile(filePath);
 }
 
 function safeLogError(connection: Connection, context: string, err: unknown): void {
