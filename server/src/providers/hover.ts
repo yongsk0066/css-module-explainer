@@ -1,5 +1,10 @@
 import type { Hover } from "vscode-languageserver/node";
-import { findCanonicalSelector, findSelectorAtCursor } from "../core/query/find-style-selector";
+import {
+  findCanonicalSelector,
+  findComposesTokenAtCursor,
+  findSelectorAtCursor,
+  resolveComposesTarget,
+} from "../core/query/find-style-selector";
 import { readSelectorUsageSummary } from "../core/query/read-selector-usage";
 import { resolveRefDetails } from "../core/query/resolve-ref";
 import { readSelectorStyleDependencySummary } from "../core/query/read-selector-style-dependencies";
@@ -77,33 +82,70 @@ function buildStyleHover(params: CursorParams, deps: ProviderDeps): Hover | null
   if (!styleDocument) return null;
 
   const hit = findSelectorAtCursor(styleDocument, params.line, params.character);
-  if (!hit) return null;
+  if (hit) {
+    const selector = findCanonicalSelector(styleDocument, hit);
+    const usageSummary = readSelectorUsageSummary(
+      {
+        semanticReferenceIndex: deps.semanticReferenceIndex,
+        styleDependencyGraph: deps.styleDependencyGraph,
+        styleDocumentForPath: deps.styleDocumentForPath,
+      },
+      params.filePath,
+      selector.canonicalName,
+    );
+    const styleDependencies = readSelectorStyleDependencySummary(
+      deps.styleDependencyGraph,
+      params.filePath,
+      selector.canonicalName,
+    );
+    const markdown = renderSelectorHover({
+      selector,
+      scssModulePath: params.filePath,
+      usageSummary,
+      styleDependencies,
+      workspaceRoot: deps.workspaceRoot,
+    });
 
-  const selector = findCanonicalSelector(styleDocument, hit);
+    return {
+      range: toLspRange(hit.bemSuffix?.rawTokenRange ?? hit.range),
+      contents: { kind: "markdown", value: markdown },
+    };
+  }
+
+  const composesHit = findComposesTokenAtCursor(styleDocument, params.line, params.character);
+  const target = resolveComposesTarget(
+    deps.styleDocumentForPath,
+    styleDocument.filePath,
+    composesHit,
+  );
+  if (!composesHit || !target) return null;
+
   const usageSummary = readSelectorUsageSummary(
     {
       semanticReferenceIndex: deps.semanticReferenceIndex,
       styleDependencyGraph: deps.styleDependencyGraph,
       styleDocumentForPath: deps.styleDocumentForPath,
     },
-    params.filePath,
-    selector.canonicalName,
+    target.filePath,
+    target.selector.canonicalName,
   );
   const styleDependencies = readSelectorStyleDependencySummary(
     deps.styleDependencyGraph,
-    params.filePath,
-    selector.canonicalName,
+    target.filePath,
+    target.selector.canonicalName,
   );
   const markdown = renderSelectorHover({
-    selector,
-    scssModulePath: params.filePath,
+    selector: target.selector,
+    headingName: composesHit.token.className,
+    note: `Referenced via \`composes\` from \`.${composesHit.selector.name}\``,
+    scssModulePath: target.filePath,
     usageSummary,
     styleDependencies,
     workspaceRoot: deps.workspaceRoot,
   });
 
   return {
-    range: toLspRange(hit.bemSuffix?.rawTokenRange ?? hit.range),
+    range: toLspRange(composesHit.token.range),
     contents: { kind: "markdown", value: markdown },
   };
 }

@@ -139,6 +139,75 @@ describe("hover protocol", () => {
     expect(value).toContain("color: red;");
   });
 
+  it("returns a selector hover for a cross-file composes token", async () => {
+    const tsxUri = "file:///fake/workspace/src/Base.tsx";
+    const buttonScssUri = "file:///fake/workspace/src/Button.module.scss";
+    const baseScssUri = "file:///fake/workspace/src/Base.module.scss";
+    const baseTsx = `import classNames from 'classnames/bind';
+import styles from './Base.module.scss';
+const cx = classNames.bind(styles);
+export function Base() {
+  return <div className={cx('base')}>hi</div>;
+}
+`;
+    const buttonScss = `
+.button {
+  composes: base from './Base.module.scss';
+  color: red;
+}
+`;
+    const baseScss = `
+.base {
+  color: blue;
+}
+`;
+    client = createInProcessServer({
+      readStyleFile: (path) => {
+        if (path.endsWith("Button.module.scss")) return buttonScss;
+        if (path.endsWith("Base.module.scss")) return baseScss;
+        return null;
+      },
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    client.didOpen({
+      textDocument: {
+        uri: tsxUri,
+        languageId: "typescriptreact",
+        version: 1,
+        text: baseTsx,
+      },
+    });
+    client.didOpen({
+      textDocument: {
+        uri: buttonScssUri,
+        languageId: "scss",
+        version: 1,
+        text: buttonScss,
+      },
+    });
+    client.didOpen({
+      textDocument: {
+        uri: baseScssUri,
+        languageId: "scss",
+        version: 1,
+        text: baseScss,
+      },
+    });
+    await client.waitForDiagnostics(tsxUri);
+
+    const hover = await client.hover({
+      textDocument: { uri: buttonScssUri },
+      position: { line: 2, character: 13 },
+    });
+    expect(hover).not.toBeNull();
+    const value = (hover!.contents as { value: string }).value;
+    expect(value).toContain("`.base`");
+    expect(value).toContain("Referenced via `composes` from `.button`");
+    expect(value).toContain("color: blue;");
+  });
+
   it("returns null on unknown class", async () => {
     client = createInProcessServer({
       readStyleFile: () => ".other { color: red; }",

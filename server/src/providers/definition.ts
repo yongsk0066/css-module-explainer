@@ -1,9 +1,9 @@
-import path from "node:path";
 import type { LocationLink } from "vscode-languageserver/node";
 import type { Range } from "@css-module-explainer/shared";
 import {
   findCanonicalSelector,
   findComposesTokenAtCursor,
+  resolveComposesTarget,
 } from "../core/query/find-style-selector";
 import { readSourceExpressionResolution } from "../core/query/read-source-expression-resolution";
 import type { SelectorDeclHIR } from "../core/hir/style-types";
@@ -94,27 +94,15 @@ function buildStyleDefinition(params: CursorParams, deps: ProviderDeps): Locatio
   if (!styleDocument) return null;
 
   const hit = findComposesTokenAtCursor(styleDocument, params.line, params.character);
-  if (!hit || hit.ref.fromGlobal) return null;
-
-  const targetFilePath = hit.ref.from
-    ? path.resolve(path.dirname(styleDocument.filePath), hit.ref.from)
-    : styleDocument.filePath;
-  const targetDocument = deps.styleDocumentForPath(targetFilePath);
-  if (!targetDocument) return null;
-
-  const selector =
-    targetDocument.selectors.find(
-      (candidate) =>
-        candidate.canonicalName === hit.token.className && candidate.viewKind === "canonical",
-    ) ??
-    targetDocument.selectors.find((candidate) => candidate.canonicalName === hit.token.className);
-  if (!selector) return null;
+  if (!hit) return null;
+  const target = resolveComposesTarget(deps.styleDocumentForPath, styleDocument.filePath, hit);
+  if (!target) return null;
 
   return [
     toLocationLink(
       hit.token.range,
-      pathToFileUrl(targetDocument.filePath),
-      findCanonicalSelector(targetDocument, selector),
+      pathToFileUrl(target.filePath),
+      findCanonicalSelector(target.styleDocument, target.selector),
     ),
   ];
 }

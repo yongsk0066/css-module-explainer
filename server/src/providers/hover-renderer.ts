@@ -21,6 +21,8 @@ export interface RenderSelectorHoverArgs {
   readonly usageSummary: SelectorUsageSummary;
   readonly styleDependencies?: SelectorStyleDependencySummary;
   readonly workspaceRoot: string;
+  readonly headingName?: string;
+  readonly note?: string;
 }
 
 /**
@@ -52,7 +54,9 @@ export function renderSelectorHover(args: RenderSelectorHoverArgs): string {
     args.styleDependencies,
     args.workspaceRoot,
   );
-  return `**\`.${args.selector.name}\`** — _${location}_${usageNote}\n\n\`\`\`scss\n${buildRule(args.selector)}\n\`\`\`${incomingNote}${outgoingNote}`;
+  const headingName = args.headingName ?? args.selector.name;
+  const note = args.note ? `\n\n_${args.note}_` : "";
+  return `**\`.${headingName}\`** — _${location}_${note}${usageNote}\n\n\`\`\`scss\n${buildRule(args.selector)}\n\`\`\`${incomingNote}${outgoingNote}`;
 }
 
 function renderSingle(args: RenderArgs, selector: SelectorDeclHIR): string {
