@@ -1,47 +1,15 @@
-import type { AnalysisEntry } from "../indexing/document-analysis-cache";
-import type { SourceExpressionKind } from "../hir/source-types";
-import type { StyleDocumentHIR } from "../hir/style-types";
-import {
-  exactClassValue,
-  prefixClassValue,
-  type AbstractClassValue,
-} from "../abstract-value/class-value-domain";
-import { buildSourceBindingGraph, listStyleModulePaths } from "../binder/source-binding-graph";
-import type { TypeResolver } from "../ts/type-resolver";
-import { readSourceExpressionResolution } from "../query/read-source-expression-resolution";
-import { deriveReferenceExpansion, type EdgeCertainty } from "./certainty";
+import type { SemanticContributionDeps, SemanticModuleUsageSite } from "./reference-collector";
 import { filterSelectorReferencePolicy } from "./reference-policy";
 import { type ReferenceQueryOptions, type SemanticReferenceSite } from "./reference-types";
-import type { EdgeReason } from "./provenance";
-
-export interface SemanticReferenceCollectionContext {
-  readonly styleDocumentForPath: (path: string) => StyleDocumentHIR | null;
-  readonly typeResolver: TypeResolver;
-  readonly workspaceRoot: string;
-  readonly filePath: string;
-  readonly settingsKey: string;
-}
-
-export interface SemanticModuleUsageSite {
-  readonly refId: string;
-  readonly uri: string;
-  readonly filePath: string;
-  readonly range: SemanticReferenceSite["range"];
-  readonly origin: SemanticReferenceSite["origin"];
-  readonly scssModulePath: string;
-  readonly expressionKind: SourceExpressionKind;
-  readonly hasResolvedTargets: boolean;
-  readonly isDynamic: boolean;
-}
-
-export interface SemanticContributionDeps {
-  readonly workspaceRoot: string;
-  readonly settingsKey: string;
-  readonly stylePaths: readonly string[];
-  readonly sourcePaths: readonly string[];
-}
+import {
+  NullSemanticReferenceDependencies,
+  type ReferenceDependencyContribution,
+  type SemanticReferenceDependencyLookup,
+  WorkspaceSemanticReferenceDependencies,
+} from "./reference-dependencies";
 
 export interface SemanticWorkspaceReferenceIndex {
+  readonly dependencies: SemanticReferenceDependencyLookup;
   record(
     uri: string,
     sites: readonly SemanticReferenceSite[],
@@ -71,6 +39,7 @@ export interface SemanticWorkspaceReferenceIndex {
 }
 
 export class NullSemanticWorkspaceReferenceIndex implements SemanticWorkspaceReferenceIndex {
+  readonly dependencies = new NullSemanticReferenceDependencies();
   record(
     _uri: string,
     _sites: readonly SemanticReferenceSite[],
@@ -125,17 +94,21 @@ export class NullSemanticWorkspaceReferenceIndex implements SemanticWorkspaceRef
 export class WorkspaceSemanticWorkspaceReferenceIndex implements SemanticWorkspaceReferenceIndex {
   private readonly contributions = new Map<
     string,
-    {
+    ReferenceDependencyContribution & {
       readonly referenceSites: readonly SemanticReferenceSite[];
-      readonly moduleUsages: readonly SemanticModuleUsageSite[];
-      readonly deps: SemanticContributionDeps;
+      readonly order: number;
     }
   >();
-  private readonly selectorToSites = new Map<string, readonly SemanticReferenceSite[]>();
-  private readonly scssToSites = new Map<string, readonly SemanticReferenceSite[]>();
-  private readonly scssToModuleUsages = new Map<string, readonly SemanticModuleUsageSite[]>();
-  private readonly settingsDependencyToUris = new Map<string, readonly string[]>();
-  private readonly sourceDependencyToUris = new Map<string, readonly string[]>();
+  readonly dependencies = new WorkspaceSemanticReferenceDependencies();
+  private readonly selectorToSites = new Map<
+    string,
+    Map<string, { readonly order: number; readonly sites: readonly SemanticReferenceSite[] }>
+  >();
+  private readonly scssToSites = new Map<
+    string,
+    Map<string, { readonly order: number; readonly sites: readonly SemanticReferenceSite[] }>
+  >();
+  private nextOrder = 0;
 
   record(
     uri: string,
@@ -148,17 +121,31 @@ export class WorkspaceSemanticWorkspaceReferenceIndex implements SemanticWorkspa
       sourcePaths: [],
     },
   ): void {
-    if (sites.length === 0 && moduleUsages.length === 0) {
+    const previous = this.contributions.get(uri);
+    if (previous) {
+      this.removeContribution(uri, previous);
       this.contributions.delete(uri);
-    } else {
-      this.contributions.set(uri, { referenceSites: sites, moduleUsages, deps });
     }
-    this.rebuild();
+
+    if (sites.length === 0 && moduleUsages.length === 0) {
+      return;
+    }
+
+    const next = {
+      referenceSites: sites,
+      moduleUsages,
+      deps,
+      order: previous?.order ?? this.nextOrder++,
+    };
+    this.contributions.set(uri, next);
+    this.addContribution(uri, next);
   }
 
   forget(uri: string): void {
-    if (!this.contributions.delete(uri)) return;
-    this.rebuild();
+    const previous = this.contributions.get(uri);
+    if (!previous) return;
+    this.contributions.delete(uri);
+    this.removeContribution(uri, previous);
   }
 
   findSelectorReferences(
@@ -166,7 +153,9 @@ export class WorkspaceSemanticWorkspaceReferenceIndex implements SemanticWorkspa
     canonicalName: string,
     options?: ReferenceQueryOptions,
   ): readonly SemanticReferenceSite[] {
-    const sites = this.selectorToSites.get(selectorKeyFor(scssPath, canonicalName)) ?? [];
+    const sites = flattenSiteBuckets(
+      this.selectorToSites.get(selectorKeyFor(scssPath, canonicalName)),
+    );
     return filterSites(sites, options);
   }
 
@@ -182,200 +171,140 @@ export class WorkspaceSemanticWorkspaceReferenceIndex implements SemanticWorkspa
     scssPath: string,
     options?: ReferenceQueryOptions,
   ): readonly SemanticReferenceSite[] {
-    const sites = this.scssToSites.get(scssPath) ?? [];
+    const sites = flattenSiteBuckets(this.scssToSites.get(scssPath));
     return filterSites(sites, options);
   }
 
   findModuleUsages(scssPath: string): readonly SemanticModuleUsageSite[] {
-    return this.scssToModuleUsages.get(scssPath) ?? [];
+    return this.dependencies.findModuleUsages(scssPath);
   }
 
   findReferencingUris(scssPath: string): readonly string[] {
-    const uris = new Set<string>();
-    for (const usage of this.findModuleUsages(scssPath)) {
-      uris.add(usage.uri);
-    }
-    return [...uris].toSorted();
+    return this.dependencies.findReferencingUris(scssPath);
   }
 
   findUrisBySettingsDependency(workspaceRoot: string, settingsKey: string): readonly string[] {
-    return (
-      this.settingsDependencyToUris.get(settingsDependencyKey(workspaceRoot, settingsKey)) ?? []
-    );
+    return this.dependencies.findUrisBySettingsDependency(workspaceRoot, settingsKey);
   }
 
   findUrisBySourceDependency(workspaceRoot: string, sourcePath: string): readonly string[] {
-    return this.sourceDependencyToUris.get(sourceDependencyKey(workspaceRoot, sourcePath)) ?? [];
+    return this.dependencies.findUrisBySourceDependency(workspaceRoot, sourcePath);
   }
 
   clear(): void {
     this.contributions.clear();
     this.selectorToSites.clear();
     this.scssToSites.clear();
-    this.scssToModuleUsages.clear();
-    this.settingsDependencyToUris.clear();
-    this.sourceDependencyToUris.clear();
+    this.dependencies.clear();
+    this.nextOrder = 0;
   }
 
-  private rebuild(): void {
-    this.selectorToSites.clear();
-    this.scssToSites.clear();
-    this.scssToModuleUsages.clear();
-    this.settingsDependencyToUris.clear();
-    this.sourceDependencyToUris.clear();
-    for (const [uri, contribution] of this.contributions.entries()) {
-      for (const site of contribution.referenceSites) {
-        push(this.selectorToSites, selectorKeyFor(site.selectorFilePath, site.canonicalName), site);
-        push(this.scssToSites, site.selectorFilePath, site);
-      }
-      for (const usage of contribution.moduleUsages) {
-        push(this.scssToModuleUsages, usage.scssModulePath, usage);
-      }
-      push(
-        this.settingsDependencyToUris,
-        settingsDependencyKey(contribution.deps.workspaceRoot, contribution.deps.settingsKey),
-        uri,
-      );
-      for (const sourcePath of contribution.deps.sourcePaths) {
-        push(
-          this.sourceDependencyToUris,
-          sourceDependencyKey(contribution.deps.workspaceRoot, sourcePath),
-          uri,
-        );
-      }
-    }
-  }
-}
-
-export function collectSemanticReferenceContribution(
-  uri: string,
-  entry: AnalysisEntry,
-  ctx: SemanticReferenceCollectionContext,
-): {
-  readonly referenceSites: readonly SemanticReferenceSite[];
-  readonly moduleUsages: readonly SemanticModuleUsageSite[];
-  readonly deps: SemanticContributionDeps;
-} {
-  const bindingGraph = buildSourceBindingGraph(entry.sourceDocument, entry.sourceBinder);
-  const styleDocumentsByPath = new Map<string, StyleDocumentHIR>();
-
-  for (const scssModulePath of listStyleModulePaths(bindingGraph)) {
-    const styleDocument = ctx.styleDocumentForPath(scssModulePath);
-    if (styleDocument) {
-      styleDocumentsByPath.set(scssModulePath, styleDocument);
-    }
-  }
-
-  if (styleDocumentsByPath.size === 0) {
-    return {
-      referenceSites: [],
-      moduleUsages: [],
-      deps: {
-        workspaceRoot: ctx.workspaceRoot,
-        settingsKey: ctx.settingsKey,
-        stylePaths: [],
-        sourcePaths: entry.sourceDependencyPaths,
-      },
-    };
-  }
-
-  const referenceSites: SemanticReferenceSite[] = [];
-  const moduleUsages = entry.sourceDocument.classExpressions
-    .map((expr) => {
-      const styleDocument = styleDocumentsByPath.get(expr.scssModulePath) ?? null;
-      const resolution = readSourceExpressionResolution(
-        {
-          expression: expr,
-          sourceFile: entry.sourceFile,
-          styleDocument,
-        },
-        {
-          typeResolver: ctx.typeResolver,
-          filePath: ctx.filePath,
-          workspaceRoot: ctx.workspaceRoot,
-          sourceBinder: entry.sourceBinder,
-          sourceBindingGraph: entry.sourceBindingGraph,
-        },
-      );
-      if (resolution.styleDocument) {
-        for (const selector of resolution.selectors) {
-          referenceSites.push(
-            toReferenceSite(
-              uri,
-              ctx.filePath,
-              expr,
-              resolution.styleDocument.filePath,
-              selector.canonicalName,
-              resolution.selectorCertainty,
-              reasonForExpression(expr, resolution.reason),
-              abstractValueForExpression(expr, resolution.abstractValue),
-            ),
-          );
-        }
-      }
-      return {
-        refId: expr.id,
-        uri,
-        filePath: ctx.filePath,
-        range: expr.range,
-        origin: expr.origin,
-        scssModulePath: expr.scssModulePath,
-        expressionKind: expr.kind,
-        hasResolvedTargets: resolution.selectors.length > 0,
-        isDynamic: expr.kind === "template" || expr.kind === "symbolRef",
-      } satisfies SemanticModuleUsageSite;
-    })
-    .toSorted((a, b) => compareModuleUsages(a, b));
-  return {
-    referenceSites: referenceSites.toSorted((a, b) => compareSites(a, b)),
-    moduleUsages,
-    deps: {
-      workspaceRoot: ctx.workspaceRoot,
-      settingsKey: ctx.settingsKey,
-      stylePaths: [...styleDocumentsByPath.keys()].toSorted(),
-      sourcePaths: entry.sourceDependencyPaths,
+  private addContribution(
+    uri: string,
+    contribution: ReferenceDependencyContribution & {
+      readonly referenceSites: readonly SemanticReferenceSite[];
+      readonly order: number;
     },
-  };
-}
+  ): void {
+    const selectorGroups = groupSitesByKey(contribution.referenceSites, (site) =>
+      selectorKeyFor(site.selectorFilePath, site.canonicalName),
+    );
+    for (const [key, sites] of selectorGroups.entries()) {
+      getOrCreateNestedMap(this.selectorToSites, key).set(uri, {
+        order: contribution.order,
+        sites,
+      });
+    }
 
-function compareSites(a: SemanticReferenceSite, b: SemanticReferenceSite): number {
-  return (
-    a.selectorFilePath.localeCompare(b.selectorFilePath) ||
-    a.canonicalName.localeCompare(b.canonicalName) ||
-    a.range.start.line - b.range.start.line ||
-    a.range.start.character - b.range.start.character ||
-    a.refId.localeCompare(b.refId)
-  );
-}
+    const scssGroups = groupSitesByKey(
+      contribution.referenceSites,
+      (site) => site.selectorFilePath,
+    );
+    for (const [key, sites] of scssGroups.entries()) {
+      getOrCreateNestedMap(this.scssToSites, key).set(uri, {
+        order: contribution.order,
+        sites,
+      });
+    }
 
-function compareModuleUsages(a: SemanticModuleUsageSite, b: SemanticModuleUsageSite): number {
-  return (
-    a.scssModulePath.localeCompare(b.scssModulePath) ||
-    a.range.start.line - b.range.start.line ||
-    a.range.start.character - b.range.start.character ||
-    a.refId.localeCompare(b.refId)
-  );
+    this.dependencies.record(uri, contribution, contribution.order);
+  }
+
+  private removeContribution(
+    uri: string,
+    contribution: ReferenceDependencyContribution & {
+      readonly referenceSites: readonly SemanticReferenceSite[];
+    },
+  ): void {
+    const selectorGroups = groupSitesByKey(contribution.referenceSites, (site) =>
+      selectorKeyFor(site.selectorFilePath, site.canonicalName),
+    );
+    for (const key of selectorGroups.keys()) {
+      removeFromNestedMap(this.selectorToSites, key, uri);
+    }
+
+    const scssGroups = groupSitesByKey(
+      contribution.referenceSites,
+      (site) => site.selectorFilePath,
+    );
+    for (const key of scssGroups.keys()) {
+      removeFromNestedMap(this.scssToSites, key, uri);
+    }
+
+    this.dependencies.forget(uri, contribution);
+  }
 }
 
 function selectorKeyFor(filePath: string, canonicalName: string): string {
   return `${filePath}::${canonicalName}`;
 }
 
-function settingsDependencyKey(workspaceRoot: string, settingsKey: string): string {
-  return `${workspaceRoot}::${settingsKey}`;
-}
-
-function sourceDependencyKey(workspaceRoot: string, sourcePath: string): string {
-  return `${workspaceRoot}::${sourcePath}`;
-}
-
-function push<T>(map: Map<string, readonly T[]>, key: string, value: T): void {
-  const existing = map.get(key);
-  if (existing) {
-    map.set(key, [...existing, value]);
-    return;
+function groupSitesByKey(
+  sites: readonly SemanticReferenceSite[],
+  getKey: (site: SemanticReferenceSite) => string,
+): ReadonlyMap<string, readonly SemanticReferenceSite[]> {
+  const grouped = new Map<string, SemanticReferenceSite[]>();
+  for (const site of sites) {
+    const key = getKey(site);
+    const existing = grouped.get(key);
+    if (existing) {
+      existing.push(site);
+      continue;
+    }
+    grouped.set(key, [site]);
   }
-  map.set(key, [value]);
+  return grouped;
+}
+
+function flattenSiteBuckets(
+  buckets:
+    | ReadonlyMap<
+        string,
+        { readonly order: number; readonly sites: readonly SemanticReferenceSite[] }
+      >
+    | undefined,
+): readonly SemanticReferenceSite[] {
+  if (!buckets) return [];
+  return [...buckets.values()]
+    .toSorted((a, b) => a.order - b.order)
+    .flatMap((bucket) => bucket.sites);
+}
+
+function getOrCreateNestedMap<K, I, V>(map: Map<K, Map<I, V>>, key: K): Map<I, V> {
+  const existing = map.get(key);
+  if (existing) return existing;
+  const next = new Map<I, V>();
+  map.set(key, next);
+  return next;
+}
+
+function removeFromNestedMap<K, I, V>(map: Map<K, Map<I, V>>, key: K, itemKey: I): void {
+  const bucket = map.get(key);
+  if (!bucket) return;
+  bucket.delete(itemKey);
+  if (bucket.size === 0) {
+    map.delete(key);
+  }
 }
 
 function filterSites(
@@ -383,72 +312,4 @@ function filterSites(
   options?: ReferenceQueryOptions,
 ): readonly SemanticReferenceSite[] {
   return filterSelectorReferencePolicy(sites, options);
-}
-
-function toReferenceSite(
-  uri: string,
-  filePath: string,
-  expression: AnalysisEntry["sourceDocument"]["classExpressions"][number],
-  selectorFilePath: string,
-  canonicalName: string,
-  selectorCertainty: EdgeCertainty,
-  reason: EdgeReason,
-  abstractValue?: AbstractClassValue,
-): SemanticReferenceSite {
-  return {
-    refId: expression.id,
-    selectorId: `selector:${selectorFilePath}:${canonicalName}`,
-    filePath,
-    uri,
-    range: expression.range,
-    origin: expression.origin,
-    scssModulePath: expression.scssModulePath,
-    selectorFilePath,
-    canonicalName,
-    className:
-      expression.kind === "literal" || expression.kind === "styleAccess"
-        ? expression.className
-        : canonicalName,
-    selectorCertainty,
-    reason,
-    expansion: deriveReferenceExpansion(expression.kind),
-    ...(abstractValue ? { abstractValue } : {}),
-  };
-}
-
-function reasonForExpression(
-  expression: AnalysisEntry["sourceDocument"]["classExpressions"][number],
-  dynamicReason?: EdgeReason,
-): EdgeReason {
-  switch (expression.kind) {
-    case "literal":
-      return "literal";
-    case "styleAccess":
-      return "styleAccess";
-    case "template":
-      return "templatePrefix";
-    case "symbolRef":
-      return dynamicReason ?? "typeUnion";
-    default:
-      expression satisfies never;
-      return "typeUnion";
-  }
-}
-
-function abstractValueForExpression(
-  expression: AnalysisEntry["sourceDocument"]["classExpressions"][number],
-  abstractValue?: AbstractClassValue,
-): AbstractClassValue | undefined {
-  switch (expression.kind) {
-    case "literal":
-    case "styleAccess":
-      return exactClassValue(expression.className);
-    case "template":
-      return prefixClassValue(expression.staticPrefix);
-    case "symbolRef":
-      return abstractValue;
-    default:
-      expression satisfies never;
-      return abstractValue;
-  }
 }

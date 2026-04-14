@@ -1,5 +1,6 @@
 import type { Connection, TextDocumentPositionParams } from "vscode-languageserver/node";
-import { FileChangeType, type DidChangeWatchedFilesParams } from "vscode-languageserver/node";
+import { FileChangeType } from "vscode-languageserver/node";
+import type { DidChangeWatchedFilesParams } from "vscode-languageserver/node";
 import type { TextDocument } from "vscode-languageserver-textdocument";
 import type { TextDocuments } from "vscode-languageserver/node";
 import { handleCodeAction } from "./providers/code-actions";
@@ -10,19 +11,29 @@ import { handleCodeLens } from "./providers/reference-lens";
 import { handleReferences } from "./providers/references";
 import { handlePrepareRename, handleRename } from "./providers/rename";
 import type { CursorParams, ProviderDeps } from "./providers/provider-deps";
-import { fileUrlToPath, pathToFileUrl } from "./core/util/text-utils";
+import { fileUrlToPath } from "./core/util/text-utils";
 import { findLangForPath } from "./core/scss/lang-registry";
-import { styleDocumentSemanticFingerprint } from "./core/scss/scss-index";
 import {
   DEFAULT_WINDOW_SETTINGS,
+  formatCompatPathAliasDeprecationMessage,
   fetchResourceSettingsInfo,
   fetchWindowSettings,
   mergeSettings,
   resourceSettingsDependencyKey,
+  shouldWarnCompatPathAlias,
   type WindowSettings,
 } from "./settings";
 import { createDiagnosticsScheduler, type DiagnosticsScheduler } from "./diagnostics-scheduler";
 import type { WorkspaceRegistry } from "./workspace/workspace-registry";
+import {
+  planSettingsReload,
+  planWatchedFileInvalidation,
+  type SettingsReloadWorkspaceChange,
+  createRuntimeDependencySnapshot,
+  snapshotOpenDocuments,
+  collectWatchedFileChangeInputs,
+  type RuntimeFileEvent,
+} from "./runtime";
 
 export interface HandlerContext {
   readonly connection: Connection;
@@ -93,10 +104,14 @@ function registerSettingsHandler(state: HandlerState): () => void {
         const registry = state.ctx.getRegistry();
         if (!registry) return;
 
-        let resourceChanged = false;
-        const affectedSourceUris = new Set<string>();
-        const affectedStyleRoots = new Set<string>();
         const bundles = registry.allDeps();
+        const snapshot = createRuntimeDependencySnapshot(
+          bundles,
+          snapshotOpenDocuments({
+            documents: state.ctx.documents,
+            getWorkspaceRoot: (uri) => state.ctx.getDeps(uri)?.workspaceRoot ?? null,
+          }),
+        );
         const resourceSettingsByBundle = await Promise.all(
           bundles.map(async (deps) => ({
             deps,
@@ -106,6 +121,7 @@ function registerSettingsHandler(state: HandlerState): () => void {
             ),
           })),
         );
+        const workspaceChanges: SettingsReloadWorkspaceChange[] = [];
         for (const { deps, resourceSettingsInfo } of resourceSettingsByBundle) {
           const resourceSettings = resourceSettingsInfo.settings;
           const nextSettings = mergeSettings(windowSettings, resourceSettings);
@@ -115,13 +131,14 @@ function registerSettingsHandler(state: HandlerState): () => void {
           deps.settings = nextSettings;
 
           if (
-            resourceSettingsInfo.pathAliasSource === "compat" &&
-            !state.warnedCompatPathAliasRoots.has(deps.workspaceRoot)
+            shouldWarnCompatPathAlias(
+              resourceSettingsInfo,
+              state.warnedCompatPathAliasRoots,
+              deps.workspaceRoot,
+            )
           ) {
             state.warnedCompatPathAliasRoots.add(deps.workspaceRoot);
-            connection.console.info(
-              `[css-module-explainer] cssModules.pathAlias is deprecated for '${deps.workspaceRoot}'. Use cssModuleExplainer.pathAlias instead.`,
-            );
+            connection.console.info(formatCompatPathAliasDeprecationMessage(deps.workspaceRoot));
           }
 
           const aliasChanged = !shallowEqualPathAlias(
@@ -130,48 +147,44 @@ function registerSettingsHandler(state: HandlerState): () => void {
           );
           const modeChanged =
             prevSettings.scss.classnameTransform !== nextSettings.scss.classnameTransform;
-          if (aliasChanged) deps.rebuildAliasResolver(nextSettings.pathAlias);
-          if (!aliasChanged && !modeChanged) continue;
-
-          resourceChanged = true;
-          if (modeChanged) {
-            affectedStyleRoots.add(deps.workspaceRoot);
-            for (const uri of deps.semanticReferenceIndex.findUrisBySettingsDependency(
+          workspaceChanges.push({
+            workspaceRoot: deps.workspaceRoot,
+            aliasChanged,
+            modeChanged,
+            settingsKeyChanged: prevSettingsKey !== nextSettingsKey,
+            affectedSettingsDependencyUris: snapshot.findSettingsDependencyUris(
               deps.workspaceRoot,
               prevSettingsKey,
-            )) {
-              affectedSourceUris.add(uri);
-            }
-          }
-          if (aliasChanged || prevSettingsKey !== nextSettingsKey) {
-            for (const doc of state.ctx.documents.all()) {
-              const filePath = fileUrlToPath(doc.uri);
-              if (findLangForPath(filePath)) continue;
-              if (state.ctx.getDeps(doc.uri)?.workspaceRoot === deps.workspaceRoot) {
-                affectedSourceUris.add(doc.uri);
-              }
-            }
-          }
+            ),
+          });
         }
 
-        if (resourceChanged) {
-          for (const uri of affectedSourceUris) {
+        const plan = planSettingsReload(workspaceChanges, snapshot.openDocuments);
+        for (const deps of bundles) {
+          if (!plan.aliasRebuildRoots.includes(deps.workspaceRoot)) continue;
+          deps.rebuildAliasResolver(deps.settings.pathAlias);
+        }
+
+        if (plan.resourceChanged) {
+          for (const uri of plan.affectedSourceUris) {
             const deps = state.ctx.getDeps(uri);
             if (!deps) continue;
             deps.semanticReferenceIndex.forget(uri);
             deps.analysisCache.invalidate(uri);
           }
           bundles[0]?.refreshCodeLens();
-          for (const doc of state.ctx.documents.all()) {
-            const filePath = fileUrlToPath(doc.uri);
-            if (findLangForPath(filePath)) {
-              if (affectedStyleRoots.has(state.ctx.getDeps(doc.uri)?.workspaceRoot ?? "")) {
+          for (const doc of snapshot.openDocuments) {
+            if (doc.isStyle) {
+              if (
+                doc.workspaceRoot !== null &&
+                plan.affectedStyleRoots.includes(doc.workspaceRoot)
+              ) {
                 state.scheduler.scheduleScss(doc.uri);
               }
-            } else {
-              if (affectedSourceUris.has(doc.uri)) {
-                state.scheduler.scheduleTsx(doc.uri);
-              }
+              continue;
+            }
+            if (plan.affectedSourceUris.includes(doc.uri)) {
+              state.scheduler.scheduleTsx(doc.uri);
             }
           }
         }
@@ -291,157 +304,87 @@ function registerDocumentHandlers(state: HandlerState): void {
 }
 
 function registerWatchedFilesHandler(state: HandlerState): void {
-  const { connection, documents } = state.ctx;
+  const { connection } = state.ctx;
 
   connection.onDidChangeWatchedFiles((params: DidChangeWatchedFilesParams) => {
     const registry = state.ctx.getRegistry();
     if (!registry) return;
-    let hasStyleChange = false;
-    let hasSourceChange = false;
-    let hasProjectConfigChange = false;
-    const affectedWorkspaceRoots = new Set<string>();
-    const typeResolverInvalidationRoots = new Set<string>();
-    const affectedSourceUris = new Set<string>();
-    for (const change of params.changes) {
-      const filePath = fileUrlToPath(change.uri);
-      const deps = registry.getDepsForFilePath(filePath);
-      if (!deps) continue;
-      affectedWorkspaceRoots.add(deps.workspaceRoot);
-      if (findLangForPath(filePath)) {
-        const semanticsChanged = hasStyleSemanticChange(filePath, change.type, deps, documents);
-        hasStyleChange = true;
-        if (semanticsChanged) {
-          deps.invalidateStyle(filePath);
-          if (change.type !== FileChangeType.Deleted) {
-            deps.pushStyleFile(filePath);
-          }
-          for (const uri of invalidateDependentTsxEntries(
-            state.ctx.getDeps,
-            deps.semanticReferenceIndex,
-            filePath,
-          )) {
-            affectedSourceUris.add(uri);
-          }
-        }
-      } else {
-        hasSourceChange = true;
-        if (isProjectConfigPath(filePath)) {
-          hasProjectConfigChange = true;
-          typeResolverInvalidationRoots.add(deps.workspaceRoot);
-        } else {
-          const dependentUris = deps.semanticReferenceIndex.findUrisBySourceDependency(
-            deps.workspaceRoot,
-            filePath,
-          );
-          if (dependentUris.length > 0) {
-            typeResolverInvalidationRoots.add(deps.workspaceRoot);
-          }
-          for (const uri of dependentUris) {
-            affectedSourceUris.add(uri);
-          }
-        }
-      }
-    }
+    const snapshot = createRuntimeDependencySnapshot(
+      registry.allDeps(),
+      snapshotOpenDocuments({
+        documents: state.ctx.documents,
+        getWorkspaceRoot: (uri) => state.ctx.getDeps(uri)?.workspaceRoot ?? null,
+      }),
+    );
+    const changes = collectWatchedFileChangeInputs(
+      params.changes.map(toRuntimeFileEvent),
+      {
+        documents: state.ctx.documents,
+        getDepsForFilePath: (filePath) => registry.getDepsForFilePath(filePath),
+      },
+      snapshot,
+    );
+    const plan = planWatchedFileInvalidation(changes, snapshot.openDocuments);
     const affectedDeps = registry
       .allDeps()
-      .filter((deps) => affectedWorkspaceRoots.has(deps.workspaceRoot));
-    if (hasProjectConfigChange) {
-      for (const deps of affectedDeps) {
+      .filter(
+        (deps) =>
+          plan.aliasRebuildRoots.includes(deps.workspaceRoot) ||
+          plan.typeResolverInvalidationRoots.includes(deps.workspaceRoot),
+      );
+    for (const change of changes) {
+      if (change.kind !== "style" || !change.semanticsChanged) continue;
+      const deps = registry.getDepsForFilePath(change.filePath);
+      if (!deps) continue;
+      if (plan.stylePathsToInvalidate.includes(change.filePath)) {
+        deps.invalidateStyle(change.filePath);
+      }
+      if (plan.stylePathsToPush.includes(change.filePath)) {
+        deps.pushStyleFile(change.filePath);
+      }
+    }
+    for (const deps of affectedDeps) {
+      if (plan.aliasRebuildRoots.includes(deps.workspaceRoot)) {
         deps.rebuildAliasResolver(deps.settings.pathAlias);
       }
-    }
-    if (hasSourceChange) {
-      for (const deps of affectedDeps) {
-        if (!typeResolverInvalidationRoots.has(deps.workspaceRoot)) continue;
+      if (plan.typeResolverInvalidationRoots.includes(deps.workspaceRoot)) {
         deps.typeResolver.invalidate(deps.workspaceRoot);
       }
-      if (hasProjectConfigChange) {
-        for (const doc of documents.all()) {
-          const deps = state.ctx.getDeps(doc.uri);
-          if (!deps || !affectedWorkspaceRoots.has(deps.workspaceRoot)) continue;
-          if (findLangForPath(fileUrlToPath(doc.uri))) continue;
-          affectedSourceUris.add(doc.uri);
-        }
-      }
-      for (const uri of affectedSourceUris) {
-        const deps = state.ctx.getDeps(uri);
-        if (!deps) continue;
-        deps.semanticReferenceIndex.forget(uri);
-        deps.analysisCache.invalidate(uri);
-      }
     }
-    if (hasStyleChange || hasSourceChange) {
-      for (const doc of documents.all()) {
-        const deps = state.ctx.getDeps(doc.uri);
-        if (!deps) continue;
-        const docPath = fileUrlToPath(doc.uri);
-        const rootAffected = affectedWorkspaceRoots.has(deps.workspaceRoot);
-        const sourceAffected = affectedSourceUris.has(doc.uri);
-        if (!rootAffected && !sourceAffected) continue;
-        if (findLangForPath(docPath)) {
-          if (!rootAffected) continue;
-          state.scheduler.scheduleScss(doc.uri);
-        } else {
-          if (!sourceAffected) continue;
-          state.scheduler.scheduleTsx(doc.uri);
-        }
+    for (const uri of plan.affectedSourceUris) {
+      const deps = state.ctx.getDeps(uri);
+      if (!deps) continue;
+      deps.semanticReferenceIndex.forget(uri);
+      deps.analysisCache.invalidate(uri);
+    }
+    for (const doc of snapshot.openDocuments) {
+      const rootAffected =
+        doc.workspaceRoot !== null && plan.affectedWorkspaceRoots.includes(doc.workspaceRoot);
+      const sourceAffected = plan.affectedSourceUris.includes(doc.uri);
+      if (!rootAffected && !sourceAffected) continue;
+      if (doc.isStyle) {
+        if (rootAffected) state.scheduler.scheduleScss(doc.uri);
+        continue;
+      }
+      if (sourceAffected) {
+        state.scheduler.scheduleTsx(doc.uri);
       }
     }
   });
 }
 
-function isProjectConfigPath(filePath: string): boolean {
-  const base = filePath.split(/[\\/]/u).pop();
-  return (
-    base !== undefined && (/^tsconfig.*\.json$/u.test(base) || /^jsconfig.*\.json$/u.test(base))
-  );
-}
-
-/**
- * Invalidate cached TSX analysis entries whose semantic reference
- * contribution depends on this SCSS file. Without this, the
- * debounced scheduleTsx hits `analysisCache.get`, finds the
- * version unchanged, and reuses the stale AnalysisEntry — so
- * `onAnalyze` never re-fires and the semantic reference query
- * keeps serving targets computed against the old classMap.
- */
-function invalidateDependentTsxEntries(
-  getDeps: (uri: string) => ProviderDeps | null,
-  semanticReferenceIndex: ProviderDeps["semanticReferenceIndex"],
-  scssPath: string,
-): ReadonlySet<string> {
-  const affectedUris = new Set(semanticReferenceIndex.findReferencingUris(scssPath));
-  for (const uri of affectedUris) {
-    getDeps(uri)?.analysisCache.invalidate(uri);
-  }
-  return affectedUris;
-}
-
-function hasStyleSemanticChange(
-  filePath: string,
-  changeType: FileChangeType,
-  deps: ProviderDeps,
-  documents: TextDocuments<TextDocument>,
-): boolean {
-  if (changeType === FileChangeType.Deleted) return true;
-  const previous = deps.peekStyleDocument(filePath);
-  if (!previous) return true;
-  const nextContent = readCurrentStyleContent(filePath, deps, documents);
-  if (nextContent === null) return true;
-  const next = deps.buildStyleDocument(filePath, nextContent);
-  return styleDocumentSemanticFingerprint(previous) !== styleDocumentSemanticFingerprint(next);
-}
-
-function readCurrentStyleContent(
-  filePath: string,
-  deps: ProviderDeps,
-  documents: TextDocuments<TextDocument>,
-): string | null {
-  const openDocument = documents.get(pathToFileUrl(filePath));
-  if (openDocument) {
-    return openDocument.getText();
-  }
-  return deps.readStyleFile(filePath);
+function toRuntimeFileEvent(
+  change: DidChangeWatchedFilesParams["changes"][number],
+): RuntimeFileEvent {
+  return {
+    uri: change.uri,
+    type:
+      change.type === FileChangeType.Created
+        ? "created"
+        : change.type === FileChangeType.Deleted
+          ? "deleted"
+          : "changed",
+  };
 }
 
 function safeLogError(connection: Connection, context: string, err: unknown): void {

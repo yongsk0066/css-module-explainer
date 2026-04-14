@@ -14,8 +14,17 @@ import { NestedStyleFactsScenario } from "./scenarios/12-nested-style-facts/Nest
 import { ShadowingScenario } from "./scenarios/13-shadowing/ShadowingScenario";
 import { NonFiniteDynamicScenario } from "./scenarios/14-non-finite-dynamic/NonFiniteDynamicScenario";
 import { ComposesScenario } from "./scenarios/15-composes/ComposesScenario";
+import { DiagnosticsRecoveryScenario } from "./scenarios/16-diagnostics-recovery/DiagnosticsRecoveryScenario";
+import { BracketAccessScenario } from "./scenarios/17-bracket-access/BracketAccessScenario";
+import { LessModuleScenario } from "./scenarios/18-less-module/LessModuleScenario";
 
-type ScenarioGroup = "Basics" | "Binding" | "Dynamic" | "Style-side" | "Resolution";
+type ScenarioGroup =
+  | "Basics"
+  | "Binding"
+  | "Dynamic"
+  | "Style-side"
+  | "Diagnostics"
+  | "Resolution";
 
 interface Scenario {
   readonly id: string;
@@ -31,6 +40,7 @@ const GROUP_ORDER: readonly ScenarioGroup[] = [
   "Binding",
   "Dynamic",
   "Style-side",
+  "Diagnostics",
   "Resolution",
 ];
 
@@ -139,6 +149,27 @@ const SCENARIOS: readonly Scenario[] = [
     title: "15 · composes graph",
     description: "Same-file and cross-file composes navigation, references, and hover.",
     render: () => <ComposesScenario />,
+  },
+  {
+    id: "16-diagnostics-recovery",
+    group: "Diagnostics",
+    title: "16 · diagnostics recovery",
+    description: "Typo, missing module, and unresolved composes recovery checks.",
+    render: () => <DiagnosticsRecoveryScenario />,
+  },
+  {
+    id: "17-bracket-access",
+    group: "Resolution",
+    title: "17 · bracket access",
+    description: "Dashed and Unicode selectors through styles['...'] access.",
+    render: () => <BracketAccessScenario />,
+  },
+  {
+    id: "18-less-module",
+    group: "Resolution",
+    title: "18 · .module.less",
+    description: "LESS module parsing, nested classes, and dashed selector access.",
+    render: () => <LessModuleScenario />,
   },
 ];
 

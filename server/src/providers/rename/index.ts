@@ -6,12 +6,12 @@ import type {
 } from "vscode-languageserver/node";
 import { LSPErrorCodes, ResponseError } from "vscode-languageserver/node";
 import {
+  groupTextEditsByUri,
   planSelectorRename,
   readExpressionRenameTarget,
   readStyleSelectorRenameTargetAtCursor,
   renameBlockReasonMessage,
-} from "../../core/rewrite/selector-rename";
-import { groupTextEditsByUri } from "../../core/rewrite/text-rewrite-plan";
+} from "../../core/rewrite";
 import { findLangForPath } from "../../core/scss/lang-registry";
 import { fileUrlToPath } from "../../core/util/text-utils";
 import { toLspRange } from "../lsp-adapters";

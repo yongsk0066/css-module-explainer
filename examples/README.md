@@ -75,12 +75,20 @@ listed in `src/App.tsx`'s sidebar.
 | 12 | `12-nested-style-facts/` | `&.class`, plain nesting, and BEM suffix selector registration |
 | 15 | `15-composes/` | same-file and cross-file `composes` navigation and references |
 
+### Diagnostics
+
+| # | Folder | Pattern |
+|---|---|---|
+| 16 | `16-diagnostics-recovery/` | typo recovery, missing-module recovery, unresolved `composes` diagnostics |
+
 ### Resolution
 
 | # | Folder | Pattern |
 |---|---|---|
 | 08 | `08-css-only/` | `.module.css` instead of `.module.scss` |
 | 11 | `11-ts-path/` | `tsconfig.json` / `jsconfig.json` `compilerOptions.paths` |
+| 17 | `17-bracket-access/` | dashed + Unicode selectors through `styles['...']` |
+| 18 | `18-less-module/` | `.module.less` parsing and nested selectors |
 
 The directory structure is locked; each scenario sub-directory
 should drop into `src/scenarios/` without layout changes. New
@@ -125,6 +133,20 @@ through them whenever you update the provider layer.
   Cross-file tokens should resolve to the source module selector, and
   the target selector hover / CodeLens should reflect composed-style
   usage.
+- **Diagnostics recovery loop**: in `16-diagnostics-recovery`,
+  intentionally typo `typoTarget`, then revert it. Next, temporarily
+  rename the module import to a missing file and revert it. Finally,
+  open `BrokenComposes.module.scss` in the same folder and confirm the
+  extension reports both missing-file and missing-selector composes
+  diagnostics.
+- **Bracket-access resolution**: in `17-bracket-access`, hover and go
+  to definition from `styles["btn-primary"]`, `styles["accent-pill"]`,
+  and `styles["한글-라벨"]`. All three should resolve directly to the
+  source selector token.
+- **LESS module parity**: in `18-less-module`, verify hover,
+  definition, references, diagnostics, and rename against
+  `.module.less` selectors, including the nested `&.active` selector
+  and the dashed `accent-badge` token.
 - **Unsaved SCSS edits reflect in diagnostics immediately**: open
   any scenario's `.module.scss`, add or remove a class without
   saving, and any diagnostic in the matching `.tsx` file updates

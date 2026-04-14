@@ -1,7 +1,7 @@
 {
   "name": "css-module-explainer",
   "displayName": "CSS Module Explainer",
-  "version": "3.1.1",
+  "version": "3.2.0",
   "private": true,
   "description": "Go to Definition, Hover, Autocomplete, Diagnostics, Quick Fixes, and Find References for classnames/bind cx() patterns with CSS Modules.",
   "categories": [
@@ -135,7 +135,7 @@
           "type": "object",
           "default": {},
           "scope": "resource",
-          "markdownDescription": "Resource-scoped import alias map for CSS Module paths. Keys are non-relative import prefixes, values are workspace-relative or absolute target paths. This key takes precedence over the compatibility fallback from `cssModules.pathAlias`."
+          "markdownDescription": "Resource-scoped import alias map for CSS Module paths. Keys are non-relative import prefixes, values are workspace-relative or absolute target paths. This key takes precedence over the compatibility fallback from `cssModules.pathAlias`, which is deprecated and scheduled for removal in `4.0.0`."
         },
         "cssModuleExplainer.scss.classnameTransform": {
           "type": "string",

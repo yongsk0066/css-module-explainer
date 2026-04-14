@@ -1,0 +1,68 @@
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+
+const REPO_ROOT = process.cwd();
+const CORE_ROOT = path.join(REPO_ROOT, "server/src/core");
+const RUNTIME_ROOT = path.join(REPO_ROOT, "server/src/runtime");
+const PROVIDERS_ROOT = path.join(REPO_ROOT, "server/src/providers");
+const COMPOSITION_ROOT = path.join(REPO_ROOT, "server/src/composition-root.ts");
+const HANDLER_ROOT = path.join(REPO_ROOT, "server/src/handler-registration.ts");
+
+describe("package-ready boundaries", () => {
+  it("core modules do not depend on provider or runtime modules", () => {
+    for (const filePath of walkTsFiles(CORE_ROOT)) {
+      const source = readFileSync(filePath, "utf8");
+      expect(source, relativePath(filePath)).not.toMatch(/providers\//);
+      expect(source, relativePath(filePath)).not.toMatch(/runtime\//);
+      expect(source, relativePath(filePath)).not.toMatch(/vscode-languageserver/);
+    }
+  });
+
+  it("runtime modules do not depend on provider deps contracts", () => {
+    for (const filePath of walkTsFiles(RUNTIME_ROOT)) {
+      const source = readFileSync(filePath, "utf8");
+      expect(source, relativePath(filePath)).not.toMatch(/provider-deps/);
+      expect(source, relativePath(filePath)).not.toMatch(/vscode-languageserver/);
+    }
+  });
+
+  it("providers read query and rewrite through package-ready boundaries", () => {
+    for (const filePath of walkTsFiles(PROVIDERS_ROOT)) {
+      if (filePath.endsWith("provider-deps.ts")) continue;
+      const source = readFileSync(filePath, "utf8");
+      expect(source, relativePath(filePath)).not.toMatch(/core\/query\//);
+      expect(source, relativePath(filePath)).not.toMatch(/core\/rewrite\//);
+    }
+  });
+
+  it("server wiring reads runtime and semantic layers through entrypoints", () => {
+    const composition = readFileSync(COMPOSITION_ROOT, "utf8");
+    const handler = readFileSync(HANDLER_ROOT, "utf8");
+
+    expect(composition).not.toMatch(/runtime\/shared-runtime-caches/);
+    expect(composition).not.toMatch(/runtime\/workspace-runtime/);
+    expect(handler).not.toMatch(/runtime\/dependency-snapshot/);
+    expect(handler).not.toMatch(/runtime\/invalidation-planner/);
+    expect(handler).not.toMatch(/runtime\/watched-file-changes/);
+  });
+});
+
+function walkTsFiles(root: string): string[] {
+  const files: string[] = [];
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    const fullPath = path.join(root, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...walkTsFiles(fullPath));
+      continue;
+    }
+    if (entry.isFile() && fullPath.endsWith(".ts")) {
+      files.push(fullPath);
+    }
+  }
+  return files.toSorted();
+}
+
+function relativePath(filePath: string): string {
+  return path.relative(REPO_ROOT, filePath).replaceAll(path.sep, "/");
+}

@@ -1,7 +1,6 @@
 import type { DocumentAnalysisCache } from "../core/indexing/document-analysis-cache";
 import type { StyleDocumentHIR } from "../core/hir/style-types";
-import type { SemanticWorkspaceReferenceIndex } from "../core/semantic/workspace-reference-index";
-import type { StyleDependencyGraph } from "../core/semantic/style-dependency-graph";
+import type { SemanticWorkspaceReferenceIndex, StyleDependencyGraph } from "../core/semantic";
 import type { TypeResolver } from "../core/ts/type-resolver";
 import type { Settings } from "../settings";
 

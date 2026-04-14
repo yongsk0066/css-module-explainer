@@ -2,9 +2,9 @@ import type { Location, ReferenceParams } from "vscode-languageserver/node";
 import {
   findComposesTokenAtCursor,
   findSelectorAtCursor,
+  readSelectorUsageSummary,
   resolveComposesTarget,
-} from "../core/query/find-style-selector";
-import { readSelectorUsageSummary } from "../core/query/read-selector-usage";
+} from "../core/query";
 import { findLangForPath } from "../core/scss/lang-registry";
 import { fileUrlToPath } from "../core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
@@ -75,4 +75,4 @@ export const handleReferences = wrapHandler<ReferenceParams, [], Location[] | nu
   },
   null,
 );
-export { findSelectorAtCursor } from "../core/query/find-style-selector";
+export { findSelectorAtCursor } from "../core/query";

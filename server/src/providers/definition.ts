@@ -3,9 +3,9 @@ import type { Range } from "@css-module-explainer/shared";
 import {
   findCanonicalSelector,
   findComposesTokenAtCursor,
+  readSourceExpressionResolution,
   resolveComposesTarget,
-} from "../core/query/find-style-selector";
-import { readSourceExpressionResolution } from "../core/query/read-source-expression-resolution";
+} from "../core/query";
 import type { SelectorDeclHIR } from "../core/hir/style-types";
 import { findLangForPath } from "../core/scss/lang-registry";
 import { pathToFileUrl } from "../core/util/text-utils";

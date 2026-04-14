@@ -2,10 +2,9 @@ import path from "node:path";
 import { DiagnosticSeverity, DiagnosticTag, type Diagnostic } from "vscode-languageserver/node";
 import type { ComposesRef, Range } from "@css-module-explainer/shared";
 import type { StyleDocumentHIR } from "../core/hir/style-types";
-import { readStyleModuleUsageSummary } from "../core/query/read-style-module-usage";
-import type { SemanticWorkspaceReferenceIndex } from "../core/semantic/workspace-reference-index";
-import type { StyleDependencyGraph } from "../core/semantic/style-dependency-graph";
+import { readStyleModuleUsageSummary } from "../core/query";
 import { pathToFileUrl } from "../core/util/text-utils";
+import type { ProviderDeps } from "./provider-deps";
 import { toLspRange } from "./lsp-adapters";
 
 /**
@@ -18,8 +17,8 @@ import { toLspRange } from "./lsp-adapters";
 export function computeScssUnusedDiagnostics(
   scssPath: string,
   styleDocument: StyleDocumentHIR,
-  semanticReferenceIndex: SemanticWorkspaceReferenceIndex,
-  styleDependencyGraph?: StyleDependencyGraph,
+  semanticReferenceIndex: ProviderDeps["semanticReferenceIndex"],
+  styleDependencyGraph?: ProviderDeps["styleDependencyGraph"],
   styleDocumentForPath?: (filePath: string) => StyleDocumentHIR | null,
 ): Diagnostic[] {
   const diagnostics: Diagnostic[] = readStyleModuleUsageSummary(

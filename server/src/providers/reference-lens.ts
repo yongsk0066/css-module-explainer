@@ -1,7 +1,6 @@
 import type { CodeLens, CodeLensParams } from "vscode-languageserver/node";
 import type { ShowReferencesArgs, ShowReferencesLocation } from "@css-module-explainer/shared";
-import { listCanonicalSelectors } from "../core/query/find-style-selector";
-import { readSelectorUsageSummary } from "../core/query/read-selector-usage";
+import { listCanonicalSelectors, readSelectorUsageSummary } from "../core/query";
 import type { SelectorDeclHIR } from "../core/hir/style-types";
 import { findLangForPath } from "../core/scss/lang-registry";
 import { fileUrlToPath } from "../core/util/text-utils";
