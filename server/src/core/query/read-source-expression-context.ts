@@ -2,7 +2,7 @@ import type { AnalysisEntry } from "../indexing/document-analysis-cache";
 import type { ClassExpressionHIR } from "../hir/source-types";
 import type { StyleDocumentHIR } from "../hir/style-types";
 import { rangeContains } from "../util/range-utils";
-import type { CursorParams, ProviderDeps } from "../../providers/provider-deps";
+import type { SourceExpressionCursor, SourceExpressionQueryDeps } from "./contracts";
 
 export interface SourceExpressionContext {
   readonly expression: ClassExpressionHIR;
@@ -11,8 +11,8 @@ export interface SourceExpressionContext {
 }
 
 export function readSourceExpressionContextAtCursor(
-  params: CursorParams,
-  deps: ProviderDeps,
+  params: SourceExpressionCursor,
+  deps: SourceExpressionQueryDeps,
 ): SourceExpressionContext | null {
   const entry = deps.analysisCache.get(
     params.documentUri,

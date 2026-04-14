@@ -1,8 +1,8 @@
 import { findLangForPath } from "../core/scss/lang-registry";
+import type { SemanticWorkspaceReferenceIndex } from "../core/semantic/workspace-reference-index";
 import { fileUrlToPath } from "../core/util/text-utils";
 import type { TextDocument } from "vscode-languageserver-textdocument";
 import type { TextDocuments } from "vscode-languageserver/node";
-import type { ProviderDeps } from "../providers/provider-deps";
 import type { OpenDocumentSnapshot } from "./invalidation-planner";
 
 export interface RuntimeDependencySnapshot {
@@ -14,11 +14,16 @@ export interface RuntimeDependencySnapshot {
 
 export interface OpenDocumentSnapshotContext {
   readonly documents: Pick<TextDocuments<TextDocument>, "all">;
-  getDeps(uri: string): ProviderDeps | null;
+  getWorkspaceRoot(uri: string): string | null;
+}
+
+export interface RuntimeDependencyBundle {
+  readonly workspaceRoot: string;
+  readonly semanticReferenceIndex: SemanticWorkspaceReferenceIndex;
 }
 
 export function createRuntimeDependencySnapshot(
-  bundles: readonly ProviderDeps[],
+  bundles: readonly RuntimeDependencyBundle[],
   openDocuments: readonly OpenDocumentSnapshot[],
 ): RuntimeDependencySnapshot {
   const depsByWorkspaceRoot = new Map(bundles.map((deps) => [deps.workspaceRoot, deps]));
@@ -64,7 +69,7 @@ export function snapshotOpenDocuments(
       uri: doc.uri,
       filePath,
       isStyle: findLangForPath(filePath) !== null,
-      workspaceRoot: ctx.getDeps(doc.uri)?.workspaceRoot ?? null,
+      workspaceRoot: ctx.getWorkspaceRoot(doc.uri),
     };
   });
 }

@@ -1,17 +1,19 @@
 import type { TextDocument } from "vscode-languageserver-textdocument";
 import { FileChangeType, type FileEvent } from "vscode-languageserver/node";
 import type { TextDocuments } from "vscode-languageserver/node";
+import type { StyleDocumentHIR } from "../core/hir/style-types";
 import { findLangForPath } from "../core/scss/lang-registry";
 import { styleDocumentSemanticFingerprint } from "../core/scss/scss-index";
 import { fileUrlToPath, pathToFileUrl } from "../core/util/text-utils";
-import type { ProviderDeps } from "../providers/provider-deps";
 import type { RuntimeDependencySnapshot } from "./dependency-snapshot";
 import type { WatchedFileChangeInput } from "./invalidation-planner";
 
-export interface WatchedFileDeps extends Pick<
-  ProviderDeps,
-  "workspaceRoot" | "peekStyleDocument" | "buildStyleDocument" | "readStyleFile"
-> {}
+export interface WatchedFileDeps {
+  readonly workspaceRoot: string;
+  readonly peekStyleDocument: (path: string) => StyleDocumentHIR | null;
+  readonly buildStyleDocument: (path: string, content: string) => StyleDocumentHIR;
+  readonly readStyleFile: (path: string) => string | null;
+}
 
 export interface WatchedFileChangeCollectionContext {
   readonly documents: Pick<TextDocuments<TextDocument>, "get">;

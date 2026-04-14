@@ -105,7 +105,13 @@ function registerSettingsHandler(state: HandlerState): () => void {
         if (!registry) return;
 
         const bundles = registry.allDeps();
-        const snapshot = createRuntimeDependencySnapshot(bundles, snapshotOpenDocuments(state.ctx));
+        const snapshot = createRuntimeDependencySnapshot(
+          bundles,
+          snapshotOpenDocuments({
+            documents: state.ctx.documents,
+            getWorkspaceRoot: (uri) => state.ctx.getDeps(uri)?.workspaceRoot ?? null,
+          }),
+        );
         const resourceSettingsByBundle = await Promise.all(
           bundles.map(async (deps) => ({
             deps,
@@ -305,7 +311,10 @@ function registerWatchedFilesHandler(state: HandlerState): void {
     if (!registry) return;
     const snapshot = createRuntimeDependencySnapshot(
       registry.allDeps(),
-      snapshotOpenDocuments(state.ctx),
+      snapshotOpenDocuments({
+        documents: state.ctx.documents,
+        getWorkspaceRoot: (uri) => state.ctx.getDeps(uri)?.workspaceRoot ?? null,
+      }),
     );
     const changes = collectWatchedFileChangeInputs(
       params.changes,

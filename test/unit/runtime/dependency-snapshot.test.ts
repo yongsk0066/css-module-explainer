@@ -85,7 +85,7 @@ describe("createRuntimeDependencySnapshot", () => {
           { uri: "file:///fake/ws/src/Button.module.scss" },
         ],
       },
-      getDeps: () => deps,
+      getWorkspaceRoot: () => deps.workspaceRoot,
     });
 
     expect(openDocuments).toEqual([

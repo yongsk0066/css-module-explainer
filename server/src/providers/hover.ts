@@ -3,11 +3,11 @@ import {
   findCanonicalSelector,
   findComposesTokenAtCursor,
   findSelectorAtCursor,
+  readSelectorStyleDependencySummary,
+  readSelectorUsageSummary,
+  resolveRefDetails,
   resolveComposesTarget,
-} from "../core/query/find-style-selector";
-import { readSelectorUsageSummary } from "../core/query/read-selector-usage";
-import { resolveRefDetails } from "../core/query/resolve-ref";
-import { readSelectorStyleDependencySummary } from "../core/query/read-selector-style-dependencies";
+} from "../core/query";
 import { findLangForPath } from "../core/scss/lang-registry";
 import { toLspRange } from "./lsp-adapters";
 import { renderHover, renderSelectorHover } from "./hover-renderer";

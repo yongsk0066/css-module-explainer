@@ -2,7 +2,7 @@ import path from "node:path";
 import { DiagnosticSeverity, DiagnosticTag, type Diagnostic } from "vscode-languageserver/node";
 import type { ComposesRef, Range } from "@css-module-explainer/shared";
 import type { StyleDocumentHIR } from "../core/hir/style-types";
-import { readStyleModuleUsageSummary } from "../core/query/read-style-module-usage";
+import { readStyleModuleUsageSummary } from "../core/query";
 import { pathToFileUrl } from "../core/util/text-utils";
 import type { ProviderDeps } from "./provider-deps";
 import { toLspRange } from "./lsp-adapters";

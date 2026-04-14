@@ -3,8 +3,7 @@ import {
   type Diagnostic,
   type Range as LspRange,
 } from "vscode-languageserver/node";
-import { findInvalidClassReference } from "../core/query/find-invalid-class-references";
-import { messageForInvalidClassFinding } from "../core/query/explain-expression-semantics";
+import { findInvalidClassReference, messageForInvalidClassFinding } from "../core/query";
 import type { StyleDocumentHIR } from "../core/hir/style-types";
 import { pathToFileUrl } from "../core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
