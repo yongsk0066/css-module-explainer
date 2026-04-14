@@ -16,7 +16,7 @@ import { DEFAULT_RESOURCE_SETTINGS, type ResourceSettings } from "./settings";
 import { buildStyleFileWatcherGlob, findLangForPath } from "./core/scss/lang-registry";
 import type { StyleIndexCache } from "./core/scss/scss-index";
 import type { StyleDocumentHIR } from "./core/hir/style-types";
-import type { WorkspaceStyleDependencyGraph } from "./core/semantic/style-dependency-graph";
+import type { WorkspaceStyleDependencyGraph } from "./core/semantic";
 import { WorkspaceTypeResolver, type TypeResolver } from "./core/ts/type-resolver";
 import { fileUrlToPath, pathToFileUrl } from "./core/util/text-utils";
 import type { FileTask } from "./core/indexing/indexer-worker";
@@ -25,13 +25,11 @@ import { registerHandlers } from "./handler-registration";
 import { WorkspaceRegistry, type WorkspaceFolderInfo } from "./workspace/workspace-registry";
 import {
   buildSharedRuntimeCaches,
-  type SharedRuntimeCaches,
-} from "./runtime/shared-runtime-caches";
-import {
   createWorkspaceRuntime,
+  type SharedRuntimeCaches,
   type WorkspaceRuntime,
   type WorkspaceRuntimeIO,
-} from "./runtime/workspace-runtime";
+} from "./runtime";
 
 const SERVER_NAME = "css-module-explainer";
 const SERVER_VERSION = "3.1.0";

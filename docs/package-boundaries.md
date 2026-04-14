@@ -44,6 +44,8 @@ providers/* -> deep core/query/* or core/rewrite/*
 
 - `server/src/core/query/index.ts`
 - `server/src/core/rewrite/index.ts`
+- `server/src/core/semantic/index.ts`
+- `server/src/runtime/index.ts`
 
 Provider-facing imports should prefer these entrypoints.
 

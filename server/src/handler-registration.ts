@@ -28,12 +28,10 @@ import {
   planSettingsReload,
   planWatchedFileInvalidation,
   type SettingsReloadWorkspaceChange,
-} from "./runtime/invalidation-planner";
-import {
   createRuntimeDependencySnapshot,
   snapshotOpenDocuments,
-} from "./runtime/dependency-snapshot";
-import { collectWatchedFileChangeInputs } from "./runtime/watched-file-changes";
+  collectWatchedFileChangeInputs,
+} from "./runtime";
 
 export interface HandlerContext {
   readonly connection: Connection;

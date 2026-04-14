@@ -1,5 +1,5 @@
 import { findLangForPath } from "../core/scss/lang-registry";
-import type { SemanticWorkspaceReferenceIndex } from "../core/semantic/workspace-reference-index";
+import type { SemanticWorkspaceReferenceIndex } from "../core/semantic";
 import { fileUrlToPath } from "../core/util/text-utils";
 import type { TextDocument } from "vscode-languageserver-textdocument";
 import type { TextDocuments } from "vscode-languageserver/node";

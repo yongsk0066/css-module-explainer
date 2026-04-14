@@ -6,6 +6,8 @@ const REPO_ROOT = process.cwd();
 const CORE_ROOT = path.join(REPO_ROOT, "server/src/core");
 const RUNTIME_ROOT = path.join(REPO_ROOT, "server/src/runtime");
 const PROVIDERS_ROOT = path.join(REPO_ROOT, "server/src/providers");
+const COMPOSITION_ROOT = path.join(REPO_ROOT, "server/src/composition-root.ts");
+const HANDLER_ROOT = path.join(REPO_ROOT, "server/src/handler-registration.ts");
 
 describe("package-ready boundaries", () => {
   it("core modules do not depend on provider or runtime modules", () => {
@@ -31,6 +33,17 @@ describe("package-ready boundaries", () => {
       expect(source, relativePath(filePath)).not.toMatch(/core\/query\//);
       expect(source, relativePath(filePath)).not.toMatch(/core\/rewrite\//);
     }
+  });
+
+  it("server wiring reads runtime and semantic layers through entrypoints", () => {
+    const composition = readFileSync(COMPOSITION_ROOT, "utf8");
+    const handler = readFileSync(HANDLER_ROOT, "utf8");
+
+    expect(composition).not.toMatch(/runtime\/shared-runtime-caches/);
+    expect(composition).not.toMatch(/runtime\/workspace-runtime/);
+    expect(handler).not.toMatch(/runtime\/dependency-snapshot/);
+    expect(handler).not.toMatch(/runtime\/invalidation-planner/);
+    expect(handler).not.toMatch(/runtime\/watched-file-changes/);
   });
 });
 
