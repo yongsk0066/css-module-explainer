@@ -3,6 +3,7 @@ import { resolveFlowClassValues } from "../flow/class-value-analysis";
 import type { SymbolRefClassExpressionHIR } from "../hir/source-types";
 import { typeUnionResolution, type FlowResolution } from "../flow/lattice";
 import type { TypeResolver } from "../ts/type-resolver";
+import type { SourceBindingGraph } from "../binder/source-binding-graph";
 import type { SourceBinderResult } from "../binder/scope-types";
 
 interface SymbolValueResolutionEnv {
@@ -10,6 +11,7 @@ interface SymbolValueResolutionEnv {
   readonly filePath: string;
   readonly workspaceRoot: string;
   readonly sourceBinder?: SourceBinderResult;
+  readonly sourceBindingGraph?: SourceBindingGraph;
 }
 
 interface SymbolValueResolutionInput {
@@ -37,6 +39,7 @@ export function resolveSymbolClassValues(
     input.range,
     {
       ...(env.sourceBinder ? { sourceBinder: env.sourceBinder } : {}),
+      ...(env.sourceBindingGraph ? { sourceBindingGraph: env.sourceBindingGraph } : {}),
       ...(input.rootBindingDeclId ? { rootBindingDeclId: input.rootBindingDeclId } : {}),
     },
   );

@@ -221,6 +221,101 @@ export function listStyleModulePaths(graph: SourceBindingGraph): readonly string
   return [...paths].toSorted();
 }
 
+export interface SourceBindingGraphResolution {
+  readonly refId: string;
+  readonly declId: string;
+  readonly depth: number;
+}
+
+export function resolveBindingAtOffset(
+  graph: SourceBindingGraph,
+  name: string,
+  offset: number,
+): SourceBindingGraphResolution | null {
+  const scope = findInnermostScopeAtOffset(graph, offset);
+  if (!scope) return null;
+
+  let currentScopeId: string | undefined = scope.scope.id;
+  let depth = 0;
+  while (currentScopeId) {
+    const match = findVisibleDeclInScope(graph, currentScopeId, name, offset);
+    if (match) {
+      return { refId: `offset:${offset}:${name}`, declId: match.decl.id, depth };
+    }
+    currentScopeId = graph.nodes.find(
+      (node): node is SourceBindingGraphScopeNode =>
+        node.kind === "scope" && node.scope.id === currentScopeId,
+    )?.scope.parentScopeId;
+    depth += 1;
+  }
+  return null;
+}
+
+export function getBindingDeclById(graph: SourceBindingGraph, declId: string): BinderDecl | null {
+  return (
+    graph.nodes.find(
+      (node): node is SourceBindingGraphDeclNode => node.kind === "decl" && node.decl.id === declId,
+    )?.decl ?? null
+  );
+}
+
+export function findImportBindingDeclId(
+  graph: SourceBindingGraph | undefined,
+  localName: string,
+  allowedImportPaths?: ReadonlySet<string>,
+): string | null {
+  if (!graph) return null;
+  const match = graph.nodes.find(
+    (node): node is SourceBindingGraphDeclNode =>
+      node.kind === "decl" &&
+      node.decl.kind === "import" &&
+      node.decl.name === localName &&
+      (!allowedImportPaths ||
+        (node.decl.importPath !== undefined && allowedImportPaths.has(node.decl.importPath))),
+  );
+  return match?.decl.id ?? null;
+}
+
+export function findInnermostScopeAtOffset(
+  graph: SourceBindingGraph,
+  offset: number,
+): SourceBindingGraphScopeNode | null {
+  let winner: SourceBindingGraphScopeNode | null = null;
+  for (const node of graph.nodes) {
+    if (node.kind !== "scope") continue;
+    if (offset < node.scope.span.start || offset > node.scope.span.end) continue;
+    if (!winner) {
+      winner = node;
+      continue;
+    }
+    const winnerSize = winner.scope.span.end - winner.scope.span.start;
+    const scopeSize = node.scope.span.end - node.scope.span.start;
+    if (scopeSize <= winnerSize) {
+      winner = node;
+    }
+  }
+  return winner;
+}
+
+function findVisibleDeclInScope(
+  graph: SourceBindingGraph,
+  scopeId: string,
+  name: string,
+  offset: number,
+): SourceBindingGraphDeclNode | null {
+  const candidates = graph.nodes.filter(
+    (node): node is SourceBindingGraphDeclNode =>
+      node.kind === "decl" &&
+      node.decl.scopeId === scopeId &&
+      node.decl.name === name &&
+      node.decl.span.start <= offset,
+  );
+  if (candidates.length === 0) return null;
+  return candidates.reduce((best, current) =>
+    current.decl.span.start >= best.decl.span.start ? current : best,
+  );
+}
+
 function scopeNodeId(scopeId: string): string {
   return `scope:${scopeId}`;
 }

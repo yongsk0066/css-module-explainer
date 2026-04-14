@@ -1,7 +1,7 @@
 import { CompletionItemKind, type CompletionItem } from "vscode-languageserver/node";
 import type { AnalysisEntry } from "../core/indexing/document-analysis-cache";
 import type { SelectorDeclHIR } from "../core/hir/style-types";
-import { getDeclById, resolveIdentifierAtOffset } from "../core/binder/binder-builder";
+import { getBindingDeclById, resolveBindingAtOffset } from "../core/binder/source-binding-graph";
 import type { CursorParams, ProviderDeps } from "./provider-deps";
 import { wrapHandler } from "./_wrap-handler";
 
@@ -68,8 +68,14 @@ function findCompletionContext(entry: AnalysisEntry, textBefore: string): Comple
     if (binding.kind !== "classnamesBind") continue;
     const callOffset = findOpenCallOffset(textBefore, binding.localName);
     if (callOffset === null) continue;
-    const resolution = resolveIdentifierAtOffset(entry.sourceBinder, binding.localName, callOffset);
-    const decl = resolution ? getDeclById(entry.sourceBinder, resolution.declId) : null;
+    const resolution = resolveBindingAtOffset(
+      entry.sourceBindingGraph,
+      binding.localName,
+      callOffset,
+    );
+    const decl = resolution
+      ? getBindingDeclById(entry.sourceBindingGraph, resolution.declId)
+      : null;
     if (!decl) continue;
     if (binding.bindingDeclId !== decl.id) continue;
     if (isInsideCall(textBefore, binding.localName)) {
@@ -85,8 +91,14 @@ function findCompletionContext(entry: AnalysisEntry, textBefore: string): Comple
   for (const binding of classUtilBindings) {
     const callOffset = findOpenCallOffset(textBefore, binding.localName);
     if (callOffset === null) continue;
-    const resolution = resolveIdentifierAtOffset(entry.sourceBinder, binding.localName, callOffset);
-    const decl = resolution ? getDeclById(entry.sourceBinder, resolution.declId) : null;
+    const resolution = resolveBindingAtOffset(
+      entry.sourceBindingGraph,
+      binding.localName,
+      callOffset,
+    );
+    const decl = resolution
+      ? getBindingDeclById(entry.sourceBindingGraph, resolution.declId)
+      : null;
     if (!decl || binding.bindingDeclId !== decl.id) continue;
     if (!isInsideCall(textBefore, binding.localName)) continue;
     // Check if textBefore ends with `<varName>.` or `<varName>.<partial>`

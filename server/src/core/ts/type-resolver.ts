@@ -1,10 +1,12 @@
 import ts from "typescript";
 import type { Range, ResolvedType } from "@css-module-explainer/shared";
+import { buildSourceBinder } from "../binder/binder-builder";
 import {
-  buildSourceBinder,
-  getDeclById,
-  resolveIdentifierAtOffset,
-} from "../binder/binder-builder";
+  buildSourceBindingGraph,
+  getBindingDeclById,
+  resolveBindingAtOffset,
+  type SourceBindingGraph,
+} from "../binder/source-binding-graph";
 import type { SourceBinderResult } from "../binder/scope-types";
 
 /**
@@ -42,6 +44,7 @@ export interface TypeResolver {
 
 export interface ResolveTypeOptions {
   readonly sourceBinder?: SourceBinderResult;
+  readonly sourceBindingGraph?: SourceBindingGraph;
   readonly rootBindingDeclId?: string | null;
 }
 
@@ -156,10 +159,22 @@ function findBoundSymbol(
     return null;
   }
 
-  const binder = options?.sourceBinder ?? buildSourceBinder(sourceFile);
+  const bindingGraph =
+    options?.sourceBindingGraph ??
+    buildSourceBindingGraph(
+      {
+        filePath: sourceFile.fileName,
+        kind: "source",
+        language: "unknown",
+        styleImports: [],
+        utilityBindings: [],
+        classExpressions: [],
+      },
+      options?.sourceBinder ?? buildSourceBinder(sourceFile),
+    );
   const decl = options?.rootBindingDeclId
-    ? getDeclById(binder, options.rootBindingDeclId)
-    : resolveDeclFromRange(binder, sourceFile, variableName, range);
+    ? getBindingDeclById(bindingGraph, options.rootBindingDeclId)
+    : resolveDeclFromRange(bindingGraph, sourceFile, variableName, range);
   if (!decl) {
     return null;
   }
@@ -181,7 +196,7 @@ function findBoundSymbol(
 }
 
 function resolveDeclFromRange(
-  binder: SourceBinderResult,
+  bindingGraph: SourceBindingGraph,
   sourceFile: ts.SourceFile,
   variableName: string,
   range: Range,
@@ -191,11 +206,11 @@ function resolveDeclFromRange(
     range.start.line,
     range.start.character,
   );
-  const resolution = resolveIdentifierAtOffset(binder, variableName, offset);
+  const resolution = resolveBindingAtOffset(bindingGraph, variableName, offset);
   if (!resolution) {
     return null;
   }
-  return getDeclById(binder, resolution.declId);
+  return getBindingDeclById(bindingGraph, resolution.declId);
 }
 
 function findIdentifierNodeForDecl(

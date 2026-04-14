@@ -3,6 +3,7 @@ import { findClosestMatch } from "../util/text-utils";
 import type { TypeResolver } from "../ts/type-resolver";
 import type { FlowResolution } from "../flow/lattice";
 import type ts from "typescript";
+import type { SourceBindingGraph } from "../binder/source-binding-graph";
 import type { SourceBinderResult } from "../binder/scope-types";
 import type {
   ClassExpressionHIR,
@@ -18,6 +19,7 @@ export interface InvalidClassReferenceQueryEnv {
   readonly filePath: string;
   readonly workspaceRoot: string;
   readonly sourceBinder?: SourceBinderResult;
+  readonly sourceBindingGraph?: SourceBindingGraph;
   readonly resolveSymbolValues?: (
     sourceFile: ts.SourceFile,
     expression: SymbolRefClassExpressionHIR,

@@ -1,7 +1,11 @@
 import ts from "typescript";
 import type { Range, StyleImport } from "@css-module-explainer/shared";
-import { findImportDeclId } from "../binder/import-decls";
-import { resolveIdentifierAtOffset } from "../binder/binder-builder";
+import {
+  buildSourceBindingGraph,
+  findImportBindingDeclId,
+  resolveBindingAtOffset,
+  type SourceBindingGraph,
+} from "../binder/source-binding-graph";
 import type { SourceBinderResult } from "../binder/scope-types";
 import type { ResolvedCxBinding } from "./resolved-bindings";
 import {
@@ -68,8 +72,8 @@ function isMatchingCxCall(
 ): boolean {
   if (!ts.isIdentifier(call.expression)) return false;
   if (call.expression.text !== binding.cxVarName) return false;
-  const resolution = resolveIdentifierAtOffset(
-    binder,
+  const resolution = resolveBindingAtOffset(
+    buildGraphForBinder(sourceFile, binder),
     binding.cxVarName,
     call.expression.getStart(sourceFile),
   );
@@ -309,9 +313,15 @@ function resolveStyleImportDeclId(
   localName: string,
   offset: number,
 ): string | null {
-  const expectedDeclId = findImportDeclId(binder, localName);
+  const graph = buildGraphForBinder(
+    {
+      ...sourceFileStubForBinder(binder),
+    },
+    binder,
+  );
+  const expectedDeclId = findImportBindingDeclId(graph, localName);
   if (!expectedDeclId) return null;
-  const resolution = resolveIdentifierAtOffset(binder, localName, offset);
+  const resolution = resolveBindingAtOffset(graph, localName, offset);
   return resolution?.declId === expectedDeclId ? expectedDeclId : null;
 }
 
@@ -320,8 +330,38 @@ function resolveRootBindingDeclId(
   rootName: string,
   offset: number,
 ): string | null {
-  const resolution = resolveIdentifierAtOffset(binder, rootName, offset);
+  const resolution = resolveBindingAtOffset(
+    buildGraphForBinder(
+      {
+        ...sourceFileStubForBinder(binder),
+      },
+      binder,
+    ),
+    rootName,
+    offset,
+  );
   return resolution?.declId ?? null;
+}
+
+function buildGraphForBinder(
+  sourceFile: ts.SourceFile,
+  binder: SourceBinderResult,
+): SourceBindingGraph {
+  return buildSourceBindingGraph(
+    {
+      filePath: sourceFile.fileName,
+      kind: "source",
+      language: "unknown",
+      styleImports: [],
+      utilityBindings: [],
+      classExpressions: [],
+    },
+    binder,
+  );
+}
+
+function sourceFileStubForBinder(binder: SourceBinderResult): ts.SourceFile {
+  return ts.createSourceFile(binder.filePath, "", ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 }
 
 function unwrapTransparentExpression(expression: ts.Expression): ts.Expression {

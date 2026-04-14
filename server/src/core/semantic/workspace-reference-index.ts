@@ -230,6 +230,7 @@ export function collectSemanticReferenceContribution(
           filePath: ctx.filePath,
           workspaceRoot: ctx.workspaceRoot,
           sourceBinder: entry.sourceBinder,
+          sourceBindingGraph: entry.sourceBindingGraph,
         },
       );
       if (resolution.styleDocument) {

@@ -53,6 +53,7 @@ function buildLinks(
       filePath: params.filePath,
       workspaceRoot: deps.workspaceRoot,
       sourceBinder: ctx.entry.sourceBinder,
+      sourceBindingGraph: ctx.entry.sourceBindingGraph,
     },
   );
   const selectors = resolution.selectors;

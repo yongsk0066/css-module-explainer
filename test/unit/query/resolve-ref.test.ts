@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import ts from "typescript";
 import type { StyleImport } from "@css-module-explainer/shared";
 import { buildSourceBinder } from "../../../server/src/core/binder/binder-builder";
+import { buildSourceBindingGraph } from "../../../server/src/core/binder/source-binding-graph";
 import type { AnalysisEntry } from "../../../server/src/core/indexing/document-analysis-cache";
 import { resolveRefSelectors } from "../../../server/src/core/query/resolve-ref";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
@@ -114,15 +115,7 @@ function render(flag: boolean) {
       {
         expression,
         styleDocument: styleScenario.styleDocument,
-        entry: {
-          version: 1,
-          contentHash: "fixture",
-          sourceFile,
-          sourceBinder: buildSourceBinder(sourceFile),
-          sourceDocument,
-          stylesBindings: new Map(),
-          classUtilNames: [],
-        },
+        entry: makeAnalysisEntry("/fake/Flow.tsx", sourceFile, sourceDocument),
       },
       {
         styleDocumentForPath: (path) =>
@@ -167,15 +160,7 @@ function render(variant: string) {
       {
         expression,
         styleDocument: styleScenario.styleDocument,
-        entry: {
-          version: 1,
-          contentHash: "fixture",
-          sourceFile,
-          sourceBinder: buildSourceBinder(sourceFile),
-          sourceDocument,
-          stylesBindings: new Map(),
-          classUtilNames: [],
-        },
+        entry: makeAnalysisEntry("/fake/Flow.tsx", sourceFile, sourceDocument),
       },
       {
         styleDocumentForPath: (path) =>
@@ -225,15 +210,7 @@ function render(flag: boolean, variant: string) {
       {
         expression,
         styleDocument: styleScenario.styleDocument,
-        entry: {
-          version: 1,
-          contentHash: "fixture",
-          sourceFile,
-          sourceBinder: buildSourceBinder(sourceFile),
-          sourceDocument,
-          stylesBindings: new Map(),
-          classUtilNames: [],
-        },
+        entry: makeAnalysisEntry("/fake/Flow.tsx", sourceFile, sourceDocument),
       },
       {
         styleDocumentForPath: (path) =>
@@ -266,8 +243,30 @@ function analysisEntryFor(sourceScenario: ReturnType<typeof loadSourceScenario>)
     contentHash: "fixture",
     sourceFile,
     sourceBinder: buildSourceBinder(sourceFile),
+    sourceBindingGraph: buildSourceBindingGraph(
+      sourceScenario.sourceDocument,
+      buildSourceBinder(sourceFile),
+    ),
     sourceDocument: sourceScenario.sourceDocument,
     stylesBindings: toStyleBindingsMap(sourceScenario.sourceDocument.styleImports),
+    classUtilNames: [],
+  };
+}
+
+function makeAnalysisEntry(
+  filePath: string,
+  sourceFile: ts.SourceFile,
+  sourceDocument: AnalysisEntry["sourceDocument"],
+): AnalysisEntry {
+  const sourceBinder = buildSourceBinder(sourceFile);
+  return {
+    version: 1,
+    contentHash: "fixture",
+    sourceFile,
+    sourceBinder,
+    sourceBindingGraph: buildSourceBindingGraph(sourceDocument, sourceBinder),
+    sourceDocument,
+    stylesBindings: new Map(),
     classUtilNames: [],
   };
 }

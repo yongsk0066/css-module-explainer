@@ -57,6 +57,7 @@ export function resolveRefDetails(
       filePath: env.filePath,
       workspaceRoot: env.workspaceRoot,
       sourceBinder: ctx.entry.sourceBinder,
+      sourceBindingGraph: ctx.entry.sourceBindingGraph,
     },
   );
   if (!resolution.styleDocument) {

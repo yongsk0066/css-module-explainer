@@ -1,3 +1,4 @@
+import type { SourceBindingGraph } from "../binder/source-binding-graph";
 import type { SourceBinderResult } from "../binder/scope-types";
 import { prefixClassValue, type AbstractClassValue } from "../abstract-value/class-value-domain";
 import { projectAbstractValueSelectors } from "../abstract-value/selector-projection";
@@ -13,6 +14,7 @@ export interface ProjectExpressionSelectorsEnv {
   readonly filePath: string;
   readonly workspaceRoot: string;
   readonly sourceBinder?: SourceBinderResult;
+  readonly sourceBindingGraph?: SourceBindingGraph;
   readonly resolveSymbolValues?: (
     sourceFile: ts.SourceFile,
     expression: SymbolRefClassExpressionHIR,

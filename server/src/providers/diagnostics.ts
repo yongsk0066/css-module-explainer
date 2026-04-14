@@ -86,6 +86,7 @@ export const computeDiagnostics = wrapHandler<
           filePath: params.filePath,
           workspaceRoot: deps.workspaceRoot,
           sourceBinder: entry.sourceBinder,
+          sourceBindingGraph: entry.sourceBindingGraph,
         });
         if (finding) diagnostics.push(toDiagnostic(finding, styleDocument, deps, severity));
       } catch (err) {

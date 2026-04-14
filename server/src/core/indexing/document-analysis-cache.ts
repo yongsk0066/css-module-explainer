@@ -1,6 +1,8 @@
 import * as nodeUrl from "node:url";
 import type ts from "typescript";
 import type { StyleImport } from "@css-module-explainer/shared";
+import type { SourceBindingGraph } from "../binder/source-binding-graph";
+import { buildSourceBindingGraph } from "../binder/source-binding-graph";
 import type { SourceBinderResult } from "../binder/scope-types";
 import { buildSourceBinder } from "../binder/binder-builder";
 import type { CxBinding } from "../cx/cx-types";
@@ -26,6 +28,7 @@ export interface AnalysisEntry {
   readonly contentHash: string;
   readonly sourceFile: ts.SourceFile;
   readonly sourceBinder: SourceBinderResult;
+  readonly sourceBindingGraph: SourceBindingGraph;
   /**
    * Document-level source HIR derived from the current scan/parser
    * outputs.
@@ -204,12 +207,14 @@ export class DocumentAnalysisCache {
         this.deps.parseClassExpressions?.(sourceFile, cxBindings, stylesBindings, sourceBinder) ??
         [],
     });
+    const sourceBindingGraph = buildSourceBindingGraph(sourceDocument, sourceBinder);
 
     return {
       version,
       contentHash: hash,
       sourceFile,
       sourceBinder,
+      sourceBindingGraph,
       sourceDocument,
       stylesBindings,
       classUtilNames,
