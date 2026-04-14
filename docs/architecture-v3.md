@@ -1,136 +1,280 @@
-# 3.x Architecture
+# Architecture
 
-This document describes the runtime architecture from 3.0 onward.
+This document describes the current runtime structure of the extension.
 
-It is the reference for the production pipeline.
+The system is built around one semantic pipeline:
 
-## Pipeline
+```text
+source/style text
+  -> document facts
+  -> source binding
+  -> abstract class-value analysis
+  -> read models
+  -> provider / rewrite policy
+  -> LSP
+```
+
+The main design goals are:
+
+- one semantic pipeline for hover, definition, references, rename, completion, and diagnostics
+- clear ownership between parsing, binding, value analysis, query, runtime, and transport
+- runtime contracts that can evolve without reintroducing provider-local heuristics
+
+## 1. High-Level Structure
 
 ```text
 Source AST -> SourceDocumentHIR ----\
-                                     -> Scoped Binding Layer
+                                     -> Binding Graph
 Style AST  -> StyleDocumentHIR -----/        |
                                               v
-                                     Abstract State Layer
+                                     Abstract Value Layer
                                               |
                                               v
                                          Read Models
                                               |
                                               v
-                                     Provider Policy Layer
+                                   Provider / Rewrite Policy
                                               |
                                               v
-                                           LSP
+                                      LSP + Runtime Wiring
 ```
 
-## Layer Ownership
+The extension has six major parts:
 
-### SourceDocumentHIR
+1. document facts
+2. source binding
+3. abstract value analysis
+4. read models
+5. rewrite and provider policy
+6. workspace runtime and transport wiring
 
-Owns:
+## 2. Document Facts
 
-- source-preserving class expressions
+Document facts are the source-preserving parse products.
+
+- `server/src/core/hir/source-types.ts`
+- `server/src/core/hir/style-types.ts`
+
+`SourceDocumentHIR` owns:
+
+- class expressions
 - style imports
 - utility bindings
-- source ranges and textual identity
+- source ranges and source text identity
 
-Does not own:
+`StyleDocumentHIR` owns:
 
-- name resolution policy
-- dynamic value reasoning
-
-### StyleDocumentHIR
-
-Owns:
-
-- selector views and canonical names
-- nested safety
+- selector identity
+- canonical and view names
+- selector ranges
+- nested metadata
 - BEM suffix metadata
-- source-preserving style ranges
+- `composes` facts
 
-Does not own:
+These types describe what exists in the document. They do not decide:
 
-- source-side binding
-- dynamic class-value reasoning
+- which symbol a source reference binds to
+- what a dynamic class expression can evaluate to
+- whether a rewrite is allowed
 
-### Scoped Binding Layer
+## 3. Source Binding
 
-Owns:
+Source-side name resolution is handled by the binder layer.
 
-- scopes
-- declarations
-- references
-- import reachability
-- authoritative source-side resolution
+- `server/src/core/binder/binder-builder.ts`
+- `server/src/core/binder/source-binding-graph.ts`
 
-Current runtime artifacts:
+This layer owns:
 
-- `sourceBinder`
-- `sourceBindingGraph`
+- file / function / block scopes
+- declarations and references
+- import and local binding identity
+- shadowing
+- call-site-aware lookup
 
-### Abstract State Layer
+This is the authoritative source for resolving:
 
-Owns:
+- `cx`
+- `styles`
+- imported helper symbols
+- local variables and parameters
 
-- abstract class-value domain
-- joins/widening
-- flow/type-union lift
-- selector projection inputs
+Providers do not infer scope from line ranges or document order.
 
-Primary artifacts:
+## 4. Abstract Value Analysis
 
-- `AbstractClassValue`
-- projection helpers
-- expression semantics summaries
+Dynamic class reasoning is handled by the abstract value layer.
 
-### Read Models
+- `server/src/core/abstract-value/class-value-domain.ts`
+- `server/src/core/abstract-value/selector-projection.ts`
 
-Owns:
+The domain models class values as:
 
-- stable, provider-friendly semantic summaries
-- source expression resolution
-- selector usage
-- style module usage
-- rewrite safety
+- `exact`
+- `finiteSet`
+- `prefix`
+- `top`
+- `bottom`
 
-These are the only semantic shapes providers should read.
+This layer is responsible for lifting:
 
-## Runtime Assembly
+- local flow
+- branch joins
+- TypeScript string-literal unions
+- template and concatenation patterns
 
-Runtime assembly is explicit.
+The output of this layer is not LSP-facing text. It is semantic state used by
+read models.
+
+## 5. Read Models
+
+Read models convert core semantic state into stable, provider-facing summaries.
+
+- `server/src/core/query/index.ts`
+- `server/src/core/rewrite/index.ts`
+
+Representative modules:
+
+- `read-source-expression-resolution.ts`
+- `read-expression-semantics.ts`
+- `read-selector-usage.ts`
+- `read-style-module-usage.ts`
+- `read-selector-rewrite-safety.ts`
+- `read-style-rewrite-policy.ts`
+
+These summaries answer questions such as:
+
+- what selector candidates does this expression project to
+- how certain is that projection
+- how is a selector used across the workspace
+- is a selector safe to rewrite
+
+Providers are expected to consume these summaries rather than walking binder,
+semantic store, or abstract-value internals directly.
+
+## 6. Rewrite and Provider Policy
+
+Rewrite and provider policy sit on top of read models.
+
+Rewrite entrypoints:
+
+- `server/src/core/rewrite/selector-rename.ts`
+- `server/src/core/rewrite/text-rewrite-plan.ts`
+
+Provider entrypoints:
+
+- `server/src/providers/*`
+
+Responsibilities are split like this:
+
+- core rewrite code decides whether a rewrite is legal and what edits it implies
+- providers adapt that result to LSP shapes such as `WorkspaceEdit`, `Hover`, `CodeLens`, and diagnostics
+
+Providers should not:
+
+- resolve bindings ad hoc
+- re-run selector projection logic
+- invent certainty rules
+- inspect raw style safety metadata directly
+
+## 7. Semantic Storage
+
+Workspace-level semantic storage is split into collection, storage, and
+dependency lookup.
+
+- `server/src/core/semantic/reference-collector.ts`
+- `server/src/core/semantic/workspace-reference-index.ts`
+- `server/src/core/semantic/reference-dependencies.ts`
+- `server/src/core/semantic/style-dependency-graph.ts`
+
+Responsibilities:
+
+- collector
+  - derives semantic contributions from analysis results
+- reference store
+  - stores selector reference sites and module usage data
+- dependency store
+  - stores reverse-lookup data for invalidation
+- style dependency graph
+  - stores `composes` reachability between style selectors and modules
+
+The store is incremental. It updates contribution-by-contribution instead of
+rebuilding whole derived maps on every change.
+
+## 8. Workspace Runtime
+
+Workspace runtime is explicit and workspace-root scoped.
 
 - `server/src/runtime/shared-runtime-caches.ts`
-  - process-wide caches shared across workspace runtimes
 - `server/src/runtime/workspace-runtime.ts`
-  - one runtime bundle per workspace root
 - `server/src/runtime/workspace-runtime-settings.ts`
-  - workspace-scoped settings and alias-resolver state
 - `server/src/runtime/workspace-analysis-runtime.ts`
-  - analysis-cache assembly and semantic contribution ingestion wiring
 - `server/src/runtime/workspace-style-runtime.ts`
-  - style indexing and style-cache/dependency-graph coordination
-- `server/src/composition-root.ts`
-  - orchestration only
+- `server/src/workspace/workspace-registry.ts`
 
-`composition-root.ts` wires runtimes together. It should not grow feature
-logic back into the top-level assembly path.
+The split is:
 
-Runtime transport effects are also explicit.
+- shared runtime caches
+  - process-wide caches shared across workspace runtimes
+- workspace runtime settings
+  - normalized resource settings and alias resolver state
+- workspace analysis runtime
+  - analysis cache and semantic contribution ingestion
+- workspace style runtime
+  - style indexing, style cache, and style dependency graph coordination
+- workspace runtime
+  - orchestration for one workspace root
+- workspace registry
+  - file-to-workspace ownership and dependency routing
+
+`server/src/composition-root.ts` is the top-level assembly point. It should stay
+as orchestration code, not feature logic.
+
+## 9. Invalidation
+
+Invalidation is modeled as explicit runtime contracts.
+
+- `server/src/runtime/dependency-snapshot.ts`
+- `server/src/runtime/watched-file-changes.ts`
+- `server/src/runtime/invalidation-planner.ts`
+
+The flow is:
+
+1. capture a dependency snapshot
+2. classify settings changes or watched-file changes
+3. compute an invalidation plan
+4. apply the plan from handler/runtime wiring
+
+`server/src/handler-registration.ts` should apply plans, not encode semantic
+diffing policy itself.
+
+## 10. Transport Boundary
+
+Runtime code does not talk directly to LSP transport primitives for incidental
+effects such as logging or CodeLens refresh.
 
 - `server/src/runtime/runtime-sink.ts`
-  - runtime-facing logging / diagnostics-clear / code-lens-refresh sink
 
-Runtime modules should not depend directly on LSP transport types.
+The runtime sink is the runtime-facing interface for:
 
-## Dependency Direction
+- info/error logging
+- diagnostics clearing
+- CodeLens refresh requests
 
-The runtime is intentionally kept package-ready even though it is still shipped
-as one extension codebase.
+`composition-root.ts` binds this sink to the actual LSP connection.
+
+This keeps runtime logic transport-agnostic and reduces coupling to VS Code /
+LSP-specific APIs.
+
+## 11. Dependency Direction
+
+The codebase is intentionally package-ready even though it is still shipped as
+one extension package.
 
 Allowed direction:
 
 ```text
-providers / lsp adapters
+providers
   -> core/query
   -> core/rewrite
   -> core/*
@@ -159,108 +303,20 @@ Current façade boundaries:
 - `server/src/core/semantic/index.ts`
 - `server/src/runtime/index.ts`
 
-These entrypoints are the intended future extraction seams if the project ever
-needs a separate engine package.
+These are the intended future extraction seams if the engine is ever split out
+for another consumer.
 
-## Reference Collection and Storage
+## 12. Core Invariants
 
-Reference ingestion and reference storage are separate responsibilities.
+The architecture relies on these rules:
 
-- `server/src/core/semantic/reference-collector.ts`
-  - derives semantic reference contributions from the current runtime pipeline
-- `server/src/core/semantic/workspace-reference-index.ts`
-  - stores/query selector references and module usages
-- `server/src/core/semantic/reference-dependencies.ts`
-  - stores dependency reverse-lookup data for invalidation
+- document facts describe syntax and ranges only
+- binding owns source-side name resolution
+- abstract value analysis owns dynamic class reasoning
+- read models are the only provider-facing semantic vocabulary
+- rewrite legality is decided in core rewrite code, not in providers
+- runtime owns invalidation orchestration
+- transport-specific behavior is behind runtime sinks and providers
 
-The store should not re-derive contributions from low-level runtime artifacts.
-
-## Invalidation Runtime
-
-Invalidation is modeled as explicit runtime contracts.
-
-- `server/src/runtime/dependency-snapshot.ts`
-  - captures open-document and dependency lookup state
-- `server/src/runtime/watched-file-changes.ts`
-  - classifies file watcher events into semantic invalidation inputs
-- `server/src/runtime/invalidation-planner.ts`
-  - computes recomputation plans from settings/file changes
-
-`handler-registration.ts` applies these plans. It should not own change
-classification, semantic diffing, or dependency lookup policy.
-
-## Rewrite Policy
-
-Style facts and rewrite policy are separate.
-
-- `StyleDocumentHIR`
-  - style facts, ranges, selector metadata
-- `server/src/core/rewrite/read-style-rewrite-policy.ts`
-  - rewrite-specific summary derived from style facts
-- `server/src/core/rewrite/selector-rename.ts`
-  - consumes rewrite policy summaries and emits rewrite plans
-
-Providers should not interpret nested safety, alias lossiness, or dependency
-blocking rules directly.
-
-### Provider Policy Layer
-
-Owns:
-
-- LSP-specific policy
-- error shaping
-- UI formatting
-- conversion to `WorkspaceEdit`, `Hover`, `CodeLens`, diagnostics
-
-Providers must not:
-
-- resolve bindings ad hoc
-- recompute selector projection ad hoc
-- invent certainty policy ad hoc
-
-## Derived Caches vs Primary Reasoning
-
-In 3.x:
-
-- HIR is primary for document facts
-- binding graph is primary for source-side name resolution
-- abstract domain is primary for dynamic value reasoning
-- read models are primary for provider consumption
-
-Anything else must be clearly derived or test-only.
-
-This is why the old semantic graph builders were moved out of runtime.
-
-## Compatibility Policy
-
-`cssModuleExplainer.pathAlias` is the native configuration surface.
-
-`cssModules.pathAlias` is still accepted as a compatibility fallback in 3.x.
-The server emits a deprecation notice per workspace root when that fallback is
-used.
-
-Current deprecation policy:
-
-- warning starts: `3.1.x`
-- planned removal: `4.0.0`
-
-Compatibility behavior belongs in `server/src/settings.ts`. Runtime consumers
-should read the normalized settings shape only.
-
-## Non-Negotiable Rules
-
-1. no runtime compatibility path may survive "for safety"
-2. no provider-specific semantic derivation when a read model can own it
-3. no certainty string chosen without a semantic contract
-4. no runtime type that exists only to preserve an older competing architecture
-5. handler/runtime boundaries must be enforced by architecture tests
-6. providers must consume read models, not low-level runtime internals
-
-## Acceptance Standard
-
-The architecture is considered complete when:
-
-- one coherent pipeline explains hover, definition, references, rename, completion, and diagnostics
-- no runtime feature depends on line-range or document-order binding heuristics
-- no provider still depends on the deleted semantic-graph-first architecture
-- runtime assembly, invalidation, and rewrite policy each have explicit modules
+If a new feature cannot be explained within those rules, it is probably cutting
+across the wrong layer.
