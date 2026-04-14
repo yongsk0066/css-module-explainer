@@ -7,7 +7,7 @@ import type {
   SemanticEdge,
   SemanticGraph,
   SemanticNode,
-} from "../../../server/src/core/semantic/graph-types";
+} from "../../_support/semantic-graph-types";
 import { loadSourceScenario, loadStyleScenario } from "../../_fixtures/scenario-corpus";
 import { buildSourceDocumentFixture } from "../../_fixtures/source-documents";
 

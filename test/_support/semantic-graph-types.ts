@@ -1,8 +1,8 @@
 import type { ClassRefOrigin, Range, StyleImport } from "@css-module-explainer/shared";
-import type { AbstractClassValue } from "../abstract-value/class-value-domain";
-import type { SourceExpressionKind } from "../hir/source-types";
-import type { EdgeCertainty } from "./certainty";
-import type { EdgeReason } from "./provenance";
+import type { AbstractClassValue } from "../../server/src/core/abstract-value/class-value-domain";
+import type { SourceExpressionKind } from "../../server/src/core/hir/source-types";
+import type { EdgeCertainty } from "../../server/src/core/semantic/certainty";
+import type { EdgeReason } from "../../server/src/core/semantic/provenance";
 
 export type SemanticNode =
   | DocumentNode

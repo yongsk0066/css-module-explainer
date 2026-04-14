@@ -10,12 +10,7 @@ import {
   type ReferenceQueryOptions,
   type SemanticReferenceSite,
 } from "../../server/src/core/semantic/reference-types";
-import type {
-  RefNode,
-  SelectorNode,
-  SemanticGraph,
-  SemanticNode,
-} from "../../server/src/core/semantic/graph-types";
+import type { RefNode, SelectorNode, SemanticGraph, SemanticNode } from "./semantic-graph-types";
 
 export interface SemanticRefTarget {
   readonly refId: string;

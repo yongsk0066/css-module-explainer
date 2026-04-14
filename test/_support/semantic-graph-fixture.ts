@@ -20,7 +20,7 @@ import type {
   SemanticNode,
   StyleImportNode,
   UtilityBindingNode,
-} from "../../server/src/core/semantic/graph-types";
+} from "./semantic-graph-types";
 
 interface GraphBuilderState {
   readonly nodes: Map<string, SemanticNode>;
