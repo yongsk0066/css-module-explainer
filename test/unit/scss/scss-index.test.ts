@@ -4,6 +4,7 @@ import {
   buildChildContext,
   enumerateGroups,
   findBemSuffixSpan,
+  styleDocumentSemanticFingerprint,
   StyleIndexCache,
 } from "../../../server/src/core/scss/scss-index";
 import { parseStyleSelectorMap, selectorMapFromDocument } from "../../_fixtures/style-documents";
@@ -411,6 +412,13 @@ describe("StyleIndexCache", () => {
     );
     expect(asIsAgain).not.toBe(asIsDoc);
     expect(camelAgain).not.toBe(camelDoc);
+  });
+
+  it("semantic fingerprint ignores declaration-only edits", () => {
+    const cache = new StyleIndexCache({ max: 10 });
+    const first = cache.getStyleDocument("/f.module.scss", `.btn { color: red; }`);
+    const second = cache.getStyleDocument("/f.module.scss", `.btn { color: blue; }`);
+    expect(styleDocumentSemanticFingerprint(second)).toBe(styleDocumentSemanticFingerprint(first));
   });
 });
 

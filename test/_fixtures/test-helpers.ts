@@ -149,6 +149,14 @@ export function makeBaseDeps(overrides: BaseDepsOverrides = {}): ProviderDeps {
     workspaceFolderUri: "file:///fake/ws",
     logError: NOOP_LOG_ERROR,
     invalidateStyle: () => {},
+    peekStyleDocument: () => null,
+    buildStyleDocument: (path: string) => {
+      const selectors = selectorMapForPath(path);
+      return selectors
+        ? buildStyleDocumentFromSelectorMap(path, selectors)
+        : buildStyleDocumentFromSelectorMap(path, new Map());
+    },
+    readStyleFile: () => null,
     pushStyleFile: () => {},
     indexerReady: Promise.resolve(),
     stopIndexer: () => {},

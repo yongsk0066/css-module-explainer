@@ -57,6 +57,9 @@ export interface ProviderDeps {
    * Used by the file-watcher when a `.module.*` file changes.
    */
   readonly invalidateStyle: (path: string) => void;
+  readonly peekStyleDocument: (path: string) => StyleDocumentHIR | null;
+  readonly buildStyleDocument: (path: string, content: string) => StyleDocumentHIR;
+  readonly readStyleFile: (path: string) => string | null;
   /**
    * Queue a single style file for incremental re-indexing by the
    * background indexer worker. Used by the file-watcher alongside

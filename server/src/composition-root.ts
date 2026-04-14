@@ -345,6 +345,16 @@ function buildBundle(
       connection.console.error(`[${SERVER_NAME}] ${message}: ${detail}`);
     },
     invalidateStyle: (path) => caches.styleIndexCache.invalidate(path),
+    peekStyleDocument: (path) =>
+      caches.styleIndexCache.peekEntry(path, currentSettings.scss.classnameTransform)
+        ?.styleDocument ?? null,
+    buildStyleDocument: (path, content) =>
+      caches.styleIndexCache.getStyleDocument(
+        path,
+        content,
+        currentSettings.scss.classnameTransform,
+      ),
+    readStyleFile: options.readStyleFile ?? defaultReadStyleFile,
     pushStyleFile: (path) => indexerWorker.pushFile({ path }),
     indexerReady: indexerWorker.ready,
     stopIndexer: () => indexerWorker.stop(),

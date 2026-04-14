@@ -76,6 +76,10 @@ export class StyleIndexCache {
     return entry;
   }
 
+  peekEntry(filePath: string, mode: ClassnameTransformMode = "asIs"): StyleIndexEntry | null {
+    return this.lru.get(this.key(filePath, mode)) ?? null;
+  }
+
   invalidate(filePath: string): void {
     for (const mode of CLASSNAME_TRANSFORM_MODES) {
       this.lru.delete(this.key(filePath, mode));
@@ -89,4 +93,35 @@ export class StyleIndexCache {
   private key(filePath: string, mode: ClassnameTransformMode): string {
     return `${mode}\u0000${filePath}`;
   }
+}
+
+export function styleDocumentSemanticFingerprint(styleDocument: StyleDocumentHIR): string {
+  return styleDocument.selectors
+    .map((selector) => {
+      const composes = selector.composes
+        .map((ref) => {
+          const classNames = [...ref.classNames].toSorted().join(",");
+          return `${ref.from ?? ""}:${ref.fromGlobal ? "global" : "local"}:${classNames}`;
+        })
+        .toSorted()
+        .join("|");
+      const bemSuffix = selector.bemSuffix
+        ? `${selector.bemSuffix.rawToken}:${selector.bemSuffix.parentResolvedName}`
+        : "";
+      return [
+        selector.name,
+        selector.canonicalName,
+        selector.viewKind,
+        selector.fullSelector,
+        selector.range.start.line,
+        selector.range.start.character,
+        selector.range.end.line,
+        selector.range.end.character,
+        selector.nestedSafety,
+        selector.originalName ?? "",
+        bemSuffix,
+        composes,
+      ].join("::");
+    })
+    .join("\n");
 }

@@ -1,7 +1,7 @@
 import type { Connection } from "vscode-languageserver/node";
 import type { TextDocument } from "vscode-languageserver-textdocument";
 import type { TextDocuments } from "vscode-languageserver/node";
-import { DiagnosticSeverity } from "vscode-languageserver/node";
+import { DiagnosticSeverity, type Diagnostic } from "vscode-languageserver/node";
 import { computeDiagnostics } from "./providers/diagnostics";
 import { computeScssUnusedDiagnostics } from "./providers/scss-diagnostics";
 import type { ProviderDeps } from "./providers/provider-deps";
@@ -60,6 +60,7 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
   private readonly scssTimers = new Map<string, NodeJS.Timeout>();
   private currentSettings: WindowSettings;
   private indexReady = false;
+  private stopped = false;
   private readonly readySubscribed = new Set<string>();
 
   constructor(
@@ -81,6 +82,7 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
   }
 
   shutdown(): void {
+    this.stopped = true;
     clearAll(this.tsxTimers);
     clearAll(this.scssTimers);
   }
@@ -97,6 +99,7 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
       this.readySubscribed.add(deps.workspaceFolderUri);
       deps.indexerReady
         .then(() => {
+          if (this.stopped) return;
           this.indexReady = true;
           for (const doc of this.deps.documents.all()) {
             if (findLangForPath(fileUrlToPath(doc.uri))) {
@@ -116,7 +119,7 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
   handleDocumentClose(uri: string): void {
     cancelTimer(this.tsxTimers, uri);
     cancelTimer(this.scssTimers, uri);
-    this.deps.connection.sendDiagnostics({ uri, diagnostics: [] });
+    this.safeSendDiagnostics(uri, []);
   }
 
   private debounce(timers: Map<string, NodeJS.Timeout>, uri: string, run: () => void): void {
@@ -124,6 +127,7 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
     if (existing) clearTimeout(existing);
     const timer = setTimeout(() => {
       timers.delete(uri);
+      if (this.stopped) return;
       run();
     }, DIAGNOSTICS_DEBOUNCE_MS);
     timers.set(uri, timer);
@@ -144,7 +148,7 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
       providerDeps,
       severity,
     );
-    this.deps.connection.sendDiagnostics({ uri, diagnostics });
+    this.safeSendDiagnostics(uri, diagnostics);
   }
 
   private runScssDiagnostics(uri: string): void {
@@ -159,7 +163,16 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
       styleDocument,
       providerDeps.semanticReferenceIndex,
     );
-    this.deps.connection.sendDiagnostics({ uri, diagnostics });
+    this.safeSendDiagnostics(uri, diagnostics);
+  }
+
+  private safeSendDiagnostics(uri: string, diagnostics: readonly Diagnostic[]): void {
+    if (this.stopped) return;
+    try {
+      this.deps.connection.sendDiagnostics({ uri, diagnostics: [...diagnostics] });
+    } catch {
+      this.stopped = true;
+    }
   }
 }
 

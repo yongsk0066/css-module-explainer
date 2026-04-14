@@ -10,8 +10,9 @@ import { handleCodeLens } from "./providers/reference-lens";
 import { handleReferences } from "./providers/references";
 import { handlePrepareRename, handleRename } from "./providers/rename";
 import type { CursorParams, ProviderDeps } from "./providers/provider-deps";
-import { fileUrlToPath } from "./core/util/text-utils";
+import { fileUrlToPath, pathToFileUrl } from "./core/util/text-utils";
 import { findLangForPath } from "./core/scss/lang-registry";
+import { styleDocumentSemanticFingerprint } from "./core/scss/scss-index";
 import {
   DEFAULT_WINDOW_SETTINGS,
   fetchResourceSettings,
@@ -290,17 +291,20 @@ function registerWatchedFilesHandler(state: HandlerState): void {
       if (!deps) continue;
       affectedWorkspaceRoots.add(deps.workspaceRoot);
       if (findLangForPath(filePath)) {
+        const semanticsChanged = hasStyleSemanticChange(filePath, change.type, deps, documents);
         hasStyleChange = true;
-        deps.invalidateStyle(filePath);
-        if (change.type !== FileChangeType.Deleted) {
-          deps.pushStyleFile(filePath);
-        }
-        for (const uri of invalidateDependentTsxEntries(
-          state.ctx.getDeps,
-          deps.semanticReferenceIndex,
-          filePath,
-        )) {
-          affectedSourceUris.add(uri);
+        if (semanticsChanged) {
+          deps.invalidateStyle(filePath);
+          if (change.type !== FileChangeType.Deleted) {
+            deps.pushStyleFile(filePath);
+          }
+          for (const uri of invalidateDependentTsxEntries(
+            state.ctx.getDeps,
+            deps.semanticReferenceIndex,
+            filePath,
+          )) {
+            affectedSourceUris.add(uri);
+          }
         }
       } else {
         hasSourceChange = true;
@@ -373,6 +377,33 @@ function invalidateDependentTsxEntries(
     getDeps(uri)?.analysisCache.invalidate(uri);
   }
   return affectedUris;
+}
+
+function hasStyleSemanticChange(
+  filePath: string,
+  changeType: FileChangeType,
+  deps: ProviderDeps,
+  documents: TextDocuments<TextDocument>,
+): boolean {
+  if (changeType === FileChangeType.Deleted) return true;
+  const previous = deps.peekStyleDocument(filePath);
+  if (!previous) return true;
+  const nextContent = readCurrentStyleContent(filePath, deps, documents);
+  if (nextContent === null) return true;
+  const next = deps.buildStyleDocument(filePath, nextContent);
+  return styleDocumentSemanticFingerprint(previous) !== styleDocumentSemanticFingerprint(next);
+}
+
+function readCurrentStyleContent(
+  filePath: string,
+  deps: ProviderDeps,
+  documents: TextDocuments<TextDocument>,
+): string | null {
+  const openDocument = documents.get(pathToFileUrl(filePath));
+  if (openDocument) {
+    return openDocument.getText();
+  }
+  return deps.readStyleFile(filePath);
 }
 
 function safeLogError(connection: Connection, context: string, err: unknown): void {
