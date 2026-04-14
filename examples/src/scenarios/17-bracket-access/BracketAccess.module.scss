@@ -1,0 +1,35 @@
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 140px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #2563eb;
+  color: white;
+  font-weight: 700;
+}
+
+.accent-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
+.한글-라벨 {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #ecfccb;
+  color: #365314;
+  font-weight: 600;
+}
+
+.meta {
+  margin: 0;
+  color: #475569;
+  line-height: 1.6;
+}

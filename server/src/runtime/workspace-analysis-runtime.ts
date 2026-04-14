@@ -1,0 +1,52 @@
+import type { AliasResolver } from "../core/cx/alias-resolver";
+import { detectClassUtilImports, scanCxImports } from "../core/cx/binding-detector";
+import { parseClassExpressions } from "../core/cx/class-ref-parser";
+import type { StyleDocumentHIR } from "../core/hir/style-types";
+import { DocumentAnalysisCache } from "../core/indexing/document-analysis-cache";
+import { collectSemanticReferenceContribution } from "../core/semantic";
+import type { TypeResolver } from "../core/ts/type-resolver";
+import { fileUrlToPath } from "../core/util/text-utils";
+import type { SharedRuntimeCaches } from "./shared-runtime-caches";
+
+export interface WorkspaceAnalysisRuntimeArgs {
+  readonly caches: SharedRuntimeCaches;
+  readonly typeResolver: TypeResolver;
+  readonly workspaceRoot: string;
+  readonly styleDocumentForPath: (path: string) => StyleDocumentHIR | null;
+  readonly fileExists: (path: string) => boolean;
+  readonly aliasResolver: () => AliasResolver;
+  readonly settingsKey: () => string;
+  readonly onReferencesChanged: () => void;
+}
+
+export function createWorkspaceAnalysisCache(
+  args: WorkspaceAnalysisRuntimeArgs,
+): DocumentAnalysisCache {
+  return new DocumentAnalysisCache({
+    sourceFileCache: args.caches.sourceFileCache,
+    scanCxImports,
+    parseClassExpressions,
+    detectClassUtilImports,
+    fileExists: args.fileExists,
+    get aliasResolver(): AliasResolver {
+      return args.aliasResolver();
+    },
+    max: 200,
+    onAnalyze: (uri, entry) => {
+      const semanticContribution = collectSemanticReferenceContribution(uri, entry, {
+        styleDocumentForPath: args.styleDocumentForPath,
+        typeResolver: args.typeResolver,
+        workspaceRoot: args.workspaceRoot,
+        filePath: fileUrlToPath(uri),
+        settingsKey: args.settingsKey(),
+      });
+      args.caches.semanticReferenceIndex.record(
+        uri,
+        semanticContribution.referenceSites,
+        semanticContribution.moduleUsages,
+        semanticContribution.deps,
+      );
+      args.onReferencesChanged();
+    },
+  });
+}

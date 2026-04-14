@@ -1,6 +1,6 @@
-# 3.0 Architecture
+# 3.x Architecture
 
-This document describes the intended runtime architecture for 3.0.
+This document describes the runtime architecture from 3.0 onward.
 
 It is the reference for the production pipeline.
 
@@ -95,6 +95,74 @@ Owns:
 
 These are the only semantic shapes providers should read.
 
+## Runtime Assembly
+
+Runtime assembly is explicit.
+
+- `server/src/runtime/shared-runtime-caches.ts`
+  - process-wide caches shared across workspace runtimes
+- `server/src/runtime/workspace-runtime.ts`
+  - one runtime bundle per workspace root
+- `server/src/runtime/workspace-runtime-settings.ts`
+  - workspace-scoped settings and alias-resolver state
+- `server/src/runtime/workspace-analysis-runtime.ts`
+  - analysis-cache assembly and semantic contribution ingestion wiring
+- `server/src/runtime/workspace-style-runtime.ts`
+  - style indexing and style-cache/dependency-graph coordination
+- `server/src/composition-root.ts`
+  - orchestration only
+
+`composition-root.ts` wires runtimes together. It should not grow feature
+logic back into the top-level assembly path.
+
+Runtime transport effects are also explicit.
+
+- `server/src/runtime/runtime-sink.ts`
+  - runtime-facing logging / diagnostics-clear / code-lens-refresh sink
+
+Runtime modules should not depend directly on LSP transport types.
+
+## Reference Collection and Storage
+
+Reference ingestion and reference storage are separate responsibilities.
+
+- `server/src/core/semantic/reference-collector.ts`
+  - derives semantic reference contributions from the current runtime pipeline
+- `server/src/core/semantic/workspace-reference-index.ts`
+  - stores/query selector references and module usages
+- `server/src/core/semantic/reference-dependencies.ts`
+  - stores dependency reverse-lookup data for invalidation
+
+The store should not re-derive contributions from low-level runtime artifacts.
+
+## Invalidation Runtime
+
+Invalidation is modeled as explicit runtime contracts.
+
+- `server/src/runtime/dependency-snapshot.ts`
+  - captures open-document and dependency lookup state
+- `server/src/runtime/watched-file-changes.ts`
+  - classifies file watcher events into semantic invalidation inputs
+- `server/src/runtime/invalidation-planner.ts`
+  - computes recomputation plans from settings/file changes
+
+`handler-registration.ts` applies these plans. It should not own change
+classification, semantic diffing, or dependency lookup policy.
+
+## Rewrite Policy
+
+Style facts and rewrite policy are separate.
+
+- `StyleDocumentHIR`
+  - style facts, ranges, selector metadata
+- `server/src/core/rewrite/read-style-rewrite-policy.ts`
+  - rewrite-specific summary derived from style facts
+- `server/src/core/rewrite/selector-rename.ts`
+  - consumes rewrite policy summaries and emits rewrite plans
+
+Providers should not interpret nested safety, alias lossiness, or dependency
+blocking rules directly.
+
 ### Provider Policy Layer
 
 Owns:
@@ -112,7 +180,7 @@ Providers must not:
 
 ## Derived Caches vs Primary Reasoning
 
-In 3.0:
+In 3.x:
 
 - HIR is primary for document facts
 - binding graph is primary for source-side name resolution
@@ -123,12 +191,25 @@ Anything else must be clearly derived or test-only.
 
 This is why the old semantic graph builders were moved out of runtime.
 
+## Compatibility Policy
+
+`cssModuleExplainer.pathAlias` is the native configuration surface.
+
+`cssModules.pathAlias` is still accepted as a compatibility fallback in 3.x.
+The server emits a deprecation notice per workspace root when that fallback is
+used.
+
+Compatibility behavior belongs in `server/src/settings.ts`. Runtime consumers
+should read the normalized settings shape only.
+
 ## Non-Negotiable Rules
 
 1. no runtime compatibility path may survive "for safety"
 2. no provider-specific semantic derivation when a read model can own it
 3. no certainty string chosen without a semantic contract
 4. no runtime type that exists only to preserve an older competing architecture
+5. handler/runtime boundaries must be enforced by architecture tests
+6. providers must consume read models, not low-level runtime internals
 
 ## Acceptance Standard
 
@@ -137,3 +218,4 @@ The architecture is considered complete when:
 - one coherent pipeline explains hover, definition, references, rename, completion, and diagnostics
 - no runtime feature depends on line-range or document-order binding heuristics
 - no provider still depends on the deleted semantic-graph-first architecture
+- runtime assembly, invalidation, and rewrite policy each have explicit modules

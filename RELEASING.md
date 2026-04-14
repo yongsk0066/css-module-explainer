@@ -56,6 +56,28 @@ Official Open VSX publishing guide:
 
 - https://github.com/eclipse-openvsx/openvsx/wiki/Publishing-Extensions
 
+## Compatibility deprecations
+
+Current path-alias deprecation policy:
+
+- legacy key: `cssModules.pathAlias`
+- replacement key: `cssModuleExplainer.pathAlias`
+- warning starts: `3.1.x`
+- planned removal: `4.0.0`
+
+Release notes for every `3.1.x` and later stable release should keep this
+deprecation visible until the removal version ships.
+
+Code ownership:
+
+- normalization and warning policy live in `server/src/settings.ts`
+- runtime consumers must not read compatibility settings directly
+- removal of the compat key must update:
+  - `server/src/settings.ts`
+  - `README.md`
+  - `package.json` configuration docs
+  - release notes / changelog
+
 ## Release planning
 
 User-facing pull requests should include a changeset.

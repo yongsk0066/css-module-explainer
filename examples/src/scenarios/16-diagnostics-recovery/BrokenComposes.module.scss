@@ -1,0 +1,7 @@
+.missingFile {
+  composes: missingBase from "./MissingComposesBase.module.scss";
+}
+
+.missingSelector {
+  composes: existingBase missingTone from "./DiagnosticsRecoveryBase.module.scss";
+}

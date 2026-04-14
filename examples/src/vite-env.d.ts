@@ -17,12 +17,22 @@ declare module "*.module.css" {
   export default classes;
 }
 
+declare module "*.module.less" {
+  const classes: Readonly<Record<string, string>>;
+  export default classes;
+}
+
 declare module "*.scss" {
   const content: string;
   export default content;
 }
 
 declare module "*.css" {
+  const content: string;
+  export default content;
+}
+
+declare module "*.less" {
   const content: string;
   export default content;
 }

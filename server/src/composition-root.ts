@@ -1,5 +1,4 @@
 import { existsSync, readFileSync } from "node:fs";
-import { readFile } from "node:fs/promises";
 import type { MessageReader, MessageWriter } from "vscode-languageserver/node";
 import {
   CodeLensRefreshRequest,
@@ -14,41 +13,28 @@ import {
 } from "vscode-languageserver/node";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import ts from "typescript";
-import {
-  DEFAULT_RESOURCE_SETTINGS,
-  DEFAULT_SETTINGS,
-  resourceSettingsDependencyKey,
-  type ResourceSettings,
-} from "./settings";
+import { DEFAULT_RESOURCE_SETTINGS, type ResourceSettings } from "./settings";
 import { buildStyleFileWatcherGlob, findLangForPath } from "./core/scss/lang-registry";
-import { StyleIndexCache } from "./core/scss/scss-index";
+import type { StyleIndexCache } from "./core/scss/scss-index";
 import type { StyleDocumentHIR } from "./core/hir/style-types";
-import { detectClassUtilImports, scanCxImports } from "./core/cx/binding-detector";
-import { parseClassExpressions } from "./core/cx/class-ref-parser";
-import { type AliasResolver, AliasResolverHolder } from "./core/cx/alias-resolver";
-import { SourceFileCache } from "./core/ts/source-file-cache";
+import type { WorkspaceStyleDependencyGraph } from "./core/semantic";
 import { WorkspaceTypeResolver, type TypeResolver } from "./core/ts/type-resolver";
-import { DocumentAnalysisCache } from "./core/indexing/document-analysis-cache";
-import { scssFileSupplier } from "./core/indexing/file-supplier";
-import { IndexerWorker } from "./core/indexing/indexer-worker";
-import {
-  collectSemanticReferenceContribution,
-  WorkspaceSemanticWorkspaceReferenceIndex,
-} from "./core/semantic/workspace-reference-index";
-import { WorkspaceStyleDependencyGraph } from "./core/semantic/style-dependency-graph";
 import { fileUrlToPath, pathToFileUrl } from "./core/util/text-utils";
+import type { FileTask } from "./core/indexing/indexer-worker";
 import { COMPLETION_TRIGGER_CHARACTERS } from "./providers/completion";
 import { registerHandlers } from "./handler-registration";
-import type { FileTask } from "./core/indexing/indexer-worker";
+import { WorkspaceRegistry, type WorkspaceFolderInfo } from "./workspace/workspace-registry";
 import {
-  WorkspaceRegistry,
-  pickOwningWorkspaceFolder,
-  type WorkspaceFolderInfo,
-  type WorkspaceProviderDeps,
-} from "./workspace/workspace-registry";
+  buildSharedRuntimeCaches,
+  createWorkspaceRuntime,
+  type RuntimeSink,
+  type SharedRuntimeCaches,
+  type WorkspaceRuntime,
+  type WorkspaceRuntimeIO,
+} from "./runtime";
 
 const SERVER_NAME = "css-module-explainer";
-const SERVER_VERSION = "3.1.1";
+const SERVER_VERSION = "3.2.0";
 
 /**
  * Transport-agnostic shared options consumed by every
@@ -116,9 +102,11 @@ export function createServer(options: CreateServerOptions): CreatedServer {
       ? createConnection(ProposedFeatures.all, options.reader, options.writer)
       : createConnection(ProposedFeatures.all);
   const documents = new TextDocuments<TextDocument>(TextDocument);
+  const readStyleFile = options.readStyleFile ?? defaultReadStyleFile;
 
   let registry: WorkspaceRegistry | null = null;
-  let caches: BundleCaches | null = null;
+  let runtimes: Map<string, WorkspaceRuntime> | null = null;
+  let caches: SharedRuntimeCaches | null = null;
   let typeResolver: TypeResolver | null = null;
   let styleDocumentForPath: ((path: string) => StyleDocumentHIR | null) | null = null;
   let fileExists: ((path: string) => boolean) | null = null;
@@ -137,10 +125,10 @@ export function createServer(options: CreateServerOptions): CreatedServer {
     clientSupportsCodeLensRefresh =
       params.capabilities.workspace?.codeLens?.refreshSupport ?? false;
     clientSupportsWorkspaceFolders = params.capabilities.workspace?.workspaceFolders ?? false;
-    caches = buildCaches();
+    caches = buildSharedRuntimeCaches();
     typeResolver = buildTypeResolver(options);
     registry = new WorkspaceRegistry();
-    const readStyleFile = options.readStyleFile ?? defaultReadStyleFile;
+    runtimes = new Map();
     fileExists = options.fileExists ?? existsSync;
     styleDocumentForPath = buildStyleDocumentForPath(
       caches.styleIndexCache,
@@ -152,18 +140,22 @@ export function createServer(options: CreateServerOptions): CreatedServer {
         DEFAULT_RESOURCE_SETTINGS.scss.classnameTransform,
     );
     for (const folder of workspaceFolders) {
-      const deps = buildBundleForFolder(
+      const runtime = createWorkspaceRuntime({
         folder,
         workspaceFolders,
         caches,
         typeResolver,
         styleDocumentForPath,
-        options,
-        connection,
+        io: buildRuntimeIO(options, readStyleFile),
+        sink: buildRuntimeSink(connection, clientSupportsCodeLensRefresh),
         fileExists,
-        clientSupportsCodeLensRefresh,
-      );
-      registry.register(folder, deps);
+        serverName: SERVER_NAME,
+        getModeForStylePath: (stylePath) =>
+          registry?.getDepsForFilePath(stylePath)?.settings.scss.classnameTransform ??
+          DEFAULT_RESOURCE_SETTINGS.scss.classnameTransform,
+      });
+      registry.register(folder, runtime.deps);
+      runtimes.set(folder.uri, runtime);
     }
     return {
       capabilities: buildCapabilities(),
@@ -185,16 +177,26 @@ export function createServer(options: CreateServerOptions): CreatedServer {
     if (!registry) return;
     if (clientSupportsWorkspaceFolders) {
       connection.workspace.onDidChangeWorkspaceFolders((event) => {
-        if (!registry || !caches || !typeResolver || !styleDocumentForPath || !fileExists) return;
+        if (
+          !registry ||
+          !runtimes ||
+          !caches ||
+          !typeResolver ||
+          !styleDocumentForPath ||
+          !fileExists
+        ) {
+          return;
+        }
 
         for (const folder of event.removed) {
           const existing = registry.getFolder(folder.uri);
           if (!existing) continue;
           const deps = registry.unregister(folder.uri);
           if (!deps) continue;
-          clearWorkspaceFolderDocuments(existing.rootPath, deps, documents, connection);
-          deps.stopIndexer();
-          deps.typeResolver.invalidate(existing.rootPath);
+          const runtime = runtimes.get(folder.uri);
+          runtime?.clearWorkspaceDocuments(documents);
+          runtime?.dispose();
+          runtimes.delete(folder.uri);
         }
 
         for (const folder of event.added) {
@@ -204,18 +206,22 @@ export function createServer(options: CreateServerOptions): CreatedServer {
             rootPath: fileUrlToPath(folder.uri),
             name: folder.name,
           };
-          const deps = buildBundleForFolder(
-            folderInfo,
-            [...registry.getFolders(), folderInfo],
+          const runtime = createWorkspaceRuntime({
+            folder: folderInfo,
+            workspaceFolders: [...registry.getFolders(), folderInfo],
             caches,
             typeResolver,
             styleDocumentForPath,
-            options,
-            connection,
+            io: buildRuntimeIO(options, readStyleFile),
+            sink: buildRuntimeSink(connection, clientSupportsCodeLensRefresh),
             fileExists,
-            clientSupportsCodeLensRefresh,
-          );
-          registry.register(folderInfo, deps);
+            serverName: SERVER_NAME,
+            getModeForStylePath: (stylePath) =>
+              registry?.getDepsForFilePath(stylePath)?.settings.scss.classnameTransform ??
+              DEFAULT_RESOURCE_SETTINGS.scss.classnameTransform,
+          });
+          registry.register(folderInfo, runtime.deps);
+          runtimes.set(folderInfo.uri, runtime);
         }
 
         handlers.refreshSettings();
@@ -240,6 +246,7 @@ export function createServer(options: CreateServerOptions): CreatedServer {
     handlers.shutdown();
     void watchedFilesDisposable?.then((d) => d.dispose()).catch(() => {});
     watchedFilesDisposable = null;
+    runtimes = null;
     registry = null;
   });
 
@@ -296,126 +303,6 @@ function resolveWorkspaceFolders(params: InitializeParams): readonly WorkspaceFo
   ];
 }
 
-function buildBundle(
-  folder: WorkspaceFolderInfo,
-  workspaceFolders: readonly WorkspaceFolderInfo[],
-  caches: BundleCaches,
-  typeResolver: TypeResolver,
-  styleDocumentForPath: (path: string) => StyleDocumentHIR | null,
-  options: CreateServerOptions,
-  connection: Connection,
-  fileExists: (path: string) => boolean,
-  supportsCodeLensRefresh: boolean,
-): WorkspaceProviderDeps {
-  let currentSettings = DEFAULT_SETTINGS;
-  const refreshCodeLens = (): void => {
-    if (!supportsCodeLensRefresh) return;
-    // Clients advertise support via `workspace.codeLens.refreshSupport`.
-    // Unsupported clients may reject the request; swallow that rather
-    // than surfacing noisy transport errors.
-    void connection.sendRequest(CodeLensRefreshRequest.type).catch(() => {});
-  };
-  const aliasHolder = new AliasResolverHolder(folder.rootPath, DEFAULT_SETTINGS.pathAlias);
-  const analysisCache = buildAnalysisCache({
-    caches,
-    styleDocumentForPath,
-    workspaceRoot: folder.rootPath,
-    typeResolver,
-    fileExists,
-    getAliasResolver: () => aliasHolder.get(),
-    getSettingsKey: () => resourceSettingsDependencyKey(currentSettings),
-    refreshCodeLens,
-  });
-  const indexerWorker = buildIndexerWorker(
-    options,
-    caches.styleIndexCache,
-    caches.styleDependencyGraph,
-    folder.rootPath,
-    () => currentSettings.scss.classnameTransform,
-    (stylePath) => pickOwningWorkspaceFolder(workspaceFolders, stylePath)?.uri === folder.uri,
-    connection,
-  );
-
-  return {
-    analysisCache,
-    styleDocumentForPath,
-    typeResolver,
-    semanticReferenceIndex: caches.semanticReferenceIndex,
-    styleDependencyGraph: caches.styleDependencyGraph,
-    workspaceRoot: folder.rootPath,
-    workspaceFolderUri: folder.uri,
-    logError: (message, err) => {
-      const detail = err instanceof Error ? `${err.message}\n${err.stack ?? ""}` : String(err);
-      connection.console.error(`[${SERVER_NAME}] ${message}: ${detail}`);
-    },
-    invalidateStyle: (path) => {
-      caches.styleIndexCache.invalidate(path);
-      caches.styleDependencyGraph.forget(path);
-    },
-    peekStyleDocument: (path) =>
-      caches.styleIndexCache.peekEntry(path, currentSettings.scss.classnameTransform)
-        ?.styleDocument ?? null,
-    buildStyleDocument: (path, content) =>
-      caches.styleIndexCache.getStyleDocument(
-        path,
-        content,
-        currentSettings.scss.classnameTransform,
-      ),
-    readStyleFile: options.readStyleFile ?? defaultReadStyleFile,
-    pushStyleFile: (path) => indexerWorker.pushFile({ path }),
-    indexerReady: indexerWorker.ready,
-    stopIndexer: () => indexerWorker.stop(),
-    get settings() {
-      return currentSettings;
-    },
-    set settings(next) {
-      currentSettings = next;
-    },
-    rebuildAliasResolver: (pathAlias) => aliasHolder.rebuild(pathAlias),
-    refreshCodeLens,
-  };
-}
-
-function buildBundleForFolder(
-  folder: WorkspaceFolderInfo,
-  workspaceFolders: readonly WorkspaceFolderInfo[],
-  caches: BundleCaches,
-  typeResolver: TypeResolver,
-  styleDocumentForPath: (path: string) => StyleDocumentHIR | null,
-  options: CreateServerOptions,
-  connection: Connection,
-  fileExists: (path: string) => boolean,
-  supportsCodeLensRefresh: boolean,
-): WorkspaceProviderDeps {
-  return buildBundle(
-    folder,
-    workspaceFolders,
-    caches,
-    typeResolver,
-    styleDocumentForPath,
-    options,
-    connection,
-    fileExists,
-    supportsCodeLensRefresh,
-  );
-}
-
-interface BundleCaches {
-  readonly sourceFileCache: SourceFileCache;
-  readonly styleIndexCache: StyleIndexCache;
-  readonly semanticReferenceIndex: WorkspaceSemanticWorkspaceReferenceIndex;
-  readonly styleDependencyGraph: WorkspaceStyleDependencyGraph;
-}
-
-function buildCaches(): BundleCaches {
-  return {
-    sourceFileCache: new SourceFileCache({ max: 200 }),
-    styleIndexCache: new StyleIndexCache({ max: 500 }),
-    semanticReferenceIndex: new WorkspaceSemanticWorkspaceReferenceIndex(),
-    styleDependencyGraph: new WorkspaceStyleDependencyGraph(),
-  };
-}
-
 function buildTypeResolver(options: CreateServerOptions): TypeResolver {
   return (
     options.typeResolver ??
@@ -458,101 +345,33 @@ function readStyleTextFromOpenDocuments(
   return doc?.getText() ?? null;
 }
 
-interface AnalysisCacheArgs {
-  readonly caches: BundleCaches;
-  readonly styleDocumentForPath: (path: string) => StyleDocumentHIR | null;
-  readonly workspaceRoot: string;
-  readonly typeResolver: TypeResolver;
-  readonly fileExists: (path: string) => boolean;
-  readonly getAliasResolver: () => AliasResolver;
-  readonly getSettingsKey: () => string;
-  readonly refreshCodeLens: () => void;
-}
-
-function buildAnalysisCache(args: AnalysisCacheArgs): DocumentAnalysisCache {
-  const {
-    caches,
-    styleDocumentForPath,
-    workspaceRoot,
-    typeResolver,
-    fileExists,
-    getAliasResolver,
-    getSettingsKey,
-    refreshCodeLens,
-  } = args;
-  return new DocumentAnalysisCache({
-    sourceFileCache: caches.sourceFileCache,
-    scanCxImports,
-    parseClassExpressions,
-    detectClassUtilImports,
-    fileExists,
-    // getter-over-closure: reads currentResolver at analyze() time,
-    // so mode changes via rebuildAliasResolver propagate on the next
-    // analyze call without cache invalidation.
-    get aliasResolver() {
-      return getAliasResolver();
-    },
-    max: 200,
-    onAnalyze: (uri, entry) => {
-      const semanticContribution = collectSemanticReferenceContribution(uri, entry, {
-        styleDocumentForPath,
-        typeResolver,
-        workspaceRoot,
-        filePath: fileUrlToPath(uri),
-        settingsKey: getSettingsKey(),
-      });
-      caches.semanticReferenceIndex.record(
-        uri,
-        semanticContribution.referenceSites,
-        semanticContribution.moduleUsages,
-        semanticContribution.deps,
-      );
-      refreshCodeLens();
-    },
-  });
-}
-
-function buildIndexerWorker(
+function buildRuntimeIO(
   options: CreateServerOptions,
-  styleIndexCache: StyleIndexCache,
-  styleDependencyGraph: WorkspaceStyleDependencyGraph,
-  workspaceRoot: string,
-  getMode: () => ResourceSettings["scss"]["classnameTransform"],
-  shouldIndexPath: (path: string) => boolean,
-  connection: Connection,
-): IndexerWorker {
-  const indexerLogger = {
-    info: (msg: string) => connection.console.info(`[${SERVER_NAME}:indexer] ${msg}`),
-    error: (msg: string) => connection.console.error(`[${SERVER_NAME}:indexer] ${msg}`),
+  readStyleFile: (path: string) => string | null,
+): WorkspaceRuntimeIO {
+  return {
+    readStyleFile,
+    ...(options.readStyleFileAsync ? { readStyleFileAsync: options.readStyleFileAsync } : {}),
+    ...(options.fileSupplier ? { fileSupplier: options.fileSupplier } : {}),
   };
-  const supplier =
-    options.fileSupplier ?? (() => scssFileSupplier(workspaceRoot, indexerLogger, shouldIndexPath));
-  const asyncReadFile = options.readStyleFileAsync ?? defaultReadStyleFileAsync;
-  const worker = new IndexerWorker({
-    supplier,
-    readFile: asyncReadFile,
-    onScssFile: (path, content) => {
-      const styleDocument = styleIndexCache.getStyleDocument(path, content, getMode());
-      styleDependencyGraph.record(path, styleDocument);
-    },
-    logger: indexerLogger,
-  });
-  worker.start().catch((err: unknown) => {
-    connection.console.error(
-      `[${SERVER_NAME}] indexer worker crashed: ${
-        err instanceof Error ? err.message : String(err)
-      }`,
-    );
-  });
-  return worker;
 }
 
-async function defaultReadStyleFileAsync(path: string): Promise<string | null> {
-  try {
-    return await readFile(path, "utf8");
-  } catch {
-    return null;
-  }
+function buildRuntimeSink(connection: Connection, supportsCodeLensRefresh: boolean): RuntimeSink {
+  return {
+    info(message: string): void {
+      connection.console.info(message);
+    },
+    error(message: string): void {
+      connection.console.error(message);
+    },
+    clearDiagnostics(uri: string): void {
+      connection.sendDiagnostics({ uri, diagnostics: [] });
+    },
+    requestCodeLensRefresh(): void {
+      if (!supportsCodeLensRefresh) return;
+      void connection.sendRequest(CodeLensRefreshRequest.type).catch(() => {});
+    },
+  };
 }
 
 function defaultReadStyleFile(path: string): string | null {
@@ -561,29 +380,6 @@ function defaultReadStyleFile(path: string): string | null {
   } catch {
     return null;
   }
-}
-
-function clearWorkspaceFolderDocuments(
-  workspaceRoot: string,
-  deps: WorkspaceProviderDeps,
-  documents: TextDocuments<TextDocument>,
-  connection: Connection,
-): void {
-  deps.styleDependencyGraph.forgetWithinRoot(workspaceRoot);
-  for (const doc of documents.all()) {
-    const filePath = fileUrlToPath(doc.uri);
-    if (!isWithinWorkspaceRoot(workspaceRoot, filePath)) continue;
-    deps.semanticReferenceIndex.forget(doc.uri);
-    deps.analysisCache.invalidate(doc.uri);
-    connection.sendDiagnostics({ uri: doc.uri, diagnostics: [] });
-  }
-  deps.refreshCodeLens();
-}
-
-function isWithinWorkspaceRoot(workspaceRoot: string, filePath: string): boolean {
-  const rel = ts.sys.resolvePath(filePath).replaceAll("\\", "/");
-  const root = ts.sys.resolvePath(workspaceRoot).replaceAll("\\", "/");
-  return rel === root || rel.startsWith(`${root}/`);
 }
 
 /**

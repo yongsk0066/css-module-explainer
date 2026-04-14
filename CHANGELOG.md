@@ -1,5 +1,24 @@
 # Changelog
 
+## [3.2.0] — 2026-04-15
+
+### Added
+
+- **Architecture hardening runtime split** — workspace execution is now explicitly divided into settings, analysis, and style runtimes, with a transport-agnostic runtime sink for logging, diagnostics clearing, and CodeLens refresh requests.
+- **Incremental reference storage** — selector references, module usages, and dependency reverse lookups now update contribution-by-contribution instead of rebuilding whole derived maps on every record or forget.
+- **Package-ready entry boundaries** — core query, rewrite, semantic, and runtime entrypoints are now explicit, with architecture tests enforcing dependency direction for future extraction into standalone engine packages.
+
+### Changed
+
+- **Runtime invalidation is now explicit** — watched-file classification, dependency snapshots, and invalidation planning are separated into dedicated runtime contracts instead of being assembled ad hoc inside handler wiring.
+- **Semantic storage is now collector/store based** — reference contribution collection, reference storage, and dependency storage now have distinct responsibilities, which makes the runtime easier to reason about and cheaper to update incrementally.
+- **Style rewrite policy is derived, not embedded** — rename and rewrite planning now consume a style rewrite policy summary instead of directly interpreting raw nested/BEM policy fields.
+- **Provider boundaries are stricter** — providers read query/rewrite façades instead of deep semantic, binder, or runtime internals, and architecture invariant tests lock that boundary in place.
+- **Examples QA matrix expanded again** — the sandbox now includes dedicated diagnostics-recovery, bracket-access, and `.module.less` coverage so the remaining runtime surfaces can be checked without ad hoc setup.
+
+### Fixed
+
+- **Local packaging from development checkouts** — `.worktrees/` and `.pnpm-store/` are now excluded from the VSIX, preventing `vsce package` failures and accidental bundling of local development artifacts.
 ## [3.1.1] — 2026-04-14
 
 ### Added

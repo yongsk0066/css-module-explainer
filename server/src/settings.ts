@@ -39,6 +39,13 @@ export interface ParsedResourceSettings {
   readonly pathAliasSource: PathAliasSource;
 }
 
+export interface CompatPathAliasDeprecationPolicy {
+  readonly legacyKey: "cssModules.pathAlias";
+  readonly replacementKey: "cssModuleExplainer.pathAlias";
+  readonly warnFrom: "3.1.0";
+  readonly plannedRemoval: "4.0.0";
+}
+
 export type Settings = WindowSettings & ResourceSettings;
 
 const DEFAULT_WINDOW_SETTINGS: WindowSettings = {
@@ -55,6 +62,13 @@ const DEFAULT_RESOURCE_SETTINGS: ResourceSettings = {
 const DEFAULTS: Settings = {
   ...DEFAULT_WINDOW_SETTINGS,
   ...DEFAULT_RESOURCE_SETTINGS,
+};
+
+export const COMPAT_PATH_ALIAS_DEPRECATION: CompatPathAliasDeprecationPolicy = {
+  legacyKey: "cssModules.pathAlias",
+  replacementKey: "cssModuleExplainer.pathAlias",
+  warnFrom: "3.1.0",
+  plannedRemoval: "4.0.0",
 };
 
 const CLASSNAME_TRANSFORM_VALUES = [
@@ -157,6 +171,18 @@ export function resourceSettingsDependencyKey(settings: ResourceSettings): strin
     .map(([key, value]) => `${key}=${value}`)
     .join("|");
   return `transform:${settings.scss.classnameTransform};alias:${pathAlias}`;
+}
+
+export function shouldWarnCompatPathAlias(
+  info: ParsedResourceSettings,
+  warnedWorkspaceRoots: ReadonlySet<string>,
+  workspaceRoot: string,
+): boolean {
+  return info.pathAliasSource === "compat" && !warnedWorkspaceRoots.has(workspaceRoot);
+}
+
+export function formatCompatPathAliasDeprecationMessage(workspaceRoot: string): string {
+  return `[css-module-explainer] ${COMPAT_PATH_ALIAS_DEPRECATION.legacyKey} is deprecated for '${workspaceRoot}'. Use ${COMPAT_PATH_ALIAS_DEPRECATION.replacementKey} instead. Planned removal: ${COMPAT_PATH_ALIAS_DEPRECATION.plannedRemoval}.`;
 }
 
 /**

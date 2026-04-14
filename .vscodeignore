@@ -34,6 +34,7 @@ examples/
 .vscode/
 .personal_docs/
 .changeset/
+.worktrees/
 scripts/
 RELEASING.md
 pnpm-workspace.yaml
@@ -43,6 +44,7 @@ pnpm-workspace.yaml
 coverage/
 *.log
 pnpm-lock.yaml
+.pnpm-store/
 
 # pnpm symlinks inside workspace packages — vsce's yazl zipper
 # can't follow them. The actual runtime code is in dist/*.

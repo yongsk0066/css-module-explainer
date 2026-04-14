@@ -1,0 +1,33 @@
+@accent: #0ea5e9;
+@accent-soft: fade(@accent, 16%);
+
+.card {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid fade(@accent, 34%);
+  border-radius: 16px;
+  background: white;
+
+  &.active {
+    box-shadow: inset 0 0 0 2px fade(@accent, 24%);
+  }
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.accent-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: @accent-soft;
+  color: #0369a1;
+  font-weight: 600;
+}
