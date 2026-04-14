@@ -1,136 +1,156 @@
 # Releasing
 
-## Branches
+이 문서는 현재 릴리즈 절차를 정리한다.
 
-- `master`: stable releases
-- `next`: preview releases
+작업 기록이나 과거 rollout 메모는 포함하지 않는다.
 
-Stable and preview releases use numeric extension versions. Preview releases are
-published with `--pre-release`.
+## 브랜치
 
-## Pre-release rules
+- `master`: stable
+- `next`: preview
 
-VS Code Marketplace pre-release publishing has two hard constraints:
+## 버전 규칙
 
-1. publish with `vsce package --pre-release` / `vsce publish --pre-release`
-2. keep extension versions in plain `major.minor.patch` form
+stable과 preview 모두 숫자 버전만 사용한다.
 
-Do not use versions such as `3.0.0-alpha.1` or `3.0.0-beta.2`. Marketplace
-does not support semver pre-release tags for extension versions.
+예:
 
-Versions must also stay distinct across channels. If `3.1.0` is published as a
-pre-release, the next stable release cannot reuse `3.1.0`.
+- `3.2.0`
+- `3.2.1`
+- `3.3.0`
 
-Official guidance:
+사용하지 않는 형식:
 
-- VS Code Marketplace pre-release docs:
-  https://code.visualstudio.com/api/working-with-extensions/publishing-extension#pre-release-extensions
+- `3.2.0-alpha.1`
+- `3.2.0-beta.1`
 
-## 3.0 alpha plan
+VS Code Marketplace preview는 다음 제약이 있다.
 
-For the 3.0 architecture rollout:
+1. 버전은 `major.minor.patch` 형식이어야 한다
+2. preview publish는 `--pre-release`로 해야 한다
 
-- keep `master` on stable `2.x`
-- publish alpha builds from `next`
-- use numeric preview versions on `next`
-- publish Marketplace previews with `channel=preview`
+또한 preview에서 이미 사용한 버전은 stable에서 다시 쓰면 안 된다.
 
-Recommended version policy:
+참고:
 
-- `master`: stable line
-  - current stable remains `2.x`
-  - final cutover can ship as `3.0.0`
-- `next`: preview line
-  - use `3.1.x` for `3.0` alpha and beta builds
-  - publish every preview with `--pre-release`
+- https://code.visualstudio.com/api/working-with-extensions/publishing-extension#pre-release-extensions
 
-This keeps the final stable `3.0.0` available while still following the VS Code
-pre-release versioning rules.
+## 채널
 
-Open VSX is different. Its publishing guide documents packaging and upload, but
-does not document a Marketplace-style pre-release channel. Treat Open VSX as a
-secondary distribution target for alpha builds, not as the authoritative
-preview channel.
+stable:
 
-Official Open VSX publishing guide:
+- 브랜치: `master`
+- workflow input: `channel=stable`
+
+preview:
+
+- 브랜치: `next`
+- workflow input: `channel=preview`
+
+Open VSX는 Marketplace와 같은 preview 채널 모델을 명확히 문서화하지 않는다. preview 배포는 Marketplace를 기준으로 보고, Open VSX는 선택적 보조 채널로 다룬다.
+
+참고:
 
 - https://github.com/eclipse-openvsx/openvsx/wiki/Publishing-Extensions
 
-## Compatibility deprecations
+## 배포 전 검증
 
-Current path-alias deprecation policy:
+기본 검증:
+
+```bash
+pnpm install
+pnpm release:verify
+pnpm test:extension-host
+pnpm --dir examples exec tsc -p tsconfig.json --noEmit
+pnpm --dir examples build
+pnpm exec vsce package --no-dependencies
+```
+
+`pnpm release:verify`는 다음을 수행한다.
+
+1. `SERVER_VERSION` 동기화
+2. `pnpm check`
+3. `pnpm test`
+4. `pnpm build`
+
+## Publish Extension workflow
+
+배포는 GitHub Actions의 `Publish Extension` workflow로 한다.
+
+입력값:
+
+- `ref`
+- `channel`
+- `publish_marketplace`
+- `publish_openvsx`
+- `create_github_release`
+
+workflow는 다음을 수행한다.
+
+1. 지정한 ref checkout
+2. dependency install
+3. `./scripts/publish-extension.sh`
+4. VSIX package
+5. Marketplace / Open VSX publish
+6. GitHub release 생성 옵션 처리
+
+## stable 배포 절차
+
+1. release branch를 `master`에 머지
+2. `Publish Extension` 실행
+3. 입력:
+   - `ref=master`
+   - `channel=stable`
+   - `publish_marketplace=true`
+   - `publish_openvsx=true` 또는 `false`
+   - `create_github_release=true`
+
+## preview 배포 절차
+
+1. preview 작업을 `next`에 머지
+2. preview 버전 반영
+3. `Publish Extension` 실행
+4. 입력:
+   - `ref=next`
+   - `channel=preview`
+   - `publish_marketplace=true`
+   - `publish_openvsx=false` 또는 `true`
+   - `create_github_release=true`
+
+## changeset
+
+사용자 영향이 있는 PR은 changeset을 포함하는 것이 원칙이다.
+
+다음만 바꾸는 PR은 `changeset:skip`으로 처리할 수 있다.
+
+- docs
+- tests
+- CI
+- `examples/`
+
+## compat deprecation
+
+현재 path alias deprecation 정책:
 
 - legacy key: `cssModules.pathAlias`
 - replacement key: `cssModuleExplainer.pathAlias`
 - warning starts: `3.1.x`
 - planned removal: `4.0.0`
 
-Release notes for every `3.1.x` and later stable release should keep this
-deprecation visible until the removal version ships.
+제거 시 같이 수정해야 하는 곳:
 
-Code ownership:
+- `server/src/settings.ts`
+- `README.md`
+- `package.json` configuration metadata
+- changelog / release notes
 
-- normalization and warning policy live in `server/src/settings.ts`
-- runtime consumers must not read compatibility settings directly
-- removal of the compat key must update:
-  - `server/src/settings.ts`
-  - `README.md`
-  - `package.json` configuration docs
-  - release notes / changelog
-
-## Release planning
-
-User-facing pull requests should include a changeset.
-
-PRs that only touch CI, docs, tests, or `examples/` can use the
-`changeset:skip` label.
-
-On `master`, the release-plan workflow opens or updates a release pull request
-that applies pending changesets and updates the changelog.
-
-## Manual publish
-
-Publishing is done through the `Publish Extension` GitHub Actions workflow.
-
-Inputs:
-
-- `ref`: branch or tag to publish
-- `channel`: `stable` or `preview`
-- `publish_marketplace`
-- `publish_openvsx`
-- `create_github_release`
-
-This workflow:
-
-1. syncs `SERVER_VERSION` from `package.json`
-2. runs `pnpm check`
-3. runs `pnpm test`
-4. runs the extension-host smoke test in CI
-5. builds and packages the extension
-6. publishes to VS Code Marketplace and/or Open VSX
-7. optionally creates a GitHub release
-
-For a 3.0 alpha release:
-
-1. merge the target changes into `next`
-2. bump `next` to the next preview version, for example `3.1.0`
-3. run `Publish Extension`
-4. set:
-   - `ref=next`
-   - `channel=preview`
-   - `publish_marketplace=true`
-   - `publish_openvsx=false` or `true` depending on whether you want a secondary package upload
-   - `create_github_release=true`
-
-## Local verification
+## 로컬 publish
 
 ```bash
-pnpm install
-pnpm release:verify
 pnpm release:publish
 ```
 
-Environment variables used by the publish script:
+사용 환경 변수:
 
 - `RELEASE_CHANNEL=stable|preview`
 - `PUBLISH_MARKETPLACE=true|false`
@@ -138,12 +158,4 @@ Environment variables used by the publish script:
 - `VSCE_PAT`
 - `OVSX_PAT`
 
-For local publishing, you can also place `VSCE_PAT` and `OVSX_PAT` in a repo
-root `.env` file. The publish script loads it automatically when present.
-
-Example:
-
-```bash
-VSCE_PAT=...
-OVSX_PAT=...
-```
+repo root의 `.env`가 있으면 publish script가 같이 읽는다.
