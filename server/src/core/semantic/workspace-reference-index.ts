@@ -10,6 +10,7 @@ import type { TypeResolver } from "../ts/type-resolver";
 import { readSourceExpressionResolution } from "../query/read-source-expression-resolution";
 import { deriveReferenceExpansion, type EdgeCertainty } from "./certainty";
 import type { RefNode } from "./graph-types";
+import { filterSelectorReferencePolicy } from "./reference-policy";
 import { type ReferenceQueryOptions, type SemanticReferenceSite } from "./reference-types";
 import type { EdgeReason } from "./provenance";
 
@@ -304,21 +305,7 @@ function filterSites(
   sites: readonly SemanticReferenceSite[],
   options?: ReferenceQueryOptions,
 ): readonly SemanticReferenceSite[] {
-  const minimumSelectorCertainty = options?.minimumSelectorCertainty;
-  if (!minimumSelectorCertainty) return sites;
-  return sites.filter((site) => {
-    switch (minimumSelectorCertainty) {
-      case "exact":
-        return site.selectorCertainty === "exact";
-      case "inferred":
-        return site.selectorCertainty === "exact" || site.selectorCertainty === "inferred";
-      case "possible":
-        return true;
-      default:
-        minimumSelectorCertainty satisfies never;
-        return minimumSelectorCertainty;
-    }
-  });
+  return filterSelectorReferencePolicy(sites, options);
 }
 
 function toReferenceSite(

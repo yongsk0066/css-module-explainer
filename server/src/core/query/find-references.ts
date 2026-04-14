@@ -1,5 +1,9 @@
 import type { Range } from "@css-module-explainer/shared";
 import type { EdgeCertainty } from "../semantic/certainty";
+import {
+  filterSelectorReferencePolicy,
+  type SelectorReferencePolicy,
+} from "../semantic/reference-policy";
 import type { SemanticWorkspaceReferenceIndex } from "../semantic/workspace-reference-index";
 
 export interface ResolvedReferenceSite {
@@ -14,10 +18,7 @@ export interface ReferenceQueryEnv {
   readonly semanticReferenceIndex: SemanticWorkspaceReferenceIndex;
 }
 
-export interface ReferenceSiteQueryOptions {
-  readonly minimumSelectorCertainty?: EdgeCertainty;
-  readonly includeExpanded?: boolean;
-}
+export interface ReferenceSiteQueryOptions extends SelectorReferencePolicy {}
 
 export function findSelectorReferenceSites(
   deps: ReferenceQueryEnv,
@@ -28,16 +29,18 @@ export function findSelectorReferenceSites(
   const queryOptions = options?.minimumSelectorCertainty
     ? { minimumSelectorCertainty: options.minimumSelectorCertainty }
     : undefined;
-  return deps.semanticReferenceIndex
-    .findSelectorReferences(scssPath, canonicalName, queryOptions)
-    .map((site) => ({
-      uri: site.uri,
-      range: site.range,
-      className: site.className,
-      selectorCertainty: site.selectorCertainty,
-      expansion: site.expansion,
-    }))
-    .filter((site) => (options?.includeExpanded === false ? site.expansion === "direct" : true));
+  return filterSelectorReferencePolicy(
+    deps.semanticReferenceIndex
+      .findSelectorReferences(scssPath, canonicalName, queryOptions)
+      .map((site) => ({
+        uri: site.uri,
+        range: site.range,
+        className: site.className,
+        selectorCertainty: site.selectorCertainty,
+        expansion: site.expansion,
+      })),
+    options,
+  );
 }
 
 export function countSelectorReferenceSites(

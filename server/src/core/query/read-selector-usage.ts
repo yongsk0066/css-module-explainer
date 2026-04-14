@@ -1,4 +1,4 @@
-import type { EdgeCertainty } from "../semantic/certainty";
+import { filterSelectorReferencePolicy } from "../semantic/reference-policy";
 import type { ReferenceQueryEnv, ResolvedReferenceSite } from "./find-references";
 import { findSelectorReferenceSites } from "./find-references";
 
@@ -21,9 +21,15 @@ export function readSelectorUsageSummary(
   const allSites = findSelectorReferenceSites(deps, scssPath, canonicalName, {
     includeExpanded: true,
   });
-  const directSites = allSites.filter((site) => site.expansion === "direct");
-  const exactSites = allSites.filter((site) => site.selectorCertainty === "exact");
-  const inferredOrBetterSites = filterMinimumSelectorCertainty(allSites, "inferred");
+  const directSites = filterSelectorReferencePolicy(allSites, { includeExpanded: false });
+  const exactSites = filterSelectorReferencePolicy(allSites, {
+    minimumSelectorCertainty: "exact",
+    includeExpanded: true,
+  });
+  const inferredOrBetterSites = filterSelectorReferencePolicy(allSites, {
+    minimumSelectorCertainty: "inferred",
+    includeExpanded: true,
+  });
   return {
     allSites,
     directSites,
@@ -34,23 +40,4 @@ export function readSelectorUsageSummary(
     hasExpandedReferences: directSites.length !== allSites.length,
     hasAnyReferences: allSites.length > 0,
   };
-}
-
-function filterMinimumSelectorCertainty(
-  sites: readonly ResolvedReferenceSite[],
-  minimumSelectorCertainty: EdgeCertainty,
-): readonly ResolvedReferenceSite[] {
-  switch (minimumSelectorCertainty) {
-    case "exact":
-      return sites.filter((site) => site.selectorCertainty === "exact");
-    case "inferred":
-      return sites.filter(
-        (site) => site.selectorCertainty === "exact" || site.selectorCertainty === "inferred",
-      );
-    case "possible":
-      return sites;
-    default:
-      minimumSelectorCertainty satisfies never;
-      return sites;
-  }
 }
