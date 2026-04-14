@@ -163,6 +163,7 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
       styleDocument,
       providerDeps.semanticReferenceIndex,
       providerDeps.styleDependencyGraph,
+      providerDeps.styleDocumentForPath,
     );
     this.safeSendDiagnostics(uri, diagnostics);
   }

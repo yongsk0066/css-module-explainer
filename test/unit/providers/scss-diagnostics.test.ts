@@ -7,6 +7,7 @@ import { infoAtLine as info, semanticSiteAt } from "../../_fixtures/test-helpers
 import {
   buildStyleDocumentFromSelectorMap,
   expandSelectorMapWithTransform,
+  makeTestSelector,
   parseStyleSelectorMap,
 } from "../../_fixtures/style-documents";
 
@@ -397,5 +398,97 @@ describe("computeScssUnusedDiagnostics", () => {
     );
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0]!.message).toContain("'.btn-secondary'");
+  });
+
+  it("reports an unresolved cross-file composed module", () => {
+    const classMap = new Map([
+      [
+        "button",
+        makeTestSelector("button", 1, {
+          declarations: "color: red",
+          composes: [
+            {
+              classNames: ["base"],
+              classTokens: [
+                {
+                  className: "base",
+                  range: {
+                    start: { line: 1, character: 12 },
+                    end: { line: 1, character: 16 },
+                  },
+                },
+              ],
+              from: "./Base.module.scss",
+            },
+          ],
+        }),
+      ],
+    ]);
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    semanticReferenceIndex.record("file:///a.tsx", [
+      semanticSiteAt("file:///a.tsx", "button", 5, SCSS_PATH),
+    ]);
+
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      styleDocument(classMap),
+      semanticReferenceIndex,
+      undefined,
+      () => null,
+    );
+
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]!.severity).toBe(DiagnosticSeverity.Warning);
+    expect(diagnostics[0]!.message).toContain(
+      "Cannot resolve composed CSS Module './Base.module.scss'.",
+    );
+  });
+
+  it("reports a missing selector in a composed module", () => {
+    const classMap = new Map([
+      [
+        "button",
+        makeTestSelector("button", 1, {
+          declarations: "color: red",
+          composes: [
+            {
+              classNames: ["base"],
+              classTokens: [
+                {
+                  className: "base",
+                  range: {
+                    start: { line: 1, character: 12 },
+                    end: { line: 1, character: 16 },
+                  },
+                },
+              ],
+              from: "./Base.module.scss",
+            },
+          ],
+        }),
+      ],
+    ]);
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    semanticReferenceIndex.record("file:///a.tsx", [
+      semanticSiteAt("file:///a.tsx", "button", 5, SCSS_PATH),
+    ]);
+    const targetDocument = buildStyleDocumentFromSelectorMap(
+      "/fake/Base.module.scss",
+      new Map([["other", info("other", 1, "color: blue")]]),
+    );
+
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      styleDocument(classMap),
+      semanticReferenceIndex,
+      undefined,
+      (filePath) => (filePath === "/fake/Base.module.scss" ? targetDocument : null),
+    );
+
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]!.severity).toBe(DiagnosticSeverity.Warning);
+    expect(diagnostics[0]!.message).toContain(
+      "Selector '.base' not found in composed module './Base.module.scss'.",
+    );
   });
 });
