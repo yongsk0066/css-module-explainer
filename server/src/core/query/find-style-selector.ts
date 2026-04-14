@@ -1,5 +1,6 @@
 import type { SelectorDeclHIR, StyleDocumentHIR } from "../hir/style-types";
 import { rangeContains } from "../util/range-utils";
+import type { ComposesClassToken, ComposesRef } from "@css-module-explainer/shared";
 
 export function findSelectorAtCursor(
   styleDocument: StyleDocumentHIR,
@@ -38,4 +39,27 @@ export function listCanonicalSelectors(
   }
 
   return canonicalSelectors;
+}
+
+export interface ComposesTokenHit {
+  readonly selector: SelectorDeclHIR;
+  readonly ref: ComposesRef;
+  readonly token: ComposesClassToken;
+}
+
+export function findComposesTokenAtCursor(
+  styleDocument: StyleDocumentHIR,
+  line: number,
+  character: number,
+): ComposesTokenHit | null {
+  for (const selector of styleDocument.selectors) {
+    for (const ref of selector.composes) {
+      for (const token of ref.classTokens ?? []) {
+        if (rangeContains(token.range, line, character)) {
+          return { selector, ref, token };
+        }
+      }
+    }
+  }
+  return null;
 }

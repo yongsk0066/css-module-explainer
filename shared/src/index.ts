@@ -2,6 +2,7 @@ export type {
   Position,
   Range,
   StyleLang,
+  ComposesClassToken,
   ComposesRef,
   BemSuffixInfo,
   StyleImport,

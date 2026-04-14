@@ -164,6 +164,95 @@ describe("definition protocol", () => {
     expect(result).toBeNull();
   });
 
+  it("navigates from a cross-file composes token to the target selector", async () => {
+    const COMPOSING_SCSS = `
+.button {
+  composes: base from './Base.module.scss';
+  color: red;
+}
+`;
+    const BASE_SCSS = `
+.base {
+  color: blue;
+}
+`;
+    client = createInProcessServer({
+      readStyleFile: (path) => {
+        if (path.endsWith("Button.module.scss")) return COMPOSING_SCSS;
+        if (path.endsWith("Base.module.scss")) return BASE_SCSS;
+        return null;
+      },
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/Button.module.scss",
+        languageId: "scss",
+        version: 1,
+        text: COMPOSING_SCSS,
+      },
+    });
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/Base.module.scss",
+        languageId: "scss",
+        version: 1,
+        text: BASE_SCSS,
+      },
+    });
+
+    const result = await client.definition({
+      textDocument: { uri: "file:///fake/workspace/src/Button.module.scss" },
+      position: { line: 2, character: 13 },
+    });
+    expect(result).not.toBeNull();
+    const links = result as Array<{ targetUri: string }>;
+    expect(links).toHaveLength(1);
+    expect(links[0]!.targetUri).toMatch(/Base\.module\.scss$/);
+  });
+
+  it("navigates from a same-file composes token to the canonical selector", async () => {
+    const SAME_FILE_SCSS = `
+.base {
+  color: blue;
+}
+
+.button {
+  composes: base;
+  color: red;
+}
+`;
+    client = createInProcessServer({
+      readStyleFile: (path) => (path.endsWith("Button.module.scss") ? SAME_FILE_SCSS : null),
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/Button.module.scss",
+        languageId: "scss",
+        version: 1,
+        text: SAME_FILE_SCSS,
+      },
+    });
+
+    const result = await client.definition({
+      textDocument: { uri: "file:///fake/workspace/src/Button.module.scss" },
+      position: { line: 6, character: 13 },
+    });
+    expect(result).not.toBeNull();
+    const links = result as Array<{
+      targetUri: string;
+      targetSelectionRange: { start: { line: number } };
+    }>;
+    expect(links).toHaveLength(1);
+    expect(links[0]!.targetUri).toMatch(/Button\.module\.scss$/);
+    expect(links[0]!.targetSelectionRange.start.line).toBe(1);
+  });
+
   it("returns multiple LocationLinks for a union-typed cx(variable) call", async () => {
     const SIZED_TSX = `import classNames from 'classnames/bind';
 import styles from './Sized.module.scss';
