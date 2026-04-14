@@ -115,9 +115,9 @@ import theme from "@styles/theme.module.scss";
 `cssModules.pathAlias` remains a compatibility input. The server logs a
 deprecation notice when a workspace falls back to that key. New setups should
 prefer `cssModuleExplainer.pathAlias`. The compatibility key is read only as a
-fallback and is not the long-term configuration surface. In 3.x, compatibility
-behavior is normalized in `server/src/settings.ts`; runtime consumers read the
-merged native settings shape only.
+fallback and is not the long-term configuration surface. Compatibility behavior
+is normalized in `server/src/settings.ts`; runtime consumers read the merged
+native settings shape only.
 
 Migration policy:
 
@@ -178,16 +178,11 @@ HIR keeps source-preserving document facts. Binding lives in the binder layer.
 Dynamic class reasoning lives in the abstract-value layer. Providers read stable
 semantic summaries instead of recomputing resolution ad hoc.
 
-3.2 hardening moved several responsibilities out of `composition-root.ts` and
-`handler-registration.ts` into explicit runtime modules:
+Runtime orchestration, invalidation, and provider shaping are split into
+explicit modules. New behavior should extend those modules rather than
+reintroducing feature-specific logic into providers or top-level wiring.
 
-- workspace runtime assembly
-- dependency snapshots
-- watched-file classification
-- invalidation planning
-
-That split is architectural, not cosmetic. New runtime behavior should extend
-those modules rather than reintroducing feature-specific logic into handlers.
+For a fuller design explanation, see [docs/architecture-v3.md](./docs/architecture-v3.md).
 
 ## Development
 
