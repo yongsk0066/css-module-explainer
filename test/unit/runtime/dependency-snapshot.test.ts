@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
-import { createRuntimeDependencySnapshot } from "../../../server/src/runtime/dependency-snapshot";
+import {
+  createRuntimeDependencySnapshot,
+  snapshotOpenDocuments,
+} from "../../../server/src/runtime/dependency-snapshot";
 import { makeBaseDeps, semanticSiteAt } from "../../_fixtures/test-helpers";
 
 describe("createRuntimeDependencySnapshot", () => {
@@ -67,5 +70,37 @@ describe("createRuntimeDependencySnapshot", () => {
     expect(
       snapshot.findStyleDependentSourceUris("/fake/ws", "/fake/ws/src/Button.module.scss"),
     ).toEqual(["file:///fake/ws/src/App.tsx"]);
+  });
+
+  it("classifies open source and style documents", () => {
+    const deps = makeBaseDeps({
+      workspaceRoot: "/fake/ws",
+      workspaceFolderUri: "file:///fake/ws",
+    });
+
+    const openDocuments = snapshotOpenDocuments({
+      documents: {
+        all: () => [
+          { uri: "file:///fake/ws/src/App.tsx" },
+          { uri: "file:///fake/ws/src/Button.module.scss" },
+        ],
+      },
+      getDeps: () => deps,
+    });
+
+    expect(openDocuments).toEqual([
+      {
+        uri: "file:///fake/ws/src/App.tsx",
+        filePath: "/fake/ws/src/App.tsx",
+        isStyle: false,
+        workspaceRoot: "/fake/ws",
+      },
+      {
+        uri: "file:///fake/ws/src/Button.module.scss",
+        filePath: "/fake/ws/src/Button.module.scss",
+        isStyle: true,
+        workspaceRoot: "/fake/ws",
+      },
+    ]);
   });
 });

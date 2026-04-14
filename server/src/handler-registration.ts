@@ -28,11 +28,13 @@ import type { WorkspaceRegistry } from "./workspace/workspace-registry";
 import {
   planSettingsReload,
   planWatchedFileInvalidation,
-  type OpenDocumentSnapshot,
   type SettingsReloadWorkspaceChange,
   type WatchedFileChangeInput,
 } from "./runtime/invalidation-planner";
-import { createRuntimeDependencySnapshot } from "./runtime/dependency-snapshot";
+import {
+  createRuntimeDependencySnapshot,
+  snapshotOpenDocuments,
+} from "./runtime/dependency-snapshot";
 
 export interface HandlerContext {
   readonly connection: Connection;
@@ -439,16 +441,4 @@ function toCursorParams(
     character: p.position.character,
     version: doc.version,
   };
-}
-
-function snapshotOpenDocuments(ctx: HandlerContext): readonly OpenDocumentSnapshot[] {
-  return ctx.documents.all().map((doc) => {
-    const filePath = fileUrlToPath(doc.uri);
-    return {
-      uri: doc.uri,
-      filePath,
-      isStyle: findLangForPath(filePath) !== null,
-      workspaceRoot: ctx.getDeps(doc.uri)?.workspaceRoot ?? null,
-    };
-  });
 }
