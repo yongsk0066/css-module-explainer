@@ -30,6 +30,7 @@ import {
   type SettingsReloadWorkspaceChange,
   type WatchedFileChangeInput,
 } from "./runtime/invalidation-planner";
+import { createRuntimeDependencySnapshot } from "./runtime/dependency-snapshot";
 
 export interface HandlerContext {
   readonly connection: Connection;
@@ -101,7 +102,7 @@ function registerSettingsHandler(state: HandlerState): () => void {
         if (!registry) return;
 
         const bundles = registry.allDeps();
-        const openDocuments = snapshotOpenDocuments(state.ctx);
+        const snapshot = createRuntimeDependencySnapshot(bundles, snapshotOpenDocuments(state.ctx));
         const resourceSettingsByBundle = await Promise.all(
           bundles.map(async (deps) => ({
             deps,
@@ -141,15 +142,14 @@ function registerSettingsHandler(state: HandlerState): () => void {
             aliasChanged,
             modeChanged,
             settingsKeyChanged: prevSettingsKey !== nextSettingsKey,
-            affectedSettingsDependencyUris:
-              deps.semanticReferenceIndex.dependencies.findUrisBySettingsDependency(
-                deps.workspaceRoot,
-                prevSettingsKey,
-              ),
+            affectedSettingsDependencyUris: snapshot.findSettingsDependencyUris(
+              deps.workspaceRoot,
+              prevSettingsKey,
+            ),
           });
         }
 
-        const plan = planSettingsReload(workspaceChanges, openDocuments);
+        const plan = planSettingsReload(workspaceChanges, snapshot.openDocuments);
         for (const deps of bundles) {
           if (!plan.aliasRebuildRoots.includes(deps.workspaceRoot)) continue;
           deps.rebuildAliasResolver(deps.settings.pathAlias);
@@ -163,7 +163,7 @@ function registerSettingsHandler(state: HandlerState): () => void {
             deps.analysisCache.invalidate(uri);
           }
           bundles[0]?.refreshCodeLens();
-          for (const doc of openDocuments) {
+          for (const doc of snapshot.openDocuments) {
             if (doc.isStyle) {
               if (
                 doc.workspaceRoot !== null &&
@@ -299,7 +299,10 @@ function registerWatchedFilesHandler(state: HandlerState): void {
   connection.onDidChangeWatchedFiles((params: DidChangeWatchedFilesParams) => {
     const registry = state.ctx.getRegistry();
     if (!registry) return;
-    const openDocuments = snapshotOpenDocuments(state.ctx);
+    const snapshot = createRuntimeDependencySnapshot(
+      registry.allDeps(),
+      snapshotOpenDocuments(state.ctx),
+    );
     const changes: WatchedFileChangeInput[] = [];
     for (const change of params.changes) {
       const filePath = fileUrlToPath(change.uri);
@@ -314,13 +317,7 @@ function registerWatchedFilesHandler(state: HandlerState): void {
           changeType: change.type,
           semanticsChanged,
           dependentSourceUris: semanticsChanged
-            ? [
-                ...invalidateDependentTsxEntries(
-                  state.ctx.getDeps,
-                  deps.semanticReferenceIndex.dependencies,
-                  filePath,
-                ),
-              ]
+            ? snapshot.findStyleDependentSourceUris(deps.workspaceRoot, filePath)
             : [],
         });
       } else {
@@ -329,14 +326,11 @@ function registerWatchedFilesHandler(state: HandlerState): void {
           workspaceRoot: deps.workspaceRoot,
           filePath,
           projectConfigChange: isProjectConfigPath(filePath),
-          dependentSourceUris: deps.semanticReferenceIndex.dependencies.findUrisBySourceDependency(
-            deps.workspaceRoot,
-            filePath,
-          ),
+          dependentSourceUris: snapshot.findSourceDependencyUris(deps.workspaceRoot, filePath),
         });
       }
     }
-    const plan = planWatchedFileInvalidation(changes, openDocuments);
+    const plan = planWatchedFileInvalidation(changes, snapshot.openDocuments);
     const affectedDeps = registry
       .allDeps()
       .filter(
@@ -369,7 +363,7 @@ function registerWatchedFilesHandler(state: HandlerState): void {
       deps.semanticReferenceIndex.forget(uri);
       deps.analysisCache.invalidate(uri);
     }
-    for (const doc of openDocuments) {
+    for (const doc of snapshot.openDocuments) {
       const rootAffected =
         doc.workspaceRoot !== null && plan.affectedWorkspaceRoots.includes(doc.workspaceRoot);
       const sourceAffected = plan.affectedSourceUris.includes(doc.uri);
@@ -390,26 +384,6 @@ function isProjectConfigPath(filePath: string): boolean {
   return (
     base !== undefined && (/^tsconfig.*\.json$/u.test(base) || /^jsconfig.*\.json$/u.test(base))
   );
-}
-
-/**
- * Invalidate cached TSX analysis entries whose semantic reference
- * contribution depends on this SCSS file. Without this, the
- * debounced scheduleTsx hits `analysisCache.get`, finds the
- * version unchanged, and reuses the stale AnalysisEntry — so
- * `onAnalyze` never re-fires and the semantic reference query
- * keeps serving targets computed against the old classMap.
- */
-function invalidateDependentTsxEntries(
-  getDeps: (uri: string) => ProviderDeps | null,
-  semanticReferenceDependencies: ProviderDeps["semanticReferenceIndex"]["dependencies"],
-  scssPath: string,
-): ReadonlySet<string> {
-  const affectedUris = new Set(semanticReferenceDependencies.findReferencingUris(scssPath));
-  for (const uri of affectedUris) {
-    getDeps(uri)?.analysisCache.invalidate(uri);
-  }
-  return affectedUris;
 }
 
 function hasStyleSemanticChange(
