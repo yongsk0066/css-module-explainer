@@ -4,6 +4,7 @@ import {
   type Range as LspRange,
 } from "vscode-languageserver/node";
 import { findInvalidClassReference } from "../core/query/find-invalid-class-references";
+import { messageForInvalidClassFinding } from "../core/query/explain-expression-semantics";
 import type { StyleDocumentHIR } from "../core/hir/style-types";
 import { pathToFileUrl } from "../core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
@@ -139,14 +140,14 @@ function toDiagnostic(
         range,
         severity,
         source: DIAGNOSTIC_SOURCE,
-        message: diagnosticMessageForResolvedValues(finding),
+        message: messageForInvalidClassFinding(finding),
       };
     case "missingResolvedClassDomain":
       return {
         range,
         severity,
         source: DIAGNOSTIC_SOURCE,
-        message: diagnosticMessageForResolvedDomain(finding),
+        message: messageForInvalidClassFinding(finding),
       };
     default:
       finding satisfies never;
@@ -192,41 +193,6 @@ function findSelectorInsertionRange(styleDocument: StyleDocumentHIR): LspRange {
     start: { line: latest.line, character: latest.character },
     end: { line: latest.line, character: latest.character },
   };
-}
-
-function diagnosticMessageForResolvedValues(
-  finding: Extract<
-    NonNullable<ReturnType<typeof findInvalidClassReference>>,
-    {
-      kind: "missingResolvedClassValues";
-    }
-  >,
-): string {
-  if (finding.reason === "typeUnion") {
-    return `Missing class for union member${finding.missingValues.length > 1 ? "s" : ""}: ${finding.missingValues.map((value) => `'${value}'`).join(", ")}.`;
-  }
-  if (finding.missingValues.length === 1 && finding.valueCertainty === "exact") {
-    return `Missing class for resolved value: '${finding.missingValues[0]}'.`;
-  }
-  return `Missing class for possible value${finding.missingValues.length > 1 ? "s" : ""}: ${finding.missingValues.map((value) => `'${value}'`).join(", ")}.`;
-}
-
-function diagnosticMessageForResolvedDomain(
-  finding: Extract<
-    NonNullable<ReturnType<typeof findInvalidClassReference>>,
-    {
-      kind: "missingResolvedClassDomain";
-    }
-  >,
-): string {
-  switch (finding.abstractValue.kind) {
-    case "prefix":
-      return `No class matched resolved prefix '${finding.abstractValue.prefix}'.`;
-    case "top":
-      return "Dynamic class value could not be matched to any known selector.";
-    default:
-      return "Resolved dynamic class domain did not match any known selector.";
-  }
 }
 
 function relativeScss(scssPath: string, workspaceRoot: string): string {

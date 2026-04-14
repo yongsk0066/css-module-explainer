@@ -82,23 +82,27 @@ function renderDynamicExplanation(
 
   const lines: string[] = [];
   if (explanation.kind === "symbolRef") {
-    lines.push(
-      `_Resolved from \`${explanation.subject}\` via ${formatReason(explanation.reason)}._`,
-    );
+    if (explanation.reasonLabel) {
+      lines.push(`_Resolved from \`${explanation.subject}\` via ${explanation.reasonLabel}._`);
+    } else {
+      lines.push(`_Resolved from \`${explanation.subject}\`._`);
+    }
     if (explanation.valueCertainty) {
       lines.push(`_Value certainty: ${explanation.valueCertainty}._`);
     }
     if (explanation.selectorCertainty) {
       lines.push(`_Selector certainty: ${explanation.selectorCertainty}._`);
     }
-    const domain = formatAbstractValue(explanation.abstractValue);
-    if (domain) {
-      lines.push(`_Value domain: ${domain}._`);
+    if (explanation.valueDomainLabel) {
+      lines.push(`_Value domain: ${explanation.valueDomainLabel}._`);
     }
   } else {
     lines.push(`_Resolved by template prefix \`${explanation.subject}\`._`);
     if (explanation.selectorCertainty) {
       lines.push(`_Selector certainty: ${explanation.selectorCertainty}._`);
+    }
+    if (explanation.valueDomainLabel) {
+      lines.push(`_Value domain: ${explanation.valueDomainLabel}._`);
     }
   }
 
@@ -114,39 +118,6 @@ function renderDynamicExplanation(
   }
 
   return `\n\n${lines.join("\n\n")}`;
-}
-
-function formatReason(reason: DynamicHoverExplanation["reason"]): string {
-  switch (reason) {
-    case "flowLiteral":
-      return "local flow analysis";
-    case "flowBranch":
-      return "branched local flow analysis";
-    case "typeUnion":
-      return "TypeScript string-literal union analysis";
-    default:
-      return "semantic analysis";
-  }
-}
-
-function formatAbstractValue(explanation: DynamicHoverExplanation["abstractValue"]): string | null {
-  if (!explanation) return null;
-
-  switch (explanation.kind) {
-    case "bottom":
-      return "empty";
-    case "exact":
-      return `exact \`${explanation.value}\``;
-    case "finiteSet":
-      return explanation.values.length > 1 ? `finite set (${explanation.values.length})` : null;
-    case "prefix":
-      return `prefix \`${explanation.prefix}\``;
-    case "top":
-      return "unknown";
-    default:
-      explanation satisfies never;
-      return null;
-  }
 }
 
 function buildRule(selector: SelectorDeclHIR): string {

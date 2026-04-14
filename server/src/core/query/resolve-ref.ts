@@ -1,9 +1,11 @@
 import type { ClassExpressionHIR } from "../hir/source-types";
 import type { SelectorDeclHIR, StyleDocumentHIR } from "../hir/style-types";
-import type { EdgeCertainty } from "../semantic/certainty";
-import type { FlowResolution } from "../flow/lattice";
 import type { TypeResolver } from "../ts/type-resolver";
 import type { AnalysisEntry } from "../indexing/document-analysis-cache";
+import {
+  buildDynamicExpressionExplanation,
+  type DynamicExpressionExplanation,
+} from "./explain-expression-semantics";
 import { readExpressionSemantics } from "./read-expression-semantics";
 
 export interface ResolveRefQueryEnv {
@@ -19,15 +21,7 @@ export interface ResolveRefQueryContext {
   readonly entry: AnalysisEntry;
 }
 
-export interface DynamicHoverExplanation {
-  readonly kind: "symbolRef" | "template";
-  readonly subject: string;
-  readonly candidates: readonly string[];
-  readonly abstractValue?: FlowResolution["abstractValue"];
-  readonly valueCertainty?: EdgeCertainty;
-  readonly selectorCertainty?: EdgeCertainty;
-  readonly reason?: FlowResolution["reason"];
-}
+export type DynamicHoverExplanation = DynamicExpressionExplanation;
 
 export interface ResolveRefDetails {
   readonly selectors: readonly SelectorDeclHIR[];
@@ -74,33 +68,5 @@ function buildDynamicHoverExplanation(
   expression: ClassExpressionHIR,
   semantics: ReturnType<typeof readExpressionSemantics>,
 ): DynamicHoverExplanation | null {
-  switch (expression.kind) {
-    case "symbolRef": {
-      if (!semantics.abstractValue || !semantics.reason) return null;
-      return {
-        kind: "symbolRef",
-        subject: expression.rawReference,
-        candidates: semantics.candidateNames,
-        reason: semantics.reason,
-        abstractValue: semantics.abstractValue,
-        ...(semantics.valueCertainty ? { valueCertainty: semantics.valueCertainty } : {}),
-        ...(semantics.selectorCertainty ? { selectorCertainty: semantics.selectorCertainty } : {}),
-      };
-    }
-    case "template":
-      if (semantics.selectors.length === 0) return null;
-      return {
-        kind: "template",
-        subject: expression.staticPrefix,
-        candidates: semantics.candidateNames,
-        ...(semantics.abstractValue ? { abstractValue: semantics.abstractValue } : {}),
-        ...(semantics.selectorCertainty ? { selectorCertainty: semantics.selectorCertainty } : {}),
-      };
-    case "literal":
-    case "styleAccess":
-      return null;
-    default:
-      expression satisfies never;
-      return null;
-  }
+  return buildDynamicExpressionExplanation(expression, semantics);
 }

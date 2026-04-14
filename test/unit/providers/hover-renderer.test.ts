@@ -129,13 +129,10 @@ describe("renderHover", () => {
         kind: "symbolRef",
         subject: "size",
         candidates: ["small", "medium"],
-        abstractValue: {
-          kind: "finiteSet",
-          values: ["medium", "small"],
-        },
+        valueDomainLabel: "finite set (2)",
         valueCertainty: "exact",
         selectorCertainty: "inferred",
-        reason: "typeUnion",
+        reasonLabel: "TypeScript string-literal union analysis",
       },
     });
     expect(markdown).toContain("Value domain: finite set (2).");
