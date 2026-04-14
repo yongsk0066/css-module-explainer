@@ -1,5 +1,13 @@
 import ts from "typescript";
-import type { CxBinding, Range, StyleImport } from "@css-module-explainer/shared";
+import type { Range, StyleImport } from "@css-module-explainer/shared";
+import {
+  buildSourceBindingGraph,
+  findImportBindingDeclId,
+  resolveBindingAtOffset,
+  type SourceBindingGraph,
+} from "../binder/source-binding-graph";
+import type { SourceBinderResult } from "../binder/scope-types";
+import type { ResolvedCxBinding } from "./resolved-bindings";
 import {
   makeLiteralClassExpression,
   makeStyleAccessClassExpression,
@@ -18,19 +26,20 @@ import {
  */
 export function parseClassExpressions(
   sourceFile: ts.SourceFile,
-  bindings: readonly CxBinding[],
+  bindings: readonly ResolvedCxBinding[],
   stylesBindings: ReadonlyMap<string, StyleImport>,
+  binder: SourceBinderResult,
 ): ClassExpressionHIR[] {
   const expressions: ClassExpressionHIR[] = [];
   let nextId = 0;
   const allocateId = () => `class-expr:${nextId++}`;
 
   for (const binding of bindings) {
-    collectCxCallExpressions(sourceFile, binding, expressions, allocateId);
+    collectCxCallExpressions(sourceFile, binding, binder, expressions, allocateId);
   }
 
   if (stylesBindings.size > 0) {
-    collectStyleAccessExpressions(sourceFile, stylesBindings, expressions, allocateId);
+    collectStyleAccessExpressions(sourceFile, stylesBindings, binder, expressions, allocateId);
   }
 
   return expressions;
@@ -38,14 +47,15 @@ export function parseClassExpressions(
 
 function collectCxCallExpressions(
   sourceFile: ts.SourceFile,
-  binding: CxBinding,
+  binding: ResolvedCxBinding,
+  binder: SourceBinderResult,
   out: ClassExpressionHIR[],
   allocateId: () => string,
 ): void {
   function visit(node: ts.Node): void {
-    if (ts.isCallExpression(node) && isMatchingCxCall(node, binding, sourceFile)) {
+    if (ts.isCallExpression(node) && isMatchingCxCall(node, binding, sourceFile, binder)) {
       for (const arg of node.arguments) {
-        extractFromArgument(arg, binding, sourceFile, out, allocateId);
+        extractFromArgument(arg, binding, binder, sourceFile, out, allocateId);
       }
     }
     ts.forEachChild(node, visit);
@@ -56,71 +66,101 @@ function collectCxCallExpressions(
 
 function isMatchingCxCall(
   call: ts.CallExpression,
-  binding: CxBinding,
+  binding: ResolvedCxBinding,
   sourceFile: ts.SourceFile,
+  binder: SourceBinderResult,
 ): boolean {
   if (!ts.isIdentifier(call.expression)) return false;
   if (call.expression.text !== binding.cxVarName) return false;
-  const pos = sourceFile.getLineAndCharacterOfPosition(call.getStart(sourceFile));
-  return pos.line >= binding.scope.startLine && pos.line <= binding.scope.endLine;
+  const resolution = resolveBindingAtOffset(
+    buildGraphForBinder(sourceFile, binder),
+    binding.cxVarName,
+    call.expression.getStart(sourceFile),
+  );
+  return resolution?.declId === binding.bindingDeclId;
 }
 
 function extractFromArgument(
   arg: ts.Expression,
-  binding: CxBinding,
+  binding: ResolvedCxBinding,
+  binder: SourceBinderResult,
   sourceFile: ts.SourceFile,
   out: ClassExpressionHIR[],
   allocateId: () => string,
 ): void {
-  if (ts.isStringLiteral(arg) || ts.isNoSubstitutionTemplateLiteral(arg)) {
+  const value = unwrapTransparentExpression(arg);
+
+  if (ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value)) {
     out.push(
       makeLiteralClassExpression(
         allocateId(),
         "cxCall",
         binding.scssModulePath,
-        arg.text,
-        innerStringRange(arg, sourceFile),
+        value.text,
+        innerStringRange(value, sourceFile),
       ),
     );
     return;
   }
 
-  if (ts.isObjectLiteralExpression(arg)) {
-    extractObjectLiteral(arg, binding, sourceFile, out, allocateId);
+  if (ts.isObjectLiteralExpression(value)) {
+    extractObjectLiteral(value, binding, sourceFile, out, allocateId);
     return;
   }
 
   if (
-    ts.isBinaryExpression(arg) &&
-    arg.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken
+    ts.isBinaryExpression(value) &&
+    value.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken
   ) {
-    extractFromArgument(arg.right, binding, sourceFile, out, allocateId);
+    extractFromArgument(value.right, binding, binder, sourceFile, out, allocateId);
     return;
   }
 
-  if (ts.isConditionalExpression(arg)) {
-    extractFromArgument(arg.whenTrue, binding, sourceFile, out, allocateId);
-    extractFromArgument(arg.whenFalse, binding, sourceFile, out, allocateId);
+  if (ts.isConditionalExpression(value)) {
+    extractFromArgument(value.whenTrue, binding, binder, sourceFile, out, allocateId);
+    extractFromArgument(value.whenFalse, binding, binder, sourceFile, out, allocateId);
     return;
   }
 
-  if (ts.isTemplateExpression(arg)) {
+  if (ts.isTemplateExpression(value)) {
     out.push(
       makeTemplateClassExpression(
         allocateId(),
         "cxCall",
         binding.scssModulePath,
-        arg.getText(sourceFile),
-        arg.head.text,
-        rangeOfNode(arg, sourceFile),
+        value.getText(sourceFile),
+        value.head.text,
+        rangeOfNode(value, sourceFile),
       ),
     );
     return;
   }
 
-  if (ts.isPropertyAccessExpression(arg) || ts.isIdentifier(arg)) {
-    const rawReference = ts.isIdentifier(arg) ? arg.text : arg.getText(sourceFile);
+  if (ts.isBinaryExpression(value) && value.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+    const staticPrefix = extractStaticStringPrefix(value);
+    if (staticPrefix.length > 0) {
+      out.push(
+        makeTemplateClassExpression(
+          allocateId(),
+          "cxCall",
+          binding.scssModulePath,
+          value.getText(sourceFile),
+          staticPrefix,
+          rangeOfNode(value, sourceFile),
+        ),
+      );
+      return;
+    }
+  }
+
+  if (ts.isPropertyAccessExpression(value) || ts.isIdentifier(value)) {
+    const rawReference = ts.isIdentifier(value) ? value.text : value.getText(sourceFile);
     const [rootName, ...pathSegments] = rawReference.split(".");
+    const rootBindingDeclId = resolveRootBindingDeclId(
+      binder,
+      rootName ?? rawReference,
+      value.getStart(sourceFile),
+    );
     out.push(
       makeSymbolRefClassExpression(
         allocateId(),
@@ -129,29 +169,30 @@ function extractFromArgument(
         rawReference,
         rootName ?? rawReference,
         pathSegments,
-        rangeOfNode(arg, sourceFile),
+        rangeOfNode(value, sourceFile),
+        rootBindingDeclId ?? undefined,
       ),
     );
     return;
   }
 
-  if (ts.isArrayLiteralExpression(arg)) {
-    for (const el of arg.elements) {
-      extractFromArgument(el, binding, sourceFile, out, allocateId);
+  if (ts.isArrayLiteralExpression(value)) {
+    for (const el of value.elements) {
+      extractFromArgument(el, binding, binder, sourceFile, out, allocateId);
     }
     return;
   }
 
-  if (ts.isSpreadElement(arg) && ts.isArrayLiteralExpression(arg.expression)) {
-    for (const el of arg.expression.elements) {
-      extractFromArgument(el, binding, sourceFile, out, allocateId);
+  if (ts.isSpreadElement(value) && ts.isArrayLiteralExpression(value.expression)) {
+    for (const el of value.expression.elements) {
+      extractFromArgument(el, binding, binder, sourceFile, out, allocateId);
     }
   }
 }
 
 function extractObjectLiteral(
   arg: ts.ObjectLiteralExpression,
-  binding: CxBinding,
+  binding: ResolvedCxBinding,
   sourceFile: ts.SourceFile,
   out: ClassExpressionHIR[],
   allocateId: () => string,
@@ -191,6 +232,7 @@ function extractObjectLiteral(
 function collectStyleAccessExpressions(
   sourceFile: ts.SourceFile,
   stylesBindings: ReadonlyMap<string, StyleImport>,
+  binder: SourceBinderResult,
   out: ClassExpressionHIR[],
   allocateId: () => string,
 ): void {
@@ -202,6 +244,15 @@ function collectStyleAccessExpressions(
     ) {
       const styleImport = stylesBindings.get(node.expression.text);
       if (styleImport) {
+        const bindingDeclId = resolveStyleImportDeclId(
+          binder,
+          node.expression.text,
+          node.expression.getStart(sourceFile),
+        );
+        if (!bindingDeclId) {
+          ts.forEachChild(node, visit);
+          return;
+        }
         const propName = node.name;
         const start = sourceFile.getLineAndCharacterOfPosition(propName.getStart(sourceFile));
         const end = sourceFile.getLineAndCharacterOfPosition(propName.getEnd());
@@ -209,6 +260,7 @@ function collectStyleAccessExpressions(
           makeStyleAccessClassExpression(
             allocateId(),
             styleImport.absolutePath,
+            bindingDeclId,
             propName.text,
             [propName.text],
             {
@@ -227,11 +279,21 @@ function collectStyleAccessExpressions(
     ) {
       const styleImport = stylesBindings.get(node.expression.text);
       if (styleImport) {
+        const bindingDeclId = resolveStyleImportDeclId(
+          binder,
+          node.expression.text,
+          node.expression.getStart(sourceFile),
+        );
+        if (!bindingDeclId) {
+          ts.forEachChild(node, visit);
+          return;
+        }
         const className = node.argumentExpression.text;
         out.push(
           makeStyleAccessClassExpression(
             allocateId(),
             styleImport.absolutePath,
+            bindingDeclId,
             className,
             [className],
             innerStringRange(node.argumentExpression, sourceFile),
@@ -244,6 +306,97 @@ function collectStyleAccessExpressions(
   }
 
   visit(sourceFile);
+}
+
+function resolveStyleImportDeclId(
+  binder: SourceBinderResult,
+  localName: string,
+  offset: number,
+): string | null {
+  const graph = buildGraphForBinder(
+    {
+      ...sourceFileStubForBinder(binder),
+    },
+    binder,
+  );
+  const expectedDeclId = findImportBindingDeclId(graph, localName);
+  if (!expectedDeclId) return null;
+  const resolution = resolveBindingAtOffset(graph, localName, offset);
+  return resolution?.declId === expectedDeclId ? expectedDeclId : null;
+}
+
+function resolveRootBindingDeclId(
+  binder: SourceBinderResult,
+  rootName: string,
+  offset: number,
+): string | null {
+  const resolution = resolveBindingAtOffset(
+    buildGraphForBinder(
+      {
+        ...sourceFileStubForBinder(binder),
+      },
+      binder,
+    ),
+    rootName,
+    offset,
+  );
+  return resolution?.declId ?? null;
+}
+
+function buildGraphForBinder(
+  sourceFile: ts.SourceFile,
+  binder: SourceBinderResult,
+): SourceBindingGraph {
+  return buildSourceBindingGraph(
+    {
+      filePath: sourceFile.fileName,
+      kind: "source",
+      language: "unknown",
+      styleImports: [],
+      utilityBindings: [],
+      classExpressions: [],
+    },
+    binder,
+  );
+}
+
+function sourceFileStubForBinder(binder: SourceBinderResult): ts.SourceFile {
+  return ts.createSourceFile(binder.filePath, "", ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+}
+
+function unwrapTransparentExpression(expression: ts.Expression): ts.Expression {
+  let current = expression;
+  while (
+    ts.isParenthesizedExpression(current) ||
+    ts.isAsExpression(current) ||
+    ts.isTypeAssertionExpression(current) ||
+    ts.isNonNullExpression(current) ||
+    ts.isSatisfiesExpression(current)
+  ) {
+    current = current.expression;
+  }
+  return current;
+}
+
+function extractStaticStringPrefix(expression: ts.Expression): string {
+  const value = unwrapTransparentExpression(expression);
+
+  if (ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value)) {
+    return value.text;
+  }
+
+  if (ts.isTemplateExpression(value)) {
+    return value.head.text;
+  }
+
+  if (ts.isBinaryExpression(value) && value.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+    const leftPrefix = extractStaticStringPrefix(value.left);
+    if (leftPrefix.length === 0) return "";
+    const rightPrefix = extractStaticStringPrefix(value.right);
+    return rightPrefix.length > 0 ? leftPrefix + rightPrefix : leftPrefix;
+  }
+
+  return "";
 }
 
 function rangeOfNode(node: ts.Node, sourceFile: ts.SourceFile): Range {

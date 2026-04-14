@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type ts from "typescript";
-import type { CxBinding } from "@css-module-explainer/shared";
+import type { CxBinding } from "../../../server/src/core/cx/cx-types";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
 import type { ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
@@ -19,15 +19,15 @@ const cx = classNames.bind(styles);
 const el = cx('indicator');
 `;
 
-const detectCxBindings = (sourceFile: ts.SourceFile): CxBinding[] => [
+const detectCxBindings = (_sourceFile: ts.SourceFile): CxBinding[] => [
   {
     cxVarName: "cx",
     stylesVarName: "styles",
     scssModulePath: "/fake/src/Button.module.scss",
     classNamesImportName: "classNames",
-    scope: {
-      startLine: 0,
-      endLine: sourceFile.getLineAndCharacterOfPosition(sourceFile.getEnd()).line,
+    bindingRange: {
+      start: { line: 3, character: 6 },
+      end: { line: 3, character: 8 },
     },
   },
 ];

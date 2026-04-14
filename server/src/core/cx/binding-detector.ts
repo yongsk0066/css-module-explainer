@@ -1,7 +1,8 @@
 import * as path from "node:path";
 import ts from "typescript";
-import type { CxBinding, Range, StyleImport } from "@css-module-explainer/shared";
+import type { Range, StyleImport } from "@css-module-explainer/shared";
 import type { AliasResolver } from "./alias-resolver";
+import type { CxBinding } from "./cx-types";
 // Source of truth for supported style extensions (.scss, .css, .less).
 import { getAllStyleExtensions } from "../scss/lang-registry";
 
@@ -216,17 +217,15 @@ function tryParseCxBinding(
   const init = decl.initializer;
   if (!init || !ts.isCallExpression(init)) return null;
 
-  // `initializer` must be `<classNamesName>.bind(<stylesName>)`.
-  // Does not unwrap ParenthesizedExpression or AsExpression,
-  // so `(classNames as typeof cn).bind(...)` is silently skipped.
-  const callee = init.expression;
+  const callee = unwrapTransparentExpression(init.expression);
   if (!ts.isPropertyAccessExpression(callee)) return null;
   if (callee.name.text !== "bind") return null;
-  if (!ts.isIdentifier(callee.expression)) return null;
-  const classNamesName = callee.expression.text;
+  const bindTarget = unwrapTransparentExpression(callee.expression);
+  if (!ts.isIdentifier(bindTarget)) return null;
+  const classNamesName = bindTarget.text;
   if (!imports.classNamesNames.has(classNamesName)) return null;
 
-  const [firstArg] = init.arguments;
+  const firstArg = init.arguments[0] ? unwrapTransparentExpression(init.arguments[0]) : null;
   if (!firstArg || !ts.isIdentifier(firstArg)) return null;
   const stylesName = firstArg.text;
   const styleImport = imports.stylesBindings.get(stylesName);
@@ -240,51 +239,32 @@ function tryParseCxBinding(
     cxVarName,
     stylesVarName: stylesName,
     scssModulePath: styleImport.absolutePath,
-    scope: computeScope(decl, sourceFile),
+    bindingRange: rangeOfIdentifier(decl.name, sourceFile),
     classNamesImportName: classNamesName,
+    classNamesReferenceOffset: bindTarget.getStart(sourceFile),
+    stylesReferenceOffset: firstArg.getStart(sourceFile),
   };
 }
 
-/**
- * Return the scope in which a binding is visible.
- * - Top-level bindings span the whole source file.
- * - Function-scoped bindings span the enclosing function body.
- *
- * Line numbers are 0-based to match LSP conventions.
- */
-function computeScope(
-  decl: ts.VariableDeclaration,
-  sourceFile: ts.SourceFile,
-): { startLine: number; endLine: number } {
-  const enclosingFn = findEnclosingFunctionLike(decl);
-  if (enclosingFn) {
-    const startPos = enclosingFn.getStart(sourceFile);
-    const endPos = enclosingFn.getEnd();
-    return {
-      startLine: sourceFile.getLineAndCharacterOfPosition(startPos).line,
-      endLine: sourceFile.getLineAndCharacterOfPosition(endPos).line,
-    };
+function unwrapTransparentExpression(expression: ts.Expression): ts.Expression {
+  let current = expression;
+  while (
+    ts.isParenthesizedExpression(current) ||
+    ts.isAsExpression(current) ||
+    ts.isTypeAssertionExpression(current) ||
+    ts.isNonNullExpression(current) ||
+    ts.isSatisfiesExpression(current)
+  ) {
+    current = current.expression;
   }
+  return current;
+}
+
+function rangeOfIdentifier(name: ts.Identifier, sourceFile: ts.SourceFile): Range {
+  const start = sourceFile.getLineAndCharacterOfPosition(name.getStart(sourceFile));
+  const end = sourceFile.getLineAndCharacterOfPosition(name.getEnd());
   return {
-    startLine: 0,
-    endLine: sourceFile.getLineAndCharacterOfPosition(sourceFile.getEnd()).line,
+    start: { line: start.line, character: start.character },
+    end: { line: end.line, character: end.character },
   };
-}
-
-function findEnclosingFunctionLike(node: ts.Node): ts.Node | null {
-  let current: ts.Node | undefined = node.parent;
-  while (current) {
-    if (
-      ts.isFunctionDeclaration(current) ||
-      ts.isFunctionExpression(current) ||
-      ts.isArrowFunction(current) ||
-      ts.isMethodDeclaration(current) ||
-      ts.isConstructorDeclaration(current) ||
-      ts.isAccessor(current)
-    ) {
-      return current;
-    }
-    current = current.parent;
-  }
-  return null;
 }

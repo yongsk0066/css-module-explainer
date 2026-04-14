@@ -1,6 +1,8 @@
 import type { ClassRefOrigin, Range, StyleImport } from "@css-module-explainer/shared";
-import type { EdgeCertainty } from "./certainty";
-import type { EdgeReason } from "./provenance";
+import type { AbstractClassValue } from "../../server/src/core/abstract-value/class-value-domain";
+import type { SourceExpressionKind } from "../../server/src/core/hir/source-types";
+import type { EdgeCertainty } from "../../server/src/core/semantic/certainty";
+import type { EdgeReason } from "../../server/src/core/semantic/provenance";
 
 export type SemanticNode =
   | DocumentNode
@@ -45,16 +47,13 @@ export interface UtilityBindingNode extends SemanticNodeBase {
   readonly scssModulePath?: string;
   readonly stylesLocalName?: string;
   readonly classNamesImportName?: string;
-  readonly scope?: {
-    readonly startLine: number;
-    readonly endLine: number;
-  };
+  readonly bindingDeclId?: string;
 }
 
 export interface RefNode extends SemanticNodeBase {
   readonly kind: "ref";
   readonly filePath: string;
-  readonly expressionKind: "literal" | "template" | "symbolRef" | "styleAccess";
+  readonly expressionKind: SourceExpressionKind;
   readonly origin: ClassRefOrigin;
   readonly scssModulePath: string;
   readonly range: Range;
@@ -63,6 +62,7 @@ export interface RefNode extends SemanticNodeBase {
   readonly staticPrefix?: string;
   readonly rawReference?: string;
   readonly rootName?: string;
+  readonly rootBindingDeclId?: string;
   readonly pathSegments?: readonly string[];
   readonly accessPath?: readonly string[];
 }
@@ -92,6 +92,7 @@ export interface SemanticEdge {
   readonly to: string;
   readonly reason: EdgeReason;
   readonly certainty: EdgeCertainty;
+  readonly abstractValue?: AbstractClassValue;
 }
 
 export interface SemanticGraph {

@@ -1,13 +1,17 @@
 import type ts from "typescript";
 import { resolveFlowClassValues } from "../flow/class-value-analysis";
 import type { SymbolRefClassExpressionHIR } from "../hir/source-types";
-import type { FlowResolution } from "../flow/lattice";
+import { typeUnionResolution, type FlowResolution } from "../flow/lattice";
 import type { TypeResolver } from "../ts/type-resolver";
+import type { SourceBindingGraph } from "../binder/source-binding-graph";
+import type { SourceBinderResult } from "../binder/scope-types";
 
 interface SymbolValueResolutionEnv {
   readonly typeResolver: TypeResolver;
   readonly filePath: string;
   readonly workspaceRoot: string;
+  readonly sourceBinder?: SourceBinderResult;
+  readonly sourceBindingGraph?: SourceBindingGraph;
 }
 
 interface SymbolValueResolutionInput {
@@ -18,6 +22,7 @@ interface SymbolValueResolutionInput {
   };
   readonly rawReference: string;
   readonly rootName: string;
+  readonly rootBindingDeclId?: string;
 }
 
 export function resolveSymbolClassValues(
@@ -27,10 +32,18 @@ export function resolveSymbolClassValues(
   const flow = resolveFlowClassValues(input.sourceFile, input.range, input.rootName);
   if (flow) return flow;
 
-  const resolved = env.typeResolver.resolve(env.filePath, input.rawReference, env.workspaceRoot);
-  return resolved.kind === "union"
-    ? { values: resolved.values, certainty: "inferred", reason: "typeUnion" }
-    : null;
+  const resolved = env.typeResolver.resolve(
+    env.filePath,
+    input.rawReference,
+    env.workspaceRoot,
+    input.range,
+    {
+      ...(env.sourceBinder ? { sourceBinder: env.sourceBinder } : {}),
+      ...(env.sourceBindingGraph ? { sourceBindingGraph: env.sourceBindingGraph } : {}),
+      ...(input.rootBindingDeclId ? { rootBindingDeclId: input.rootBindingDeclId } : {}),
+    },
+  );
+  return resolved.kind === "union" ? typeUnionResolution(resolved.values) : null;
 }
 
 export function resolveSymbolExpressionValues(
@@ -44,6 +57,7 @@ export function resolveSymbolExpressionValues(
       range: ref.range,
       rawReference: ref.rawReference,
       rootName: ref.rootName,
+      ...(ref.rootBindingDeclId ? { rootBindingDeclId: ref.rootBindingDeclId } : {}),
     },
     env,
   );

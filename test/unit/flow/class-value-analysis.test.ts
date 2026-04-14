@@ -20,8 +20,11 @@ function render() {
     );
 
     expect(resolveFlowClassValues(sourceFile, rangeOf(source, "cx(size)"), "size")).toEqual({
-      values: ["lg"],
-      certainty: "exact",
+      abstractValue: {
+        kind: "exact",
+        value: "lg",
+      },
+      valueCertainty: "exact",
       reason: "flowLiteral",
     });
   });
@@ -45,8 +48,11 @@ function render(flag: boolean) {
     );
 
     expect(resolveFlowClassValues(sourceFile, rangeOf(source, "cx(size)"), "size")).toEqual({
-      values: ["lg", "sm"],
-      certainty: "inferred",
+      abstractValue: {
+        kind: "finiteSet",
+        values: ["lg", "sm"],
+      },
+      valueCertainty: "inferred",
       reason: "flowBranch",
     });
   });
@@ -71,9 +77,62 @@ function render(flag: boolean) {
     );
 
     expect(resolveFlowClassValues(sourceFile, rangeOf(source, "cx(size)"), "size")).toEqual({
-      values: ["sm"],
-      certainty: "exact",
+      abstractValue: {
+        kind: "exact",
+        value: "sm",
+      },
+      valueCertainty: "exact",
       reason: "flowLiteral",
+    });
+  });
+
+  it("derives a prefix domain from concatenation with an unknown suffix", () => {
+    const source = `
+function render(variant: string) {
+  const size = "btn-" + variant;
+  return cx(size);
+}
+`;
+    const sourceFile = ts.createSourceFile(
+      "/fake/Flow.tsx",
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
+    );
+
+    expect(resolveFlowClassValues(sourceFile, rangeOf(source, "cx(size)"), "size")).toEqual({
+      abstractValue: {
+        kind: "prefix",
+        prefix: "btn-",
+      },
+      valueCertainty: "inferred",
+      reason: "flowLiteral",
+    });
+  });
+
+  it("widens conflicting concatenation prefixes to top", () => {
+    const source = `
+function render(flag: boolean, variant: string) {
+  const prefix = flag ? "btn-" : "card-";
+  const size = prefix + variant;
+  return cx(size);
+}
+`;
+    const sourceFile = ts.createSourceFile(
+      "/fake/Flow.tsx",
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
+    );
+
+    expect(resolveFlowClassValues(sourceFile, rangeOf(source, "cx(size)"), "size")).toEqual({
+      abstractValue: {
+        kind: "top",
+      },
+      valueCertainty: "possible",
+      reason: "flowBranch",
     });
   });
 });

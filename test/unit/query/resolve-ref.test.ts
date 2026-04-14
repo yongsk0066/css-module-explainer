@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import ts from "typescript";
 import type { StyleImport } from "@css-module-explainer/shared";
+import { buildSourceBinder } from "../../../server/src/core/binder/binder-builder";
+import { buildSourceBindingGraph } from "../../../server/src/core/binder/source-binding-graph";
 import type { AnalysisEntry } from "../../../server/src/core/indexing/document-analysis-cache";
 import { resolveRefSelectors } from "../../../server/src/core/query/resolve-ref";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
@@ -113,15 +115,7 @@ function render(flag: boolean) {
       {
         expression,
         styleDocument: styleScenario.styleDocument,
-        entry: {
-          version: 1,
-          contentHash: "fixture",
-          sourceFile,
-          bindings: [],
-          sourceDocument,
-          stylesBindings: new Map(),
-          classUtilNames: [],
-        },
+        entry: makeAnalysisEntry("/fake/Flow.tsx", sourceFile, sourceDocument),
       },
       {
         styleDocumentForPath: (path) =>
@@ -134,23 +128,145 @@ function render(flag: boolean) {
 
     expect(selectors.map((selector) => selector.name).toSorted()).toEqual(["lg", "sm"]);
   });
+
+  it("resolves symbol refs from flow-derived prefix domains", () => {
+    const styleScenario = loadStyleScenario({
+      id: "04-dynamic-style",
+      stylePath: "04-dynamic/DynamicKeys.module.scss",
+    });
+    const source = `
+function render(variant: string) {
+  const key = "btn-" + variant;
+  return cx(key);
+}
+`;
+    const sourceFile = ts.createSourceFile(
+      "/fake/Flow.tsx",
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
+    );
+    const expression = variableExpressionAt(source, "key", styleScenario.filePath);
+    const sourceDocument = buildSourceDocumentFixture({
+      filePath: "/fake/Flow.tsx",
+      bindings: [],
+      stylesBindings: new Map(),
+      classUtilNames: [],
+      expressions: [variableExpressionSpecAt(source, "key", styleScenario.filePath)],
+    });
+
+    const selectors = resolveRefSelectors(
+      {
+        expression,
+        styleDocument: styleScenario.styleDocument,
+        entry: makeAnalysisEntry("/fake/Flow.tsx", sourceFile, sourceDocument),
+      },
+      {
+        styleDocumentForPath: (path) =>
+          path === styleScenario.filePath ? styleScenario.styleDocument : null,
+        typeResolver: new FakeTypeResolver(),
+        filePath: "/fake/Flow.tsx",
+        workspaceRoot: "/fake/ws",
+      },
+    );
+
+    expect(selectors.map((selector) => selector.name).toSorted()).toEqual([
+      "btn-danger",
+      "btn-primary",
+      "btn-secondary",
+    ]);
+  });
+
+  it("widens symbol refs with conflicting concatenation prefixes to the full selector universe", () => {
+    const styleScenario = loadStyleScenario({
+      id: "04-dynamic-style",
+      stylePath: "04-dynamic/DynamicKeys.module.scss",
+    });
+    const source = `
+function render(flag: boolean, variant: string) {
+  const prefix = flag ? "btn-" : "card-";
+  const key = prefix + variant;
+  return cx(key);
+}
+`;
+    const sourceFile = ts.createSourceFile(
+      "/fake/Flow.tsx",
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
+    );
+    const expression = variableExpressionAt(source, "key", styleScenario.filePath);
+    const sourceDocument = buildSourceDocumentFixture({
+      filePath: "/fake/Flow.tsx",
+      bindings: [],
+      stylesBindings: new Map(),
+      classUtilNames: [],
+      expressions: [variableExpressionSpecAt(source, "key", styleScenario.filePath)],
+    });
+
+    const selectors = resolveRefSelectors(
+      {
+        expression,
+        styleDocument: styleScenario.styleDocument,
+        entry: makeAnalysisEntry("/fake/Flow.tsx", sourceFile, sourceDocument),
+      },
+      {
+        styleDocumentForPath: (path) =>
+          path === styleScenario.filePath ? styleScenario.styleDocument : null,
+        typeResolver: new FakeTypeResolver(),
+        filePath: "/fake/Flow.tsx",
+        workspaceRoot: "/fake/ws",
+      },
+    );
+
+    expect(selectors.map((selector) => selector.name).toSorted()).toEqual([
+      "btn-danger",
+      "btn-primary",
+      "btn-secondary",
+    ]);
+  });
 });
 
 function analysisEntryFor(sourceScenario: ReturnType<typeof loadSourceScenario>): AnalysisEntry {
   const content = readFileSync(sourceScenario.filePath, "utf8");
+  const sourceFile = ts.createSourceFile(
+    sourceScenario.filePath,
+    content,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
   return {
     version: 1,
     contentHash: "fixture",
-    sourceFile: ts.createSourceFile(
-      sourceScenario.filePath,
-      content,
-      ts.ScriptTarget.Latest,
-      true,
-      ts.ScriptKind.TSX,
+    sourceFile,
+    sourceBinder: buildSourceBinder(sourceFile),
+    sourceBindingGraph: buildSourceBindingGraph(
+      sourceScenario.sourceDocument,
+      buildSourceBinder(sourceFile),
     ),
-    bindings: [],
     sourceDocument: sourceScenario.sourceDocument,
     stylesBindings: toStyleBindingsMap(sourceScenario.sourceDocument.styleImports),
+    classUtilNames: [],
+  };
+}
+
+function makeAnalysisEntry(
+  filePath: string,
+  sourceFile: ts.SourceFile,
+  sourceDocument: AnalysisEntry["sourceDocument"],
+): AnalysisEntry {
+  const sourceBinder = buildSourceBinder(sourceFile);
+  return {
+    version: 1,
+    contentHash: "fixture",
+    sourceFile,
+    sourceBinder,
+    sourceBindingGraph: buildSourceBindingGraph(sourceDocument, sourceBinder),
+    sourceDocument,
+    stylesBindings: new Map(),
     classUtilNames: [],
   };
 }

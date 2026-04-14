@@ -1,4 +1,5 @@
-import type { CallSite, CxBinding, StyleImport } from "@css-module-explainer/shared";
+import type { CallSite, StyleImport } from "@css-module-explainer/shared";
+import type { ResolvedCxBinding } from "../../server/src/core/cx/resolved-bindings";
 import { SourceFileCache } from "../../server/src/core/ts/source-file-cache";
 import type { SelectorDeclHIR } from "../../server/src/core/hir/style-types";
 import { DocumentAnalysisCache } from "../../server/src/core/indexing/document-analysis-cache";
@@ -92,7 +93,7 @@ export function semanticSiteAt(
     selectorFilePath: scssPath,
     canonicalName,
     className,
-    certainty,
+    selectorCertainty: certainty,
     reason: options.reason ?? "literal",
     expansion: certainty === "exact" ? "direct" : "expanded",
   } as const;
@@ -100,7 +101,7 @@ export function semanticSiteAt(
 
 export function buildTestClassExpressions(args: {
   readonly filePath: string;
-  readonly bindings: readonly CxBinding[];
+  readonly bindings: readonly ResolvedCxBinding[];
   readonly stylesBindings?: ReadonlyMap<string, StyleImport>;
   readonly classUtilNames?: readonly string[];
   readonly expressions: Parameters<typeof buildClassExpressions>[0]["expressions"];

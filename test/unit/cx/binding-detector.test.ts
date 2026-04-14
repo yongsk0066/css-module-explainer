@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
 import ts from "typescript";
-import type { CxBinding, StyleImport } from "@css-module-explainer/shared";
+import type { StyleImport } from "@css-module-explainer/shared";
 import { scanCxImports } from "../../../server/src/core/cx/binding-detector";
 import { AliasResolver } from "../../../server/src/core/cx/alias-resolver";
+import type { CxBinding } from "../../../server/src/core/cx/cx-types";
 
 const EMPTY_ALIAS_RESOLVER = new AliasResolver("/fake", {});
 
@@ -108,6 +109,22 @@ describe("detectCxBindings / aliased classnames import", () => {
     const bindings = detectCxBindings(src, "/fake/src/Button.tsx", EMPTY_ALIAS_RESOLVER);
     expect(bindings).toHaveLength(0);
   });
+
+  it("unwraps transparent expressions around the bind target and styles argument", () => {
+    const src = parse(`
+      import classNames from 'classnames/bind';
+      import styles from './Button.module.scss';
+      const cx = (classNames as typeof classNames).bind((styles satisfies typeof styles));
+    `);
+    const bindings = detectCxBindings(src, "/fake/src/Button.tsx", EMPTY_ALIAS_RESOLVER);
+    expect(bindings).toHaveLength(1);
+    expect(bindings[0]).toMatchObject({
+      cxVarName: "cx",
+      stylesVarName: "styles",
+      classNamesImportName: "classNames",
+      scssModulePath: "/fake/src/Button.module.scss",
+    });
+  });
 });
 
 describe("detectCxBindings / free styles name", () => {
@@ -153,9 +170,8 @@ describe("detectCxBindings / function-scoped binding", () => {
     expect(bindings).toHaveLength(1);
     const b = bindings[0]!;
     expect(b.cxVarName).toBe("cx");
-    // Scope should be the Button function body, not the whole file.
-    expect(b.scope.startLine).toBeGreaterThan(0);
-    expect(b.scope.endLine).toBeGreaterThan(b.scope.startLine);
+    expect(b.bindingRange.start.line).toBeGreaterThan(0);
+    expect(b.bindingRange.end.line).toBeGreaterThanOrEqual(b.bindingRange.start.line);
   });
 
   it("gives a top-level binding the file scope", () => {
@@ -166,9 +182,8 @@ describe("detectCxBindings / function-scoped binding", () => {
     `);
     const bindings = detectCxBindings(src, "/fake/src/Button.tsx", EMPTY_ALIAS_RESOLVER);
     const b = bindings[0]!;
-    expect(b.scope.startLine).toBe(0);
-    // End line should be close to the last line of source.
-    expect(b.scope.endLine).toBeGreaterThanOrEqual(3);
+    expect(b.bindingRange.start.line).toBe(3);
+    expect(b.bindingRange.end.line).toBe(3);
   });
 });
 

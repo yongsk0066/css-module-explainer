@@ -147,6 +147,24 @@ describe("parseStyleSelectorMap / edge cases", () => {
       // so it inherits the nested flag.
       expect(map.get("active")!.nestedSafety).toBe("nestedUnsafe");
     });
+
+    it("registers classes introduced alongside `&` compounds", () => {
+      const map = parseStyleSelectorMap(
+        `.item { &.type-card { &.compact .body { max-width: 320px; } } }`,
+        "/fake/a.module.scss",
+      );
+      expect(map.get("compact")?.fullSelector).toBe(".item.type-card.compact .body");
+      expect(map.get("body")?.fullSelector).toBe(".item.type-card.compact .body");
+    });
+
+    it("does not overwrite earlier nested parent classes from later `&.class` compounds", () => {
+      const map = parseStyleSelectorMap(
+        `.item { &.type-inline { color: red; &.disabled { opacity: .5; } } }`,
+        "/fake/a.module.scss",
+      );
+      expect(map.get("type-inline")?.fullSelector).toBe(".item.type-inline");
+      expect(map.get("disabled")?.fullSelector).toBe(".item.type-inline.disabled");
+    });
   });
 
   describe("group selectors", () => {
