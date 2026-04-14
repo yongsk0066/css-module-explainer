@@ -3,7 +3,10 @@ import type { ClassExpressionHIR } from "../hir/source-types";
 import type { SelectorDeclHIR, StyleDocumentHIR } from "../hir/style-types";
 import type { ReferenceQueryEnv } from "../query/find-references";
 import { findCanonicalSelector, findSelectorAtCursor } from "../query/find-style-selector";
-import { readSelectorUsageSummary, type SelectorUsageSummary } from "../query/read-selector-usage";
+import {
+  readSelectorRewriteSafetySummary,
+  type SelectorRewriteSafetySummary,
+} from "../query/read-selector-rewrite-safety";
 import { type ClassnameTransformMode, transformClassname } from "../scss/classname-transform";
 import { pathToFileUrl } from "../util/text-utils";
 import type { Settings } from "../../settings";
@@ -36,7 +39,7 @@ export interface SelectorRenameTarget {
   readonly canonicalName: string;
   readonly placeholder: string;
   readonly placeholderRange: Range;
-  readonly usage: SelectorUsageSummary;
+  readonly rewriteSafety: SelectorRewriteSafetySummary;
   readonly aliasMode: ClassnameTransformMode;
 }
 
@@ -134,7 +137,7 @@ export function planSelectorRename(
   if ("kind" in scssEdit) return scssEdit;
 
   const edits: PlannedRenameEdit[] = [scssEdit];
-  for (const site of target.usage.directSites) {
+  for (const site of target.rewriteSafety.directSites) {
     const written = site.className;
     const newText =
       written === target.canonicalName
@@ -198,8 +201,12 @@ function finalizeSelectorRenameTarget(
     return { kind: "blocked", reason: "aliasViewBlocked" };
   }
 
-  const usage = readSelectorUsageSummary(env, args.scssPath, canonicalSelector.canonicalName);
-  if (usage.hasExpandedReferences) {
+  const rewriteSafety = readSelectorRewriteSafetySummary(
+    env,
+    args.scssPath,
+    canonicalSelector.canonicalName,
+  );
+  if (rewriteSafety.hasBlockingExpandedReferences) {
     return { kind: "blocked", reason: "expandedReferences" };
   }
 
@@ -214,7 +221,7 @@ function finalizeSelectorRenameTarget(
       canonicalName: canonicalSelector.canonicalName,
       placeholder: args.placeholder,
       placeholderRange: args.placeholderRange,
-      usage,
+      rewriteSafety,
       aliasMode,
     },
   };
