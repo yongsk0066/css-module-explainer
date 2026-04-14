@@ -162,6 +162,7 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
       filePath,
       styleDocument,
       providerDeps.semanticReferenceIndex,
+      providerDeps.styleDependencyGraph,
     );
     this.safeSendDiagnostics(uri, diagnostics);
   }

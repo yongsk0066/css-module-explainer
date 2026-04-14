@@ -35,6 +35,7 @@ import {
   collectSemanticReferenceContribution,
   WorkspaceSemanticWorkspaceReferenceIndex,
 } from "./core/semantic/workspace-reference-index";
+import { WorkspaceStyleDependencyGraph } from "./core/semantic/style-dependency-graph";
 import { fileUrlToPath, pathToFileUrl } from "./core/util/text-utils";
 import { COMPLETION_TRIGGER_CHARACTERS } from "./providers/completion";
 import { registerHandlers } from "./handler-registration";
@@ -143,6 +144,7 @@ export function createServer(options: CreateServerOptions): CreatedServer {
     fileExists = options.fileExists ?? existsSync;
     styleDocumentForPath = buildStyleDocumentForPath(
       caches.styleIndexCache,
+      caches.styleDependencyGraph,
       documents,
       readStyleFile,
       (stylePath) =>
@@ -327,6 +329,7 @@ function buildBundle(
   const indexerWorker = buildIndexerWorker(
     options,
     caches.styleIndexCache,
+    caches.styleDependencyGraph,
     folder.rootPath,
     () => currentSettings.scss.classnameTransform,
     (stylePath) => pickOwningWorkspaceFolder(workspaceFolders, stylePath)?.uri === folder.uri,
@@ -338,13 +341,17 @@ function buildBundle(
     styleDocumentForPath,
     typeResolver,
     semanticReferenceIndex: caches.semanticReferenceIndex,
+    styleDependencyGraph: caches.styleDependencyGraph,
     workspaceRoot: folder.rootPath,
     workspaceFolderUri: folder.uri,
     logError: (message, err) => {
       const detail = err instanceof Error ? `${err.message}\n${err.stack ?? ""}` : String(err);
       connection.console.error(`[${SERVER_NAME}] ${message}: ${detail}`);
     },
-    invalidateStyle: (path) => caches.styleIndexCache.invalidate(path),
+    invalidateStyle: (path) => {
+      caches.styleIndexCache.invalidate(path);
+      caches.styleDependencyGraph.forget(path);
+    },
     peekStyleDocument: (path) =>
       caches.styleIndexCache.peekEntry(path, currentSettings.scss.classnameTransform)
         ?.styleDocument ?? null,
@@ -397,6 +404,7 @@ interface BundleCaches {
   readonly sourceFileCache: SourceFileCache;
   readonly styleIndexCache: StyleIndexCache;
   readonly semanticReferenceIndex: WorkspaceSemanticWorkspaceReferenceIndex;
+  readonly styleDependencyGraph: WorkspaceStyleDependencyGraph;
 }
 
 function buildCaches(): BundleCaches {
@@ -404,6 +412,7 @@ function buildCaches(): BundleCaches {
     sourceFileCache: new SourceFileCache({ max: 200 }),
     styleIndexCache: new StyleIndexCache({ max: 500 }),
     semanticReferenceIndex: new WorkspaceSemanticWorkspaceReferenceIndex(),
+    styleDependencyGraph: new WorkspaceStyleDependencyGraph(),
   };
 }
 
@@ -418,6 +427,7 @@ function buildTypeResolver(options: CreateServerOptions): TypeResolver {
 
 function buildStyleDocumentForPath(
   styleIndexCache: StyleIndexCache,
+  styleDependencyGraph: WorkspaceStyleDependencyGraph,
   documents: TextDocuments<TextDocument>,
   readStyleFile: (path: string) => string | null,
   getModeForPath: (path: string) => ResourceSettings["scss"]["classnameTransform"],
@@ -426,10 +436,16 @@ function buildStyleDocumentForPath(
     if (!findLangForPath(path)) return null;
     const buffered = readStyleTextFromOpenDocuments(path, documents);
     const mode = getModeForPath(path);
-    if (buffered !== null) return styleIndexCache.getStyleDocument(path, buffered, mode);
+    if (buffered !== null) {
+      const styleDocument = styleIndexCache.getStyleDocument(path, buffered, mode);
+      styleDependencyGraph.record(path, styleDocument);
+      return styleDocument;
+    }
     const content = readStyleFile(path);
     if (content === null) return null;
-    return styleIndexCache.getStyleDocument(path, content, mode);
+    const styleDocument = styleIndexCache.getStyleDocument(path, content, mode);
+    styleDependencyGraph.record(path, styleDocument);
+    return styleDocument;
   };
 }
 
@@ -499,6 +515,7 @@ function buildAnalysisCache(args: AnalysisCacheArgs): DocumentAnalysisCache {
 function buildIndexerWorker(
   options: CreateServerOptions,
   styleIndexCache: StyleIndexCache,
+  styleDependencyGraph: WorkspaceStyleDependencyGraph,
   workspaceRoot: string,
   getMode: () => ResourceSettings["scss"]["classnameTransform"],
   shouldIndexPath: (path: string) => boolean,
@@ -515,7 +532,8 @@ function buildIndexerWorker(
     supplier,
     readFile: asyncReadFile,
     onScssFile: (path, content) => {
-      styleIndexCache.getStyleDocument(path, content, getMode());
+      const styleDocument = styleIndexCache.getStyleDocument(path, content, getMode());
+      styleDependencyGraph.record(path, styleDocument);
     },
     logger: indexerLogger,
   });
@@ -551,6 +569,7 @@ function clearWorkspaceFolderDocuments(
   documents: TextDocuments<TextDocument>,
   connection: Connection,
 ): void {
+  deps.styleDependencyGraph.forgetWithinRoot(workspaceRoot);
   for (const doc of documents.all()) {
     const filePath = fileUrlToPath(doc.uri);
     if (!isWithinWorkspaceRoot(workspaceRoot, filePath)) continue;

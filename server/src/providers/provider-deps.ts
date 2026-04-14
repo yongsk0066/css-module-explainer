@@ -1,6 +1,7 @@
 import type { DocumentAnalysisCache } from "../core/indexing/document-analysis-cache";
 import type { StyleDocumentHIR } from "../core/hir/style-types";
 import type { SemanticWorkspaceReferenceIndex } from "../core/semantic/workspace-reference-index";
+import type { StyleDependencyGraph } from "../core/semantic/style-dependency-graph";
 import type { TypeResolver } from "../core/ts/type-resolver";
 import type { Settings } from "../settings";
 
@@ -43,6 +44,7 @@ export interface ProviderDeps {
   readonly styleDocumentForPath: (path: string) => StyleDocumentHIR | null;
   readonly typeResolver: TypeResolver;
   readonly semanticReferenceIndex: SemanticWorkspaceReferenceIndex;
+  readonly styleDependencyGraph: StyleDependencyGraph;
   readonly workspaceRoot: string;
   readonly workspaceFolderUri: string;
   /**

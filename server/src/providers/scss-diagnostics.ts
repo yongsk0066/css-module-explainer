@@ -2,6 +2,7 @@ import { DiagnosticSeverity, DiagnosticTag, type Diagnostic } from "vscode-langu
 import type { StyleDocumentHIR } from "../core/hir/style-types";
 import { readStyleModuleUsageSummary } from "../core/query/read-style-module-usage";
 import type { SemanticWorkspaceReferenceIndex } from "../core/semantic/workspace-reference-index";
+import type { StyleDependencyGraph } from "../core/semantic/style-dependency-graph";
 import { toLspRange } from "./lsp-adapters";
 
 /**
@@ -15,11 +16,13 @@ export function computeScssUnusedDiagnostics(
   scssPath: string,
   styleDocument: StyleDocumentHIR,
   semanticReferenceIndex: SemanticWorkspaceReferenceIndex,
+  styleDependencyGraph?: StyleDependencyGraph,
 ): Diagnostic[] {
   return readStyleModuleUsageSummary(
     scssPath,
     styleDocument,
     semanticReferenceIndex,
+    styleDependencyGraph,
   ).unusedSelectors.map((finding) => ({
     range: toLspRange(finding.range),
     severity: DiagnosticSeverity.Hint,
