@@ -94,25 +94,34 @@ For a selector `.btn-primary`:
 Alias-only modes keep navigation and references, but rename is blocked
 because the reverse mapping back to the original selector is lossy.
 
-### Path alias compatibility
+### Path alias resolution
 
-The extension reads `cssModules.pathAlias` for compatibility with existing
-workspace settings. This allows imports such as
-`import styles from "@styles/button.module.scss"` when the workspace maps
-`@styles` to a real directory.
+The extension resolves non-relative CSS Module imports from:
 
-Wildcard alias patterns and automatic `tsconfig.json` path discovery are not
-implemented yet.
+- `compilerOptions.paths` in the workspace `tsconfig.json` or `jsconfig.json`
+- legacy `cssModules.pathAlias` settings, when a workspace already uses that key
+
+This allows imports such as:
+
+```ts
+import styles from "@/components/Button.module.scss";
+import theme from "@styles/theme.module.scss";
+```
+
+`cssModules.pathAlias` remains a compatibility input. It is not part of the
+core runtime architecture and can be retired later without changing semantic
+resolution.
 
 ## Architecture
 
-The runtime is organized around a single semantic core.
+The runtime is organized around one semantic pipeline.
 
 ```text
 source/style text
   -> HIR documents
-  -> semantic graph
-  -> shared queries
+  -> scoped binding layer
+  -> abstract state layer
+  -> read models
   -> LSP providers
 ```
 
@@ -121,23 +130,25 @@ Relevant directories:
 ```text
 server/src/
 ├── core/
-│   ├── hir/       # source/style intermediate representation
-│   ├── semantic/  # semantic graph and workspace reference index
-│   ├── query/     # shared semantic queries
-│   ├── flow/      # local flow-sensitive class-value analysis
-│   ├── scss/      # style parsing and transform views
-│   ├── cx/        # TypeScript AST walkers for bindings and expressions
-│   ├── ts/        # TypeScript program and source-file utilities
-│   ├── indexing/  # document analysis cache and file indexing
-│   └── util/      # small runtime helpers
-├── providers/     # LSP adapters
+│   ├── hir/             # source/style document facts
+│   ├── binder/          # source-side scopes, declarations, and binding graph
+│   ├── abstract-value/  # class-value domain and selector projection
+│   ├── query/           # provider-facing read models and semantic contracts
+│   ├── rewrite/         # text rewrite planning
+│   ├── semantic/        # workspace reference collection and shared policy
+│   ├── scss/            # style parsing and transform views
+│   ├── cx/              # TypeScript AST walkers for bindings and expressions
+│   ├── ts/              # TypeScript program and source-file utilities
+│   ├── indexing/        # document analysis cache and file indexing
+│   └── util/            # small runtime helpers
+├── providers/           # LSP adapters over read models
 ├── composition-root.ts
 └── server.ts
 ```
 
-This split keeps parsing, semantic resolution, and transport concerns separate.
-The same semantic queries are reused by hover, definition, references, rename,
-diagnostics, and code actions.
+HIR keeps source-preserving document facts. Binding lives in the binder layer.
+Dynamic class reasoning lives in the abstract-value layer. Providers read stable
+semantic summaries instead of recomputing resolution ad hoc.
 
 ## Development
 
