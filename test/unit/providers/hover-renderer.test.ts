@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ClassExpressionHIR } from "../../../server/src/core/hir/source-types";
 import type { SelectorDeclHIR } from "../../../server/src/core/hir/style-types";
+import type { SelectorStyleDependencySummary } from "../../../server/src/core/query/read-selector-style-dependencies";
 import { renderHover } from "../../../server/src/providers/hover-renderer";
 
 const SCSS_PATH = "/fake/ws/src/Button.module.scss";
@@ -175,5 +176,34 @@ describe("renderHover", () => {
       workspaceRoot: "/fake/ws",
     });
     expect(markdown).toContain(".empty {}");
+  });
+
+  it("renders incoming composes dependencies", () => {
+    const dependencies = new Map<string, SelectorStyleDependencySummary>([
+      [
+        "indicator",
+        {
+          incoming: [
+            {
+              canonicalName: "card",
+              filePath: "/fake/ws/src/Card.module.scss",
+              reason: "crossFileComposes",
+            },
+          ],
+          outgoing: [],
+        },
+      ],
+    ]);
+
+    const markdown = renderHover({
+      expression: staticExpression,
+      scssModulePath: SCSS_PATH,
+      selectors: [selector("indicator", 11, "color: red;")],
+      styleDependenciesBySelector: dependencies,
+      workspaceRoot: "/fake/ws",
+    });
+
+    expect(markdown).toContain("Composed by:");
+    expect(markdown).toContain("`card` in `src/Card.module.scss`");
   });
 });

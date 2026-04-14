@@ -2,12 +2,14 @@ import { relative } from "node:path";
 import type { ClassExpressionHIR } from "../core/hir/source-types";
 import type { SelectorDeclHIR } from "../core/hir/style-types";
 import type { DynamicHoverExplanation } from "../core/query/resolve-ref";
+import type { SelectorStyleDependencySummary } from "../core/query/read-selector-style-dependencies";
 
 export interface RenderArgs {
   readonly expression: ClassExpressionHIR;
   readonly scssModulePath: string;
   readonly selectors: readonly SelectorDeclHIR[];
   readonly dynamicExplanation?: DynamicHoverExplanation | null;
+  readonly styleDependenciesBySelector?: ReadonlyMap<string, SelectorStyleDependencySummary>;
   readonly workspaceRoot: string;
   readonly maxCandidates?: number;
 }
@@ -37,7 +39,11 @@ function renderSingle(args: RenderArgs, selector: SelectorDeclHIR): string {
   );
   const body = buildRule(selector);
   const explanation = renderDynamicExplanation(args.dynamicExplanation, args.maxCandidates);
-  return `**\`.${selector.name}\`** — _${location}_${explanation}\n\n\`\`\`scss\n${body}\n\`\`\``;
+  const dependencyNote = renderStyleDependencyNote(
+    args.styleDependenciesBySelector?.get(selector.canonicalName),
+    args.workspaceRoot,
+  );
+  return `**\`.${selector.name}\`** — _${location}_${explanation}\n\n\`\`\`scss\n${body}\n\`\`\`${dependencyNote}`;
 }
 
 function renderMulti(args: RenderArgs): string {
@@ -51,7 +57,11 @@ function renderMulti(args: RenderArgs): string {
       selector.range.start.line,
       args.workspaceRoot,
     );
-    return `**\`.${selector.name}\`** — _${location}_\n\n\`\`\`scss\n${buildRule(selector)}\n\`\`\``;
+    const dependencyNote = renderStyleDependencyNote(
+      args.styleDependenciesBySelector?.get(selector.canonicalName),
+      args.workspaceRoot,
+    );
+    return `**\`.${selector.name}\`** — _${location}_\n\n\`\`\`scss\n${buildRule(selector)}\n\`\`\`${dependencyNote}`;
   });
   const tail = args.selectors.length > max ? `\n\n_…and ${args.selectors.length - max} more_` : "";
   return `${header}${explanation}\n\n${sections.join("\n\n---\n\n")}${tail}`;
@@ -142,4 +152,20 @@ function buildRule(selector: SelectorDeclHIR): string {
 function formatLocation(scssPath: string, line: number, workspaceRoot: string): string {
   const rel = relative(workspaceRoot, scssPath) || scssPath;
   return `${rel}:${line + 1}`;
+}
+
+function renderStyleDependencyNote(
+  summary: SelectorStyleDependencySummary | undefined,
+  workspaceRoot: string,
+): string {
+  if (!summary || summary.incoming.length === 0) return "";
+
+  const shown = summary.incoming
+    .slice(0, 5)
+    .map(
+      (incoming) =>
+        `\`${incoming.canonicalName}\` in \`${relative(workspaceRoot, incoming.filePath) || incoming.filePath}\``,
+    );
+  const suffix = summary.incoming.length > 5 ? `, …and ${summary.incoming.length - 5} more` : "";
+  return `\n\n_Composed by: ${shown.join(", ")}${suffix}._`;
 }

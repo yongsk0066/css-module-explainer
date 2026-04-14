@@ -1,5 +1,6 @@
 import type { Hover } from "vscode-languageserver/node";
 import { resolveRefDetails } from "../core/query/resolve-ref";
+import { readSelectorStyleDependencySummary } from "../core/query/read-selector-style-dependencies";
 import { toLspRange } from "./lsp-adapters";
 import { renderHover } from "./hover-renderer";
 import { wrapHandler } from "./_wrap-handler";
@@ -38,11 +39,22 @@ function buildHover(
     filePath: params.filePath,
     workspaceRoot: deps.workspaceRoot,
   });
+  const styleDependenciesBySelector = new Map(
+    result.selectors.map((selector) => [
+      selector.canonicalName,
+      readSelectorStyleDependencySummary(
+        deps.styleDependencyGraph,
+        ctx.expression.scssModulePath,
+        selector.canonicalName,
+      ),
+    ]),
+  );
   const markdown = renderHover({
     expression: ctx.expression,
     scssModulePath: ctx.expression.scssModulePath,
     selectors: result.selectors,
     dynamicExplanation: result.dynamicExplanation,
+    styleDependenciesBySelector,
     workspaceRoot: deps.workspaceRoot,
     maxCandidates,
   });
