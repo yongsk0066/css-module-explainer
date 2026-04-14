@@ -18,6 +18,20 @@
 
 - **Nested and composed style diagnostics** — unresolved `composes` modules/selectors now surface SCSS diagnostics, and missing composed modules offer the same create-file quick fix flow as missing source-side module imports.
 
+## 3.0.0
+
+### Major Changes
+
+- Replace the old heuristic runtime with the 3.0 semantic pipeline: document facts, scoped binding, abstract class-value analysis, provider-facing read models, and generic rewrite planning now form the production path.
+- Make source-side binding scope-aware across `cx`, `styles`, imports, locals, and shadowing instead of relying on line-range and document-order heuristics.
+- Unify dynamic class reasoning under a shared abstract-value domain so flow, unions, template prefixes, and non-finite cases follow one contract.
+- Move provider behavior onto explicit read models and rewrite policies, reducing provider-local semantic glue and removing the old semantic-graph-first runtime path.
+- Expand the examples sandbox into a 3.0 manual QA matrix covering nested style facts, shadowing, and non-finite dynamic resolution.
+
+### Patch Changes
+
+- Fix nested `&.class` compound selector registration so classes introduced inside nested compounds resolve to the selector that actually introduced them without overwriting parent facts.
+
 ## 2.1.0
 
 ### Minor Changes
