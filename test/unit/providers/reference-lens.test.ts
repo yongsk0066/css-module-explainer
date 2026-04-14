@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
+import { WorkspaceStyleDependencyGraph } from "../../../server/src/core/semantic/style-dependency-graph";
 import type { ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
 import { handleCodeLens } from "../../../server/src/providers/reference-lens";
 import { infoAtLine, makeBaseDeps, semanticSiteAt } from "../../_fixtures/test-helpers";
 import {
+  buildStyleDocumentFromSelectorMap,
   expandSelectorMapWithTransform,
   parseStyleSelectorMap,
 } from "../../_fixtures/style-documents";
@@ -78,6 +80,45 @@ describe("handleCodeLens", () => {
     expect(result).not.toBeNull();
     const indicatorLens = result!.find((lens) => lens.command?.title === "1 reference");
     expect(indicatorLens).toBeDefined();
+  });
+
+  it("counts CSS-side composing selectors as references", () => {
+    const BASE_PATH = "/fake/src/base.module.scss";
+    const BASE_URI = "file:///fake/src/base.module.scss";
+    const BUTTON_PATH = "/fake/src/button.module.scss";
+    const graph = new WorkspaceStyleDependencyGraph();
+    graph.record(
+      BUTTON_PATH,
+      buildStyleDocumentFromSelectorMap(
+        BUTTON_PATH,
+        new Map([
+          [
+            "button",
+            {
+              ...infoAtLine("button", 5),
+              composes: [{ classNames: ["base"], from: "./base.module.scss" }],
+            },
+          ],
+        ]),
+      ),
+    );
+
+    const result = handleCodeLens(
+      { textDocument: { uri: BASE_URI } },
+      makeBaseDeps({
+        selectorMapForPath: (path) => {
+          if (path === BASE_PATH) return new Map([["base", infoAtLine("base", 5)]]);
+          if (path === BUTTON_PATH) return new Map([["button", infoAtLine("button", 5)]]);
+          return null;
+        },
+        workspaceRoot: "/fake",
+        styleDependencyGraph: graph,
+      }),
+    );
+
+    expect(result).not.toBeNull();
+    expect(result).toHaveLength(1);
+    expect(result![0]!.command?.title).toBe("1 reference");
   });
 
   it("classnameTransform (camelCaseOnly): emits a lens for an alias-only entry whose bucket lives under canonical", async () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
+import { WorkspaceStyleDependencyGraph } from "../../../server/src/core/semantic/style-dependency-graph";
 import type { ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
 import { findSelectorAtCursor, handleReferences } from "../../../server/src/providers/references";
 import { infoAtLine, makeBaseDeps, semanticSiteAt } from "../../_fixtures/test-helpers";
@@ -152,6 +153,54 @@ describe("handleReferences", () => {
         loc.range.start.character === TEMPLATE_RANGE.start.character,
     );
     expect(matched).toBeDefined();
+  });
+
+  it("includes CSS-side references that arrive through composes reachability", () => {
+    const BASE_PATH = "/fake/src/base.module.scss";
+    const BASE_URI = "file:///fake/src/base.module.scss";
+    const BUTTON_PATH = "/fake/src/button.module.scss";
+    const graph = new WorkspaceStyleDependencyGraph();
+    graph.record(
+      BUTTON_PATH,
+      buildStyleDocumentFromSelectorMap(
+        BUTTON_PATH,
+        new Map([
+          [
+            "button",
+            {
+              ...infoAtLine("button", 5),
+              composes: [{ classNames: ["base"], from: "./base.module.scss" }],
+            },
+          ],
+        ]),
+      ),
+    );
+
+    const result = handleReferences(
+      {
+        textDocument: { uri: BASE_URI },
+        position: { line: 5, character: 3 },
+        context: { includeDeclaration: true },
+      },
+      makeBaseDeps({
+        selectorMapForPath: (path) => {
+          if (path === BASE_PATH) return new Map([["base", infoAtLine("base", 5)]]);
+          if (path === BUTTON_PATH) return new Map([["button", infoAtLine("button", 5)]]);
+          return null;
+        },
+        workspaceRoot: "/fake",
+        styleDependencyGraph: graph,
+      }),
+    );
+
+    expect(result).not.toBeNull();
+    expect(result).toContainEqual({
+      uri: "file:///fake/src/button.module.scss",
+      range: {
+        start: { line: 5, character: 1 },
+        end: { line: 5, character: 7 },
+      },
+    });
   });
 
   // findSelectorAtCursor prefers the BEM-suffix range when present.
