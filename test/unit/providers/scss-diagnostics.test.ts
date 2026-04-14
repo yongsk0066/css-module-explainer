@@ -442,6 +442,11 @@ describe("computeScssUnusedDiagnostics", () => {
     expect(diagnostics[0]!.message).toContain(
       "Cannot resolve composed CSS Module './Base.module.scss'.",
     );
+    expect(diagnostics[0]!.data).toMatchObject({
+      createModuleFile: {
+        uri: "file:///fake/Base.module.scss",
+      },
+    });
   });
 
   it("reports a missing selector in a composed module", () => {

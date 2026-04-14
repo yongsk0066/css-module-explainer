@@ -5,6 +5,7 @@ import type { StyleDocumentHIR } from "../core/hir/style-types";
 import { readStyleModuleUsageSummary } from "../core/query/read-style-module-usage";
 import type { SemanticWorkspaceReferenceIndex } from "../core/semantic/workspace-reference-index";
 import type { StyleDependencyGraph } from "../core/semantic/style-dependency-graph";
+import { pathToFileUrl } from "../core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
 
 /**
@@ -51,6 +52,11 @@ export function computeScssUnusedDiagnostics(
           severity: DiagnosticSeverity.Warning,
           source: "css-module-explainer",
           message: `Cannot resolve composed CSS Module '${ref.from ?? "."}'.`,
+          data: {
+            createModuleFile: {
+              uri: pathToFileUrl(targetFilePath),
+            },
+          },
         });
         continue;
       }
