@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  COMPAT_PATH_ALIAS_DEPRECATION,
   DEFAULT_RESOURCE_SETTINGS,
   DEFAULT_SETTINGS,
   DEFAULT_WINDOW_SETTINGS,
@@ -150,6 +151,15 @@ describe("mergeSettings", () => {
 });
 
 describe("compat pathAlias deprecation helpers", () => {
+  it("exposes a stable removal policy", () => {
+    expect(COMPAT_PATH_ALIAS_DEPRECATION).toEqual({
+      legacyKey: "cssModules.pathAlias",
+      replacementKey: "cssModuleExplainer.pathAlias",
+      warnFrom: "3.1.0",
+      plannedRemoval: "4.0.0",
+    });
+  });
+
   it("warns only for compat pathAlias roots that were not warned yet", () => {
     const compat = parseResourceSettingsInfo({}, { pathAlias: { "@compat": "src/compat" } });
     const native = parseResourceSettingsInfo({ pathAlias: { "@native": "src/native" } });
@@ -161,7 +171,7 @@ describe("compat pathAlias deprecation helpers", () => {
 
   it("formats a stable deprecation message", () => {
     expect(formatCompatPathAliasDeprecationMessage("/fake/ws")).toBe(
-      "[css-module-explainer] cssModules.pathAlias is deprecated for '/fake/ws'. Use cssModuleExplainer.pathAlias instead.",
+      "[css-module-explainer] cssModules.pathAlias is deprecated for '/fake/ws'. Use cssModuleExplainer.pathAlias instead. Planned removal: 4.0.0.",
     );
   });
 });

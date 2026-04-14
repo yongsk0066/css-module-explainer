@@ -119,6 +119,26 @@ fallback and is not the long-term configuration surface. In 3.x, compatibility
 behavior is normalized in `server/src/settings.ts`; runtime consumers read the
 merged native settings shape only.
 
+Migration policy:
+
+- warning starts in `3.1.x`
+- planned removal is `4.0.0`
+- migrate by moving entries from `cssModules.pathAlias` to `cssModuleExplainer.pathAlias`
+
+Example migration:
+
+```jsonc
+// before
+"cssModules.pathAlias": {
+  "@styles": "src/styles"
+}
+
+// after
+"cssModuleExplainer.pathAlias": {
+  "@styles": "src/styles"
+}
+```
+
 ## Architecture
 
 The runtime is organized around one semantic pipeline.
