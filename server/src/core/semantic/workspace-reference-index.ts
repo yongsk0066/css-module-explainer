@@ -96,11 +96,19 @@ export class WorkspaceSemanticWorkspaceReferenceIndex implements SemanticWorkspa
     string,
     ReferenceDependencyContribution & {
       readonly referenceSites: readonly SemanticReferenceSite[];
+      readonly order: number;
     }
   >();
   readonly dependencies = new WorkspaceSemanticReferenceDependencies();
-  private readonly selectorToSites = new Map<string, readonly SemanticReferenceSite[]>();
-  private readonly scssToSites = new Map<string, readonly SemanticReferenceSite[]>();
+  private readonly selectorToSites = new Map<
+    string,
+    Map<string, { readonly order: number; readonly sites: readonly SemanticReferenceSite[] }>
+  >();
+  private readonly scssToSites = new Map<
+    string,
+    Map<string, { readonly order: number; readonly sites: readonly SemanticReferenceSite[] }>
+  >();
+  private nextOrder = 0;
 
   record(
     uri: string,
@@ -113,17 +121,31 @@ export class WorkspaceSemanticWorkspaceReferenceIndex implements SemanticWorkspa
       sourcePaths: [],
     },
   ): void {
-    if (sites.length === 0 && moduleUsages.length === 0) {
+    const previous = this.contributions.get(uri);
+    if (previous) {
+      this.removeContribution(uri, previous);
       this.contributions.delete(uri);
-    } else {
-      this.contributions.set(uri, { referenceSites: sites, moduleUsages, deps });
     }
-    this.rebuild();
+
+    if (sites.length === 0 && moduleUsages.length === 0) {
+      return;
+    }
+
+    const next = {
+      referenceSites: sites,
+      moduleUsages,
+      deps,
+      order: previous?.order ?? this.nextOrder++,
+    };
+    this.contributions.set(uri, next);
+    this.addContribution(uri, next);
   }
 
   forget(uri: string): void {
-    if (!this.contributions.delete(uri)) return;
-    this.rebuild();
+    const previous = this.contributions.get(uri);
+    if (!previous) return;
+    this.contributions.delete(uri);
+    this.removeContribution(uri, previous);
   }
 
   findSelectorReferences(
@@ -131,7 +153,9 @@ export class WorkspaceSemanticWorkspaceReferenceIndex implements SemanticWorkspa
     canonicalName: string,
     options?: ReferenceQueryOptions,
   ): readonly SemanticReferenceSite[] {
-    const sites = this.selectorToSites.get(selectorKeyFor(scssPath, canonicalName)) ?? [];
+    const sites = flattenSiteBuckets(
+      this.selectorToSites.get(selectorKeyFor(scssPath, canonicalName)),
+    );
     return filterSites(sites, options);
   }
 
@@ -147,7 +171,7 @@ export class WorkspaceSemanticWorkspaceReferenceIndex implements SemanticWorkspa
     scssPath: string,
     options?: ReferenceQueryOptions,
   ): readonly SemanticReferenceSite[] {
-    const sites = this.scssToSites.get(scssPath) ?? [];
+    const sites = flattenSiteBuckets(this.scssToSites.get(scssPath));
     return filterSites(sites, options);
   }
 
@@ -172,18 +196,62 @@ export class WorkspaceSemanticWorkspaceReferenceIndex implements SemanticWorkspa
     this.selectorToSites.clear();
     this.scssToSites.clear();
     this.dependencies.clear();
+    this.nextOrder = 0;
   }
 
-  private rebuild(): void {
-    this.selectorToSites.clear();
-    this.scssToSites.clear();
-    for (const contribution of this.contributions.values()) {
-      for (const site of contribution.referenceSites) {
-        push(this.selectorToSites, selectorKeyFor(site.selectorFilePath, site.canonicalName), site);
-        push(this.scssToSites, site.selectorFilePath, site);
-      }
+  private addContribution(
+    uri: string,
+    contribution: ReferenceDependencyContribution & {
+      readonly referenceSites: readonly SemanticReferenceSite[];
+      readonly order: number;
+    },
+  ): void {
+    const selectorGroups = groupSitesByKey(contribution.referenceSites, (site) =>
+      selectorKeyFor(site.selectorFilePath, site.canonicalName),
+    );
+    for (const [key, sites] of selectorGroups.entries()) {
+      getOrCreateNestedMap(this.selectorToSites, key).set(uri, {
+        order: contribution.order,
+        sites,
+      });
     }
-    this.dependencies.rebuild(this.contributions);
+
+    const scssGroups = groupSitesByKey(
+      contribution.referenceSites,
+      (site) => site.selectorFilePath,
+    );
+    for (const [key, sites] of scssGroups.entries()) {
+      getOrCreateNestedMap(this.scssToSites, key).set(uri, {
+        order: contribution.order,
+        sites,
+      });
+    }
+
+    this.dependencies.record(uri, contribution, contribution.order);
+  }
+
+  private removeContribution(
+    uri: string,
+    contribution: ReferenceDependencyContribution & {
+      readonly referenceSites: readonly SemanticReferenceSite[];
+    },
+  ): void {
+    const selectorGroups = groupSitesByKey(contribution.referenceSites, (site) =>
+      selectorKeyFor(site.selectorFilePath, site.canonicalName),
+    );
+    for (const key of selectorGroups.keys()) {
+      removeFromNestedMap(this.selectorToSites, key, uri);
+    }
+
+    const scssGroups = groupSitesByKey(
+      contribution.referenceSites,
+      (site) => site.selectorFilePath,
+    );
+    for (const key of scssGroups.keys()) {
+      removeFromNestedMap(this.scssToSites, key, uri);
+    }
+
+    this.dependencies.forget(uri, contribution);
   }
 }
 
@@ -191,13 +259,52 @@ function selectorKeyFor(filePath: string, canonicalName: string): string {
   return `${filePath}::${canonicalName}`;
 }
 
-function push<T>(map: Map<string, readonly T[]>, key: string, value: T): void {
-  const existing = map.get(key);
-  if (existing) {
-    map.set(key, [...existing, value]);
-    return;
+function groupSitesByKey(
+  sites: readonly SemanticReferenceSite[],
+  getKey: (site: SemanticReferenceSite) => string,
+): ReadonlyMap<string, readonly SemanticReferenceSite[]> {
+  const grouped = new Map<string, SemanticReferenceSite[]>();
+  for (const site of sites) {
+    const key = getKey(site);
+    const existing = grouped.get(key);
+    if (existing) {
+      existing.push(site);
+      continue;
+    }
+    grouped.set(key, [site]);
   }
-  map.set(key, [value]);
+  return grouped;
+}
+
+function flattenSiteBuckets(
+  buckets:
+    | ReadonlyMap<
+        string,
+        { readonly order: number; readonly sites: readonly SemanticReferenceSite[] }
+      >
+    | undefined,
+): readonly SemanticReferenceSite[] {
+  if (!buckets) return [];
+  return [...buckets.values()]
+    .toSorted((a, b) => a.order - b.order)
+    .flatMap((bucket) => bucket.sites);
+}
+
+function getOrCreateNestedMap<K, I, V>(map: Map<K, Map<I, V>>, key: K): Map<I, V> {
+  const existing = map.get(key);
+  if (existing) return existing;
+  const next = new Map<I, V>();
+  map.set(key, next);
+  return next;
+}
+
+function removeFromNestedMap<K, I, V>(map: Map<K, Map<I, V>>, key: K, itemKey: I): void {
+  const bucket = map.get(key);
+  if (!bucket) return;
+  bucket.delete(itemKey);
+  if (bucket.size === 0) {
+    map.delete(key);
+  }
 }
 
 function filterSites(

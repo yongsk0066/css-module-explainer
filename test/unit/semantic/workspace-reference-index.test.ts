@@ -14,6 +14,8 @@ import type { StyleImport } from "@css-module-explainer/shared";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
 import { info } from "../../_fixtures/test-helpers";
 import { buildStyleDocumentFromSelectorMap } from "../../_fixtures/style-documents";
+import type { SemanticModuleUsageSite } from "../../../server/src/core/semantic/reference-collector";
+import type { SemanticReferenceSite } from "../../../server/src/core/semantic/reference-types";
 
 const FILE_PATH = "/fake/ws/src/App.tsx";
 const SCSS_PATH = "/fake/ws/src/Button.module.scss";
@@ -121,7 +123,200 @@ describe("WorkspaceSemanticWorkspaceReferenceIndex", () => {
       "file:///fake/ws/src/App.tsx",
     ]);
   });
+
+  it("removes stale selector entries on update and forget", () => {
+    const index = new WorkspaceSemanticWorkspaceReferenceIndex();
+    index.record(
+      URI,
+      [makeReferenceSite(SCSS_PATH, "button", "ref:1")],
+      [makeModuleUsage(URI, SCSS_PATH, "ref:1")],
+      makeDeps(),
+    );
+    index.record(
+      URI,
+      [makeReferenceSite(SCSS_PATH, "card", "ref:2")],
+      [makeModuleUsage(URI, SCSS_PATH, "ref:2")],
+      makeDeps(),
+    );
+
+    expect(index.findSelectorReferences(SCSS_PATH, "button")).toEqual([]);
+    expect(index.findSelectorReferences(SCSS_PATH, "card")).toHaveLength(1);
+
+    index.forget(URI);
+    expect(index.findSelectorReferences(SCSS_PATH, "card")).toEqual([]);
+    expect(index.findReferencingUris(SCSS_PATH)).toEqual([]);
+  });
+
+  it("matches a rebuild oracle for update sequences", () => {
+    const operations: ReadonlyArray<
+      | {
+          readonly kind: "record";
+          readonly uri: string;
+          readonly sites: readonly SemanticReferenceSite[];
+          readonly usages: readonly SemanticModuleUsageSite[];
+        }
+      | { readonly kind: "forget"; readonly uri: string }
+    > = [
+      {
+        kind: "record",
+        uri: "file:///fake/ws/src/App.tsx",
+        sites: [makeReferenceSite(SCSS_PATH, "button", "ref:1")],
+        usages: [makeModuleUsage("file:///fake/ws/src/App.tsx", SCSS_PATH, "ref:1")],
+      },
+      {
+        kind: "record",
+        uri: "file:///fake/ws/src/Card.tsx",
+        sites: [makeReferenceSite(SCSS_PATH, "card", "ref:2")],
+        usages: [makeModuleUsage("file:///fake/ws/src/Card.tsx", SCSS_PATH, "ref:2")],
+      },
+      {
+        kind: "record",
+        uri: "file:///fake/ws/src/App.tsx",
+        sites: [makeReferenceSite(SCSS_PATH, "chip", "ref:3")],
+        usages: [makeModuleUsage("file:///fake/ws/src/App.tsx", SCSS_PATH, "ref:3")],
+      },
+      { kind: "forget", uri: "file:///fake/ws/src/Card.tsx" },
+    ];
+
+    const incremental = new WorkspaceSemanticWorkspaceReferenceIndex();
+    const oracle = new Map<
+      string,
+      {
+        readonly sites: readonly SemanticReferenceSite[];
+        readonly usages: readonly SemanticModuleUsageSite[];
+      }
+    >();
+
+    for (const op of operations) {
+      if (op.kind === "record") {
+        incremental.record(op.uri, op.sites, op.usages, makeDeps());
+        oracle.set(op.uri, { sites: op.sites, usages: op.usages });
+      } else {
+        incremental.forget(op.uri);
+        oracle.delete(op.uri);
+      }
+
+      const rebuilt = buildOracleState(oracle);
+      expect(incremental.findAllForScssPath(SCSS_PATH)).toEqual(
+        rebuilt.findAllForScssPath(SCSS_PATH),
+      );
+      expect(incremental.findReferencingUris(SCSS_PATH)).toEqual(
+        rebuilt.findReferencingUris(SCSS_PATH),
+      );
+      expect(incremental.findUrisBySettingsDependency("/fake/ws", "transform:asIs;alias:")).toEqual(
+        rebuilt.findUrisBySettingsDependency("/fake/ws", "transform:asIs;alias:"),
+      );
+      expect(incremental.findUrisBySourceDependency("/fake/ws", "/fake/ws/src/theme.ts")).toEqual(
+        rebuilt.findUrisBySourceDependency("/fake/ws", "/fake/ws/src/theme.ts"),
+      );
+    }
+  });
 });
+
+function buildOracleState(
+  contributions: ReadonlyMap<
+    string,
+    {
+      readonly sites: readonly SemanticReferenceSite[];
+      readonly usages: readonly SemanticModuleUsageSite[];
+    }
+  >,
+): {
+  readonly findAllForScssPath: (scssPath: string) => readonly SemanticReferenceSite[];
+  readonly findReferencingUris: (scssPath: string) => readonly string[];
+  readonly findUrisBySettingsDependency: (
+    workspaceRoot: string,
+    settingsKey: string,
+  ) => readonly string[];
+  readonly findUrisBySourceDependency: (
+    workspaceRoot: string,
+    sourcePath: string,
+  ) => readonly string[];
+} {
+  const ordered = [...contributions.entries()];
+  return {
+    findAllForScssPath(scssPath) {
+      return ordered.flatMap(([, contribution]) =>
+        contribution.sites.filter((site) => site.selectorFilePath === scssPath),
+      );
+    },
+    findReferencingUris(scssPath) {
+      const uris = ordered.flatMap(([, contribution]) =>
+        contribution.usages
+          .filter((usage) => usage.scssModulePath === scssPath)
+          .map((usage) => usage.uri),
+      );
+      return [...new Set(uris)].toSorted();
+    },
+    findUrisBySettingsDependency(workspaceRoot, settingsKey) {
+      if (workspaceRoot !== "/fake/ws" || settingsKey !== "transform:asIs;alias:") {
+        return [];
+      }
+      return ordered.map(([uri]) => uri);
+    },
+    findUrisBySourceDependency(workspaceRoot, sourcePath) {
+      if (workspaceRoot !== "/fake/ws" || sourcePath !== "/fake/ws/src/theme.ts") {
+        return [];
+      }
+      return ordered.map(([uri]) => uri);
+    },
+  };
+}
+
+function makeDeps() {
+  return {
+    workspaceRoot: "/fake/ws",
+    settingsKey: "transform:asIs;alias:",
+    stylePaths: [SCSS_PATH],
+    sourcePaths: [FILE_PATH, "/fake/ws/src/theme.ts"],
+  };
+}
+
+function makeModuleUsage(
+  uri: string,
+  scssModulePath: string,
+  refId: string,
+): SemanticModuleUsageSite {
+  return {
+    refId,
+    uri,
+    filePath: uri.replace("file://", ""),
+    range: {
+      start: { line: 0, character: 0 },
+      end: { line: 0, character: 1 },
+    },
+    origin: "cxCall",
+    scssModulePath,
+    expressionKind: "symbolRef",
+    hasResolvedTargets: true,
+    isDynamic: true,
+  };
+}
+
+function makeReferenceSite(
+  selectorFilePath: string,
+  canonicalName: string,
+  refId: string,
+): SemanticReferenceSite {
+  return {
+    refId,
+    selectorId: `selector:${selectorFilePath}:${canonicalName}`,
+    filePath: FILE_PATH,
+    uri: URI,
+    range: {
+      start: { line: 0, character: 0 },
+      end: { line: 0, character: 1 },
+    },
+    origin: "cxCall",
+    scssModulePath: selectorFilePath,
+    selectorFilePath,
+    canonicalName,
+    className: canonicalName,
+    selectorCertainty: "exact",
+    reason: "literal",
+    expansion: "direct",
+  };
+}
 
 function makeEntry(args: {
   sourceText: string;

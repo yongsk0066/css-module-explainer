@@ -50,4 +50,74 @@ describe("WorkspaceSemanticReferenceDependencies", () => {
       "file:///fake/ws/src/App.tsx",
     ]);
   });
+
+  it("updates incrementally across record and forget", () => {
+    const store = new WorkspaceSemanticReferenceDependencies();
+    const first = {
+      moduleUsages: [
+        makeUsage("file:///fake/ws/src/App.tsx", "/fake/ws/src/Button.module.scss", "ref:1"),
+      ],
+      deps: {
+        workspaceRoot: "/fake/ws",
+        settingsKey: "transform:asIs;alias:",
+        stylePaths: ["/fake/ws/src/Button.module.scss"],
+        sourcePaths: ["/fake/ws/src/theme.ts"],
+      },
+    } as const;
+    const second = {
+      moduleUsages: [
+        makeUsage("file:///fake/ws/src/Card.tsx", "/fake/ws/src/Card.module.scss", "ref:2"),
+      ],
+      deps: {
+        workspaceRoot: "/fake/ws",
+        settingsKey: "transform:camelCase;alias:",
+        stylePaths: ["/fake/ws/src/Card.module.scss"],
+        sourcePaths: ["/fake/ws/src/card-theme.ts"],
+      },
+    } as const;
+
+    store.record("file:///fake/ws/src/App.tsx", first, 0);
+    store.record("file:///fake/ws/src/Card.tsx", second, 1);
+
+    expect(store.findReferencingUris("/fake/ws/src/Button.module.scss")).toEqual([
+      "file:///fake/ws/src/App.tsx",
+    ]);
+    expect(store.findUrisBySettingsDependency("/fake/ws", "transform:camelCase;alias:")).toEqual([
+      "file:///fake/ws/src/Card.tsx",
+    ]);
+
+    const updatedFirst = {
+      ...first,
+      moduleUsages: [
+        makeUsage("file:///fake/ws/src/App.tsx", "/fake/ws/src/Renamed.module.scss", "ref:3"),
+      ],
+    } as const;
+    store.forget("file:///fake/ws/src/App.tsx", first);
+    store.record("file:///fake/ws/src/App.tsx", updatedFirst, 0);
+
+    expect(store.findReferencingUris("/fake/ws/src/Button.module.scss")).toEqual([]);
+    expect(store.findReferencingUris("/fake/ws/src/Renamed.module.scss")).toEqual([
+      "file:///fake/ws/src/App.tsx",
+    ]);
+
+    store.forget("file:///fake/ws/src/Card.tsx", second);
+    expect(store.findUrisBySourceDependency("/fake/ws", "/fake/ws/src/card-theme.ts")).toEqual([]);
+  });
 });
+
+function makeUsage(uri: string, scssModulePath: string, refId: string) {
+  return {
+    refId,
+    uri,
+    filePath: uri.replace("file://", ""),
+    range: {
+      start: { line: 0, character: 0 },
+      end: { line: 0, character: 1 },
+    },
+    origin: "cxCall" as const,
+    scssModulePath,
+    expressionKind: "symbolRef" as const,
+    hasResolvedTargets: false,
+    isDynamic: true,
+  };
+}
