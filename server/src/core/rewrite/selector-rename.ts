@@ -7,6 +7,7 @@ import {
   readSelectorRewriteSafetySummary,
   type SelectorRewriteSafetySummary,
 } from "../query/read-selector-rewrite-safety";
+import type { PlannedTextEdit, TextRewritePlan } from "./text-rewrite-plan";
 import { type ClassnameTransformMode, transformClassname } from "../scss/classname-transform";
 import { pathToFileUrl } from "../util/text-utils";
 import type { Settings } from "../../settings";
@@ -43,16 +44,7 @@ export interface SelectorRenameTarget {
   readonly aliasMode: ClassnameTransformMode;
 }
 
-export interface PlannedRenameEdit {
-  readonly uri: string;
-  readonly range: Range;
-  readonly newText: string;
-}
-
-export interface SelectorRenamePlan {
-  readonly target: SelectorRenameTarget;
-  readonly edits: readonly PlannedRenameEdit[];
-}
+export type SelectorRenamePlan = TextRewritePlan<SelectorRenameTarget>;
 
 export type SelectorRenamePlanResult =
   | { readonly kind: "plan"; readonly plan: SelectorRenamePlan }
@@ -136,7 +128,7 @@ export function planSelectorRename(
       };
   if ("kind" in scssEdit) return scssEdit;
 
-  const edits: PlannedRenameEdit[] = [scssEdit];
+  const edits: PlannedTextEdit[] = [scssEdit];
   for (const site of target.rewriteSafety.directSites) {
     const written = site.className;
     const newText =
@@ -246,7 +238,7 @@ function buildBemSuffixEdit(
   bemSuffix: BemSuffixInfo,
   oldName: string,
   newName: string,
-): PlannedRenameEdit | { readonly kind: "blocked"; readonly reason: RenameEditBlockReason } {
+): PlannedTextEdit | { readonly kind: "blocked"; readonly reason: RenameEditBlockReason } {
   const { parentResolvedName: parent, rawToken, rawTokenRange: rawRange } = bemSuffix;
 
   if (!oldName.startsWith(parent)) return { kind: "blocked", reason: "crossParentBemRename" };

@@ -11,6 +11,7 @@ import {
   readStyleSelectorRenameTargetAtCursor,
   renameBlockReasonMessage,
 } from "../../core/rewrite/selector-rename";
+import { groupTextEditsByUri } from "../../core/rewrite/text-rewrite-plan";
 import { findLangForPath } from "../../core/scss/lang-registry";
 import { fileUrlToPath } from "../../core/util/text-utils";
 import { toLspRange } from "../lsp-adapters";
@@ -148,11 +149,11 @@ function toWorkspaceEdit(plan: ReturnType<typeof planSelectorRename> | null): Wo
   if (!plan || plan.kind !== "plan") return null;
 
   const changes: WorkspaceEdit["changes"] = {};
-  for (const edit of plan.plan.edits) {
-    (changes[edit.uri] ??= []).push({
+  for (const [uri, edits] of groupTextEditsByUri(plan.plan.edits)) {
+    changes[uri] = edits.map((edit) => ({
       range: toLspRange(edit.range),
       newText: edit.newText,
-    });
+    }));
   }
   return { changes };
 }
