@@ -12,6 +12,7 @@ import {
   atRootTokenRange,
   enumerateGroups,
   extractClassNames,
+  extractIntroducedClassNames,
   findClassTokenRange,
   rangeForSourceNode,
   resolveSelector,
@@ -166,7 +167,7 @@ function recordRule(
     const bemSuffix = classifyBemSuffixSite(rule, raw, offset, parentCtx, groups.length);
     const isNested = raw.includes("&");
 
-    for (const className of extractClassNames(resolved)) {
+    for (const className of extractIntroducedClassNames(raw, resolved)) {
       const existing = selectorsByName.get(className);
       if (existing && existing.nestedSafety === "flat" && isNested) continue;
 
