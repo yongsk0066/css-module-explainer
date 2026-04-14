@@ -25,6 +25,7 @@ import type { ResolveTypeOptions, TypeResolver } from "../../server/src/core/ts/
  */
 class MutableFakeTypeResolver implements TypeResolver {
   values: readonly string[];
+  invalidations = 0;
 
   constructor(values: readonly string[] = []) {
     this.values = values;
@@ -42,7 +43,9 @@ class MutableFakeTypeResolver implements TypeResolver {
       : { kind: "unresolvable", values: [] };
   }
 
-  invalidate(): void {}
+  invalidate(): void {
+    this.invalidations += 1;
+  }
   clear(): void {}
 }
 
@@ -144,6 +147,7 @@ describe("source-watcher → semantic reference freshness", () => {
     expect(refsLargeAfter).not.toBeNull();
     expect(refsLargeAfter!.length).toBeGreaterThan(0);
     expect(refsLargeAfter!.some((loc) => loc.uri === tsxUri)).toBe(true);
+    expect(typeResolver.invalidations).toBe(1);
   });
 
   it("unrelated source file save does not reschedule open docs", async () => {
@@ -180,5 +184,6 @@ describe("source-watcher → semantic reference freshness", () => {
     });
 
     await expect(client.waitForDiagnostics(tsxUri, 200)).rejects.toThrow(/timed out/u);
+    expect(typeResolver.invalidations).toBe(0);
   });
 });

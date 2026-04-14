@@ -284,6 +284,7 @@ function registerWatchedFilesHandler(state: HandlerState): void {
     let hasSourceChange = false;
     let hasProjectConfigChange = false;
     const affectedWorkspaceRoots = new Set<string>();
+    const typeResolverInvalidationRoots = new Set<string>();
     const affectedSourceUris = new Set<string>();
     for (const change of params.changes) {
       const filePath = fileUrlToPath(change.uri);
@@ -310,11 +311,16 @@ function registerWatchedFilesHandler(state: HandlerState): void {
         hasSourceChange = true;
         if (isProjectConfigPath(filePath)) {
           hasProjectConfigChange = true;
+          typeResolverInvalidationRoots.add(deps.workspaceRoot);
         } else {
-          for (const uri of deps.semanticReferenceIndex.findUrisBySourceDependency(
+          const dependentUris = deps.semanticReferenceIndex.findUrisBySourceDependency(
             deps.workspaceRoot,
             filePath,
-          )) {
+          );
+          if (dependentUris.length > 0) {
+            typeResolverInvalidationRoots.add(deps.workspaceRoot);
+          }
+          for (const uri of dependentUris) {
             affectedSourceUris.add(uri);
           }
         }
@@ -330,6 +336,7 @@ function registerWatchedFilesHandler(state: HandlerState): void {
     }
     if (hasSourceChange) {
       for (const deps of affectedDeps) {
+        if (!typeResolverInvalidationRoots.has(deps.workspaceRoot)) continue;
         deps.typeResolver.invalidate(deps.workspaceRoot);
       }
       if (hasProjectConfigChange) {
