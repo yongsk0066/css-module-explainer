@@ -101,6 +101,44 @@ describe("hover protocol", () => {
     expect(value).toContain("font-size: 14px;");
   });
 
+  it("returns a selector hover for SCSS declarations", async () => {
+    client = createInProcessServer({
+      readStyleFile: (path) => (path.endsWith("Button.module.scss") ? BUTTON_SCSS : null),
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    const tsxUri = "file:///fake/workspace/src/Button.tsx";
+    const scssUri = "file:///fake/workspace/src/Button.module.scss";
+    client.didOpen({
+      textDocument: {
+        uri: tsxUri,
+        languageId: "typescriptreact",
+        version: 1,
+        text: BUTTON_TSX,
+      },
+    });
+    client.didOpen({
+      textDocument: {
+        uri: scssUri,
+        languageId: "scss",
+        version: 1,
+        text: BUTTON_SCSS,
+      },
+    });
+    await client.waitForDiagnostics(tsxUri);
+
+    const hover = await client.hover({
+      textDocument: { uri: scssUri },
+      position: { line: 1, character: 3 },
+    });
+    expect(hover).not.toBeNull();
+    const value = (hover!.contents as { value: string }).value;
+    expect(value).toContain("`.indicator`");
+    expect(value).toContain("References: 1 total.");
+    expect(value).toContain("color: red;");
+  });
+
   it("returns null on unknown class", async () => {
     client = createInProcessServer({
       readStyleFile: () => ".other { color: red; }",

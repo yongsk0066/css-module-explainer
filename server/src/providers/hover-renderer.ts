@@ -2,6 +2,7 @@ import { relative } from "node:path";
 import type { ClassExpressionHIR } from "../core/hir/source-types";
 import type { SelectorDeclHIR } from "../core/hir/style-types";
 import type { DynamicHoverExplanation } from "../core/query/resolve-ref";
+import type { SelectorUsageSummary } from "../core/query/read-selector-usage";
 import type { SelectorStyleDependencySummary } from "../core/query/read-selector-style-dependencies";
 
 export interface RenderArgs {
@@ -12,6 +13,14 @@ export interface RenderArgs {
   readonly styleDependenciesBySelector?: ReadonlyMap<string, SelectorStyleDependencySummary>;
   readonly workspaceRoot: string;
   readonly maxCandidates?: number;
+}
+
+export interface RenderSelectorHoverArgs {
+  readonly selector: SelectorDeclHIR;
+  readonly scssModulePath: string;
+  readonly usageSummary: SelectorUsageSummary;
+  readonly styleDependencies?: SelectorStyleDependencySummary;
+  readonly workspaceRoot: string;
 }
 
 /**
@@ -29,6 +38,21 @@ export function renderHover(args: RenderArgs): string | null {
   if (args.selectors.length === 0) return null;
   if (args.selectors.length === 1) return renderSingle(args, args.selectors[0]!);
   return renderMulti(args);
+}
+
+export function renderSelectorHover(args: RenderSelectorHoverArgs): string {
+  const location = formatLocation(
+    args.scssModulePath,
+    args.selector.range.start.line,
+    args.workspaceRoot,
+  );
+  const usageNote = renderSelectorUsageNote(args.usageSummary);
+  const incomingNote = renderStyleDependencyNote(args.styleDependencies, args.workspaceRoot);
+  const outgoingNote = renderOutgoingStyleDependencyNote(
+    args.styleDependencies,
+    args.workspaceRoot,
+  );
+  return `**\`.${args.selector.name}\`** — _${location}_${usageNote}\n\n\`\`\`scss\n${buildRule(args.selector)}\n\`\`\`${incomingNote}${outgoingNote}`;
 }
 
 function renderSingle(args: RenderArgs, selector: SelectorDeclHIR): string {
@@ -168,4 +192,36 @@ function renderStyleDependencyNote(
     );
   const suffix = summary.incoming.length > 5 ? `, …and ${summary.incoming.length - 5} more` : "";
   return `\n\n_Composed by: ${shown.join(", ")}${suffix}._`;
+}
+
+function renderOutgoingStyleDependencyNote(
+  summary: SelectorStyleDependencySummary | undefined,
+  workspaceRoot: string,
+): string {
+  if (!summary || summary.outgoing.length === 0) return "";
+
+  const shown = summary.outgoing
+    .slice(0, 5)
+    .map(
+      (outgoing) =>
+        `\`${outgoing.canonicalName}\` in \`${relative(workspaceRoot, outgoing.filePath) || outgoing.filePath}\``,
+    );
+  const suffix = summary.outgoing.length > 5 ? `, …and ${summary.outgoing.length - 5} more` : "";
+  return `\n\n_Composes: ${shown.join(", ")}${suffix}._`;
+}
+
+function renderSelectorUsageNote(summary: SelectorUsageSummary): string {
+  const parts = [`_References: ${summary.totalReferences} total`];
+  if (summary.totalReferences !== summary.directReferenceCount) {
+    parts.push(`${summary.directReferenceCount} direct`);
+  }
+  parts[0] = `${parts[0]}${parts.length > 1 ? ` (${parts.slice(1).join(", ")})` : ""}._`;
+  if (summary.hasExpandedReferences && !summary.hasStyleDependencyReferences) {
+    parts.push("_Expanded or dynamic references present._");
+  } else if (summary.hasExpandedReferences && summary.hasStyleDependencyReferences) {
+    parts.push("_Expanded/dynamic and composed-style references present._");
+  } else if (summary.hasStyleDependencyReferences) {
+    parts.push("_Composed-style references present._");
+  }
+  return `\n\n${parts.join("\n\n")}`;
 }

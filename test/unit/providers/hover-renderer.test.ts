@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { ClassExpressionHIR } from "../../../server/src/core/hir/source-types";
 import type { SelectorDeclHIR } from "../../../server/src/core/hir/style-types";
+import type { SelectorUsageSummary } from "../../../server/src/core/query/read-selector-usage";
 import type { SelectorStyleDependencySummary } from "../../../server/src/core/query/read-selector-style-dependencies";
-import { renderHover } from "../../../server/src/providers/hover-renderer";
+import { renderHover, renderSelectorHover } from "../../../server/src/providers/hover-renderer";
 
 const SCSS_PATH = "/fake/ws/src/Button.module.scss";
 
@@ -58,6 +59,22 @@ function selector(name: string, line: number, declarations: string): SelectorDec
     ruleRange: { start: { line, character: 0 }, end: { line: line + 3, character: 1 } },
     composes: [],
     nestedSafety: "flat",
+  };
+}
+
+function usageSummary(overrides: Partial<SelectorUsageSummary> = {}): SelectorUsageSummary {
+  return {
+    allSites: [],
+    directSites: [],
+    editableDirectSites: [],
+    exactSites: [],
+    inferredOrBetterSites: [],
+    totalReferences: 0,
+    directReferenceCount: 0,
+    hasExpandedReferences: false,
+    hasStyleDependencyReferences: false,
+    hasAnyReferences: false,
+    ...overrides,
   };
 }
 
@@ -205,5 +222,43 @@ describe("renderHover", () => {
 
     expect(markdown).toContain("Composed by:");
     expect(markdown).toContain("`card` in `src/Card.module.scss`");
+  });
+
+  it("renders selector hover usage and dependency context", () => {
+    const markdown = renderSelectorHover({
+      selector: selector("indicator", 11, "color: red;"),
+      scssModulePath: SCSS_PATH,
+      usageSummary: usageSummary({
+        totalReferences: 3,
+        directReferenceCount: 1,
+        hasExpandedReferences: true,
+        hasStyleDependencyReferences: true,
+        hasAnyReferences: true,
+      }),
+      styleDependencies: {
+        incoming: [
+          {
+            canonicalName: "card",
+            filePath: "/fake/ws/src/Card.module.scss",
+            reason: "crossFileComposes",
+          },
+        ],
+        outgoing: [
+          {
+            canonicalName: "base",
+            filePath: "/fake/ws/src/Base.module.scss",
+            reason: "crossFileComposes",
+          },
+        ],
+      },
+      workspaceRoot: "/fake/ws",
+    });
+
+    expect(markdown).toContain("References: 3 total (1 direct).");
+    expect(markdown).toContain("Expanded/dynamic and composed-style references present.");
+    expect(markdown).toContain("Composed by:");
+    expect(markdown).toContain("Composes:");
+    expect(markdown).toContain("`card` in `src/Card.module.scss`");
+    expect(markdown).toContain("`base` in `src/Base.module.scss`");
   });
 });
