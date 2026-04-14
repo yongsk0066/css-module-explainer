@@ -7,14 +7,23 @@ const ROOT = join(fileURLToPath(new URL("../../..", import.meta.url)));
 const PROVIDERS_SRC = join(ROOT, "server/src/providers");
 
 describe("provider contracts", () => {
-  it("does not import binder internals directly from provider implementation files", () => {
+  it("does not import disallowed core internals directly from provider implementation files", () => {
     const files = listFiles(PROVIDERS_SRC)
       .filter((file) => file.endsWith(".ts"))
       .filter((file) => !file.endsWith("provider-deps.ts"));
+    const forbidden = [
+      "/core/binder/",
+      "/core/indexing/",
+      "/core/semantic/",
+      "/core/ts/",
+      "/core/abstract-value/",
+    ];
 
     const hits = files.flatMap((file) => {
       const text = readFileSync(file, "utf8");
-      return text.includes("/core/binder/") ? [`${relative(ROOT, file)} -> /core/binder/`] : [];
+      return forbidden
+        .filter((needle) => text.includes(needle))
+        .map((needle) => `${relative(ROOT, file)} -> ${needle}`);
     });
 
     expect(hits).toEqual([]);
