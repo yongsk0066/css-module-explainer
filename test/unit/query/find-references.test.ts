@@ -7,7 +7,7 @@ import {
   findSelectorReferenceSites,
   hasNonDirectSelectorReferenceSites,
 } from "../../../server/src/core/query/find-references";
-import type { SemanticReferenceSite } from "../../../server/src/core/semantic/reference-index";
+import type { SemanticReferenceSite } from "../../../server/src/core/semantic/reference-types";
 import { semanticSiteAt } from "../../_fixtures/test-helpers";
 
 describe("findSelectorReferenceSites", () => {

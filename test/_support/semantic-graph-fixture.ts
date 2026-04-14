@@ -1,12 +1,15 @@
-import type { SourceDocumentHIR, SymbolRefClassExpressionHIR } from "../hir/source-types";
-import type { StyleDocumentHIR } from "../hir/style-types";
+import type {
+  SourceDocumentHIR,
+  SymbolRefClassExpressionHIR,
+} from "../../server/src/core/hir/source-types";
+import type { StyleDocumentHIR } from "../../server/src/core/hir/style-types";
 import {
   exactClassValue,
   prefixClassValue,
   type AbstractClassValue,
-} from "../abstract-value/class-value-domain";
-import { projectAbstractValueSelectors } from "../abstract-value/selector-projection";
-import type { FlowResolution } from "../flow/lattice";
+} from "../../server/src/core/abstract-value/class-value-domain";
+import { projectAbstractValueSelectors } from "../../server/src/core/abstract-value/selector-projection";
+import type { FlowResolution } from "../../server/src/core/flow/lattice";
 import type {
   DocumentNode,
   RefNode,
@@ -17,7 +20,7 @@ import type {
   SemanticNode,
   StyleImportNode,
   UtilityBindingNode,
-} from "./graph-types";
+} from "../../server/src/core/semantic/graph-types";
 
 interface GraphBuilderState {
   readonly nodes: Map<string, SemanticNode>;

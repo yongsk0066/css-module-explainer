@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildSourceSemanticGraph,
   buildStyleSemanticGraph,
-} from "../../../server/src/core/semantic/graph-builder";
+} from "../../_support/semantic-graph-fixture";
 import type {
   SemanticEdge,
   SemanticGraph,

@@ -1,26 +1,21 @@
 import { pathToFileURL } from "node:url";
-import type { ClassRefOrigin, Range } from "@css-module-explainer/shared";
-import type { AbstractClassValue } from "../abstract-value/class-value-domain";
-import { deriveReferenceExpansion, rankCertainty, type EdgeCertainty } from "./certainty";
-import type { EdgeReason } from "./provenance";
-import type { RefNode, SelectorNode, SemanticGraph, SemanticNode } from "./graph-types";
-
-export interface SemanticReferenceSite {
-  readonly refId: string;
-  readonly selectorId: string;
-  readonly filePath: string;
-  readonly uri: string;
-  readonly range: Range;
-  readonly origin: ClassRefOrigin;
-  readonly scssModulePath: string;
-  readonly selectorFilePath: string;
-  readonly canonicalName: string;
-  readonly className: string;
-  readonly selectorCertainty: EdgeCertainty;
-  readonly reason: EdgeReason;
-  readonly expansion: "direct" | "expanded";
-  readonly abstractValue?: AbstractClassValue;
-}
+import type { AbstractClassValue } from "../../server/src/core/abstract-value/class-value-domain";
+import {
+  deriveReferenceExpansion,
+  rankCertainty,
+  type EdgeCertainty,
+} from "../../server/src/core/semantic/certainty";
+import type { EdgeReason } from "../../server/src/core/semantic/provenance";
+import {
+  type ReferenceQueryOptions,
+  type SemanticReferenceSite,
+} from "../../server/src/core/semantic/reference-types";
+import type {
+  RefNode,
+  SelectorNode,
+  SemanticGraph,
+  SemanticNode,
+} from "../../server/src/core/semantic/graph-types";
 
 export interface SemanticRefTarget {
   readonly refId: string;
@@ -30,10 +25,6 @@ export interface SemanticRefTarget {
   readonly selectorCertainty: EdgeCertainty;
   readonly reason: EdgeReason;
   readonly abstractValue?: AbstractClassValue;
-}
-
-export interface ReferenceQueryOptions {
-  readonly minimumSelectorCertainty?: EdgeCertainty;
 }
 
 export interface SemanticReferenceIndex {

@@ -10,7 +10,7 @@ import type { TypeResolver } from "../ts/type-resolver";
 import { readSourceExpressionResolution } from "../query/read-source-expression-resolution";
 import { deriveReferenceExpansion, type EdgeCertainty } from "./certainty";
 import type { RefNode } from "./graph-types";
-import { type ReferenceQueryOptions, type SemanticReferenceSite } from "./reference-index";
+import { type ReferenceQueryOptions, type SemanticReferenceSite } from "./reference-types";
 import type { EdgeReason } from "./provenance";
 
 export interface SemanticReferenceCollectionContext {

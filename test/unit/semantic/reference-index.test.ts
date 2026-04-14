@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildSourceSemanticGraph } from "../../../server/src/core/semantic/graph-builder";
-import { buildSemanticReferenceIndex } from "../../../server/src/core/semantic/reference-index";
+import { buildSourceSemanticGraph } from "../../_support/semantic-graph-fixture";
+import { buildSemanticReferenceIndex } from "../../_support/semantic-reference-index-fixture";
 import { loadSourceScenario, loadStyleScenario } from "../../_fixtures/scenario-corpus";
 
 describe("buildSemanticReferenceIndex", () => {
