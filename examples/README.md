@@ -42,18 +42,44 @@ Then restart VS Code and open this folder normally.
 Every scenario lives under `src/scenarios/<nn-name>/` and is
 listed in `src/App.tsx`'s sidebar.
 
+### Basics
+
 | # | Folder | Pattern |
 |---|---|---|
 | 01 | `01-basic/` | Single binding, string + object arg, multi-arg mix |
-| 02 | `02-multi-binding/` | Two bindings (Card + Button) in one file, with `&`-nested selectors |
 | 03 | `03-multiline/` | Multi-line cx call with conditionals + spreads |
-| 04 | `04-dynamic/` | Template literal `` cx(`btn-${variant}`) `` |
-| 05 | `05-global-local/` | `:global` / `:local` selectors |
+| 09 | `09-large/` | Stress test: 100+ cx() calls |
+
+### Binding
+
+| # | Folder | Pattern |
+|---|---|---|
+| 02 | `02-multi-binding/` | Two bindings (Card + Button) in one file |
 | 06 | `06-alias/` | `import cn from 'classnames/bind'` |
 | 07 | `07-function-scoped/` | cx binding declared inside a function body |
-| 08 | `08-css-only/` | `.module.css` instead of `.module.scss` |
-| 09 | `09-large/` | Stress test: 100+ cx() calls |
+| 13 | `13-shadowing/` | Imported `cx` and `styles` shadowed by local bindings |
+
+### Dynamic
+
+| # | Folder | Pattern |
+|---|---|---|
+| 04 | `04-dynamic/` | Template literal `` cx(`btn-${variant}`) `` |
 | 10 | `10-clsx/` | `clsx(styles.btn, ...)` and bare `<div className={styles.x}>` |
+| 14 | `14-non-finite-dynamic/` | finite set, prefix, and function-derived dynamic resolution |
+
+### Style-side
+
+| # | Folder | Pattern |
+|---|---|---|
+| 05 | `05-global-local/` | `:global` / `:local` selectors |
+| 12 | `12-nested-style-facts/` | `&.class`, plain nesting, and BEM suffix selector registration |
+
+### Resolution
+
+| # | Folder | Pattern |
+|---|---|---|
+| 08 | `08-css-only/` | `.module.css` instead of `.module.scss` |
+| 11 | `11-ts-path/` | `tsconfig.json` / `jsconfig.json` `compilerOptions.paths` |
 
 The directory structure is locked; each scenario sub-directory
 should drop into `src/scenarios/` without layout changes. New
@@ -79,6 +105,19 @@ through them whenever you update the provider layer.
   rename `.btn-primary` — the `` cx(`btn-${variant}`) ``
   template literal is NOT rewritten. Find References still
   lists the template call site.
+- **Nested style fact registration**: in `12-nested-style-facts`,
+  hover or jump from `type-card`, `compact`, `body`, `disabled`,
+  `item--primary`, and `item__icon`. Each token should resolve to
+  the selector that actually introduced it, not to an inherited
+  parent class from `&` expansion.
+- **Shadowing stays local**: in `13-shadowing`, hover on the outer
+  `cx("panel")` and `styles.title` — they should resolve. Hover on
+  the inner shadowed `cx("panel")` and shadowed `styles.badge` —
+  they should not resolve as CSS Module references.
+- **Dynamic certainty tiers**: in `14-non-finite-dynamic`, compare
+  hover on `size`, `"btn-" + variant`, and `resolveStatusClass(status)`.
+  The sandbox should expose finite-set, prefix, and possible/top-like
+  behavior in one place.
 - **Unsaved SCSS edits reflect in diagnostics immediately**: open
   any scenario's `.module.scss`, add or remove a class without
   saving, and any diagnostic in the matching `.tsx` file updates

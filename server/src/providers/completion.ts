@@ -1,7 +1,7 @@
 import { CompletionItemKind, type CompletionItem } from "vscode-languageserver/node";
 import type { AnalysisEntry } from "../core/indexing/document-analysis-cache";
 import type { SelectorDeclHIR } from "../core/hir/style-types";
-import { hasAnyStyleImport } from "./cursor-dispatch";
+import { getBindingDeclById, resolveBindingAtOffset } from "../core/binder/source-binding-graph";
 import type { CursorParams, ProviderDeps } from "./provider-deps";
 import { wrapHandler } from "./_wrap-handler";
 
@@ -9,14 +9,12 @@ import { wrapHandler } from "./_wrap-handler";
  * Handle `textDocument/completion` inside a class-util call.
  *
  * Pipeline:
- * 1. Fast-path on `hasAnyStyleImport` — file imports something
- *    we care about (`.module.*` or `classnames/bind`).
- * 2. Fetch the single AnalysisEntry. Bail if it has neither
+ * 1. Fetch the single AnalysisEntry. Bail if it has neither
  *    `bindings` (cx pipeline) nor `stylesBindings` (clsx path).
- * 3. Ask `findCompletionContext` for the SCSS module whose
+ * 2. Ask `findCompletionContext` for the SCSS module whose
  *    style document should feed completions at the cursor. It walks
  *    cx bindings first, then class-util imports.
- * 4. Convert every selector in that style document to a CompletionItem.
+ * 3. Convert every selector in that style document to a CompletionItem.
  */
 export const handleCompletion = wrapHandler<CursorParams, [], CompletionItem[] | null>(
   "completion",
@@ -25,8 +23,6 @@ export const handleCompletion = wrapHandler<CursorParams, [], CompletionItem[] |
 );
 
 function computeCompletion(params: CursorParams, deps: ProviderDeps): CompletionItem[] | null {
-  if (!hasAnyStyleImport(params.content)) return null;
-
   const entry = deps.analysisCache.get(
     params.documentUri,
     params.content,
@@ -41,7 +37,7 @@ function computeCompletion(params: CursorParams, deps: ProviderDeps): Completion
   }
 
   const textBefore = getTextBefore(params.content, params.line, params.character);
-  const ctx = findCompletionContext(entry, textBefore, params.line);
+  const ctx = findCompletionContext(entry, textBefore);
   if (!ctx) return null;
 
   const styleDocument = deps.styleDocumentForPath(ctx.scssModulePath);
@@ -67,14 +63,21 @@ interface CompletionContext {
  *
  * First hit wins; returns `null` when nothing matches.
  */
-function findCompletionContext(
-  entry: AnalysisEntry,
-  textBefore: string,
-  line: number,
-): CompletionContext | null {
+function findCompletionContext(entry: AnalysisEntry, textBefore: string): CompletionContext | null {
   for (const binding of entry.sourceDocument.utilityBindings) {
     if (binding.kind !== "classnamesBind") continue;
-    if (line < binding.scope.startLine || line > binding.scope.endLine) continue;
+    const callOffset = findOpenCallOffset(textBefore, binding.localName);
+    if (callOffset === null) continue;
+    const resolution = resolveBindingAtOffset(
+      entry.sourceBindingGraph,
+      binding.localName,
+      callOffset,
+    );
+    const decl = resolution
+      ? getBindingDeclById(entry.sourceBindingGraph, resolution.declId)
+      : null;
+    if (!decl) continue;
+    if (binding.bindingDeclId !== decl.id) continue;
     if (isInsideCall(textBefore, binding.localName)) {
       return { scssModulePath: binding.scssModulePath };
     }
@@ -86,6 +89,17 @@ function findCompletionContext(
   if (classUtilBindings.length === 0 || entry.sourceDocument.styleImports.length === 0) return null;
 
   for (const binding of classUtilBindings) {
+    const callOffset = findOpenCallOffset(textBefore, binding.localName);
+    if (callOffset === null) continue;
+    const resolution = resolveBindingAtOffset(
+      entry.sourceBindingGraph,
+      binding.localName,
+      callOffset,
+    );
+    const decl = resolution
+      ? getBindingDeclById(entry.sourceBindingGraph, resolution.declId)
+      : null;
+    if (!decl || binding.bindingDeclId !== decl.id) continue;
     if (!isInsideCall(textBefore, binding.localName)) continue;
     // Check if textBefore ends with `<varName>.` or `<varName>.<partial>`
     // for any known style import. Uses simple string check instead of
@@ -178,4 +192,12 @@ function getTextBefore(content: string, line: number, character: number): string
     offset = nl + 1;
   }
   return content.slice(0, offset + character);
+}
+
+function findOpenCallOffset(textBefore: string, callName: string): number | null {
+  const needle = `${callName}(`;
+  const callIdx = textBefore.lastIndexOf(needle);
+  if (callIdx === -1) return null;
+  if (!isInsideCall(textBefore, callName)) return null;
+  return callIdx;
 }

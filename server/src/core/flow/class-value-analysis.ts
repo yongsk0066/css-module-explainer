@@ -1,8 +1,13 @@
 import ts from "typescript";
 import type { Range } from "@css-module-explainer/shared";
+import {
+  concatenateClassValues,
+  concatenateWithUnknownRight,
+} from "../abstract-value/class-value-domain";
 import { buildFlowSlice } from "./flow-slice";
 import {
   exactValue,
+  markBranched,
   mergeValues,
   toFlowResolution,
   type ClassValueLattice,
@@ -101,8 +106,32 @@ function resolveExpression(
   if (ts.isConditionalExpression(expression)) {
     const whenTrue = resolveExpression(expression.whenTrue, env);
     const whenFalse = resolveExpression(expression.whenFalse, env);
-    const merged = mergeValues(whenTrue, whenFalse);
-    return merged ? { values: merged.values, branched: true } : null;
+    return markBranched(mergeValues(whenTrue, whenFalse));
+  }
+
+  if (
+    ts.isBinaryExpression(expression) &&
+    expression.operatorToken.kind === ts.SyntaxKind.PlusToken
+  ) {
+    const left = resolveExpression(expression.left, env);
+    const right = resolveExpression(expression.right, env);
+
+    if (left && right) {
+      return {
+        abstractValue: concatenateClassValues(left.abstractValue, right.abstractValue),
+        reason:
+          left.reason === "flowBranch" || right.reason === "flowBranch"
+            ? "flowBranch"
+            : "flowLiteral",
+      };
+    }
+
+    if (left) {
+      return {
+        abstractValue: concatenateWithUnknownRight(left.abstractValue),
+        reason: left.reason,
+      };
+    }
   }
 
   return null;
@@ -129,7 +158,5 @@ function mergeEnvs(base: FlowEnv, left: FlowState, right: FlowState): FlowState 
 }
 
 function cloneEnv(env: FlowEnv): FlowEnv {
-  return new Map(
-    Array.from(env.entries(), ([key, value]) => [key, { ...value, values: [...value.values] }]),
-  );
+  return new Map(Array.from(env.entries(), ([key, value]) => [key, { ...value }]));
 }

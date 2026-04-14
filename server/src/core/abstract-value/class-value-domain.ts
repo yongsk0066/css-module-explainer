@@ -1,0 +1,203 @@
+export type AbstractClassValue =
+  | BottomClassValue
+  | ExactClassValue
+  | FiniteSetClassValue
+  | PrefixClassValue
+  | TopClassValue;
+
+export interface BottomClassValue {
+  readonly kind: "bottom";
+}
+
+export interface ExactClassValue {
+  readonly kind: "exact";
+  readonly value: string;
+}
+
+export interface FiniteSetClassValue {
+  readonly kind: "finiteSet";
+  readonly values: readonly string[];
+}
+
+export interface PrefixClassValue {
+  readonly kind: "prefix";
+  readonly prefix: string;
+}
+
+export interface TopClassValue {
+  readonly kind: "top";
+}
+
+export const BOTTOM_CLASS_VALUE: BottomClassValue = { kind: "bottom" };
+export const TOP_CLASS_VALUE: TopClassValue = { kind: "top" };
+
+export function exactClassValue(value: string): ExactClassValue {
+  return { kind: "exact", value };
+}
+
+export function finiteSetClassValue(values: readonly string[]): AbstractClassValue {
+  const normalized = normalizeValues(values);
+  if (normalized.length === 0) return BOTTOM_CLASS_VALUE;
+  if (normalized.length === 1) return exactClassValue(normalized[0]!);
+  return { kind: "finiteSet", values: normalized };
+}
+
+export function prefixClassValue(prefix: string): PrefixClassValue {
+  return { kind: "prefix", prefix };
+}
+
+export function concatenateClassValues(
+  left: AbstractClassValue,
+  right: AbstractClassValue,
+): AbstractClassValue {
+  if (left.kind === "bottom" || right.kind === "bottom") return BOTTOM_CLASS_VALUE;
+  if (left.kind === "top" || right.kind === "top") return TOP_CLASS_VALUE;
+
+  if (left.kind === "exact") {
+    switch (right.kind) {
+      case "exact":
+        return exactClassValue(left.value + right.value);
+      case "finiteSet":
+        return finiteSetClassValue(right.values.map((value) => left.value + value));
+      case "prefix":
+        return prefixClassValue(left.value + right.prefix);
+      default:
+        right satisfies never;
+        return TOP_CLASS_VALUE;
+    }
+  }
+
+  if (right.kind === "exact") {
+    switch (left.kind) {
+      case "finiteSet":
+        return finiteSetClassValue(left.values.map((value) => value + right.value));
+      case "prefix":
+        return TOP_CLASS_VALUE;
+      default:
+        left satisfies never;
+        return TOP_CLASS_VALUE;
+    }
+  }
+
+  if (left.kind === "finiteSet" && right.kind === "finiteSet") {
+    return finiteSetClassValue(
+      left.values.flatMap((leftValue) => right.values.map((rightValue) => leftValue + rightValue)),
+    );
+  }
+
+  return TOP_CLASS_VALUE;
+}
+
+export function concatenateWithUnknownRight(value: AbstractClassValue): AbstractClassValue {
+  switch (value.kind) {
+    case "bottom":
+      return BOTTOM_CLASS_VALUE;
+    case "exact":
+      return value.value.length > 0 ? prefixClassValue(value.value) : TOP_CLASS_VALUE;
+    case "finiteSet": {
+      const prefix = longestCommonPrefix(value.values);
+      return prefix.length > 0 ? prefixClassValue(prefix) : TOP_CLASS_VALUE;
+    }
+    case "prefix":
+      return value;
+    case "top":
+      return TOP_CLASS_VALUE;
+    default:
+      value satisfies never;
+      return TOP_CLASS_VALUE;
+  }
+}
+
+export function joinClassValues(
+  left: AbstractClassValue,
+  right: AbstractClassValue,
+): AbstractClassValue {
+  if (left.kind === "bottom") return right;
+  if (right.kind === "bottom") return left;
+  if (left.kind === "top" || right.kind === "top") return TOP_CLASS_VALUE;
+
+  if (left.kind === "prefix" && right.kind === "prefix") {
+    return left.prefix === right.prefix ? left : TOP_CLASS_VALUE;
+  }
+
+  if (left.kind === "prefix") {
+    switch (right.kind) {
+      case "exact":
+      case "finiteSet":
+        return joinPrefixWithValue(left, right);
+      case "prefix":
+        return TOP_CLASS_VALUE;
+      default:
+        right satisfies never;
+        return TOP_CLASS_VALUE;
+    }
+  }
+
+  if (right.kind === "prefix") {
+    switch (left.kind) {
+      case "exact":
+      case "finiteSet":
+        return joinPrefixWithValue(right, left);
+      default:
+        left satisfies never;
+        return TOP_CLASS_VALUE;
+    }
+  }
+
+  return finiteSetClassValue([...toFiniteValues(left), ...toFiniteValues(right)]);
+}
+
+export function enumerateFiniteClassValues(value: AbstractClassValue): readonly string[] | null {
+  switch (value.kind) {
+    case "bottom":
+      return [];
+    case "exact":
+      return [value.value];
+    case "finiteSet":
+      return value.values;
+    case "prefix":
+    case "top":
+      return null;
+    default:
+      value satisfies never;
+      return null;
+  }
+}
+
+function joinPrefixWithValue(
+  prefixValue: PrefixClassValue,
+  other: Exclude<AbstractClassValue, BottomClassValue | PrefixClassValue | TopClassValue>,
+): AbstractClassValue {
+  const finiteValues = toFiniteValues(other);
+  return finiteValues.every((value) => value.startsWith(prefixValue.prefix))
+    ? prefixValue
+    : TOP_CLASS_VALUE;
+}
+
+function toFiniteValues(
+  value: Exclude<AbstractClassValue, BottomClassValue | PrefixClassValue | TopClassValue>,
+): readonly string[] {
+  return value.kind === "exact" ? [value.value] : value.values;
+}
+
+function normalizeValues(values: readonly string[]): readonly string[] {
+  return Array.from(new Set(values)).toSorted();
+}
+
+function longestCommonPrefix(values: readonly string[]): string {
+  if (values.length === 0) return "";
+  let prefix = values[0]!;
+  for (let index = 1; index < values.length && prefix.length > 0; index++) {
+    const value = values[index]!;
+    let matchLength = 0;
+    while (
+      matchLength < prefix.length &&
+      matchLength < value.length &&
+      prefix[matchLength] === value[matchLength]
+    ) {
+      matchLength++;
+    }
+    prefix = prefix.slice(0, matchLength);
+  }
+  return prefix;
+}

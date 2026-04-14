@@ -14,15 +14,6 @@ export interface SourceExpressionContext {
 }
 
 /**
- * Fast-path predicate: does this document reference any CSS
- * Module? Matches either `*.module.*` imports or
- * `classnames/bind` usage.
- */
-export function hasAnyStyleImport(content: string): boolean {
-  return content.includes(".module.") || content.includes("classnames/bind");
-}
-
-/**
  * Unified front stage for every source-expression-based provider.
  *
  * Searches `entry.sourceDocument.classExpressions` for the
@@ -34,8 +25,6 @@ export function findSourceExpressionContextAtCursor(
   params: CursorParams,
   deps: ProviderDeps,
 ): SourceExpressionContext | null {
-  if (!hasAnyStyleImport(params.content)) return null;
-
   const entry = deps.analysisCache.get(
     params.documentUri,
     params.content,
@@ -44,9 +33,7 @@ export function findSourceExpressionContextAtCursor(
   );
   if (entry.sourceDocument.classExpressions.length === 0) return null;
 
-  const expression = entry.sourceDocument.classExpressions.find((candidate) =>
-    rangeContains(candidate.range, params.line, params.character),
-  );
+  const expression = findMostSpecificExpressionAtCursor(entry, params.line, params.character);
   if (!expression) return null;
 
   const styleDocument = resolveStyleDocument(deps, expression.scssModulePath);
@@ -67,6 +54,35 @@ export function withSourceExpressionAtCursor<T>(
 
 function resolveStyleDocument(deps: ProviderDeps, scssModulePath: string): StyleDocumentHIR | null {
   return deps.styleDocumentForPath(scssModulePath);
+}
+
+function findMostSpecificExpressionAtCursor(
+  entry: AnalysisEntry,
+  line: number,
+  character: number,
+): ClassExpressionHIR | null {
+  let best: ClassExpressionHIR | null = null;
+
+  for (const candidate of entry.sourceDocument.classExpressions) {
+    if (!rangeContains(candidate.range, line, character)) continue;
+    if (!best || isMoreSpecificRange(candidate.range, best.range)) {
+      best = candidate;
+    }
+  }
+
+  return best;
+}
+
+function isMoreSpecificRange(
+  left: ClassExpressionHIR["range"],
+  right: ClassExpressionHIR["range"],
+): boolean {
+  if (left.start.line !== right.start.line) return left.start.line > right.start.line;
+  if (left.start.character !== right.start.character) {
+    return left.start.character > right.start.character;
+  }
+  if (left.end.line !== right.end.line) return left.end.line < right.end.line;
+  return left.end.character < right.end.character;
 }
 
 export type { CursorParams, ProviderDeps } from "./provider-deps";

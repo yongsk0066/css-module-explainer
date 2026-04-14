@@ -1,4 +1,6 @@
-import type { CxBinding, StyleImport } from "@css-module-explainer/shared";
+import type { StyleImport } from "@css-module-explainer/shared";
+import type { SourceBinderResult } from "../../server/src/core/binder/scope-types";
+import type { ResolvedCxBinding } from "../../server/src/core/cx/resolved-bindings";
 import { buildSourceDocument } from "../../server/src/core/hir/builders/ts-source-adapter";
 import {
   makeLiteralClassExpression,
@@ -35,12 +37,14 @@ type SymbolRefExpressionSpec = {
   readonly rawReference: string;
   readonly rootName?: string;
   readonly pathSegments?: readonly string[];
+  readonly rootBindingDeclId?: string;
   readonly range: ClassExpressionHIR["range"];
 };
 
 type StyleAccessExpressionSpec = {
   readonly kind: "styleAccess";
   readonly scssModulePath: string;
+  readonly bindingDeclId?: string;
   readonly className: string;
   readonly accessPath?: readonly string[];
   readonly range: ClassExpressionHIR["range"];
@@ -54,7 +58,7 @@ export type TestClassExpressionSpec =
 
 export function buildClassExpressions(args: {
   readonly filePath: string;
-  readonly bindings: readonly CxBinding[];
+  readonly bindings: readonly ResolvedCxBinding[];
   readonly stylesBindings?: ReadonlyMap<string, StyleImport>;
   readonly classUtilNames?: readonly string[];
   readonly expressions: readonly TestClassExpressionSpec[];
@@ -64,17 +68,19 @@ export function buildClassExpressions(args: {
 
 export function buildSourceDocumentFixture(args: {
   readonly filePath: string;
-  readonly bindings: readonly CxBinding[];
+  readonly bindings: readonly ResolvedCxBinding[];
   readonly stylesBindings?: ReadonlyMap<string, StyleImport>;
   readonly classUtilNames?: readonly string[];
   readonly expressions: readonly TestClassExpressionSpec[];
+  readonly sourceBinder?: SourceBinderResult;
 }): SourceDocumentHIR {
   return buildSourceDocument({
     filePath: args.filePath,
-    bindings: args.bindings,
+    cxBindings: args.bindings,
     stylesBindings: args.stylesBindings ?? new Map(),
     classUtilNames: args.classUtilNames ?? [],
     classExpressions: args.expressions.map(toClassExpression),
+    sourceBinder: args.sourceBinder,
   });
 }
 
@@ -109,12 +115,14 @@ function toClassExpression(expression: TestClassExpressionSpec, index: number): 
         rootName,
         pathSegments,
         expression.range,
+        expression.rootBindingDeclId,
       );
     }
     case "styleAccess":
       return makeStyleAccessClassExpression(
         id,
         expression.scssModulePath,
+        expression.bindingDeclId ?? "synthetic-style-import-decl:test",
         expression.className,
         expression.accessPath ?? [expression.className],
         expression.range,

@@ -2,13 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   buildSourceSemanticGraph,
   buildStyleSemanticGraph,
-} from "../../../server/src/core/semantic/graph-builder";
+} from "../../_support/semantic-graph-fixture";
 import type {
   SemanticEdge,
   SemanticGraph,
   SemanticNode,
-} from "../../../server/src/core/semantic/graph-types";
+} from "../../_support/semantic-graph-types";
 import { loadSourceScenario, loadStyleScenario } from "../../_fixtures/scenario-corpus";
+import { buildSourceDocumentFixture } from "../../_fixtures/source-documents";
 
 describe("buildStyleSemanticGraph", () => {
   it("emits canonical selector nodes plus alias-view edges for camelCase style docs", () => {
@@ -70,7 +71,12 @@ describe("buildSourceSemanticGraph", () => {
       styleDocumentsByPath: new Map([[styleScenario.filePath, styleScenario.styleDocument]]),
       resolveSymbolValues: (ref) =>
         ref.rootName === "size"
-          ? { values: ["sm", "md", "lg"], certainty: "inferred", reason: "typeUnion" }
+          ? {
+              abstractValue: { kind: "finiteSet", values: ["lg", "md", "sm"] },
+              values: ["sm", "md", "lg"],
+              certainty: "inferred",
+              reason: "typeUnion",
+            }
           : null,
     });
 
@@ -80,24 +86,28 @@ describe("buildSourceSemanticGraph", () => {
         {
           reason: "literal",
           certainty: "exact",
+          abstractValue: { kind: "exact", value: "button" },
           from: "class-expr:0",
           to: `selector:${styleScenario.filePath}:button`,
         },
         {
           reason: "typeUnion",
-          certainty: "inferred",
+          certainty: "exact",
+          abstractValue: { kind: "finiteSet", values: ["lg", "md", "sm"] },
           from: "class-expr:2",
           to: `selector:${styleScenario.filePath}:sm`,
         },
         {
           reason: "typeUnion",
-          certainty: "inferred",
+          certainty: "exact",
+          abstractValue: { kind: "finiteSet", values: ["lg", "md", "sm"] },
           from: "class-expr:2",
           to: `selector:${styleScenario.filePath}:md`,
         },
         {
           reason: "typeUnion",
-          certainty: "inferred",
+          certainty: "exact",
+          abstractValue: { kind: "finiteSet", values: ["lg", "md", "sm"] },
           from: "class-expr:2",
           to: `selector:${styleScenario.filePath}:lg`,
         },
@@ -124,19 +134,86 @@ describe("buildSourceSemanticGraph", () => {
       edges: expect.arrayContaining([
         {
           reason: "templatePrefix",
-          certainty: "inferred",
+          certainty: "exact",
+          abstractValue: { kind: "prefix", prefix: "btn-" },
           from: "class-expr:0",
           to: `selector:${styleScenario.filePath}:btn-primary`,
         },
         {
           reason: "templatePrefix",
-          certainty: "inferred",
+          certainty: "exact",
+          abstractValue: { kind: "prefix", prefix: "btn-" },
           from: "class-expr:0",
           to: `selector:${styleScenario.filePath}:btn-secondary`,
         },
         {
           reason: "templatePrefix",
-          certainty: "inferred",
+          certainty: "exact",
+          abstractValue: { kind: "prefix", prefix: "btn-" },
+          from: "class-expr:0",
+          to: `selector:${styleScenario.filePath}:btn-danger`,
+        },
+      ]),
+    });
+  });
+
+  it("emits possible edges for top-valued symbol refs across the full selector universe", () => {
+    const styleScenario = loadStyleScenario({
+      id: "04-dynamic-style",
+      stylePath: "04-dynamic/DynamicKeys.module.scss",
+    });
+    const sourceDocument = buildSourceDocumentFixture({
+      filePath: "/fake/ws/src/App.tsx",
+      bindings: [],
+      stylesBindings: new Map(),
+      classUtilNames: [],
+      expressions: [
+        {
+          kind: "symbolRef",
+          origin: "cxCall",
+          rawReference: "key",
+          rootName: "key",
+          pathSegments: [],
+          range: {
+            start: { line: 1, character: 3 },
+            end: { line: 1, character: 6 },
+          },
+          scssModulePath: styleScenario.filePath,
+        },
+      ],
+    });
+
+    const graph = buildSourceSemanticGraph({
+      sourceDocument,
+      styleDocumentsByPath: new Map([[styleScenario.filePath, styleScenario.styleDocument]]),
+      resolveSymbolValues: () => ({
+        abstractValue: { kind: "top" },
+        values: [],
+        certainty: "possible",
+        reason: "flowBranch",
+      }),
+    });
+
+    expect(normalizeGraph(graph)).toMatchObject({
+      edges: expect.arrayContaining([
+        {
+          reason: "flowBranch",
+          certainty: "possible",
+          abstractValue: { kind: "top" },
+          from: "class-expr:0",
+          to: `selector:${styleScenario.filePath}:btn-primary`,
+        },
+        {
+          reason: "flowBranch",
+          certainty: "possible",
+          abstractValue: { kind: "top" },
+          from: "class-expr:0",
+          to: `selector:${styleScenario.filePath}:btn-secondary`,
+        },
+        {
+          reason: "flowBranch",
+          certainty: "possible",
+          abstractValue: { kind: "top" },
           from: "class-expr:0",
           to: `selector:${styleScenario.filePath}:btn-danger`,
         },
@@ -221,5 +298,6 @@ function normalizeEdge(edge: SemanticEdge): unknown {
     to: edge.to,
     reason: edge.reason,
     certainty: edge.certainty,
+    ...(edge.abstractValue ? { abstractValue: edge.abstractValue } : {}),
   };
 }

@@ -12,6 +12,7 @@ export interface SourceDocumentHIR extends HirDocumentBase {
 export interface StyleImportBindingHIR extends HirNodeBase {
   readonly kind: "styleImport";
   readonly localName: string;
+  readonly bindingDeclId: string;
   readonly resolved: StyleImport;
 }
 
@@ -21,15 +22,13 @@ export interface ClassnamesBindUtilityBindingHIR extends HirNodeBase {
   readonly stylesLocalName: string;
   readonly scssModulePath: string;
   readonly classNamesImportName: string;
-  readonly scope: {
-    readonly startLine: number;
-    readonly endLine: number;
-  };
+  readonly bindingDeclId: string;
 }
 
 export interface ClassUtilBindingHIR extends HirNodeBase {
   readonly kind: "classUtil";
   readonly localName: string;
+  readonly bindingDeclId: string;
 }
 
 export type UtilityBindingHIR = ClassnamesBindUtilityBindingHIR | ClassUtilBindingHIR;
@@ -56,6 +55,7 @@ export interface SymbolRefClassExpressionHIR extends ClassExpressionBase {
   readonly rawReference: string;
   readonly rootName: string;
   readonly pathSegments: readonly string[];
+  readonly rootBindingDeclId?: string;
 }
 
 /**
@@ -67,6 +67,7 @@ export interface SymbolRefClassExpressionHIR extends ClassExpressionBase {
  */
 export interface StyleAccessClassExpressionHIR extends ClassExpressionBase {
   readonly kind: "styleAccess";
+  readonly bindingDeclId: string;
   readonly className: string;
   readonly accessPath: readonly string[];
 }
@@ -76,6 +77,8 @@ export type ClassExpressionHIR =
   | TemplateClassExpressionHIR
   | SymbolRefClassExpressionHIR
   | StyleAccessClassExpressionHIR;
+
+export type SourceExpressionKind = ClassExpressionHIR["kind"];
 
 export interface BuildSourceDocumentHIRArgs {
   readonly filePath: string;
@@ -88,15 +91,20 @@ export interface BuildSourceDocumentHIRArgs {
 export function makeStyleImportBinding(
   id: string,
   localName: string,
+  bindingDeclId: string,
   resolved: StyleImport,
 ): StyleImportBindingHIR {
   return resolved.kind === "missing"
-    ? { kind: "styleImport", id, localName, resolved, range: resolved.range }
-    : { kind: "styleImport", id, localName, resolved };
+    ? { kind: "styleImport", id, localName, bindingDeclId, resolved, range: resolved.range }
+    : { kind: "styleImport", id, localName, bindingDeclId, resolved };
 }
 
-export function makeClassUtilBinding(id: string, localName: string): ClassUtilBindingHIR {
-  return { kind: "classUtil", id, localName };
+export function makeClassUtilBinding(
+  id: string,
+  localName: string,
+  bindingDeclId: string,
+): ClassUtilBindingHIR {
+  return { kind: "classUtil", id, localName, bindingDeclId };
 }
 
 export function makeSourceDocumentHIR(args: BuildSourceDocumentHIRArgs): SourceDocumentHIR {
@@ -139,6 +147,7 @@ export function makeSymbolRefClassExpression(
   rootName: string,
   pathSegments: readonly string[],
   range: Range,
+  rootBindingDeclId?: string,
 ): SymbolRefClassExpressionHIR {
   return {
     kind: "symbolRef",
@@ -149,12 +158,14 @@ export function makeSymbolRefClassExpression(
     rootName,
     pathSegments,
     range,
+    ...(rootBindingDeclId ? { rootBindingDeclId } : {}),
   };
 }
 
 export function makeStyleAccessClassExpression(
   id: string,
   scssModulePath: string,
+  bindingDeclId: string,
   className: string,
   accessPath: readonly string[],
   range: Range,
@@ -164,6 +175,7 @@ export function makeStyleAccessClassExpression(
     id,
     origin: "styleAccess",
     scssModulePath,
+    bindingDeclId,
     className,
     accessPath,
     range,

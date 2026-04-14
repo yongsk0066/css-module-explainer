@@ -116,6 +116,30 @@ describe("renderHover", () => {
     expect(markdown).toContain("**2 matches** for `cx(size)`");
   });
 
+  it("renders abstract value summaries for dynamic explanations", () => {
+    const markdown = renderHover({
+      expression: symbolExpression,
+      scssModulePath: SCSS_PATH,
+      selectors: [
+        selector("small", 10, "font-size: 12px"),
+        selector("medium", 14, "font-size: 16px"),
+      ],
+      workspaceRoot: "/fake/ws",
+      dynamicExplanation: {
+        kind: "symbolRef",
+        subject: "size",
+        candidates: ["small", "medium"],
+        valueDomainLabel: "finite set (2)",
+        valueCertainty: "exact",
+        selectorCertainty: "inferred",
+        reasonLabel: "TypeScript string-literal union analysis",
+      },
+    });
+    expect(markdown).toContain("Value domain: finite set (2).");
+    expect(markdown).toContain("Value certainty: exact.");
+    expect(markdown).toContain("Selector certainty: inferred.");
+  });
+
   it("caps multi-match at MAX_CANDIDATES=10 with a tail summary", () => {
     const many = Array.from({ length: 15 }, (_, i) => selector(`item-${i}`, i + 1, "color: red"));
     const markdown = renderHover({

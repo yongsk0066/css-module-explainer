@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import ts from "typescript";
 import { CompletionItemKind } from "vscode-languageserver-protocol/node";
-import type { CxBinding } from "@css-module-explainer/shared";
+import type { CxBinding } from "../../../server/src/core/cx/cx-types";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
 import type { ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
@@ -16,18 +16,21 @@ const cx = classNames.bind(styles);
 const el = cx('
 `;
 
-const detectCxBindings = (sourceFile: ts.SourceFile): CxBinding[] => [
-  {
-    cxVarName: "cx",
-    stylesVarName: "styles",
-    scssModulePath: "/fake/ws/src/Button.module.scss",
-    classNamesImportName: "classNames",
-    scope: {
-      startLine: 0,
-      endLine: sourceFile.getLineAndCharacterOfPosition(sourceFile.getEnd()).line,
-    },
-  },
-];
+const detectCxBindings = (sourceFile: ts.SourceFile): CxBinding[] =>
+  sourceFile.text.includes("classnames/bind") && sourceFile.text.includes(".module.")
+    ? [
+        {
+          cxVarName: "cx",
+          stylesVarName: "styles",
+          scssModulePath: "/fake/ws/src/Button.module.scss",
+          classNamesImportName: "classNames",
+          bindingRange: {
+            start: { line: 3, character: 6 },
+            end: { line: 3, character: 8 },
+          },
+        },
+      ]
+    : [];
 
 function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
@@ -270,6 +273,28 @@ const el = clsx(styles.
     expect(result!.map((r) => r.label).toSorted()).toEqual(["active", "btn"]);
   });
 
+  it("returns null when a local binding shadows the imported clsx identifier", () => {
+    const SHADOWED_TSX = `
+import clsx from 'clsx';
+import styles from './Button.module.scss';
+function render(clsx: (value: unknown) => string) {
+  return clsx(styles.
+}
+`;
+    const result = handleCompletion(
+      {
+        documentUri: "file:///fake/ws/src/Button.tsx",
+        content: SHADOWED_TSX,
+        filePath: "/fake/ws/src/Button.tsx",
+        line: 4,
+        character: 21,
+        version: 1,
+      },
+      clsxMakeDeps(),
+    );
+    expect(result).toBeNull();
+  });
+
   it("returns class completions with aliased import (cn from 'clsx')", () => {
     const CN_TSX = `
 import cn from 'clsx';
@@ -388,7 +413,7 @@ const el = someFunc(styles.
     expect(result).toBeNull();
   });
 
-  it("returns null quickly for files with no clsx/classnames import (fast-path)", () => {
+  it("returns null for files whose analyzed entry has no relevant bindings", () => {
     const PLAIN_TSX = `
 import React from 'react';
 const el = <div className="foo">
@@ -404,8 +429,6 @@ const el = <div className="foo">
       },
       clsxMakeDeps(),
     );
-    // hasAnyStyleImport returns false, so computeCompletion exits
-    // before touching the AST or analysis cache.
     expect(result).toBeNull();
   });
 });

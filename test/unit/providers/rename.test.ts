@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { CxBinding } from "@css-module-explainer/shared";
+import type { CxBinding } from "../../../server/src/core/cx/cx-types";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
@@ -33,9 +33,11 @@ function semanticSite(args: {
   certainty?: "exact" | "inferred" | "possible";
   reason?: "literal" | "styleAccess" | "templatePrefix" | "typeUnion";
   origin?: "cxCall" | "styleAccess";
+  expansion?: "direct" | "expanded";
 }) {
   const certainty = args.certainty ?? "exact";
   const start = args.start ?? 10;
+  const expansion = args.expansion ?? (certainty === "exact" ? "direct" : "expanded");
   return {
     refId: `ref:${args.uri}:${args.line}:${start}`,
     selectorId: `selector:${SCSS_PATH}:${args.canonicalName}`,
@@ -52,7 +54,7 @@ function semanticSite(args: {
     className: args.className ?? args.canonicalName,
     certainty,
     reason: args.reason ?? "literal",
-    expansion: certainty === "exact" ? "direct" : "expanded",
+    expansion,
   } as const;
 }
 
@@ -269,7 +271,10 @@ const BINDING: CxBinding = {
   stylesVarName: "styles",
   scssModulePath: "/fake/src/Button.module.scss",
   classNamesImportName: "classNames",
-  scope: { startLine: 0, endLine: 100 },
+  bindingRange: {
+    start: { line: 2, character: 6 },
+    end: { line: 2, character: 8 },
+  },
 };
 
 function makeTsxDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
@@ -278,16 +283,16 @@ function makeTsxDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     sourceFileCache,
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
-    scanCxImports: (sourceFile) => ({
+    scanCxImports: (_sourceFile) => ({
       stylesBindings: new Map([
         ["styles", { kind: "resolved" as const, absolutePath: BINDING.scssModulePath }],
       ]),
       bindings: [
         {
           ...BINDING,
-          scope: {
-            startLine: 0,
-            endLine: sourceFile.getLineAndCharacterOfPosition(sourceFile.getEnd()).line,
+          bindingRange: {
+            start: { line: 2, character: 6 },
+            end: { line: 2, character: 8 },
           },
         },
       ],
@@ -350,16 +355,16 @@ describe("handlePrepareRename from TS/TSX", () => {
       sourceFileCache,
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
-      scanCxImports: (sourceFile) => ({
+      scanCxImports: (_sourceFile) => ({
         stylesBindings: new Map([
           ["styles", { kind: "resolved" as const, absolutePath: BINDING.scssModulePath }],
         ]),
         bindings: [
           {
             ...BINDING,
-            scope: {
-              startLine: 0,
-              endLine: sourceFile.getLineAndCharacterOfPosition(sourceFile.getEnd()).line,
+            bindingRange: {
+              start: { line: 2, character: 6 },
+              end: { line: 2, character: 8 },
             },
           },
         ],
@@ -518,7 +523,7 @@ describe("rename template corruption guard", () => {
     });
   }
 
-  it("rename template-literal class does NOT rewrite the template range", () => {
+  it("rename template-literal class is blocked when expanded references exist", () => {
     const semanticReferenceIndex = buildTemplateSemanticIndex();
     const result = handleRename(
       {
@@ -528,17 +533,7 @@ describe("rename template corruption guard", () => {
       },
       btnScssDeps({ semanticReferenceIndex }),
     );
-    expect(result).not.toBeNull();
-    const changes = result!.changes!;
-
-    // The SCSS selector must still be edited.
-    expect(changes[SCSS_URI]).toHaveLength(1);
-    expect(changes[SCSS_URI]![0]!.newText).toBe("btn-tiny");
-
-    // The template range R must NOT appear in the App.tsx edits.
-    // With the bug, this key would exist and point at TEMPLATE_RANGE,
-    // destroying `btn-${weight}`. With the fix, no App.tsx edits.
-    expect(changes[TEMPLATE_URI]).toBeUndefined();
+    expect(result).toBeNull();
   });
 
   it("SCSS-side prepareRename rejects class with template/variable references", () => {
@@ -577,6 +572,96 @@ describe("rename template corruption guard", () => {
             position: { line: 1, character: 3 },
           },
           btnScssDeps({ semanticReferenceIndex }),
+        ),
+      "Rename is blocked because inferred or expanded references would make the edit unsafe.",
+    );
+  });
+
+  it("SCSS-side prepareRename rejects exact-but-expanded semantic references", () => {
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    semanticReferenceIndex.record("file:///fake/src/App.tsx", [
+      semanticSite({
+        uri: "file:///fake/src/App.tsx",
+        canonicalName: "btn-small",
+        line: 5,
+        start: 10,
+        end: 30,
+        certainty: "exact",
+        reason: "templatePrefix",
+        expansion: "expanded",
+      }),
+    ]);
+    expectPrepareRenameBlocked(
+      () =>
+        handlePrepareRename(
+          {
+            textDocument: { uri: SCSS_URI },
+            position: { line: 1, character: 3 },
+          },
+          btnScssDeps({ semanticReferenceIndex }),
+        ),
+      "Rename is blocked because inferred or expanded references would make the edit unsafe.",
+    );
+  });
+
+  it("source-side prepareRename rejects classes with expanded semantic references", () => {
+    const semanticReferenceIndex = buildTemplateSemanticIndex();
+    const sourceFileCache = new SourceFileCache({ max: 10 });
+    const analysisCache = new DocumentAnalysisCache({
+      sourceFileCache,
+      fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
+      scanCxImports: (_sourceFile) => ({
+        stylesBindings: new Map([
+          ["styles", { kind: "resolved" as const, absolutePath: BINDING.scssModulePath }],
+        ]),
+        bindings: [BINDING],
+      }),
+      parseClassExpressions: (_sf, bindings) =>
+        buildTestClassExpressions({
+          filePath: "/fake/src/App.tsx",
+          bindings,
+          expressions: [
+            {
+              kind: "literal",
+              origin: "cxCall",
+              className: "btn-small",
+              range: {
+                start: { line: 3, character: 14 },
+                end: { line: 3, character: 23 },
+              },
+              scssModulePath: bindings[0]!.scssModulePath,
+            },
+          ],
+        }),
+      max: 10,
+    });
+    const cursorParams: CursorParams = {
+      documentUri: "file:///fake/src/App.tsx",
+      content: TSX_CONTENT.replace("indicator", "btn-small"),
+      filePath: "/fake/src/App.tsx",
+      line: 3,
+      character: 16,
+      version: 1,
+    };
+    expectPrepareRenameBlocked(
+      () =>
+        handlePrepareRename(
+          {
+            textDocument: { uri: "file:///fake/src/App.tsx" },
+            position: { line: 3, character: 16 },
+          },
+          makeBaseDeps({
+            analysisCache,
+            semanticReferenceIndex,
+            selectorMapForPath: () =>
+              new Map([
+                ["btn-small", info("btn-small", 1)],
+                ["btn-large", info("btn-large", 3)],
+              ]),
+            workspaceRoot: "/fake",
+          }),
+          cursorParams,
         ),
       "Rename is blocked because inferred or expanded references would make the edit unsafe.",
     );

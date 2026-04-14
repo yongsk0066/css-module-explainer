@@ -1,7 +1,7 @@
 import type { CodeLens, CodeLensParams } from "vscode-languageserver/node";
 import type { ShowReferencesArgs, ShowReferencesLocation } from "@css-module-explainer/shared";
-import { findSelectorReferenceSites } from "../core/query/find-references";
 import { listCanonicalSelectors } from "../core/query/find-style-selector";
+import { readSelectorUsageSummary } from "../core/query/read-selector-usage";
 import type { SelectorDeclHIR } from "../core/hir/style-types";
 import { findLangForPath } from "../core/scss/lang-registry";
 import { fileUrlToPath } from "../core/util/text-utils";
@@ -47,10 +47,10 @@ function buildLens(
   selector: SelectorDeclHIR,
   deps: ProviderDeps,
 ): CodeLens | null {
-  const sites = findSelectorReferenceSites(deps, filePath, selector.canonicalName);
-  if (sites.length === 0) return null;
-  const title = `${sites.length} reference${sites.length === 1 ? "" : "s"}`;
-  const locations: ShowReferencesLocation[] = sites.map((site) => ({
+  const usage = readSelectorUsageSummary(deps, filePath, selector.canonicalName);
+  if (!usage.hasAnyReferences) return null;
+  const title = `${usage.totalReferences} reference${usage.totalReferences === 1 ? "" : "s"}`;
+  const locations: ShowReferencesLocation[] = usage.allSites.map((site) => ({
     uri: site.uri,
     range: toLspRange(site.range),
   }));

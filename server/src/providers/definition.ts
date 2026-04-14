@@ -1,6 +1,6 @@
 import type { LocationLink } from "vscode-languageserver/node";
 import type { Range } from "@css-module-explainer/shared";
-import { findDefinitionSelectors } from "../core/query/find-definitions";
+import { readSourceExpressionResolution } from "../core/query/read-source-expression-resolution";
 import type { SelectorDeclHIR } from "../core/hir/style-types";
 import { pathToFileUrl } from "../core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
@@ -41,14 +41,26 @@ function buildLinks(
   params: CursorParams,
   deps: ProviderDeps,
 ): LocationLink[] | null {
-  const selectors = findDefinitionSelectors(ctx, {
-    styleDocumentForPath: deps.styleDocumentForPath,
-    typeResolver: deps.typeResolver,
-    filePath: params.filePath,
-    workspaceRoot: deps.workspaceRoot,
-  });
+  const resolution = readSourceExpressionResolution(
+    {
+      expression: ctx.expression,
+      sourceFile: ctx.entry.sourceFile,
+      styleDocument: ctx.styleDocument,
+    },
+    {
+      styleDocumentForPath: deps.styleDocumentForPath,
+      typeResolver: deps.typeResolver,
+      filePath: params.filePath,
+      workspaceRoot: deps.workspaceRoot,
+      sourceBinder: ctx.entry.sourceBinder,
+      sourceBindingGraph: ctx.entry.sourceBindingGraph,
+    },
+  );
+  const selectors = resolution.selectors;
   if (selectors.length === 0) return null;
-  const targetUri = pathToFileUrl(ctx.expression.scssModulePath);
+  const styleDocument = resolution.styleDocument;
+  if (!styleDocument) return null;
+  const targetUri = pathToFileUrl(styleDocument.filePath);
   return selectors.map<LocationLink>((selector) =>
     toLocationLink(ctx.expression.range, targetUri, selector),
   );

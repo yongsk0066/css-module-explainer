@@ -1,6 +1,15 @@
-import type { SourceDocumentHIR, SymbolRefClassExpressionHIR } from "../hir/source-types";
-import type { StyleDocumentHIR } from "../hir/style-types";
-import type { FlowResolution } from "../flow/lattice";
+import type {
+  SourceDocumentHIR,
+  SymbolRefClassExpressionHIR,
+} from "../../server/src/core/hir/source-types";
+import type { StyleDocumentHIR } from "../../server/src/core/hir/style-types";
+import {
+  exactClassValue,
+  prefixClassValue,
+  type AbstractClassValue,
+} from "../../server/src/core/abstract-value/class-value-domain";
+import { projectAbstractValueSelectors } from "../../server/src/core/abstract-value/selector-projection";
+import type { FlowResolution } from "../../server/src/core/flow/lattice";
 import type {
   DocumentNode,
   RefNode,
@@ -11,7 +20,7 @@ import type {
   SemanticNode,
   StyleImportNode,
   UtilityBindingNode,
-} from "./graph-types";
+} from "./semantic-graph-types";
 
 interface GraphBuilderState {
   readonly nodes: Map<string, SemanticNode>;
@@ -58,35 +67,53 @@ export function buildSourceSemanticGraph(args: BuildSourceSemanticGraphArgs): Se
       case "literal": {
         const canonical = findCanonicalSelectorId(styleDocument, expr.className);
         if (!canonical) break;
-        addEdge(state, expr.id, canonical, "literal", "exact");
+        addEdge(state, expr.id, canonical, "literal", "exact", exactClassValue(expr.className));
         break;
       }
       case "styleAccess": {
         const canonical = findCanonicalSelectorId(styleDocument, expr.className);
         if (!canonical) break;
-        addEdge(state, expr.id, canonical, "styleAccess", "exact");
+        addEdge(state, expr.id, canonical, "styleAccess", "exact", exactClassValue(expr.className));
         break;
       }
       case "template": {
+        const projection = projectAbstractValueSelectors(
+          prefixClassValue(expr.staticPrefix),
+          styleDocument,
+        );
         const emitted = new Set<string>();
-        for (const selector of styleDocument.selectors) {
-          if (!selector.name.startsWith(expr.staticPrefix)) continue;
+        for (const selector of projection.selectors) {
           const canonical = selectorNodeId(styleDocument.filePath, selector.canonicalName);
           if (emitted.has(canonical)) continue;
           emitted.add(canonical);
-          addEdge(state, expr.id, canonical, "templatePrefix", "inferred");
+          addEdge(
+            state,
+            expr.id,
+            canonical,
+            "templatePrefix",
+            projection.certainty,
+            prefixClassValue(expr.staticPrefix),
+          );
         }
         break;
       }
       case "symbolRef": {
         const resolved = args.resolveSymbolValues?.(expr, args.sourceDocument);
         if (!resolved) break;
+        const projection = projectAbstractValueSelectors(resolved.abstractValue, styleDocument);
         const emitted = new Set<string>();
-        for (const value of resolved.values) {
-          const canonical = findCanonicalSelectorId(styleDocument, value);
-          if (!canonical || emitted.has(canonical)) continue;
+        for (const selector of projection.selectors) {
+          const canonical = selectorNodeId(styleDocument.filePath, selector.canonicalName);
+          if (emitted.has(canonical)) continue;
           emitted.add(canonical);
-          addEdge(state, expr.id, canonical, resolved.reason, resolved.certainty);
+          addEdge(
+            state,
+            expr.id,
+            canonical,
+            resolved.reason,
+            projection.certainty,
+            resolved.abstractValue,
+          );
         }
         break;
       }
@@ -133,7 +160,7 @@ function appendSourceDocument(state: GraphBuilderState, sourceDocument: SourceDo
             scssModulePath: utilityBinding.scssModulePath,
             stylesLocalName: utilityBinding.stylesLocalName,
             classNamesImportName: utilityBinding.classNamesImportName,
-            scope: utilityBinding.scope,
+            bindingDeclId: utilityBinding.bindingDeclId,
           }
         : {
             id: utilityBindingNodeId(sourceDocument.filePath, utilityBinding.id),
@@ -240,6 +267,7 @@ function toRefNode(filePath: string, expr: SourceDocumentHIR["classExpressions"]
         range: expr.range,
         rawReference: expr.rawReference,
         rootName: expr.rootName,
+        ...(expr.rootBindingDeclId ? { rootBindingDeclId: expr.rootBindingDeclId } : {}),
         pathSegments: expr.pathSegments,
       };
     case "styleAccess":
@@ -278,6 +306,7 @@ function addEdge(
   to: string,
   reason: SemanticEdge["reason"],
   certainty: SemanticEdge["certainty"],
+  abstractValue?: AbstractClassValue,
 ): void {
   const edge: SemanticEdge = {
     id: `${from}->${to}:${reason}:${certainty}`,
@@ -285,6 +314,7 @@ function addEdge(
     to,
     reason,
     certainty,
+    ...(abstractValue ? { abstractValue } : {}),
   };
   if (!state.edges.has(edge.id)) {
     state.edges.set(edge.id, edge);

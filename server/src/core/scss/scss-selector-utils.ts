@@ -46,21 +46,53 @@ export function resolveSelector(raw: string, parent: string): string {
  * class in the rightmost compound segment.
  */
 export function extractClassNames(resolvedSelector: string): string[] {
-  const withoutGlobal = resolvedSelector.replace(/:global\s*\(\s*[^)]*\)/g, "");
-  const withoutLocal = withoutGlobal.replace(/:local\s*\(\s*([^)]*)\s*\)/g, "$1");
-  const withoutPseudos = withoutLocal.replace(/::?[a-zA-Z-]+(?:\([^)]*\))?/g, "");
-
-  const segments = withoutPseudos.trim().split(/\s*[>+~]\s*|\s+/);
+  const segments = enumerateCompoundSegments(stripSelectorForClassMatching(resolvedSelector));
   const lastSegment = segments[segments.length - 1] ?? "";
-  // Unicode property classes so identifiers outside the ASCII
-  // subset (e.g. `.한글`, `.日本語`, `.español-btn`, or the NFD
-  // form `.café` where `é` is `e` + U+0301) survive the last-
-  // compound split. First character: letter or underscore.
-  // Remainder: letter, number, combining mark, underscore, dash —
-  // `\p{M}` picks up combining marks so a decomposed codepoint
-  // does not truncate the identifier at the base letter.
-  const matches = lastSegment.match(/\.[\p{L}_][\p{L}\p{N}\p{M}_-]*/gu) ?? [];
-  return matches.map((m) => m.slice(1));
+  return Array.from(extractClassTokens(lastSegment));
+}
+
+/**
+ * Extract classes introduced by one raw selector group.
+ *
+ * Rule:
+ * - classes in the rightmost compound are exported
+ * - classes written alongside `&` in an ampersand compound are also exported
+ *
+ * This avoids re-registering parent classes introduced only by `&`
+ * expansion while still preserving nested compounds such as
+ * `&.compact .body`.
+ */
+export function extractIntroducedClassNames(
+  rawSelector: string,
+  resolvedSelector: string,
+): string[] {
+  const rawCompounds = enumerateCompoundSegments(stripSelectorForClassMatching(rawSelector));
+  const resolvedCompounds = enumerateCompoundSegments(
+    stripSelectorForClassMatching(resolvedSelector),
+  );
+  const rightmostIndex =
+    rawCompounds.length > 0 ? rawCompounds.length - 1 : resolvedCompounds.length - 1;
+  const classNames: string[] = [];
+
+  for (let index = 0; index <= rightmostIndex; index++) {
+    const rawCompound = rawCompounds[index] ?? "";
+    const resolvedCompound = resolvedCompounds[index] ?? "";
+    const rawClasses = extractClassTokens(rawCompound);
+
+    if (index === rightmostIndex || rawCompound.includes("&")) {
+      classNames.push(...rawClasses);
+    }
+
+    if (
+      rawCompound.includes("&") &&
+      rawClasses.length === 0 &&
+      isAmpersandSuffixCompound(rawCompound)
+    ) {
+      classNames.push(...extractClassTokens(resolvedCompound));
+    }
+  }
+
+  return Array.from(new Set(classNames));
 }
 
 /**
@@ -75,6 +107,66 @@ function findClassOffset(rawSelector: string, className: string): number {
   const re = new RegExp(`\\.${escaped}(?![\\w-])`);
   const match = re.exec(rawSelector);
   return match?.index ?? -1;
+}
+
+function stripSelectorForClassMatching(selector: string): string {
+  const withoutGlobal = selector.replace(/:global\s*\(\s*[^)]*\)/g, "");
+  const withoutLocal = withoutGlobal.replace(/:local\s*\(\s*([^)]*)\s*\)/g, "$1");
+  return withoutLocal.replace(/::?[a-zA-Z-]+(?:\([^)]*\))?/g, "");
+}
+
+function enumerateCompoundSegments(selector: string): readonly string[] {
+  const segments: string[] = [];
+  let depth = 0;
+  let start = -1;
+
+  for (let index = 0; index < selector.length; index++) {
+    const ch = selector[index];
+    if (ch === "(" || ch === "[") {
+      depth++;
+      if (start === -1) start = index;
+      continue;
+    }
+    if (ch === ")" || ch === "]") {
+      depth--;
+      continue;
+    }
+
+    if (depth === 0 && (ch === ">" || ch === "+" || ch === "~" || /\s/.test(ch))) {
+      pushCompoundSegment(segments, selector, start, index);
+      start = -1;
+      continue;
+    }
+
+    if (start === -1) start = index;
+  }
+
+  pushCompoundSegment(segments, selector, start, selector.length);
+  return segments;
+}
+
+function pushCompoundSegment(
+  segments: string[],
+  selector: string,
+  start: number,
+  end: number,
+): void {
+  if (start === -1) return;
+  const segment = selector.slice(start, end).trim();
+  if (segment.length > 0) segments.push(segment);
+}
+
+function extractClassTokens(selectorSegment: string): readonly string[] {
+  // Unicode property classes so identifiers outside the ASCII
+  // subset (e.g. `.한글`, `.日本語`, `.español-btn`, or the NFD
+  // form `.café` where `é` is `e` + U+0301) survive token
+  // extraction. `\p{M}` keeps combining marks attached.
+  const matches = selectorSegment.match(/\.[\p{L}_][\p{L}\p{N}\p{M}_-]*/gu) ?? [];
+  return matches.map((m) => m.slice(1));
+}
+
+function isAmpersandSuffixCompound(selectorSegment: string): boolean {
+  return /&(?:--|__)[\p{L}\p{N}\p{M}_-]*/u.test(selectorSegment);
 }
 
 export function findClassTokenRange(

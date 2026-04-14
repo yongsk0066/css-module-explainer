@@ -1,6 +1,12 @@
 import * as nodeUrl from "node:url";
 import type ts from "typescript";
-import type { CxBinding, StyleImport } from "@css-module-explainer/shared";
+import type { StyleImport } from "@css-module-explainer/shared";
+import type { SourceBindingGraph } from "../binder/source-binding-graph";
+import { buildSourceBindingGraph } from "../binder/source-binding-graph";
+import type { SourceBinderResult } from "../binder/scope-types";
+import { buildSourceBinder } from "../binder/binder-builder";
+import type { CxBinding } from "../cx/cx-types";
+import { resolveCxBindings, type ResolvedCxBinding } from "../cx/resolved-bindings";
 import { buildSourceDocument } from "../hir/builders/ts-source-adapter";
 import type { ClassExpressionHIR, SourceDocumentHIR } from "../hir/source-types";
 import { contentHash } from "../util/hash";
@@ -21,7 +27,8 @@ export interface AnalysisEntry {
   readonly version: number;
   readonly contentHash: string;
   readonly sourceFile: ts.SourceFile;
-  readonly bindings: readonly CxBinding[];
+  readonly sourceBinder: SourceBinderResult;
+  readonly sourceBindingGraph: SourceBindingGraph;
   /**
    * Document-level source HIR derived from the current scan/parser
    * outputs.
@@ -81,8 +88,9 @@ export interface DocumentAnalysisCacheDeps {
    */
   readonly parseClassExpressions?: (
     sourceFile: ts.SourceFile,
-    bindings: readonly CxBinding[],
+    bindings: readonly ResolvedCxBinding[],
     stylesBindings: ReadonlyMap<string, StyleImport>,
+    sourceBinder: SourceBinderResult,
   ) => readonly ClassExpressionHIR[];
   /**
    * Detect `clsx` / `clsx/lite` / `classnames` (not `/bind`) imports
@@ -174,6 +182,7 @@ export class DocumentAnalysisCache {
 
   private analyze(content: string, filePath: string, version: number, hash: string): AnalysisEntry {
     const sourceFile = this.deps.sourceFileCache.get(filePath, content);
+    const sourceBinder = buildSourceBinder(sourceFile);
     // Single-pass scan: resolves style imports (with `missing`
     // variants via `fileExists`) and collects cx bindings in one
     // traversal of the source file. Files without `classnames/bind`
@@ -185,22 +194,27 @@ export class DocumentAnalysisCache {
       this.deps.fileExists,
       this.deps.aliasResolver,
     );
+    const cxBindings = resolveCxBindings(bindings, sourceBinder, sourceFile);
 
     const classUtilNames = this.deps.detectClassUtilImports?.(sourceFile) ?? [];
     const sourceDocument = buildSourceDocument({
       filePath,
-      bindings,
+      cxBindings,
       stylesBindings,
       classUtilNames,
+      sourceBinder,
       classExpressions:
-        this.deps.parseClassExpressions?.(sourceFile, bindings, stylesBindings) ?? [],
+        this.deps.parseClassExpressions?.(sourceFile, cxBindings, stylesBindings, sourceBinder) ??
+        [],
     });
+    const sourceBindingGraph = buildSourceBindingGraph(sourceDocument, sourceBinder);
 
     return {
       version,
       contentHash: hash,
       sourceFile,
-      bindings,
+      sourceBinder,
+      sourceBindingGraph,
       sourceDocument,
       stylesBindings,
       classUtilNames,

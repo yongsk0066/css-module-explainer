@@ -5,7 +5,6 @@ export type {
   ComposesRef,
   BemSuffixInfo,
   StyleImport,
-  CxBinding,
   ClassRefOrigin,
   ResolvedType,
   CallSite,

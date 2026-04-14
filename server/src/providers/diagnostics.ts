@@ -4,6 +4,7 @@ import {
   type Range as LspRange,
 } from "vscode-languageserver/node";
 import { findInvalidClassReference } from "../core/query/find-invalid-class-references";
+import { messageForInvalidClassFinding } from "../core/query/explain-expression-semantics";
 import type { StyleDocumentHIR } from "../core/hir/style-types";
 import { pathToFileUrl } from "../core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
@@ -34,20 +35,18 @@ export const computeDiagnostics = wrapHandler<
 >(
   "diagnostics",
   (params, deps, severity: DiagnosticSeverity = DiagnosticSeverity.Warning) => {
-    // Fast path 1: file has no style import of any kind → nothing
-    // to diagnose. The `.module.` check keeps files that only use
-    // `styles.x` (no `classnames/bind` helpers) in scope so they
-    // still receive the missing-module diagnostic below.
-    if (!params.content.includes(".module.") && !params.content.includes("classnames/bind")) {
-      return [];
-    }
-
     const entry = deps.analysisCache.get(
       params.documentUri,
       params.content,
       params.filePath,
       params.version,
     );
+    const cxExpressions = entry.sourceDocument.classExpressions.filter(
+      (expression) => expression.origin === "cxCall",
+    );
+    if (entry.stylesBindings.size === 0 && cxExpressions.length === 0) {
+      return [];
+    }
 
     const diagnostics: Diagnostic[] = [];
 
@@ -73,14 +72,6 @@ export const computeDiagnostics = wrapHandler<
       }
     }
 
-    // Fast path 2: cx-pipeline class diagnostics only fire when
-    // `classnames/bind` is present. Pure `styles.x` access is
-    // covered by TypeScript's own type checker.
-    if (!params.content.includes("classnames/bind")) return diagnostics;
-
-    const cxExpressions = entry.sourceDocument.classExpressions.filter(
-      (expression) => expression.origin === "cxCall",
-    );
     if (cxExpressions.length === 0) return diagnostics;
 
     // Per-ref isolation: a single throwing ref (e.g. a malformed
@@ -95,6 +86,8 @@ export const computeDiagnostics = wrapHandler<
           typeResolver: deps.typeResolver,
           filePath: params.filePath,
           workspaceRoot: deps.workspaceRoot,
+          sourceBinder: entry.sourceBinder,
+          sourceBindingGraph: entry.sourceBindingGraph,
         });
         if (finding) diagnostics.push(toDiagnostic(finding, styleDocument, deps, severity));
       } catch (err) {
@@ -147,7 +140,14 @@ function toDiagnostic(
         range,
         severity,
         source: DIAGNOSTIC_SOURCE,
-        message: diagnosticMessageForResolvedValues(finding),
+        message: messageForInvalidClassFinding(finding),
+      };
+    case "missingResolvedClassDomain":
+      return {
+        range,
+        severity,
+        source: DIAGNOSTIC_SOURCE,
+        message: messageForInvalidClassFinding(finding),
       };
     default:
       finding satisfies never;
@@ -193,23 +193,6 @@ function findSelectorInsertionRange(styleDocument: StyleDocumentHIR): LspRange {
     start: { line: latest.line, character: latest.character },
     end: { line: latest.line, character: latest.character },
   };
-}
-
-function diagnosticMessageForResolvedValues(
-  finding: Extract<
-    NonNullable<ReturnType<typeof findInvalidClassReference>>,
-    {
-      kind: "missingResolvedClassValues";
-    }
-  >,
-): string {
-  if (finding.reason === "typeUnion") {
-    return `Missing class for union member${finding.missingValues.length > 1 ? "s" : ""}: ${finding.missingValues.map((value) => `'${value}'`).join(", ")}.`;
-  }
-  if (finding.missingValues.length === 1 && finding.certainty === "exact") {
-    return `Missing class for resolved value: '${finding.missingValues[0]}'.`;
-  }
-  return `Missing class for possible value${finding.missingValues.length > 1 ? "s" : ""}: ${finding.missingValues.map((value) => `'${value}'`).join(", ")}.`;
 }
 
 function relativeScss(scssPath: string, workspaceRoot: string): string {

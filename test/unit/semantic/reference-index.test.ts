@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildSourceSemanticGraph } from "../../../server/src/core/semantic/graph-builder";
-import { buildSemanticReferenceIndex } from "../../../server/src/core/semantic/reference-index";
+import { buildSourceSemanticGraph } from "../../_support/semantic-graph-fixture";
+import { buildSemanticReferenceIndex } from "../../_support/semantic-reference-index-fixture";
 import { loadSourceScenario, loadStyleScenario } from "../../_fixtures/scenario-corpus";
 
 describe("buildSemanticReferenceIndex", () => {
@@ -19,7 +19,11 @@ describe("buildSemanticReferenceIndex", () => {
       styleDocumentsByPath: new Map([[styleScenario.filePath, styleScenario.styleDocument]]),
       resolveSymbolValues: (ref) =>
         ref.rootName === "size"
-          ? { values: ["sm", "md", "lg"], certainty: "inferred", reason: "typeUnion" }
+          ? {
+              abstractValue: { kind: "finiteSet", values: ["lg", "md", "sm"] },
+              valueCertainty: "inferred",
+              reason: "typeUnion",
+            }
           : null,
     });
     const index = buildSemanticReferenceIndex(graph);
@@ -30,16 +34,17 @@ describe("buildSemanticReferenceIndex", () => {
         origin: "cxCall",
         canonicalName: "button",
         className: "button",
-        certainty: "exact",
+        selectorCertainty: "exact",
         reason: "literal",
         expansion: "direct",
+        abstractValue: { kind: "exact", value: "button" },
       }),
       expect.objectContaining({
         refId: "class-expr:4",
         origin: "cxCall",
         canonicalName: "button",
         className: "button",
-        certainty: "exact",
+        selectorCertainty: "exact",
         reason: "literal",
         expansion: "direct",
       }),
@@ -48,7 +53,7 @@ describe("buildSemanticReferenceIndex", () => {
         origin: "cxCall",
         canonicalName: "button",
         className: "button",
-        certainty: "exact",
+        selectorCertainty: "exact",
         reason: "literal",
         expansion: "direct",
       }),
@@ -60,15 +65,16 @@ describe("buildSemanticReferenceIndex", () => {
           refId: "class-expr:2",
           canonicalName: "sm",
           className: "sm",
-          certainty: "inferred",
+          selectorCertainty: "exact",
           reason: "typeUnion",
           expansion: "expanded",
+          abstractValue: { kind: "finiteSet", values: ["lg", "md", "sm"] },
         }),
         expect.objectContaining({
           refId: "class-expr:6",
           canonicalName: "sm",
           className: "sm",
-          certainty: "inferred",
+          selectorCertainty: "exact",
           reason: "typeUnion",
           expansion: "expanded",
         }),
@@ -76,23 +82,34 @@ describe("buildSemanticReferenceIndex", () => {
     );
     expect(index.countSelectorReferences(styleScenario.filePath, "sm")).toBe(2);
     expect(
-      index.findSelectorReferences(styleScenario.filePath, "sm", { minimumCertainty: "exact" }),
-    ).toEqual([]);
+      index.findSelectorReferences(styleScenario.filePath, "sm", {
+        minimumSelectorCertainty: "exact",
+      }),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          refId: "class-expr:2",
+          selectorCertainty: "exact",
+          expansion: "expanded",
+        }),
+      ]),
+    );
     expect(index.findTargetsForRef("class-expr:2")).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           canonicalName: "sm",
-          certainty: "inferred",
+          selectorCertainty: "exact",
           reason: "typeUnion",
+          abstractValue: { kind: "finiteSet", values: ["lg", "md", "sm"] },
         }),
         expect.objectContaining({
           canonicalName: "md",
-          certainty: "inferred",
+          selectorCertainty: "exact",
           reason: "typeUnion",
         }),
         expect.objectContaining({
           canonicalName: "lg",
-          certainty: "inferred",
+          selectorCertainty: "exact",
           reason: "typeUnion",
         }),
       ]),
@@ -122,14 +139,15 @@ describe("buildSemanticReferenceIndex", () => {
         origin: "styleAccess",
         canonicalName: "button--primary",
         className: "buttonPrimary",
-        certainty: "exact",
+        selectorCertainty: "exact",
         reason: "styleAccess",
         expansion: "direct",
+        abstractValue: { kind: "exact", value: "buttonPrimary" },
       }),
     ]);
   });
 
-  it("collects inferred template-prefix matches for dynamic refs", () => {
+  it("collects exact selector matches for template prefixes while keeping them expanded", () => {
     const sourceScenario = loadSourceScenario({
       id: "04-dynamic",
       sourcePath: "04-dynamic/DynamicScenario.tsx",
@@ -148,29 +166,99 @@ describe("buildSemanticReferenceIndex", () => {
     expect(index.findTargetsForRef("class-expr:0")).toEqual([
       expect.objectContaining({
         canonicalName: "btn-danger",
-        certainty: "inferred",
+        selectorCertainty: "exact",
         reason: "templatePrefix",
+        abstractValue: { kind: "prefix", prefix: "btn-" },
       }),
       expect.objectContaining({
         canonicalName: "btn-primary",
-        certainty: "inferred",
+        selectorCertainty: "exact",
         reason: "templatePrefix",
       }),
       expect.objectContaining({
         canonicalName: "btn-secondary",
-        certainty: "inferred",
+        selectorCertainty: "exact",
         reason: "templatePrefix",
       }),
     ]);
 
+    expect(index.findSelectorReferences(styleScenario.filePath, "btn-primary")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          refId: "class-expr:0",
+          selectorCertainty: "exact",
+          expansion: "expanded",
+        }),
+      ]),
+    );
+
     expect(
-      index.findAllForScssPath(styleScenario.filePath, { minimumCertainty: "inferred" }),
+      index.findAllForScssPath(styleScenario.filePath, {
+        minimumSelectorCertainty: "inferred",
+      }),
     ).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           refId: "class-expr:0",
           canonicalName: "btn-primary",
-          certainty: "inferred",
+          selectorCertainty: "exact",
+        }),
+      ]),
+    );
+  });
+
+  it("indexes possible top-domain references across the whole selector universe", () => {
+    const styleScenario = loadStyleScenario({
+      id: "04-dynamic-style",
+      stylePath: "04-dynamic/DynamicKeys.module.scss",
+    });
+    const sourceDocument = {
+      kind: "source" as const,
+      filePath: "/fake/ws/src/App.tsx",
+      language: "tsx" as const,
+      styleImports: [],
+      utilityBindings: [],
+      classExpressions: [
+        {
+          kind: "symbolRef" as const,
+          id: "class-expr:0",
+          origin: "cxCall" as const,
+          rawReference: "key",
+          rootName: "key",
+          pathSegments: [],
+          range: {
+            start: { line: 1, character: 3 },
+            end: { line: 1, character: 6 },
+          },
+          scssModulePath: styleScenario.filePath,
+        },
+      ],
+    };
+
+    const graph = buildSourceSemanticGraph({
+      sourceDocument,
+      styleDocumentsByPath: new Map([[styleScenario.filePath, styleScenario.styleDocument]]),
+      resolveSymbolValues: () => ({
+        abstractValue: { kind: "top" },
+        valueCertainty: "possible",
+        reason: "flowBranch",
+      }),
+    });
+    const index = buildSemanticReferenceIndex(graph);
+
+    expect(index.findTargetsForRef("class-expr:0")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          canonicalName: "btn-primary",
+          selectorCertainty: "possible",
+          reason: "flowBranch",
+          abstractValue: { kind: "top" },
+        }),
+        expect.objectContaining({
+          canonicalName: "btn-secondary",
+          selectorCertainty: "possible",
+          reason: "flowBranch",
+          abstractValue: { kind: "top" },
         }),
       ]),
     );

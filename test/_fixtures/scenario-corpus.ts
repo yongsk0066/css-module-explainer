@@ -2,8 +2,10 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
 import type { Range, StyleImport } from "@css-module-explainer/shared";
+import { buildSourceBinder } from "../../server/src/core/binder/binder-builder";
 import { detectClassUtilImports, scanCxImports } from "../../server/src/core/cx/binding-detector";
 import { parseClassExpressions } from "../../server/src/core/cx/class-ref-parser";
+import { resolveCxBindings } from "../../server/src/core/cx/resolved-bindings";
 import { buildSourceDocument } from "../../server/src/core/hir/builders/ts-source-adapter";
 import type { SourceDocumentHIR } from "../../server/src/core/hir/source-types";
 import type { StyleDocumentHIR } from "../../server/src/core/hir/style-types";
@@ -79,12 +81,15 @@ export function loadSourceScenario(def: SourceScenarioDef): LoadedSourceScenario
     existsSync,
     EMPTY_ALIAS_RESOLVER,
   );
+  const sourceBinder = buildSourceBinder(sourceFile);
+  const cxBindings = resolveCxBindings(bindings, sourceBinder, sourceFile);
   const sourceDocument = buildSourceDocument({
     filePath,
-    bindings,
+    cxBindings,
     stylesBindings,
     classUtilNames: detectClassUtilImports(sourceFile),
-    classExpressions: parseClassExpressions(sourceFile, bindings, stylesBindings),
+    sourceBinder,
+    classExpressions: parseClassExpressions(sourceFile, cxBindings, stylesBindings, sourceBinder),
   });
 
   return {
@@ -119,6 +124,7 @@ export function normalizeSourceDocument(doc: SourceDocumentHIR): unknown {
     styleImports: doc.styleImports.map((binding) => ({
       kind: binding.kind,
       localName: binding.localName,
+      bindingDeclId: binding.bindingDeclId,
       resolved: normalizeStyleImport(binding.resolved),
       ...(binding.range ? { range: normalizeRange(binding.range) } : {}),
     })),
@@ -130,11 +136,12 @@ export function normalizeSourceDocument(doc: SourceDocumentHIR): unknown {
             stylesLocalName: binding.stylesLocalName,
             scssModulePath: toRepoRelative(binding.scssModulePath),
             classNamesImportName: binding.classNamesImportName,
-            scope: binding.scope,
+            bindingDeclId: binding.bindingDeclId,
           }
         : {
             kind: binding.kind,
             localName: binding.localName,
+            bindingDeclId: binding.bindingDeclId,
           },
     ),
     classExpressions: doc.classExpressions.map((expr) => ({
@@ -151,10 +158,12 @@ export function normalizeSourceDocument(doc: SourceDocumentHIR): unknown {
             rawReference: expr.rawReference,
             rootName: expr.rootName,
             pathSegments: [...expr.pathSegments],
+            ...(expr.rootBindingDeclId ? { rootBindingDeclId: expr.rootBindingDeclId } : {}),
           }
         : {}),
       ...(expr.kind === "styleAccess"
         ? {
+            bindingDeclId: expr.bindingDeclId,
             className: expr.className,
             accessPath: [...expr.accessPath],
           }

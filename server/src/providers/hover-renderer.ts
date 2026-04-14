@@ -82,14 +82,28 @@ function renderDynamicExplanation(
 
   const lines: string[] = [];
   if (explanation.kind === "symbolRef") {
-    lines.push(
-      `_Resolved from \`${explanation.subject}\` via ${formatReason(explanation.reason)}._`,
-    );
-    if (explanation.certainty) {
-      lines.push(`_Certainty: ${explanation.certainty}._`);
+    if (explanation.reasonLabel) {
+      lines.push(`_Resolved from \`${explanation.subject}\` via ${explanation.reasonLabel}._`);
+    } else {
+      lines.push(`_Resolved from \`${explanation.subject}\`._`);
+    }
+    if (explanation.valueCertainty) {
+      lines.push(`_Value certainty: ${explanation.valueCertainty}._`);
+    }
+    if (explanation.selectorCertainty) {
+      lines.push(`_Selector certainty: ${explanation.selectorCertainty}._`);
+    }
+    if (explanation.valueDomainLabel) {
+      lines.push(`_Value domain: ${explanation.valueDomainLabel}._`);
     }
   } else {
     lines.push(`_Resolved by template prefix \`${explanation.subject}\`._`);
+    if (explanation.selectorCertainty) {
+      lines.push(`_Selector certainty: ${explanation.selectorCertainty}._`);
+    }
+    if (explanation.valueDomainLabel) {
+      lines.push(`_Value domain: ${explanation.valueDomainLabel}._`);
+    }
   }
 
   const shown = explanation.candidates
@@ -104,19 +118,6 @@ function renderDynamicExplanation(
   }
 
   return `\n\n${lines.join("\n\n")}`;
-}
-
-function formatReason(reason: DynamicHoverExplanation["reason"]): string {
-  switch (reason) {
-    case "flowLiteral":
-      return "local flow analysis";
-    case "flowBranch":
-      return "branched local flow analysis";
-    case "typeUnion":
-      return "TypeScript string-literal union analysis";
-    default:
-      return "semantic analysis";
-  }
 }
 
 function buildRule(selector: SelectorDeclHIR): string {

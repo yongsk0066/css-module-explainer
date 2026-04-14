@@ -7,7 +7,7 @@ import {
   findSelectorReferenceSites,
   hasNonDirectSelectorReferenceSites,
 } from "../../../server/src/core/query/find-references";
-import type { SemanticReferenceSite } from "../../../server/src/core/semantic/reference-index";
+import type { SemanticReferenceSite } from "../../../server/src/core/semantic/reference-types";
 import { semanticSiteAt } from "../../_fixtures/test-helpers";
 
 describe("findSelectorReferenceSites", () => {
@@ -26,6 +26,7 @@ describe("findSelectorReferenceSites", () => {
           end: { line: 8, character: 16 },
         },
         expansion: "direct",
+        selectorCertainty: "exact",
       }),
     ]);
   });
@@ -40,6 +41,80 @@ describe("findSelectorReferenceSites", () => {
     ).toEqual([]);
   });
 
+  it("can filter out expanded sites explicitly", () => {
+    const semanticReferenceIndex = withSemanticSites([
+      semanticSite({
+        uri: "file:///src/Button.tsx",
+        line: 5,
+        selectorFilePath: "/src/Button.module.scss",
+        canonicalName: "button",
+        className: "button",
+        certainty: "exact",
+        expansion: "expanded",
+      }),
+      semanticSite({
+        uri: "file:///src/Button.tsx",
+        line: 8,
+        selectorFilePath: "/src/Button.module.scss",
+        canonicalName: "button",
+        className: "button",
+        certainty: "exact",
+        expansion: "direct",
+      }),
+    ]);
+
+    expect(
+      findSelectorReferenceSites({ semanticReferenceIndex }, "/src/Button.module.scss", "button", {
+        includeExpanded: false,
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        range: {
+          start: { line: 8, character: 10 },
+          end: { line: 8, character: 16 },
+        },
+        expansion: "direct",
+      }),
+    ]);
+  });
+
+  it("can filter by minimum certainty independently of expansion", () => {
+    const semanticReferenceIndex = withSemanticSites([
+      semanticSite({
+        uri: "file:///src/Button.tsx",
+        line: 5,
+        selectorFilePath: "/src/Button.module.scss",
+        canonicalName: "button",
+        className: "button",
+        certainty: "possible",
+      }),
+      semanticSite({
+        uri: "file:///src/Button.tsx",
+        line: 8,
+        selectorFilePath: "/src/Button.module.scss",
+        canonicalName: "button",
+        className: "button",
+        certainty: "exact",
+        expansion: "expanded",
+      }),
+    ]);
+
+    expect(
+      findSelectorReferenceSites({ semanticReferenceIndex }, "/src/Button.module.scss", "button", {
+        minimumSelectorCertainty: "exact",
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        range: {
+          start: { line: 8, character: 10 },
+          end: { line: 8, character: 16 },
+        },
+        selectorCertainty: "exact",
+        expansion: "expanded",
+      }),
+    ]);
+  });
+
   it("treats inferred semantic sites as blocking rename references", () => {
     const semanticReferenceIndex = withSemanticSites([
       semanticSite({
@@ -49,6 +124,28 @@ describe("findSelectorReferenceSites", () => {
         canonicalName: "button",
         className: "button",
         certainty: "inferred",
+      }),
+    ]);
+
+    expect(
+      hasNonDirectSelectorReferenceSites(
+        { semanticReferenceIndex },
+        "/src/Button.module.scss",
+        "button",
+      ),
+    ).toBe(true);
+  });
+
+  it("treats exact-but-expanded semantic sites as blocking rename references", () => {
+    const semanticReferenceIndex = withSemanticSites([
+      semanticSite({
+        uri: "file:///src/Button.tsx",
+        line: 5,
+        selectorFilePath: "/src/Button.module.scss",
+        canonicalName: "button",
+        className: "button",
+        certainty: "exact",
+        expansion: "expanded",
       }),
     ]);
 
@@ -77,7 +174,9 @@ function semanticSite(args: {
   readonly canonicalName: string;
   readonly className: string;
   readonly certainty: "exact" | "inferred" | "possible";
+  readonly expansion?: "direct" | "expanded";
 }): SemanticReferenceSite {
+  const expansion = args.expansion ?? (args.certainty === "exact" ? "direct" : "expanded");
   return {
     refId: `ref:${args.line}`,
     selectorId: `selector:${args.canonicalName}`,
@@ -92,8 +191,8 @@ function semanticSite(args: {
     selectorFilePath: args.selectorFilePath,
     canonicalName: args.canonicalName,
     className: args.className,
-    certainty: args.certainty,
+    selectorCertainty: args.certainty,
     reason: args.certainty === "exact" ? "literal" : "typeUnion",
-    expansion: args.certainty === "exact" ? "direct" : "expanded",
+    expansion,
   };
 }

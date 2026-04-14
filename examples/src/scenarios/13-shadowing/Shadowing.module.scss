@@ -1,0 +1,29 @@
+.panel {
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid #cbd5e1;
+  background: white;
+}
+
+.title {
+  margin: 0 0 8px;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.body {
+  margin: 0 0 14px;
+  color: #475569;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 600;
+}

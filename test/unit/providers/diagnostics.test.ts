@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import type ts from "typescript";
 import { DiagnosticSeverity } from "vscode-languageserver-protocol/node";
-import type { CxBinding } from "@css-module-explainer/shared";
+import type { Range } from "@css-module-explainer/shared";
+import type { CxBinding } from "../../../server/src/core/cx/cx-types";
+import type { ResolvedCxBinding } from "../../../server/src/core/cx/resolved-bindings";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
 import { NullSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
@@ -26,20 +28,20 @@ const a = cx('indicator');
 const b = cx('unknonw');
 `;
 
-const detectCxBindings = (sourceFile: ts.SourceFile): CxBinding[] => [
+const detectCxBindings = (_sourceFile: ts.SourceFile): CxBinding[] => [
   {
     cxVarName: "cx",
     stylesVarName: "styles",
     scssModulePath: "/fake/ws/src/Button.module.scss",
     classNamesImportName: "classNames",
-    scope: {
-      startLine: 0,
-      endLine: sourceFile.getLineAndCharacterOfPosition(sourceFile.getEnd()).line,
+    bindingRange: {
+      start: { line: 3, character: 6 },
+      end: { line: 3, character: 8 },
     },
   },
 ];
 
-const parseClassExpressions = (_sf: ts.SourceFile, bindings: readonly CxBinding[]) =>
+const parseClassExpressions = (_sf: ts.SourceFile, bindings: readonly ResolvedCxBinding[]) =>
   buildTestClassExpressions({
     filePath: "/fake/ws/src/Button.tsx",
     bindings,
@@ -126,9 +128,18 @@ describe("computeDiagnostics", () => {
   });
 
   it("returns an empty array when the file does not import classnames/bind", () => {
+    const sourceFileCache = new SourceFileCache({ max: 10 });
     const result = computeDiagnostics(
-      { ...baseParams, content: "const x = 1;\n", filePath: "/fake/ws/src/Plain.tsx" },
-      makeDeps(),
+      { ...baseParams, content: "const x = 1;\n", filePath: "/fake/ws/src/Plain.tsx", version: 2 },
+      makeDeps({
+        analysisCache: new DocumentAnalysisCache({
+          sourceFileCache,
+          fileExists: () => true,
+          aliasResolver: EMPTY_ALIAS_RESOLVER,
+          scanCxImports: () => ({ stylesBindings: new Map(), bindings: [] }),
+          max: 10,
+        }),
+      }),
     );
     expect(result).toEqual([]);
   });
@@ -166,7 +177,7 @@ describe("computeDiagnostics", () => {
         stylesBindings: new Map(),
         bindings: detectCxBindings(sf, fp),
       }),
-      parseClassExpressions: (_sf: ts.SourceFile, bindings: readonly CxBinding[]) =>
+      parseClassExpressions: (_sf: ts.SourceFile, bindings: readonly ResolvedCxBinding[]) =>
         buildTestClassExpressions({
           filePath: "/fake/ws/src/Button.tsx",
           bindings,
@@ -222,7 +233,7 @@ describe("computeDiagnostics", () => {
         stylesBindings: new Map(),
         bindings: detectCxBindings(sf, fp),
       }),
-      parseClassExpressions: (_sf: ts.SourceFile, bindings: readonly CxBinding[]) =>
+      parseClassExpressions: (_sf: ts.SourceFile, bindings: readonly ResolvedCxBinding[]) =>
         buildTestClassExpressions({
           filePath: "/fake/ws/src/Button.tsx",
           bindings,
@@ -246,7 +257,7 @@ describe("computeDiagnostics", () => {
     });
     // Union has three values but classMap only has two of them.
     class UnionResolver implements TypeResolver {
-      resolve() {
+      resolve(_filePath?: string, _variableName?: string, _workspaceRoot?: string, _range?: Range) {
         return { kind: "union" as const, values: ["small", "medium", "large"] as const };
       }
       invalidate() {}
@@ -292,7 +303,7 @@ const a = cx(size);
         stylesBindings: new Map(),
         bindings: detectCxBindings(sf, fp),
       }),
-      parseClassExpressions: (_sf: ts.SourceFile, bindings: readonly CxBinding[]) =>
+      parseClassExpressions: (_sf: ts.SourceFile, bindings: readonly ResolvedCxBinding[]) =>
         buildTestClassExpressions({
           filePath: "/fake/ws/src/Button.tsx",
           bindings,
@@ -343,7 +354,7 @@ const a = cx(size);
         stylesBindings: new Map(),
         bindings: detectCxBindings(sf, fp),
       }),
-      parseClassExpressions: (_sf: ts.SourceFile, bindings: readonly CxBinding[]) =>
+      parseClassExpressions: (_sf: ts.SourceFile, bindings: readonly ResolvedCxBinding[]) =>
         buildTestClassExpressions({
           filePath: "/fake/ws/src/Button.tsx",
           bindings,

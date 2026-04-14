@@ -6,7 +6,7 @@ on:
       ref:
         description: "Git ref to publish"
         required: true
-        default: "feat/ir-stack-base"
+        default: "master"
       channel:
         description: "Release channel"
         required: true

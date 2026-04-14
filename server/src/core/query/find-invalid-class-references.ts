@@ -1,7 +1,10 @@
+import { enumerateFiniteClassValues } from "../abstract-value/class-value-domain";
 import { findClosestMatch } from "../util/text-utils";
 import type { TypeResolver } from "../ts/type-resolver";
-import { resolveSymbolExpressionValues } from "../semantic/resolve-symbol-values";
+import type { FlowResolution } from "../flow/lattice";
 import type ts from "typescript";
+import type { SourceBindingGraph } from "../binder/source-binding-graph";
+import type { SourceBinderResult } from "../binder/scope-types";
 import type {
   ClassExpressionHIR,
   LiteralClassExpressionHIR,
@@ -9,11 +12,19 @@ import type {
   TemplateClassExpressionHIR,
 } from "../hir/source-types";
 import type { StyleDocumentHIR } from "../hir/style-types";
+import { readExpressionSemantics } from "./read-expression-semantics";
 
 export interface InvalidClassReferenceQueryEnv {
   readonly typeResolver: TypeResolver;
   readonly filePath: string;
   readonly workspaceRoot: string;
+  readonly sourceBinder?: SourceBinderResult;
+  readonly sourceBindingGraph?: SourceBindingGraph;
+  readonly resolveSymbolValues?: (
+    sourceFile: ts.SourceFile,
+    expression: SymbolRefClassExpressionHIR,
+    env: Omit<InvalidClassReferenceQueryEnv, "resolveSymbolValues">,
+  ) => FlowResolution | null;
 }
 
 export type InvalidClassReferenceFinding =
@@ -33,7 +44,18 @@ export type InvalidClassReferenceFinding =
       readonly expression: SymbolRefClassExpressionHIR;
       readonly range: SymbolRefClassExpressionHIR["range"];
       readonly missingValues: readonly string[];
-      readonly certainty: "exact" | "inferred" | "possible";
+      readonly abstractValue: FlowResolution["abstractValue"];
+      readonly valueCertainty: "exact" | "inferred" | "possible";
+      readonly selectorCertainty: "exact" | "inferred" | "possible";
+      readonly reason: "flowLiteral" | "flowBranch" | "typeUnion";
+    }
+  | {
+      readonly kind: "missingResolvedClassDomain";
+      readonly expression: SymbolRefClassExpressionHIR;
+      readonly range: SymbolRefClassExpressionHIR["range"];
+      readonly abstractValue: FlowResolution["abstractValue"];
+      readonly valueCertainty: "exact" | "inferred" | "possible";
+      readonly selectorCertainty: "exact" | "inferred" | "possible";
       readonly reason: "flowLiteral" | "flowBranch" | "typeUnion";
     };
 
@@ -68,19 +90,41 @@ export function findInvalidClassReference(
       };
     }
     case "symbolRef": {
-      const resolved = resolveSymbolExpressionValues(sourceFile, expression, env);
-      if (!resolved) return null;
-      const missingValues = resolved.values.filter(
-        (value) => !hasSelectorNamed(styleDocument, value),
+      const semantics = readExpressionSemantics(
+        {
+          expression,
+          sourceFile,
+          styleDocument,
+        },
+        env,
       );
+      if (!semantics.abstractValue || !semantics.reason || !semantics.valueCertainty) return null;
+      const finiteValues =
+        semantics.finiteValues ?? enumerateFiniteClassValues(semantics.abstractValue);
+      if (!finiteValues) {
+        return semantics.selectors.length === 0
+          ? {
+              kind: "missingResolvedClassDomain",
+              expression,
+              range: expression.range,
+              abstractValue: semantics.abstractValue,
+              valueCertainty: semantics.valueCertainty,
+              selectorCertainty: semantics.selectorCertainty,
+              reason: semantics.reason,
+            }
+          : null;
+      }
+      const missingValues = finiteValues.filter((value) => !hasSelectorNamed(styleDocument, value));
       if (missingValues.length === 0) return null;
       return {
         kind: "missingResolvedClassValues",
         expression,
         range: expression.range,
         missingValues,
-        certainty: resolved.certainty,
-        reason: resolved.reason,
+        abstractValue: semantics.abstractValue,
+        valueCertainty: semantics.valueCertainty,
+        selectorCertainty: semantics.selectorCertainty,
+        reason: semantics.reason,
       };
     }
     case "styleAccess":

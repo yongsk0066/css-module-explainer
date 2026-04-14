@@ -1,18 +1,25 @@
+import {
+  enumerateFiniteClassValues,
+  exactClassValue as exactAbstractClassValue,
+  finiteSetClassValue,
+  joinClassValues,
+  type AbstractClassValue,
+} from "../abstract-value/class-value-domain";
 import type { EdgeCertainty } from "../semantic/certainty";
 
 export interface ClassValueLattice {
-  readonly values: readonly string[];
-  readonly branched: boolean;
+  readonly abstractValue: AbstractClassValue;
+  readonly reason: "flowLiteral" | "flowBranch";
 }
 
 export interface FlowResolution {
-  readonly values: readonly string[];
-  readonly certainty: EdgeCertainty;
+  readonly abstractValue: AbstractClassValue;
+  readonly valueCertainty: EdgeCertainty;
   readonly reason: "flowLiteral" | "flowBranch" | "typeUnion";
 }
 
 export function exactValue(value: string): ClassValueLattice {
-  return { values: [value], branched: false };
+  return { abstractValue: exactAbstractClassValue(value), reason: "flowLiteral" };
 }
 
 export function mergeValues(
@@ -21,22 +28,63 @@ export function mergeValues(
 ): ClassValueLattice | null {
   if (!left) return right;
   if (!right) return left;
-  const values = Array.from(new Set([...left.values, ...right.values])).toSorted();
+  const abstractValue = joinClassValues(left.abstractValue, right.abstractValue);
+  const reason =
+    left.reason === "flowBranch" ||
+    right.reason === "flowBranch" ||
+    !sameAbstractValue(left.abstractValue, right.abstractValue)
+      ? "flowBranch"
+      : "flowLiteral";
   return {
-    values,
-    branched:
-      left.branched ||
-      right.branched ||
-      left.values.length !== right.values.length ||
-      left.values.some((value, index) => value !== right.values[index]),
+    abstractValue,
+    reason,
   };
 }
 
+export function markBranched(value: ClassValueLattice | null): ClassValueLattice | null {
+  if (!value || value.reason === "flowBranch") return value;
+  return { ...value, reason: "flowBranch" };
+}
+
 export function toFlowResolution(value: ClassValueLattice | null): FlowResolution | null {
-  if (!value || value.values.length === 0) return null;
+  if (!value) return null;
+  if (value.abstractValue.kind === "bottom") return null;
+  const values = enumerateFiniteClassValues(value.abstractValue);
+  if (!values) {
+    return {
+      abstractValue: value.abstractValue,
+      valueCertainty: value.abstractValue.kind === "top" ? "possible" : "inferred",
+      reason: value.reason,
+    };
+  }
+  if (values.length === 0) return null;
   return {
-    values: value.values,
-    certainty: value.branched || value.values.length > 1 ? "inferred" : "exact",
-    reason: value.branched ? "flowBranch" : "flowLiteral",
+    abstractValue: value.abstractValue,
+    valueCertainty: value.abstractValue.kind === "exact" ? "exact" : "inferred",
+    reason: value.reason,
   };
+}
+
+export function typeUnionResolution(values: readonly string[]): FlowResolution | null {
+  const abstractValue = finiteSetClassValue(values);
+  const finiteValues = enumerateFiniteClassValues(abstractValue);
+  if (!finiteValues || finiteValues.length === 0) return null;
+  return {
+    abstractValue,
+    valueCertainty: abstractValue.kind === "exact" ? "exact" : "inferred",
+    reason: "typeUnion",
+  };
+}
+
+function sameAbstractValue(left: AbstractClassValue, right: AbstractClassValue): boolean {
+  if (left.kind === "bottom" && right.kind === "bottom") return true;
+  if (left.kind === "top" && right.kind === "top") return true;
+  if (left.kind === "exact" && right.kind === "exact") return left.value === right.value;
+  if (left.kind === "prefix" && right.kind === "prefix") return left.prefix === right.prefix;
+  if (left.kind === "finiteSet" && right.kind === "finiteSet") {
+    return left.values.length === right.values.length
+      ? left.values.every((value, index) => value === right.values[index])
+      : false;
+  }
+  return false;
 }

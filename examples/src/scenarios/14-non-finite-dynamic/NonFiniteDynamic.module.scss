@@ -1,0 +1,42 @@
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  font-size: 13px;
+  background: white;
+}
+
+.sm {
+  font-size: 12px;
+}
+
+.lg {
+  font-size: 15px;
+}
+
+.btn-primary {
+  background: #dbeafe;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+.btn-secondary {
+  background: #ede9fe;
+  border-color: #c4b5fd;
+  color: #6d28d9;
+}
+
+.state-idle {
+  color: #0f766e;
+}
+
+.state-busy {
+  color: #b45309;
+}
+
+.state-error {
+  color: #b91c1c;
+}

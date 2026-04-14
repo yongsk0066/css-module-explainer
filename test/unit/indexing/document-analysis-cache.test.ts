@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import type ts from "typescript";
-import type { CxBinding, StyleImport } from "@css-module-explainer/shared";
+import type { StyleImport } from "@css-module-explainer/shared";
+import type { CxBinding } from "../../../server/src/core/cx/cx-types";
+import type { ResolvedCxBinding } from "../../../server/src/core/cx/resolved-bindings";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
 import {
@@ -18,21 +20,23 @@ const SOURCE = `
 
 function makeCache() {
   const sourceFileCache = new SourceFileCache({ max: 10 });
-  const detectSpy = vi.fn((sourceFile: ts.SourceFile, _filePath: string): CxBinding[] => {
+  const detectSpy = vi.fn((_sourceFile: ts.SourceFile, _filePath: string): CxBinding[] => {
     return [
       {
         cxVarName: "cx",
         stylesVarName: "styles",
         scssModulePath: "/fake/src/Button.module.scss",
         classNamesImportName: "classNames",
-        scope: {
-          startLine: 0,
-          endLine: sourceFile.getLineAndCharacterOfPosition(sourceFile.getEnd()).line,
+        bindingRange: {
+          start: { line: 3, character: 8 },
+          end: { line: 3, character: 10 },
         },
       },
     ];
   });
-  const parseSpy = vi.fn((_sourceFile: ts.SourceFile, _bindings: readonly CxBinding[]) => []);
+  const parseSpy = vi.fn(
+    (_sourceFile: ts.SourceFile, _bindings: readonly ResolvedCxBinding[]) => [],
+  );
   const cache = new DocumentAnalysisCache({
     sourceFileCache,
     scanCxImports: (sf, fp) => ({ stylesBindings: new Map(), bindings: detectSpy(sf, fp) }),
@@ -58,7 +62,7 @@ describe("DocumentAnalysisCache", () => {
     ]);
     const cache = new DocumentAnalysisCache({
       sourceFileCache,
-      scanCxImports: (sf, _fp) => ({
+      scanCxImports: (_sf, _fp) => ({
         stylesBindings: new Map(),
         bindings: [
           {
@@ -66,9 +70,9 @@ describe("DocumentAnalysisCache", () => {
             stylesVarName: "styles",
             scssModulePath: "/fake/src/Button.module.scss",
             classNamesImportName: "classNames",
-            scope: {
-              startLine: 0,
-              endLine: sf.getLineAndCharacterOfPosition(sf.getEnd()).line,
+            bindingRange: {
+              start: { line: 3, character: 8 },
+              end: { line: 3, character: 10 },
             },
           },
         ],
@@ -90,7 +94,9 @@ describe("DocumentAnalysisCache", () => {
   it("analyzes a document on the first get and caches the entry", () => {
     const { cache, detectSpy, parseSpy } = makeCache();
     const entry = cache.get("file:///fake/a.tsx", SOURCE, "/fake/a.tsx", 1);
-    expect(entry.bindings).toHaveLength(1);
+    expect(
+      entry.sourceDocument.utilityBindings.filter((binding) => binding.kind === "classnamesBind"),
+    ).toHaveLength(1);
     expect(entry.sourceDocument.filePath).toBe("/fake/a.tsx");
     expect(detectSpy).toHaveBeenCalledTimes(1);
     expect(parseSpy).toHaveBeenCalledTimes(1);
@@ -111,7 +117,7 @@ describe("DocumentAnalysisCache", () => {
     // Not reference-equal because the entry is upgraded with a
     // new version field, but the underlying parse result is
     // preserved — detectSpy stays at one call.
-    expect(second.bindings).toBe(first.bindings);
+    expect(second.sourceDocument.utilityBindings).toBe(first.sourceDocument.utilityBindings);
     expect(second.sourceFile).toBe(first.sourceFile);
     expect(second.version).toBe(2);
     expect(detectSpy).toHaveBeenCalledTimes(1);
@@ -236,7 +242,7 @@ describe("DocumentAnalysisCache / styleAccess without classnames/bind", () => {
     const parseClassExpressionsSpy = vi.fn(
       (
         _sf: ts.SourceFile,
-        _bindings: readonly CxBinding[],
+        _bindings: readonly ResolvedCxBinding[],
         stylesBindings: ReadonlyMap<string, StyleImport>,
       ) => {
         if (stylesBindings.size > 0 && stylesBindings.has("styles")) {
@@ -244,6 +250,7 @@ describe("DocumentAnalysisCache / styleAccess without classnames/bind", () => {
             makeStyleAccessClassExpression(
               "class-expr:0",
               "/fake/src/Button.module.scss",
+              "synthetic-style-import-decl:test",
               "indicator",
               ["indicator"],
               { start: { line: 3, character: 42 }, end: { line: 3, character: 51 } },
@@ -275,7 +282,7 @@ describe("DocumentAnalysisCache / styleAccess without classnames/bind", () => {
 
     // styleAccess refs must be populated even though the scan
     // returned an empty bindings list.
-    expect(entry.bindings).toHaveLength(0);
+    expect(entry.sourceDocument.utilityBindings).toHaveLength(0);
     expect(entry.sourceDocument.classExpressions).toHaveLength(1);
     expect(entry.sourceDocument.classExpressions[0]).toMatchObject({
       kind: "styleAccess",

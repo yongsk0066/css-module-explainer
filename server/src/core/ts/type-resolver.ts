@@ -1,5 +1,13 @@
 import ts from "typescript";
-import type { ResolvedType } from "@css-module-explainer/shared";
+import type { Range, ResolvedType } from "@css-module-explainer/shared";
+import { buildSourceBinder } from "../binder/binder-builder";
+import {
+  buildSourceBindingGraph,
+  getBindingDeclById,
+  resolveBindingAtOffset,
+  type SourceBindingGraph,
+} from "../binder/source-binding-graph";
+import type { SourceBinderResult } from "../binder/scope-types";
 
 /**
  * Workspace tier of the 2-tier TypeScript strategy.
@@ -19,13 +27,25 @@ export interface TypeResolver {
    * The method must always return a ResolvedType — `unresolvable`
    * is a valid "the checker could not narrow this" result.
    */
-  resolve(filePath: string, variableName: string, workspaceRoot: string): ResolvedType;
+  resolve(
+    filePath: string,
+    variableName: string,
+    workspaceRoot: string,
+    range: Range,
+    options?: ResolveTypeOptions,
+  ): ResolvedType;
 
   /** Drop the cached program for one workspace (e.g. on tsconfig change). */
   invalidate(workspaceRoot: string): void;
 
   /** Drop every cached program. */
   clear(): void;
+}
+
+export interface ResolveTypeOptions {
+  readonly sourceBinder?: SourceBinderResult;
+  readonly sourceBindingGraph?: SourceBindingGraph;
+  readonly rootBindingDeclId?: string | null;
 }
 
 export interface WorkspaceTypeResolverDeps {
@@ -51,7 +71,13 @@ export class WorkspaceTypeResolver implements TypeResolver {
     this.deps = deps;
   }
 
-  resolve(filePath: string, variableName: string, workspaceRoot: string): ResolvedType {
+  resolve(
+    filePath: string,
+    variableName: string,
+    workspaceRoot: string,
+    range: Range,
+    options?: ResolveTypeOptions,
+  ): ResolvedType {
     const program = this.getOrCreateProgram(workspaceRoot);
     const sourceFile = program.getSourceFile(filePath);
     if (!sourceFile) {
@@ -62,7 +88,7 @@ export class WorkspaceTypeResolver implements TypeResolver {
     const parts = variableName.split(".");
     const rootName = parts[0]!;
 
-    let symbol = findIdentifierSymbol(sourceFile, rootName, checker);
+    let symbol = findIdentifierSymbol(sourceFile, rootName, checker, range, options);
     if (!symbol) {
       return UNRESOLVABLE;
     }
@@ -108,90 +134,107 @@ const UNRESOLVABLE: ResolvedType = { kind: "unresolvable", values: [] };
  * Walk the source file for an identifier matching `variableName`
  * and return its checker symbol.
  *
- * Uses a **local-first, import-fallback** 2-pass strategy:
- *   1. First pass looks only at local declarations (variable,
- *      parameter, destructuring binding) via document-order DFS.
- *   2. If no local match, a second pass checks import bindings
- *      (named, default, namespace).
- *
- * This ensures local declarations shadow imports with the same
- * name, matching TypeScript's own scoping rules in the common
- * case. Note: this is still NOT fully scope-aware — if the same
- * name appears in two different local scopes, the first one in
- * document order wins. Full scope-aware resolution requires
- * carrying the call-site node into the resolver (future work).
+ * Uses the lexical binder and the actual call-site range.
+ * Local shadowing and import visibility now depend on the
+ * reference location rather than document-order heuristics.
  */
 function findIdentifierSymbol(
   sourceFile: ts.SourceFile,
   variableName: string,
   checker: ts.TypeChecker,
+  range: Range,
+  options?: ResolveTypeOptions,
 ): ts.Symbol | null {
-  // Pass 1: local declarations only.
-  const local = findLocalSymbol(sourceFile, variableName, checker);
-  if (local) return local;
-
-  // Pass 2: import bindings as fallback.
-  return findImportSymbol(sourceFile, variableName, checker);
+  return findBoundSymbol(sourceFile, variableName, checker, range, options);
 }
 
-function findLocalSymbol(
+function findBoundSymbol(
   sourceFile: ts.SourceFile,
   variableName: string,
   checker: ts.TypeChecker,
+  range: Range,
+  options?: ResolveTypeOptions,
 ): ts.Symbol | null {
-  let found: ts.Symbol | null = null;
-  function visit(node: ts.Node): void {
-    if (found) return;
-    if (ts.isVariableDeclaration(node) || ts.isParameter(node) || ts.isBindingElement(node)) {
-      const nameNode = node.name;
-      if (ts.isIdentifier(nameNode) && nameNode.text === variableName) {
-        found = checker.getSymbolAtLocation(nameNode) ?? null;
-        if (found) return;
-      }
-    }
-    ts.forEachChild(node, visit);
+  if (range.start.line >= sourceFile.getLineStarts().length) {
+    return null;
   }
-  visit(sourceFile);
-  return found;
+
+  const bindingGraph =
+    options?.sourceBindingGraph ??
+    buildSourceBindingGraph(
+      {
+        filePath: sourceFile.fileName,
+        kind: "source",
+        language: "unknown",
+        styleImports: [],
+        utilityBindings: [],
+        classExpressions: [],
+      },
+      options?.sourceBinder ?? buildSourceBinder(sourceFile),
+    );
+  const decl = options?.rootBindingDeclId
+    ? getBindingDeclById(bindingGraph, options.rootBindingDeclId)
+    : resolveDeclFromRange(bindingGraph, sourceFile, variableName, range);
+  if (!decl) {
+    return null;
+  }
+  if (decl.name !== variableName) {
+    return null;
+  }
+
+  const identifier = findIdentifierNodeForDecl(
+    sourceFile,
+    decl.name,
+    decl.span.start,
+    decl.span.end,
+  );
+  if (!identifier) {
+    return null;
+  }
+
+  return checker.getSymbolAtLocation(identifier) ?? null;
 }
 
-function findImportSymbol(
+function resolveDeclFromRange(
+  bindingGraph: SourceBindingGraph,
   sourceFile: ts.SourceFile,
   variableName: string,
-  checker: ts.TypeChecker,
-): ts.Symbol | null {
-  let found: ts.Symbol | null = null;
-  function visit(node: ts.Node): void {
-    if (found) return;
-    if (ts.isImportDeclaration(node) && node.importClause) {
-      const clause = node.importClause;
-      // Default import: `import sizes from './theme'`
-      if (clause.name && clause.name.text === variableName) {
-        found = checker.getSymbolAtLocation(clause.name) ?? null;
-        if (found) return;
-      }
-      if (clause.namedBindings) {
-        if (ts.isNamespaceImport(clause.namedBindings)) {
-          // `import * as sizes from './theme'`
-          if (clause.namedBindings.name.text === variableName) {
-            found = checker.getSymbolAtLocation(clause.namedBindings.name) ?? null;
-            if (found) return;
-          }
-        } else {
-          // `import { sizes } from './theme'` or `import { sizes as s }`
-          for (const spec of clause.namedBindings.elements) {
-            if (spec.name.text === variableName) {
-              found = checker.getSymbolAtLocation(spec.name) ?? null;
-              if (found) return;
-            }
-          }
-        }
-      }
-    }
-    // Only recurse into non-import top-level children (imports are
-    // always top-level, but this keeps the visitor generic).
-    ts.forEachChild(node, visit);
+  range: Range,
+) {
+  const offset = ts.getPositionOfLineAndCharacter(
+    sourceFile,
+    range.start.line,
+    range.start.character,
+  );
+  const resolution = resolveBindingAtOffset(bindingGraph, variableName, offset);
+  if (!resolution) {
+    return null;
   }
+  return getBindingDeclById(bindingGraph, resolution.declId);
+}
+
+function findIdentifierNodeForDecl(
+  sourceFile: ts.SourceFile,
+  name: string,
+  start: number,
+  end: number,
+): ts.Identifier | null {
+  let found: ts.Identifier | null = null;
+
+  const visit = (node: ts.Node): void => {
+    if (found) return;
+    if (
+      ts.isIdentifier(node) &&
+      node.text === name &&
+      node.getStart(sourceFile) === start &&
+      node.getEnd() === end
+    ) {
+      found = node;
+      return;
+    }
+    ts.forEachChild(node, visit);
+  };
+
   visit(sourceFile);
   return found;
 }

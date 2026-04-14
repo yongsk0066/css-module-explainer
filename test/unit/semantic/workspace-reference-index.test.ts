@@ -1,5 +1,7 @@
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
+import { buildSourceBinder } from "../../../server/src/core/binder/binder-builder";
+import { buildSourceBindingGraph } from "../../../server/src/core/binder/source-binding-graph";
 import type { AnalysisEntry } from "../../../server/src/core/indexing/document-analysis-cache";
 import {
   makeSourceDocumentHIR,
@@ -102,7 +104,7 @@ function makeEntry(args: {
     filePath: FILE_PATH,
     language: "tsx",
     styleImports: [
-      makeStyleImportBinding("style:styles", "styles", {
+      makeStyleImportBinding("style:styles", "styles", "decl:0", {
         kind: "resolved",
         absolutePath: SCSS_PATH,
       } satisfies StyleImport),
@@ -125,7 +127,8 @@ function makeEntry(args: {
     version: 1,
     contentHash: "fixture",
     sourceFile,
-    bindings: [],
+    sourceBinder: buildSourceBinder(sourceFile),
+    sourceBindingGraph: buildSourceBindingGraph(sourceDocument, buildSourceBinder(sourceFile)),
     sourceDocument,
     stylesBindings: new Map([
       [
