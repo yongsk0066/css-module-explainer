@@ -115,7 +115,9 @@ import theme from "@styles/theme.module.scss";
 `cssModules.pathAlias` remains a compatibility input. The server logs a
 deprecation notice when a workspace falls back to that key. New setups should
 prefer `cssModuleExplainer.pathAlias`. The compatibility key is read only as a
-fallback and is not the long-term configuration surface.
+fallback and is not the long-term configuration surface. In 3.x, compatibility
+behavior is normalized in `server/src/settings.ts`; runtime consumers read the
+merged native settings shape only.
 
 ## Architecture
 
@@ -146,14 +148,26 @@ server/src/
 │   ├── ts/              # TypeScript program and source-file utilities
 │   ├── indexing/        # document analysis cache and file indexing
 │   └── util/            # small runtime helpers
+├── runtime/             # workspace runtime assembly and invalidation contracts
 ├── providers/           # LSP adapters over read models
-├── composition-root.ts
+├── composition-root.ts  # orchestration only
 └── server.ts
 ```
 
 HIR keeps source-preserving document facts. Binding lives in the binder layer.
 Dynamic class reasoning lives in the abstract-value layer. Providers read stable
 semantic summaries instead of recomputing resolution ad hoc.
+
+3.2 hardening moved several responsibilities out of `composition-root.ts` and
+`handler-registration.ts` into explicit runtime modules:
+
+- workspace runtime assembly
+- dependency snapshots
+- watched-file classification
+- invalidation planning
+
+That split is architectural, not cosmetic. New runtime behavior should extend
+those modules rather than reintroducing feature-specific logic into handlers.
 
 ## Development
 
