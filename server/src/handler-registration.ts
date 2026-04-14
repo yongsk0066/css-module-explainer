@@ -310,6 +310,13 @@ function registerWatchedFilesHandler(state: HandlerState): void {
         hasSourceChange = true;
         if (isProjectConfigPath(filePath)) {
           hasProjectConfigChange = true;
+        } else {
+          for (const uri of deps.semanticReferenceIndex.findUrisBySourceDependency(
+            deps.workspaceRoot,
+            filePath,
+          )) {
+            affectedSourceUris.add(uri);
+          }
         }
       }
     }
@@ -325,11 +332,19 @@ function registerWatchedFilesHandler(state: HandlerState): void {
       for (const deps of affectedDeps) {
         deps.typeResolver.invalidate(deps.workspaceRoot);
       }
-      for (const doc of documents.all()) {
-        const deps = state.ctx.getDeps(doc.uri);
-        if (!deps || !affectedWorkspaceRoots.has(deps.workspaceRoot)) continue;
-        if (findLangForPath(fileUrlToPath(doc.uri))) continue;
-        deps.analysisCache.invalidate(doc.uri);
+      if (hasProjectConfigChange) {
+        for (const doc of documents.all()) {
+          const deps = state.ctx.getDeps(doc.uri);
+          if (!deps || !affectedWorkspaceRoots.has(deps.workspaceRoot)) continue;
+          if (findLangForPath(fileUrlToPath(doc.uri))) continue;
+          affectedSourceUris.add(doc.uri);
+        }
+      }
+      for (const uri of affectedSourceUris) {
+        const deps = state.ctx.getDeps(uri);
+        if (!deps) continue;
+        deps.semanticReferenceIndex.forget(uri);
+        deps.analysisCache.invalidate(uri);
       }
     }
     if (hasStyleChange || hasSourceChange) {
@@ -344,7 +359,7 @@ function registerWatchedFilesHandler(state: HandlerState): void {
           if (!rootAffected) continue;
           state.scheduler.scheduleScss(doc.uri);
         } else {
-          if (!rootAffected && !sourceAffected) continue;
+          if (!sourceAffected) continue;
           state.scheduler.scheduleTsx(doc.uri);
         }
       }

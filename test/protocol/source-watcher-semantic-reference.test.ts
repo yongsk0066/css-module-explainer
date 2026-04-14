@@ -51,8 +51,8 @@ class MutableFakeTypeResolver implements TypeResolver {
 // `typeResolver.resolve`, not `expandTemplateRef` (prefix match).
 const APP_TSX = `import classNames from 'classnames/bind';
 import styles from './app.module.scss';
+import { size } from './theme';
 const cx = classNames.bind(styles);
-const size = 'small';
 export function App() {
   return <div className={cx(size)}>hi</div>;
 }
@@ -144,5 +144,41 @@ describe("source-watcher → semantic reference freshness", () => {
     expect(refsLargeAfter).not.toBeNull();
     expect(refsLargeAfter!.length).toBeGreaterThan(0);
     expect(refsLargeAfter!.some((loc) => loc.uri === tsxUri)).toBe(true);
+  });
+
+  it("unrelated source file save does not reschedule open docs", async () => {
+    const typeResolver = new MutableFakeTypeResolver(["small"]);
+    const scssContent = ".small { color: red; }\n.large { color: blue; }\n";
+
+    client = createInProcessServer({
+      readStyleFile: () => scssContent,
+      typeResolver,
+    });
+    await client.initialize();
+    client.initialized();
+
+    const tsxUri = "file:///fake/workspace/src/App.tsx";
+
+    client.didOpen({
+      textDocument: {
+        uri: tsxUri,
+        languageId: "typescriptreact",
+        version: 1,
+        text: APP_TSX,
+      },
+    });
+
+    await client.waitForDiagnostics(tsxUri);
+
+    client.didChangeWatchedFiles({
+      changes: [
+        {
+          uri: "file:///fake/workspace/src/unrelated.ts",
+          type: FileChangeType.Changed,
+        },
+      ],
+    });
+
+    await expect(client.waitForDiagnostics(tsxUri, 200)).rejects.toThrow(/timed out/u);
   });
 });

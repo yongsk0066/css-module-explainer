@@ -112,10 +112,14 @@ describe("WorkspaceSemanticWorkspaceReferenceIndex", () => {
         workspaceRoot: "/fake/ws",
         settingsKey: "transform:asIs;alias:",
         stylePaths: [SCSS_PATH],
+        sourcePaths: [FILE_PATH, "/fake/ws/src/theme.ts"],
       },
     );
 
     expect(index.findUrisBySettingsDependency("/fake/ws", "transform:asIs;alias:")).toEqual([
+      "file:///fake/ws/src/App.tsx",
+    ]);
+    expect(index.findUrisBySourceDependency("/fake/ws", "/fake/ws/src/theme.ts")).toEqual([
       "file:///fake/ws/src/App.tsx",
     ]);
   });
@@ -175,6 +179,7 @@ function makeEntry(args: {
       ],
     ]),
     classUtilNames: [],
+    sourceDependencyPaths: [FILE_PATH, "/fake/ws/src/theme.ts"],
   };
 }
 
