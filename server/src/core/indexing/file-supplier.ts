@@ -6,6 +6,7 @@ import type { FileTask } from "./indexer-worker";
 export function scssFileSupplier(
   workspaceRoot: string,
   logger: { error: (msg: string) => void },
+  shouldIncludePath: (path: string) => boolean = () => true,
 ): AsyncIterable<FileTask> {
   return {
     async *[Symbol.asyncIterator](): AsyncGenerator<FileTask> {
@@ -18,7 +19,9 @@ export function scssFileSupplier(
       });
       try {
         for await (const entry of stream) {
-          yield { path: String(entry) };
+          const path = String(entry);
+          if (!shouldIncludePath(path)) continue;
+          yield { path };
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);

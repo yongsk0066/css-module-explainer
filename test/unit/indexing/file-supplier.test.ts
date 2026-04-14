@@ -21,9 +21,11 @@ describe("scssFileSupplier", () => {
   beforeAll(() => {
     root = mkdtempSync(join(tmpdir(), "cme-supplier-"));
     mkdirSync(join(root, "src"), { recursive: true });
+    mkdirSync(join(root, "packages", "nested", "src"), { recursive: true });
     mkdirSync(join(root, "node_modules", "pkg"), { recursive: true });
     writeFileSync(join(root, "src", "Button.module.scss"), ".a {}");
     writeFileSync(join(root, "src", "Form.module.css"), ".b {}");
+    writeFileSync(join(root, "packages", "nested", "src", "Nested.module.scss"), ".n {}");
     writeFileSync(join(root, "src", "plain.scss"), ".c {}"); // non-module, ignored
     writeFileSync(join(root, "node_modules", "pkg", "vendor.module.scss"), ".d {}"); // ignored
   });
@@ -38,8 +40,24 @@ describe("scssFileSupplier", () => {
       tasks.push(task);
     }
     const sorted = tasks.map((t) => t.path).toSorted();
+    expect(sorted).toHaveLength(3);
+    expect(sorted.some((path) => path.endsWith("Button.module.scss"))).toBe(true);
+    expect(sorted.some((path) => path.endsWith("Form.module.css"))).toBe(true);
+    expect(sorted.some((path) => path.endsWith("Nested.module.scss"))).toBe(true);
+  });
+
+  it("supports ownership filtering for nested workspace roots", async () => {
+    const nestedRoot = join(root, "packages", "nested");
+    const tasks: FileTask[] = [];
+    for await (const task of scssFileSupplier(
+      root,
+      noopLogger,
+      (path) => !path.startsWith(nestedRoot),
+    )) {
+      tasks.push(task);
+    }
+    const sorted = tasks.map((t) => t.path).toSorted();
     expect(sorted).toHaveLength(2);
-    expect(sorted[0]).toMatch(/Button\.module\.scss$/);
-    expect(sorted[1]).toMatch(/Form\.module\.css$/);
+    expect(sorted.some((path) => path.endsWith("Nested.module.scss"))).toBe(false);
   });
 });

@@ -1,4 +1,3 @@
-import type { ClassnameTransformMode } from "../core/scss/classname-transform";
 import type { DocumentAnalysisCache } from "../core/indexing/document-analysis-cache";
 import type { StyleDocumentHIR } from "../core/hir/style-types";
 import type { SemanticWorkspaceReferenceIndex } from "../core/semantic/workspace-reference-index";
@@ -45,6 +44,7 @@ export interface ProviderDeps {
   readonly typeResolver: TypeResolver;
   readonly semanticReferenceIndex: SemanticWorkspaceReferenceIndex;
   readonly workspaceRoot: string;
+  readonly workspaceFolderUri: string;
   /**
    * Log a provider-level exception. Wired to
    * `connection.console.error` in production; tests pass
@@ -90,15 +90,6 @@ export interface ProviderDeps {
    * directly.
    */
   rebuildAliasResolver(pathAlias: Readonly<Record<string, string>>): void;
-  /**
-   * Switch the classname-transform mode on the style-index cache
-   * and clear dependent caches. Callers (handler-registration's
-   * reloadSettings) must additionally call `analysisCache.clear()`
-   * and reschedule open documents for the new mode to reach
-   * running requests — mirroring the `rebuildAliasResolver`
-   * contract.
-   */
-  setClassnameTransform(mode: ClassnameTransformMode): void;
   /**
    * Ask the client to refresh visible CodeLens entries after the
    * semantic reference graph changes.

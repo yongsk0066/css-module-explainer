@@ -146,6 +146,7 @@ export function makeBaseDeps(overrides: BaseDepsOverrides = {}): ProviderDeps {
     typeResolver: new FakeTypeResolver(),
     semanticReferenceIndex: new NullSemanticWorkspaceReferenceIndex(),
     workspaceRoot: "/fake/ws",
+    workspaceFolderUri: "file:///fake/ws",
     logError: NOOP_LOG_ERROR,
     invalidateStyle: () => {},
     pushStyleFile: () => {},
@@ -153,7 +154,6 @@ export function makeBaseDeps(overrides: BaseDepsOverrides = {}): ProviderDeps {
     stopIndexer: () => {},
     settings: DEFAULT_SETTINGS,
     rebuildAliasResolver: () => {},
-    setClassnameTransform: () => {},
     ...providerOverrides,
   };
 }

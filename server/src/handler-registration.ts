@@ -12,13 +12,21 @@ import { handlePrepareRename, handleRename } from "./providers/rename";
 import type { CursorParams, ProviderDeps } from "./providers/provider-deps";
 import { fileUrlToPath } from "./core/util/text-utils";
 import { findLangForPath } from "./core/scss/lang-registry";
-import { fetchSettings, DEFAULT_SETTINGS, type Settings } from "./settings";
+import {
+  DEFAULT_WINDOW_SETTINGS,
+  fetchResourceSettings,
+  fetchWindowSettings,
+  mergeSettings,
+  type WindowSettings,
+} from "./settings";
 import { createDiagnosticsScheduler, type DiagnosticsScheduler } from "./diagnostics-scheduler";
+import type { WorkspaceRegistry } from "./workspace/workspace-registry";
 
 export interface HandlerContext {
   readonly connection: Connection;
   readonly documents: TextDocuments<TextDocument>;
-  getDeps(): ProviderDeps | null;
+  getDeps(uri: string): ProviderDeps | null;
+  getRegistry(): WorkspaceRegistry | null;
 }
 
 export interface HandlerCleanup {
@@ -29,7 +37,7 @@ export interface HandlerCleanup {
 interface HandlerState {
   readonly ctx: HandlerContext;
   readonly scheduler: DiagnosticsScheduler;
-  settings: Settings;
+  windowSettings: WindowSettings;
 }
 
 /**
@@ -41,8 +49,16 @@ interface HandlerState {
 export function registerHandlers(ctx: HandlerContext): HandlerCleanup {
   const state: HandlerState = {
     ctx,
-    scheduler: createDiagnosticsScheduler(ctx, DEFAULT_SETTINGS),
-    settings: DEFAULT_SETTINGS,
+    scheduler: createDiagnosticsScheduler(
+      {
+        connection: ctx.connection,
+        documents: ctx.documents,
+        getDeps: ctx.getDeps,
+        getAllDeps: () => ctx.getRegistry()?.allDeps() ?? [],
+      },
+      DEFAULT_WINDOW_SETTINGS,
+    ),
+    windowSettings: DEFAULT_WINDOW_SETTINGS,
   };
 
   const reloadSettings = registerSettingsHandler(state);
@@ -52,7 +68,9 @@ export function registerHandlers(ctx: HandlerContext): HandlerCleanup {
 
   return {
     shutdown() {
-      state.ctx.getDeps()?.stopIndexer();
+      for (const deps of state.ctx.getRegistry()?.allDeps() ?? []) {
+        deps.stopIndexer();
+      }
       state.scheduler.shutdown();
     },
     refreshSettings: reloadSettings,
@@ -63,32 +81,43 @@ function registerSettingsHandler(state: HandlerState): () => void {
   const { connection } = state.ctx;
 
   function reloadSettings(): void {
-    fetchSettings(connection)
-      .then((s) => {
-        const prev = state.settings;
-        state.settings = s;
-        state.scheduler.refreshSettings(s);
+    fetchWindowSettings(connection)
+      .then(async (windowSettings) => {
+        state.windowSettings = windowSettings;
+        state.scheduler.refreshSettings(windowSettings);
 
-        const deps = state.ctx.getDeps();
-        if (!deps) return;
-        deps.settings = s;
+        const registry = state.ctx.getRegistry();
+        if (!registry) return;
 
-        // Per-branch mutators — each owns its specific side effect.
-        const aliasChanged = !shallowEqualPathAlias(prev.pathAlias, s.pathAlias);
-        const modeChanged = prev.scss.classnameTransform !== s.scss.classnameTransform;
-        if (aliasChanged) deps.rebuildAliasResolver(s.pathAlias);
-        if (modeChanged) deps.setClassnameTransform(s.scss.classnameTransform);
+        let resourceChanged = false;
+        const bundles = registry.allDeps();
+        const resourceSettingsByBundle = await Promise.all(
+          bundles.map(async (deps) => ({
+            deps,
+            resourceSettings: await fetchResourceSettings(connection, deps.workspaceFolderUri),
+          })),
+        );
+        for (const { deps, resourceSettings } of resourceSettingsByBundle) {
+          const nextSettings = mergeSettings(windowSettings, resourceSettings);
+          const prevSettings = deps.settings;
+          deps.settings = nextSettings;
 
-        // Shared invalidation + reschedule fires once regardless of
-        // which branch triggered. Route each open document to the
-        // scheduler method that matches its language — sending a
-        // SCSS URI through `scheduleTsx` would run TSX class-token
-        // validation on the SCSS file and leave the real SCSS
-        // unused-selector diagnostic stale under the prior mode.
-        if (aliasChanged || modeChanged) {
-          deps.analysisCache.clear();
-          deps.semanticReferenceIndex.clear();
-          deps.refreshCodeLens();
+          const aliasChanged = !shallowEqualPathAlias(
+            prevSettings.pathAlias,
+            nextSettings.pathAlias,
+          );
+          const modeChanged =
+            prevSettings.scss.classnameTransform !== nextSettings.scss.classnameTransform;
+          if (aliasChanged) deps.rebuildAliasResolver(nextSettings.pathAlias);
+          if (aliasChanged || modeChanged) resourceChanged = true;
+        }
+
+        if (resourceChanged) {
+          for (const deps of bundles) {
+            deps.analysisCache.clear();
+          }
+          bundles[0]?.semanticReferenceIndex.clear();
+          bundles[0]?.refreshCodeLens();
           for (const doc of state.ctx.documents.all()) {
             const filePath = fileUrlToPath(doc.uri);
             if (findLangForPath(filePath)) {
@@ -128,7 +157,7 @@ function registerCursorHandlers(state: HandlerState): void {
     run: (cursor: CursorParams, deps: ProviderDeps) => T | null,
   ): T | null => {
     if (!featureOn()) return null;
-    const deps = getDeps();
+    const deps = getDeps(p.textDocument.uri);
     if (!deps) return null;
     const cursor = toCursorParams(p, documents);
     if (!cursor) return null;
@@ -136,52 +165,52 @@ function registerCursorHandlers(state: HandlerState): void {
   };
 
   connection.onDefinition((p) =>
-    withCursor(() => state.settings.features.definition, p, handleDefinition),
+    withCursor(() => state.windowSettings.features.definition, p, handleDefinition),
   );
 
   connection.onHover((p) =>
     withCursor(
-      () => state.settings.features.hover,
+      () => state.windowSettings.features.hover,
       p,
-      (cursor, deps) => handleHover(cursor, deps, state.settings.hover.maxCandidates),
+      (cursor, deps) => handleHover(cursor, deps, state.windowSettings.hover.maxCandidates),
     ),
   );
 
   connection.onCompletion((p) =>
-    withCursor(() => state.settings.features.completion, p, handleCompletion),
+    withCursor(() => state.windowSettings.features.completion, p, handleCompletion),
   );
 
   connection.onCodeAction((p) => {
-    const deps = getDeps();
+    const deps = getDeps(p.textDocument.uri);
     if (!deps) return null;
     return handleCodeAction(p, deps);
   });
 
   connection.onReferences((p) => {
-    if (!state.settings.features.references) return null;
-    const deps = getDeps();
+    if (!state.windowSettings.features.references) return null;
+    const deps = getDeps(p.textDocument.uri);
     if (!deps) return null;
     return handleReferences(p, deps);
   });
 
   connection.onCodeLens((p) => {
-    if (!state.settings.features.references) return null;
-    const deps = getDeps();
+    if (!state.windowSettings.features.references) return null;
+    const deps = getDeps(p.textDocument.uri);
     if (!deps) return null;
     return handleCodeLens(p, deps);
   });
 
   connection.onPrepareRename((p) => {
-    if (!state.settings.features.rename) return null;
-    const deps = getDeps();
+    if (!state.windowSettings.features.rename) return null;
+    const deps = getDeps(p.textDocument.uri);
     if (!deps) return null;
     const cursor = toCursorParams(p, documents);
     return handlePrepareRename(p, deps, cursor ?? undefined);
   });
 
   connection.onRenameRequest((p) => {
-    if (!state.settings.features.rename) return null;
-    const deps = getDeps();
+    if (!state.windowSettings.features.rename) return null;
+    const deps = getDeps(p.textDocument.uri);
     if (!deps) return null;
     const cursor = toCursorParams(p, documents);
     return handleRename(p, deps, cursor ?? undefined);
@@ -203,7 +232,7 @@ function registerDocumentHandlers(state: HandlerState): void {
 
   documents.onDidClose((change) => {
     state.scheduler.handleDocumentClose(change.document.uri);
-    const deps = state.ctx.getDeps();
+    const deps = state.ctx.getDeps(change.document.uri);
     if (!deps) return;
     // Drop every workspace-visible trace of the closed buffer
     // before the next analyze or unused-selector check runs.
@@ -214,23 +243,34 @@ function registerDocumentHandlers(state: HandlerState): void {
 }
 
 function registerWatchedFilesHandler(state: HandlerState): void {
-  const { connection, documents, getDeps } = state.ctx;
+  const { connection, documents } = state.ctx;
 
   connection.onDidChangeWatchedFiles((params: DidChangeWatchedFilesParams) => {
-    const deps = getDeps();
-    if (!deps) return;
+    const registry = state.ctx.getRegistry();
+    if (!registry) return;
     let hasStyleChange = false;
     let hasSourceChange = false;
     let hasProjectConfigChange = false;
+    const affectedWorkspaceRoots = new Set<string>();
+    const affectedSourceUris = new Set<string>();
     for (const change of params.changes) {
       const filePath = fileUrlToPath(change.uri);
+      const deps = registry.getDepsForFilePath(filePath);
+      if (!deps) continue;
+      affectedWorkspaceRoots.add(deps.workspaceRoot);
       if (findLangForPath(filePath)) {
         hasStyleChange = true;
         deps.invalidateStyle(filePath);
         if (change.type !== FileChangeType.Deleted) {
           deps.pushStyleFile(filePath);
         }
-        invalidateDependentTsxEntries(deps, filePath);
+        for (const uri of invalidateDependentTsxEntries(
+          state.ctx.getDeps,
+          deps.semanticReferenceIndex,
+          filePath,
+        )) {
+          affectedSourceUris.add(uri);
+        }
       } else {
         hasSourceChange = true;
         if (isProjectConfigPath(filePath)) {
@@ -238,30 +278,38 @@ function registerWatchedFilesHandler(state: HandlerState): void {
         }
       }
     }
+    const affectedDeps = registry
+      .allDeps()
+      .filter((deps) => affectedWorkspaceRoots.has(deps.workspaceRoot));
     if (hasProjectConfigChange) {
-      deps.rebuildAliasResolver(deps.settings.pathAlias);
+      for (const deps of affectedDeps) {
+        deps.rebuildAliasResolver(deps.settings.pathAlias);
+      }
     }
     if (hasSourceChange) {
-      deps.typeResolver.invalidate(deps.workspaceRoot);
-      // Drop cached analysis for every open source document so
-      // `onAnalyze` re-fires on the next `scheduleTsx` and the
-      // semantic reference index recomputes with fresh type data.
-      // We invalidate all open source docs because
-      // `typeResolver.invalidate` drops the entire workspace
-      // program — we cannot narrow which documents' symbol-based
-      // references are affected.
+      for (const deps of affectedDeps) {
+        deps.typeResolver.invalidate(deps.workspaceRoot);
+      }
       for (const doc of documents.all()) {
-        if (!findLangForPath(fileUrlToPath(doc.uri))) {
-          deps.analysisCache.invalidate(doc.uri);
-        }
+        const deps = state.ctx.getDeps(doc.uri);
+        if (!deps || !affectedWorkspaceRoots.has(deps.workspaceRoot)) continue;
+        if (findLangForPath(fileUrlToPath(doc.uri))) continue;
+        deps.analysisCache.invalidate(doc.uri);
       }
     }
     if (hasStyleChange || hasSourceChange) {
       for (const doc of documents.all()) {
+        const deps = state.ctx.getDeps(doc.uri);
+        if (!deps) continue;
         const docPath = fileUrlToPath(doc.uri);
+        const rootAffected = affectedWorkspaceRoots.has(deps.workspaceRoot);
+        const sourceAffected = affectedSourceUris.has(doc.uri);
+        if (!rootAffected && !sourceAffected) continue;
         if (findLangForPath(docPath)) {
+          if (!rootAffected) continue;
           state.scheduler.scheduleScss(doc.uri);
         } else {
+          if (!rootAffected && !sourceAffected) continue;
           state.scheduler.scheduleTsx(doc.uri);
         }
       }
@@ -284,11 +332,16 @@ function isProjectConfigPath(filePath: string): boolean {
  * `onAnalyze` never re-fires and the semantic reference query
  * keeps serving targets computed against the old classMap.
  */
-function invalidateDependentTsxEntries(deps: ProviderDeps, scssPath: string): void {
-  const affectedUris = new Set(deps.semanticReferenceIndex.findReferencingUris(scssPath));
+function invalidateDependentTsxEntries(
+  getDeps: (uri: string) => ProviderDeps | null,
+  semanticReferenceIndex: ProviderDeps["semanticReferenceIndex"],
+  scssPath: string,
+): ReadonlySet<string> {
+  const affectedUris = new Set(semanticReferenceIndex.findReferencingUris(scssPath));
   for (const uri of affectedUris) {
-    deps.analysisCache.invalidate(uri);
+    getDeps(uri)?.analysisCache.invalidate(uri);
   }
+  return affectedUris;
 }
 
 function safeLogError(connection: Connection, context: string, err: unknown): void {

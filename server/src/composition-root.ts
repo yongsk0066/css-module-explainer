@@ -14,7 +14,7 @@ import {
 } from "vscode-languageserver/node";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import ts from "typescript";
-import { DEFAULT_SETTINGS } from "./settings";
+import { DEFAULT_RESOURCE_SETTINGS, DEFAULT_SETTINGS, type ResourceSettings } from "./settings";
 import { buildStyleFileWatcherGlob, findLangForPath } from "./core/scss/lang-registry";
 import { StyleIndexCache } from "./core/scss/scss-index";
 import type { StyleDocumentHIR } from "./core/hir/style-types";
@@ -32,9 +32,14 @@ import {
 } from "./core/semantic/workspace-reference-index";
 import { fileUrlToPath, pathToFileUrl } from "./core/util/text-utils";
 import { COMPLETION_TRIGGER_CHARACTERS } from "./providers/completion";
-import type { ProviderDeps } from "./providers/provider-deps";
 import { registerHandlers } from "./handler-registration";
 import type { FileTask } from "./core/indexing/indexer-worker";
+import {
+  WorkspaceRegistry,
+  pickOwningWorkspaceFolder,
+  type WorkspaceFolderInfo,
+  type WorkspaceProviderDeps,
+} from "./workspace/workspace-registry";
 
 const SERVER_NAME = "css-module-explainer";
 const SERVER_VERSION = "3.1.0";
@@ -106,27 +111,53 @@ export function createServer(options: CreateServerOptions): CreatedServer {
       : createConnection(ProposedFeatures.all);
   const documents = new TextDocuments<TextDocument>(TextDocument);
 
-  let bundle: ProviderDeps | null = null;
+  let registry: WorkspaceRegistry | null = null;
+  let caches: BundleCaches | null = null;
+  let typeResolver: TypeResolver | null = null;
+  let styleDocumentForPath: ((path: string) => StyleDocumentHIR | null) | null = null;
+  let fileExists: ((path: string) => boolean) | null = null;
   let watchedFilesDisposable: Promise<{ dispose(): void }> | null = null;
   let clientSupportsDynamicWatchers = false;
   let clientSupportsCodeLensRefresh = false;
+  let clientSupportsWorkspaceFolders = false;
 
   // ── Lifecycle ──────────────────────────────────────────────
 
   connection.onInitialize((params: InitializeParams): InitializeResult => {
     connection.console.info(`[${SERVER_NAME}] initialize received`);
-    const workspaceRoot = resolveWorkspaceRoot(params);
+    const workspaceFolders = resolveWorkspaceFolders(params);
     clientSupportsDynamicWatchers =
       params.capabilities.workspace?.didChangeWatchedFiles?.dynamicRegistration ?? false;
     clientSupportsCodeLensRefresh =
       params.capabilities.workspace?.codeLens?.refreshSupport ?? false;
-    bundle = buildBundle(
-      workspaceRoot,
-      options,
-      connection,
+    clientSupportsWorkspaceFolders = params.capabilities.workspace?.workspaceFolders ?? false;
+    caches = buildCaches();
+    typeResolver = buildTypeResolver(options);
+    registry = new WorkspaceRegistry();
+    const readStyleFile = options.readStyleFile ?? defaultReadStyleFile;
+    fileExists = options.fileExists ?? existsSync;
+    styleDocumentForPath = buildStyleDocumentForPath(
+      caches.styleIndexCache,
       documents,
-      clientSupportsCodeLensRefresh,
+      readStyleFile,
+      (stylePath) =>
+        registry?.getDepsForFilePath(stylePath)?.settings.scss.classnameTransform ??
+        DEFAULT_RESOURCE_SETTINGS.scss.classnameTransform,
     );
+    for (const folder of workspaceFolders) {
+      const deps = buildBundleForFolder(
+        folder,
+        workspaceFolders,
+        caches,
+        typeResolver,
+        styleDocumentForPath,
+        options,
+        connection,
+        fileExists,
+        clientSupportsCodeLensRefresh,
+      );
+      registry.register(folder, deps);
+    }
     return {
       capabilities: buildCapabilities(),
       serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
@@ -138,12 +169,51 @@ export function createServer(options: CreateServerOptions): CreatedServer {
   const handlers = registerHandlers({
     connection,
     documents,
-    getDeps: () => bundle,
+    getDeps: (uri) => registry?.getDeps(uri) ?? null,
+    getRegistry: () => registry,
   });
 
   connection.onInitialized(async () => {
     connection.console.info(`[${SERVER_NAME}] initialized`);
-    if (!bundle) return;
+    if (!registry) return;
+    if (clientSupportsWorkspaceFolders) {
+      connection.workspace.onDidChangeWorkspaceFolders((event) => {
+        if (!registry || !caches || !typeResolver || !styleDocumentForPath || !fileExists) return;
+
+        for (const folder of event.removed) {
+          const existing = registry.getFolder(folder.uri);
+          if (!existing) continue;
+          const deps = registry.unregister(folder.uri);
+          if (!deps) continue;
+          clearWorkspaceFolderDocuments(existing.rootPath, deps, documents, connection);
+          deps.stopIndexer();
+          deps.typeResolver.invalidate(existing.rootPath);
+        }
+
+        for (const folder of event.added) {
+          if (registry.getFolder(folder.uri)) continue;
+          const folderInfo: WorkspaceFolderInfo = {
+            uri: folder.uri,
+            rootPath: fileUrlToPath(folder.uri),
+            name: folder.name,
+          };
+          const deps = buildBundleForFolder(
+            folderInfo,
+            [...registry.getFolders(), folderInfo],
+            caches,
+            typeResolver,
+            styleDocumentForPath,
+            options,
+            connection,
+            fileExists,
+            clientSupportsCodeLensRefresh,
+          );
+          registry.register(folderInfo, deps);
+        }
+
+        handlers.refreshSettings();
+      });
+    }
     if (clientSupportsDynamicWatchers) {
       watchedFilesDisposable = connection.client
         .register(DidChangeWatchedFilesNotification.type, {
@@ -163,7 +233,7 @@ export function createServer(options: CreateServerOptions): CreatedServer {
     handlers.shutdown();
     void watchedFilesDisposable?.then((d) => d.dispose()).catch(() => {});
     watchedFilesDisposable = null;
-    bundle = null;
+    registry = null;
   });
 
   documents.listen(connection);
@@ -188,24 +258,49 @@ function buildCapabilities(): InitializeResult["capabilities"] {
     referencesProvider: true,
     codeLensProvider: { resolveProvider: false },
     renameProvider: { prepareProvider: true },
+    workspace: {
+      workspaceFolders: {
+        supported: true,
+        changeNotifications: true,
+      },
+    },
   };
 }
 
-function resolveWorkspaceRoot(params: InitializeParams): string {
-  const folder = params.workspaceFolders?.[0];
-  if (folder) return fileUrlToPath(folder.uri);
-  if (params.rootUri) return fileUrlToPath(params.rootUri);
-  if (params.rootPath) return params.rootPath;
-  return process.cwd();
+function resolveWorkspaceFolders(params: InitializeParams): readonly WorkspaceFolderInfo[] {
+  if (params.workspaceFolders && params.workspaceFolders.length > 0) {
+    return params.workspaceFolders.map((folder) => ({
+      uri: folder.uri,
+      rootPath: fileUrlToPath(folder.uri),
+      name: folder.name,
+    }));
+  }
+  const rootPath = params.rootUri
+    ? fileUrlToPath(params.rootUri)
+    : params.rootPath
+      ? params.rootPath
+      : process.cwd();
+  return [
+    {
+      uri: pathToFileUrl(rootPath),
+      rootPath,
+      name: rootPath.split(/[\\/]/u).pop() || rootPath,
+    },
+  ];
 }
 
 function buildBundle(
-  workspaceRoot: string,
+  folder: WorkspaceFolderInfo,
+  workspaceFolders: readonly WorkspaceFolderInfo[],
+  caches: BundleCaches,
+  typeResolver: TypeResolver,
+  styleDocumentForPath: (path: string) => StyleDocumentHIR | null,
   options: CreateServerOptions,
   connection: Connection,
-  documents: TextDocuments<TextDocument>,
+  fileExists: (path: string) => boolean,
   supportsCodeLensRefresh: boolean,
-): ProviderDeps {
+): WorkspaceProviderDeps {
+  let currentSettings = DEFAULT_SETTINGS;
   const refreshCodeLens = (): void => {
     if (!supportsCodeLensRefresh) return;
     // Clients advertise support via `workspace.codeLens.refreshSupport`.
@@ -213,20 +308,11 @@ function buildBundle(
     // than surfacing noisy transport errors.
     void connection.sendRequest(CodeLensRefreshRequest.type).catch(() => {});
   };
-  const caches = buildCaches();
-  const typeResolver = buildTypeResolver(options);
-  const readStyleFile = options.readStyleFile ?? defaultReadStyleFile;
-  const fileExists = options.fileExists ?? existsSync;
-  const styleDocumentForPath = buildStyleDocumentForPath(
-    caches.styleIndexCache,
-    documents,
-    readStyleFile,
-  );
-  const aliasHolder = new AliasResolverHolder(workspaceRoot, DEFAULT_SETTINGS.pathAlias);
+  const aliasHolder = new AliasResolverHolder(folder.rootPath, DEFAULT_SETTINGS.pathAlias);
   const analysisCache = buildAnalysisCache({
     caches,
     styleDocumentForPath,
-    workspaceRoot,
+    workspaceRoot: folder.rootPath,
     typeResolver,
     fileExists,
     getAliasResolver: () => aliasHolder.get(),
@@ -235,7 +321,9 @@ function buildBundle(
   const indexerWorker = buildIndexerWorker(
     options,
     caches.styleIndexCache,
-    workspaceRoot,
+    folder.rootPath,
+    () => currentSettings.scss.classnameTransform,
+    (stylePath) => pickOwningWorkspaceFolder(workspaceFolders, stylePath)?.uri === folder.uri,
     connection,
   );
 
@@ -244,7 +332,8 @@ function buildBundle(
     styleDocumentForPath,
     typeResolver,
     semanticReferenceIndex: caches.semanticReferenceIndex,
-    workspaceRoot,
+    workspaceRoot: folder.rootPath,
+    workspaceFolderUri: folder.uri,
     logError: (message, err) => {
       const detail = err instanceof Error ? `${err.message}\n${err.stack ?? ""}` : String(err);
       connection.console.error(`[${SERVER_NAME}] ${message}: ${detail}`);
@@ -253,14 +342,39 @@ function buildBundle(
     pushStyleFile: (path) => indexerWorker.pushFile({ path }),
     indexerReady: indexerWorker.ready,
     stopIndexer: () => indexerWorker.stop(),
-    settings: DEFAULT_SETTINGS,
-    rebuildAliasResolver: (pathAlias) => aliasHolder.rebuild(pathAlias),
-    setClassnameTransform(mode) {
-      caches.styleIndexCache.setMode(mode);
-      caches.semanticReferenceIndex.clear();
+    get settings() {
+      return currentSettings;
     },
+    set settings(next) {
+      currentSettings = next;
+    },
+    rebuildAliasResolver: (pathAlias) => aliasHolder.rebuild(pathAlias),
     refreshCodeLens,
   };
+}
+
+function buildBundleForFolder(
+  folder: WorkspaceFolderInfo,
+  workspaceFolders: readonly WorkspaceFolderInfo[],
+  caches: BundleCaches,
+  typeResolver: TypeResolver,
+  styleDocumentForPath: (path: string) => StyleDocumentHIR | null,
+  options: CreateServerOptions,
+  connection: Connection,
+  fileExists: (path: string) => boolean,
+  supportsCodeLensRefresh: boolean,
+): WorkspaceProviderDeps {
+  return buildBundle(
+    folder,
+    workspaceFolders,
+    caches,
+    typeResolver,
+    styleDocumentForPath,
+    options,
+    connection,
+    fileExists,
+    supportsCodeLensRefresh,
+  );
 }
 
 interface BundleCaches {
@@ -290,14 +404,16 @@ function buildStyleDocumentForPath(
   styleIndexCache: StyleIndexCache,
   documents: TextDocuments<TextDocument>,
   readStyleFile: (path: string) => string | null,
+  getModeForPath: (path: string) => ResourceSettings["scss"]["classnameTransform"],
 ): (path: string) => StyleDocumentHIR | null {
   return (path: string): StyleDocumentHIR | null => {
     if (!findLangForPath(path)) return null;
     const buffered = readStyleTextFromOpenDocuments(path, documents);
-    if (buffered !== null) return styleIndexCache.getStyleDocument(path, buffered);
+    const mode = getModeForPath(path);
+    if (buffered !== null) return styleIndexCache.getStyleDocument(path, buffered, mode);
     const content = readStyleFile(path);
     if (content === null) return null;
-    return styleIndexCache.getStyleDocument(path, content);
+    return styleIndexCache.getStyleDocument(path, content, mode);
   };
 }
 
@@ -364,19 +480,22 @@ function buildIndexerWorker(
   options: CreateServerOptions,
   styleIndexCache: StyleIndexCache,
   workspaceRoot: string,
+  getMode: () => ResourceSettings["scss"]["classnameTransform"],
+  shouldIndexPath: (path: string) => boolean,
   connection: Connection,
 ): IndexerWorker {
   const indexerLogger = {
     info: (msg: string) => connection.console.info(`[${SERVER_NAME}:indexer] ${msg}`),
     error: (msg: string) => connection.console.error(`[${SERVER_NAME}:indexer] ${msg}`),
   };
-  const supplier = options.fileSupplier ?? (() => scssFileSupplier(workspaceRoot, indexerLogger));
+  const supplier =
+    options.fileSupplier ?? (() => scssFileSupplier(workspaceRoot, indexerLogger, shouldIndexPath));
   const asyncReadFile = options.readStyleFileAsync ?? defaultReadStyleFileAsync;
   const worker = new IndexerWorker({
     supplier,
     readFile: asyncReadFile,
     onScssFile: (path, content) => {
-      styleIndexCache.getStyleDocument(path, content);
+      styleIndexCache.getStyleDocument(path, content, getMode());
     },
     logger: indexerLogger,
   });
@@ -404,6 +523,28 @@ function defaultReadStyleFile(path: string): string | null {
   } catch {
     return null;
   }
+}
+
+function clearWorkspaceFolderDocuments(
+  workspaceRoot: string,
+  deps: WorkspaceProviderDeps,
+  documents: TextDocuments<TextDocument>,
+  connection: Connection,
+): void {
+  for (const doc of documents.all()) {
+    const filePath = fileUrlToPath(doc.uri);
+    if (!isWithinWorkspaceRoot(workspaceRoot, filePath)) continue;
+    deps.semanticReferenceIndex.forget(doc.uri);
+    deps.analysisCache.invalidate(doc.uri);
+    connection.sendDiagnostics({ uri: doc.uri, diagnostics: [] });
+  }
+  deps.refreshCodeLens();
+}
+
+function isWithinWorkspaceRoot(workspaceRoot: string, filePath: string): boolean {
+  const rel = ts.sys.resolvePath(filePath).replaceAll("\\", "/");
+  const root = ts.sys.resolvePath(workspaceRoot).replaceAll("\\", "/");
+  return rel === root || rel.startsWith(`${root}/`);
 }
 
 /**

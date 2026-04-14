@@ -17,6 +17,14 @@ export interface StyleIndexEntry {
   readonly styleDocument: StyleDocumentHIR;
 }
 
+const CLASSNAME_TRANSFORM_MODES: readonly ClassnameTransformMode[] = [
+  "asIs",
+  "camelCase",
+  "camelCaseOnly",
+  "dashes",
+  "dashesOnly",
+];
+
 /**
  * Content-hashed LRU cache for transformed style-document HIR.
  *
@@ -31,46 +39,54 @@ export interface StyleIndexEntry {
  */
 export class StyleIndexCache {
   private readonly lru: LruMap<string, StyleIndexEntry>;
-  private mode: ClassnameTransformMode = "asIs";
 
   constructor(options: { max: number }) {
     this.lru = new LruMap(options.max);
   }
 
-  getStyleDocument(filePath: string, content: string): StyleDocumentHIR {
-    return this.getEntry(filePath, content).styleDocument;
+  getStyleDocument(
+    filePath: string,
+    content: string,
+    mode: ClassnameTransformMode = "asIs",
+  ): StyleDocumentHIR {
+    return this.getEntry(filePath, content, mode).styleDocument;
   }
 
-  getEntry(filePath: string, content: string): StyleIndexEntry {
+  getEntry(
+    filePath: string,
+    content: string,
+    mode: ClassnameTransformMode = "asIs",
+  ): StyleIndexEntry {
+    const cacheKey = this.key(filePath, mode);
     const hash = contentHash(content);
-    const cached = this.lru.get(filePath);
-    if (cached && cached.hash === hash && cached.mode === this.mode) {
-      this.lru.touch(filePath, cached);
+    const cached = this.lru.get(cacheKey);
+    if (cached && cached.hash === hash && cached.mode === mode) {
+      this.lru.touch(cacheKey, cached);
       return cached;
     }
 
     const base = parseStyleDocument(content, filePath);
-    const styleDocument = expandStyleDocumentWithTransform(base, this.mode);
+    const styleDocument = expandStyleDocumentWithTransform(base, mode);
     const entry: StyleIndexEntry = {
       hash,
-      mode: this.mode,
+      mode,
       styleDocument,
     };
-    this.lru.set(filePath, entry);
+    this.lru.set(cacheKey, entry);
     return entry;
   }
 
-  setMode(mode: ClassnameTransformMode): void {
-    if (this.mode === mode) return;
-    this.mode = mode;
-    this.lru.clear();
-  }
-
   invalidate(filePath: string): void {
-    this.lru.delete(filePath);
+    for (const mode of CLASSNAME_TRANSFORM_MODES) {
+      this.lru.delete(this.key(filePath, mode));
+    }
   }
 
   clear(): void {
     this.lru.clear();
+  }
+
+  private key(filePath: string, mode: ClassnameTransformMode): string {
+    return `${mode}\u0000${filePath}`;
   }
 }

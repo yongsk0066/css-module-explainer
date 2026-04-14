@@ -370,13 +370,16 @@ describe("StyleIndexCache", () => {
 
   // ── classnameTransform integration ──
 
-  it("setMode('camelCase') clears the cache and next read returns alias views", () => {
+  it("different modes coexist for the same file path", () => {
     const cache = new StyleIndexCache({ max: 10 });
     const asIsDoc = cache.getStyleDocument("/f.module.scss", `.btn-primary { color: red; }`);
     const asIsMap = selectorMapFromDocument(asIsDoc);
     expect(asIsMap.has("btnPrimary")).toBe(false);
-    cache.setMode("camelCase");
-    const expandedDoc = cache.getStyleDocument("/f.module.scss", `.btn-primary { color: red; }`);
+    const expandedDoc = cache.getStyleDocument(
+      "/f.module.scss",
+      `.btn-primary { color: red; }`,
+      "camelCase",
+    );
     const expanded = selectorMapFromDocument(expandedDoc);
     expect(expandedDoc).not.toBe(asIsDoc);
     expect(expanded.has("btn-primary")).toBe(true);
@@ -384,12 +387,30 @@ describe("StyleIndexCache", () => {
     expect(expanded.get("btnPrimary")?.originalName).toBe("btn-primary");
   });
 
-  it("setMode idempotent: setting the same mode does not clear", () => {
+  it("same mode still returns the same cached style document", () => {
     const cache = new StyleIndexCache({ max: 10 });
-    const first = cache.getStyleDocument("/f.module.scss", `.btn-primary { color: red; }`);
-    cache.setMode("asIs"); // no-op
-    const second = cache.getStyleDocument("/f.module.scss", `.btn-primary { color: red; }`);
-    expect(second).toBe(first); // same reference — not cleared
+    const first = cache.getStyleDocument("/f.module.scss", `.btn-primary { color: red; }`, "asIs");
+    const second = cache.getStyleDocument("/f.module.scss", `.btn-primary { color: red; }`, "asIs");
+    expect(second).toBe(first);
+  });
+
+  it("invalidate(path) drops entries for every mode", () => {
+    const cache = new StyleIndexCache({ max: 10 });
+    const asIsDoc = cache.getStyleDocument("/f.module.scss", `.btn-primary { color: red; }`);
+    const camelDoc = cache.getStyleDocument(
+      "/f.module.scss",
+      `.btn-primary { color: red; }`,
+      "camelCase",
+    );
+    cache.invalidate("/f.module.scss");
+    const asIsAgain = cache.getStyleDocument("/f.module.scss", `.btn-primary { color: red; }`);
+    const camelAgain = cache.getStyleDocument(
+      "/f.module.scss",
+      `.btn-primary { color: red; }`,
+      "camelCase",
+    );
+    expect(asIsAgain).not.toBe(asIsDoc);
+    expect(camelAgain).not.toBe(camelDoc);
   });
 });
 
