@@ -1,6 +1,6 @@
 # Changelog
 
-## [3.1.0] — 2026-04-14
+## [3.1.1] — 2026-04-14
 
 ### Added
 
@@ -11,6 +11,7 @@
 
 ### Changed
 
+- **Stable promotion version** — the `3.1.0` version number was already consumed by the Marketplace pre-release channel, so the first stable cut of this feature line ships as `3.1.1`.
 - **Compatibility path alias guidance** — the native `cssModuleExplainer.pathAlias` key is now the preferred setting; falling back to `cssModules.pathAlias` logs a deprecation notice per workspace root.
 - **Examples sandbox expanded** — the manual QA matrix now includes dedicated `composes` coverage alongside the multi-root, shadowing, non-finite dynamic, and nested style fact scenarios.
 

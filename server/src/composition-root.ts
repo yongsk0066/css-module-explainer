@@ -48,7 +48,7 @@ import {
 } from "./workspace/workspace-registry";
 
 const SERVER_NAME = "css-module-explainer";
-const SERVER_VERSION = "3.1.0";
+const SERVER_VERSION = "3.1.1";
 
 /**
  * Transport-agnostic shared options consumed by every
