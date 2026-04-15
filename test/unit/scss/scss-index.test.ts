@@ -149,6 +149,44 @@ describe("parseStyleSelectorMap / edge cases", () => {
       expect(map.get("active")!.nestedSafety).toBe("nestedUnsafe");
     });
 
+    it("recognizes single-dash ampersand suffixes as nested classes", () => {
+      const map = parseStyleSelectorMap(
+        `.status { &-active { color: green; } &-error { color: red; } }`,
+        "/fake/a.module.scss",
+      );
+      expect(map.get("status-active")?.fullSelector).toBe(".status-active");
+      expect(map.get("status-active")?.nestedSafety).toBe("nestedUnsafe");
+      expect(map.get("status-active")?.bemSuffix).toBeUndefined();
+      expect(map.get("status-error")?.fullSelector).toBe(".status-error");
+      expect(map.get("status-error")?.nestedSafety).toBe("nestedUnsafe");
+    });
+
+    it("recognizes non-BEM ampersand suffix continuations without widening rename safety", () => {
+      const map = parseStyleSelectorMap(
+        `.status { &_active { color: green; } &suffix { color: blue; } }`,
+        "/fake/a.module.scss",
+      );
+      expect(map.get("status_active")?.fullSelector).toBe(".status_active");
+      expect(map.get("status_active")?.nestedSafety).toBe("nestedUnsafe");
+      expect(map.get("status_active")?.bemSuffix).toBeUndefined();
+      expect(map.get("statussuffix")?.fullSelector).toBe(".statussuffix");
+      expect(map.get("statussuffix")?.nestedSafety).toBe("nestedUnsafe");
+      expect(map.get("statussuffix")?.bemSuffix).toBeUndefined();
+    });
+
+    it("does not treat selector syntax after `&` as a class suffix continuation", () => {
+      const map = parseStyleSelectorMap(
+        `.status { &:hover {} &[aria-current] {} & + .peer {} }`,
+        "/fake/a.module.scss",
+      );
+      expect(map.get("status")?.nestedSafety).toBe("flat");
+      expect(map.has("statushover")).toBe(false);
+      expect(map.has("statusaria-current")).toBe(false);
+      expect(map.has("statuspeer")).toBe(false);
+      expect(map.has("peer")).toBe(true);
+      expect(map.get("peer")?.nestedSafety).toBe("nestedUnsafe");
+    });
+
     it("registers classes introduced alongside `&` compounds", () => {
       const map = parseStyleSelectorMap(
         `.item { &.type-card { &.compact .body { max-width: 320px; } } }`,

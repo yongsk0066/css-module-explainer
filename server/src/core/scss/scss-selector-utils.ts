@@ -57,6 +57,8 @@ export function extractClassNames(resolvedSelector: string): string[] {
  * Rule:
  * - classes in the rightmost compound are exported
  * - classes written alongside `&` in an ampersand compound are also exported
+ * - suffix continuations such as `&-active` or `&_active` are exported from
+ *   the resolved compound, even though the raw form contains no `.` token
  *
  * This avoids re-registering parent classes introduced only by `&`
  * expansion while still preserving nested compounds such as
@@ -86,7 +88,7 @@ export function extractIntroducedClassNames(
     if (
       rawCompound.includes("&") &&
       rawClasses.length === 0 &&
-      isAmpersandSuffixCompound(rawCompound)
+      isAmpersandClassSuffixContinuation(rawCompound)
     ) {
       classNames.push(...extractClassTokens(resolvedCompound));
     }
@@ -165,8 +167,16 @@ function extractClassTokens(selectorSegment: string): readonly string[] {
   return matches.map((m) => m.slice(1));
 }
 
-function isAmpersandSuffixCompound(selectorSegment: string): boolean {
-  return /&(?:--|__)[\p{L}\p{N}\p{M}_-]*/u.test(selectorSegment);
+function isAmpersandClassSuffixContinuation(selectorSegment: string): boolean {
+  const ampIndex = selectorSegment.indexOf("&");
+  if (ampIndex < 0) return false;
+
+  const afterAmp = selectorSegment.slice(ampIndex + 1);
+  if (afterAmp.length === 0) return false;
+
+  // `&` followed by selector syntax starts a new selector component,
+  // not a continuation of the current class name.
+  return !/^[:.[#>+~\s,]/.test(afterAmp);
 }
 
 export function findClassTokenRange(
