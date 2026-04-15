@@ -5,6 +5,11 @@ export type CheckerSeverity = "warning" | "hint";
 
 export type CheckerFinding = SourceCheckerFinding | StyleCheckerFinding;
 
+export interface WorkspaceCheckerFinding {
+  readonly filePath: string;
+  readonly finding: CheckerFinding;
+}
+
 export type SourceCheckerFinding =
   | {
       readonly category: "source";

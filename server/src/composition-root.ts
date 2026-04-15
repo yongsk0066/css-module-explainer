@@ -12,13 +12,14 @@ import {
   type InitializeResult,
 } from "vscode-languageserver/node";
 import { TextDocument } from "vscode-languageserver-textdocument";
-import ts from "typescript";
+import type ts from "typescript";
 import { DEFAULT_RESOURCE_SETTINGS, type ResourceSettings } from "./settings";
 import { buildStyleFileWatcherGlob, findLangForPath } from "./core/scss/lang-registry";
 import type { StyleIndexCache } from "./core/scss/scss-index";
 import type { StyleDocumentHIR } from "./core/hir/style-types";
 import type { WorkspaceStyleDependencyGraph } from "./core/semantic";
 import { WorkspaceTypeResolver, type TypeResolver } from "./core/ts/type-resolver";
+import { createDefaultProgram } from "./core/ts/default-program";
 import { fileUrlToPath, pathToFileUrl } from "./core/util/text-utils";
 import type { FileTask } from "./core/indexing/indexer-worker";
 import { COMPLETION_TRIGGER_CHARACTERS } from "./providers/completion";
@@ -379,35 +380,5 @@ function defaultReadStyleFile(path: string): string | null {
     return readFileSync(path, "utf8");
   } catch {
     return null;
-  }
-}
-
-/**
- * Minimal production ts.Program builder. Falls back to an empty
- * program when tsconfig is missing or malformed.
- */
-export function createDefaultProgram(workspaceRoot: string): ts.Program {
-  const EMPTY = ts.createProgram({
-    rootNames: [],
-    options: { allowJs: true, jsx: ts.JsxEmit.Preserve },
-  });
-
-  try {
-    const configPath = ts.findConfigFile(workspaceRoot, ts.sys.fileExists, "tsconfig.json");
-    if (!configPath) return EMPTY;
-
-    const parsed = ts.getParsedCommandLineOfConfigFile(configPath, undefined, {
-      ...ts.sys,
-      onUnRecoverableConfigFileDiagnostic: () => {},
-    });
-    if (!parsed) return EMPTY;
-
-    return ts.createProgram({
-      rootNames: parsed.fileNames,
-      options: parsed.options,
-      projectReferences: parsed.projectReferences ?? [],
-    });
-  } catch {
-    return EMPTY;
   }
 }
