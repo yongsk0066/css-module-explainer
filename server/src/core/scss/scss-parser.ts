@@ -7,6 +7,8 @@ import type {
 import { parse as postcssParse, type AtRule, type ChildNode, type Root, type Rule } from "postcss";
 import {
   makeStyleDocumentHIR,
+  type AnimationNameRefHIR,
+  type KeyframesDeclHIR,
   type NestedSelectorSafety,
   type SelectorDeclHIR,
   type StyleDocumentHIR,
@@ -78,6 +80,8 @@ export function buildChildContext(
  */
 export function parseStyleDocument(content: string, filePath: string): StyleDocumentHIR {
   const selectorsByName = new Map<string, SelectorDeclHIR>();
+  const keyframesByName = new Map<string, KeyframesDeclHIR>();
+  const animationNameRefs: AnimationNameRefHIR[] = [];
 
   const lang = findLangForPath(filePath);
   // shared.StyleLang.syntax is typed as `unknown` so the shared
@@ -100,10 +104,18 @@ export function parseStyleDocument(content: string, filePath: string): StyleDocu
     return makeStyleDocumentHIR(filePath, []);
   }
 
-  walkStyleNodes(root.nodes as ChildNode[], { selector: "" }, selectorsByName);
+  walkStyleNodes(
+    root.nodes as ChildNode[],
+    { selector: "" },
+    selectorsByName,
+    keyframesByName,
+    animationNameRefs,
+  );
   return makeStyleDocumentHIR(
     filePath,
     Array.from(selectorsByName.values()).toSorted(compareSelectors),
+    Array.from(keyframesByName.values()).toSorted(compareNamedStyleFacts),
+    [...animationNameRefs].toSorted(compareNamedStyleFacts),
   );
 }
 
@@ -116,23 +128,33 @@ function walkStyleNodes(
   nodes: ChildNode[] | undefined,
   parentCtx: ParentContext,
   selectorsByName: Map<string, SelectorDeclHIR>,
+  keyframesByName: Map<string, KeyframesDeclHIR>,
+  animationNameRefs: AnimationNameRefHIR[],
 ): void {
   if (!nodes) return;
   for (const node of nodes) {
     if (node.type === "rule") {
       if (isGlobalBlockRule(node.selector)) continue;
       if (isLocalBlockRule(node.selector)) {
-        walkStyleNodes(node.nodes, parentCtx, selectorsByName);
+        walkStyleNodes(node.nodes, parentCtx, selectorsByName, keyframesByName, animationNameRefs);
         continue;
       }
-      recordRule(node, parentCtx, selectorsByName);
+      recordRule(node, parentCtx, selectorsByName, keyframesByName, animationNameRefs);
+    } else if (node.type === "atrule" && isKeyframesAtRule(node.name)) {
+      recordKeyframesAtRule(node, keyframesByName);
     } else if (node.type === "atrule" && isTransparentAtRule(node.name)) {
       if (node.name === "at-root" && isInlineAtRoot(node)) {
         recordAtRootInlineRule(node, selectorsByName);
       } else if (node.name === "at-root") {
-        walkStyleNodes(node.nodes, { selector: "" }, selectorsByName);
+        walkStyleNodes(
+          node.nodes,
+          { selector: "" },
+          selectorsByName,
+          keyframesByName,
+          animationNameRefs,
+        );
       } else {
-        walkStyleNodes(node.nodes, parentCtx, selectorsByName);
+        walkStyleNodes(node.nodes, parentCtx, selectorsByName, keyframesByName, animationNameRefs);
       }
     }
   }
@@ -140,6 +162,10 @@ function walkStyleNodes(
 
 function isTransparentAtRule(name: string): boolean {
   return name === "media" || name === "at-root" || name === "supports" || name === "layer";
+}
+
+function isKeyframesAtRule(name: string): boolean {
+  return name === "keyframes" || name === "-webkit-keyframes";
 }
 
 function isGlobalBlockRule(selector: string): boolean {
@@ -158,9 +184,12 @@ function recordRule(
   rule: Rule,
   parentCtx: ParentContext,
   selectorsByName: Map<string, SelectorDeclHIR>,
+  keyframesByName: Map<string, KeyframesDeclHIR>,
+  animationNameRefs: AnimationNameRefHIR[],
 ): void {
-  const { declarations, composes } = collectDeclarationsAndComposes(rule.nodes);
+  const { declarations, composes, animationRefs } = collectDeclarationsAndComposes(rule.nodes);
   const ruleRange = rangeForSourceNode(rule);
+  animationNameRefs.push(...animationRefs);
 
   const selectorSource = rule.raws.selector?.raw ?? rule.selector;
   const groups = enumerateGroups(selectorSource);
@@ -195,7 +224,13 @@ function recordRule(
 
   const parents = resolvedSelectors.length > 0 ? resolvedSelectors : [parentCtx.selector];
   for (const nextResolved of parents) {
-    walkStyleNodes(rule.nodes, buildChildContext(resolvedSelectors, nextResolved), selectorsByName);
+    walkStyleNodes(
+      rule.nodes,
+      buildChildContext(resolvedSelectors, nextResolved),
+      selectorsByName,
+      keyframesByName,
+      animationNameRefs,
+    );
   }
 }
 
@@ -232,11 +267,13 @@ function buildSelectorDecl(args: BuildEntryArgs): SelectorDeclHIR {
 function collectDeclarationsAndComposes(nodes: ChildNode[] | undefined): {
   declarations: string;
   composes: ComposesRef[];
+  animationRefs: AnimationNameRefHIR[];
 } {
-  if (!nodes) return { declarations: "", composes: [] };
+  if (!nodes) return { declarations: "", composes: [], animationRefs: [] };
 
   const composes: ComposesRef[] = [];
   const declParts: string[] = [];
+  const animationRefs: AnimationNameRefHIR[] = [];
 
   for (const node of nodes) {
     if (node.type !== "decl") continue;
@@ -245,10 +282,11 @@ function collectDeclarationsAndComposes(nodes: ChildNode[] | undefined): {
       if (ref) composes.push(ref);
     } else {
       declParts.push(`${node.prop}: ${node.value}`);
+      animationRefs.push(...findAnimationNameTokens(node));
     }
   }
 
-  return { declarations: declParts.join("; "), composes };
+  return { declarations: declParts.join("; "), composes, animationRefs };
 }
 
 const COMPOSES_FROM_RE = /^(.+?)\s+from\s+(?:'([^']+)'|"([^"]+)"|(global))\s*$/;
@@ -313,6 +351,244 @@ function findComposesClassTokens(
   return tokens;
 }
 
+function recordKeyframesAtRule(
+  atrule: AtRule,
+  keyframesByName: Map<string, KeyframesDeclHIR>,
+): void {
+  const keyframesName = parseKeyframesName(atrule);
+  if (!keyframesName) return;
+
+  keyframesByName.set(keyframesName.name, {
+    kind: "keyframes",
+    id: `keyframes:${keyframesName.name}:${keyframesName.range.start.line}:${keyframesName.range.start.character}`,
+    name: keyframesName.name,
+    range: keyframesName.range,
+    ruleRange: rangeForSourceNode(atrule),
+  });
+}
+
+function parseKeyframesName(atrule: AtRule): { name: string; range: Range } | null {
+  const rawName = atrule.params.trim();
+  if (!rawName) return null;
+  const match = /^(?:"([^"]+)"|'([^']+)'|([\p{L}_][\p{L}\p{N}\p{M}_-]*))$/u.exec(rawName);
+  const name = match?.[1] ?? match?.[2] ?? match?.[3];
+  if (!name) return null;
+  const range = findAtRuleParamTokenRange(atrule, rawName, rawName.length);
+  return range ? { name, range } : null;
+}
+
+function findAnimationNameTokens(
+  node: Extract<ChildNode, { type: "decl" }>,
+): readonly AnimationNameRefHIR[] {
+  if (node.prop === "animation-name") {
+    return enumerateAnimationSegments(node).flatMap((segment, index) => {
+      const token = parseStandaloneAnimationNameToken(segment.raw);
+      if (!token) return [];
+      const range = findDeclValueTokenRange(node, segment.offset + token.offset, token.raw.length);
+      if (!range) return [];
+      return [
+        {
+          kind: "animationNameRef",
+          id: `animation-ref:${node.source?.start?.line ?? 0}:${index}:${token.name}`,
+          name: token.name,
+          range,
+          property: "animation-name",
+        },
+      ];
+    });
+  }
+
+  if (node.prop === "animation") {
+    return enumerateAnimationSegments(node).flatMap((segment, index) => {
+      const token = findAnimationShorthandNameToken(segment.raw);
+      if (!token) return [];
+      const range = findDeclValueTokenRange(node, segment.offset + token.offset, token.raw.length);
+      if (!range) return [];
+      return [
+        {
+          kind: "animationNameRef",
+          id: `animation-ref:${node.source?.start?.line ?? 0}:${index}:${token.name}`,
+          name: token.name,
+          range,
+          property: "animation",
+        },
+      ];
+    });
+  }
+
+  return [];
+}
+
+function enumerateAnimationSegments(
+  node: Extract<ChildNode, { type: "decl" }>,
+): Array<{ raw: string; offset: number }> {
+  const value = node.value;
+  const segments: Array<{ raw: string; offset: number }> = [];
+  let depth = 0;
+  let start = 0;
+  for (let index = 0; index < value.length; index++) {
+    const ch = value[index];
+    if (ch === "(" || ch === "[") depth += 1;
+    else if (ch === ")" || ch === "]") depth -= 1;
+    else if (ch === "," && depth === 0) {
+      segments.push({ raw: value.slice(start, index), offset: start });
+      start = index + 1;
+    }
+  }
+  segments.push({ raw: value.slice(start), offset: start });
+  return segments;
+}
+
+function parseStandaloneAnimationNameToken(
+  rawSegment: string,
+): { name: string; raw: string; offset: number } | null {
+  const trimmed = rawSegment.trim();
+  if (!trimmed) return null;
+  const match = /^(?:"([^"]+)"|'([^']+)'|([\p{L}_][\p{L}\p{N}\p{M}_-]*))$/u.exec(trimmed);
+  const name = match?.[1] ?? match?.[2] ?? match?.[3];
+  if (!name || isReservedAnimationKeyword(name)) return null;
+  return {
+    name,
+    raw: trimmed,
+    offset: rawSegment.indexOf(trimmed),
+  };
+}
+
+function findAnimationShorthandNameToken(
+  rawSegment: string,
+): { name: string; raw: string; offset: number } | null {
+  const tokens = enumerateWhitespaceTokens(rawSegment);
+  for (const token of tokens) {
+    const match = /^(?:"([^"]+)"|'([^']+)'|([\p{L}_][\p{L}\p{N}\p{M}_-]*))$/u.exec(token.raw);
+    const name = match?.[1] ?? match?.[2] ?? match?.[3];
+    if (!name) continue;
+    if (isReservedAnimationKeyword(name)) continue;
+    if (isAnimationFunctionToken(token.raw)) continue;
+    return {
+      name,
+      raw: token.raw,
+      offset: token.offset,
+    };
+  }
+  return null;
+}
+
+function enumerateWhitespaceTokens(segment: string): Array<{ raw: string; offset: number }> {
+  const tokens: Array<{ raw: string; offset: number }> = [];
+  let depth = 0;
+  let start = -1;
+  for (let index = 0; index < segment.length; index++) {
+    const ch = segment[index];
+    if (ch === "(" || ch === "[") {
+      depth += 1;
+      if (start === -1) start = index;
+      continue;
+    }
+    if (ch === ")" || ch === "]") {
+      depth -= 1;
+      continue;
+    }
+    if (depth === 0 && /\s/.test(ch)) {
+      pushWhitespaceToken(tokens, segment, start, index);
+      start = -1;
+      continue;
+    }
+    if (start === -1) start = index;
+  }
+  pushWhitespaceToken(tokens, segment, start, segment.length);
+  return tokens;
+}
+
+function pushWhitespaceToken(
+  tokens: Array<{ raw: string; offset: number }>,
+  segment: string,
+  start: number,
+  end: number,
+): void {
+  if (start === -1) return;
+  const raw = segment.slice(start, end).trim();
+  if (!raw) return;
+  tokens.push({ raw, offset: segment.indexOf(raw, start) });
+}
+
+function isReservedAnimationKeyword(token: string): boolean {
+  const lower = token.toLowerCase();
+  return (
+    lower === "none" ||
+    lower === "infinite" ||
+    lower === "normal" ||
+    lower === "reverse" ||
+    lower === "alternate" ||
+    lower === "alternate-reverse" ||
+    lower === "forwards" ||
+    lower === "backwards" ||
+    lower === "both" ||
+    lower === "running" ||
+    lower === "paused" ||
+    lower === "linear" ||
+    lower === "ease" ||
+    lower === "ease-in" ||
+    lower === "ease-out" ||
+    lower === "ease-in-out" ||
+    lower === "step-start" ||
+    lower === "step-end" ||
+    lower === "initial" ||
+    lower === "inherit" ||
+    lower === "unset" ||
+    lower === "revert" ||
+    lower === "revert-layer"
+  );
+}
+
+function isAnimationFunctionToken(token: string): boolean {
+  if (/^-?\d*\.?\d+(ms|s)$/i.test(token)) return true;
+  if (/^-?\d*\.?\d+$/.test(token)) return true;
+  return /^[a-z-]+\(.+\)$/i.test(token);
+}
+
+function findDeclValueTokenRange(
+  node: Extract<ChildNode, { type: "decl" }>,
+  valueOffset: number,
+  tokenLength: number,
+): Range | null {
+  const source = node.source;
+  if (!source?.start) return null;
+  const propIndex = node.toString().indexOf(node.prop);
+  const valueIndex = node.toString().indexOf(node.value, propIndex + node.prop.length);
+  if (valueIndex < 0) return null;
+  const baseOffset = source.start.offset + valueIndex;
+  const startOffset = baseOffset + valueOffset;
+  const endOffset = startOffset + tokenLength;
+  const startPos = source.input.fromOffset(startOffset);
+  const endPos = source.input.fromOffset(endOffset);
+  if (!startPos || !endPos) return null;
+  return {
+    start: { line: startPos.line - 1, character: startPos.col - 1 },
+    end: { line: endPos.line - 1, character: endPos.col - 1 },
+  };
+}
+
+function findAtRuleParamTokenRange(
+  atrule: AtRule,
+  token: string,
+  tokenLength: number,
+): Range | null {
+  const source = atrule.source;
+  if (!source?.start) return null;
+  const paramsIndex = atrule.toString().indexOf(atrule.params);
+  const tokenIndex = atrule.params.indexOf(token);
+  if (paramsIndex < 0 || tokenIndex < 0) return null;
+  const startOffset = source.start.offset + paramsIndex + tokenIndex;
+  const endOffset = startOffset + tokenLength;
+  const startPos = source.input.fromOffset(startOffset);
+  const endPos = source.input.fromOffset(endOffset);
+  if (!startPos || !endPos) return null;
+  return {
+    start: { line: startPos.line - 1, character: startPos.col - 1 },
+    end: { line: endPos.line - 1, character: endPos.col - 1 },
+  };
+}
+
 function recordAtRootInlineRule(
   atrule: AtRule,
   selectorsByName: Map<string, SelectorDeclHIR>,
@@ -353,6 +629,13 @@ function classifyNestedSafety(
 }
 
 function compareSelectors(a: SelectorDeclHIR, b: SelectorDeclHIR): number {
+  return compareNamedStyleFacts(a, b);
+}
+
+function compareNamedStyleFacts(
+  a: { range: { start: { line: number; character: number } }; name: string },
+  b: { range: { start: { line: number; character: number } }; name: string },
+): number {
   const line = a.range.start.line - b.range.start.line;
   if (line !== 0) return line;
   const character = a.range.start.character - b.range.start.character;

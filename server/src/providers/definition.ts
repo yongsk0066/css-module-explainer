@@ -1,12 +1,14 @@
 import type { LocationLink } from "vscode-languageserver/node";
 import type { Range } from "@css-module-explainer/shared";
 import {
+  findAnimationNameRefAtCursor,
   findCanonicalSelector,
   findComposesTokenAtCursor,
+  findKeyframesByName,
   readSourceExpressionResolution,
   resolveComposesTarget,
 } from "../core/query";
-import type { SelectorDeclHIR } from "../core/hir/style-types";
+import type { KeyframesDeclHIR, SelectorDeclHIR } from "../core/hir/style-types";
 import { findLangForPath } from "../core/scss/lang-registry";
 import { pathToFileUrl } from "../core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
@@ -79,13 +81,13 @@ function buildLinks(
 function toLocationLink(
   originRange: Range,
   targetUri: string,
-  selector: SelectorDeclHIR,
+  target: SelectorDeclHIR | KeyframesDeclHIR,
 ): LocationLink {
   return {
     originSelectionRange: toLspRange(originRange),
     targetUri,
-    targetRange: toLspRange(selector.ruleRange),
-    targetSelectionRange: toLspRange(selector.range),
+    targetRange: toLspRange(target.ruleRange),
+    targetSelectionRange: toLspRange(target.range),
   };
 }
 
@@ -94,15 +96,20 @@ function buildStyleDefinition(params: CursorParams, deps: ProviderDeps): Locatio
   if (!styleDocument) return null;
 
   const hit = findComposesTokenAtCursor(styleDocument, params.line, params.character);
-  if (!hit) return null;
   const target = resolveComposesTarget(deps.styleDocumentForPath, styleDocument.filePath, hit);
-  if (!target) return null;
+  if (hit && target) {
+    return [
+      toLocationLink(
+        hit.token.range,
+        pathToFileUrl(target.filePath),
+        findCanonicalSelector(target.styleDocument, target.selector),
+      ),
+    ];
+  }
 
-  return [
-    toLocationLink(
-      hit.token.range,
-      pathToFileUrl(target.filePath),
-      findCanonicalSelector(target.styleDocument, target.selector),
-    ),
-  ];
+  const animationRef = findAnimationNameRefAtCursor(styleDocument, params.line, params.character);
+  if (!animationRef) return null;
+  const keyframes = findKeyframesByName(styleDocument, animationRef.name);
+  if (!keyframes) return null;
+  return [toLocationLink(animationRef.range, pathToFileUrl(styleDocument.filePath), keyframes)];
 }

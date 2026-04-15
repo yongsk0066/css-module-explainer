@@ -4,6 +4,7 @@ import {
   buildChildContext,
   enumerateGroups,
   findBemSuffixSpan,
+  parseStyleDocument,
   styleDocumentSemanticFingerprint,
   StyleIndexCache,
 } from "../../../server/src/core/scss/scss-index";
@@ -301,13 +302,29 @@ describe("parseStyleSelectorMap / edge cases", () => {
 
   describe("@keyframes / @font-face exclusion", () => {
     it("does not index identifiers inside @keyframes", () => {
-      const map = parseStyleSelectorMap(
+      const document = parseStyleDocument(
         `@keyframes fade { from { opacity: 0; } to { opacity: 1; } }`,
         "/fake/a.module.scss",
       );
+      const map = selectorMapFromDocument(document);
       expect(map.has("fade")).toBe(false);
       expect(map.has("from")).toBe(false);
       expect(map.has("to")).toBe(false);
+      expect(document.keyframes.map((keyframes) => keyframes.name)).toEqual(["fade"]);
+    });
+
+    it("records animation name references from animation declarations", () => {
+      const document = parseStyleDocument(
+        `@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+.spinner { animation: fade 1s linear; }
+.pulse { animation-name: fade; }`,
+        "/fake/a.module.scss",
+      );
+      expect(document.keyframes.map((keyframes) => keyframes.name)).toEqual(["fade"]);
+      expect(document.animationNameRefs.map((ref) => [ref.name, ref.property])).toEqual([
+        ["fade", "animation"],
+        ["fade", "animation-name"],
+      ]);
     });
 
     it("does not confuse @font-face blocks for rules", () => {

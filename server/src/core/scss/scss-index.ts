@@ -96,7 +96,7 @@ export class StyleIndexCache {
 }
 
 export function styleDocumentSemanticFingerprint(styleDocument: StyleDocumentHIR): string {
-  return styleDocument.selectors
+  const selectorFingerprint = styleDocument.selectors
     .map((selector) => {
       const composes = selector.composes
         .map((ref) => {
@@ -124,4 +124,28 @@ export function styleDocumentSemanticFingerprint(styleDocument: StyleDocumentHIR
       ].join("::");
     })
     .join("\n");
+  const keyframesFingerprint = styleDocument.keyframes
+    .map((keyframes) =>
+      [
+        keyframes.name,
+        keyframes.range.start.line,
+        keyframes.range.start.character,
+        keyframes.range.end.line,
+        keyframes.range.end.character,
+      ].join("::"),
+    )
+    .join("\n");
+  const animationRefFingerprint = styleDocument.animationNameRefs
+    .map((ref) =>
+      [
+        ref.name,
+        ref.property,
+        ref.range.start.line,
+        ref.range.start.character,
+        ref.range.end.line,
+        ref.range.end.character,
+      ].join("::"),
+    )
+    .join("\n");
+  return [selectorFingerprint, keyframesFingerprint, animationRefFingerprint].join("\n---\n");
 }

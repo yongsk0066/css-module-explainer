@@ -1,7 +1,11 @@
 import type { Hover } from "vscode-languageserver/node";
 import {
+  findAnimationNameRefAtCursor,
   findCanonicalSelector,
   findComposesTokenAtCursor,
+  findKeyframesAtCursor,
+  findKeyframesByName,
+  listAnimationNameRefs,
   findSelectorAtCursor,
   readSelectorStyleDependencySummary,
   readSelectorUsageSummary,
@@ -10,7 +14,7 @@ import {
 } from "../core/query";
 import { findLangForPath } from "../core/scss/lang-registry";
 import { toLspRange } from "./lsp-adapters";
-import { renderHover, renderSelectorHover } from "./hover-renderer";
+import { renderHover, renderKeyframesHover, renderSelectorHover } from "./hover-renderer";
 import { wrapHandler } from "./_wrap-handler";
 import { withSourceExpressionAtCursor, type SourceExpressionContext } from "./cursor-dispatch";
 import type { CursorParams, ProviderDeps } from "./provider-deps";
@@ -118,34 +122,66 @@ function buildStyleHover(params: CursorParams, deps: ProviderDeps): Hover | null
     styleDocument.filePath,
     composesHit,
   );
-  if (!composesHit || !target) return null;
+  if (composesHit && target) {
+    const usageSummary = readSelectorUsageSummary(
+      {
+        semanticReferenceIndex: deps.semanticReferenceIndex,
+        styleDependencyGraph: deps.styleDependencyGraph,
+        styleDocumentForPath: deps.styleDocumentForPath,
+      },
+      target.filePath,
+      target.selector.canonicalName,
+    );
+    const styleDependencies = readSelectorStyleDependencySummary(
+      deps.styleDependencyGraph,
+      target.filePath,
+      target.selector.canonicalName,
+    );
+    const markdown = renderSelectorHover({
+      selector: target.selector,
+      headingName: composesHit.token.className,
+      note: `Referenced via \`composes\` from \`.${composesHit.selector.name}\``,
+      scssModulePath: target.filePath,
+      usageSummary,
+      styleDependencies,
+      workspaceRoot: deps.workspaceRoot,
+    });
 
-  const usageSummary = readSelectorUsageSummary(
-    {
-      semanticReferenceIndex: deps.semanticReferenceIndex,
-      styleDependencyGraph: deps.styleDependencyGraph,
-      styleDocumentForPath: deps.styleDocumentForPath,
-    },
-    target.filePath,
-    target.selector.canonicalName,
-  );
-  const styleDependencies = readSelectorStyleDependencySummary(
-    deps.styleDependencyGraph,
-    target.filePath,
-    target.selector.canonicalName,
-  );
-  const markdown = renderSelectorHover({
-    selector: target.selector,
-    headingName: composesHit.token.className,
-    note: `Referenced via \`composes\` from \`.${composesHit.selector.name}\``,
-    scssModulePath: target.filePath,
-    usageSummary,
-    styleDependencies,
+    return {
+      range: toLspRange(composesHit.token.range),
+      contents: { kind: "markdown", value: markdown },
+    };
+  }
+
+  const keyframes = findKeyframesAtCursor(styleDocument, params.line, params.character);
+  if (keyframes) {
+    const markdown = renderKeyframesHover({
+      keyframes,
+      scssModulePath: params.filePath,
+      referenceCount: listAnimationNameRefs(styleDocument, keyframes.name).length,
+      workspaceRoot: deps.workspaceRoot,
+    });
+    return {
+      range: toLspRange(keyframes.range),
+      contents: { kind: "markdown", value: markdown },
+    };
+  }
+
+  const animationRef = findAnimationNameRefAtCursor(styleDocument, params.line, params.character);
+  if (!animationRef) return null;
+  const targetKeyframes = findKeyframesByName(styleDocument, animationRef.name);
+  if (!targetKeyframes) return null;
+
+  const markdown = renderKeyframesHover({
+    keyframes: targetKeyframes,
+    headingName: animationRef.name,
+    note: `Referenced via \`${animationRef.property}\``,
+    scssModulePath: params.filePath,
+    referenceCount: listAnimationNameRefs(styleDocument, targetKeyframes.name).length,
     workspaceRoot: deps.workspaceRoot,
   });
-
   return {
-    range: toLspRange(composesHit.token.range),
+    range: toLspRange(animationRef.range),
     contents: { kind: "markdown", value: markdown },
   };
 }

@@ -20,6 +20,20 @@ const BUTTON_SCSS = `
 }
 `;
 
+const KEYFRAMES_SCSS = `@keyframes fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.box {
+  animation: fade 1s linear;
+}
+
+.pulse {
+  animation-name: fade;
+}
+`;
+
 function openButton(client: LspTestClient): void {
   client.didOpen({
     textDocument: {
@@ -251,6 +265,37 @@ describe("definition protocol", () => {
     expect(links).toHaveLength(1);
     expect(links[0]!.targetUri).toMatch(/Button\.module\.scss$/);
     expect(links[0]!.targetSelectionRange.start.line).toBe(1);
+  });
+
+  it("navigates from an animation token to its @keyframes declaration", async () => {
+    const scssUri = "file:///fake/workspace/src/Button.module.scss";
+    client = createInProcessServer({
+      readStyleFile: (path) => (path.endsWith("Button.module.scss") ? KEYFRAMES_SCSS : null),
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    client.didOpen({
+      textDocument: {
+        uri: scssUri,
+        languageId: "scss",
+        version: 1,
+        text: KEYFRAMES_SCSS,
+      },
+    });
+
+    const result = await client.definition({
+      textDocument: { uri: scssUri },
+      position: { line: 6, character: 15 },
+    });
+    expect(result).not.toBeNull();
+    const links = result as Array<{
+      targetUri: string;
+      targetSelectionRange: { start: { line: number } };
+    }>;
+    expect(links).toHaveLength(1);
+    expect(links[0]!.targetUri).toBe(scssUri);
+    expect(links[0]!.targetSelectionRange.start.line).toBe(0);
   });
 
   it("returns multiple LocationLinks for a union-typed cx(variable) call", async () => {

@@ -1,6 +1,6 @@
 import { relative } from "node:path";
 import type { ClassExpressionHIR } from "../core/hir/source-types";
-import type { SelectorDeclHIR } from "../core/hir/style-types";
+import type { KeyframesDeclHIR, SelectorDeclHIR } from "../core/hir/style-types";
 import type {
   DynamicHoverExplanation,
   SelectorStyleDependencySummary,
@@ -22,6 +22,15 @@ export interface RenderSelectorHoverArgs {
   readonly scssModulePath: string;
   readonly usageSummary: SelectorUsageSummary;
   readonly styleDependencies?: SelectorStyleDependencySummary;
+  readonly workspaceRoot: string;
+  readonly headingName?: string;
+  readonly note?: string;
+}
+
+export interface RenderKeyframesHoverArgs {
+  readonly keyframes: KeyframesDeclHIR;
+  readonly scssModulePath: string;
+  readonly referenceCount: number;
   readonly workspaceRoot: string;
   readonly headingName?: string;
   readonly note?: string;
@@ -59,6 +68,21 @@ export function renderSelectorHover(args: RenderSelectorHoverArgs): string {
   const headingName = args.headingName ?? args.selector.name;
   const note = args.note ? `\n\n_${args.note}_` : "";
   return `**\`.${headingName}\`** — _${location}_${note}${usageNote}\n\n\`\`\`scss\n${buildRule(args.selector)}\n\`\`\`${incomingNote}${outgoingNote}`;
+}
+
+export function renderKeyframesHover(args: RenderKeyframesHoverArgs): string {
+  const location = formatLocation(
+    args.scssModulePath,
+    args.keyframes.range.start.line,
+    args.workspaceRoot,
+  );
+  const note = args.note ? `\n\n_${args.note}_` : "";
+  const headingName = args.headingName ?? args.keyframes.name;
+  const referenceLabel =
+    args.referenceCount === 1
+      ? "1 animation reference"
+      : `${args.referenceCount} animation references`;
+  return `**\`@keyframes ${headingName}\`** — _${location}_${note}\n\n_${referenceLabel}._\n\n\`\`\`scss\n@keyframes ${args.keyframes.name} { … }\n\`\`\``;
 }
 
 function renderSingle(args: RenderArgs, selector: SelectorDeclHIR): string {

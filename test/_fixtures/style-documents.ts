@@ -1,6 +1,8 @@
 import type { BemSuffixInfo, ComposesRef, Range } from "@css-module-explainer/shared";
 import {
   makeStyleDocumentHIR,
+  type AnimationNameRefHIR,
+  type KeyframesDeclHIR,
   type NestedSelectorSafety,
   type SelectorDeclHIR,
   type StyleDocumentHIR,
@@ -61,8 +63,15 @@ export function makeTestSelector(
 export function makeStyleDocumentFixture(
   filePath: string,
   selectors: readonly SelectorDeclHIR[],
+  keyframes: readonly KeyframesDeclHIR[] = [],
+  animationNameRefs: readonly AnimationNameRefHIR[] = [],
 ): StyleDocumentHIR {
-  return makeStyleDocumentHIR(filePath, [...selectors].toSorted(compareSelectors));
+  return makeStyleDocumentHIR(
+    filePath,
+    [...selectors].toSorted(compareByRangeAndName),
+    [...keyframes].toSorted(compareByRangeAndName),
+    [...animationNameRefs].toSorted(compareByRangeAndName),
+  );
 }
 
 export function selectorMapFromDocument(
@@ -98,7 +107,10 @@ export function expandSelectorMapWithTransform(
   );
 }
 
-function compareSelectors(a: SelectorDeclHIR, b: SelectorDeclHIR): number {
+function compareByRangeAndName(
+  a: { range: { start: { line: number; character: number } }; name: string },
+  b: { range: { start: { line: number; character: number } }; name: string },
+): number {
   const line = a.range.start.line - b.range.start.line;
   if (line !== 0) return line;
   const character = a.range.start.character - b.range.start.character;

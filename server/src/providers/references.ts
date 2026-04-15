@@ -1,7 +1,11 @@
 import type { Location, ReferenceParams } from "vscode-languageserver/node";
 import {
+  findAnimationNameRefAtCursor,
   findComposesTokenAtCursor,
+  findKeyframesAtCursor,
+  findKeyframesByName,
   findSelectorAtCursor,
+  listAnimationNameRefs,
   readSelectorUsageSummary,
   resolveComposesTarget,
 } from "../core/query";
@@ -59,19 +63,43 @@ export const handleReferences = wrapHandler<ReferenceParams, [], Location[] | nu
             canonicalName: resolved.selector.canonicalName,
           };
         })();
-    if (!target) return null;
+    if (target) {
+      const usage = readSelectorUsageSummary(deps, target.filePath, target.canonicalName);
+      if (!usage.hasAnyReferences) return null;
 
-    const usage = readSelectorUsageSummary(deps, target.filePath, target.canonicalName);
-    if (!usage.hasAnyReferences) return null;
+      // No expansion filter here — expanded sites are valid Find Refs
+      // results (they represent where a rename WOULD edit if the user
+      // changed the template/variable resolution). Rename is the only
+      // provider that filters `expansion === "expanded"`; see rename.ts.
+      return usage.allSites.map<Location>((site) => ({
+        uri: site.uri,
+        range: toLspRange(site.range),
+      }));
+    }
 
-    // No expansion filter here — expanded sites are valid Find Refs
-    // results (they represent where a rename WOULD edit if the user
-    // changed the template/variable resolution). Rename is the only
-    // provider that filters `expansion === "expanded"`; see rename.ts.
-    return usage.allSites.map<Location>((site) => ({
-      uri: site.uri,
-      range: toLspRange(site.range),
+    const keyframes =
+      findKeyframesAtCursor(styleDocument, params.position.line, params.position.character) ??
+      (() => {
+        const ref = findAnimationNameRefAtCursor(
+          styleDocument,
+          params.position.line,
+          params.position.character,
+        );
+        return ref ? findKeyframesByName(styleDocument, ref.name) : null;
+      })();
+    if (!keyframes) return null;
+
+    const refs = listAnimationNameRefs(styleDocument, keyframes.name).map<Location>((ref) => ({
+      uri: params.textDocument.uri,
+      range: toLspRange(ref.range),
     }));
+    if (params.context.includeDeclaration) {
+      refs.unshift({
+        uri: params.textDocument.uri,
+        range: toLspRange(keyframes.range),
+      });
+    }
+    return refs.length > 0 ? refs : null;
   },
   null,
 );

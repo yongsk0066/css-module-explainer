@@ -1,5 +1,10 @@
 import path from "node:path";
-import type { SelectorDeclHIR, StyleDocumentHIR } from "../hir/style-types";
+import type {
+  AnimationNameRefHIR,
+  KeyframesDeclHIR,
+  SelectorDeclHIR,
+  StyleDocumentHIR,
+} from "../hir/style-types";
 import { rangeContains } from "../util/range-utils";
 import type { ComposesClassToken, ComposesRef } from "@css-module-explainer/shared";
 
@@ -97,4 +102,40 @@ export function resolveComposesTarget(
     styleDocument: targetDocument,
     selector: findCanonicalSelector(targetDocument, selector),
   };
+}
+
+export function findKeyframesAtCursor(
+  styleDocument: StyleDocumentHIR,
+  line: number,
+  character: number,
+): KeyframesDeclHIR | null {
+  for (const keyframes of styleDocument.keyframes) {
+    if (rangeContains(keyframes.range, line, character)) return keyframes;
+  }
+  return null;
+}
+
+export function findAnimationNameRefAtCursor(
+  styleDocument: StyleDocumentHIR,
+  line: number,
+  character: number,
+): AnimationNameRefHIR | null {
+  for (const ref of styleDocument.animationNameRefs) {
+    if (rangeContains(ref.range, line, character)) return ref;
+  }
+  return null;
+}
+
+export function findKeyframesByName(
+  styleDocument: StyleDocumentHIR,
+  name: string,
+): KeyframesDeclHIR | null {
+  return styleDocument.keyframes.find((keyframes) => keyframes.name === name) ?? null;
+}
+
+export function listAnimationNameRefs(
+  styleDocument: StyleDocumentHIR,
+  name: string,
+): readonly AnimationNameRefHIR[] {
+  return styleDocument.animationNameRefs.filter((ref) => ref.name === name);
 }

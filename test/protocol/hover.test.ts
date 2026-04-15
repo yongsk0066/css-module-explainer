@@ -17,6 +17,20 @@ const BUTTON_SCSS = `
 }
 `;
 
+const KEYFRAMES_SCSS = `@keyframes fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.box {
+  animation: fade 1s linear;
+}
+
+.pulse {
+  animation-name: fade;
+}
+`;
+
 describe("hover protocol / clsx", () => {
   let client: LspTestClient | null = null;
 
@@ -228,6 +242,33 @@ export function Base() {
       position: { line: 4, character: 34 },
     });
     expect(hover).toBeNull();
+  });
+
+  it("returns a keyframes hover for @keyframes declarations", async () => {
+    const scssUri = "file:///fake/workspace/src/Button.module.scss";
+    client = createInProcessServer({
+      readStyleFile: (path) => (path.endsWith("Button.module.scss") ? KEYFRAMES_SCSS : null),
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    client.didOpen({
+      textDocument: {
+        uri: scssUri,
+        languageId: "scss",
+        version: 1,
+        text: KEYFRAMES_SCSS,
+      },
+    });
+
+    const hover = await client.hover({
+      textDocument: { uri: scssUri },
+      position: { line: 0, character: 13 },
+    });
+    expect(hover).not.toBeNull();
+    const value = (hover!.contents as { value: string }).value;
+    expect(value).toContain("`@keyframes fade`");
+    expect(value).toContain("2 animation references");
   });
 
   it("includes dynamic explanation for a flow-resolved symbol ref", async () => {

@@ -103,5 +103,10 @@ export function expandStyleDocumentWithTransform(
     }
   }
 
-  return makeStyleDocumentHIR(base.filePath, expandedSelectors);
+  return makeStyleDocumentHIR(
+    base.filePath,
+    expandedSelectors,
+    base.keyframes,
+    base.animationNameRefs,
+  );
 }

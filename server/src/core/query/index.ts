@@ -5,9 +5,13 @@ export {
   type DynamicExpressionExplanation,
 } from "./explain-expression-semantics";
 export {
+  findAnimationNameRefAtCursor,
   findCanonicalSelector,
   findComposesTokenAtCursor,
+  findKeyframesAtCursor,
+  findKeyframesByName,
   findSelectorAtCursor,
+  listAnimationNameRefs,
   listCanonicalSelectors,
   resolveComposesTarget,
 } from "./find-style-selector";
