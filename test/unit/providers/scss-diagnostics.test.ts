@@ -495,5 +495,10 @@ describe("computeScssUnusedDiagnostics", () => {
     expect(diagnostics[0]!.message).toContain(
       "Selector '.base' not found in composed module './Base.module.scss'.",
     );
+    expect(diagnostics[0]!.data).toMatchObject({
+      createSelector: {
+        uri: "file:///fake/Base.module.scss",
+      },
+    });
   });
 });

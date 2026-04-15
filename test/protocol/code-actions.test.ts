@@ -131,7 +131,10 @@ export const Button = () => <div className={styles.root}>hi</div>;
         text: MISSING_MODULE_TSX,
       },
     });
-    const diagnostics = await client.waitForDiagnostics("file:///fake/workspace/src/Button.tsx");
+    let diagnostics = await client.waitForDiagnostics("file:///fake/workspace/src/Button.tsx");
+    if (diagnostics.length === 0) {
+      diagnostics = await client.waitForDiagnostics("file:///fake/workspace/src/Button.tsx");
+    }
     expect(diagnostics).toHaveLength(1);
 
     const actions = await client.codeAction({
@@ -241,6 +244,73 @@ export const Button = () => <div className={styles.root}>hi</div>;
         kind: "create",
         uri: "file:///fake/workspace/src/Base.module.scss",
         options: { overwrite: false, ignoreIfExists: true },
+      },
+    ]);
+  });
+
+  it("returns an add-selector action for a missing selector in a composed module", async () => {
+    const COMPOSING_SCSS = `
+.button {
+  composes: base from './Base.module.scss';
+  color: red;
+}
+`;
+    const BASE_SCSS = `
+.other {
+  color: blue;
+}
+`;
+    client = createInProcessServer({
+      readStyleFile: (filePath) => {
+        if (filePath.endsWith("Button.module.scss")) return COMPOSING_SCSS;
+        if (filePath.endsWith("Base.module.scss")) return BASE_SCSS;
+        return null;
+      },
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/Button.module.scss",
+        languageId: "scss",
+        version: 1,
+        text: COMPOSING_SCSS,
+      },
+    });
+
+    const diagnostics = await client.waitForDiagnostics(
+      "file:///fake/workspace/src/Button.module.scss",
+    );
+    const missingSelector = diagnostics.find((diagnostic) =>
+      diagnostic.message.includes(
+        "Selector '.base' not found in composed module './Base.module.scss'.",
+      ),
+    );
+    expect(missingSelector).toBeDefined();
+
+    const actions = await client.codeAction({
+      textDocument: { uri: "file:///fake/workspace/src/Button.module.scss" },
+      range: missingSelector!.range,
+      context: {
+        diagnostics,
+        triggerKind: 1,
+      },
+    });
+    expect(actions).not.toBeNull();
+    expect(actions).toHaveLength(1);
+    const action = actions![0] as {
+      title: string;
+      edit?: { changes?: Record<string, Array<{ newText: string }>> };
+    };
+    expect(action.title).toBe("Add '.base' to Base.module.scss");
+    expect(action.edit?.changes?.["file:///fake/workspace/src/Base.module.scss"]).toEqual([
+      {
+        range: {
+          start: { line: 3, character: 0 },
+          end: { line: 3, character: 0 },
+        },
+        newText: "\n\n.base {\n}\n",
       },
     ]);
   });

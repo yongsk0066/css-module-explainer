@@ -135,8 +135,7 @@ function buildCreateSelectorQuickFix(
     readonly newText: string;
   },
 ): CodeAction {
-  const match = /Class '\.([^']+)' not found/.exec(diagnostic.message);
-  const className = match?.[1] ?? "selector";
+  const className = extractCreateSelectorClassName(diagnostic.message, createSelector.newText);
   const fileLabel = createSelector.uri.split("/").at(-1) ?? createSelector.uri;
   const edit: WorkspaceEdit = {
     changes: {
@@ -154,6 +153,14 @@ function buildCreateSelectorQuickFix(
     diagnostics: [diagnostic],
     edit,
   };
+}
+
+function extractCreateSelectorClassName(message: string, newText: string): string {
+  const fromMessage =
+    /Class '\.([^']+)' not found/.exec(message)?.[1] ??
+    /Selector '\.([^']+)' not found/.exec(message)?.[1];
+  if (fromMessage) return fromMessage;
+  return /^\s*\.([^{\s]+)\s*\{/u.exec(newText)?.[1] ?? "selector";
 }
 
 function buildCreateModuleFileQuickFix(
