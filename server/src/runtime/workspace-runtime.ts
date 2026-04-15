@@ -85,6 +85,7 @@ export function createWorkspaceRuntime(args: WorkspaceRuntimeFactoryArgs): Works
     buildStyleDocument: (stylePath, content) =>
       styleRuntime.buildStyleDocument(stylePath, content, settingsState.classnameTransform),
     readStyleFile: args.io.readStyleFile,
+    fileExists: args.fileExists,
     pushStyleFile: (stylePath) => styleRuntime.pushStyleFile(stylePath),
     indexerReady: styleRuntime.indexerReady,
     stopIndexer: () => styleRuntime.stop(),

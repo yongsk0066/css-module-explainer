@@ -160,6 +160,34 @@ export const Button = () => <div className={styles.root}>hi</div>;
     ]);
   });
 
+  it("returns sibling module creation actions without diagnostics for an unstyled TSX file", async () => {
+    client = createInProcessServer({
+      fileExists: () => false,
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+
+    const actions = await client.codeAction({
+      textDocument: { uri: "file:///fake/workspace/src/Button.tsx" },
+      range: {
+        start: { line: 0, character: 0 },
+        end: { line: 0, character: 0 },
+      },
+      context: {
+        diagnostics: [],
+        triggerKind: 1,
+      },
+    });
+    expect(actions).not.toBeNull();
+    expect(actions).toHaveLength(3);
+    expect(actions?.map((action) => ("title" in action ? action.title : null))).toEqual([
+      "Create Button.module.scss",
+      "Create Button.module.css",
+      "Create Button.module.less",
+    ]);
+  });
+
   it("returns a create-file action for an unresolved composes module diagnostic", async () => {
     const COMPOSING_SCSS = `
 .button {

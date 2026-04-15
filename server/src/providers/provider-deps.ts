@@ -62,6 +62,12 @@ export interface ProviderDeps {
   readonly buildStyleDocument: (path: string, content: string) => StyleDocumentHIR;
   readonly readStyleFile: (path: string) => string | null;
   /**
+   * Filesystem existence check. Used by recovery/setup workflows
+   * that need to plan file creation without reaching into runtime
+   * internals directly.
+   */
+  readonly fileExists: (path: string) => boolean;
+  /**
    * Queue a single style file for incremental re-indexing by the
    * background indexer worker. Used by the file-watcher alongside
    * `invalidateStyle`.

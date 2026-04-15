@@ -163,6 +163,34 @@ describe("handleCodeAction", () => {
     ]);
   });
 
+  it("returns sibling module creation actions for a TSX file without an existing sibling module", () => {
+    const result = handleCodeAction(makeParams([]), makeDeps({ fileExists: () => false }));
+    expect(result).toHaveLength(3);
+    expect(result?.map((action) => action.title)).toEqual([
+      "Create Button.module.scss",
+      "Create Button.module.css",
+      "Create Button.module.less",
+    ]);
+    expect(result?.every((action) => action.kind === CodeActionKind.QuickFix)).toBe(true);
+    expect(result?.[0]?.edit?.documentChanges).toEqual([
+      {
+        kind: "create",
+        uri: "file:///fake/src/Button.module.scss",
+        options: { overwrite: false, ignoreIfExists: true },
+      },
+    ]);
+  });
+
+  it("does not return sibling module creation actions when a sibling module already exists", () => {
+    const result = handleCodeAction(
+      makeParams([]),
+      makeDeps({
+        fileExists: (path) => path.endsWith("Button.module.scss"),
+      }),
+    );
+    expect(result).toBeNull();
+  });
+
   it("logs and returns null on exception", () => {
     const logError = vi.fn();
     // Poison the diagnostics iterable so for-of throws.

@@ -159,6 +159,7 @@ export function makeBaseDeps(overrides: BaseDepsOverrides = {}): ProviderDeps {
         : buildStyleDocumentFromSelectorMap(path, new Map());
     },
     readStyleFile: () => null,
+    fileExists: () => true,
     pushStyleFile: () => {},
     indexerReady: Promise.resolve(),
     stopIndexer: () => {},

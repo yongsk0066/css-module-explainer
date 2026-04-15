@@ -1,3 +1,4 @@
+import nodePath from "node:path";
 import {
   CodeActionKind,
   type CodeAction,
@@ -7,27 +8,21 @@ import {
   type Range as LspRange,
   type WorkspaceEdit,
 } from "vscode-languageserver/node";
+import { getAllStyleExtensions, findLangForPath } from "../core/scss/lang-registry";
+import { fileUrlToPath, pathToFileUrl } from "../core/util/text-utils";
 import { isRecord } from "../core/util/value-guards";
 import { wrapHandler } from "./_wrap-handler";
 import type { ProviderDeps } from "./provider-deps";
 
 /**
- * Handle `textDocument/codeAction` by emitting quickfixes from
- * diagnostic suggestions.
- *
- * Consumes `Diagnostic.data.suggestion` attached by the
- * diagnostics provider and returns one `CodeAction` per
- * suggestion that rewrites the flagged range to the suggested
- * class name.
- *
- * Pure function over LSP params: no AST, no file I/O, no cache
- * lookups. The heavy lifting already happened at diagnostic
- * publish time. Error isolation is owned by `wrapHandler`.
+ * Handle `textDocument/codeAction` by emitting recovery actions
+ * from diagnostics plus small source-context setup actions.
  */
 export const handleCodeAction = wrapHandler<CodeActionParams, [], CodeAction[] | null>(
   "codeAction",
-  (params, _deps: ProviderDeps) => {
+  (params, deps: ProviderDeps) => {
     const actions: CodeAction[] = [];
+    const diagnosticCreateModuleUris = new Set<string>();
     for (const diagnostic of params.context.diagnostics) {
       const suggestion = extractSuggestion(diagnostic);
       if (suggestion) {
@@ -39,13 +34,38 @@ export const handleCodeAction = wrapHandler<CodeActionParams, [], CodeAction[] |
       }
       const createModuleFile = extractCreateModuleFile(diagnostic);
       if (createModuleFile) {
+        diagnosticCreateModuleUris.add(createModuleFile.uri);
         actions.push(buildCreateModuleFileQuickFix(diagnostic, createModuleFile));
+      }
+    }
+    if (diagnosticCreateModuleUris.size === 0) {
+      for (const siblingUri of listMissingSiblingStyleModuleUris(params.textDocument.uri, deps)) {
+        actions.push(buildProactiveCreateModuleFileQuickFix(siblingUri));
       }
     }
     return actions.length > 0 ? actions : null;
   },
   null,
 );
+
+function listMissingSiblingStyleModuleUris(uri: string, deps: ProviderDeps): readonly string[] {
+  const filePath = fileUrlToPath(uri);
+  if (findLangForPath(filePath) !== null) return [];
+  if (!isSetupEligibleSourcePath(filePath)) return [];
+
+  const sourceBasePath = filePath.replace(/\.[^.]+$/u, "");
+  const siblingPaths = getAllStyleExtensions().map((extension) => `${sourceBasePath}${extension}`);
+  if (siblingPaths.some((candidate) => deps.fileExists(candidate))) {
+    return [];
+  }
+
+  return siblingPaths.map((candidate) => pathToFileUrl(candidate));
+}
+
+function isSetupEligibleSourcePath(filePath: string): boolean {
+  const extension = nodePath.extname(filePath).toLowerCase();
+  return extension === ".tsx" || extension === ".jsx";
+}
 
 function extractSuggestion(diagnostic: Diagnostic): string | null {
   const data = diagnostic.data;
@@ -140,10 +160,22 @@ function buildCreateModuleFileQuickFix(
   diagnostic: Diagnostic,
   createModuleFile: { readonly uri: string },
 ): CodeAction {
-  const fileLabel = createModuleFile.uri.split("/").at(-1) ?? createModuleFile.uri;
+  return {
+    ...buildCreateModuleFileAction(createModuleFile.uri),
+    diagnostics: [diagnostic],
+    isPreferred: true,
+  };
+}
+
+function buildProactiveCreateModuleFileQuickFix(uri: string): CodeAction {
+  return buildCreateModuleFileAction(uri);
+}
+
+function buildCreateModuleFileAction(uri: string): CodeAction {
+  const fileLabel = uri.split("/").at(-1) ?? uri;
   const createFile: CreateFile = {
     kind: "create",
-    uri: createModuleFile.uri,
+    uri,
     options: {
       overwrite: false,
       ignoreIfExists: true,
@@ -155,8 +187,6 @@ function buildCreateModuleFileQuickFix(
   return {
     title: `Create ${fileLabel}`,
     kind: CodeActionKind.QuickFix,
-    diagnostics: [diagnostic],
     edit,
-    isPreferred: true,
   };
 }
