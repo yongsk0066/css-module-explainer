@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   BOTTOM_CLASS_VALUE,
+  MAX_FINITE_CLASS_VALUES,
   TOP_CLASS_VALUE,
   concatenateClassValues,
   concatenateWithUnknownRight,
@@ -58,6 +59,21 @@ describe("class-value-domain", () => {
     );
   });
 
+  it("keeps a meaningful longest common prefix when joining related prefixes", () => {
+    expect(joinClassValues(prefixClassValue("btn-sm"), prefixClassValue("btn-lg"))).toEqual(
+      prefixClassValue("btn-", "prefixJoinLcp"),
+    );
+    expect(joinClassValues(prefixClassValue("btn"), prefixClassValue("btn--danger"))).toEqual(
+      prefixClassValue("btn", "prefixJoinLcp"),
+    );
+  });
+
+  it("drops unhelpful prefix joins that do not preserve a class boundary", () => {
+    expect(
+      joinClassValues(prefixClassValue("buttonPrimary"), prefixClassValue("buttonSecondary")),
+    ).toBe(TOP_CLASS_VALUE);
+  });
+
   it("enumerates only finite domains", () => {
     expect(enumerateFiniteClassValues(BOTTOM_CLASS_VALUE)).toEqual([]);
     expect(enumerateFiniteClassValues(exactClassValue("button"))).toEqual(["button"]);
@@ -79,12 +95,30 @@ describe("class-value-domain", () => {
   });
 
   it("derives prefixes from known left concatenation with unknown suffixes", () => {
-    expect(concatenateWithUnknownRight(exactClassValue("btn-"))).toEqual(prefixClassValue("btn-"));
+    expect(concatenateWithUnknownRight(exactClassValue("btn-"))).toEqual(
+      prefixClassValue("btn-", "concatUnknownRight"),
+    );
     expect(concatenateWithUnknownRight(finiteSetClassValue(["btn-", "btn--"]))).toEqual(
-      prefixClassValue("btn-"),
+      prefixClassValue("btn-", "concatUnknownRight"),
     );
     expect(concatenateWithUnknownRight(finiteSetClassValue(["btn-", "card-"]))).toBe(
       TOP_CLASS_VALUE,
     );
+  });
+
+  it("widens large finite sets to a prefix when a meaningful LCP exists", () => {
+    const values = Array.from(
+      { length: MAX_FINITE_CLASS_VALUES + 1 },
+      (_, index) => `btn-${index}`,
+    );
+    expect(finiteSetClassValue(values)).toEqual(prefixClassValue("btn-", "finiteSetWidening"));
+  });
+
+  it("widens large finite sets to top when no meaningful LCP exists", () => {
+    const values = Array.from(
+      { length: MAX_FINITE_CLASS_VALUES + 1 },
+      (_, index) => `state${index}`,
+    );
+    expect(finiteSetClassValue(values)).toBe(TOP_CLASS_VALUE);
   });
 });

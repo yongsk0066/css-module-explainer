@@ -67,11 +67,15 @@ export function toFlowResolution(value: ClassValueLattice | null): FlowResolutio
 
 export function typeUnionResolution(values: readonly string[]): FlowResolution | null {
   const abstractValue = finiteSetClassValue(values);
-  const finiteValues = enumerateFiniteClassValues(abstractValue);
-  if (!finiteValues || finiteValues.length === 0) return null;
+  if (abstractValue.kind === "bottom") return null;
   return {
     abstractValue,
-    valueCertainty: abstractValue.kind === "exact" ? "exact" : "inferred",
+    valueCertainty:
+      abstractValue.kind === "exact"
+        ? "exact"
+        : abstractValue.kind === "top"
+          ? "possible"
+          : "inferred",
     reason: "typeUnion",
   };
 }

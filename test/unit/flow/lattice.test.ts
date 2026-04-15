@@ -61,4 +61,50 @@ describe("flow/lattice", () => {
       reason: "typeUnion",
     });
   });
+
+  it("widens large type unions to a prefix when a meaningful LCP exists", () => {
+    expect(
+      typeUnionResolution([
+        "btn-primary",
+        "btn-secondary",
+        "btn-danger",
+        "btn-success",
+        "btn-warning",
+        "btn-info",
+        "btn-muted",
+        "btn-ghost",
+        "btn-outline",
+      ]),
+    ).toEqual({
+      abstractValue: {
+        kind: "prefix",
+        prefix: "btn-",
+        provenance: "finiteSetWidening",
+      },
+      valueCertainty: "inferred",
+      reason: "typeUnion",
+    });
+  });
+
+  it("widens large type unions to top when no meaningful LCP exists", () => {
+    expect(
+      typeUnionResolution([
+        "stateOne",
+        "stateTwo",
+        "stateThree",
+        "stateFour",
+        "stateFive",
+        "stateSix",
+        "stateSeven",
+        "stateEight",
+        "stateNine",
+      ]),
+    ).toEqual({
+      abstractValue: {
+        kind: "top",
+      },
+      valueCertainty: "possible",
+      reason: "typeUnion",
+    });
+  });
 });

@@ -94,7 +94,9 @@ export function describeAbstractValue(
     case "finiteSet":
       return abstractValue.values.length > 1 ? `finite set (${abstractValue.values.length})` : null;
     case "prefix":
-      return `prefix \`${abstractValue.prefix}\``;
+      return abstractValue.provenance === "finiteSetWidening"
+        ? `prefix \`${abstractValue.prefix}\` (widened)`
+        : `prefix \`${abstractValue.prefix}\``;
     case "top":
       return "unknown";
     default:
