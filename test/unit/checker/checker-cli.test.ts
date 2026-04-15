@@ -63,6 +63,56 @@ describe("runCheckerCli", () => {
       ]),
     );
   });
+
+  it("supports changed-file routing and category filtering", async () => {
+    const workspaceRoot = makeWorkspace({
+      "src/App.tsx": [
+        "import classNames from 'classnames/bind';",
+        "import styles from './Button.module.scss';",
+        "const cx = classNames.bind(styles);",
+        "const bad = cx('missing');",
+        "",
+      ].join("\n"),
+      "src/Button.module.scss": ".button {}\n.unused {}",
+    });
+    const stdout: string[] = [];
+
+    const exitCode = await runCheckerCli(
+      [
+        workspaceRoot,
+        "--changed-file",
+        "src/Button.module.scss",
+        "--category",
+        "style",
+        "--severity",
+        "hint",
+        "--format",
+        "json",
+        "--fail-on",
+        "none",
+      ],
+      {
+        stdout: (message) => stdout.push(message),
+        stderr: () => {},
+        cwd: () => workspaceRoot,
+      },
+    );
+
+    expect(exitCode).toBe(0);
+    const payload = JSON.parse(stdout.join(""));
+    expect(payload.sourceFiles).toEqual([]);
+    expect(payload.styleFiles).toEqual([path.join(workspaceRoot, "src/Button.module.scss")]);
+    expect(payload.summary).toMatchObject({ warnings: 0, hints: 2, total: 2 });
+    expect(payload.findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          category: "style",
+          severity: "hint",
+          code: "unused-selector",
+        }),
+      ]),
+    );
+  });
 });
 
 function makeWorkspace(files: Readonly<Record<string, string>>): string {
