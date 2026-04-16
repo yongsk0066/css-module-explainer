@@ -53,6 +53,8 @@ export interface TypeFactTableEntryV1 {
   readonly facts: StringTypeFactsV1;
 }
 
+export type TypeFactTableV1 = readonly TypeFactTableEntryV1[];
+
 export type QueryResultKindV1 =
   | "expression-semantics"
   | "selector-usage"

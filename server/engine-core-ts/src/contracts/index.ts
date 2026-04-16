@@ -21,6 +21,7 @@ export {
   type StringTypeFactKindV1,
   type StringTypeFactsV1,
   type StyleAnalysisInputV1,
+  type TypeFactTableV1,
   type TypeFactTableEntryV1,
 } from "./engine-v1";
 export {

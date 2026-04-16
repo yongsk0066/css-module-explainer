@@ -2,12 +2,10 @@ import type {
   EngineInputV1,
   SourceAnalysisInputV1,
   StyleAnalysisInputV1,
-  TypeFactTableEntryV1,
 } from "../../engine-core-ts/src/contracts";
 import {
   ENGINE_CONTRACT_VERSION_V1,
   buildSourceBindingGraphSnapshotV1,
-  createTypeFactTableEntryV1,
 } from "../../engine-core-ts/src/contracts";
 import type { DocumentAnalysisCache } from "../../engine-core-ts/src/core/indexing/document-analysis-cache";
 import type { StyleDocumentHIR } from "../../engine-core-ts/src/core/hir/style-types";
@@ -17,6 +15,7 @@ import {
   workspaceSettingsKey,
   type SourceDocumentSnapshot,
 } from "./checker-host/workspace-check-support";
+import { collectTypeFactTableV1 } from "./type-fact-table-v1";
 
 export interface BuildEngineInputV1Options {
   readonly workspaceRoot: string;
@@ -51,29 +50,11 @@ export function buildEngineInputV1(options: BuildEngineInputV1Options): EngineIn
     return document ? [{ filePath, document }] : [];
   });
 
-  const typeFacts: TypeFactTableEntryV1[] = [];
-  for (const { document, analysis } of sourceEntries) {
-    for (const expression of analysis.sourceDocument.classExpressions) {
-      if (expression.kind !== "symbolRef") continue;
-      typeFacts.push(
-        createTypeFactTableEntryV1(
-          document.filePath,
-          expression.id,
-          options.typeResolver.resolve(
-            document.filePath,
-            expression.rootName,
-            options.workspaceRoot,
-            expression.range,
-            {
-              sourceBinder: analysis.sourceBinder,
-              sourceBindingGraph: analysis.sourceBindingGraph,
-              rootBindingDeclId: expression.rootBindingDeclId ?? null,
-            },
-          ),
-        ),
-      );
-    }
-  }
+  const typeFacts = collectTypeFactTableV1({
+    workspaceRoot: options.workspaceRoot,
+    typeResolver: options.typeResolver,
+    sourceEntries,
+  });
 
   return {
     version: ENGINE_CONTRACT_VERSION_V1,
