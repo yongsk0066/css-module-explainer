@@ -1,9 +1,7 @@
-import nodePath from "node:path";
 import type { ResourceSettings } from "../settings";
 import type { StyleDocumentHIR } from "../core/hir/style-types";
 import type { FileTask } from "../core/indexing/indexer-worker";
 import type { TypeResolver } from "../core/ts/type-resolver";
-import { fileUrlToPath } from "../core/util/text-utils";
 import type { WorkspaceFolderInfo, WorkspaceProviderDeps } from "../workspace/workspace-registry";
 import type { SharedRuntimeCaches } from "./shared-runtime-caches";
 import type { RuntimeSink } from "./runtime-sink";
@@ -12,6 +10,11 @@ import {
   createWorkspaceRuntimeSettingsState,
   type WorkspaceRuntimeSettingsState,
 } from "./workspace-runtime-settings";
+import {
+  clearWorkspaceDocumentsWithinRoot,
+  createOwnedStylePathMatcher,
+  type RuntimeDocumentsLike,
+} from "./workspace-runtime-support";
 import { createWorkspaceStyleRuntime } from "./workspace-style-runtime";
 
 export interface WorkspaceRuntimeIO {
@@ -40,10 +43,6 @@ export interface WorkspaceRuntime {
   clearWorkspaceDocuments(documents: RuntimeDocumentsLike): void;
 }
 
-export interface RuntimeDocumentsLike {
-  all(): readonly { readonly uri: string }[];
-}
-
 export function createWorkspaceRuntime(args: WorkspaceRuntimeFactoryArgs): WorkspaceRuntime {
   const settingsState = createWorkspaceRuntimeSettingsState(args.folder.rootPath);
   const styleRuntime = createWorkspaceStyleRuntime({
@@ -53,8 +52,7 @@ export function createWorkspaceRuntime(args: WorkspaceRuntimeFactoryArgs): Works
     sink: args.sink,
     serverName: args.serverName,
     getModeForStylePath: args.getModeForStylePath,
-    isOwnedStylePath: (stylePath) =>
-      pickOwningFolder(args.workspaceFolders, stylePath)?.uri === args.folder.uri,
+    isOwnedStylePath: createOwnedStylePathMatcher(args.workspaceFolders, args.folder.uri),
   });
   const analysisCache = createWorkspaceAnalysisCache({
     caches: args.caches,
@@ -107,45 +105,9 @@ export function createWorkspaceRuntime(args: WorkspaceRuntimeFactoryArgs): Works
       deps.typeResolver.invalidate(args.folder.rootPath);
     },
     clearWorkspaceDocuments(documents) {
-      clearWorkspaceDocuments(args.folder.rootPath, documents, deps, args.sink);
+      clearWorkspaceDocumentsWithinRoot(args.folder.rootPath, documents, deps, args.sink);
     },
   };
-}
-
-function clearWorkspaceDocuments(
-  workspaceRoot: string,
-  documents: RuntimeDocumentsLike,
-  deps: WorkspaceProviderDeps,
-  sink: RuntimeSink,
-): void {
-  deps.styleDependencyGraph.forgetWithinRoot(workspaceRoot);
-  for (const doc of documents.all()) {
-    const filePath = fileUrlToPath(doc.uri);
-    if (!isWithinWorkspaceRoot(workspaceRoot, filePath)) continue;
-    deps.semanticReferenceIndex.forget(doc.uri);
-    deps.analysisCache.invalidate(doc.uri);
-    sink.clearDiagnostics(doc.uri);
-  }
-  deps.refreshCodeLens();
-}
-
-function pickOwningFolder(
-  folders: readonly WorkspaceFolderInfo[],
-  filePath: string,
-): WorkspaceFolderInfo | null {
-  let winner: WorkspaceFolderInfo | null = null;
-  for (const folder of folders) {
-    if (!isWithinWorkspaceRoot(folder.rootPath, filePath)) continue;
-    if (!winner || folder.rootPath.length > winner.rootPath.length) {
-      winner = folder;
-    }
-  }
-  return winner;
-}
-
-function isWithinWorkspaceRoot(workspaceRoot: string, filePath: string): boolean {
-  const rel = nodePath.relative(workspaceRoot, filePath);
-  return rel === "" || (!rel.startsWith("..") && !nodePath.isAbsolute(rel));
 }
 
 export type { WorkspaceRuntimeSettingsState };
