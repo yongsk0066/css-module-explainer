@@ -190,7 +190,7 @@ async function collectWorkspaceFiles(
   });
 }
 
-function workspaceSettingsKey(
+export function workspaceSettingsKey(
   classnameTransform: ClassnameTransformMode,
   pathAlias: Readonly<Record<string, string>>,
 ): string {
