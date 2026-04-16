@@ -5,7 +5,7 @@ import type { TypeResolver } from "../core/ts/type-resolver";
 import type { WorkspaceFolderInfo, WorkspaceProviderDeps } from "../workspace/workspace-registry";
 import type { SharedRuntimeCaches } from "./shared-runtime-caches";
 import type { RuntimeSink } from "./runtime-sink";
-import { createWorkspaceAnalysisCache } from "./workspace-analysis-runtime";
+import { createWorkspaceProviderDeps } from "./workspace-runtime-deps";
 import {
   createWorkspaceRuntimeSettingsState,
   type WorkspaceRuntimeSettingsState,
@@ -54,48 +54,18 @@ export function createWorkspaceRuntime(args: WorkspaceRuntimeFactoryArgs): Works
     getModeForStylePath: args.getModeForStylePath,
     isOwnedStylePath: createOwnedStylePathMatcher(args.workspaceFolders, args.folder.uri),
   });
-  const analysisCache = createWorkspaceAnalysisCache({
+  const deps: WorkspaceProviderDeps = createWorkspaceProviderDeps({
+    folder: args.folder,
     caches: args.caches,
     typeResolver: args.typeResolver,
-    workspaceRoot: args.folder.rootPath,
     styleDocumentForPath: args.styleDocumentForPath,
-    fileExists: args.fileExists,
-    aliasResolver: () => settingsState.aliasResolver,
-    settingsKey: () => settingsState.settingsKey,
-    onReferencesChanged: () => args.sink.requestCodeLensRefresh(),
-  });
-
-  const deps: WorkspaceProviderDeps = {
-    analysisCache,
-    styleDocumentForPath: args.styleDocumentForPath,
-    typeResolver: args.typeResolver,
-    semanticReferenceIndex: args.caches.semanticReferenceIndex,
-    styleDependencyGraph: args.caches.styleDependencyGraph,
-    workspaceRoot: args.folder.rootPath,
-    workspaceFolderUri: args.folder.uri,
-    logError: (message, err) => {
-      const detail = err instanceof Error ? `${err.message}\n${err.stack ?? ""}` : String(err);
-      args.sink.error(`[${args.serverName}] ${message}: ${detail}`);
-    },
-    invalidateStyle: (stylePath) => styleRuntime.invalidateStyle(stylePath),
-    peekStyleDocument: (stylePath) =>
-      styleRuntime.peekStyleDocument(stylePath, settingsState.classnameTransform),
-    buildStyleDocument: (stylePath, content) =>
-      styleRuntime.buildStyleDocument(stylePath, content, settingsState.classnameTransform),
     readStyleFile: args.io.readStyleFile,
     fileExists: args.fileExists,
-    pushStyleFile: (stylePath) => styleRuntime.pushStyleFile(stylePath),
-    indexerReady: styleRuntime.indexerReady,
-    stopIndexer: () => styleRuntime.stop(),
-    get settings() {
-      return settingsState.get();
-    },
-    set settings(next) {
-      settingsState.set(next);
-    },
-    rebuildAliasResolver: (pathAlias) => settingsState.rebuildAliasResolver(pathAlias),
-    refreshCodeLens: () => args.sink.requestCodeLensRefresh(),
-  };
+    sink: args.sink,
+    serverName: args.serverName,
+    settingsState,
+    styleRuntime,
+  });
 
   return {
     folder: args.folder,
