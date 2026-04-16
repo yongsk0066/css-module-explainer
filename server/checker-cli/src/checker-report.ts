@@ -5,7 +5,7 @@ import type {
   WorkspaceCheckCommandFilters,
   WorkspaceCheckCommandPreset,
   WorkspaceCheckResult,
-} from "../../src/checker-host";
+} from "../../engine-host-node/src/checker-host";
 
 export interface CheckerReportJsonFinding {
   readonly filePath: string;

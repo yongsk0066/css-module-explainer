@@ -4,6 +4,7 @@
     { "path": "./shared" },
     { "path": "./server" },
     { "path": "./server/adapter-vscode" },
+    { "path": "./server/engine-host-node" },
     { "path": "./server/checker-cli" },
     { "path": "./client" }
   ]

@@ -10,7 +10,7 @@ import {
   type WorkspaceCheckCommandFilters,
   type WorkspaceCheckCommandPreset,
   type WorkspaceCheckCommandSeverity,
-} from "../../src/checker-host";
+} from "../../engine-host-node/src/checker-host";
 import {
   expandCheckerCodeBundles,
   isCheckerCodeBundle,
