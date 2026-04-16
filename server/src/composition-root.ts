@@ -17,11 +17,12 @@ import { DEFAULT_RESOURCE_SETTINGS } from "./settings";
 import { buildStyleFileWatcherGlob } from "./core/scss/lang-registry";
 import type { StyleDocumentHIR } from "./core/hir/style-types";
 import type { TypeResolver } from "./core/ts/type-resolver";
-import { fileUrlToPath, pathToFileUrl } from "./core/util/text-utils";
+import { pathToFileUrl } from "./core/util/text-utils";
 import type { FileTask } from "./core/indexing/indexer-worker";
 import { COMPLETION_TRIGGER_CHARACTERS } from "./providers/completion";
 import { registerHandlers } from "./handler-registration";
 import { WorkspaceRegistry, type WorkspaceFolderInfo } from "./workspace/workspace-registry";
+import { resolveWorkspaceFolders, toWorkspaceFolderInfo } from "./workspace/workspace-folder-info";
 import {
   buildSharedRuntimeCaches,
   createRuntimeTypeResolver,
@@ -124,7 +125,11 @@ export function createServer(options: CreateServerOptions): CreatedServer {
 
   connection.onInitialize((params: InitializeParams): InitializeResult => {
     connection.console.info(`[${SERVER_NAME}] initialize received`);
-    const workspaceFolders = resolveWorkspaceFolders(params);
+    const workspaceFolders = resolveWorkspaceFolders({
+      ...(params.workspaceFolders ? { workspaceFolders: params.workspaceFolders } : {}),
+      ...(params.rootUri ? { rootUri: params.rootUri } : {}),
+      ...(params.rootPath ? { rootPath: params.rootPath } : {}),
+    });
     clientSupportsDynamicWatchers =
       params.capabilities.workspace?.didChangeWatchedFiles?.dynamicRegistration ?? false;
     clientSupportsCodeLensRefresh =
@@ -213,11 +218,7 @@ export function createServer(options: CreateServerOptions): CreatedServer {
 
         for (const folder of event.added) {
           if (registry.getFolder(folder.uri)) continue;
-          const folderInfo: WorkspaceFolderInfo = {
-            uri: folder.uri,
-            rootPath: fileUrlToPath(folder.uri),
-            name: folder.name,
-          };
+          const folderInfo: WorkspaceFolderInfo = toWorkspaceFolderInfo(folder);
           registerWorkspaceRuntime({
             registry,
             runtimes,
@@ -291,28 +292,6 @@ function buildCapabilities(): InitializeResult["capabilities"] {
       },
     },
   };
-}
-
-function resolveWorkspaceFolders(params: InitializeParams): readonly WorkspaceFolderInfo[] {
-  if (params.workspaceFolders && params.workspaceFolders.length > 0) {
-    return params.workspaceFolders.map((folder) => ({
-      uri: folder.uri,
-      rootPath: fileUrlToPath(folder.uri),
-      name: folder.name,
-    }));
-  }
-  const rootPath = params.rootUri
-    ? fileUrlToPath(params.rootUri)
-    : params.rootPath
-      ? params.rootPath
-      : process.cwd();
-  return [
-    {
-      uri: pathToFileUrl(rootPath),
-      rootPath,
-      name: rootPath.split(/[\\/]/u).pop() || rootPath,
-    },
-  ];
 }
 
 function readStyleTextFromOpenDocuments(
