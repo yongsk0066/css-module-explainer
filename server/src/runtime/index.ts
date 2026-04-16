@@ -49,6 +49,11 @@ export {
   type WorkspaceRuntimeUnregisterArgs,
 } from "./workspace-runtime-registry";
 export {
+  createWorkspaceRuntimeManager,
+  type WorkspaceRuntimeManager,
+  type WorkspaceRuntimeManagerArgs,
+} from "./workspace-runtime-manager";
+export {
   createRuntimeTypeResolver,
   createStyleDocumentLookup,
   createWorkspaceRuntimeIO,

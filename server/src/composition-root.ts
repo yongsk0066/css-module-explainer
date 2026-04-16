@@ -21,19 +21,18 @@ import { pathToFileUrl } from "./core/util/text-utils";
 import type { FileTask } from "./core/indexing/indexer-worker";
 import { COMPLETION_TRIGGER_CHARACTERS } from "./providers/completion";
 import { registerHandlers } from "./handler-registration";
-import { WorkspaceRegistry, type WorkspaceFolderInfo } from "./workspace/workspace-registry";
+import type { WorkspaceRegistry } from "./workspace/workspace-registry";
 import { resolveWorkspaceFolders, toWorkspaceFolderInfo } from "./workspace/workspace-folder-info";
 import {
   buildSharedRuntimeCaches,
   createRuntimeTypeResolver,
   createStyleDocumentLookup,
   createWorkspaceRuntimeIO,
+  createWorkspaceRuntimeManager,
   defaultReadStyleFile,
-  registerWorkspaceRuntime,
   type RuntimeSink,
   type SharedRuntimeCaches,
-  unregisterWorkspaceRuntime,
-  type WorkspaceRuntime,
+  type WorkspaceRuntimeManager,
 } from "./runtime";
 
 const SERVER_NAME = "css-module-explainer";
@@ -110,7 +109,7 @@ export function createServer(options: CreateServerOptions): CreatedServer {
   const readStyleFile = options.readStyleFile ?? defaultReadStyleFile;
 
   let registry: WorkspaceRegistry | null = null;
-  let runtimes: Map<string, WorkspaceRuntime> | null = null;
+  let runtimeManager: WorkspaceRuntimeManager | null = null;
   let caches: SharedRuntimeCaches | null = null;
   let typeResolver: TypeResolver | null = null;
   let styleDocumentForPath: ((path: string) => StyleDocumentHIR | null) | null = null;
@@ -140,8 +139,6 @@ export function createServer(options: CreateServerOptions): CreatedServer {
       ...(options.typeResolver ? { typeResolver: options.typeResolver } : {}),
       ...(options.createProgram ? { createProgram: options.createProgram } : {}),
     });
-    registry = new WorkspaceRegistry();
-    runtimes = new Map();
     fileExists = options.fileExists ?? existsSync;
     styleDocumentForPath = createStyleDocumentLookup({
       styleIndexCache: caches.styleIndexCache,
@@ -149,7 +146,7 @@ export function createServer(options: CreateServerOptions): CreatedServer {
       readOpenDocumentText: (stylePath) => readStyleTextFromOpenDocuments(stylePath, documents),
       readStyleFile,
       getModeForPath: (stylePath) =>
-        registry?.getDepsForFilePath(stylePath)?.settings.scss.classnameTransform ??
+        runtimeManager?.getDepsForFilePath(stylePath)?.settings.scss.classnameTransform ??
         DEFAULT_RESOURCE_SETTINGS.scss.classnameTransform,
     });
     runtimeIO = createWorkspaceRuntimeIO({
@@ -157,24 +154,20 @@ export function createServer(options: CreateServerOptions): CreatedServer {
       ...(options.readStyleFileAsync ? { readStyleFileAsync: options.readStyleFileAsync } : {}),
       ...(options.fileSupplier ? { fileSupplier: options.fileSupplier } : {}),
     });
-    for (const folder of workspaceFolders) {
-      registerWorkspaceRuntime({
-        registry,
-        runtimes,
-        folder,
-        workspaceFolders,
-        caches,
-        typeResolver,
-        styleDocumentForPath,
-        io: runtimeIO,
-        sink: buildRuntimeSink(connection, clientSupportsCodeLensRefresh),
-        fileExists,
-        serverName: SERVER_NAME,
-        getModeForStylePath: (stylePath) =>
-          registry?.getDepsForFilePath(stylePath)?.settings.scss.classnameTransform ??
-          DEFAULT_RESOURCE_SETTINGS.scss.classnameTransform,
-      });
-    }
+    runtimeManager = createWorkspaceRuntimeManager({
+      caches,
+      typeResolver,
+      styleDocumentForPath,
+      io: runtimeIO,
+      sink: buildRuntimeSink(connection, clientSupportsCodeLensRefresh),
+      fileExists,
+      serverName: SERVER_NAME,
+      getModeForStylePath: (stylePath) =>
+        runtimeManager?.getDepsForFilePath(stylePath)?.settings.scss.classnameTransform ??
+        DEFAULT_RESOURCE_SETTINGS.scss.classnameTransform,
+    });
+    registry = runtimeManager.getRegistry();
+    runtimeManager.registerInitialFolders(workspaceFolders);
     return {
       capabilities: buildCapabilities(),
       serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
@@ -196,8 +189,7 @@ export function createServer(options: CreateServerOptions): CreatedServer {
     if (clientSupportsWorkspaceFolders) {
       connection.workspace.onDidChangeWorkspaceFolders((event) => {
         if (
-          !registry ||
-          !runtimes ||
+          !runtimeManager ||
           !caches ||
           !typeResolver ||
           !styleDocumentForPath ||
@@ -208,33 +200,12 @@ export function createServer(options: CreateServerOptions): CreatedServer {
         }
 
         for (const folder of event.removed) {
-          unregisterWorkspaceRuntime({
-            registry,
-            runtimes,
-            folderUri: folder.uri,
-            documents,
-          });
+          runtimeManager.removeFolder(folder.uri, documents);
         }
 
         for (const folder of event.added) {
-          if (registry.getFolder(folder.uri)) continue;
-          const folderInfo: WorkspaceFolderInfo = toWorkspaceFolderInfo(folder);
-          registerWorkspaceRuntime({
-            registry,
-            runtimes,
-            folder: folderInfo,
-            workspaceFolders: [...registry.getFolders(), folderInfo],
-            caches,
-            typeResolver,
-            styleDocumentForPath,
-            io: runtimeIO,
-            sink: buildRuntimeSink(connection, clientSupportsCodeLensRefresh),
-            fileExists,
-            serverName: SERVER_NAME,
-            getModeForStylePath: (stylePath) =>
-              registry?.getDepsForFilePath(stylePath)?.settings.scss.classnameTransform ??
-              DEFAULT_RESOURCE_SETTINGS.scss.classnameTransform,
-          });
+          if (runtimeManager.hasFolder(folder.uri)) continue;
+          runtimeManager.addFolder(toWorkspaceFolderInfo(folder));
         }
 
         handlers.refreshSettings();
@@ -259,7 +230,7 @@ export function createServer(options: CreateServerOptions): CreatedServer {
     handlers.shutdown();
     void watchedFilesDisposable?.then((d) => d.dispose()).catch(() => {});
     watchedFilesDisposable = null;
-    runtimes = null;
+    runtimeManager = null;
     registry = null;
   });
 
