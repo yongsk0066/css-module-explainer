@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ProviderDeps } from "../../../server/src/providers/provider-deps";
+import type { ProviderDeps } from "../../../server/src/provider-deps";
 import {
   WorkspaceRegistry,
   pickOwningWorkspaceFolder,

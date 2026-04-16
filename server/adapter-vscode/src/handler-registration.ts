@@ -10,7 +10,7 @@ import { handleHover } from "../../src/providers/hover";
 import { handleCodeLens } from "../../src/providers/reference-lens";
 import { handleReferences } from "../../src/providers/references";
 import { handlePrepareRename, handleRename } from "../../src/providers/rename";
-import type { CursorParams, ProviderDeps } from "../../src/providers/provider-deps";
+import type { CursorParams, ProviderDeps } from "../../src/provider-deps";
 import { fileUrlToPath } from "../../src/core/util/text-utils";
 import { findLangForPath } from "../../src/core/scss/lang-registry";
 import {

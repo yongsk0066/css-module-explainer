@@ -391,7 +391,7 @@ Disallowed direction:
 ```text
 core/* -> providers/*
 core/* -> runtime/*
-runtime/* -> providers/provider-deps
+runtime/* -> provider-deps
 runtime/* -> vscode-languageserver*
 providers/* -> deep core/query/* or core/rewrite/*
 ```

@@ -1,5 +1,5 @@
 import { readSourceExpressionContextAtCursor, type SourceExpressionContext } from "../core/query";
-import type { CursorParams, ProviderDeps } from "./provider-deps";
+import type { CursorParams, ProviderDeps } from "../provider-deps";
 
 /**
  * Unified front stage for every source-expression-based provider.
@@ -27,4 +27,4 @@ export function withSourceExpressionAtCursor<T>(
 }
 
 export type { SourceExpressionContext } from "../core/query";
-export type { CursorParams, ProviderDeps } from "./provider-deps";
+export type { CursorParams, ProviderDeps } from "../provider-deps";

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const REPO_ROOT = process.cwd();
 const CORE_ROOT = path.join(REPO_ROOT, "server/src/core");
+const ENGINE_HOST_ROOT = path.join(REPO_ROOT, "server/engine-host-node/src");
 const RUNTIME_ROOT = path.join(REPO_ROOT, "server/engine-host-node/src/runtime");
 const PROVIDERS_ROOT = path.join(REPO_ROOT, "server/src/providers");
 const CHECKER_HOST_ROOT = path.join(REPO_ROOT, "server/engine-host-node/src/checker-host");
@@ -26,6 +27,15 @@ describe("package-ready boundaries", () => {
     for (const filePath of walkTsFiles(RUNTIME_ROOT)) {
       const source = readFileSync(filePath, "utf8");
       expect(source, relativePath(filePath)).not.toMatch(/provider-deps/);
+      expect(source, relativePath(filePath)).not.toMatch(/vscode-languageserver/);
+    }
+  });
+
+  it("engine-host modules do not depend on adapter/provider implementation paths", () => {
+    for (const filePath of walkTsFiles(ENGINE_HOST_ROOT)) {
+      const source = readFileSync(filePath, "utf8");
+      expect(source, relativePath(filePath)).not.toMatch(/src\/providers\//);
+      expect(source, relativePath(filePath)).not.toMatch(/adapter-vscode\//);
       expect(source, relativePath(filePath)).not.toMatch(/vscode-languageserver/);
     }
   });
