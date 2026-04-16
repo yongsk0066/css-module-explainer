@@ -27,6 +27,7 @@ export type CheckerCliFormat = "text" | "json";
 export type CheckerCliCategory = "all" | "source" | "style";
 export type CheckerCliSeverity = "all" | "warning" | "hint";
 export type CheckerCliSummaryMode = "full" | "summary";
+export type CheckerCliPreset = "ci" | "changed-style" | "changed-source";
 const CHECKER_JSON_SCHEMA_VERSION = "1" as const;
 const CHECKER_TOOL_NAME = "css-module-explainer/checker" as const;
 
@@ -75,11 +76,16 @@ async function parseCliArgs(
   const cwd = io.cwd();
   const stdinFileList = argv.includes("--stdin-file-list") ? await readStdinFileList(io) : null;
   let workspaceRoot = cwd;
+  let preset: CheckerCliPreset | null = null;
   let format: CheckerCliFormat = "text";
   let failOn: CheckerCliFailOn = "warning";
   let category: CheckerCliCategory = "all";
   let severity: CheckerCliSeverity = "all";
   let summaryMode: CheckerCliSummaryMode = "full";
+  let explicitFailOn = false;
+  let explicitCategory = false;
+  let explicitSeverity = false;
+  let explicitSummaryMode = false;
   let classnameTransform: ClassnameTransformMode = "asIs";
   const pathAlias: Record<string, string> = {};
   const sourceFilePaths: string[] = [];
@@ -117,12 +123,23 @@ async function parseCliArgs(
       continue;
     }
 
+    if (arg === "--preset") {
+      const value = argv[index + 1];
+      if (value !== "ci" && value !== "changed-style" && value !== "changed-source") {
+        return { error: "Expected --preset ci|changed-style|changed-source" };
+      }
+      preset = value;
+      index += 1;
+      continue;
+    }
+
     if (arg === "--fail-on") {
       const value = argv[index + 1];
       if (value !== "none" && value !== "warning" && value !== "hint") {
         return { error: "Expected --fail-on none|warning|hint" };
       }
       failOn = value;
+      explicitFailOn = true;
       index += 1;
       continue;
     }
@@ -133,6 +150,7 @@ async function parseCliArgs(
         return { error: "Expected --category all|source|style" };
       }
       category = value;
+      explicitCategory = true;
       index += 1;
       continue;
     }
@@ -143,12 +161,14 @@ async function parseCliArgs(
         return { error: "Expected --severity all|warning|hint" };
       }
       severity = value;
+      explicitSeverity = true;
       index += 1;
       continue;
     }
 
     if (arg === "--summary") {
       summaryMode = "summary";
+      explicitSummaryMode = true;
       continue;
     }
 
@@ -262,6 +282,14 @@ async function parseCliArgs(
     workspaceRoot = path.resolve(cwd, arg);
   }
 
+  if (preset) {
+    const defaults = presetDefaults(preset);
+    if (!explicitFailOn) failOn = defaults.failOn;
+    if (!explicitCategory) category = defaults.category;
+    if (!explicitSeverity) severity = defaults.severity;
+    if (!explicitSummaryMode) summaryMode = defaults.summaryMode;
+  }
+
   return {
     options: {
       workspaceRoot,
@@ -282,6 +310,45 @@ async function parseCliArgs(
     includeCodes: [...new Set(includeCodes)],
     excludeCodes: [...new Set(excludeCodes)],
   };
+}
+
+function presetDefaults(preset: CheckerCliPreset): {
+  readonly failOn: CheckerCliFailOn;
+  readonly category: CheckerCliCategory;
+  readonly severity: CheckerCliSeverity;
+  readonly summaryMode: CheckerCliSummaryMode;
+} {
+  switch (preset) {
+    case "ci":
+      return {
+        failOn: "warning",
+        category: "all",
+        severity: "warning",
+        summaryMode: "summary",
+      };
+    case "changed-style":
+      return {
+        failOn: "warning",
+        category: "style",
+        severity: "all",
+        summaryMode: "summary",
+      };
+    case "changed-source":
+      return {
+        failOn: "warning",
+        category: "source",
+        severity: "all",
+        summaryMode: "summary",
+      };
+    default:
+      preset satisfies never;
+      return {
+        failOn: "warning",
+        category: "all",
+        severity: "all",
+        summaryMode: "full",
+      };
+  }
 }
 
 function writeResult(
@@ -434,6 +501,7 @@ function buildHelpText(): string {
     "Options:",
     "  --root <path>                 Workspace root (defaults to cwd)",
     "  --format <text|json>         Output format (default: text)",
+    "  --preset <ci|changed-style|changed-source> Apply a preset bundle",
     "  --fail-on <none|warning|hint> Exit threshold (default: warning)",
     "  --category <all|source|style> Filter findings by category",
     "  --severity <all|warning|hint> Filter findings by severity",

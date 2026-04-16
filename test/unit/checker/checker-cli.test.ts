@@ -193,6 +193,82 @@ describe("runCheckerCli", () => {
       "Checked 1 source files and 1 style modules. 1 findings (1 warnings, 0 hints).",
     );
   });
+
+  it("applies the ci preset defaults", async () => {
+    const workspaceRoot = makeWorkspace({
+      "src/App.tsx": [
+        "import classNames from 'classnames/bind';",
+        "import styles from './Button.module.scss';",
+        "const cx = classNames.bind(styles);",
+        "const bad = cx('missing');",
+        "",
+      ].join("\n"),
+      "src/Button.module.scss": ".button {}\n.unused {}",
+    });
+    const stdout: string[] = [];
+
+    const exitCode = await runCheckerCli([workspaceRoot, "--preset", "ci"], {
+      stdout: (message) => stdout.push(message),
+      stderr: () => {},
+      cwd: () => workspaceRoot,
+    });
+
+    expect(exitCode).toBe(1);
+    const output = stdout.join("");
+    expect(output).not.toContain("[warning] missing-static-class");
+    expect(output).not.toContain("unused-selector");
+    expect(output).toContain(
+      "Checked 1 source files and 1 style modules. 1 findings (1 warnings, 0 hints).",
+    );
+  });
+
+  it("lets explicit flags override preset defaults", async () => {
+    const workspaceRoot = makeWorkspace({
+      "src/App.tsx": [
+        "import classNames from 'classnames/bind';",
+        "import styles from './Button.module.scss';",
+        "const cx = classNames.bind(styles);",
+        "const bad = cx('missing');",
+        "",
+      ].join("\n"),
+      "src/Button.module.scss": ".button {}\n.unused {}",
+    });
+    const stdout: string[] = [];
+
+    const exitCode = await runCheckerCli(
+      [
+        workspaceRoot,
+        "--preset",
+        "changed-style",
+        "--category",
+        "all",
+        "--format",
+        "json",
+        "--fail-on",
+        "none",
+      ],
+      {
+        stdout: (message) => stdout.push(message),
+        stderr: () => {},
+        cwd: () => workspaceRoot,
+      },
+    );
+
+    expect(exitCode).toBe(0);
+    const payload = JSON.parse(stdout.join(""));
+    expect(payload.findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          category: "source",
+          code: "missing-static-class",
+        }),
+        expect.objectContaining({
+          category: "style",
+          code: "unused-selector",
+        }),
+      ]),
+    );
+  });
 });
 
 function makeWorkspace(files: Readonly<Record<string, string>>): string {
