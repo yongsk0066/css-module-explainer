@@ -81,6 +81,13 @@ pnpm exec vsce package --no-dependencies
 It is not the release gate yet. It gives one consistent batch view of current
 source/style findings before packaging.
 
+For focused local review, prefer the changed-file presets:
+
+```bash
+pnpm check:workspace -- . --preset changed-source --changed-file src/App.tsx
+pnpm check:workspace -- . --preset changed-style --changed-file src/Button.module.scss
+```
+
 ## Publish workflow
 
 Publishing is done through the `Publish Extension` GitHub Actions workflow.

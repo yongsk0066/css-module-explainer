@@ -29,7 +29,7 @@ export type CheckerCliFailOn = "none" | "warning" | "hint";
 export type CheckerCliFormat = "text" | "json";
 export type CheckerCliCategory = WorkspaceCheckCommandCategory;
 export type CheckerCliSeverity = WorkspaceCheckCommandSeverity;
-export type CheckerCliSummaryMode = "full" | "summary";
+export type CheckerCliSummaryMode = "full" | "summary" | "compact";
 export type CheckerCliPreset = WorkspaceCheckCommandPreset;
 
 export async function runCheckerCli(
@@ -156,6 +156,12 @@ async function parseCliArgs(
 
     if (arg === "--summary") {
       summaryMode = "summary";
+      explicitSummaryMode = true;
+      continue;
+    }
+
+    if (arg === "--compact") {
+      summaryMode = "compact";
       explicitSummaryMode = true;
       continue;
     }
@@ -326,14 +332,14 @@ function presetDefaults(preset: CheckerCliPreset): {
         failOn: "warning",
         category: "style",
         severity: "all",
-        summaryMode: "summary",
+        summaryMode: "compact",
       };
     case "changed-source":
       return {
         failOn: "warning",
         category: "source",
         severity: "all",
-        summaryMode: "summary",
+        summaryMode: "compact",
       };
     default:
       preset satisfies never;
@@ -364,6 +370,20 @@ function writeResult(
           finding.severity
         }] ${finding.code} ${formatCheckerFinding(finding, path.dirname(filePath))}\n`,
       );
+    }
+  }
+
+  if (parsed.summaryMode === "compact") {
+    for (const [filePath, findings] of groupFindingsByFile(result)) {
+      const relativePath = path.relative(process.cwd(), filePath) || filePath;
+      io.stdout(`${relativePath} (${findings.length})\n`);
+      for (const finding of findings) {
+        io.stdout(
+          `  ${finding.severity} ${finding.code} ${finding.range.start.line + 1}:${
+            finding.range.start.character + 1
+          } ${formatCheckerFinding(finding, path.dirname(filePath))}\n`,
+        );
+      }
     }
   }
 
@@ -444,6 +464,7 @@ function buildHelpText(): string {
     "  --category <all|source|style> Filter findings by category",
     "  --severity <all|warning|hint> Filter findings by severity",
     "  --summary                    Print summary only for text output",
+    "  --compact                    Group text output by file for changed-file workflows",
     "  --classname-transform <mode> Style transform mode",
     "  --path-alias <prefix=target> Repeatable native path-alias override",
     "  --include-code <code>        Restrict findings to one rule code (repeatable)",
@@ -465,4 +486,19 @@ function defaultCliIO(): CheckerCliIO {
     stderr: (message) => process.stderr.write(message),
     cwd: () => process.cwd(),
   };
+}
+
+function groupFindingsByFile(
+  result: WorkspaceCheckResult,
+): ReadonlyMap<string, readonly WorkspaceCheckResult["findings"][number]["finding"][]> {
+  const grouped = new Map<string, WorkspaceCheckResult["findings"][number]["finding"][]>();
+  for (const { filePath, finding } of result.findings) {
+    const existing = grouped.get(filePath);
+    if (existing) {
+      existing.push(finding);
+      continue;
+    }
+    grouped.set(filePath, [finding]);
+  }
+  return grouped;
 }

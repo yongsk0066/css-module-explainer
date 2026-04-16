@@ -286,6 +286,27 @@ describe("runCheckerCli", () => {
     );
   });
 
+  it("uses compact output for changed-style preset", async () => {
+    const workspaceRoot = makeWorkspace({
+      "src/Button.module.scss": ".button {}\n.unused {}",
+    });
+    const stdout: string[] = [];
+
+    const exitCode = await runCheckerCli([workspaceRoot, "--preset", "changed-style"], {
+      stdout: (message) => stdout.push(message),
+      stderr: () => {},
+      cwd: () => workspaceRoot,
+    });
+
+    expect(exitCode).toBe(0);
+    const output = stdout.join("");
+    expect(output).toContain("src/Button.module.scss (2)");
+    expect(output).toContain("hint unused-selector");
+    expect(output).toContain(
+      "Checked 0 source files and 1 style modules. 2 findings (0 warnings, 2 hints).",
+    );
+  });
+
   it("lets explicit flags override preset defaults", async () => {
     const workspaceRoot = makeWorkspace({
       "src/App.tsx": [

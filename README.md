@@ -203,7 +203,9 @@ Batch checker:
 ```bash
 pnpm check:workspace -- . --preset ci
 pnpm check:workspace -- . --preset changed-style --changed-file src/Button.module.scss
+pnpm check:workspace -- . --preset changed-source --changed-file src/App.tsx
 pnpm check:workspace -- . --include-bundle source-missing --summary
+pnpm check:workspace -- . --preset changed-style --changed-file src/Button.module.scss --compact
 pnpm check:workspace -- . --format json --fail-on none
 ```
 
@@ -212,6 +214,7 @@ Current checker policy:
 - `@keyframes` validation is same-file only in the current first pass
 - `@value` validation covers local declarations and imported bindings between style modules
 - named bundles group common finding families such as `source-missing`, `style-recovery`, and `style-unused`
+- `changed-style` and `changed-source` presets use compact text output by default
 - explicit CLI flags override preset defaults
 
 Test layout:
