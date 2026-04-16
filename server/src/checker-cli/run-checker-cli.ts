@@ -2,14 +2,15 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import type { ClassnameTransformMode } from "../core/scss/classname-transform";
 import { findLangForPath } from "../core/scss/lang-registry";
-import type { WorkspaceCheckOptions, WorkspaceCheckResult } from "../core/checker/check-workspace";
 import {
   runWorkspaceCheckCommand,
+  type WorkspaceCheckOptions,
+  type WorkspaceCheckResult,
   type WorkspaceCheckCommandCategory,
   type WorkspaceCheckCommandFilters,
   type WorkspaceCheckCommandPreset,
   type WorkspaceCheckCommandSeverity,
-} from "../core/checker/check-workspace-command";
+} from "../checker-host";
 import {
   expandCheckerCodeBundles,
   isCheckerCodeBundle,

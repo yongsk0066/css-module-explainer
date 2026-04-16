@@ -4,8 +4,8 @@ import type { CheckerFinding, CheckerSeverity } from "../core/checker/contracts"
 import type {
   WorkspaceCheckCommandFilters,
   WorkspaceCheckCommandPreset,
-} from "../core/checker/check-workspace-command";
-import type { WorkspaceCheckResult } from "../core/checker/check-workspace";
+  WorkspaceCheckResult,
+} from "../checker-host";
 
 export interface CheckerReportJsonFinding {
   readonly filePath: string;

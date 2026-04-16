@@ -6,6 +6,7 @@ const REPO_ROOT = process.cwd();
 const CORE_ROOT = path.join(REPO_ROOT, "server/src/core");
 const RUNTIME_ROOT = path.join(REPO_ROOT, "server/src/runtime");
 const PROVIDERS_ROOT = path.join(REPO_ROOT, "server/src/providers");
+const CHECKER_HOST_ROOT = path.join(REPO_ROOT, "server/src/checker-host");
 const CHECKER_CLI_ROOT = path.join(REPO_ROOT, "server/src/checker-cli");
 const COMPOSITION_ROOT = path.join(REPO_ROOT, "server/src/composition-root.ts");
 const HANDLER_ROOT = path.join(REPO_ROOT, "server/src/handler-registration.ts");
@@ -24,6 +25,14 @@ describe("package-ready boundaries", () => {
     for (const filePath of walkTsFiles(RUNTIME_ROOT)) {
       const source = readFileSync(filePath, "utf8");
       expect(source, relativePath(filePath)).not.toMatch(/provider-deps/);
+      expect(source, relativePath(filePath)).not.toMatch(/vscode-languageserver/);
+    }
+  });
+
+  it("checker-host modules stay host-facing and do not depend on providers", () => {
+    for (const filePath of walkTsFiles(CHECKER_HOST_ROOT)) {
+      const source = readFileSync(filePath, "utf8");
+      expect(source, relativePath(filePath)).not.toMatch(/providers\//);
       expect(source, relativePath(filePath)).not.toMatch(/vscode-languageserver/);
     }
   });
