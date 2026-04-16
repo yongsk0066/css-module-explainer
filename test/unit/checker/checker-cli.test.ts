@@ -55,6 +55,14 @@ describe("runCheckerCli", () => {
     const payload = JSON.parse(stdout.join(""));
     expect(payload.schemaVersion).toBe("1");
     expect(payload.tool).toBe("css-module-explainer/checker");
+    expect(payload.workspaceRoot).toBe(workspaceRoot);
+    expect(payload.filters).toEqual({
+      preset: null,
+      category: "all",
+      severity: "all",
+      includeCodes: [],
+      excludeCodes: [],
+    });
     expect(payload.summary).toMatchObject({ hints: 1, total: 1 });
     expect(payload.findings).toEqual(
       expect.arrayContaining([
@@ -104,6 +112,13 @@ describe("runCheckerCli", () => {
     const payload = JSON.parse(stdout.join(""));
     expect(payload.sourceFiles).toEqual([]);
     expect(payload.styleFiles).toEqual([path.join(workspaceRoot, "src/Button.module.scss")]);
+    expect(payload.filters).toEqual({
+      preset: null,
+      category: "style",
+      severity: "hint",
+      includeCodes: [],
+      excludeCodes: [],
+    });
     expect(payload.summary).toMatchObject({ warnings: 0, hints: 2, total: 2 });
     expect(payload.findings).toEqual(
       expect.arrayContaining([
@@ -143,6 +158,13 @@ describe("runCheckerCli", () => {
     const payload = JSON.parse(stdout.join(""));
     expect(payload.sourceFiles).toEqual([path.join(workspaceRoot, "src/App.tsx")]);
     expect(payload.styleFiles).toEqual([]);
+    expect(payload.filters).toEqual({
+      preset: null,
+      category: "all",
+      severity: "all",
+      includeCodes: [],
+      excludeCodes: [],
+    });
     expect(payload.summary).toMatchObject({ warnings: 1, hints: 0, total: 1 });
     expect(payload.findings).toEqual(
       expect.arrayContaining([
@@ -256,6 +278,13 @@ describe("runCheckerCli", () => {
 
     expect(exitCode).toBe(0);
     const payload = JSON.parse(stdout.join(""));
+    expect(payload.filters).toEqual({
+      preset: "changed-style",
+      category: "all",
+      severity: "all",
+      includeCodes: [],
+      excludeCodes: [],
+    });
     expect(payload.findings).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

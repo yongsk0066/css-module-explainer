@@ -54,12 +54,13 @@ export async function runCheckerCli(
     parsed.includeCodes,
     parsed.excludeCodes,
   );
-  writeResult(filtered, parsed.format, parsed.summaryMode, io);
+  writeResult(filtered, parsed, io);
   return shouldFail(filtered, parsed.failOn) ? 1 : 0;
 }
 
 interface ParsedCliOptions {
   readonly options: WorkspaceCheckOptions;
+  readonly preset: CheckerCliPreset | null;
   readonly format: CheckerCliFormat;
   readonly failOn: CheckerCliFailOn;
   readonly category: CheckerCliCategory;
@@ -302,6 +303,7 @@ async function parseCliArgs(
           }
         : {}),
     },
+    preset,
     format,
     failOn,
     category,
@@ -353,16 +355,19 @@ function presetDefaults(preset: CheckerCliPreset): {
 
 function writeResult(
   result: WorkspaceCheckResult,
-  format: CheckerCliFormat,
-  summaryMode: CheckerCliSummaryMode,
+  parsed: Pick<ParsedCliOptions, "format" | "summaryMode"> &
+    Pick<
+      ParsedCliOptions,
+      "options" | "preset" | "category" | "severity" | "includeCodes" | "excludeCodes"
+    >,
   io: CheckerCliIO,
 ): void {
-  if (format === "json") {
-    io.stdout(`${JSON.stringify(buildJsonReport(result), null, 2)}\n`);
+  if (parsed.format === "json") {
+    io.stdout(`${JSON.stringify(buildJsonReport(result, parsed), null, 2)}\n`);
     return;
   }
 
-  if (summaryMode === "full") {
+  if (parsed.summaryMode === "full") {
     for (const { filePath, finding } of result.findings) {
       io.stdout(
         `${filePath}:${finding.range.start.line + 1}:${finding.range.start.character + 1} [${
@@ -421,10 +426,24 @@ function summarizeFilteredFindings(
   };
 }
 
-function buildJsonReport(result: WorkspaceCheckResult): CheckerReportJsonV1 {
+function buildJsonReport(
+  result: WorkspaceCheckResult,
+  parsed: Pick<
+    ParsedCliOptions,
+    "options" | "preset" | "category" | "severity" | "includeCodes" | "excludeCodes"
+  >,
+): CheckerReportJsonV1 {
   return {
     schemaVersion: CHECKER_JSON_SCHEMA_VERSION,
     tool: CHECKER_TOOL_NAME,
+    workspaceRoot: parsed.options.workspaceRoot,
+    filters: {
+      preset: parsed.preset,
+      category: parsed.category,
+      severity: parsed.severity,
+      includeCodes: parsed.includeCodes,
+      excludeCodes: parsed.excludeCodes,
+    },
     sourceFiles: result.sourceFiles,
     styleFiles: result.styleFiles,
     summary: result.summary,
