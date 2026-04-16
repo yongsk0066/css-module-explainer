@@ -4,8 +4,8 @@ import {
   exactClassValue,
   finiteSetClassValue,
   prefixClassValue,
-} from "../../../server/src/core/abstract-value/class-value-domain";
-import { resolveAbstractValueSelectors } from "../../../server/src/core/abstract-value/selector-projection";
+} from "../../../server/engine-core-ts/src/core/abstract-value/class-value-domain";
+import { resolveAbstractValueSelectors } from "../../../server/engine-core-ts/src/core/abstract-value/selector-projection";
 import { info } from "../../_fixtures/test-helpers";
 import { buildStyleDocumentFromSelectorMap } from "../../_fixtures/style-documents";
 

@@ -7,7 +7,7 @@ import {
   parseStyleDocument,
   styleDocumentSemanticFingerprint,
   StyleIndexCache,
-} from "../../../server/src/core/scss/scss-index";
+} from "../../../server/engine-core-ts/src/core/scss/scss-index";
 import { parseStyleSelectorMap, selectorMapFromDocument } from "../../_fixtures/style-documents";
 
 describe("parseStyleSelectorMap / flat classes", () => {

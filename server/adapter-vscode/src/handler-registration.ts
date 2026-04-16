@@ -10,9 +10,9 @@ import { handleHover } from "./providers/hover";
 import { handleCodeLens } from "./providers/reference-lens";
 import { handleReferences } from "./providers/references";
 import { handlePrepareRename, handleRename } from "./providers/rename";
-import type { CursorParams, ProviderDeps } from "../../src/provider-deps";
-import { fileUrlToPath } from "../../src/core/util/text-utils";
-import { findLangForPath } from "../../src/core/scss/lang-registry";
+import type { CursorParams, ProviderDeps } from "../../engine-core-ts/src/provider-deps";
+import { fileUrlToPath } from "../../engine-core-ts/src/core/util/text-utils";
+import { findLangForPath } from "../../engine-core-ts/src/core/scss/lang-registry";
 import {
   DEFAULT_WINDOW_SETTINGS,
   formatCompatPathAliasDeprecationMessage,
@@ -22,7 +22,7 @@ import {
   resourceSettingsDependencyKey,
   shouldWarnCompatPathAlias,
   type WindowSettings,
-} from "../../src/settings";
+} from "../../engine-core-ts/src/settings";
 import { createDiagnosticsScheduler, type DiagnosticsScheduler } from "./diagnostics-scheduler";
 import type { WorkspaceRegistry } from "../../engine-host-node/src/workspace/workspace-registry";
 import {

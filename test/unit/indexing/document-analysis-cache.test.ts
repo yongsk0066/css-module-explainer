@@ -1,14 +1,14 @@
 import { describe, it, expect, vi } from "vitest";
 import type ts from "typescript";
 import type { StyleImport } from "@css-module-explainer/shared";
-import type { CxBinding } from "../../../server/src/core/cx/cx-types";
-import type { ResolvedCxBinding } from "../../../server/src/core/cx/resolved-bindings";
-import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
-import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
+import type { CxBinding } from "../../../server/engine-core-ts/src/core/cx/cx-types";
+import type { ResolvedCxBinding } from "../../../server/engine-core-ts/src/core/cx/resolved-bindings";
+import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/source-file-cache";
+import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
 import {
   makeLiteralClassExpression,
   makeStyleAccessClassExpression,
-} from "../../../server/src/core/hir/source-types";
+} from "../../../server/engine-core-ts/src/core/hir/source-types";
 import { EMPTY_ALIAS_RESOLVER } from "../../_fixtures/test-helpers";
 
 const SOURCE = `

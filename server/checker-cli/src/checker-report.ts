@@ -1,6 +1,9 @@
 import path from "node:path";
-import { formatCheckerFinding } from "../../src/checker-surface";
-import type { CheckerFinding, CheckerSeverity } from "../../src/core/checker/contracts";
+import { formatCheckerFinding } from "../../engine-core-ts/src/checker-surface";
+import type {
+  CheckerFinding,
+  CheckerSeverity,
+} from "../../engine-core-ts/src/core/checker/contracts";
 import type {
   WorkspaceCheckCommandFilters,
   WorkspaceCheckCommandPreset,

@@ -1,9 +1,9 @@
-import { StyleIndexCache } from "../../../src/core/scss/scss-index";
-import { SourceFileCache } from "../../../src/core/ts/source-file-cache";
+import { StyleIndexCache } from "../../../engine-core-ts/src/core/scss/scss-index";
+import { SourceFileCache } from "../../../engine-core-ts/src/core/ts/source-file-cache";
 import {
   WorkspaceSemanticWorkspaceReferenceIndex,
   WorkspaceStyleDependencyGraph,
-} from "../../../src/core/semantic";
+} from "../../../engine-core-ts/src/core/semantic";
 
 export interface SharedRuntimeCaches {
   readonly sourceFileCache: SourceFileCache;

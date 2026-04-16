@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   filterSelectorReferencePolicy,
   matchesMinimumSelectorCertainty,
-} from "../../../server/src/core/semantic/reference-policy";
+} from "../../../server/engine-core-ts/src/core/semantic/reference-policy";
 
 describe("reference policy", () => {
   it("matches selector certainty by rank", () => {

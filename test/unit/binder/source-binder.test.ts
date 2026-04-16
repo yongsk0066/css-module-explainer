@@ -4,7 +4,7 @@ import {
   buildSourceBinder,
   getDeclById,
   resolveIdentifierAtOffset,
-} from "../../../server/src/core/binder/binder-builder";
+} from "../../../server/engine-core-ts/src/core/binder/binder-builder";
 
 function parseMarked(
   source: string,

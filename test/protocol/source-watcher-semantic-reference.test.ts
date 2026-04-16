@@ -2,7 +2,10 @@ import { afterEach, describe, expect, it } from "vitest";
 import { FileChangeType } from "vscode-languageserver-protocol/node";
 import { createInProcessServer, type LspTestClient } from "./_harness/in-process-server";
 import type { Range, ResolvedType } from "@css-module-explainer/shared";
-import type { ResolveTypeOptions, TypeResolver } from "../../server/src/core/ts/type-resolver";
+import type {
+  ResolveTypeOptions,
+  TypeResolver,
+} from "../../server/engine-core-ts/src/core/ts/type-resolver";
 
 // Source-file watcher → semantic reference freshness.
 //

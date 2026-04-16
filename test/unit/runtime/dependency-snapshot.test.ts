@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
+import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/engine-core-ts/src/core/semantic/workspace-reference-index";
 import {
   createRuntimeDependencySnapshot,
   snapshotOpenDocuments,

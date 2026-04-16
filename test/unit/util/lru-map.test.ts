@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { LruMap } from "../../../server/src/core/util/lru-map";
+import { LruMap } from "../../../server/engine-core-ts/src/core/util/lru-map";
 
 describe("LruMap", () => {
   it("stores and retrieves values", () => {

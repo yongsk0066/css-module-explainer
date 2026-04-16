@@ -1,6 +1,6 @@
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
-import { resolveFlowClassValues } from "../../../server/src/core/flow/class-value-analysis";
+import { resolveFlowClassValues } from "../../../server/engine-core-ts/src/core/flow/class-value-analysis";
 
 describe("resolveFlowClassValues", () => {
   it("tracks straight-line reassignment before the class use", () => {

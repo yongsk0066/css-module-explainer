@@ -9,12 +9,12 @@ import {
   type ValueDeclHIR,
   type ValueImportHIR,
   type ValueRefHIR,
-} from "../../server/src/core/hir/style-types";
+} from "../../server/engine-core-ts/src/core/hir/style-types";
 import {
   expandStyleDocumentWithTransform,
   type ClassnameTransformMode,
-} from "../../server/src/core/scss/classname-transform";
-import { parseStyleDocument } from "../../server/src/core/scss/scss-parser";
+} from "../../server/engine-core-ts/src/core/scss/classname-transform";
+import { parseStyleDocument } from "../../server/engine-core-ts/src/core/scss/scss-parser";
 
 interface SelectorOptions {
   readonly declarations?: string;

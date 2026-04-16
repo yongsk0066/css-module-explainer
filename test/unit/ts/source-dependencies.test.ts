@@ -1,7 +1,7 @@
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
-import { AliasResolver } from "../../../server/src/core/cx/alias-resolver";
-import { collectSourceDependencyPaths } from "../../../server/src/core/ts/source-dependencies";
+import { AliasResolver } from "../../../server/engine-core-ts/src/core/cx/alias-resolver";
+import { collectSourceDependencyPaths } from "../../../server/engine-core-ts/src/core/ts/source-dependencies";
 
 function parse(filePath: string, text: string): ts.SourceFile {
   return ts.createSourceFile(filePath, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);

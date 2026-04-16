@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import type { CxBinding } from "../../../server/src/core/cx/cx-types";
-import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
-import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
-import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
+import type { CxBinding } from "../../../server/engine-core-ts/src/core/cx/cx-types";
+import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/source-file-cache";
+import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
+import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/engine-core-ts/src/core/semantic/workspace-reference-index";
 import type {
   CursorParams,
   ProviderDeps,
@@ -12,8 +12,8 @@ import {
   handleRename,
 } from "../../../server/adapter-vscode/src/providers/rename";
 import { findSelectorAtCursor } from "../../../server/adapter-vscode/src/providers/references";
-import { DEFAULT_SETTINGS } from "../../../server/src/settings";
-import type { Settings } from "../../../server/src/settings";
+import { DEFAULT_SETTINGS } from "../../../server/engine-core-ts/src/settings";
+import type { Settings } from "../../../server/engine-core-ts/src/settings";
 import {
   EMPTY_ALIAS_RESOLVER,
   buildTestClassExpressions,

@@ -3,9 +3,9 @@ import type { TextDocuments } from "vscode-languageserver/node";
 import type { Connection, InitializeParams } from "vscode-languageserver/node";
 import type { TextDocument } from "vscode-languageserver-textdocument";
 import type ts from "typescript";
-import { DEFAULT_RESOURCE_SETTINGS } from "../../src/settings";
-import type { TypeResolver } from "../../src/core/ts/type-resolver";
-import type { FileTask } from "../../src/core/indexing/indexer-worker";
+import { DEFAULT_RESOURCE_SETTINGS } from "../../engine-core-ts/src/settings";
+import type { TypeResolver } from "../../engine-core-ts/src/core/ts/type-resolver";
+import type { FileTask } from "../../engine-core-ts/src/core/indexing/indexer-worker";
 import {
   resolveClientRuntimeCapabilities,
   type ClientRuntimeCapabilities,

@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
 import ts from "typescript";
-import { buildSourceBinder } from "../../../server/src/core/binder/binder-builder";
+import { buildSourceBinder } from "../../../server/engine-core-ts/src/core/binder/binder-builder";
 import {
   buildSourceBindingGraph,
   listStyleModulePaths,
-} from "../../../server/src/core/binder/source-binding-graph";
+} from "../../../server/engine-core-ts/src/core/binder/source-binding-graph";
 import {
   makeClassUtilBinding,
   makeSourceDocumentHIR,
   makeStyleAccessClassExpression,
   makeStyleImportBinding,
   makeSymbolRefClassExpression,
-} from "../../../server/src/core/hir/source-types";
+} from "../../../server/engine-core-ts/src/core/hir/source-types";
 import type { StyleImport } from "@css-module-explainer/shared";
 
 describe("buildSourceBindingGraph", () => {

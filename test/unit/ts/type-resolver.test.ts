@@ -4,8 +4,8 @@ import type { Range } from "@css-module-explainer/shared";
 import {
   buildSourceBinder,
   resolveIdentifierAtOffset,
-} from "../../../server/src/core/binder/binder-builder";
-import { WorkspaceTypeResolver } from "../../../server/src/core/ts/type-resolver";
+} from "../../../server/engine-core-ts/src/core/binder/binder-builder";
+import { WorkspaceTypeResolver } from "../../../server/engine-core-ts/src/core/ts/type-resolver";
 
 /**
  * Build an in-memory ts.CompilerHost backed by a file map.

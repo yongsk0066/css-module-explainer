@@ -5,7 +5,7 @@ import * as os from "node:os";
 import {
   AliasResolver,
   loadWorkspaceTsconfigPathAliases,
-} from "../../../server/src/core/cx/alias-resolver";
+} from "../../../server/engine-core-ts/src/core/cx/alias-resolver";
 
 const WORKSPACE = "/fake/ws";
 

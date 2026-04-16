@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { DiagnosticSeverity, DiagnosticTag } from "vscode-languageserver-protocol/node";
-import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
-import { WorkspaceStyleDependencyGraph } from "../../../server/src/core/semantic/style-dependency-graph";
-import { parseStyleDocument } from "../../../server/src/core/scss/scss-parser";
+import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/engine-core-ts/src/core/semantic/workspace-reference-index";
+import { WorkspaceStyleDependencyGraph } from "../../../server/engine-core-ts/src/core/semantic/style-dependency-graph";
+import { parseStyleDocument } from "../../../server/engine-core-ts/src/core/scss/scss-parser";
 import { computeScssUnusedDiagnostics } from "../../../server/adapter-vscode/src/providers/scss-diagnostics";
 import { infoAtLine as info, semanticSiteAt } from "../../_fixtures/test-helpers";
 import {

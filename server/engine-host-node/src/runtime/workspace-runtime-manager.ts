@@ -1,6 +1,6 @@
-import type { StyleDocumentHIR } from "../../../src/core/hir/style-types";
-import type { TypeResolver } from "../../../src/core/ts/type-resolver";
-import type { ResourceSettings } from "../../../src/settings";
+import type { StyleDocumentHIR } from "../../../engine-core-ts/src/core/hir/style-types";
+import type { TypeResolver } from "../../../engine-core-ts/src/core/ts/type-resolver";
+import type { ResourceSettings } from "../../../engine-core-ts/src/settings";
 import {
   type WorkspaceFolderInfo,
   WorkspaceRegistry,

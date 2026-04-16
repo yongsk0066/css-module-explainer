@@ -8,9 +8,12 @@ import {
   type Range as LspRange,
   type WorkspaceEdit,
 } from "vscode-languageserver/node";
-import { getAllStyleExtensions, findLangForPath } from "../../../src/core/scss/lang-registry";
-import { fileUrlToPath, pathToFileUrl } from "../../../src/core/util/text-utils";
-import { isRecord } from "../../../src/core/util/value-guards";
+import {
+  getAllStyleExtensions,
+  findLangForPath,
+} from "../../../engine-core-ts/src/core/scss/lang-registry";
+import { fileUrlToPath, pathToFileUrl } from "../../../engine-core-ts/src/core/util/text-utils";
+import { isRecord } from "../../../engine-core-ts/src/core/util/value-guards";
 import { wrapHandler } from "./_wrap-handler";
 import type { ProviderDeps } from "./provider-deps";
 

@@ -1,13 +1,16 @@
 import { readFileSync } from "node:fs";
 import type ts from "typescript";
-import type { StyleDocumentHIR } from "../../../src/core/hir/style-types";
-import type { FileTask } from "../../../src/core/indexing/indexer-worker";
-import { findLangForPath } from "../../../src/core/scss/lang-registry";
-import type { StyleIndexCache } from "../../../src/core/scss/scss-index";
-import type { WorkspaceStyleDependencyGraph } from "../../../src/core/semantic";
-import { createDefaultProgram } from "../../../src/core/ts/default-program";
-import { WorkspaceTypeResolver, type TypeResolver } from "../../../src/core/ts/type-resolver";
-import type { ResourceSettings } from "../../../src/settings";
+import type { StyleDocumentHIR } from "../../../engine-core-ts/src/core/hir/style-types";
+import type { FileTask } from "../../../engine-core-ts/src/core/indexing/indexer-worker";
+import { findLangForPath } from "../../../engine-core-ts/src/core/scss/lang-registry";
+import type { StyleIndexCache } from "../../../engine-core-ts/src/core/scss/scss-index";
+import type { WorkspaceStyleDependencyGraph } from "../../../engine-core-ts/src/core/semantic";
+import { createDefaultProgram } from "../../../engine-core-ts/src/core/ts/default-program";
+import {
+  WorkspaceTypeResolver,
+  type TypeResolver,
+} from "../../../engine-core-ts/src/core/ts/type-resolver";
+import type { ResourceSettings } from "../../../engine-core-ts/src/settings";
 import type { WorkspaceRuntimeIO } from "./workspace-runtime";
 
 export interface RuntimeTypeResolverOptions {

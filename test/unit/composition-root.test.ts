@@ -6,7 +6,7 @@ import {
   createDefaultProgram,
   createServer,
 } from "../../server/adapter-vscode/src/composition-root";
-import type { FileTask } from "../../server/src/core/indexing/indexer-worker";
+import type { FileTask } from "../../server/engine-core-ts/src/core/indexing/indexer-worker";
 
 describe("createDefaultProgram", () => {
   it("returns a program with an empty rootNames list when no tsconfig.json is found", () => {

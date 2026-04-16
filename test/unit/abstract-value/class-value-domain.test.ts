@@ -10,7 +10,7 @@ import {
   finiteSetClassValue,
   joinClassValues,
   prefixClassValue,
-} from "../../../server/src/core/abstract-value/class-value-domain";
+} from "../../../server/engine-core-ts/src/core/abstract-value/class-value-domain";
 
 describe("class-value-domain", () => {
   it("canonicalizes singleton finite sets to exact values", () => {

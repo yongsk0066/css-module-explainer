@@ -3,14 +3,14 @@ import {
   planSelectorRename,
   readExpressionRenameTarget,
   readStyleSelectorRenameTargetAtCursor,
-} from "../../../server/src/core/rewrite/selector-rename";
-import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
-import { WorkspaceStyleDependencyGraph } from "../../../server/src/core/semantic/style-dependency-graph";
-import { DEFAULT_SETTINGS } from "../../../server/src/settings";
+} from "../../../server/engine-core-ts/src/core/rewrite/selector-rename";
+import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/engine-core-ts/src/core/semantic/workspace-reference-index";
+import { WorkspaceStyleDependencyGraph } from "../../../server/engine-core-ts/src/core/semantic/style-dependency-graph";
+import { DEFAULT_SETTINGS } from "../../../server/engine-core-ts/src/settings";
 import {
   makeLiteralClassExpression,
   makeTemplateClassExpression,
-} from "../../../server/src/core/hir/source-types";
+} from "../../../server/engine-core-ts/src/core/hir/source-types";
 import { makeStyleDocumentFixture, makeTestSelector } from "../../_fixtures/style-documents";
 
 const SCSS_PATH = "/fake/src/Button.module.scss";

@@ -1,15 +1,15 @@
 import { pathToFileURL } from "node:url";
-import type { AbstractClassValue } from "../../server/src/core/abstract-value/class-value-domain";
+import type { AbstractClassValue } from "../../server/engine-core-ts/src/core/abstract-value/class-value-domain";
 import {
   deriveReferenceExpansion,
   rankCertainty,
   type EdgeCertainty,
-} from "../../server/src/core/semantic/certainty";
-import type { EdgeReason } from "../../server/src/core/semantic/provenance";
+} from "../../server/engine-core-ts/src/core/semantic/certainty";
+import type { EdgeReason } from "../../server/engine-core-ts/src/core/semantic/provenance";
 import {
   type ReferenceQueryOptions,
   type SemanticReferenceSite,
-} from "../../server/src/core/semantic/reference-types";
+} from "../../server/engine-core-ts/src/core/semantic/reference-types";
 import type { RefNode, SelectorNode, SemanticGraph, SemanticNode } from "./semantic-graph-types";
 
 export interface SemanticRefTarget {

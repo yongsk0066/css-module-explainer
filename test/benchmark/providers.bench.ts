@@ -1,8 +1,8 @@
 import { bench, describe } from "vitest";
-import { SourceFileCache } from "../../server/src/core/ts/source-file-cache";
-import { DocumentAnalysisCache } from "../../server/src/core/indexing/document-analysis-cache";
-import { parseClassExpressions } from "../../server/src/core/cx/class-ref-parser";
-import { scanCxImports } from "../../server/src/core/cx/binding-detector";
+import { SourceFileCache } from "../../server/engine-core-ts/src/core/ts/source-file-cache";
+import { DocumentAnalysisCache } from "../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
+import { parseClassExpressions } from "../../server/engine-core-ts/src/core/cx/class-ref-parser";
+import { scanCxImports } from "../../server/engine-core-ts/src/core/cx/binding-detector";
 import type { ProviderDeps } from "../../server/adapter-vscode/src/providers/cursor-dispatch";
 import { handleDefinition } from "../../server/adapter-vscode/src/providers/definition";
 import { handleHover } from "../../server/adapter-vscode/src/providers/hover";

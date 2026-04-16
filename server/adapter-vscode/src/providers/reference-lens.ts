@@ -1,9 +1,12 @@
 import type { CodeLens, CodeLensParams } from "vscode-languageserver/node";
 import type { ShowReferencesArgs, ShowReferencesLocation } from "@css-module-explainer/shared";
-import { listCanonicalSelectors, readSelectorUsageSummary } from "../../../src/core/query";
-import type { SelectorDeclHIR } from "../../../src/core/hir/style-types";
-import { findLangForPath } from "../../../src/core/scss/lang-registry";
-import { fileUrlToPath } from "../../../src/core/util/text-utils";
+import {
+  listCanonicalSelectors,
+  readSelectorUsageSummary,
+} from "../../../engine-core-ts/src/core/query";
+import type { SelectorDeclHIR } from "../../../engine-core-ts/src/core/hir/style-types";
+import { findLangForPath } from "../../../engine-core-ts/src/core/scss/lang-registry";
+import { fileUrlToPath } from "../../../engine-core-ts/src/core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
 import { wrapHandler } from "./_wrap-handler";
 import type { ProviderDeps } from "./provider-deps";

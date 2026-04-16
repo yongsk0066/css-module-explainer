@@ -1,5 +1,5 @@
 import nodePath from "node:path";
-import { fileUrlToPath } from "../../../src/core/util/text-utils";
+import { fileUrlToPath } from "../../../engine-core-ts/src/core/util/text-utils";
 import {
   pickOwningWorkspaceFolder,
   type WorkspaceFolderInfo,

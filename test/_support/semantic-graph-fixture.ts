@@ -1,15 +1,15 @@
 import type {
   SourceDocumentHIR,
   SymbolRefClassExpressionHIR,
-} from "../../server/src/core/hir/source-types";
-import type { StyleDocumentHIR } from "../../server/src/core/hir/style-types";
+} from "../../server/engine-core-ts/src/core/hir/source-types";
+import type { StyleDocumentHIR } from "../../server/engine-core-ts/src/core/hir/style-types";
 import {
   exactClassValue,
   prefixClassValue,
   type AbstractClassValue,
-} from "../../server/src/core/abstract-value/class-value-domain";
-import { projectAbstractValueSelectors } from "../../server/src/core/abstract-value/selector-projection";
-import type { FlowResolution } from "../../server/src/core/flow/lattice";
+} from "../../server/engine-core-ts/src/core/abstract-value/class-value-domain";
+import { projectAbstractValueSelectors } from "../../server/engine-core-ts/src/core/abstract-value/selector-projection";
+import type { FlowResolution } from "../../server/engine-core-ts/src/core/flow/lattice";
 import type {
   DocumentNode,
   RefNode,

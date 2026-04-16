@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import type { ClassnameTransformMode } from "../../src/core/scss/classname-transform";
-import { findLangForPath } from "../../src/core/scss/lang-registry";
+import type { ClassnameTransformMode } from "../../engine-core-ts/src/core/scss/classname-transform";
+import { findLangForPath } from "../../engine-core-ts/src/core/scss/lang-registry";
 import {
   runWorkspaceCheckCommand,
   type WorkspaceCheckOptions,
@@ -16,8 +16,8 @@ import {
   isCheckerCodeBundle,
   listCheckerCodeBundles,
   type CheckerCodeBundle,
-} from "../../src/core/checker/checker-code-bundles";
-import { formatCheckerFinding } from "../../src/checker-surface";
+} from "../../engine-core-ts/src/core/checker/checker-code-bundles";
+import { formatCheckerFinding } from "../../engine-core-ts/src/checker-surface";
 import { buildCheckerJsonReport, type CheckerReportJsonV1 } from "./checker-report";
 
 export interface CheckerCliIO {

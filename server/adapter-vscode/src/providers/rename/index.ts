@@ -11,9 +11,9 @@ import {
   readExpressionRenameTarget,
   readStyleSelectorRenameTargetAtCursor,
   renameBlockReasonMessage,
-} from "../../../../src/core/rewrite";
-import { findLangForPath } from "../../../../src/core/scss/lang-registry";
-import { fileUrlToPath } from "../../../../src/core/util/text-utils";
+} from "../../../../engine-core-ts/src/core/rewrite";
+import { findLangForPath } from "../../../../engine-core-ts/src/core/scss/lang-registry";
+import { fileUrlToPath } from "../../../../engine-core-ts/src/core/util/text-utils";
 import { toLspRange } from "../lsp-adapters";
 import { wrapHandler } from "../_wrap-handler";
 import { findSourceExpressionContextAtCursor } from "../cursor-dispatch";

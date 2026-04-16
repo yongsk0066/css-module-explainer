@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createInProcessServer, type LspTestClient } from "./_harness/in-process-server";
 import { FakeTypeResolver } from "../_fixtures/fake-type-resolver";
-import type { FileTask } from "../../server/src/core/indexing/indexer-worker";
+import type { FileTask } from "../../server/engine-core-ts/src/core/indexing/indexer-worker";
 
 const BUTTON_SCSS = `.btn-primary { color: red; }
 .orphan { color: blue; }

@@ -11,7 +11,7 @@ import {
   parseWindowSettings,
   shouldWarnCompatPathAlias,
   formatCompatPathAliasDeprecationMessage,
-} from "../../server/src/settings";
+} from "../../server/engine-core-ts/src/settings";
 
 describe("parseWindowSettings", () => {
   it("returns defaults for undefined", () => {

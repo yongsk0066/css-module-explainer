@@ -4,7 +4,7 @@ import {
   type InitializeParams,
   type InitializeResult,
 } from "vscode-languageserver/node";
-import { buildStyleFileWatcherGlob } from "../../src/core/scss/lang-registry";
+import { buildStyleFileWatcherGlob } from "../../engine-core-ts/src/core/scss/lang-registry";
 import { COMPLETION_TRIGGER_CHARACTERS } from "./providers/completion";
 
 export interface ClientRuntimeCapabilities {

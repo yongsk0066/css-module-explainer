@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
-import { WorkspaceStyleDependencyGraph } from "../../../server/src/core/semantic/style-dependency-graph";
-import { readSelectorRewriteSafetySummary } from "../../../server/src/core/query/read-selector-rewrite-safety";
+import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/engine-core-ts/src/core/semantic/workspace-reference-index";
+import { WorkspaceStyleDependencyGraph } from "../../../server/engine-core-ts/src/core/semantic/style-dependency-graph";
+import { readSelectorRewriteSafetySummary } from "../../../server/engine-core-ts/src/core/query/read-selector-rewrite-safety";
 import { buildStyleDocumentFromSelectorMap } from "../../_fixtures/style-documents";
 import { infoAtLine } from "../../_fixtures/test-helpers";
 

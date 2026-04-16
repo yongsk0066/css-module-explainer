@@ -1,7 +1,7 @@
 import {
   readSourceExpressionContextAtCursor,
   type SourceExpressionContext,
-} from "../../../src/core/query";
+} from "../../../engine-core-ts/src/core/query";
 import type { CursorParams, ProviderDeps } from "./provider-deps";
 
 /**
@@ -29,5 +29,5 @@ export function withSourceExpressionAtCursor<T>(
   return transform(ctx) ?? null;
 }
 
-export type { SourceExpressionContext } from "../../../src/core/query";
+export type { SourceExpressionContext } from "../../../engine-core-ts/src/core/query";
 export type { CursorParams, ProviderDeps } from "./provider-deps";

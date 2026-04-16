@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import ts from "typescript";
-import { buildSourceBinder } from "../../../server/src/core/binder/binder-builder";
-import { AliasResolver } from "../../../server/src/core/cx/alias-resolver";
-import { scanCxImports } from "../../../server/src/core/cx/binding-detector";
-import { resolveCxBindings } from "../../../server/src/core/cx/resolved-bindings";
+import { buildSourceBinder } from "../../../server/engine-core-ts/src/core/binder/binder-builder";
+import { AliasResolver } from "../../../server/engine-core-ts/src/core/cx/alias-resolver";
+import { scanCxImports } from "../../../server/engine-core-ts/src/core/cx/binding-detector";
+import { resolveCxBindings } from "../../../server/engine-core-ts/src/core/cx/resolved-bindings";
 
 const EMPTY_ALIAS_RESOLVER = new AliasResolver("/fake", {});
 

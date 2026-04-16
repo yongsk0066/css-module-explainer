@@ -7,5 +7,5 @@
     "types": ["node"]
   },
   "include": ["src/**/*.ts"],
-  "references": [{ "path": "../engine-core-ts" }]
+  "references": [{ "path": "../../shared" }]
 }

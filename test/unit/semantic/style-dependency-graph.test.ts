@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { WorkspaceStyleDependencyGraph } from "../../../server/src/core/semantic/style-dependency-graph";
+import { WorkspaceStyleDependencyGraph } from "../../../server/engine-core-ts/src/core/semantic/style-dependency-graph";
 import { buildStyleDocumentFromSelectorMap } from "../../_fixtures/style-documents";
 import { infoAtLine as info } from "../../_fixtures/test-helpers";
 

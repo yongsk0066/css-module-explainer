@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   expandStyleDocumentWithTransform,
   transformClassname,
-} from "../../../server/src/core/scss/classname-transform";
-import { parseStyleDocument } from "../../../server/src/core/scss/scss-parser";
+} from "../../../server/engine-core-ts/src/core/scss/classname-transform";
+import { parseStyleDocument } from "../../../server/engine-core-ts/src/core/scss/scss-parser";
 import {
   expandSelectorMapWithTransform,
   parseStyleSelectorMap,

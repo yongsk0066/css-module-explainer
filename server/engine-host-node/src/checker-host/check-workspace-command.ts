@@ -4,8 +4,8 @@ import {
   type WorkspaceCheckResult,
   type WorkspaceCheckSummary,
 } from "./check-workspace";
-import type { CheckerCodeBundle } from "../../../src/core/checker/checker-code-bundles";
-import type { WorkspaceCheckerFinding } from "../../../src/core/checker/contracts";
+import type { CheckerCodeBundle } from "../../../engine-core-ts/src/core/checker/checker-code-bundles";
+import type { WorkspaceCheckerFinding } from "../../../engine-core-ts/src/core/checker/contracts";
 
 export type WorkspaceCheckCommandPreset = "ci" | "changed-style" | "changed-source";
 export type WorkspaceCheckCommandCategory = "all" | "source" | "style";

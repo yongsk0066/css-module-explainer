@@ -1,11 +1,4 @@
 {
-  "extends": "../tsconfig.base.json",
-  "compilerOptions": {
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "tsBuildInfoFile": "./dist/.tsbuildinfo",
-    "types": ["node"]
-  },
-  "include": ["src/**/*.ts"],
-  "references": [{ "path": "../shared" }]
+  "files": [],
+  "references": [{ "path": "../shared" }, { "path": "./engine-core-ts" }]
 }

@@ -5,7 +5,7 @@ import {
   findClosestMatch,
   pathToFileUrl,
   fileUrlToPath,
-} from "../../../server/src/core/util/text-utils";
+} from "../../../server/engine-core-ts/src/core/util/text-utils";
 
 describe("getLineAt", () => {
   it("returns the requested 0-indexed line", () => {

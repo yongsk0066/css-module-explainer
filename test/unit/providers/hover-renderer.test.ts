@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { ClassExpressionHIR } from "../../../server/src/core/hir/source-types";
-import type { SelectorDeclHIR } from "../../../server/src/core/hir/style-types";
-import type { SelectorUsageSummary } from "../../../server/src/core/query/read-selector-usage";
-import type { SelectorStyleDependencySummary } from "../../../server/src/core/query/read-selector-style-dependencies";
+import type { ClassExpressionHIR } from "../../../server/engine-core-ts/src/core/hir/source-types";
+import type { SelectorDeclHIR } from "../../../server/engine-core-ts/src/core/hir/style-types";
+import type { SelectorUsageSummary } from "../../../server/engine-core-ts/src/core/query/read-selector-usage";
+import type { SelectorStyleDependencySummary } from "../../../server/engine-core-ts/src/core/query/read-selector-style-dependencies";
 import {
   renderHover,
   renderSelectorHover,

@@ -1,6 +1,6 @@
 import type { Range as LspRange } from "vscode-languageserver/node";
-import { pathToFileUrl } from "../../../src/core/util/text-utils";
-import type { StyleDocumentHIR } from "../../../src/core/hir/style-types";
+import { pathToFileUrl } from "../../../engine-core-ts/src/core/util/text-utils";
+import type { StyleDocumentHIR } from "../../../engine-core-ts/src/core/hir/style-types";
 
 export function buildCreateSelectorActionData(
   className: string,

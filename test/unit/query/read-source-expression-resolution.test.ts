@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import ts from "typescript";
-import { buildSourceBinder } from "../../../server/src/core/binder/binder-builder";
-import { readSourceExpressionResolution } from "../../../server/src/core/query/read-source-expression-resolution";
+import { buildSourceBinder } from "../../../server/engine-core-ts/src/core/binder/binder-builder";
+import { readSourceExpressionResolution } from "../../../server/engine-core-ts/src/core/query/read-source-expression-resolution";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
 import { buildSourceDocumentFixture } from "../../_fixtures/source-documents";
 import { buildStyleDocumentFromSelectorMap } from "../../_fixtures/style-documents";

@@ -1,16 +1,16 @@
 import type { CallSite, StyleImport } from "@css-module-explainer/shared";
-import type { ResolvedCxBinding } from "../../server/src/core/cx/resolved-bindings";
-import { SourceFileCache } from "../../server/src/core/ts/source-file-cache";
-import type { SelectorDeclHIR } from "../../server/src/core/hir/style-types";
-import { DocumentAnalysisCache } from "../../server/src/core/indexing/document-analysis-cache";
-import { NullSemanticWorkspaceReferenceIndex } from "../../server/src/core/semantic/workspace-reference-index";
-import { WorkspaceStyleDependencyGraph } from "../../server/src/core/semantic/style-dependency-graph";
+import type { ResolvedCxBinding } from "../../server/engine-core-ts/src/core/cx/resolved-bindings";
+import { SourceFileCache } from "../../server/engine-core-ts/src/core/ts/source-file-cache";
+import type { SelectorDeclHIR } from "../../server/engine-core-ts/src/core/hir/style-types";
+import { DocumentAnalysisCache } from "../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
+import { NullSemanticWorkspaceReferenceIndex } from "../../server/engine-core-ts/src/core/semantic/workspace-reference-index";
+import { WorkspaceStyleDependencyGraph } from "../../server/engine-core-ts/src/core/semantic/style-dependency-graph";
 import {
   NOOP_LOG_ERROR,
   type ProviderDeps,
 } from "../../server/adapter-vscode/src/providers/cursor-dispatch";
-import { DEFAULT_SETTINGS } from "../../server/src/settings";
-import { AliasResolver } from "../../server/src/core/cx/alias-resolver";
+import { DEFAULT_SETTINGS } from "../../server/engine-core-ts/src/settings";
+import { AliasResolver } from "../../server/engine-core-ts/src/core/cx/alias-resolver";
 import { FakeTypeResolver } from "./fake-type-resolver";
 import { buildClassExpressions } from "./source-documents";
 import { buildStyleDocumentFromSelectorMap, makeTestSelector } from "./style-documents";

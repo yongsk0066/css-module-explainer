@@ -4,10 +4,10 @@ import type { TextDocuments } from "vscode-languageserver/node";
 import { DiagnosticSeverity, type Diagnostic } from "vscode-languageserver/node";
 import { computeDiagnostics } from "./providers/diagnostics";
 import { computeScssUnusedDiagnostics } from "./providers/scss-diagnostics";
-import type { ProviderDeps } from "../../src/provider-deps";
-import { fileUrlToPath } from "../../src/core/util/text-utils";
-import { findLangForPath } from "../../src/core/scss/lang-registry";
-import type { WindowSettings } from "../../src/settings";
+import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
+import { fileUrlToPath } from "../../engine-core-ts/src/core/util/text-utils";
+import { findLangForPath } from "../../engine-core-ts/src/core/scss/lang-registry";
+import type { WindowSettings } from "../../engine-core-ts/src/settings";
 
 const DIAGNOSTICS_DEBOUNCE_MS = 200;
 

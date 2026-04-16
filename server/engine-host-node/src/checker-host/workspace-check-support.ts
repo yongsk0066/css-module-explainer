@@ -1,23 +1,29 @@
 import { existsSync, readFileSync } from "node:fs";
 import fastGlob from "fast-glob";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import type { StyleDocumentHIR } from "../../../src/core/hir/style-types";
-import { buildStyleFileWatcherGlob, findLangForPath } from "../../../src/core/scss/lang-registry";
-import { StyleIndexCache } from "../../../src/core/scss/scss-index";
-import type { ClassnameTransformMode } from "../../../src/core/scss/classname-transform";
+import type { StyleDocumentHIR } from "../../../engine-core-ts/src/core/hir/style-types";
+import {
+  buildStyleFileWatcherGlob,
+  findLangForPath,
+} from "../../../engine-core-ts/src/core/scss/lang-registry";
+import { StyleIndexCache } from "../../../engine-core-ts/src/core/scss/scss-index";
+import type { ClassnameTransformMode } from "../../../engine-core-ts/src/core/scss/classname-transform";
 import {
   AliasResolver,
   loadWorkspaceTsconfigPathAliases,
-} from "../../../src/core/cx/alias-resolver";
-import { detectClassUtilImports, scanCxImports } from "../../../src/core/cx/binding-detector";
-import { parseClassExpressions } from "../../../src/core/cx/class-ref-parser";
-import { DocumentAnalysisCache } from "../../../src/core/indexing/document-analysis-cache";
-import { collectSemanticReferenceContribution } from "../../../src/core/semantic/reference-collector";
-import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../src/core/semantic/workspace-reference-index";
-import { WorkspaceStyleDependencyGraph } from "../../../src/core/semantic/style-dependency-graph";
-import { createDefaultProgram } from "../../../src/core/ts/default-program";
-import { SourceFileCache } from "../../../src/core/ts/source-file-cache";
-import { WorkspaceTypeResolver } from "../../../src/core/ts/type-resolver";
+} from "../../../engine-core-ts/src/core/cx/alias-resolver";
+import {
+  detectClassUtilImports,
+  scanCxImports,
+} from "../../../engine-core-ts/src/core/cx/binding-detector";
+import { parseClassExpressions } from "../../../engine-core-ts/src/core/cx/class-ref-parser";
+import { DocumentAnalysisCache } from "../../../engine-core-ts/src/core/indexing/document-analysis-cache";
+import { collectSemanticReferenceContribution } from "../../../engine-core-ts/src/core/semantic/reference-collector";
+import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../engine-core-ts/src/core/semantic/workspace-reference-index";
+import { WorkspaceStyleDependencyGraph } from "../../../engine-core-ts/src/core/semantic/style-dependency-graph";
+import { createDefaultProgram } from "../../../engine-core-ts/src/core/ts/default-program";
+import { SourceFileCache } from "../../../engine-core-ts/src/core/ts/source-file-cache";
+import { WorkspaceTypeResolver } from "../../../engine-core-ts/src/core/ts/type-resolver";
 
 const SOURCE_GLOB = "**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs}";
 const DEFAULT_IGNORES = ["**/node_modules/**", "**/dist/**", "**/.git/**"] as const;

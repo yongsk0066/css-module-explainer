@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { WorkspaceSemanticReferenceDependencies } from "../../../server/src/core/semantic/reference-dependencies";
+import { WorkspaceSemanticReferenceDependencies } from "../../../server/engine-core-ts/src/core/semantic/reference-dependencies";
 
 describe("WorkspaceSemanticReferenceDependencies", () => {
   it("indexes module usages, settings dependencies, and source dependencies independently", () => {

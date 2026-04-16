@@ -1,6 +1,6 @@
 import { bench, describe } from "vitest";
-import { StyleIndexCache } from "../../server/src/core/scss/scss-index";
-import { parseStyleDocument } from "../../server/src/core/scss/scss-parser";
+import { StyleIndexCache } from "../../server/engine-core-ts/src/core/scss/scss-index";
+import { parseStyleDocument } from "../../server/engine-core-ts/src/core/scss/scss-parser";
 
 const SMALL_SCSS = `
 .button { color: red; padding: 8px 16px; border-radius: 4px; }

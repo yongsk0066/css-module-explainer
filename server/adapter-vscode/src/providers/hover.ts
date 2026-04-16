@@ -17,8 +17,8 @@ import {
   resolveComposesTarget,
   resolveValueImportTarget,
   resolveValueTarget,
-} from "../../../src/core/query";
-import { findLangForPath } from "../../../src/core/scss/lang-registry";
+} from "../../../engine-core-ts/src/core/query";
+import { findLangForPath } from "../../../engine-core-ts/src/core/scss/lang-registry";
 import { toLspRange } from "./lsp-adapters";
 import {
   renderHover,

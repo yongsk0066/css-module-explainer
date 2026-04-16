@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type ts from "typescript";
-import type { CxBinding } from "../../../server/src/core/cx/cx-types";
-import type { ResolvedCxBinding } from "../../../server/src/core/cx/resolved-bindings";
-import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
-import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
-import { checkSourceDocument } from "../../../server/src/core/checker";
+import type { CxBinding } from "../../../server/engine-core-ts/src/core/cx/cx-types";
+import type { ResolvedCxBinding } from "../../../server/engine-core-ts/src/core/cx/resolved-bindings";
+import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/source-file-cache";
+import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
+import { checkSourceDocument } from "../../../server/engine-core-ts/src/core/checker";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
 import {
   EMPTY_ALIAS_RESOLVER,

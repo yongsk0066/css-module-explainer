@@ -1,7 +1,7 @@
 import type { StyleImport } from "@css-module-explainer/shared";
-import type { SourceBinderResult } from "../../server/src/core/binder/scope-types";
-import type { ResolvedCxBinding } from "../../server/src/core/cx/resolved-bindings";
-import { buildSourceDocument } from "../../server/src/core/hir/builders/ts-source-adapter";
+import type { SourceBinderResult } from "../../server/engine-core-ts/src/core/binder/scope-types";
+import type { ResolvedCxBinding } from "../../server/engine-core-ts/src/core/cx/resolved-bindings";
+import { buildSourceDocument } from "../../server/engine-core-ts/src/core/hir/builders/ts-source-adapter";
 import {
   makeLiteralClassExpression,
   makeStyleAccessClassExpression,
@@ -9,7 +9,7 @@ import {
   makeTemplateClassExpression,
   type ClassExpressionHIR,
   type SourceDocumentHIR,
-} from "../../server/src/core/hir/source-types";
+} from "../../server/engine-core-ts/src/core/hir/source-types";
 
 type ExpressionOrigin = "cxCall" | "styleAccess";
 

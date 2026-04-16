@@ -2,18 +2,18 @@ import { describe, expect, it, vi } from "vitest";
 import type ts from "typescript";
 import { DiagnosticSeverity } from "vscode-languageserver-protocol/node";
 import type { Range } from "@css-module-explainer/shared";
-import type { CxBinding } from "../../../server/src/core/cx/cx-types";
-import type { ResolvedCxBinding } from "../../../server/src/core/cx/resolved-bindings";
-import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
-import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
-import { NullSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
+import type { CxBinding } from "../../../server/engine-core-ts/src/core/cx/cx-types";
+import type { ResolvedCxBinding } from "../../../server/engine-core-ts/src/core/cx/resolved-bindings";
+import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/source-file-cache";
+import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
+import { NullSemanticWorkspaceReferenceIndex } from "../../../server/engine-core-ts/src/core/semantic/workspace-reference-index";
 import {
   NOOP_LOG_ERROR,
   type ProviderDeps,
 } from "../../../server/adapter-vscode/src/providers/cursor-dispatch";
 import { computeDiagnostics } from "../../../server/adapter-vscode/src/providers/diagnostics";
-import { DEFAULT_SETTINGS } from "../../../server/src/settings";
-import type { TypeResolver } from "../../../server/src/core/ts/type-resolver";
+import { DEFAULT_SETTINGS } from "../../../server/engine-core-ts/src/settings";
+import type { TypeResolver } from "../../../server/engine-core-ts/src/core/ts/type-resolver";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
 import {
   EMPTY_ALIAS_RESOLVER,

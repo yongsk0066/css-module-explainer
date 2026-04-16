@@ -8,8 +8,8 @@ import {
 } from "vscode-languageserver/node";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import type ts from "typescript";
-import type { TypeResolver } from "../../src/core/ts/type-resolver";
-import type { FileTask } from "../../src/core/indexing/indexer-worker";
+import type { TypeResolver } from "../../engine-core-ts/src/core/ts/type-resolver";
+import type { FileTask } from "../../engine-core-ts/src/core/indexing/indexer-worker";
 import { registerHandlers } from "./handler-registration";
 import { buildServerCapabilities, registerDynamicFileWatchers } from "./server-capabilities";
 import { createServerRuntimeSession, type ServerRuntimeSession } from "./server-runtime-session";
@@ -68,7 +68,7 @@ export interface CreatedServer {
   readonly documents: TextDocuments<TextDocument>;
 }
 
-export { createDefaultProgram } from "../../src/core/ts/default-program";
+export { createDefaultProgram } from "../../engine-core-ts/src/core/ts/default-program";
 
 /**
  * Build an LSP server instance from a pair of streams plus

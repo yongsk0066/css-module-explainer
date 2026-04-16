@@ -5,7 +5,7 @@ import {
   mergeValues,
   toFlowResolution,
   typeUnionResolution,
-} from "../../../server/src/core/flow/lattice";
+} from "../../../server/engine-core-ts/src/core/flow/lattice";
 
 describe("flow/lattice", () => {
   it("keeps exact flow results exact", () => {

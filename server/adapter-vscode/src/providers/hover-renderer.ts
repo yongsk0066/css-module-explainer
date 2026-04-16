@@ -1,15 +1,15 @@
 import { relative } from "node:path";
-import type { ClassExpressionHIR } from "../../../src/core/hir/source-types";
+import type { ClassExpressionHIR } from "../../../engine-core-ts/src/core/hir/source-types";
 import type {
   KeyframesDeclHIR,
   SelectorDeclHIR,
   ValueDeclHIR,
-} from "../../../src/core/hir/style-types";
+} from "../../../engine-core-ts/src/core/hir/style-types";
 import type {
   DynamicHoverExplanation,
   SelectorStyleDependencySummary,
   SelectorUsageSummary,
-} from "../../../src/core/query";
+} from "../../../engine-core-ts/src/core/query";
 
 export interface RenderArgs {
   readonly expression: ClassExpressionHIR;

@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import type ts from "typescript";
-import type { CxBinding } from "../../../server/src/core/cx/cx-types";
-import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
-import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
+import type { CxBinding } from "../../../server/engine-core-ts/src/core/cx/cx-types";
+import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/source-file-cache";
+import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
 import type { ProviderDeps } from "../../../server/adapter-vscode/src/providers/cursor-dispatch";
 import { handleHover } from "../../../server/adapter-vscode/src/providers/hover";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
@@ -304,8 +304,10 @@ const el = <div className={clsx(styles.indicator)} />;
   });
 
   it("returns hover for styles['btn-primary'] bracket access", async () => {
-    const { parseClassExpressions } = await import("../../../server/src/core/cx/class-ref-parser");
-    const { scanCxImports } = await import("../../../server/src/core/cx/binding-detector");
+    const { parseClassExpressions } =
+      await import("../../../server/engine-core-ts/src/core/cx/class-ref-parser");
+    const { scanCxImports } =
+      await import("../../../server/engine-core-ts/src/core/cx/binding-detector");
     const bracketTsx = `
 import styles from './Button.module.scss';
 const el = <div className={styles['btn-primary']} />;

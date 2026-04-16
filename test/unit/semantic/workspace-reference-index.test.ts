@@ -1,21 +1,21 @@
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
-import { buildSourceBinder } from "../../../server/src/core/binder/binder-builder";
-import { buildSourceBindingGraph } from "../../../server/src/core/binder/source-binding-graph";
-import type { AnalysisEntry } from "../../../server/src/core/indexing/document-analysis-cache";
+import { buildSourceBinder } from "../../../server/engine-core-ts/src/core/binder/binder-builder";
+import { buildSourceBindingGraph } from "../../../server/engine-core-ts/src/core/binder/source-binding-graph";
+import type { AnalysisEntry } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
 import {
   makeSourceDocumentHIR,
   makeStyleImportBinding,
   makeSymbolRefClassExpression,
-} from "../../../server/src/core/hir/source-types";
-import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
-import { collectSemanticReferenceContribution } from "../../../server/src/core/semantic/reference-collector";
+} from "../../../server/engine-core-ts/src/core/hir/source-types";
+import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/engine-core-ts/src/core/semantic/workspace-reference-index";
+import { collectSemanticReferenceContribution } from "../../../server/engine-core-ts/src/core/semantic/reference-collector";
 import type { StyleImport } from "@css-module-explainer/shared";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
 import { info } from "../../_fixtures/test-helpers";
 import { buildStyleDocumentFromSelectorMap } from "../../_fixtures/style-documents";
-import type { SemanticModuleUsageSite } from "../../../server/src/core/semantic/reference-collector";
-import type { SemanticReferenceSite } from "../../../server/src/core/semantic/reference-types";
+import type { SemanticModuleUsageSite } from "../../../server/engine-core-ts/src/core/semantic/reference-collector";
+import type { SemanticReferenceSite } from "../../../server/engine-core-ts/src/core/semantic/reference-types";
 
 const FILE_PATH = "/fake/ws/src/App.tsx";
 const SCSS_PATH = "/fake/ws/src/Button.module.scss";

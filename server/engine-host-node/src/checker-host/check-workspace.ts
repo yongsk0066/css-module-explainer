@@ -1,7 +1,10 @@
-import { checkSourceDocument } from "../../../src/core/checker/check-source-document";
-import { checkStyleDocument } from "../../../src/core/checker/check-style-document";
-import type { CheckerFinding, WorkspaceCheckerFinding } from "../../../src/core/checker/contracts";
-import type { ClassnameTransformMode } from "../../../src/core/scss/classname-transform";
+import { checkSourceDocument } from "../../../engine-core-ts/src/core/checker/check-source-document";
+import { checkStyleDocument } from "../../../engine-core-ts/src/core/checker/check-style-document";
+import type {
+  CheckerFinding,
+  WorkspaceCheckerFinding,
+} from "../../../engine-core-ts/src/core/checker/contracts";
+import type { ClassnameTransformMode } from "../../../engine-core-ts/src/core/scss/classname-transform";
 import {
   collectSourceDocuments,
   createWorkspaceAnalysisHost,

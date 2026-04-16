@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import ts from "typescript";
 import type { StyleImport } from "@css-module-explainer/shared";
-import { scanCxImports } from "../../../server/src/core/cx/binding-detector";
-import { AliasResolver } from "../../../server/src/core/cx/alias-resolver";
-import type { CxBinding } from "../../../server/src/core/cx/cx-types";
+import { scanCxImports } from "../../../server/engine-core-ts/src/core/cx/binding-detector";
+import { AliasResolver } from "../../../server/engine-core-ts/src/core/cx/alias-resolver";
+import type { CxBinding } from "../../../server/engine-core-ts/src/core/cx/cx-types";
 
 const EMPTY_ALIAS_RESOLVER = new AliasResolver("/fake", {});
 

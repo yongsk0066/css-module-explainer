@@ -4,7 +4,7 @@ import {
   findLangForPath,
   getAllStyleExtensions,
   buildStyleFileWatcherGlob,
-} from "../../../server/src/core/scss/lang-registry";
+} from "../../../server/engine-core-ts/src/core/scss/lang-registry";
 
 describe("STYLE_LANGS registry", () => {
   it("contains scss, css, and less", () => {

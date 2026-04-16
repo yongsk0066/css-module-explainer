@@ -88,8 +88,8 @@ layers.
 
 Document facts live in:
 
-- `server/src/core/hir/source-types.ts`
-- `server/src/core/hir/style-types.ts`
+- `server/engine-core-ts/src/core/hir/source-types.ts`
+- `server/engine-core-ts/src/core/hir/style-types.ts`
 
 `SourceDocumentHIR` owns:
 
@@ -121,8 +121,8 @@ That separation matters. HIR is a fact layer, not a semantic policy layer.
 
 Source-side name resolution lives in:
 
-- `server/src/core/binder/binder-builder.ts`
-- `server/src/core/binder/source-binding-graph.ts`
+- `server/engine-core-ts/src/core/binder/binder-builder.ts`
+- `server/engine-core-ts/src/core/binder/source-binding-graph.ts`
 
 This layer owns:
 
@@ -150,8 +150,8 @@ Benefits:
 
 Dynamic class reasoning lives in:
 
-- `server/src/core/abstract-value/class-value-domain.ts`
-- `server/src/core/abstract-value/selector-projection.ts`
+- `server/engine-core-ts/src/core/abstract-value/class-value-domain.ts`
+- `server/engine-core-ts/src/core/abstract-value/selector-projection.ts`
 
 The point of this layer is not to compute exact runtime values in all cases. The
 point is to model dynamic class values with one shared domain.
@@ -184,8 +184,8 @@ Benefits:
 
 Read models live under:
 
-- `server/src/core/query/*`
-- `server/src/core/rewrite/*`
+- `server/engine-core-ts/src/core/query/*`
+- `server/engine-core-ts/src/core/rewrite/*`
 
 Examples:
 
@@ -198,7 +198,7 @@ Examples:
 
 The checker is a second consumer of the same semantic contracts:
 
-- `server/src/core/checker/*`
+- `server/engine-core-ts/src/core/checker/*`
 
 Read models turn low-level semantic state into stable summaries that providers
 can consume directly.
@@ -227,8 +227,8 @@ Rewrite logic and providers sit above read models.
 
 Rewrite entrypoints:
 
-- `server/src/core/rewrite/selector-rename.ts`
-- `server/src/core/rewrite/text-rewrite-plan.ts`
+- `server/engine-core-ts/src/core/rewrite/selector-rename.ts`
+- `server/engine-core-ts/src/core/rewrite/text-rewrite-plan.ts`
 
 Provider entrypoints:
 
@@ -257,10 +257,10 @@ Benefits:
 
 Workspace-level semantic storage is split into separate responsibilities.
 
-- `server/src/core/semantic/reference-collector.ts`
-- `server/src/core/semantic/workspace-reference-index.ts`
-- `server/src/core/semantic/reference-dependencies.ts`
-- `server/src/core/semantic/style-dependency-graph.ts`
+- `server/engine-core-ts/src/core/semantic/reference-collector.ts`
+- `server/engine-core-ts/src/core/semantic/workspace-reference-index.ts`
+- `server/engine-core-ts/src/core/semantic/reference-dependencies.ts`
+- `server/engine-core-ts/src/core/semantic/style-dependency-graph.ts`
 
 Roles:
 
@@ -398,9 +398,9 @@ providers/* -> deep core/query/* or core/rewrite/*
 
 Current façade boundaries:
 
-- `server/src/core/query/index.ts`
-- `server/src/core/rewrite/index.ts`
-- `server/src/core/semantic/index.ts`
+- `server/engine-core-ts/src/core/query/index.ts`
+- `server/engine-core-ts/src/core/rewrite/index.ts`
+- `server/engine-core-ts/src/core/semantic/index.ts`
 - `server/engine-host-node/src/runtime/index.ts`
 
 This does not force a package split today. It keeps that option mechanically

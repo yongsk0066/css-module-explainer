@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import ts from "typescript";
-import { scanCxImports } from "../../../server/src/core/cx/binding-detector";
-import { parseClassExpressions } from "../../../server/src/core/cx/class-ref-parser";
-import { resolveCxBindings } from "../../../server/src/core/cx/resolved-bindings";
-import { AliasResolver } from "../../../server/src/core/cx/alias-resolver";
+import { scanCxImports } from "../../../server/engine-core-ts/src/core/cx/binding-detector";
+import { parseClassExpressions } from "../../../server/engine-core-ts/src/core/cx/class-ref-parser";
+import { resolveCxBindings } from "../../../server/engine-core-ts/src/core/cx/resolved-bindings";
+import { AliasResolver } from "../../../server/engine-core-ts/src/core/cx/alias-resolver";
 import {
   buildSourceBinder,
   resolveIdentifierAtOffset,
-} from "../../../server/src/core/binder/binder-builder";
+} from "../../../server/engine-core-ts/src/core/binder/binder-builder";
 
 const EMPTY_ALIAS_RESOLVER = new AliasResolver("/fake", {});
 

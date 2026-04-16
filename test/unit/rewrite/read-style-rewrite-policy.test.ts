@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readStyleSelectorRewritePolicy } from "../../../server/src/core/rewrite/read-style-rewrite-policy";
+import { readStyleSelectorRewritePolicy } from "../../../server/engine-core-ts/src/core/rewrite/read-style-rewrite-policy";
 import { makeStyleDocumentFixture, makeTestSelector } from "../../_fixtures/style-documents";
 
 const SCSS_PATH = "/fake/src/Button.module.scss";

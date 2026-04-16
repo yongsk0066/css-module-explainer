@@ -1,6 +1,6 @@
-import { findLangForPath } from "../../../src/core/scss/lang-registry";
-import type { SemanticWorkspaceReferenceIndex } from "../../../src/core/semantic";
-import { fileUrlToPath } from "../../../src/core/util/text-utils";
+import { findLangForPath } from "../../../engine-core-ts/src/core/scss/lang-registry";
+import type { SemanticWorkspaceReferenceIndex } from "../../../engine-core-ts/src/core/semantic";
+import { fileUrlToPath } from "../../../engine-core-ts/src/core/util/text-utils";
 import type { OpenDocumentSnapshot } from "./invalidation-planner";
 
 export interface RuntimeDependencySnapshot {

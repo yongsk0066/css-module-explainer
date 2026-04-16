@@ -168,7 +168,7 @@ Current path alias deprecation policy:
 
 When that compat path is removed, update:
 
-- `server/src/settings.ts`
+- `server/engine-core-ts/src/settings.ts`
 - `README.md`
 - `package.json` configuration metadata
 - changelog / release notes

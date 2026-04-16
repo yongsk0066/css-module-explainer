@@ -1,11 +1,14 @@
-import type { AliasResolver } from "../../../src/core/cx/alias-resolver";
-import { detectClassUtilImports, scanCxImports } from "../../../src/core/cx/binding-detector";
-import { parseClassExpressions } from "../../../src/core/cx/class-ref-parser";
-import type { StyleDocumentHIR } from "../../../src/core/hir/style-types";
-import { DocumentAnalysisCache } from "../../../src/core/indexing/document-analysis-cache";
-import { collectSemanticReferenceContribution } from "../../../src/core/semantic";
-import type { TypeResolver } from "../../../src/core/ts/type-resolver";
-import { fileUrlToPath } from "../../../src/core/util/text-utils";
+import type { AliasResolver } from "../../../engine-core-ts/src/core/cx/alias-resolver";
+import {
+  detectClassUtilImports,
+  scanCxImports,
+} from "../../../engine-core-ts/src/core/cx/binding-detector";
+import { parseClassExpressions } from "../../../engine-core-ts/src/core/cx/class-ref-parser";
+import type { StyleDocumentHIR } from "../../../engine-core-ts/src/core/hir/style-types";
+import { DocumentAnalysisCache } from "../../../engine-core-ts/src/core/indexing/document-analysis-cache";
+import { collectSemanticReferenceContribution } from "../../../engine-core-ts/src/core/semantic";
+import type { TypeResolver } from "../../../engine-core-ts/src/core/ts/type-resolver";
+import { fileUrlToPath } from "../../../engine-core-ts/src/core/util/text-utils";
 import type { SharedRuntimeCaches } from "./shared-runtime-caches";
 
 export interface WorkspaceAnalysisRuntimeArgs {

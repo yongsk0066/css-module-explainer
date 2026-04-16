@@ -1,7 +1,7 @@
-import type { ResourceSettings } from "../../../src/settings";
-import type { StyleDocumentHIR } from "../../../src/core/hir/style-types";
-import type { FileTask } from "../../../src/core/indexing/indexer-worker";
-import type { TypeResolver } from "../../../src/core/ts/type-resolver";
+import type { ResourceSettings } from "../../../engine-core-ts/src/settings";
+import type { StyleDocumentHIR } from "../../../engine-core-ts/src/core/hir/style-types";
+import type { FileTask } from "../../../engine-core-ts/src/core/indexing/indexer-worker";
+import type { TypeResolver } from "../../../engine-core-ts/src/core/ts/type-resolver";
 import type { WorkspaceFolderInfo, WorkspaceProviderDeps } from "../workspace/workspace-registry";
 import type { SharedRuntimeCaches } from "./shared-runtime-caches";
 import type { RuntimeSink } from "./runtime-sink";

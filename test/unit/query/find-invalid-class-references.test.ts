@@ -1,8 +1,8 @@
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
-import { prefixClassValue } from "../../../server/src/core/abstract-value/class-value-domain";
-import type { ClassExpressionHIR } from "../../../server/src/core/hir/source-types";
-import { findInvalidClassReference } from "../../../server/src/core/query/find-invalid-class-references";
+import { prefixClassValue } from "../../../server/engine-core-ts/src/core/abstract-value/class-value-domain";
+import type { ClassExpressionHIR } from "../../../server/engine-core-ts/src/core/hir/source-types";
+import { findInvalidClassReference } from "../../../server/engine-core-ts/src/core/query/find-invalid-class-references";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
 import { info } from "../../_fixtures/test-helpers";
 import { buildStyleDocumentFromSelectorMap } from "../../_fixtures/style-documents";

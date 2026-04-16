@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeAbstractValue } from "../../../server/src/core/query/explain-expression-semantics";
+import { describeAbstractValue } from "../../../server/engine-core-ts/src/core/query/explain-expression-semantics";
 
 describe("describeAbstractValue", () => {
   it("labels widened prefixes explicitly", () => {

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   deriveReferenceExpansion,
   deriveSelectorProjectionCertainty,
-} from "../../../server/src/core/semantic/certainty";
+} from "../../../server/engine-core-ts/src/core/semantic/certainty";
 
 describe("semantic/certainty", () => {
   it("keeps finite selector sets exact when the selector universe matches them exactly", () => {

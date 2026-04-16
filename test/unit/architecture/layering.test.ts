@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const REPO_ROOT = process.cwd();
 const PROVIDERS_ROOT = path.join(REPO_ROOT, "server/adapter-vscode/src/providers");
-const QUERY_ROOT = path.join(REPO_ROOT, "server/src/core/query");
+const QUERY_ROOT = path.join(REPO_ROOT, "server/engine-core-ts/src/core/query");
 
 describe("architecture layering invariants", () => {
   it("provider handlers do not import AST or legacy semantic helpers directly", () => {
