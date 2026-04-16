@@ -1,20 +1,16 @@
 import { existsSync } from "node:fs";
 import type { TextDocuments } from "vscode-languageserver/node";
-import {
-  CodeLensRefreshRequest,
-  type Connection,
-  type InitializeParams,
-} from "vscode-languageserver/node";
+import type { Connection, InitializeParams } from "vscode-languageserver/node";
 import type { TextDocument } from "vscode-languageserver-textdocument";
 import type ts from "typescript";
 import { DEFAULT_RESOURCE_SETTINGS } from "./settings";
 import type { TypeResolver } from "./core/ts/type-resolver";
-import { pathToFileUrl } from "./core/util/text-utils";
 import type { FileTask } from "./core/indexing/indexer-worker";
 import {
   resolveClientRuntimeCapabilities,
   type ClientRuntimeCapabilities,
 } from "./server-capabilities";
+import { createRuntimeSink, readStyleTextFromOpenDocuments } from "./server-runtime-support";
 import { resolveWorkspaceFolders, toWorkspaceFolderInfo } from "./workspace/workspace-folder-info";
 import type { WorkspaceRegistry } from "./workspace/workspace-registry";
 import {
@@ -23,7 +19,6 @@ import {
   createStyleDocumentLookup,
   createWorkspaceRuntimeIO,
   createWorkspaceRuntimeManager,
-  type RuntimeSink,
   type WorkspaceRuntimeManager,
 } from "./runtime";
 
@@ -119,33 +114,6 @@ export function createServerRuntimeSession(
         if (runtimeManager.hasFolder(folder.uri)) continue;
         runtimeManager.addFolder(toWorkspaceFolderInfo(folder));
       }
-    },
-  };
-}
-
-function readStyleTextFromOpenDocuments(
-  path: string,
-  documents: TextDocuments<TextDocument>,
-): string | null {
-  const uri = pathToFileUrl(path);
-  const doc = documents.get(uri);
-  return doc?.getText() ?? null;
-}
-
-function createRuntimeSink(connection: Connection, supportsCodeLensRefresh: boolean): RuntimeSink {
-  return {
-    info(message: string): void {
-      connection.console.info(message);
-    },
-    error(message: string): void {
-      connection.console.error(message);
-    },
-    clearDiagnostics(uri: string): void {
-      connection.sendDiagnostics({ uri, diagnostics: [] });
-    },
-    requestCodeLensRefresh(): void {
-      if (!supportsCodeLensRefresh) return;
-      void connection.sendRequest(CodeLensRefreshRequest.type).catch(() => {});
     },
   };
 }
