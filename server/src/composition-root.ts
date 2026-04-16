@@ -1,40 +1,20 @@
-import { existsSync } from "node:fs";
 import type { MessageReader, MessageWriter } from "vscode-languageserver/node";
 import {
-  CodeLensRefreshRequest,
   createConnection,
   ProposedFeatures,
   TextDocuments,
   type Connection,
-  type InitializeParams,
   type InitializeResult,
 } from "vscode-languageserver/node";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import type ts from "typescript";
-import { DEFAULT_RESOURCE_SETTINGS } from "./settings";
-import type { StyleDocumentHIR } from "./core/hir/style-types";
 import type { TypeResolver } from "./core/ts/type-resolver";
-import { pathToFileUrl } from "./core/util/text-utils";
 import type { FileTask } from "./core/indexing/indexer-worker";
 import { registerHandlers } from "./handler-registration";
-import {
-  buildServerCapabilities,
-  registerDynamicFileWatchers,
-  resolveClientRuntimeCapabilities,
-} from "./server-capabilities";
+import { buildServerCapabilities, registerDynamicFileWatchers } from "./server-capabilities";
+import { createServerRuntimeSession, type ServerRuntimeSession } from "./server-runtime-session";
 import type { WorkspaceRegistry } from "./workspace/workspace-registry";
-import { resolveWorkspaceFolders, toWorkspaceFolderInfo } from "./workspace/workspace-folder-info";
-import {
-  buildSharedRuntimeCaches,
-  createRuntimeTypeResolver,
-  createStyleDocumentLookup,
-  createWorkspaceRuntimeIO,
-  createWorkspaceRuntimeManager,
-  defaultReadStyleFile,
-  type RuntimeSink,
-  type SharedRuntimeCaches,
-  type WorkspaceRuntimeManager,
-} from "./runtime";
+import { defaultReadStyleFile } from "./runtime";
 
 const SERVER_NAME = "css-module-explainer";
 const SERVER_VERSION = "3.2.0";
@@ -110,64 +90,22 @@ export function createServer(options: CreateServerOptions): CreatedServer {
   const readStyleFile = options.readStyleFile ?? defaultReadStyleFile;
 
   let registry: WorkspaceRegistry | null = null;
-  let runtimeManager: WorkspaceRuntimeManager | null = null;
-  let caches: SharedRuntimeCaches | null = null;
-  let typeResolver: TypeResolver | null = null;
-  let styleDocumentForPath: ((path: string) => StyleDocumentHIR | null) | null = null;
-  let runtimeIO: ReturnType<typeof createWorkspaceRuntimeIO> | null = null;
-  let fileExists: ((path: string) => boolean) | null = null;
+  let session: ServerRuntimeSession | null = null;
   let watchedFilesDisposable: Promise<{ dispose(): void }> | null = null;
-  let clientSupportsDynamicWatchers = false;
-  let clientSupportsCodeLensRefresh = false;
-  let clientSupportsWorkspaceFolders = false;
 
   // ── Lifecycle ──────────────────────────────────────────────
 
-  connection.onInitialize((params: InitializeParams): InitializeResult => {
+  connection.onInitialize((params): InitializeResult => {
     connection.console.info(`[${SERVER_NAME}] initialize received`);
-    const workspaceFolders = resolveWorkspaceFolders({
-      ...(params.workspaceFolders ? { workspaceFolders: params.workspaceFolders } : {}),
-      ...(params.rootUri ? { rootUri: params.rootUri } : {}),
-      ...(params.rootPath ? { rootPath: params.rootPath } : {}),
-    });
-    const clientCapabilities = resolveClientRuntimeCapabilities(params);
-    clientSupportsDynamicWatchers = clientCapabilities.dynamicWatchers;
-    clientSupportsCodeLensRefresh = clientCapabilities.codeLensRefresh;
-    clientSupportsWorkspaceFolders = clientCapabilities.workspaceFolders;
-    caches = buildSharedRuntimeCaches();
-    typeResolver = createRuntimeTypeResolver({
-      ...(options.typeResolver ? { typeResolver: options.typeResolver } : {}),
-      ...(options.createProgram ? { createProgram: options.createProgram } : {}),
-    });
-    fileExists = options.fileExists ?? existsSync;
-    styleDocumentForPath = createStyleDocumentLookup({
-      styleIndexCache: caches.styleIndexCache,
-      styleDependencyGraph: caches.styleDependencyGraph,
-      readOpenDocumentText: (stylePath) => readStyleTextFromOpenDocuments(stylePath, documents),
+    session = createServerRuntimeSession({
+      params,
+      options,
+      connection,
+      documents,
       readStyleFile,
-      getModeForPath: (stylePath) =>
-        runtimeManager?.getDepsForFilePath(stylePath)?.settings.scss.classnameTransform ??
-        DEFAULT_RESOURCE_SETTINGS.scss.classnameTransform,
-    });
-    runtimeIO = createWorkspaceRuntimeIO({
-      readStyleFile,
-      ...(options.readStyleFileAsync ? { readStyleFileAsync: options.readStyleFileAsync } : {}),
-      ...(options.fileSupplier ? { fileSupplier: options.fileSupplier } : {}),
-    });
-    runtimeManager = createWorkspaceRuntimeManager({
-      caches,
-      typeResolver,
-      styleDocumentForPath,
-      io: runtimeIO,
-      sink: buildRuntimeSink(connection, clientSupportsCodeLensRefresh),
-      fileExists,
       serverName: SERVER_NAME,
-      getModeForStylePath: (stylePath) =>
-        runtimeManager?.getDepsForFilePath(stylePath)?.settings.scss.classnameTransform ??
-        DEFAULT_RESOURCE_SETTINGS.scss.classnameTransform,
     });
-    registry = runtimeManager.getRegistry();
-    runtimeManager.registerInitialFolders(workspaceFolders);
+    registry = session.registry;
     return {
       capabilities: buildServerCapabilities(),
       serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
@@ -185,33 +123,17 @@ export function createServer(options: CreateServerOptions): CreatedServer {
 
   connection.onInitialized(async () => {
     connection.console.info(`[${SERVER_NAME}] initialized`);
-    if (!registry) return;
-    if (clientSupportsWorkspaceFolders) {
+    if (!session) return;
+    if (session.clientCapabilities.workspaceFolders) {
       connection.workspace.onDidChangeWorkspaceFolders((event) => {
-        if (
-          !runtimeManager ||
-          !caches ||
-          !typeResolver ||
-          !styleDocumentForPath ||
-          !runtimeIO ||
-          !fileExists
-        ) {
-          return;
-        }
-
-        for (const folder of event.removed) {
-          runtimeManager.removeFolder(folder.uri, documents);
-        }
-
-        for (const folder of event.added) {
-          if (runtimeManager.hasFolder(folder.uri)) continue;
-          runtimeManager.addFolder(toWorkspaceFolderInfo(folder));
-        }
-
+        session?.handleWorkspaceFolderChange(event, documents);
         handlers.refreshSettings();
       });
     }
-    watchedFilesDisposable = registerDynamicFileWatchers(connection, clientSupportsDynamicWatchers);
+    watchedFilesDisposable = registerDynamicFileWatchers(
+      connection,
+      session.clientCapabilities.dynamicWatchers,
+    );
     if (!watchedFilesDisposable) {
       watchedFilesDisposable = null;
     }
@@ -222,37 +144,10 @@ export function createServer(options: CreateServerOptions): CreatedServer {
     handlers.shutdown();
     void watchedFilesDisposable?.then((d) => d.dispose()).catch(() => {});
     watchedFilesDisposable = null;
-    runtimeManager = null;
+    session = null;
     registry = null;
   });
 
   documents.listen(connection);
   return { connection, documents };
-}
-
-function readStyleTextFromOpenDocuments(
-  path: string,
-  documents: TextDocuments<TextDocument>,
-): string | null {
-  const uri = pathToFileUrl(path);
-  const doc = documents.get(uri);
-  return doc?.getText() ?? null;
-}
-
-function buildRuntimeSink(connection: Connection, supportsCodeLensRefresh: boolean): RuntimeSink {
-  return {
-    info(message: string): void {
-      connection.console.info(message);
-    },
-    error(message: string): void {
-      connection.console.error(message);
-    },
-    clearDiagnostics(uri: string): void {
-      connection.sendDiagnostics({ uri, diagnostics: [] });
-    },
-    requestCodeLensRefresh(): void {
-      if (!supportsCodeLensRefresh) return;
-      void connection.sendRequest(CodeLensRefreshRequest.type).catch(() => {});
-    },
-  };
 }
