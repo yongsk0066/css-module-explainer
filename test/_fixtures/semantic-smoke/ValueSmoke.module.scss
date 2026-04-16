@@ -1,0 +1,6 @@
+@value primary, accent from "./Tokens.module.scss";
+
+.button {
+  color: primary;
+  box-shadow: 0 0 0 2px accent;
+}

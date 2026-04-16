@@ -1,40 +1,10 @@
 import { runCheckerCli } from "../server/src/core/checker";
-
-const checks = [
-  {
-    label: "workspace-ci",
-    argv: [".", "--preset", "ci", "--fail-on", "none"],
-  },
-  {
-    label: "changed-source-shadowing",
-    argv: [
-      ".",
-      "--preset",
-      "changed-source",
-      "--changed-file",
-      "examples/src/scenarios/13-shadowing/ShadowingScenario.tsx",
-      "--fail-on",
-      "none",
-    ],
-  },
-  {
-    label: "changed-style-composes",
-    argv: [
-      ".",
-      "--preset",
-      "changed-style",
-      "--changed-file",
-      "examples/src/scenarios/15-composes/ComposesScenario.module.scss",
-      "--fail-on",
-      "none",
-    ],
-  },
-] as const;
+import { SEMANTIC_SMOKE_CORPUS } from "./semantic-smoke-corpus";
 
 void (async () => {
   let exitCode = 0;
 
-  for (const check of checks) {
+  for (const check of SEMANTIC_SMOKE_CORPUS) {
     process.stdout.write(`== ${check.label} ==\n`);
     // Sequential output is easier to read in release and CI logs than
     // interleaved parallel checker runs.

@@ -81,6 +81,10 @@ pnpm exec vsce package --no-dependencies
 release gate yet. It gives one repeatable workspace/checker sanity check before
 packaging.
 
+The smoke corpus is defined in `scripts/semantic-smoke-corpus.ts`. Treat that
+file as the release-facing semantic fixture list. Update it when a new semantic
+surface becomes release-relevant.
+
 For focused local review, prefer the changed-file presets:
 
 ```bash

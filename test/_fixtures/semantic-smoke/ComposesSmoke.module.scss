@@ -1,0 +1,4 @@
+.button {
+  composes: base accent from "./ComposesBase.module.scss";
+  gap: 8px;
+}

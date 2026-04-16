@@ -223,6 +223,7 @@ Current checker policy:
   - `changed-source` => `source-missing`
 - `changed-style` and `changed-source` presets use compact text output by default
 - `pnpm check:semantic-smoke` is the canonical repo-local smoke command
+- semantic smoke cases are versioned in `scripts/semantic-smoke-corpus.ts` and should be updated when new semantic surfaces become release-relevant
 - explicit CLI flags override preset defaults
 
 Test layout:
