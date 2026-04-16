@@ -7,6 +7,7 @@ import {
   type SelectorDeclHIR,
   type StyleDocumentHIR,
   type ValueDeclHIR,
+  type ValueImportHIR,
   type ValueRefHIR,
 } from "../../server/src/core/hir/style-types";
 import {
@@ -68,6 +69,7 @@ export function makeStyleDocumentFixture(
   keyframes: readonly KeyframesDeclHIR[] = [],
   animationNameRefs: readonly AnimationNameRefHIR[] = [],
   valueDecls: readonly ValueDeclHIR[] = [],
+  valueImports: readonly ValueImportHIR[] = [],
   valueRefs: readonly ValueRefHIR[] = [],
 ): StyleDocumentHIR {
   return makeStyleDocumentHIR(
@@ -76,6 +78,7 @@ export function makeStyleDocumentFixture(
     [...keyframes].toSorted(compareByRangeAndName),
     [...animationNameRefs].toSorted(compareByRangeAndName),
     [...valueDecls].toSorted(compareByRangeAndName),
+    [...valueImports].toSorted(compareByRangeAndName),
     [...valueRefs].toSorted(compareByRangeAndName),
   );
 }

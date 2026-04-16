@@ -7,6 +7,7 @@ export interface StyleDocumentHIR extends HirDocumentBase {
   readonly keyframes: readonly KeyframesDeclHIR[];
   readonly animationNameRefs: readonly AnimationNameRefHIR[];
   readonly valueDecls: readonly ValueDeclHIR[];
+  readonly valueImports: readonly ValueImportHIR[];
   readonly valueRefs: readonly ValueRefHIR[];
 }
 
@@ -51,6 +52,15 @@ export interface ValueDeclHIR extends HirNodeBase {
   readonly ruleRange: Range;
 }
 
+export interface ValueImportHIR extends HirNodeBase {
+  readonly kind: "valueImport";
+  readonly range: Range;
+  readonly name: string;
+  readonly importedName: string;
+  readonly from: string;
+  readonly ruleRange: Range;
+}
+
 export interface ValueRefHIR extends HirNodeBase {
   readonly kind: "valueRef";
   readonly range: Range;
@@ -64,6 +74,7 @@ export function makeStyleDocumentHIR(
   keyframes: readonly KeyframesDeclHIR[] = [],
   animationNameRefs: readonly AnimationNameRefHIR[] = [],
   valueDecls: readonly ValueDeclHIR[] = [],
+  valueImports: readonly ValueImportHIR[] = [],
   valueRefs: readonly ValueRefHIR[] = [],
 ): StyleDocumentHIR {
   return {
@@ -73,6 +84,7 @@ export function makeStyleDocumentHIR(
     keyframes,
     animationNameRefs,
     valueDecls,
+    valueImports,
     valueRefs,
   };
 }

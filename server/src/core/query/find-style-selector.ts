@@ -5,6 +5,7 @@ import type {
   SelectorDeclHIR,
   StyleDocumentHIR,
   ValueDeclHIR,
+  ValueImportHIR,
   ValueRefHIR,
 } from "../hir/style-types";
 import { rangeContains } from "../util/range-utils";
@@ -164,6 +165,17 @@ export function findValueRefAtCursor(
   return null;
 }
 
+export function findValueImportAtCursor(
+  styleDocument: StyleDocumentHIR,
+  line: number,
+  character: number,
+): ValueImportHIR | null {
+  for (const valueImport of styleDocument.valueImports) {
+    if (rangeContains(valueImport.range, line, character)) return valueImport;
+  }
+  return null;
+}
+
 export function findValueDeclByName(
   styleDocument: StyleDocumentHIR,
   name: string,
@@ -171,9 +183,66 @@ export function findValueDeclByName(
   return styleDocument.valueDecls.find((valueDecl) => valueDecl.name === name) ?? null;
 }
 
+export function findValueImportByName(
+  styleDocument: StyleDocumentHIR,
+  name: string,
+): ValueImportHIR | null {
+  return styleDocument.valueImports.find((valueImport) => valueImport.name === name) ?? null;
+}
+
 export function listValueRefs(
   styleDocument: StyleDocumentHIR,
   name: string,
 ): readonly ValueRefHIR[] {
   return styleDocument.valueRefs.filter((valueRef) => valueRef.name === name);
+}
+
+export interface ResolvedValueTarget {
+  readonly filePath: string;
+  readonly styleDocument: StyleDocumentHIR;
+  readonly valueDecl: ValueDeclHIR;
+  readonly bindingKind: "local" | "imported";
+  readonly valueImport?: ValueImportHIR;
+}
+
+export function resolveValueImportTarget(
+  styleDocumentForPath: (filePath: string) => StyleDocumentHIR | null,
+  styleFilePath: string,
+  valueImport: ValueImportHIR | null,
+): ResolvedValueTarget | null {
+  if (!valueImport) return null;
+  const targetFilePath = path.resolve(path.dirname(styleFilePath), valueImport.from);
+  const targetDocument = styleDocumentForPath(targetFilePath);
+  if (!targetDocument) return null;
+  const valueDecl = findValueDeclByName(targetDocument, valueImport.importedName);
+  if (!valueDecl) return null;
+  return {
+    filePath: targetDocument.filePath,
+    styleDocument: targetDocument,
+    valueDecl,
+    bindingKind: "imported",
+    valueImport,
+  };
+}
+
+export function resolveValueTarget(
+  styleDocumentForPath: (filePath: string) => StyleDocumentHIR | null,
+  styleFilePath: string,
+  styleDocument: StyleDocumentHIR,
+  name: string,
+): ResolvedValueTarget | null {
+  const localDecl = findValueDeclByName(styleDocument, name);
+  if (localDecl) {
+    return {
+      filePath: styleDocument.filePath,
+      styleDocument,
+      valueDecl: localDecl,
+      bindingKind: "local",
+    };
+  }
+  return resolveValueImportTarget(
+    styleDocumentForPath,
+    styleFilePath,
+    findValueImportByName(styleDocument, name),
+  );
 }

@@ -342,3 +342,55 @@ test("references protocol returns same-file value references for @value", async 
   expect(result!.some((location) => location.range.start.line === 0)).toBe(true);
   expect(result!.some((location) => location.range.start.line === 3)).toBe(true);
 });
+
+test("references protocol returns local import sites and source declaration for imported @value", async ({
+  makeClient,
+}) => {
+  const scssUri = "file:///fake/workspace/src/Button.module.scss";
+  const tokensUri = "file:///fake/workspace/src/tokens.module.scss";
+  const scss = `@value primary from "./tokens.module.scss";
+
+.button {
+  color: primary;
+}
+`;
+  const tokens = `@value primary: #ff3355;`;
+
+  const client = makeClient({
+    readStyleFile: (path) => {
+      if (path.endsWith("Button.module.scss")) return scss;
+      if (path.endsWith("tokens.module.scss")) return tokens;
+      return null;
+    },
+    typeResolver: new FakeTypeResolver(),
+  });
+
+  await client.initialize();
+  client.initialized();
+  client.didOpen({
+    textDocument: {
+      uri: scssUri,
+      languageId: "scss",
+      version: 1,
+      text: scss,
+    },
+  });
+
+  const result = await client.references({
+    textDocument: { uri: scssUri },
+    position: { line: 3, character: 10 },
+    context: { includeDeclaration: true },
+  });
+
+  expect(result).not.toBeNull();
+  expect(result).toHaveLength(3);
+  expect(
+    result!.some((location) => location.uri === tokensUri && location.range.start.line === 0),
+  ).toBe(true);
+  expect(
+    result!.some((location) => location.uri === scssUri && location.range.start.line === 0),
+  ).toBe(true);
+  expect(
+    result!.some((location) => location.uri === scssUri && location.range.start.line === 3),
+  ).toBe(true);
+});

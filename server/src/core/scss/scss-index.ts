@@ -159,6 +159,19 @@ export function styleDocumentSemanticFingerprint(styleDocument: StyleDocumentHIR
       ].join("::"),
     )
     .join("\n");
+  const valueImportFingerprint = styleDocument.valueImports
+    .map((valueImport) =>
+      [
+        valueImport.name,
+        valueImport.importedName,
+        valueImport.from,
+        valueImport.range.start.line,
+        valueImport.range.start.character,
+        valueImport.range.end.line,
+        valueImport.range.end.character,
+      ].join("::"),
+    )
+    .join("\n");
   const valueRefFingerprint = styleDocument.valueRefs
     .map((valueRef) =>
       [
@@ -176,6 +189,7 @@ export function styleDocumentSemanticFingerprint(styleDocument: StyleDocumentHIR
     keyframesFingerprint,
     animationRefFingerprint,
     valueDeclFingerprint,
+    valueImportFingerprint,
     valueRefFingerprint,
   ].join("\n---\n");
 }

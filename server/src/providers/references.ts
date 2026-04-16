@@ -6,15 +6,17 @@ import {
   findKeyframesByName,
   findSelectorAtCursor,
   findValueDeclAtCursor,
-  findValueDeclByName,
+  findValueImportAtCursor,
   findValueRefAtCursor,
   listAnimationNameRefs,
   listValueRefs,
   readSelectorUsageSummary,
   resolveComposesTarget,
+  resolveValueImportTarget,
+  resolveValueTarget,
 } from "../core/query";
 import { findLangForPath } from "../core/scss/lang-registry";
-import { fileUrlToPath } from "../core/util/text-utils";
+import { fileUrlToPath, pathToFileUrl } from "../core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
 import { wrapHandler } from "./_wrap-handler";
 
@@ -105,30 +107,110 @@ export const handleReferences = wrapHandler<ReferenceParams, [], Location[] | nu
       return refs.length > 0 ? refs : null;
     }
 
-    const valueDecl =
-      findValueDeclAtCursor(styleDocument, params.position.line, params.position.character) ??
-      (() => {
-        const ref = findValueRefAtCursor(
-          styleDocument,
-          params.position.line,
-          params.position.character,
-        );
-        return ref ? findValueDeclByName(styleDocument, ref.name) : null;
-      })();
-    if (!valueDecl) return null;
+    const valueDecl = findValueDeclAtCursor(
+      styleDocument,
+      params.position.line,
+      params.position.character,
+    );
+    if (valueDecl) {
+      const valueRefs = listValueRefs(styleDocument, valueDecl.name).map<Location>((ref) => ({
+        uri: params.textDocument.uri,
+        range: toLspRange(ref.range),
+      }));
+      if (params.context.includeDeclaration) {
+        valueRefs.unshift({
+          uri: params.textDocument.uri,
+          range: toLspRange(valueDecl.range),
+        });
+      }
+      return valueRefs.length > 0 ? dedupeLocations(valueRefs) : null;
+    }
 
-    const valueRefs = listValueRefs(styleDocument, valueDecl.name).map<Location>((ref) => ({
-      uri: params.textDocument.uri,
-      range: toLspRange(ref.range),
-    }));
+    const valueImport = findValueImportAtCursor(
+      styleDocument,
+      params.position.line,
+      params.position.character,
+    );
+    if (valueImport) {
+      const valueRefs = [
+        {
+          uri: params.textDocument.uri,
+          range: toLspRange(valueImport.range),
+        },
+        ...listValueRefs(styleDocument, valueImport.name).map<Location>((ref) => ({
+          uri: params.textDocument.uri,
+          range: toLspRange(ref.range),
+        })),
+      ];
+      if (params.context.includeDeclaration) {
+        const importedTarget = resolveValueImportTarget(
+          deps.styleDocumentForPath,
+          styleDocument.filePath,
+          valueImport,
+        );
+        if (importedTarget) {
+          valueRefs.unshift({
+            uri: pathToFileUrl(importedTarget.filePath),
+            range: toLspRange(importedTarget.valueDecl.range),
+          });
+        }
+      }
+      return valueRefs.length > 0 ? dedupeLocations(valueRefs) : null;
+    }
+
+    const valueRef = findValueRefAtCursor(
+      styleDocument,
+      params.position.line,
+      params.position.character,
+    );
+    if (!valueRef) return null;
+    const valueTarget = resolveValueTarget(
+      deps.styleDocumentForPath,
+      styleDocument.filePath,
+      styleDocument,
+      valueRef.name,
+    );
+    if (!valueTarget) return null;
+    const valueRefs = [
+      ...(valueTarget.bindingKind === "imported"
+        ? [
+            {
+              uri: params.textDocument.uri,
+              range: toLspRange(valueTarget.valueImport!.range),
+            },
+          ]
+        : []),
+      ...listValueRefs(styleDocument, valueRef.name).map<Location>((ref) => ({
+        uri: params.textDocument.uri,
+        range: toLspRange(ref.range),
+      })),
+    ];
     if (params.context.includeDeclaration) {
       valueRefs.unshift({
-        uri: params.textDocument.uri,
-        range: toLspRange(valueDecl.range),
+        uri:
+          valueTarget.filePath === styleDocument.filePath
+            ? params.textDocument.uri
+            : `file://${valueTarget.filePath}`,
+        range: toLspRange(valueTarget.valueDecl.range),
       });
     }
-    return valueRefs.length > 0 ? valueRefs : null;
+    return valueRefs.length > 0 ? dedupeLocations(valueRefs) : null;
   },
   null,
 );
 export { findSelectorAtCursor } from "../core/query";
+
+function dedupeLocations(locations: readonly Location[]): Location[] {
+  const unique = new Map<string, Location>();
+  for (const location of locations) {
+    const key = [
+      location.uri,
+      location.range.start.line,
+      location.range.start.character,
+      location.range.end.line,
+      location.range.end.character,
+    ].join(":");
+    if (!unique.has(key)) unique.set(key, location);
+  }
+  return [...unique.values()];
+}

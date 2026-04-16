@@ -13,10 +13,14 @@ export {
   findSelectorAtCursor,
   findValueDeclAtCursor,
   findValueDeclByName,
+  findValueImportAtCursor,
+  findValueImportByName,
   findValueRefAtCursor,
   listAnimationNameRefs,
   listCanonicalSelectors,
   listValueRefs,
+  resolveValueImportTarget,
+  resolveValueTarget,
   resolveComposesTarget,
 } from "./find-style-selector";
 export { findInvalidClassReference } from "./find-invalid-class-references";

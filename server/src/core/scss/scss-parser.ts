@@ -13,6 +13,7 @@ import {
   type SelectorDeclHIR,
   type StyleDocumentHIR,
   type ValueDeclHIR,
+  type ValueImportHIR,
   type ValueRefHIR,
 } from "../hir/style-types";
 import { classifyBemSuffixSite } from "./bem-suffix";
@@ -106,8 +107,10 @@ export function parseStyleDocument(content: string, filePath: string): StyleDocu
     return makeStyleDocumentHIR(filePath, []);
   }
 
-  const valueDecls = collectValueDecls(root);
-  const valueRefs = collectValueRefs(root, valueDecls);
+  const valuePathAliases = collectValuePathAliases(root);
+  const valueDecls = collectValueDecls(root, valuePathAliases);
+  const valueImports = collectValueImports(root, valuePathAliases);
+  const valueRefs = collectValueRefs(root, valueDecls, valueImports);
 
   walkStyleNodes(
     root.nodes as ChildNode[],
@@ -122,6 +125,7 @@ export function parseStyleDocument(content: string, filePath: string): StyleDocu
     Array.from(keyframesByName.values()).toSorted(compareNamedStyleFacts),
     [...animationNameRefs].toSorted(compareNamedStyleFacts),
     [...valueDecls].toSorted(compareNamedStyleFacts),
+    [...valueImports].toSorted(compareNamedStyleFacts),
     [...valueRefs].toSorted(compareNamedStyleFacts),
   );
 }
@@ -374,22 +378,51 @@ function recordKeyframesAtRule(
   });
 }
 
-function collectValueDecls(root: Root): readonly ValueDeclHIR[] {
+function collectValuePathAliases(root: Root): ReadonlyMap<string, string> {
+  const aliases = new Map<string, string>();
+  root.walkAtRules("value", (atrule) => {
+    const pathAlias = parseValuePathAlias(atrule);
+    if (!pathAlias) return;
+    aliases.set(pathAlias.name, pathAlias.target);
+  });
+  return aliases;
+}
+
+function parseValuePathAlias(atrule: AtRule): { name: string; target: string } | null {
+  if (/\bfrom\b/u.test(atrule.params)) return null;
+  const match = /^\s*([\p{L}_-][\p{L}\p{N}\p{M}_-]*)\s*:\s*(?:"([^"]+)"|'([^']+)')\s*$/u.exec(
+    atrule.params,
+  );
+  const name = match?.[1];
+  const target = match?.[2] ?? match?.[3];
+  if (!name || !target) return null;
+  if (!looksLikeStyleRequest(target)) return null;
+  return { name, target };
+}
+
+function collectValueDecls(
+  root: Root,
+  valuePathAliases: ReadonlyMap<string, string>,
+): readonly ValueDeclHIR[] {
   const valueDecls: ValueDeclHIR[] = [];
   root.walkAtRules("value", (atrule) => {
-    const localValueDecl = parseLocalValueDecl(atrule);
+    const localValueDecl = parseLocalValueDecl(atrule, valuePathAliases);
     if (!localValueDecl) return;
     valueDecls.push(localValueDecl);
   });
   return valueDecls;
 }
 
-function parseLocalValueDecl(atrule: AtRule): ValueDeclHIR | null {
+function parseLocalValueDecl(
+  atrule: AtRule,
+  valuePathAliases: ReadonlyMap<string, string>,
+): ValueDeclHIR | null {
   if (/\bfrom\b/u.test(atrule.params)) return null;
   const match = /^\s*([\p{L}_-][\p{L}\p{N}\p{M}_-]*)\s*:\s*(.+?)\s*$/u.exec(atrule.params);
   const name = match?.[1];
   const value = match?.[2];
   if (!name || !value) return null;
+  if (valuePathAliases.has(name) || isQuotedStyleRequest(value.trim())) return null;
   const range = findAtRuleParamTokenRange(atrule, name, name.length);
   if (!range) return null;
   return {
@@ -402,9 +435,99 @@ function parseLocalValueDecl(atrule: AtRule): ValueDeclHIR | null {
   };
 }
 
-function collectValueRefs(root: Root, valueDecls: readonly ValueDeclHIR[]): readonly ValueRefHIR[] {
-  if (valueDecls.length === 0) return [];
-  const valueNames = new Set(valueDecls.map((decl) => decl.name));
+function collectValueImports(
+  root: Root,
+  valuePathAliases: ReadonlyMap<string, string>,
+): readonly ValueImportHIR[] {
+  const valueImports: ValueImportHIR[] = [];
+  root.walkAtRules("value", (atrule) => {
+    valueImports.push(...parseValueImports(atrule, valuePathAliases));
+  });
+  return valueImports;
+}
+
+function parseValueImports(
+  atrule: AtRule,
+  valuePathAliases: ReadonlyMap<string, string>,
+): readonly ValueImportHIR[] {
+  const parts = /^\s*(.+?)\s+from\s+(.+?)\s*$/u.exec(atrule.params);
+  if (!parts) return [];
+  const source = resolveValueImportSource(parts[2]!, valuePathAliases);
+  if (!source) return [];
+  const specs = splitValueImportSpecs(parts[1]!);
+  return specs.flatMap((spec, index) => {
+    const parsed = parseValueImportSpec(spec.raw);
+    if (!parsed) return [];
+    const range = findAtRuleParamValueTokenRange(
+      atrule,
+      spec.offset + parsed.localOffset,
+      parsed.localName.length,
+    );
+    if (!range) return [];
+    return [
+      {
+        kind: "valueImport",
+        id: `value-import:${atrule.source?.start?.line ?? 0}:${index}:${parsed.localName}`,
+        name: parsed.localName,
+        importedName: parsed.importedName,
+        from: source,
+        range,
+        ruleRange: rangeForSourceNode(atrule),
+      },
+    ];
+  });
+}
+
+function resolveValueImportSource(
+  rawSource: string,
+  valuePathAliases: ReadonlyMap<string, string>,
+): string | null {
+  const trimmed = rawSource.trim();
+  const quoted = unquoteCssString(trimmed);
+  if (quoted) return quoted;
+  return valuePathAliases.get(trimmed) ?? null;
+}
+
+function splitValueImportSpecs(raw: string): Array<{ raw: string; offset: number }> {
+  return raw
+    .split(",")
+    .map((part, index, all) => {
+      const rawPart = part.trim();
+      const prefixLength = all
+        .slice(0, index)
+        .reduce((sum, current) => sum + current.length + 1, 0);
+      return { raw: rawPart, offset: raw.indexOf(rawPart, prefixLength) };
+    })
+    .filter((part) => part.raw.length > 0);
+}
+
+function parseValueImportSpec(
+  raw: string,
+): { importedName: string; localName: string; localOffset: number } | null {
+  const match =
+    /^\s*([\p{L}_-][\p{L}\p{N}\p{M}_-]*)(?:\s+as\s+([\p{L}_-][\p{L}\p{N}\p{M}_-]*))?\s*$/u.exec(
+      raw,
+    );
+  const importedName = match?.[1];
+  const localName = match?.[2] ?? importedName;
+  if (!importedName || !localName) return null;
+  return {
+    importedName,
+    localName,
+    localOffset: raw.lastIndexOf(localName),
+  };
+}
+
+function collectValueRefs(
+  root: Root,
+  valueDecls: readonly ValueDeclHIR[],
+  valueImports: readonly ValueImportHIR[],
+): readonly ValueRefHIR[] {
+  if (valueDecls.length === 0 && valueImports.length === 0) return [];
+  const valueNames = new Set([
+    ...valueDecls.map((decl) => decl.name),
+    ...valueImports.map((valueImport) => valueImport.name),
+  ]);
   const refs: ValueRefHIR[] = [];
 
   root.walkDecls((node) => {
@@ -424,7 +547,7 @@ function collectValueRefs(root: Root, valueDecls: readonly ValueDeclHIR[]): read
   });
 
   root.walkAtRules("value", (atrule) => {
-    const localValueDecl = parseLocalValueDecl(atrule);
+    const localValueDecl = parseLocalValueDecl(atrule, new Map());
     if (!localValueDecl) return;
     const colonIndex = atrule.params.indexOf(":");
     if (colonIndex < 0) return;
@@ -449,6 +572,20 @@ function collectValueRefs(root: Root, valueDecls: readonly ValueDeclHIR[]): read
   });
 
   return refs;
+}
+
+function looksLikeStyleRequest(value: string): boolean {
+  return /^\.{0,2}\/.+\.(?:css|scss|sass|less)$/iu.test(value);
+}
+
+function isQuotedStyleRequest(value: string): boolean {
+  const unquoted = unquoteCssString(value);
+  return Boolean(unquoted && looksLikeStyleRequest(unquoted));
+}
+
+function unquoteCssString(value: string): string | null {
+  const match = /^(?:"([^"]+)"|'([^']+)')$/u.exec(value);
+  return match?.[1] ?? match?.[2] ?? null;
 }
 
 function findValueIdentifierMatches(

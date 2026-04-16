@@ -38,6 +38,15 @@ const VALUE_SCSS = `@value primary: #ff3355;
 }
 `;
 
+const IMPORTED_VALUE_SCSS = `@value primary from "./tokens.module.scss";
+
+.button {
+  color: primary;
+}
+`;
+
+const TOKENS_SCSS = `@value primary: #ff3355;`;
+
 describe("hover protocol / clsx", () => {
   let client: LspTestClient | null = null;
 
@@ -303,6 +312,37 @@ export function Base() {
     const value = (hover!.contents as { value: string }).value;
     expect(value).toContain("`@value primary`");
     expect(value).toContain("1 value reference");
+  });
+
+  it("returns a value hover for imported @value usages", async () => {
+    const scssUri = "file:///fake/workspace/src/Button.module.scss";
+    client = createInProcessServer({
+      readStyleFile: (path) => {
+        if (path.endsWith("Button.module.scss")) return IMPORTED_VALUE_SCSS;
+        if (path.endsWith("tokens.module.scss")) return TOKENS_SCSS;
+        return null;
+      },
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    client.didOpen({
+      textDocument: {
+        uri: scssUri,
+        languageId: "scss",
+        version: 1,
+        text: IMPORTED_VALUE_SCSS,
+      },
+    });
+
+    const hover = await client.hover({
+      textDocument: { uri: scssUri },
+      position: { line: 3, character: 10 },
+    });
+    expect(hover).not.toBeNull();
+    const value = (hover!.contents as { value: string }).value;
+    expect(value).toContain("`@value primary`");
+    expect(value).toContain("imported from `./tokens.module.scss` as `primary`");
   });
 
   it("includes dynamic explanation for a flow-resolved symbol ref", async () => {

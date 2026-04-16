@@ -109,6 +109,7 @@ export function expandStyleDocumentWithTransform(
     base.keyframes,
     base.animationNameRefs,
     base.valueDecls,
+    base.valueImports,
     base.valueRefs,
   );
 }

@@ -355,6 +355,33 @@ describe("parseStyleSelectorMap / edge cases", () => {
         ["accent", "declaration"],
       ]);
     });
+
+    it("records imported value bindings from direct and aliased sources", () => {
+      const document = parseStyleDocument(
+        `@value colors: "./colors.module.scss";
+@value primary, secondary as accent from colors;
+@value danger from "./tokens.module.scss";
+.button { color: primary; border-color: accent; background: danger; }`,
+        "/fake/a.module.scss",
+      );
+      expect(document.valueDecls).toEqual([]);
+      expect(
+        document.valueImports.map((valueImport) => [
+          valueImport.name,
+          valueImport.importedName,
+          valueImport.from,
+        ]),
+      ).toEqual([
+        ["primary", "primary", "./colors.module.scss"],
+        ["accent", "secondary", "./colors.module.scss"],
+        ["danger", "danger", "./tokens.module.scss"],
+      ]);
+      expect(document.valueRefs.map((valueRef) => valueRef.name)).toEqual([
+        "primary",
+        "accent",
+        "danger",
+      ]);
+    });
   });
 
   describe("@media / @at-root unwrapping", () => {

@@ -7,7 +7,7 @@ import {
   findKeyframesByName,
   listAnimationNameRefs,
   findValueDeclAtCursor,
-  findValueDeclByName,
+  findValueImportAtCursor,
   findValueRefAtCursor,
   listValueRefs,
   findSelectorAtCursor,
@@ -15,6 +15,8 @@ import {
   readSelectorUsageSummary,
   resolveRefDetails,
   resolveComposesTarget,
+  resolveValueImportTarget,
+  resolveValueTarget,
 } from "../core/query";
 import { findLangForPath } from "../core/scss/lang-registry";
 import { toLspRange } from "./lsp-adapters";
@@ -190,6 +192,28 @@ function buildStyleHover(params: CursorParams, deps: ProviderDeps): Hover | null
     };
   }
 
+  const valueImport = findValueImportAtCursor(styleDocument, params.line, params.character);
+  if (valueImport) {
+    const targetValue = resolveValueImportTarget(
+      deps.styleDocumentForPath,
+      styleDocument.filePath,
+      valueImport,
+    );
+    if (!targetValue) return null;
+    const markdown = renderValueHover({
+      valueDecl: targetValue.valueDecl,
+      headingName: valueImport.name,
+      note: `Imported from \`${valueImport.from}\` as \`${valueImport.importedName}\``,
+      scssModulePath: targetValue.filePath,
+      referenceCount: listValueRefs(styleDocument, valueImport.name).length,
+      workspaceRoot: deps.workspaceRoot,
+    });
+    return {
+      range: toLspRange(valueImport.range),
+      contents: { kind: "markdown", value: markdown },
+    };
+  }
+
   const animationRef = findAnimationNameRefAtCursor(styleDocument, params.line, params.character);
   if (animationRef) {
     const targetKeyframes = findKeyframesByName(styleDocument, animationRef.name);
@@ -211,15 +235,23 @@ function buildStyleHover(params: CursorParams, deps: ProviderDeps): Hover | null
 
   const valueRef = findValueRefAtCursor(styleDocument, params.line, params.character);
   if (!valueRef) return null;
-  const targetValueDecl = findValueDeclByName(styleDocument, valueRef.name);
-  if (!targetValueDecl) return null;
+  const targetValue = resolveValueTarget(
+    deps.styleDocumentForPath,
+    styleDocument.filePath,
+    styleDocument,
+    valueRef.name,
+  );
+  if (!targetValue) return null;
 
   const markdown = renderValueHover({
-    valueDecl: targetValueDecl,
+    valueDecl: targetValue.valueDecl,
     headingName: valueRef.name,
-    note: `Referenced via \`${valueRef.source === "declaration" ? "declaration value" : "@value"}\``,
-    scssModulePath: params.filePath,
-    referenceCount: listValueRefs(styleDocument, targetValueDecl.name).length,
+    note:
+      targetValue.bindingKind === "imported"
+        ? `Referenced via \`${valueRef.source === "declaration" ? "declaration value" : "@value"}\`; imported from \`${targetValue.valueImport!.from}\` as \`${targetValue.valueImport!.importedName}\``
+        : `Referenced via \`${valueRef.source === "declaration" ? "declaration value" : "@value"}\``,
+    scssModulePath: targetValue.filePath,
+    referenceCount: listValueRefs(styleDocument, valueRef.name).length,
     workspaceRoot: deps.workspaceRoot,
   });
   return {

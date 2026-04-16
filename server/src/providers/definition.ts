@@ -5,10 +5,12 @@ import {
   findCanonicalSelector,
   findComposesTokenAtCursor,
   findKeyframesByName,
-  findValueDeclByName,
+  findValueImportAtCursor,
   findValueRefAtCursor,
   readSourceExpressionResolution,
   resolveComposesTarget,
+  resolveValueImportTarget,
+  resolveValueTarget,
 } from "../core/query";
 import type { KeyframesDeclHIR, SelectorDeclHIR, ValueDeclHIR } from "../core/hir/style-types";
 import { findLangForPath } from "../core/scss/lang-registry";
@@ -116,9 +118,29 @@ function buildStyleDefinition(params: CursorParams, deps: ProviderDeps): Locatio
     return [toLocationLink(animationRef.range, pathToFileUrl(styleDocument.filePath), keyframes)];
   }
 
+  const valueImport = findValueImportAtCursor(styleDocument, params.line, params.character);
+  if (valueImport) {
+    const valueTarget = resolveValueImportTarget(
+      deps.styleDocumentForPath,
+      styleDocument.filePath,
+      valueImport,
+    );
+    if (!valueTarget) return null;
+    return [
+      toLocationLink(valueImport.range, pathToFileUrl(valueTarget.filePath), valueTarget.valueDecl),
+    ];
+  }
+
   const valueRef = findValueRefAtCursor(styleDocument, params.line, params.character);
   if (!valueRef) return null;
-  const valueDecl = findValueDeclByName(styleDocument, valueRef.name);
-  if (!valueDecl) return null;
-  return [toLocationLink(valueRef.range, pathToFileUrl(styleDocument.filePath), valueDecl)];
+  const valueTarget = resolveValueTarget(
+    deps.styleDocumentForPath,
+    styleDocument.filePath,
+    styleDocument,
+    valueRef.name,
+  );
+  if (!valueTarget) return null;
+  return [
+    toLocationLink(valueRef.range, pathToFileUrl(valueTarget.filePath), valueTarget.valueDecl),
+  ];
 }

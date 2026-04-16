@@ -41,6 +41,15 @@ const VALUE_SCSS = `@value primary: #ff3355;
 }
 `;
 
+const IMPORTED_VALUE_SCSS = `@value primary from "./tokens.module.scss";
+
+.button {
+  color: primary;
+}
+`;
+
+const TOKENS_SCSS = `@value primary: #ff3355;`;
+
 function openButton(client: LspTestClient): void {
   client.didOpen({
     textDocument: {
@@ -333,6 +342,42 @@ describe("definition protocol", () => {
     }>;
     expect(links).toHaveLength(1);
     expect(links[0]!.targetUri).toBe(scssUri);
+    expect(links[0]!.targetSelectionRange.start.line).toBe(0);
+  });
+
+  it("navigates from an imported value token to the source @value declaration", async () => {
+    const scssUri = "file:///fake/workspace/src/Button.module.scss";
+    const tokensUri = "file:///fake/workspace/src/tokens.module.scss";
+    client = createInProcessServer({
+      readStyleFile: (path) => {
+        if (path.endsWith("Button.module.scss")) return IMPORTED_VALUE_SCSS;
+        if (path.endsWith("tokens.module.scss")) return TOKENS_SCSS;
+        return null;
+      },
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    client.didOpen({
+      textDocument: {
+        uri: scssUri,
+        languageId: "scss",
+        version: 1,
+        text: IMPORTED_VALUE_SCSS,
+      },
+    });
+
+    const result = await client.definition({
+      textDocument: { uri: scssUri },
+      position: { line: 3, character: 10 },
+    });
+    expect(result).not.toBeNull();
+    const links = result as Array<{
+      targetUri: string;
+      targetSelectionRange: { start: { line: number } };
+    }>;
+    expect(links).toHaveLength(1);
+    expect(links[0]!.targetUri).toBe(tokensUri);
     expect(links[0]!.targetSelectionRange.start.line).toBe(0);
   });
 
