@@ -54,6 +54,7 @@ describe("runCheckerCli", () => {
     expect(exitCode).toBe(0);
     const payload = JSON.parse(stdout.join(""));
     expect(payload.schemaVersion).toBe("1");
+    expect(payload.reportVersion).toBe("1");
     expect(payload.tool).toBe("css-module-explainer/checker");
     expect(payload.workspaceRoot).toBe(workspaceRoot);
     expect(payload.filters).toEqual({

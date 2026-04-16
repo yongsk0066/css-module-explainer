@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import type { CheckerReportV1 } from "../../engine-core-ts/src/contracts";
 import type { ClassnameTransformMode } from "../../engine-core-ts/src/core/scss/classname-transform";
 import { findLangForPath } from "../../engine-core-ts/src/core/scss/lang-registry";
 import {
@@ -17,7 +18,6 @@ import {
   listCheckerCodeBundles,
   type CheckerCodeBundle,
 } from "../../engine-core-ts/src/core/checker/checker-code-bundles";
-import { formatCheckerFinding } from "../../engine-core-ts/src/checker-surface";
 import { buildCheckerJsonReport, type CheckerReportJsonV1 } from "./checker-report";
 
 export interface CheckerCliIO {
@@ -59,11 +59,12 @@ export async function runCheckerCli(
   });
   const jsonReport = buildCheckerJsonReport(
     command.workspaceCheck,
+    command.checkerReport,
     parsed.options.workspaceRoot,
     parsed.filters,
   );
-  writeResult(command.workspaceCheck, jsonReport, parsed, io);
-  return shouldFail(command.workspaceCheck, parsed.failOn) ? 1 : 0;
+  writeResult(command.workspaceCheck, command.checkerReport, jsonReport, parsed, io);
+  return shouldFail(command.checkerReport, parsed.failOn) ? 1 : 0;
 }
 
 interface ParsedCliOptions {
@@ -381,6 +382,7 @@ function presetDefaults(preset: CheckerCliPreset): {
 
 function writeResult(
   result: WorkspaceCheckResult,
+  report: CheckerReportV1,
   jsonReport: CheckerReportJsonV1,
   parsed: Pick<ParsedCliOptions, "format" | "summaryMode">,
   io: CheckerCliIO,
@@ -391,24 +393,24 @@ function writeResult(
   }
 
   if (parsed.summaryMode === "full") {
-    for (const { filePath, finding } of result.findings) {
+    for (const finding of report.findings) {
       io.stdout(
-        `${filePath}:${finding.range.start.line + 1}:${finding.range.start.character + 1} [${
+        `${finding.filePath}:${finding.range.start.line + 1}:${finding.range.start.character + 1} [${
           finding.severity
-        }] ${finding.code} ${formatCheckerFinding(finding, path.dirname(filePath))}\n`,
+        }] ${finding.code} ${finding.message}\n`,
       );
     }
   }
 
   if (parsed.summaryMode === "compact") {
-    for (const [filePath, findings] of groupFindingsByFile(result)) {
+    for (const [filePath, findings] of groupFindingsByFile(report)) {
       const relativePath = path.relative(process.cwd(), filePath) || filePath;
       io.stdout(`${relativePath} (${findings.length})\n`);
       for (const finding of findings) {
         io.stdout(
           `  ${finding.severity} ${finding.code} ${finding.range.start.line + 1}:${
             finding.range.start.character + 1
-          } ${formatCheckerFinding(finding, path.dirname(filePath))}\n`,
+          } ${finding.message}\n`,
         );
       }
     }
@@ -420,10 +422,10 @@ function writeResult(
   );
 }
 
-function shouldFail(result: WorkspaceCheckResult, failOn: CheckerCliFailOn): boolean {
+function shouldFail(report: CheckerReportV1, failOn: CheckerCliFailOn): boolean {
   if (failOn === "none") return false;
-  if (failOn === "hint") return result.summary.total > 0;
-  return result.summary.warnings > 0;
+  if (failOn === "hint") return report.summary.total > 0;
+  return report.summary.warnings > 0;
 }
 
 function isSourceFilePath(filePath: string): boolean {
@@ -532,10 +534,11 @@ function defaultCliIO(): CheckerCliIO {
 }
 
 function groupFindingsByFile(
-  result: WorkspaceCheckResult,
-): ReadonlyMap<string, readonly WorkspaceCheckResult["findings"][number]["finding"][]> {
-  const grouped = new Map<string, WorkspaceCheckResult["findings"][number]["finding"][]>();
-  for (const { filePath, finding } of result.findings) {
+  report: CheckerReportV1,
+): ReadonlyMap<string, readonly CheckerReportV1["findings"][number][]> {
+  const grouped = new Map<string, CheckerReportV1["findings"][number][]>();
+  for (const finding of report.findings) {
+    const filePath = finding.filePath;
     const existing = grouped.get(filePath);
     if (existing) {
       existing.push(finding);

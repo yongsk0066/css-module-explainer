@@ -4,6 +4,7 @@ import type {
   CheckerFinding,
   WorkspaceCheckerFinding,
 } from "../../../engine-core-ts/src/core/checker/contracts";
+import type { CheckerReportSummaryV1 } from "../../../engine-core-ts/src/contracts";
 import type { ClassnameTransformMode } from "../../../engine-core-ts/src/core/scss/classname-transform";
 import {
   collectSourceDocuments,
@@ -23,11 +24,7 @@ export interface WorkspaceCheckOptions {
   readonly styleFilePaths?: readonly string[];
 }
 
-export interface WorkspaceCheckSummary {
-  readonly warnings: number;
-  readonly hints: number;
-  readonly total: number;
-}
+export type WorkspaceCheckSummary = CheckerReportSummaryV1;
 
 export interface WorkspaceCheckResult {
   readonly sourceFiles: readonly string[];

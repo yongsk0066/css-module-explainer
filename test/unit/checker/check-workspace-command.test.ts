@@ -50,6 +50,19 @@ describe("runWorkspaceCheckCommand", () => {
         }),
       ]),
     );
+    expect(result.checkerReport.version).toBe("1");
+    expect(result.checkerReport.summary).toEqual({ warnings: 1, hints: 0, total: 1 });
+    expect(result.checkerReport.findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          filePath: path.join(workspaceRoot, "src/App.tsx"),
+          category: "source",
+          code: "missing-static-class",
+          severity: "warning",
+          message: expect.any(String),
+        }),
+      ]),
+    );
   });
 });
 

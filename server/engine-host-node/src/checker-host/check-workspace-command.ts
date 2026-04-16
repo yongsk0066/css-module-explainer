@@ -6,6 +6,8 @@ import {
 } from "./check-workspace";
 import type { CheckerCodeBundle } from "../../../engine-core-ts/src/core/checker/checker-code-bundles";
 import type { WorkspaceCheckerFinding } from "../../../engine-core-ts/src/core/checker/contracts";
+import type { CheckerReportV1 } from "../../../engine-core-ts/src/contracts";
+import { buildCheckerReportV1 } from "../../../engine-core-ts/src/checker-surface";
 
 export type WorkspaceCheckCommandPreset = "ci" | "changed-style" | "changed-source";
 export type WorkspaceCheckCommandCategory = "all" | "source" | "style";
@@ -27,15 +29,22 @@ export interface WorkspaceCheckCommandOptions {
 
 export interface WorkspaceCheckCommandResult {
   readonly workspaceCheck: WorkspaceCheckResult;
+  readonly checkerReport: CheckerReportV1;
 }
 
 export async function runWorkspaceCheckCommand(
   options: WorkspaceCheckCommandOptions,
 ): Promise<WorkspaceCheckCommandResult> {
+  const workspaceCheck = filterWorkspaceCheckResult(
+    await checkWorkspace(options.workspace),
+    options.filters,
+  );
   return {
-    workspaceCheck: filterWorkspaceCheckResult(
-      await checkWorkspace(options.workspace),
-      options.filters,
+    workspaceCheck,
+    checkerReport: buildCheckerReportV1(
+      workspaceCheck.findings,
+      workspaceCheck.summary,
+      options.workspace.workspaceRoot,
     ),
   };
 }

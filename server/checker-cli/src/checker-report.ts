@@ -1,5 +1,4 @@
-import path from "node:path";
-import { formatCheckerFinding } from "../../engine-core-ts/src/checker-surface";
+import type { CheckerFindingRecordV1, CheckerReportV1 } from "../../engine-core-ts/src/contracts";
 import type {
   CheckerFinding,
   CheckerSeverity,
@@ -10,17 +9,11 @@ import type {
   WorkspaceCheckResult,
 } from "../../engine-host-node/src/checker-host";
 
-export interface CheckerReportJsonFinding {
-  readonly filePath: string;
-  readonly category: CheckerFinding["category"];
-  readonly code: CheckerFinding["code"];
-  readonly severity: CheckerFinding["severity"];
-  readonly range: CheckerFinding["range"];
-  readonly message: string;
-}
+export type CheckerReportJsonFinding = CheckerFindingRecordV1;
 
 export interface CheckerReportJsonV1 {
   readonly schemaVersion: "1";
+  readonly reportVersion: CheckerReportV1["version"];
   readonly tool: "css-module-explainer/checker";
   readonly workspaceRoot: string;
   readonly filters: {
@@ -46,11 +39,13 @@ const CHECKER_TOOL_NAME = "css-module-explainer/checker" as const;
 
 export function buildCheckerJsonReport(
   result: WorkspaceCheckResult,
+  report: CheckerReportV1,
   workspaceRoot: string,
   filters: WorkspaceCheckCommandFilters,
 ): CheckerReportJsonV1 {
   return {
     schemaVersion: CHECKER_JSON_SCHEMA_VERSION,
+    reportVersion: report.version,
     tool: CHECKER_TOOL_NAME,
     workspaceRoot,
     filters: {
@@ -63,16 +58,7 @@ export function buildCheckerJsonReport(
     },
     sourceFiles: result.sourceFiles,
     styleFiles: result.styleFiles,
-    summary: result.summary,
-    findings: result.findings.map(
-      ({ filePath, finding }): CheckerReportJsonFinding => ({
-        filePath,
-        category: finding.category,
-        code: finding.code,
-        severity: finding.severity,
-        range: finding.range,
-        message: formatCheckerFinding(finding, path.dirname(filePath)),
-      }),
-    ),
+    summary: report.summary,
+    findings: report.findings,
   };
 }
