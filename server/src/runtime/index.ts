@@ -42,3 +42,12 @@ export {
   type WorkspaceRuntimeFactoryArgs,
   type WorkspaceRuntimeIO,
 } from "./workspace-runtime";
+export {
+  createRuntimeTypeResolver,
+  createStyleDocumentLookup,
+  createWorkspaceRuntimeIO,
+  defaultReadStyleFile,
+  type RuntimeTypeResolverOptions,
+  type StyleDocumentLookupArgs,
+  type WorkspaceRuntimeIOOptions,
+} from "./workspace-runtime-bootstrap";

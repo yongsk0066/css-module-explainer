@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import type { MessageReader, MessageWriter } from "vscode-languageserver/node";
 import {
   CodeLensRefreshRequest,
@@ -13,13 +13,10 @@ import {
 } from "vscode-languageserver/node";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import type ts from "typescript";
-import { DEFAULT_RESOURCE_SETTINGS, type ResourceSettings } from "./settings";
-import { buildStyleFileWatcherGlob, findLangForPath } from "./core/scss/lang-registry";
-import type { StyleIndexCache } from "./core/scss/scss-index";
+import { DEFAULT_RESOURCE_SETTINGS } from "./settings";
+import { buildStyleFileWatcherGlob } from "./core/scss/lang-registry";
 import type { StyleDocumentHIR } from "./core/hir/style-types";
-import type { WorkspaceStyleDependencyGraph } from "./core/semantic";
-import { WorkspaceTypeResolver, type TypeResolver } from "./core/ts/type-resolver";
-import { createDefaultProgram } from "./core/ts/default-program";
+import type { TypeResolver } from "./core/ts/type-resolver";
 import { fileUrlToPath, pathToFileUrl } from "./core/util/text-utils";
 import type { FileTask } from "./core/indexing/indexer-worker";
 import { COMPLETION_TRIGGER_CHARACTERS } from "./providers/completion";
@@ -27,11 +24,14 @@ import { registerHandlers } from "./handler-registration";
 import { WorkspaceRegistry, type WorkspaceFolderInfo } from "./workspace/workspace-registry";
 import {
   buildSharedRuntimeCaches,
+  createRuntimeTypeResolver,
+  createStyleDocumentLookup,
   createWorkspaceRuntime,
+  createWorkspaceRuntimeIO,
+  defaultReadStyleFile,
   type RuntimeSink,
   type SharedRuntimeCaches,
   type WorkspaceRuntime,
-  type WorkspaceRuntimeIO,
 } from "./runtime";
 
 const SERVER_NAME = "css-module-explainer";
@@ -86,6 +86,8 @@ export interface CreatedServer {
   readonly documents: TextDocuments<TextDocument>;
 }
 
+export { createDefaultProgram } from "./core/ts/default-program";
+
 /**
  * Build an LSP server instance from a pair of streams plus
  * optional dependency overrides.
@@ -110,6 +112,7 @@ export function createServer(options: CreateServerOptions): CreatedServer {
   let caches: SharedRuntimeCaches | null = null;
   let typeResolver: TypeResolver | null = null;
   let styleDocumentForPath: ((path: string) => StyleDocumentHIR | null) | null = null;
+  let runtimeIO: ReturnType<typeof createWorkspaceRuntimeIO> | null = null;
   let fileExists: ((path: string) => boolean) | null = null;
   let watchedFilesDisposable: Promise<{ dispose(): void }> | null = null;
   let clientSupportsDynamicWatchers = false;
@@ -127,19 +130,27 @@ export function createServer(options: CreateServerOptions): CreatedServer {
       params.capabilities.workspace?.codeLens?.refreshSupport ?? false;
     clientSupportsWorkspaceFolders = params.capabilities.workspace?.workspaceFolders ?? false;
     caches = buildSharedRuntimeCaches();
-    typeResolver = buildTypeResolver(options);
+    typeResolver = createRuntimeTypeResolver({
+      ...(options.typeResolver ? { typeResolver: options.typeResolver } : {}),
+      ...(options.createProgram ? { createProgram: options.createProgram } : {}),
+    });
     registry = new WorkspaceRegistry();
     runtimes = new Map();
     fileExists = options.fileExists ?? existsSync;
-    styleDocumentForPath = buildStyleDocumentForPath(
-      caches.styleIndexCache,
-      caches.styleDependencyGraph,
-      documents,
+    styleDocumentForPath = createStyleDocumentLookup({
+      styleIndexCache: caches.styleIndexCache,
+      styleDependencyGraph: caches.styleDependencyGraph,
+      readOpenDocumentText: (stylePath) => readStyleTextFromOpenDocuments(stylePath, documents),
       readStyleFile,
-      (stylePath) =>
+      getModeForPath: (stylePath) =>
         registry?.getDepsForFilePath(stylePath)?.settings.scss.classnameTransform ??
         DEFAULT_RESOURCE_SETTINGS.scss.classnameTransform,
-    );
+    });
+    runtimeIO = createWorkspaceRuntimeIO({
+      readStyleFile,
+      ...(options.readStyleFileAsync ? { readStyleFileAsync: options.readStyleFileAsync } : {}),
+      ...(options.fileSupplier ? { fileSupplier: options.fileSupplier } : {}),
+    });
     for (const folder of workspaceFolders) {
       const runtime = createWorkspaceRuntime({
         folder,
@@ -147,7 +158,7 @@ export function createServer(options: CreateServerOptions): CreatedServer {
         caches,
         typeResolver,
         styleDocumentForPath,
-        io: buildRuntimeIO(options, readStyleFile),
+        io: runtimeIO,
         sink: buildRuntimeSink(connection, clientSupportsCodeLensRefresh),
         fileExists,
         serverName: SERVER_NAME,
@@ -184,6 +195,7 @@ export function createServer(options: CreateServerOptions): CreatedServer {
           !caches ||
           !typeResolver ||
           !styleDocumentForPath ||
+          !runtimeIO ||
           !fileExists
         ) {
           return;
@@ -213,7 +225,7 @@ export function createServer(options: CreateServerOptions): CreatedServer {
             caches,
             typeResolver,
             styleDocumentForPath,
-            io: buildRuntimeIO(options, readStyleFile),
+            io: runtimeIO,
             sink: buildRuntimeSink(connection, clientSupportsCodeLensRefresh),
             fileExists,
             serverName: SERVER_NAME,
@@ -304,39 +316,6 @@ function resolveWorkspaceFolders(params: InitializeParams): readonly WorkspaceFo
   ];
 }
 
-function buildTypeResolver(options: CreateServerOptions): TypeResolver {
-  return (
-    options.typeResolver ??
-    new WorkspaceTypeResolver({
-      createProgram: options.createProgram ?? createDefaultProgram,
-    })
-  );
-}
-
-function buildStyleDocumentForPath(
-  styleIndexCache: StyleIndexCache,
-  styleDependencyGraph: WorkspaceStyleDependencyGraph,
-  documents: TextDocuments<TextDocument>,
-  readStyleFile: (path: string) => string | null,
-  getModeForPath: (path: string) => ResourceSettings["scss"]["classnameTransform"],
-): (path: string) => StyleDocumentHIR | null {
-  return (path: string): StyleDocumentHIR | null => {
-    if (!findLangForPath(path)) return null;
-    const buffered = readStyleTextFromOpenDocuments(path, documents);
-    const mode = getModeForPath(path);
-    if (buffered !== null) {
-      const styleDocument = styleIndexCache.getStyleDocument(path, buffered, mode);
-      styleDependencyGraph.record(path, styleDocument);
-      return styleDocument;
-    }
-    const content = readStyleFile(path);
-    if (content === null) return null;
-    const styleDocument = styleIndexCache.getStyleDocument(path, content, mode);
-    styleDependencyGraph.record(path, styleDocument);
-    return styleDocument;
-  };
-}
-
 function readStyleTextFromOpenDocuments(
   path: string,
   documents: TextDocuments<TextDocument>,
@@ -344,17 +323,6 @@ function readStyleTextFromOpenDocuments(
   const uri = pathToFileUrl(path);
   const doc = documents.get(uri);
   return doc?.getText() ?? null;
-}
-
-function buildRuntimeIO(
-  options: CreateServerOptions,
-  readStyleFile: (path: string) => string | null,
-): WorkspaceRuntimeIO {
-  return {
-    readStyleFile,
-    ...(options.readStyleFileAsync ? { readStyleFileAsync: options.readStyleFileAsync } : {}),
-    ...(options.fileSupplier ? { fileSupplier: options.fileSupplier } : {}),
-  };
 }
 
 function buildRuntimeSink(connection: Connection, supportsCodeLensRefresh: boolean): RuntimeSink {
@@ -373,12 +341,4 @@ function buildRuntimeSink(connection: Connection, supportsCodeLensRefresh: boole
       void connection.sendRequest(CodeLensRefreshRequest.type).catch(() => {});
     },
   };
-}
-
-function defaultReadStyleFile(path: string): string | null {
-  try {
-    return readFileSync(path, "utf8");
-  } catch {
-    return null;
-  }
 }
