@@ -3,10 +3,8 @@ import type { MessageReader, MessageWriter } from "vscode-languageserver/node";
 import {
   CodeLensRefreshRequest,
   createConnection,
-  DidChangeWatchedFilesNotification,
   ProposedFeatures,
   TextDocuments,
-  TextDocumentSyncKind,
   type Connection,
   type InitializeParams,
   type InitializeResult,
@@ -14,13 +12,16 @@ import {
 import { TextDocument } from "vscode-languageserver-textdocument";
 import type ts from "typescript";
 import { DEFAULT_RESOURCE_SETTINGS } from "./settings";
-import { buildStyleFileWatcherGlob } from "./core/scss/lang-registry";
 import type { StyleDocumentHIR } from "./core/hir/style-types";
 import type { TypeResolver } from "./core/ts/type-resolver";
 import { pathToFileUrl } from "./core/util/text-utils";
 import type { FileTask } from "./core/indexing/indexer-worker";
-import { COMPLETION_TRIGGER_CHARACTERS } from "./providers/completion";
 import { registerHandlers } from "./handler-registration";
+import {
+  buildServerCapabilities,
+  registerDynamicFileWatchers,
+  resolveClientRuntimeCapabilities,
+} from "./server-capabilities";
 import type { WorkspaceRegistry } from "./workspace/workspace-registry";
 import { resolveWorkspaceFolders, toWorkspaceFolderInfo } from "./workspace/workspace-folder-info";
 import {
@@ -129,11 +130,10 @@ export function createServer(options: CreateServerOptions): CreatedServer {
       ...(params.rootUri ? { rootUri: params.rootUri } : {}),
       ...(params.rootPath ? { rootPath: params.rootPath } : {}),
     });
-    clientSupportsDynamicWatchers =
-      params.capabilities.workspace?.didChangeWatchedFiles?.dynamicRegistration ?? false;
-    clientSupportsCodeLensRefresh =
-      params.capabilities.workspace?.codeLens?.refreshSupport ?? false;
-    clientSupportsWorkspaceFolders = params.capabilities.workspace?.workspaceFolders ?? false;
+    const clientCapabilities = resolveClientRuntimeCapabilities(params);
+    clientSupportsDynamicWatchers = clientCapabilities.dynamicWatchers;
+    clientSupportsCodeLensRefresh = clientCapabilities.codeLensRefresh;
+    clientSupportsWorkspaceFolders = clientCapabilities.workspaceFolders;
     caches = buildSharedRuntimeCaches();
     typeResolver = createRuntimeTypeResolver({
       ...(options.typeResolver ? { typeResolver: options.typeResolver } : {}),
@@ -169,7 +169,7 @@ export function createServer(options: CreateServerOptions): CreatedServer {
     registry = runtimeManager.getRegistry();
     runtimeManager.registerInitialFolders(workspaceFolders);
     return {
-      capabilities: buildCapabilities(),
+      capabilities: buildServerCapabilities(),
       serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
     };
   });
@@ -211,17 +211,9 @@ export function createServer(options: CreateServerOptions): CreatedServer {
         handlers.refreshSettings();
       });
     }
-    if (clientSupportsDynamicWatchers) {
-      watchedFilesDisposable = connection.client
-        .register(DidChangeWatchedFilesNotification.type, {
-          watchers: [
-            { globPattern: buildStyleFileWatcherGlob() },
-            { globPattern: "**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs,d.ts}" },
-            { globPattern: "**/tsconfig*.json" },
-            { globPattern: "**/jsconfig*.json" },
-          ],
-        })
-        .catch(() => ({ dispose: () => {} }));
+    watchedFilesDisposable = registerDynamicFileWatchers(connection, clientSupportsDynamicWatchers);
+    if (!watchedFilesDisposable) {
+      watchedFilesDisposable = null;
     }
     handlers.refreshSettings();
   });
@@ -236,33 +228,6 @@ export function createServer(options: CreateServerOptions): CreatedServer {
 
   documents.listen(connection);
   return { connection, documents };
-}
-
-// ── Helpers ────────────────────────────────────────────────────
-
-function buildCapabilities(): InitializeResult["capabilities"] {
-  return {
-    textDocumentSync: TextDocumentSyncKind.Incremental,
-    definitionProvider: true,
-    hoverProvider: true,
-    completionProvider: {
-      triggerCharacters: [...COMPLETION_TRIGGER_CHARACTERS],
-      resolveProvider: false,
-    },
-    codeActionProvider: {
-      codeActionKinds: ["quickfix"],
-      resolveProvider: false,
-    },
-    referencesProvider: true,
-    codeLensProvider: { resolveProvider: false },
-    renameProvider: { prepareProvider: true },
-    workspace: {
-      workspaceFolders: {
-        supported: true,
-        changeNotifications: true,
-      },
-    },
-  };
 }
 
 function readStyleTextFromOpenDocuments(
