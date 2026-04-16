@@ -41,6 +41,10 @@ export const handleCodeAction = wrapHandler<CodeActionParams, [], CodeAction[] |
       if (createValue) {
         actions.push(buildCreateValueQuickFix(diagnostic, createValue));
       }
+      const createKeyframes = extractCreateKeyframes(diagnostic);
+      if (createKeyframes) {
+        actions.push(buildCreateKeyframesQuickFix(diagnostic, createKeyframes));
+      }
     }
     if (diagnosticCreateModuleUris.size === 0) {
       for (const siblingUri of listMissingSiblingStyleModuleUris(params.textDocument.uri, deps)) {
@@ -109,6 +113,21 @@ function extractCreateValue(diagnostic: Diagnostic): {
   const data = diagnostic.data;
   if (!isRecord(data)) return null;
   const payload = data.createValue;
+  if (!isRecord(payload)) return null;
+  if (typeof payload.uri !== "string" || typeof payload.newText !== "string") return null;
+  const range = payload.range;
+  if (!isLspRange(range)) return null;
+  return { uri: payload.uri, range, newText: payload.newText };
+}
+
+function extractCreateKeyframes(diagnostic: Diagnostic): {
+  readonly uri: string;
+  readonly range: LspRange;
+  readonly newText: string;
+} | null {
+  const data = diagnostic.data;
+  if (!isRecord(data)) return null;
+  const payload = data.createKeyframes;
   if (!isRecord(payload)) return null;
   if (typeof payload.uri !== "string" || typeof payload.newText !== "string") return null;
   const range = payload.range;
@@ -225,6 +244,34 @@ function buildProactiveCreateModuleFileQuickFix(uri: string): CodeAction {
   return buildCreateModuleFileAction(uri);
 }
 
+function buildCreateKeyframesQuickFix(
+  diagnostic: Diagnostic,
+  createKeyframes: {
+    readonly uri: string;
+    readonly range: LspRange;
+    readonly newText: string;
+  },
+): CodeAction {
+  const keyframesName = extractCreateKeyframesName(diagnostic.message, createKeyframes.newText);
+  const fileLabel = createKeyframes.uri.split("/").at(-1) ?? createKeyframes.uri;
+  const edit: WorkspaceEdit = {
+    changes: {
+      [createKeyframes.uri]: [
+        {
+          range: createKeyframes.range,
+          newText: createKeyframes.newText,
+        },
+      ],
+    },
+  };
+  return {
+    title: `Add '@keyframes ${keyframesName}' to ${fileLabel}`,
+    kind: CodeActionKind.QuickFix,
+    diagnostics: [diagnostic],
+    edit,
+  };
+}
+
 function buildCreateModuleFileAction(uri: string): CodeAction {
   const fileLabel = uri.split("/").at(-1) ?? uri;
   const createFile: CreateFile = {
@@ -250,4 +297,10 @@ function extractCreateValueName(message: string, newText: string): string {
     /@value '([^']+)' not found/.exec(message)?.[1] ?? /local binding '([^']+)'/.exec(message)?.[1];
   if (fromMessage) return fromMessage;
   return /^\s*@value\s+([^:\s]+)\s*:/u.exec(newText)?.[1] ?? "value";
+}
+
+function extractCreateKeyframesName(message: string, newText: string): string {
+  const fromMessage = /@keyframes '([^']+)' not found/.exec(message)?.[1];
+  if (fromMessage) return fromMessage;
+  return /^\s*@keyframes\s+([^{\s]+)\s*\{/u.exec(newText)?.[1] ?? "keyframes";
 }

@@ -6,7 +6,11 @@ import {
 } from "../core/checker";
 import type { StyleDocumentHIR } from "../core/hir/style-types";
 import { pathToFileUrl } from "../core/util/text-utils";
-import { buildCreateSelectorActionData, buildCreateValueActionData } from "./code-action-data";
+import {
+  buildCreateKeyframesActionData,
+  buildCreateSelectorActionData,
+  buildCreateValueActionData,
+} from "./code-action-data";
 import type { ProviderDeps } from "./provider-deps";
 import { toLspRange } from "./lsp-adapters";
 
@@ -31,11 +35,12 @@ export function computeScssUnusedDiagnostics(
       ...(styleDependencyGraph ? { styleDependencyGraph } : {}),
       ...(styleDocumentForPath ? { styleDocumentForPath } : {}),
     },
-  ).map((finding) => toDiagnostic(finding, styleDocumentForPath));
+  ).map((finding) => toDiagnostic(finding, styleDocument, styleDocumentForPath));
 }
 
 function toDiagnostic(
   finding: StyleCheckerFinding,
+  styleDocument: StyleDocumentHIR,
   styleDocumentForPath?: (filePath: string) => StyleDocumentHIR | null,
 ): Diagnostic {
   switch (finding.code) {
@@ -107,6 +112,20 @@ function toDiagnostic(
         source: "css-module-explainer",
         message: formatCheckerFinding(finding, ""),
         data,
+      };
+    case "missing-keyframes":
+      return {
+        range: toLspRange(finding.range),
+        severity: DiagnosticSeverity.Warning,
+        source: "css-module-explainer",
+        message: formatCheckerFinding(finding, ""),
+        data: {
+          createKeyframes: buildCreateKeyframesActionData(
+            finding.animationName,
+            finding.selectorFilePath,
+            styleDocument,
+          ),
+        },
       };
     default:
       finding satisfies never;

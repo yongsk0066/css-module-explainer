@@ -335,4 +335,36 @@ export function App(enabled: boolean) {
       ),
     ).toBeDefined();
   });
+
+  it("reports missing @keyframes declarations for animation tokens", async () => {
+    const KEYFRAMES_SCSS = `
+.button {
+  animation: fade 200ms ease-in;
+}
+`;
+    client = createInProcessServer({
+      readStyleFile: (filePath) =>
+        filePath.endsWith("Button.module.scss") ? KEYFRAMES_SCSS : null,
+      typeResolver: new FakeTypeResolver(),
+      fileSupplier: emptySupplier,
+    });
+    await client.initialize();
+    client.initialized();
+
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/Button.module.scss",
+        languageId: "scss",
+        version: 1,
+        text: KEYFRAMES_SCSS,
+      },
+    });
+
+    const diagnostics = await client.waitForDiagnostics(
+      "file:///fake/workspace/src/Button.module.scss",
+    );
+    expect(
+      diagnostics.find((d) => d.message.includes("@keyframes 'fade' not found in this file.")),
+    ).toBeDefined();
+  });
 });

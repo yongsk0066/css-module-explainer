@@ -152,4 +152,46 @@ describe("checkStyleDocument", () => {
       ]),
     );
   });
+
+  it("returns missing keyframes findings for unresolved animation names in the same file", () => {
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    const styleDocumentWithKeyframes = parseStyleDocument(
+      `.button {
+  animation: fade 200ms ease-in;
+  animation-name: pulse;
+}
+
+@keyframes spin {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}`,
+      SCSS_PATH,
+    );
+
+    const findings = checkStyleDocument(
+      {
+        scssPath: SCSS_PATH,
+        styleDocument: styleDocumentWithKeyframes,
+      },
+      {
+        semanticReferenceIndex,
+        styleDependencyGraph: new WorkspaceStyleDependencyGraph(),
+      },
+    );
+
+    expect(findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          category: "style",
+          code: "missing-keyframes",
+          animationName: "fade",
+        }),
+        expect.objectContaining({
+          category: "style",
+          code: "missing-keyframes",
+          animationName: "pulse",
+        }),
+      ]),
+    );
+  });
 });

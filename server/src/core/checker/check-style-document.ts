@@ -19,6 +19,7 @@ export interface StyleDocumentCheckEnv {
 export interface StyleDocumentCheckOptions {
   readonly includeUnusedSelectors?: boolean;
   readonly includeComposesResolution?: boolean;
+  readonly includeKeyframesResolution?: boolean;
 }
 
 export function checkStyleDocument(
@@ -48,6 +49,9 @@ export function checkStyleDocument(
   }
 
   if (!(options.includeComposesResolution ?? true) || !env.styleDocumentForPath) {
+    if (options.includeKeyframesResolution ?? true) {
+      findings.push(...findMissingKeyframes(params));
+    }
     return findings;
   }
 
@@ -130,6 +134,31 @@ export function checkStyleDocument(
       });
       continue;
     }
+  }
+
+  if (options.includeKeyframesResolution ?? true) {
+    findings.push(...findMissingKeyframes(params));
+  }
+
+  return findings;
+}
+
+function findMissingKeyframes(
+  params: StyleDocumentCheckParams,
+): readonly Extract<StyleCheckerFinding, { code: "missing-keyframes" }>[] {
+  const findings: Extract<StyleCheckerFinding, { code: "missing-keyframes" }>[] = [];
+  const declared = new Set(params.styleDocument.keyframes.map((keyframes) => keyframes.name));
+
+  for (const animationNameRef of params.styleDocument.animationNameRefs) {
+    if (declared.has(animationNameRef.name)) continue;
+    findings.push({
+      category: "style",
+      code: "missing-keyframes",
+      severity: "warning",
+      range: animationNameRef.range,
+      selectorFilePath: params.styleDocument.filePath,
+      animationName: animationNameRef.name,
+    });
   }
 
   return findings;

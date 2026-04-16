@@ -129,4 +129,12 @@ export type StyleCheckerFinding =
       readonly targetFilePath: string;
       readonly importedName: string;
       readonly localName: string;
+    }
+  | {
+      readonly category: "style";
+      readonly code: "missing-keyframes";
+      readonly severity: "warning";
+      readonly range: Range;
+      readonly selectorFilePath: string;
+      readonly animationName: string;
     };

@@ -555,4 +555,33 @@ describe("computeScssUnusedDiagnostics", () => {
       ),
     ).toBe(true);
   });
+
+  it("reports missing keyframes with create-keyframes data", () => {
+    const styleDoc = parseStyleDocument(
+      `.button {
+  animation: fade 200ms ease-in;
+}`,
+      SCSS_PATH,
+    );
+
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      styleDoc,
+      new WorkspaceSemanticWorkspaceReferenceIndex(),
+    );
+
+    const diagnostic = diagnostics.find((entry) =>
+      entry.message.includes("@keyframes 'fade' not found in this file."),
+    );
+    expect(diagnostic).toBeDefined();
+    expect(diagnostic).toMatchObject({
+      severity: DiagnosticSeverity.Warning,
+      data: {
+        createKeyframes: {
+          uri: "file:///fake/Button.module.scss",
+          newText: "@keyframes fade {\n}\n\n",
+        },
+      },
+    });
+  });
 });

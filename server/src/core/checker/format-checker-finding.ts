@@ -54,6 +54,8 @@ export function formatCheckerFinding(finding: CheckerFinding, workspaceRoot: str
         return `@value '${finding.importedName}' not found in '${finding.fromSpecifier}'.`;
       }
       return `@value '${finding.importedName}' not found in '${finding.fromSpecifier}' for local binding '${finding.localName}'.`;
+    case "missing-keyframes":
+      return `@keyframes '${finding.animationName}' not found in this file.`;
     default:
       finding satisfies never;
       return "";
