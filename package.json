@@ -41,6 +41,7 @@
     "typecheck": "tsc -b",
     "test": "vitest run",
     "check:workspace": "tsx ./scripts/check-workspace.ts",
+    "check:semantic-smoke": "tsx ./scripts/check-semantic-smoke.ts",
     "test:unit": "vitest run test/unit",
     "test:unit:watch": "vitest test/unit",
     "test:protocol": "vitest run test/protocol",
