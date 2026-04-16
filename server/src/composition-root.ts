@@ -26,11 +26,12 @@ import {
   buildSharedRuntimeCaches,
   createRuntimeTypeResolver,
   createStyleDocumentLookup,
-  createWorkspaceRuntime,
   createWorkspaceRuntimeIO,
   defaultReadStyleFile,
+  registerWorkspaceRuntime,
   type RuntimeSink,
   type SharedRuntimeCaches,
+  unregisterWorkspaceRuntime,
   type WorkspaceRuntime,
 } from "./runtime";
 
@@ -152,7 +153,9 @@ export function createServer(options: CreateServerOptions): CreatedServer {
       ...(options.fileSupplier ? { fileSupplier: options.fileSupplier } : {}),
     });
     for (const folder of workspaceFolders) {
-      const runtime = createWorkspaceRuntime({
+      registerWorkspaceRuntime({
+        registry,
+        runtimes,
         folder,
         workspaceFolders,
         caches,
@@ -166,8 +169,6 @@ export function createServer(options: CreateServerOptions): CreatedServer {
           registry?.getDepsForFilePath(stylePath)?.settings.scss.classnameTransform ??
           DEFAULT_RESOURCE_SETTINGS.scss.classnameTransform,
       });
-      registry.register(folder, runtime.deps);
-      runtimes.set(folder.uri, runtime);
     }
     return {
       capabilities: buildCapabilities(),
@@ -202,14 +203,12 @@ export function createServer(options: CreateServerOptions): CreatedServer {
         }
 
         for (const folder of event.removed) {
-          const existing = registry.getFolder(folder.uri);
-          if (!existing) continue;
-          const deps = registry.unregister(folder.uri);
-          if (!deps) continue;
-          const runtime = runtimes.get(folder.uri);
-          runtime?.clearWorkspaceDocuments(documents);
-          runtime?.dispose();
-          runtimes.delete(folder.uri);
+          unregisterWorkspaceRuntime({
+            registry,
+            runtimes,
+            folderUri: folder.uri,
+            documents,
+          });
         }
 
         for (const folder of event.added) {
@@ -219,7 +218,9 @@ export function createServer(options: CreateServerOptions): CreatedServer {
             rootPath: fileUrlToPath(folder.uri),
             name: folder.name,
           };
-          const runtime = createWorkspaceRuntime({
+          registerWorkspaceRuntime({
+            registry,
+            runtimes,
             folder: folderInfo,
             workspaceFolders: [...registry.getFolders(), folderInfo],
             caches,
@@ -233,8 +234,6 @@ export function createServer(options: CreateServerOptions): CreatedServer {
               registry?.getDepsForFilePath(stylePath)?.settings.scss.classnameTransform ??
               DEFAULT_RESOURCE_SETTINGS.scss.classnameTransform,
           });
-          registry.register(folderInfo, runtime.deps);
-          runtimes.set(folderInfo.uri, runtime);
         }
 
         handlers.refreshSettings();

@@ -43,6 +43,12 @@ export {
   type WorkspaceRuntimeIO,
 } from "./workspace-runtime";
 export {
+  registerWorkspaceRuntime,
+  unregisterWorkspaceRuntime,
+  type WorkspaceRuntimeRegistryArgs,
+  type WorkspaceRuntimeUnregisterArgs,
+} from "./workspace-runtime-registry";
+export {
   createRuntimeTypeResolver,
   createStyleDocumentLookup,
   createWorkspaceRuntimeIO,
