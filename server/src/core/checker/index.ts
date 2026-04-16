@@ -23,4 +23,3 @@ export {
   listCheckerCodeBundles,
   type CheckerCodeBundle,
 } from "./checker-code-bundles";
-export { formatCheckerFinding } from "./format-checker-finding";

@@ -1,5 +1,5 @@
-import { messageForInvalidClassFinding } from "../query";
-import type { CheckerFinding } from "./contracts";
+import { messageForInvalidClassFinding } from "../core/query";
+import type { CheckerFinding } from "../core/checker/contracts";
 
 export function formatCheckerFinding(finding: CheckerFinding, workspaceRoot: string): string {
   switch (finding.code) {

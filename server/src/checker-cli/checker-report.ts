@@ -1,5 +1,5 @@
 import path from "node:path";
-import { formatCheckerFinding } from "../core/checker/format-checker-finding";
+import { formatCheckerFinding } from "../checker-surface";
 import type { CheckerFinding, CheckerSeverity } from "../core/checker/contracts";
 import type {
   WorkspaceCheckCommandFilters,

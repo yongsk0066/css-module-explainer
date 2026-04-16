@@ -17,7 +17,7 @@ import {
   listCheckerCodeBundles,
   type CheckerCodeBundle,
 } from "../core/checker/checker-code-bundles";
-import { formatCheckerFinding } from "../core/checker/format-checker-finding";
+import { formatCheckerFinding } from "../checker-surface";
 import { buildCheckerJsonReport, type CheckerReportJsonV1 } from "./checker-report";
 
 export interface CheckerCliIO {

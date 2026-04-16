@@ -1,9 +1,6 @@
 import { DiagnosticSeverity, DiagnosticTag, type Diagnostic } from "vscode-languageserver/node";
-import {
-  checkStyleDocument,
-  formatCheckerFinding,
-  type StyleCheckerFinding,
-} from "../core/checker";
+import { checkStyleDocument, type StyleCheckerFinding } from "../core/checker";
+import { formatCheckerFinding } from "../checker-surface";
 import type { StyleDocumentHIR } from "../core/hir/style-types";
 import { pathToFileUrl } from "../core/util/text-utils";
 import {
