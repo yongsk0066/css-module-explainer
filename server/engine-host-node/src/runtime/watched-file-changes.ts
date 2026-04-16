@@ -1,7 +1,7 @@
-import type { StyleDocumentHIR } from "../core/hir/style-types";
-import { findLangForPath } from "../core/scss/lang-registry";
-import { styleDocumentSemanticFingerprint } from "../core/scss/scss-index";
-import { fileUrlToPath, pathToFileUrl } from "../core/util/text-utils";
+import type { StyleDocumentHIR } from "../../../src/core/hir/style-types";
+import { findLangForPath } from "../../../src/core/scss/lang-registry";
+import { styleDocumentSemanticFingerprint } from "../../../src/core/scss/scss-index";
+import { fileUrlToPath, pathToFileUrl } from "../../../src/core/util/text-utils";
 import type { RuntimeDependencySnapshot } from "./dependency-snapshot";
 import type {
   RuntimeFileChangeType,

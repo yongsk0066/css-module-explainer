@@ -3,12 +3,12 @@ import { pathToFileURL } from "node:url";
 import type {
   WorkspaceFolderInfo,
   WorkspaceProviderDeps,
-} from "../../../server/src/workspace/workspace-registry";
-import type { RuntimeSink } from "../../../server/src/runtime/runtime-sink";
+} from "../../../server/engine-host-node/src/workspace/workspace-registry";
+import type { RuntimeSink } from "../../../server/engine-host-node/src/runtime/runtime-sink";
 import {
   clearWorkspaceDocumentsWithinRoot,
   createOwnedStylePathMatcher,
-} from "../../../server/src/runtime/workspace-runtime-support";
+} from "../../../server/engine-host-node/src/runtime/workspace-runtime-support";
 
 describe("workspace runtime support", () => {
   it("matches owned style paths using longest-root ownership", () => {

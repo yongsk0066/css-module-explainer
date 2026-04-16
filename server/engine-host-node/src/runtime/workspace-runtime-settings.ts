@@ -1,6 +1,10 @@
-import type { AliasResolver } from "../core/cx/alias-resolver";
-import { AliasResolverHolder } from "../core/cx/alias-resolver";
-import { resourceSettingsDependencyKey, DEFAULT_SETTINGS, type Settings } from "../settings";
+import type { AliasResolver } from "../../../src/core/cx/alias-resolver";
+import { AliasResolverHolder } from "../../../src/core/cx/alias-resolver";
+import {
+  resourceSettingsDependencyKey,
+  DEFAULT_SETTINGS,
+  type Settings,
+} from "../../../src/settings";
 
 export interface WorkspaceRuntimeSettingsState {
   readonly workspaceRoot: string;

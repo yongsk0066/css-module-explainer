@@ -1,11 +1,11 @@
-import type { AliasResolver } from "../core/cx/alias-resolver";
-import { detectClassUtilImports, scanCxImports } from "../core/cx/binding-detector";
-import { parseClassExpressions } from "../core/cx/class-ref-parser";
-import type { StyleDocumentHIR } from "../core/hir/style-types";
-import { DocumentAnalysisCache } from "../core/indexing/document-analysis-cache";
-import { collectSemanticReferenceContribution } from "../core/semantic";
-import type { TypeResolver } from "../core/ts/type-resolver";
-import { fileUrlToPath } from "../core/util/text-utils";
+import type { AliasResolver } from "../../../src/core/cx/alias-resolver";
+import { detectClassUtilImports, scanCxImports } from "../../../src/core/cx/binding-detector";
+import { parseClassExpressions } from "../../../src/core/cx/class-ref-parser";
+import type { StyleDocumentHIR } from "../../../src/core/hir/style-types";
+import { DocumentAnalysisCache } from "../../../src/core/indexing/document-analysis-cache";
+import { collectSemanticReferenceContribution } from "../../../src/core/semantic";
+import type { TypeResolver } from "../../../src/core/ts/type-resolver";
+import { fileUrlToPath } from "../../../src/core/util/text-utils";
 import type { SharedRuntimeCaches } from "./shared-runtime-caches";
 
 export interface WorkspaceAnalysisRuntimeArgs {

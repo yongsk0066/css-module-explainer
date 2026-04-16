@@ -1,13 +1,13 @@
 import { readFileSync } from "node:fs";
 import type ts from "typescript";
-import type { StyleDocumentHIR } from "../core/hir/style-types";
-import type { FileTask } from "../core/indexing/indexer-worker";
-import { findLangForPath } from "../core/scss/lang-registry";
-import type { StyleIndexCache } from "../core/scss/scss-index";
-import type { WorkspaceStyleDependencyGraph } from "../core/semantic";
-import { createDefaultProgram } from "../core/ts/default-program";
-import { WorkspaceTypeResolver, type TypeResolver } from "../core/ts/type-resolver";
-import type { ResourceSettings } from "../settings";
+import type { StyleDocumentHIR } from "../../../src/core/hir/style-types";
+import type { FileTask } from "../../../src/core/indexing/indexer-worker";
+import { findLangForPath } from "../../../src/core/scss/lang-registry";
+import type { StyleIndexCache } from "../../../src/core/scss/scss-index";
+import type { WorkspaceStyleDependencyGraph } from "../../../src/core/semantic";
+import { createDefaultProgram } from "../../../src/core/ts/default-program";
+import { WorkspaceTypeResolver, type TypeResolver } from "../../../src/core/ts/type-resolver";
+import type { ResourceSettings } from "../../../src/settings";
 import type { WorkspaceRuntimeIO } from "./workspace-runtime";
 
 export interface RuntimeTypeResolverOptions {

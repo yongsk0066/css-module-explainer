@@ -292,12 +292,12 @@ Benefits:
 
 Workspace runtime is explicit and workspace-root scoped.
 
-- `server/src/workspace/workspace-registry.ts`
-- `server/src/runtime/shared-runtime-caches.ts`
-- `server/src/runtime/workspace-runtime.ts`
-- `server/src/runtime/workspace-runtime-settings.ts`
-- `server/src/runtime/workspace-analysis-runtime.ts`
-- `server/src/runtime/workspace-style-runtime.ts`
+- `server/engine-host-node/src/workspace/workspace-registry.ts`
+- `server/engine-host-node/src/runtime/shared-runtime-caches.ts`
+- `server/engine-host-node/src/runtime/workspace-runtime.ts`
+- `server/engine-host-node/src/runtime/workspace-runtime-settings.ts`
+- `server/engine-host-node/src/runtime/workspace-analysis-runtime.ts`
+- `server/engine-host-node/src/runtime/workspace-style-runtime.ts`
 
 Current split:
 
@@ -327,9 +327,9 @@ Benefits:
 
 Invalidation is modeled as explicit runtime contracts.
 
-- `server/src/runtime/dependency-snapshot.ts`
-- `server/src/runtime/watched-file-changes.ts`
-- `server/src/runtime/invalidation-planner.ts`
+- `server/engine-host-node/src/runtime/dependency-snapshot.ts`
+- `server/engine-host-node/src/runtime/watched-file-changes.ts`
+- `server/engine-host-node/src/runtime/invalidation-planner.ts`
 
 The flow is:
 
@@ -351,7 +351,7 @@ Benefits:
 
 Runtime code does not directly depend on incidental LSP transport effects.
 
-- `server/src/runtime/runtime-sink.ts`
+- `server/engine-host-node/src/runtime/runtime-sink.ts`
 
 The sink covers:
 
@@ -401,7 +401,7 @@ Current façade boundaries:
 - `server/src/core/query/index.ts`
 - `server/src/core/rewrite/index.ts`
 - `server/src/core/semantic/index.ts`
-- `server/src/runtime/index.ts`
+- `server/engine-host-node/src/runtime/index.ts`
 
 This does not force a package split today. It keeps that option mechanically
 possible later.

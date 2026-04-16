@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createWorkspaceRuntimeSettingsState } from "../../../server/src/runtime/workspace-runtime-settings";
+import { createWorkspaceRuntimeSettingsState } from "../../../server/engine-host-node/src/runtime/workspace-runtime-settings";
 
 describe("createWorkspaceRuntimeSettingsState", () => {
   it("owns mutable settings state and derived metadata", () => {

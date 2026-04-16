@@ -1,6 +1,6 @@
-import { findLangForPath } from "../core/scss/lang-registry";
-import type { SemanticWorkspaceReferenceIndex } from "../core/semantic";
-import { fileUrlToPath } from "../core/util/text-utils";
+import { findLangForPath } from "../../../src/core/scss/lang-registry";
+import type { SemanticWorkspaceReferenceIndex } from "../../../src/core/semantic";
+import { fileUrlToPath } from "../../../src/core/util/text-utils";
 import type { OpenDocumentSnapshot } from "./invalidation-planner";
 
 export interface RuntimeDependencySnapshot {

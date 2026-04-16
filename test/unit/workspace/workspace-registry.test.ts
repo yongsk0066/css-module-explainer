@@ -3,7 +3,7 @@ import type { ProviderDeps } from "../../../server/src/providers/provider-deps";
 import {
   WorkspaceRegistry,
   pickOwningWorkspaceFolder,
-} from "../../../server/src/workspace/workspace-registry";
+} from "../../../server/engine-host-node/src/workspace/workspace-registry";
 import { makeBaseDeps } from "../../_fixtures/test-helpers";
 
 function makeDeps(workspaceRoot: string, workspaceFolderUri: string): ProviderDeps {

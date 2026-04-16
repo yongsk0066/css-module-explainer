@@ -1,8 +1,8 @@
-import type { StyleDocumentHIR } from "../core/hir/style-types";
-import { scssFileSupplier } from "../core/indexing/file-supplier";
-import type { FileTask } from "../core/indexing/indexer-worker";
-import { IndexerWorker } from "../core/indexing/indexer-worker";
-import type { ResourceSettings } from "../settings";
+import type { StyleDocumentHIR } from "../../../src/core/hir/style-types";
+import { scssFileSupplier } from "../../../src/core/indexing/file-supplier";
+import type { FileTask } from "../../../src/core/indexing/indexer-worker";
+import { IndexerWorker } from "../../../src/core/indexing/indexer-worker";
+import type { ResourceSettings } from "../../../src/settings";
 import type { SharedRuntimeCaches } from "./shared-runtime-caches";
 import { createScopedRuntimeLogger, type RuntimeSink } from "./runtime-sink";
 

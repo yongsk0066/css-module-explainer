@@ -13,8 +13,8 @@ import type { FileTask } from "../../src/core/indexing/indexer-worker";
 import { registerHandlers } from "./handler-registration";
 import { buildServerCapabilities, registerDynamicFileWatchers } from "./server-capabilities";
 import { createServerRuntimeSession, type ServerRuntimeSession } from "./server-runtime-session";
-import type { WorkspaceRegistry } from "../../src/workspace/workspace-registry";
-import { defaultReadStyleFile } from "../../src/runtime";
+import type { WorkspaceRegistry } from "../../engine-host-node/src/workspace/workspace-registry";
+import { defaultReadStyleFile } from "../../engine-host-node/src/runtime";
 
 const SERVER_NAME = "css-module-explainer";
 const SERVER_VERSION = "3.2.0";

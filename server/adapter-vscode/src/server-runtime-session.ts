@@ -14,8 +14,8 @@ import { createRuntimeSink, readStyleTextFromOpenDocuments } from "./server-runt
 import {
   resolveWorkspaceFolders,
   toWorkspaceFolderInfo,
-} from "../../src/workspace/workspace-folder-info";
-import type { WorkspaceRegistry } from "../../src/workspace/workspace-registry";
+} from "../../engine-host-node/src/workspace/workspace-folder-info";
+import type { WorkspaceRegistry } from "../../engine-host-node/src/workspace/workspace-registry";
 import {
   buildSharedRuntimeCaches,
   createRuntimeTypeResolver,
@@ -23,7 +23,7 @@ import {
   createWorkspaceRuntimeIO,
   createWorkspaceRuntimeManager,
   type WorkspaceRuntimeManager,
-} from "../../src/runtime";
+} from "../../engine-host-node/src/runtime";
 
 export interface ServerRuntimeSessionOptions {
   readonly typeResolver?: TypeResolver;

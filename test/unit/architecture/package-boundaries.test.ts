@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const REPO_ROOT = process.cwd();
 const CORE_ROOT = path.join(REPO_ROOT, "server/src/core");
-const RUNTIME_ROOT = path.join(REPO_ROOT, "server/src/runtime");
+const RUNTIME_ROOT = path.join(REPO_ROOT, "server/engine-host-node/src/runtime");
 const PROVIDERS_ROOT = path.join(REPO_ROOT, "server/src/providers");
 const CHECKER_HOST_ROOT = path.join(REPO_ROOT, "server/engine-host-node/src/checker-host");
 const CHECKER_CLI_ROOT = path.join(REPO_ROOT, "server/checker-cli/src");

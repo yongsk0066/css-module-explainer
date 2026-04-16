@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
-import { createRuntimeDependencySnapshot } from "../../../server/src/runtime/dependency-snapshot";
-import { collectWatchedFileChangeInputs } from "../../../server/src/runtime/watched-file-changes";
+import { createRuntimeDependencySnapshot } from "../../../server/engine-host-node/src/runtime/dependency-snapshot";
+import { collectWatchedFileChangeInputs } from "../../../server/engine-host-node/src/runtime/watched-file-changes";
 import { makeBaseDeps, semanticSiteAt } from "../../_fixtures/test-helpers";
 import {
   buildStyleDocumentFromSelectorMap,

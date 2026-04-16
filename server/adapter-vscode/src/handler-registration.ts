@@ -27,7 +27,7 @@ import {
   createDiagnosticsScheduler,
   type DiagnosticsScheduler,
 } from "../../src/diagnostics-scheduler";
-import type { WorkspaceRegistry } from "../../src/workspace/workspace-registry";
+import type { WorkspaceRegistry } from "../../engine-host-node/src/workspace/workspace-registry";
 import {
   planSettingsReload,
   planWatchedFileInvalidation,
@@ -36,7 +36,7 @@ import {
   snapshotOpenDocuments,
   collectWatchedFileChangeInputs,
   type RuntimeFileEvent,
-} from "../../src/runtime";
+} from "../../engine-host-node/src/runtime";
 
 export interface HandlerContext {
   readonly connection: Connection;

@@ -1,6 +1,6 @@
 import path from "node:path";
-import { fileUrlToPath } from "../core/util/text-utils";
-import type { ProviderDeps } from "../providers/provider-deps";
+import { fileUrlToPath } from "../../../src/core/util/text-utils";
+import type { ProviderDeps } from "../../../src/providers/provider-deps";
 
 export interface WorkspaceFolderInfo {
   readonly uri: string;

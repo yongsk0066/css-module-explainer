@@ -1,4 +1,4 @@
-import { fileUrlToPath, pathToFileUrl } from "../core/util/text-utils";
+import { fileUrlToPath, pathToFileUrl } from "../../../src/core/util/text-utils";
 import type { WorkspaceFolderInfo } from "./workspace-registry";
 
 export interface WorkspaceFolderResolutionInput {

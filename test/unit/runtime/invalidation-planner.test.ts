@@ -3,7 +3,7 @@ import {
   planSettingsReload,
   planWatchedFileInvalidation,
   type OpenDocumentSnapshot,
-} from "../../../server/src/runtime/invalidation-planner";
+} from "../../../server/engine-host-node/src/runtime/invalidation-planner";
 
 function doc(uri: string, workspaceRoot: string, isStyle = false): OpenDocumentSnapshot {
   return {

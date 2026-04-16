@@ -3,7 +3,7 @@ import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/co
 import {
   createRuntimeDependencySnapshot,
   snapshotOpenDocuments,
-} from "../../../server/src/runtime/dependency-snapshot";
+} from "../../../server/engine-host-node/src/runtime/dependency-snapshot";
 import { makeBaseDeps, semanticSiteAt } from "../../_fixtures/test-helpers";
 
 describe("createRuntimeDependencySnapshot", () => {
