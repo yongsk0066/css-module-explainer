@@ -3,8 +3,8 @@ import type ts from "typescript";
 import type { CxBinding } from "../../../server/src/core/cx/cx-types";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
-import type { ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
-import { handleHover } from "../../../server/src/providers/hover";
+import type { ProviderDeps } from "../../../server/adapter-vscode/src/providers/cursor-dispatch";
+import { handleHover } from "../../../server/adapter-vscode/src/providers/hover";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
 import {
   EMPTY_ALIAS_RESOLVER,

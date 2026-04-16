@@ -11,10 +11,14 @@ import {
   resolveComposesTarget,
   resolveValueImportTarget,
   resolveValueTarget,
-} from "../core/query";
-import type { KeyframesDeclHIR, SelectorDeclHIR, ValueDeclHIR } from "../core/hir/style-types";
-import { findLangForPath } from "../core/scss/lang-registry";
-import { pathToFileUrl } from "../core/util/text-utils";
+} from "../../../src/core/query";
+import type {
+  KeyframesDeclHIR,
+  SelectorDeclHIR,
+  ValueDeclHIR,
+} from "../../../src/core/hir/style-types";
+import { findLangForPath } from "../../../src/core/scss/lang-registry";
+import { pathToFileUrl } from "../../../src/core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
 import { wrapHandler } from "./_wrap-handler";
 import { withSourceExpressionAtCursor, type SourceExpressionContext } from "./cursor-dispatch";

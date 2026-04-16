@@ -3,9 +3,15 @@ import type { CxBinding } from "../../../server/src/core/cx/cx-types";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
-import type { CursorParams, ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
-import { handlePrepareRename, handleRename } from "../../../server/src/providers/rename";
-import { findSelectorAtCursor } from "../../../server/src/providers/references";
+import type {
+  CursorParams,
+  ProviderDeps,
+} from "../../../server/adapter-vscode/src/providers/cursor-dispatch";
+import {
+  handlePrepareRename,
+  handleRename,
+} from "../../../server/adapter-vscode/src/providers/rename";
+import { findSelectorAtCursor } from "../../../server/adapter-vscode/src/providers/references";
 import { DEFAULT_SETTINGS } from "../../../server/src/settings";
 import type { Settings } from "../../../server/src/settings";
 import {

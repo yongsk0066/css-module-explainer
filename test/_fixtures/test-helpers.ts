@@ -5,7 +5,10 @@ import type { SelectorDeclHIR } from "../../server/src/core/hir/style-types";
 import { DocumentAnalysisCache } from "../../server/src/core/indexing/document-analysis-cache";
 import { NullSemanticWorkspaceReferenceIndex } from "../../server/src/core/semantic/workspace-reference-index";
 import { WorkspaceStyleDependencyGraph } from "../../server/src/core/semantic/style-dependency-graph";
-import { NOOP_LOG_ERROR, type ProviderDeps } from "../../server/src/providers/cursor-dispatch";
+import {
+  NOOP_LOG_ERROR,
+  type ProviderDeps,
+} from "../../server/adapter-vscode/src/providers/cursor-dispatch";
 import { DEFAULT_SETTINGS } from "../../server/src/settings";
 import { AliasResolver } from "../../server/src/core/cx/alias-resolver";
 import { FakeTypeResolver } from "./fake-type-resolver";

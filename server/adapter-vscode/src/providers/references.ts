@@ -14,9 +14,9 @@ import {
   resolveComposesTarget,
   resolveValueImportTarget,
   resolveValueTarget,
-} from "../core/query";
-import { findLangForPath } from "../core/scss/lang-registry";
-import { fileUrlToPath, pathToFileUrl } from "../core/util/text-utils";
+} from "../../../src/core/query";
+import { findLangForPath } from "../../../src/core/scss/lang-registry";
+import { fileUrlToPath, pathToFileUrl } from "../../../src/core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
 import { wrapHandler } from "./_wrap-handler";
 
@@ -198,7 +198,7 @@ export const handleReferences = wrapHandler<ReferenceParams, [], Location[] | nu
   },
   null,
 );
-export { findSelectorAtCursor } from "../core/query";
+export { findSelectorAtCursor } from "../../../src/core/query";
 
 function dedupeLocations(locations: readonly Location[]): Location[] {
   const unique = new Map<string, Location>();

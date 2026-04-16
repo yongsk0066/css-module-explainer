@@ -232,7 +232,7 @@ Rewrite entrypoints:
 
 Provider entrypoints:
 
-- `server/src/providers/*`
+- `server/adapter-vscode/src/providers/*`
 
 Responsibilities are split like this:
 

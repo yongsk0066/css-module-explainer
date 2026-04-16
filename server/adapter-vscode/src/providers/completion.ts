@@ -1,9 +1,9 @@
 import { CompletionItemKind, type CompletionItem } from "vscode-languageserver/node";
-import type { SelectorDeclHIR } from "../core/hir/style-types";
-import { readCompletionContext } from "../core/query";
+import type { SelectorDeclHIR } from "../../../src/core/hir/style-types";
+import { readCompletionContext } from "../../../src/core/query";
 import type { CursorParams, ProviderDeps } from "./provider-deps";
 import { wrapHandler } from "./_wrap-handler";
-export { isInsideCall } from "../core/query";
+export { isInsideCall } from "../../../src/core/query";
 
 /**
  * Handle `textDocument/completion` inside a class-util call.

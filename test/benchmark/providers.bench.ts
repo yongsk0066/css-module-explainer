@@ -3,11 +3,11 @@ import { SourceFileCache } from "../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../server/src/core/indexing/document-analysis-cache";
 import { parseClassExpressions } from "../../server/src/core/cx/class-ref-parser";
 import { scanCxImports } from "../../server/src/core/cx/binding-detector";
-import type { ProviderDeps } from "../../server/src/providers/cursor-dispatch";
-import { handleDefinition } from "../../server/src/providers/definition";
-import { handleHover } from "../../server/src/providers/hover";
-import { handleCompletion } from "../../server/src/providers/completion";
-import { computeDiagnostics } from "../../server/src/providers/diagnostics";
+import type { ProviderDeps } from "../../server/adapter-vscode/src/providers/cursor-dispatch";
+import { handleDefinition } from "../../server/adapter-vscode/src/providers/definition";
+import { handleHover } from "../../server/adapter-vscode/src/providers/hover";
+import { handleCompletion } from "../../server/adapter-vscode/src/providers/completion";
+import { computeDiagnostics } from "../../server/adapter-vscode/src/providers/diagnostics";
 import { EMPTY_ALIAS_RESOLVER, info, makeBaseDeps } from "../_fixtures/test-helpers";
 
 const BUTTON_TSX = `

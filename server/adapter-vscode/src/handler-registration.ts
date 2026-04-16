@@ -3,13 +3,13 @@ import { FileChangeType } from "vscode-languageserver/node";
 import type { DidChangeWatchedFilesParams } from "vscode-languageserver/node";
 import type { TextDocument } from "vscode-languageserver-textdocument";
 import type { TextDocuments } from "vscode-languageserver/node";
-import { handleCodeAction } from "../../src/providers/code-actions";
-import { handleCompletion } from "../../src/providers/completion";
-import { handleDefinition } from "../../src/providers/definition";
-import { handleHover } from "../../src/providers/hover";
-import { handleCodeLens } from "../../src/providers/reference-lens";
-import { handleReferences } from "../../src/providers/references";
-import { handlePrepareRename, handleRename } from "../../src/providers/rename";
+import { handleCodeAction } from "./providers/code-actions";
+import { handleCompletion } from "./providers/completion";
+import { handleDefinition } from "./providers/definition";
+import { handleHover } from "./providers/hover";
+import { handleCodeLens } from "./providers/reference-lens";
+import { handleReferences } from "./providers/references";
+import { handlePrepareRename, handleRename } from "./providers/rename";
 import type { CursorParams, ProviderDeps } from "../../src/provider-deps";
 import { fileUrlToPath } from "../../src/core/util/text-utils";
 import { findLangForPath } from "../../src/core/scss/lang-registry";
@@ -23,10 +23,7 @@ import {
   shouldWarnCompatPathAlias,
   type WindowSettings,
 } from "../../src/settings";
-import {
-  createDiagnosticsScheduler,
-  type DiagnosticsScheduler,
-} from "../../src/diagnostics-scheduler";
+import { createDiagnosticsScheduler, type DiagnosticsScheduler } from "./diagnostics-scheduler";
 import type { WorkspaceRegistry } from "../../engine-host-node/src/workspace/workspace-registry";
 import {
   planSettingsReload,

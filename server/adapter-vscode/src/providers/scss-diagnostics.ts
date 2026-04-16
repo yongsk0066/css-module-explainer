@@ -1,8 +1,8 @@
 import { DiagnosticSeverity, DiagnosticTag, type Diagnostic } from "vscode-languageserver/node";
-import { checkStyleDocument, type StyleCheckerFinding } from "../core/checker";
-import { formatCheckerFinding } from "../checker-surface";
-import type { StyleDocumentHIR } from "../core/hir/style-types";
-import { pathToFileUrl } from "../core/util/text-utils";
+import { checkStyleDocument, type StyleCheckerFinding } from "../../../src/core/checker";
+import { formatCheckerFinding } from "../../../src/checker-surface";
+import type { StyleDocumentHIR } from "../../../src/core/hir/style-types";
+import { pathToFileUrl } from "../../../src/core/util/text-utils";
 import {
   buildCreateKeyframesActionData,
   buildCreateSelectorActionData,

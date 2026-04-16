@@ -3,9 +3,9 @@ import {
   type Diagnostic,
   type Range as LspRange,
 } from "vscode-languageserver/node";
-import { checkSourceDocument, type SourceCheckerFinding } from "../core/checker";
-import { formatCheckerFinding } from "../checker-surface";
-import { pathToFileUrl } from "../core/util/text-utils";
+import { checkSourceDocument, type SourceCheckerFinding } from "../../../src/core/checker";
+import { formatCheckerFinding } from "../../../src/checker-surface";
+import { pathToFileUrl } from "../../../src/core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
 import { buildCreateSelectorActionData } from "./code-action-data";
 import { wrapHandler } from "./_wrap-handler";

@@ -7,8 +7,11 @@ import type { ResolvedCxBinding } from "../../../server/src/core/cx/resolved-bin
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
 import { NullSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
-import { NOOP_LOG_ERROR, type ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
-import { computeDiagnostics } from "../../../server/src/providers/diagnostics";
+import {
+  NOOP_LOG_ERROR,
+  type ProviderDeps,
+} from "../../../server/adapter-vscode/src/providers/cursor-dispatch";
+import { computeDiagnostics } from "../../../server/adapter-vscode/src/providers/diagnostics";
 import { DEFAULT_SETTINGS } from "../../../server/src/settings";
 import type { TypeResolver } from "../../../server/src/core/ts/type-resolver";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";

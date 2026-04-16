@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
 import { WorkspaceStyleDependencyGraph } from "../../../server/src/core/semantic/style-dependency-graph";
-import type { ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
-import { handleCodeLens } from "../../../server/src/providers/reference-lens";
+import type { ProviderDeps } from "../../../server/adapter-vscode/src/providers/cursor-dispatch";
+import { handleCodeLens } from "../../../server/adapter-vscode/src/providers/reference-lens";
 import { infoAtLine, makeBaseDeps, semanticSiteAt } from "../../_fixtures/test-helpers";
 import {
   buildStyleDocumentFromSelectorMap,

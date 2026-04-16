@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isInsideCall } from "../../../server/src/providers/completion";
+import { isInsideCall } from "../../../server/adapter-vscode/src/providers/completion";
 
 describe("isInsideCall", () => {
   it("returns true when the last cx( is still open on the line", () => {

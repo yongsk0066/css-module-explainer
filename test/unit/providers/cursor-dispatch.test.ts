@@ -6,7 +6,7 @@ import { DocumentAnalysisCache } from "../../../server/src/core/indexing/documen
 import {
   withSourceExpressionAtCursor,
   type ProviderDeps,
-} from "../../../server/src/providers/cursor-dispatch";
+} from "../../../server/adapter-vscode/src/providers/cursor-dispatch";
 import {
   EMPTY_ALIAS_RESOLVER,
   buildTestClassExpressions,

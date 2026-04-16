@@ -3,8 +3,8 @@ import type ts from "typescript";
 import type { CxBinding } from "../../../server/src/core/cx/cx-types";
 import { SourceFileCache } from "../../../server/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/src/core/indexing/document-analysis-cache";
-import type { ProviderDeps } from "../../../server/src/providers/cursor-dispatch";
-import { handleDefinition } from "../../../server/src/providers/definition";
+import type { ProviderDeps } from "../../../server/adapter-vscode/src/providers/cursor-dispatch";
+import { handleDefinition } from "../../../server/adapter-vscode/src/providers/definition";
 import {
   EMPTY_ALIAS_RESOLVER,
   buildTestClassExpressions,

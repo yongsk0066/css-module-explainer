@@ -3,7 +3,10 @@ import type { ClassExpressionHIR } from "../../../server/src/core/hir/source-typ
 import type { SelectorDeclHIR } from "../../../server/src/core/hir/style-types";
 import type { SelectorUsageSummary } from "../../../server/src/core/query/read-selector-usage";
 import type { SelectorStyleDependencySummary } from "../../../server/src/core/query/read-selector-style-dependencies";
-import { renderHover, renderSelectorHover } from "../../../server/src/providers/hover-renderer";
+import {
+  renderHover,
+  renderSelectorHover,
+} from "../../../server/adapter-vscode/src/providers/hover-renderer";
 
 const SCSS_PATH = "/fake/ws/src/Button.module.scss";
 
