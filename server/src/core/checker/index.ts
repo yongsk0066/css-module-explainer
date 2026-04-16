@@ -1,5 +1,7 @@
 export type {
   CheckerFinding,
+  CheckerReportJsonFinding,
+  CheckerReportJsonV1,
   CheckerSeverity,
   SourceCheckerFinding,
   StyleCheckerFinding,

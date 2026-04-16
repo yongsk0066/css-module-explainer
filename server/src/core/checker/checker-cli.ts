@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import type { ClassnameTransformMode } from "../scss/classname-transform";
 import { findLangForPath } from "../scss/lang-registry";
@@ -8,24 +9,31 @@ import {
   type WorkspaceCheckSummary,
 } from "./check-workspace";
 import { formatCheckerFinding } from "./format-checker-finding";
-import type { WorkspaceCheckerFinding } from "./contracts";
+import type {
+  CheckerReportJsonFinding,
+  CheckerReportJsonV1,
+  WorkspaceCheckerFinding,
+} from "./contracts";
 
 export interface CheckerCliIO {
   readonly stdout: (message: string) => void;
   readonly stderr: (message: string) => void;
   readonly cwd: () => string;
+  readonly stdin?: () => Promise<string>;
 }
 
 export type CheckerCliFailOn = "none" | "warning" | "hint";
 export type CheckerCliFormat = "text" | "json";
 export type CheckerCliCategory = "all" | "source" | "style";
 export type CheckerCliSeverity = "all" | "warning" | "hint";
+const CHECKER_JSON_SCHEMA_VERSION = "1" as const;
+const CHECKER_TOOL_NAME = "css-module-explainer/checker" as const;
 
 export async function runCheckerCli(
   argv: readonly string[],
   io: CheckerCliIO = defaultCliIO(),
 ): Promise<number> {
-  const parsed = parseCliArgs(argv, io.cwd());
+  const parsed = await parseCliArgs(argv, io);
   if ("helpText" in parsed) {
     io.stdout(parsed.helpText);
     return 0;
@@ -50,10 +58,12 @@ interface ParsedCliOptions {
   readonly severity: CheckerCliSeverity;
 }
 
-function parseCliArgs(
+async function parseCliArgs(
   argv: readonly string[],
-  cwd: string,
-): ParsedCliOptions | { readonly helpText: string } | { readonly error: string } {
+  io: CheckerCliIO,
+): Promise<ParsedCliOptions | { readonly helpText: string } | { readonly error: string }> {
+  const cwd = io.cwd();
+  const stdinFileList = argv.includes("--stdin-file-list") ? await readStdinFileList(io) : null;
   let workspaceRoot = cwd;
   let format: CheckerCliFormat = "text";
   let failOn: CheckerCliFailOn = "warning";
@@ -158,6 +168,27 @@ function parseCliArgs(
       continue;
     }
 
+    if (arg === "--file-list") {
+      const value = argv[index + 1];
+      if (!value) return { error: "Missing value for --file-list" };
+      hasExplicitFileSelection = true;
+      addFileListEntries(readFileList(path.resolve(workspaceRoot, value)), workspaceRoot, {
+        sourceFilePaths,
+        styleFilePaths,
+      });
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--stdin-file-list") {
+      hasExplicitFileSelection = true;
+      addFileListEntries(stdinFileList ?? [], workspaceRoot, {
+        sourceFilePaths,
+        styleFilePaths,
+      });
+      continue;
+    }
+
     if (arg === "--source-file") {
       const value = argv[index + 1];
       if (!value) return { error: "Missing value for --source-file" };
@@ -222,25 +253,7 @@ function writeResult(
   io: CheckerCliIO,
 ): void {
   if (format === "json") {
-    io.stdout(
-      `${JSON.stringify(
-        {
-          sourceFiles: result.sourceFiles,
-          styleFiles: result.styleFiles,
-          summary: result.summary,
-          findings: result.findings.map(({ filePath, finding }) => ({
-            filePath,
-            category: finding.category,
-            code: finding.code,
-            severity: finding.severity,
-            range: finding.range,
-            message: formatCheckerFinding(finding, path.dirname(filePath)),
-          })),
-        },
-        null,
-        2,
-      )}\n`,
-    );
+    io.stdout(`${JSON.stringify(buildJsonReport(result), null, 2)}\n`);
     return;
   }
 
@@ -297,8 +310,77 @@ function summarizeFilteredFindings(
   };
 }
 
+function buildJsonReport(result: WorkspaceCheckResult): CheckerReportJsonV1 {
+  return {
+    schemaVersion: CHECKER_JSON_SCHEMA_VERSION,
+    tool: CHECKER_TOOL_NAME,
+    sourceFiles: result.sourceFiles,
+    styleFiles: result.styleFiles,
+    summary: result.summary,
+    findings: result.findings.map(
+      ({ filePath, finding }): CheckerReportJsonFinding => ({
+        filePath,
+        category: finding.category,
+        code: finding.code,
+        severity: finding.severity,
+        range: finding.range,
+        message: formatCheckerFinding(finding, path.dirname(filePath)),
+      }),
+    ),
+  };
+}
+
 function isSourceFilePath(filePath: string): boolean {
   return /\.(?:[cm]?[jt]sx?)$/u.test(filePath) || filePath.endsWith(".d.ts");
+}
+
+function addFileListEntries(
+  entries: readonly string[],
+  workspaceRoot: string,
+  acc: {
+    readonly sourceFilePaths: string[];
+    readonly styleFilePaths: string[];
+  },
+): void {
+  for (const entry of entries) {
+    const resolved = path.resolve(workspaceRoot, entry);
+    if (isSourceFilePath(resolved)) {
+      acc.sourceFilePaths.push(resolved);
+      continue;
+    }
+    if (findLangForPath(resolved)) {
+      acc.styleFilePaths.push(resolved);
+    }
+  }
+}
+
+function readFileList(filePath: string): readonly string[] {
+  return parseFileList(readFileSync(filePath, "utf8"));
+}
+
+async function readStdinFileList(io: CheckerCliIO): Promise<readonly string[]> {
+  const raw = io.stdin ? await io.stdin() : await readProcessStdin();
+  return parseFileList(raw);
+}
+
+function parseFileList(raw: string): readonly string[] {
+  return raw
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith("#"));
+}
+
+async function readProcessStdin(): Promise<string> {
+  const chunks: Buffer[] = [];
+  return new Promise((resolve, reject) => {
+    process.stdin.on("data", (chunk) => {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    });
+    process.stdin.on("end", () => {
+      resolve(Buffer.concat(chunks).toString("utf8"));
+    });
+    process.stdin.on("error", reject);
+  });
 }
 
 function buildHelpText(): string {
@@ -316,6 +398,8 @@ function buildHelpText(): string {
     "  --source-file <path>         Restrict source checking to one file (repeatable)",
     "  --style-file <path>          Restrict style checking to one file (repeatable)",
     "  --changed-file <path>        Auto-route changed source/style file (repeatable)",
+    "  --file-list <path>           Read changed file paths from a newline-delimited file",
+    "  --stdin-file-list            Read changed file paths from stdin",
     "  --help                       Show this help",
     "",
   ].join("\n");

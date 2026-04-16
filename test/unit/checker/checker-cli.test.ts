@@ -53,6 +53,8 @@ describe("runCheckerCli", () => {
 
     expect(exitCode).toBe(0);
     const payload = JSON.parse(stdout.join(""));
+    expect(payload.schemaVersion).toBe("1");
+    expect(payload.tool).toBe("css-module-explainer/checker");
     expect(payload.summary).toMatchObject({ hints: 1, total: 1 });
     expect(payload.findings).toEqual(
       expect.arrayContaining([
@@ -109,6 +111,44 @@ describe("runCheckerCli", () => {
           category: "style",
           severity: "hint",
           code: "unused-selector",
+        }),
+      ]),
+    );
+  });
+
+  it("supports stdin file lists", async () => {
+    const workspaceRoot = makeWorkspace({
+      "src/App.tsx": [
+        "import classNames from 'classnames/bind';",
+        "import styles from './Button.module.scss';",
+        "const cx = classNames.bind(styles);",
+        "const bad = cx('missing');",
+        "",
+      ].join("\n"),
+      "src/Button.module.scss": ".button {}",
+    });
+    const stdout: string[] = [];
+
+    const exitCode = await runCheckerCli(
+      [workspaceRoot, "--stdin-file-list", "--format", "json", "--fail-on", "none"],
+      {
+        stdout: (message) => stdout.push(message),
+        stderr: () => {},
+        cwd: () => workspaceRoot,
+        stdin: async () => "src/App.tsx\n# comment\n",
+      },
+    );
+
+    expect(exitCode).toBe(0);
+    const payload = JSON.parse(stdout.join(""));
+    expect(payload.sourceFiles).toEqual([path.join(workspaceRoot, "src/App.tsx")]);
+    expect(payload.styleFiles).toEqual([]);
+    expect(payload.summary).toMatchObject({ warnings: 1, hints: 0, total: 1 });
+    expect(payload.findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          category: "source",
+          code: "missing-static-class",
         }),
       ]),
     );
