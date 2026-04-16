@@ -314,4 +314,76 @@ export const Button = () => <div className={styles.root}>hi</div>;
       },
     ]);
   });
+
+  it("returns an add-value action for a missing imported @value binding", async () => {
+    const VALUE_SCSS = `
+@value primary, secondary as accent from './tokens.module.scss';
+
+.button {
+  color: accent;
+}
+`;
+    const TOKENS_SCSS = `@value primary: #ff3355;`;
+    client = createInProcessServer({
+      readStyleFile: (filePath) => {
+        if (filePath.endsWith("Button.module.scss")) return VALUE_SCSS;
+        if (filePath.endsWith("tokens.module.scss")) return TOKENS_SCSS;
+        return null;
+      },
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/Button.module.scss",
+        languageId: "scss",
+        version: 1,
+        text: VALUE_SCSS,
+      },
+    });
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/tokens.module.scss",
+        languageId: "scss",
+        version: 1,
+        text: TOKENS_SCSS,
+      },
+    });
+
+    const diagnostics = await client.waitForDiagnostics(
+      "file:///fake/workspace/src/Button.module.scss",
+    );
+    const missingValue = diagnostics.find((diagnostic) =>
+      diagnostic.message.includes(
+        "@value 'secondary' not found in './tokens.module.scss' for local binding 'accent'.",
+      ),
+    );
+    expect(missingValue).toBeDefined();
+
+    const actions = await client.codeAction({
+      textDocument: { uri: "file:///fake/workspace/src/Button.module.scss" },
+      range: missingValue!.range,
+      context: {
+        diagnostics,
+        triggerKind: 1,
+      },
+    });
+    expect(actions).not.toBeNull();
+    expect(actions).toHaveLength(1);
+    const action = actions![0] as {
+      title: string;
+      edit?: { changes?: Record<string, Array<{ newText: string }>> };
+    };
+    expect(action.title).toBe("Add '@value secondary' to tokens.module.scss");
+    expect(action.edit?.changes?.["file:///fake/workspace/src/tokens.module.scss"]).toEqual([
+      {
+        range: {
+          start: { line: 0, character: 23 },
+          end: { line: 0, character: 23 },
+        },
+        newText: "\n@value secondary: ;",
+      },
+    ]);
+  });
 });

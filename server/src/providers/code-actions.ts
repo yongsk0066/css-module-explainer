@@ -37,6 +37,10 @@ export const handleCodeAction = wrapHandler<CodeActionParams, [], CodeAction[] |
         diagnosticCreateModuleUris.add(createModuleFile.uri);
         actions.push(buildCreateModuleFileQuickFix(diagnostic, createModuleFile));
       }
+      const createValue = extractCreateValue(diagnostic);
+      if (createValue) {
+        actions.push(buildCreateValueQuickFix(diagnostic, createValue));
+      }
     }
     if (diagnosticCreateModuleUris.size === 0) {
       for (const siblingUri of listMissingSiblingStyleModuleUris(params.textDocument.uri, deps)) {
@@ -95,6 +99,21 @@ function extractCreateModuleFile(diagnostic: Diagnostic): { readonly uri: string
   const payload = data.createModuleFile;
   if (!isRecord(payload)) return null;
   return typeof payload.uri === "string" && payload.uri.length > 0 ? { uri: payload.uri } : null;
+}
+
+function extractCreateValue(diagnostic: Diagnostic): {
+  readonly uri: string;
+  readonly range: LspRange;
+  readonly newText: string;
+} | null {
+  const data = diagnostic.data;
+  if (!isRecord(data)) return null;
+  const payload = data.createValue;
+  if (!isRecord(payload)) return null;
+  if (typeof payload.uri !== "string" || typeof payload.newText !== "string") return null;
+  const range = payload.range;
+  if (!isLspRange(range)) return null;
+  return { uri: payload.uri, range, newText: payload.newText };
 }
 
 function isLspRange(value: unknown): value is LspRange {
@@ -174,6 +193,34 @@ function buildCreateModuleFileQuickFix(
   };
 }
 
+function buildCreateValueQuickFix(
+  diagnostic: Diagnostic,
+  createValue: {
+    readonly uri: string;
+    readonly range: LspRange;
+    readonly newText: string;
+  },
+): CodeAction {
+  const valueName = extractCreateValueName(diagnostic.message, createValue.newText);
+  const fileLabel = createValue.uri.split("/").at(-1) ?? createValue.uri;
+  const edit: WorkspaceEdit = {
+    changes: {
+      [createValue.uri]: [
+        {
+          range: createValue.range,
+          newText: createValue.newText,
+        },
+      ],
+    },
+  };
+  return {
+    title: `Add '@value ${valueName}' to ${fileLabel}`,
+    kind: CodeActionKind.QuickFix,
+    diagnostics: [diagnostic],
+    edit,
+  };
+}
+
 function buildProactiveCreateModuleFileQuickFix(uri: string): CodeAction {
   return buildCreateModuleFileAction(uri);
 }
@@ -196,4 +243,11 @@ function buildCreateModuleFileAction(uri: string): CodeAction {
     kind: CodeActionKind.QuickFix,
     edit,
   };
+}
+
+function extractCreateValueName(message: string, newText: string): string {
+  const fromMessage =
+    /@value '([^']+)' not found/.exec(message)?.[1] ?? /local binding '([^']+)'/.exec(message)?.[1];
+  if (fromMessage) return fromMessage;
+  return /^\s*@value\s+([^:\s]+)\s*:/u.exec(newText)?.[1] ?? "value";
 }

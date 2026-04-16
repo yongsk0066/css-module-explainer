@@ -6,7 +6,7 @@ import {
 } from "../core/checker";
 import type { StyleDocumentHIR } from "../core/hir/style-types";
 import { pathToFileUrl } from "../core/util/text-utils";
-import { buildCreateSelectorActionData } from "./code-action-data";
+import { buildCreateSelectorActionData, buildCreateValueActionData } from "./code-action-data";
 import type { ProviderDeps } from "./provider-deps";
 import { toLspRange } from "./lsp-adapters";
 
@@ -91,11 +91,22 @@ function toDiagnostic(
         },
       };
     case "missing-imported-value":
+      const targetDocument = styleDocumentForPath?.(finding.targetFilePath);
+      const data = targetDocument
+        ? {
+            createValue: buildCreateValueActionData(
+              finding.importedName,
+              finding.targetFilePath,
+              targetDocument,
+            ),
+          }
+        : {};
       return {
         range: toLspRange(finding.range),
         severity: DiagnosticSeverity.Warning,
         source: "css-module-explainer",
         message: formatCheckerFinding(finding, ""),
+        data,
       };
     default:
       finding satisfies never;
