@@ -1,0 +1,193 @@
+import { existsSync, readFileSync } from "node:fs";
+import fastGlob from "fast-glob";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import type { StyleDocumentHIR } from "../core/hir/style-types";
+import { buildStyleFileWatcherGlob, findLangForPath } from "../core/scss/lang-registry";
+import { StyleIndexCache } from "../core/scss/scss-index";
+import type { ClassnameTransformMode } from "../core/scss/classname-transform";
+import { AliasResolver, loadWorkspaceTsconfigPathAliases } from "../core/cx/alias-resolver";
+import { detectClassUtilImports, scanCxImports } from "../core/cx/binding-detector";
+import { parseClassExpressions } from "../core/cx/class-ref-parser";
+import { DocumentAnalysisCache } from "../core/indexing/document-analysis-cache";
+import { collectSemanticReferenceContribution } from "../core/semantic/reference-collector";
+import { WorkspaceSemanticWorkspaceReferenceIndex } from "../core/semantic/workspace-reference-index";
+import { WorkspaceStyleDependencyGraph } from "../core/semantic/style-dependency-graph";
+import { createDefaultProgram } from "../core/ts/default-program";
+import { SourceFileCache } from "../core/ts/source-file-cache";
+import { WorkspaceTypeResolver } from "../core/ts/type-resolver";
+
+const SOURCE_GLOB = "**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs}";
+const DEFAULT_IGNORES = ["**/node_modules/**", "**/dist/**", "**/.git/**"] as const;
+
+export interface WorkspaceCheckResolvedFiles {
+  readonly sourceFiles: readonly string[];
+  readonly styleFiles: readonly string[];
+}
+
+export interface WorkspaceStyleHost {
+  readonly styleDependencyGraph: WorkspaceStyleDependencyGraph;
+  readonly styleDocumentForPath: (filePath: string) => StyleDocumentHIR | null;
+  preloadStyleDocuments(): void;
+}
+
+export interface WorkspaceAnalysisHost {
+  readonly analysisCache: DocumentAnalysisCache;
+  readonly semanticReferenceIndex: WorkspaceSemanticWorkspaceReferenceIndex;
+  readonly typeResolver: WorkspaceTypeResolver;
+}
+
+export interface SourceDocumentSnapshot {
+  readonly uri: string;
+  readonly filePath: string;
+  readonly content: string;
+  readonly version: number;
+}
+
+export async function resolveWorkspaceCheckFiles(params: {
+  readonly workspaceRoot: string;
+  readonly sourceFilePaths?: readonly string[];
+  readonly styleFilePaths?: readonly string[];
+}): Promise<WorkspaceCheckResolvedFiles> {
+  const sourceFiles = (
+    params.sourceFilePaths ?? (await collectWorkspaceFiles(params.workspaceRoot, SOURCE_GLOB))
+  ).toSorted();
+  const styleFiles = (
+    params.styleFilePaths ??
+    (await collectWorkspaceFiles(params.workspaceRoot, buildStyleFileWatcherGlob()))
+  )
+    .filter((filePath) => findLangForPath(filePath) !== null)
+    .toSorted();
+
+  return {
+    sourceFiles,
+    styleFiles,
+  };
+}
+
+export function createWorkspaceStyleHost(params: {
+  readonly styleFiles: readonly string[];
+  readonly classnameTransform: ClassnameTransformMode;
+}): WorkspaceStyleHost {
+  const styleIndexCache = new StyleIndexCache({ max: 1000 });
+  const styleDependencyGraph = new WorkspaceStyleDependencyGraph();
+  const styleContents = new Map<string, string>();
+
+  const readStyleFile = (filePath: string): string | null => {
+    const cached = styleContents.get(filePath);
+    if (cached !== undefined) return cached;
+    try {
+      const content = readFileSync(filePath, "utf8");
+      styleContents.set(filePath, content);
+      return content;
+    } catch {
+      return null;
+    }
+  };
+
+  const styleDocumentForPath = (filePath: string): StyleDocumentHIR | null => {
+    if (!findLangForPath(filePath)) return null;
+    const content = readStyleFile(filePath);
+    if (content === null) return null;
+    const styleDocument = styleIndexCache.getStyleDocument(
+      filePath,
+      content,
+      params.classnameTransform,
+    );
+    styleDependencyGraph.record(filePath, styleDocument);
+    return styleDocument;
+  };
+
+  return {
+    styleDependencyGraph,
+    styleDocumentForPath,
+    preloadStyleDocuments(): void {
+      for (const styleFile of params.styleFiles) {
+        styleDocumentForPath(styleFile);
+      }
+    },
+  };
+}
+
+export function createWorkspaceAnalysisHost(params: {
+  readonly workspaceRoot: string;
+  readonly classnameTransform: ClassnameTransformMode;
+  readonly pathAlias: Readonly<Record<string, string>>;
+  readonly styleDocumentForPath: (filePath: string) => StyleDocumentHIR | null;
+}): WorkspaceAnalysisHost {
+  const aliasResolver = new AliasResolver(
+    params.workspaceRoot,
+    params.pathAlias,
+    loadWorkspaceTsconfigPathAliases(params.workspaceRoot),
+  );
+  const sourceFileCache = new SourceFileCache({ max: 500 });
+  const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+  const typeResolver = new WorkspaceTypeResolver({ createProgram: createDefaultProgram });
+
+  const analysisCache = new DocumentAnalysisCache({
+    sourceFileCache,
+    scanCxImports,
+    parseClassExpressions,
+    detectClassUtilImports,
+    fileExists: existsSync,
+    aliasResolver,
+    max: 500,
+    onAnalyze: (uri, entry) => {
+      const contribution = collectSemanticReferenceContribution(uri, entry, {
+        styleDocumentForPath: params.styleDocumentForPath,
+        typeResolver,
+        workspaceRoot: params.workspaceRoot,
+        filePath: fileURLToPath(uri),
+        settingsKey: workspaceSettingsKey(params.classnameTransform, params.pathAlias),
+      });
+      semanticReferenceIndex.record(
+        uri,
+        contribution.referenceSites,
+        contribution.moduleUsages,
+        contribution.deps,
+      );
+    },
+  });
+
+  return {
+    analysisCache,
+    semanticReferenceIndex,
+    typeResolver,
+  };
+}
+
+export function collectSourceDocuments(
+  sourceFiles: readonly string[],
+  analysisCache: DocumentAnalysisCache,
+): readonly SourceDocumentSnapshot[] {
+  return sourceFiles.map((filePath) => {
+    const content = readFileSync(filePath, "utf8");
+    const uri = pathToFileURL(filePath).href;
+    const version = 1;
+    analysisCache.get(uri, content, filePath, version);
+    return { uri, filePath, content, version } as const;
+  });
+}
+
+async function collectWorkspaceFiles(
+  workspaceRoot: string,
+  pattern: string,
+): Promise<readonly string[]> {
+  return fastGlob(pattern, {
+    cwd: workspaceRoot,
+    absolute: true,
+    onlyFiles: true,
+    followSymbolicLinks: false,
+    ignore: [...DEFAULT_IGNORES],
+  });
+}
+
+function workspaceSettingsKey(
+  classnameTransform: ClassnameTransformMode,
+  pathAlias: Readonly<Record<string, string>>,
+): string {
+  const aliases = Object.entries(pathAlias)
+    .toSorted(([a], [b]) => a.localeCompare(b))
+    .map(([key, value]) => `${key}=${value}`)
+    .join("|");
+  return `transform:${classnameTransform};alias:${aliases}`;
+}
