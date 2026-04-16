@@ -1,11 +1,11 @@
 import path from "node:path";
-import { formatCheckerFinding } from "../checker-surface";
-import type { CheckerFinding, CheckerSeverity } from "../core/checker/contracts";
+import { formatCheckerFinding } from "../../src/checker-surface";
+import type { CheckerFinding, CheckerSeverity } from "../../src/core/checker/contracts";
 import type {
   WorkspaceCheckCommandFilters,
   WorkspaceCheckCommandPreset,
   WorkspaceCheckResult,
-} from "../checker-host";
+} from "../../src/checker-host";
 
 export interface CheckerReportJsonFinding {
   readonly filePath: string;

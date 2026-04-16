@@ -1,4 +1,4 @@
-import { runCheckerCli } from "../server/src/checker-cli";
+import { runCheckerCli } from "../server/checker-cli/src";
 import { SEMANTIC_SMOKE_CORPUS } from "./semantic-smoke-corpus";
 
 void (async () => {

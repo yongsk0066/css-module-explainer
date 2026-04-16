@@ -1,4 +1,4 @@
-import { runCheckerCli } from "../server/src/checker-cli";
+import { runCheckerCli } from "../server/checker-cli/src";
 
 void (async () => {
   const exitCode = await runCheckerCli(process.argv.slice(2));

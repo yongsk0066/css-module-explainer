@@ -2,7 +2,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { runCheckerCli } from "../../../server/src/checker-cli";
+import { runCheckerCli } from "../../../server/checker-cli/src";
 
 const tempDirs: string[] = [];
 
