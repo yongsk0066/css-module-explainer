@@ -31,6 +31,7 @@ describe("runWorkspaceCheckCommand", () => {
         preset: "ci",
         category: "all",
         severity: "warning",
+        includeBundles: ["ci-default"],
         includeCodes: [],
         excludeCodes: ["unused-selector"],
       },
@@ -42,6 +43,7 @@ describe("runWorkspaceCheckCommand", () => {
       preset: "ci",
       category: "all",
       severity: "warning",
+      includeBundles: ["ci-default"],
       includeCodes: [],
       excludeCodes: ["unused-selector"],
     });

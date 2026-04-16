@@ -88,6 +88,14 @@ pnpm check:workspace -- . --preset changed-source --changed-file src/App.tsx
 pnpm check:workspace -- . --preset changed-style --changed-file src/Button.module.scss
 ```
 
+Preset policy:
+
+- `ci` => warning-only `ci-default` bundle
+- `changed-source` => `source-missing` bundle with compact text output
+- `changed-style` => `style-recovery` + `style-unused` bundles with compact text output
+
+Use `pnpm check:workspace -- --list-bundles` to inspect the current named bundle map.
+
 ## Publish workflow
 
 Publishing is done through the `Publish Extension` GitHub Actions workflow.

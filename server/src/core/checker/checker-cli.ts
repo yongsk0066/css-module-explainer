@@ -13,6 +13,7 @@ import {
 import {
   expandCheckerCodeBundles,
   isCheckerCodeBundle,
+  listCheckerCodeBundles,
   type CheckerCodeBundle,
 } from "./checker-code-bundles";
 import { formatCheckerFinding } from "./format-checker-finding";
@@ -41,6 +42,10 @@ export async function runCheckerCli(
     io.stdout(parsed.helpText);
     return 0;
   }
+  if ("bundleText" in parsed) {
+    io.stdout(parsed.bundleText);
+    return 0;
+  }
   if ("error" in parsed) {
     io.stderr(`${parsed.error}\n`);
     io.stderr(buildHelpText());
@@ -66,7 +71,12 @@ interface ParsedCliOptions {
 async function parseCliArgs(
   argv: readonly string[],
   io: CheckerCliIO,
-): Promise<ParsedCliOptions | { readonly helpText: string } | { readonly error: string }> {
+): Promise<
+  | ParsedCliOptions
+  | { readonly helpText: string }
+  | { readonly bundleText: string }
+  | { readonly error: string }
+> {
   const cwd = io.cwd();
   const stdinFileList = argv.includes("--stdin-file-list") ? await readStdinFileList(io) : null;
   let workspaceRoot = cwd;
@@ -80,6 +90,7 @@ async function parseCliArgs(
   let explicitCategory = false;
   let explicitSeverity = false;
   let explicitSummaryMode = false;
+  let explicitIncludeSelection = false;
   let classnameTransform: ClassnameTransformMode = "asIs";
   const pathAlias: Record<string, string> = {};
   const sourceFilePaths: string[] = [];
@@ -94,6 +105,7 @@ async function parseCliArgs(
 
     if (arg === "--") continue;
     if (arg === "--help" || arg === "-h") return { helpText: buildHelpText() };
+    if (arg === "--list-bundles") return { bundleText: buildBundleHelpText() };
 
     if (arg === "--root") {
       const value = argv[index + 1];
@@ -200,6 +212,7 @@ async function parseCliArgs(
       const value = argv[index + 1];
       if (!value) return { error: "Missing value for --include-code" };
       includeCodes.push(value);
+      explicitIncludeSelection = true;
       index += 1;
       continue;
     }
@@ -208,9 +221,10 @@ async function parseCliArgs(
       const value = argv[index + 1];
       if (!value) return { error: "Missing value for --include-bundle" };
       if (!isCheckerCodeBundle(value)) {
-        return { error: "Expected --include-bundle source-missing|style-recovery|style-unused" };
+        return { error: `Expected --include-bundle ${buildBundleValueHelpText()}` };
       }
       includeBundles.push(value);
+      explicitIncludeSelection = true;
       index += 1;
       continue;
     }
@@ -283,8 +297,12 @@ async function parseCliArgs(
     if (!explicitCategory) category = defaults.category;
     if (!explicitSeverity) severity = defaults.severity;
     if (!explicitSummaryMode) summaryMode = defaults.summaryMode;
+    if (!explicitIncludeSelection) {
+      includeBundles.push(...defaults.includeBundles);
+    }
   }
 
+  const dedupedBundles = [...new Set(includeBundles)];
   return {
     options: {
       workspaceRoot,
@@ -301,10 +319,8 @@ async function parseCliArgs(
       preset,
       category,
       severity,
-      includeCodes: expandCheckerCodeBundles(
-        [...new Set(includeBundles)],
-        [...new Set(includeCodes)],
-      ),
+      includeBundles: dedupedBundles,
+      includeCodes: expandCheckerCodeBundles(dedupedBundles, [...new Set(includeCodes)]),
       excludeCodes: [...new Set(excludeCodes)],
     },
     format,
@@ -318,6 +334,7 @@ function presetDefaults(preset: CheckerCliPreset): {
   readonly category: CheckerCliCategory;
   readonly severity: CheckerCliSeverity;
   readonly summaryMode: CheckerCliSummaryMode;
+  readonly includeBundles: readonly CheckerCodeBundle[];
 } {
   switch (preset) {
     case "ci":
@@ -326,6 +343,7 @@ function presetDefaults(preset: CheckerCliPreset): {
         category: "all",
         severity: "warning",
         summaryMode: "summary",
+        includeBundles: ["ci-default"],
       };
     case "changed-style":
       return {
@@ -333,6 +351,7 @@ function presetDefaults(preset: CheckerCliPreset): {
         category: "style",
         severity: "all",
         summaryMode: "compact",
+        includeBundles: ["style-recovery", "style-unused"],
       };
     case "changed-source":
       return {
@@ -340,6 +359,7 @@ function presetDefaults(preset: CheckerCliPreset): {
         category: "source",
         severity: "all",
         summaryMode: "compact",
+        includeBundles: ["source-missing"],
       };
     default:
       preset satisfies never;
@@ -348,6 +368,7 @@ function presetDefaults(preset: CheckerCliPreset): {
         category: "all",
         severity: "all",
         summaryMode: "full",
+        includeBundles: [],
       };
   }
 }
@@ -469,6 +490,8 @@ function buildHelpText(): string {
     "  --path-alias <prefix=target> Repeatable native path-alias override",
     "  --include-code <code>        Restrict findings to one rule code (repeatable)",
     "  --include-bundle <bundle>    Restrict findings to one named code bundle",
+    `                               Available: ${buildBundleValueHelpText()}`,
+    "  --list-bundles               Print named code bundles and exit",
     "  --exclude-code <code>        Remove one rule code from output (repeatable)",
     "  --source-file <path>         Restrict source checking to one file (repeatable)",
     "  --style-file <path>          Restrict style checking to one file (repeatable)",
@@ -476,6 +499,20 @@ function buildHelpText(): string {
     "  --file-list <path>           Read changed file paths from a newline-delimited file",
     "  --stdin-file-list            Read changed file paths from stdin",
     "  --help                       Show this help",
+    "",
+  ].join("\n");
+}
+
+function buildBundleValueHelpText(): string {
+  return listCheckerCodeBundles()
+    .map(({ bundle }) => bundle)
+    .join("|");
+}
+
+function buildBundleHelpText(): string {
+  return [
+    "Named checker code bundles:",
+    ...listCheckerCodeBundles().map(({ bundle, codes }) => `  ${bundle}: ${codes.join(", ")}`),
     "",
   ].join("\n");
 }

@@ -28,6 +28,7 @@ export {
 export {
   expandCheckerCodeBundles,
   isCheckerCodeBundle,
+  listCheckerCodeBundles,
   type CheckerCodeBundle,
 } from "./checker-code-bundles";
 export {

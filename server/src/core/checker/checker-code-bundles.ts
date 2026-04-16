@@ -1,8 +1,20 @@
 import type { CheckerFinding } from "./contracts";
 
-export type CheckerCodeBundle = "source-missing" | "style-recovery" | "style-unused";
+export type CheckerCodeBundle = "ci-default" | "source-missing" | "style-recovery" | "style-unused";
 
 const CHECKER_CODE_BUNDLES: Record<CheckerCodeBundle, readonly CheckerFinding["code"][]> = {
+  "ci-default": [
+    "missing-module",
+    "missing-static-class",
+    "missing-template-prefix",
+    "missing-resolved-class-values",
+    "missing-resolved-class-domain",
+    "missing-composed-module",
+    "missing-composed-selector",
+    "missing-value-module",
+    "missing-imported-value",
+    "missing-keyframes",
+  ],
   "source-missing": [
     "missing-module",
     "missing-static-class",
@@ -22,6 +34,16 @@ const CHECKER_CODE_BUNDLES: Record<CheckerCodeBundle, readonly CheckerFinding["c
 
 export function isCheckerCodeBundle(value: string): value is CheckerCodeBundle {
   return value in CHECKER_CODE_BUNDLES;
+}
+
+export function listCheckerCodeBundles(): readonly {
+  readonly bundle: CheckerCodeBundle;
+  readonly codes: readonly CheckerFinding["code"][];
+}[] {
+  return (Object.keys(CHECKER_CODE_BUNDLES) as CheckerCodeBundle[]).map((bundle) => ({
+    bundle,
+    codes: CHECKER_CODE_BUNDLES[bundle],
+  }));
 }
 
 export function expandCheckerCodeBundles(

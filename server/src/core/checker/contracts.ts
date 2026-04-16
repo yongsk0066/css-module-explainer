@@ -27,6 +27,7 @@ export interface CheckerReportJsonV1 {
     readonly preset: "ci" | "changed-style" | "changed-source" | null;
     readonly category: CheckerFinding["category"] | "all";
     readonly severity: CheckerSeverity | "all";
+    readonly includeBundles: readonly string[];
     readonly includeCodes: readonly string[];
     readonly excludeCodes: readonly string[];
   };

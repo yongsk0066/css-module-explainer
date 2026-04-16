@@ -60,6 +60,7 @@ describe("runCheckerCli", () => {
       preset: null,
       category: "all",
       severity: "all",
+      includeBundles: [],
       includeCodes: [],
       excludeCodes: [],
     });
@@ -116,6 +117,7 @@ describe("runCheckerCli", () => {
       preset: null,
       category: "style",
       severity: "hint",
+      includeBundles: [],
       includeCodes: [],
       excludeCodes: [],
     });
@@ -162,6 +164,7 @@ describe("runCheckerCli", () => {
       preset: null,
       category: "all",
       severity: "all",
+      includeBundles: [],
       includeCodes: [],
       excludeCodes: [],
     });
@@ -244,6 +247,7 @@ describe("runCheckerCli", () => {
       preset: null,
       category: "all",
       severity: "all",
+      includeBundles: ["style-unused"],
       includeCodes: ["unused-selector"],
       excludeCodes: [],
     });
@@ -271,22 +275,44 @@ describe("runCheckerCli", () => {
     });
     const stdout: string[] = [];
 
-    const exitCode = await runCheckerCli([workspaceRoot, "--preset", "ci"], {
+    const exitCode = await runCheckerCli([workspaceRoot, "--preset", "ci", "--format", "json"], {
       stdout: (message) => stdout.push(message),
       stderr: () => {},
       cwd: () => workspaceRoot,
     });
 
     expect(exitCode).toBe(1);
-    const output = stdout.join("");
-    expect(output).not.toContain("[warning] missing-static-class");
-    expect(output).not.toContain("unused-selector");
-    expect(output).toContain(
-      "Checked 1 source files and 1 style modules. 1 findings (1 warnings, 0 hints).",
+    const payload = JSON.parse(stdout.join(""));
+    expect(payload.filters).toEqual({
+      preset: "ci",
+      category: "all",
+      severity: "warning",
+      includeBundles: ["ci-default"],
+      includeCodes: [
+        "missing-module",
+        "missing-static-class",
+        "missing-template-prefix",
+        "missing-resolved-class-values",
+        "missing-resolved-class-domain",
+        "missing-composed-module",
+        "missing-composed-selector",
+        "missing-value-module",
+        "missing-imported-value",
+        "missing-keyframes",
+      ],
+      excludeCodes: [],
+    });
+    expect(payload.findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          category: "source",
+          code: "missing-static-class",
+        }),
+      ]),
     );
   });
 
-  it("uses compact output for changed-style preset", async () => {
+  it("uses compact output and style bundles for changed-style preset", async () => {
     const workspaceRoot = makeWorkspace({
       "src/Button.module.scss": ".button {}\n.unused {}",
     });
@@ -307,7 +333,7 @@ describe("runCheckerCli", () => {
     );
   });
 
-  it("lets explicit flags override preset defaults", async () => {
+  it("lets explicit include selection override preset bundle defaults", async () => {
     const workspaceRoot = makeWorkspace({
       "src/App.tsx": [
         "import classNames from 'classnames/bind';",
@@ -325,8 +351,8 @@ describe("runCheckerCli", () => {
         workspaceRoot,
         "--preset",
         "changed-style",
-        "--category",
-        "all",
+        "--include-code",
+        "missing-static-class",
         "--format",
         "json",
         "--fail-on",
@@ -343,23 +369,31 @@ describe("runCheckerCli", () => {
     const payload = JSON.parse(stdout.join(""));
     expect(payload.filters).toEqual({
       preset: "changed-style",
-      category: "all",
+      category: "style",
       severity: "all",
-      includeCodes: [],
+      includeBundles: [],
+      includeCodes: ["missing-static-class"],
       excludeCodes: [],
     });
-    expect(payload.findings).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          category: "source",
-          code: "missing-static-class",
-        }),
-        expect.objectContaining({
-          category: "style",
-          code: "unused-selector",
-        }),
-      ]),
-    );
+    expect(payload.findings).toEqual([]);
+  });
+
+  it("prints available code bundles", async () => {
+    const workspaceRoot = makeWorkspace({});
+    const stdout: string[] = [];
+
+    const exitCode = await runCheckerCli([workspaceRoot, "--list-bundles"], {
+      stdout: (message) => stdout.push(message),
+      stderr: () => {},
+      cwd: () => workspaceRoot,
+    });
+
+    expect(exitCode).toBe(0);
+    const output = stdout.join("");
+    expect(output).toContain("ci-default:");
+    expect(output).toContain("source-missing:");
+    expect(output).toContain("style-recovery:");
+    expect(output).toContain("style-unused:");
   });
 });
 

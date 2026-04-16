@@ -6,6 +6,7 @@ import {
   type WorkspaceCheckResult,
   type WorkspaceCheckSummary,
 } from "./check-workspace";
+import type { CheckerCodeBundle } from "./checker-code-bundles";
 import type {
   CheckerReportJsonFinding,
   CheckerReportJsonV1,
@@ -20,6 +21,7 @@ export interface WorkspaceCheckCommandFilters {
   readonly preset: WorkspaceCheckCommandPreset | null;
   readonly category: WorkspaceCheckCommandCategory;
   readonly severity: WorkspaceCheckCommandSeverity;
+  readonly includeBundles: readonly CheckerCodeBundle[];
   readonly includeCodes: readonly string[];
   readonly excludeCodes: readonly string[];
 }
@@ -88,6 +90,7 @@ export function buildCheckerJsonReport(
       preset: filters.preset,
       category: filters.category,
       severity: filters.severity,
+      includeBundles: filters.includeBundles,
       includeCodes: filters.includeCodes,
       excludeCodes: filters.excludeCodes,
     },
