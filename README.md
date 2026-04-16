@@ -31,6 +31,8 @@ export function Button({ active, size }: { active: boolean; size: "sm" | "lg" })
   - Unused selector diagnostics
   - `composes` token definition/references/hover inside style modules
   - Diagnostics and quick fixes for unresolved composed modules
+  - Same-file `@keyframes` hover/definition/references plus missing-target recovery
+  - Local and imported `@value` definition/references/diagnostics plus missing-target recovery
 - Resolution behavior
   - `classnames/bind` bindings, multiple bindings per file, and function-local bindings
   - `classnames` / `clsx` calls that use `styles.foo` or `styles["foo-bar"]`
@@ -195,6 +197,20 @@ pnpm test:bench
 pnpm build
 pnpm package
 ```
+
+Batch checker:
+
+```bash
+pnpm check:workspace -- . --preset ci
+pnpm check:workspace -- . --preset changed-style --changed-file src/Button.module.scss
+pnpm check:workspace -- . --format json --fail-on none
+```
+
+Current checker policy:
+
+- `@keyframes` validation is same-file only in the current first pass
+- `@value` validation covers local declarations and imported bindings between style modules
+- explicit CLI flags override preset defaults
 
 Test layout:
 

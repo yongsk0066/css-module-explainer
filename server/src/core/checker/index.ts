@@ -25,5 +25,10 @@ export {
   type WorkspaceCheckResult,
   type WorkspaceCheckSummary,
 } from "./check-workspace";
-export { runCheckerCli, type CheckerCliFailOn, type CheckerCliFormat } from "./checker-cli";
+export {
+  runCheckerCli,
+  type CheckerCliFailOn,
+  type CheckerCliFormat,
+  type CheckerCliPreset,
+} from "./checker-cli";
 export { formatCheckerFinding } from "./format-checker-finding";

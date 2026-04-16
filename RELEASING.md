@@ -64,6 +64,7 @@ Before a release:
 pnpm install
 pnpm release:verify
 pnpm test:extension-host
+pnpm check:workspace -- . --preset ci --fail-on none
 pnpm --dir examples exec tsc -p tsconfig.json --noEmit
 pnpm --dir examples build
 pnpm exec vsce package --no-dependencies
@@ -75,6 +76,10 @@ pnpm exec vsce package --no-dependencies
 2. run `pnpm check`
 3. run `pnpm test`
 4. run `pnpm build`
+
+`pnpm check:workspace -- . --preset ci --fail-on none` is a semantic smoke pass.
+It is not the release gate yet. It gives one consistent batch view of current
+source/style findings before packaging.
 
 ## Publish workflow
 

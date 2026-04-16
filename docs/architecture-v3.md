@@ -106,6 +106,8 @@ Document facts live in:
 - nested metadata
 - BEM suffix metadata
 - `composes` facts
+- `@keyframes` declarations and animation-name references
+- `@value` declarations, imports, and references
 
 These types preserve what exists in the document. They do not decide:
 
@@ -194,6 +196,10 @@ Examples:
 - `read-selector-rewrite-safety.ts`
 - `read-style-rewrite-policy.ts`
 
+The checker is a second consumer of the same semantic contracts:
+
+- `server/src/core/checker/*`
+
 Read models turn low-level semantic state into stable summaries that providers
 can consume directly.
 
@@ -213,6 +219,7 @@ Benefits:
 - providers get thinner
 - feature behavior is more consistent
 - semantic changes can be made below the provider layer
+- non-editor consumers can reuse the same semantic contracts
 
 ## 5. Rewrite and provider policy
 
@@ -265,6 +272,9 @@ Roles:
   - stores reverse lookup data for invalidation
 - style dependency graph
   - stores `composes` relationships
+
+This storage also feeds token-style features that are not selector-only, such
+as `@value` and same-file `@keyframes` recovery.
 
 This split exists because query, indexing, and invalidation do not need the same
 data structure, even if they are all fed by the same analysis results.
@@ -418,8 +428,16 @@ In practical terms, the current structure gives us:
 - more consistent behavior across hover, definition, references, rename, completion, and diagnostics
 - fewer provider-local heuristics
 - better support for multi-root workspaces and `composes`
+- checker and batch-consumer entrypoints that reuse the same semantic pipeline
+- token-level style semantics for `@value` and first-pass `@keyframes`
 - clearer invalidation behavior
 - a codebase that is easier to extend without reopening old architectural shortcuts
+
+Current intentional limits:
+
+- `@keyframes` validation and navigation are same-file first pass only
+- `@value` covers local declarations and imported bindings between style modules
+- token semantics follow the same layer boundaries as selector semantics; they do not add a parallel semantic path
 
 ## Rules that should remain true
 
