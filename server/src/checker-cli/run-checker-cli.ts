@@ -1,23 +1,23 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import type { ClassnameTransformMode } from "../scss/classname-transform";
-import { findLangForPath } from "../scss/lang-registry";
-import type { WorkspaceCheckOptions, WorkspaceCheckResult } from "./check-workspace";
+import type { ClassnameTransformMode } from "../core/scss/classname-transform";
+import { findLangForPath } from "../core/scss/lang-registry";
+import type { WorkspaceCheckOptions, WorkspaceCheckResult } from "../core/checker/check-workspace";
 import {
   runWorkspaceCheckCommand,
   type WorkspaceCheckCommandCategory,
   type WorkspaceCheckCommandFilters,
   type WorkspaceCheckCommandPreset,
   type WorkspaceCheckCommandSeverity,
-} from "./check-workspace-command";
+} from "../core/checker/check-workspace-command";
 import {
   expandCheckerCodeBundles,
   isCheckerCodeBundle,
   listCheckerCodeBundles,
   type CheckerCodeBundle,
-} from "./checker-code-bundles";
-import { formatCheckerFinding } from "./format-checker-finding";
-import type { CheckerReportJsonV1 } from "./contracts";
+} from "../core/checker/checker-code-bundles";
+import { formatCheckerFinding } from "../core/checker/format-checker-finding";
+import type { CheckerReportJsonV1 } from "../core/checker/contracts";
 
 export interface CheckerCliIO {
   readonly stdout: (message: string) => void;

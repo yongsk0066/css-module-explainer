@@ -42,10 +42,4 @@ export {
   type WorkspaceCheckCommandResult,
   type WorkspaceCheckCommandSeverity,
 } from "./check-workspace-command";
-export {
-  runCheckerCli,
-  type CheckerCliFailOn,
-  type CheckerCliFormat,
-  type CheckerCliPreset,
-} from "./checker-cli";
 export { formatCheckerFinding } from "./format-checker-finding";
