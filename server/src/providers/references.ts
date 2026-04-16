@@ -5,7 +5,11 @@ import {
   findKeyframesAtCursor,
   findKeyframesByName,
   findSelectorAtCursor,
+  findValueDeclAtCursor,
+  findValueDeclByName,
+  findValueRefAtCursor,
   listAnimationNameRefs,
+  listValueRefs,
   readSelectorUsageSummary,
   resolveComposesTarget,
 } from "../core/query";
@@ -87,19 +91,43 @@ export const handleReferences = wrapHandler<ReferenceParams, [], Location[] | nu
         );
         return ref ? findKeyframesByName(styleDocument, ref.name) : null;
       })();
-    if (!keyframes) return null;
+    if (keyframes) {
+      const refs = listAnimationNameRefs(styleDocument, keyframes.name).map<Location>((ref) => ({
+        uri: params.textDocument.uri,
+        range: toLspRange(ref.range),
+      }));
+      if (params.context.includeDeclaration) {
+        refs.unshift({
+          uri: params.textDocument.uri,
+          range: toLspRange(keyframes.range),
+        });
+      }
+      return refs.length > 0 ? refs : null;
+    }
 
-    const refs = listAnimationNameRefs(styleDocument, keyframes.name).map<Location>((ref) => ({
+    const valueDecl =
+      findValueDeclAtCursor(styleDocument, params.position.line, params.position.character) ??
+      (() => {
+        const ref = findValueRefAtCursor(
+          styleDocument,
+          params.position.line,
+          params.position.character,
+        );
+        return ref ? findValueDeclByName(styleDocument, ref.name) : null;
+      })();
+    if (!valueDecl) return null;
+
+    const valueRefs = listValueRefs(styleDocument, valueDecl.name).map<Location>((ref) => ({
       uri: params.textDocument.uri,
       range: toLspRange(ref.range),
     }));
     if (params.context.includeDeclaration) {
-      refs.unshift({
+      valueRefs.unshift({
         uri: params.textDocument.uri,
-        range: toLspRange(keyframes.range),
+        range: toLspRange(valueDecl.range),
       });
     }
-    return refs.length > 0 ? refs : null;
+    return valueRefs.length > 0 ? valueRefs : null;
   },
   null,
 );

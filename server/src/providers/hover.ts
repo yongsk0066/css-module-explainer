@@ -6,6 +6,10 @@ import {
   findKeyframesAtCursor,
   findKeyframesByName,
   listAnimationNameRefs,
+  findValueDeclAtCursor,
+  findValueDeclByName,
+  findValueRefAtCursor,
+  listValueRefs,
   findSelectorAtCursor,
   readSelectorStyleDependencySummary,
   readSelectorUsageSummary,
@@ -14,7 +18,12 @@ import {
 } from "../core/query";
 import { findLangForPath } from "../core/scss/lang-registry";
 import { toLspRange } from "./lsp-adapters";
-import { renderHover, renderKeyframesHover, renderSelectorHover } from "./hover-renderer";
+import {
+  renderHover,
+  renderKeyframesHover,
+  renderSelectorHover,
+  renderValueHover,
+} from "./hover-renderer";
 import { wrapHandler } from "./_wrap-handler";
 import { withSourceExpressionAtCursor, type SourceExpressionContext } from "./cursor-dispatch";
 import type { CursorParams, ProviderDeps } from "./provider-deps";
@@ -167,21 +176,54 @@ function buildStyleHover(params: CursorParams, deps: ProviderDeps): Hover | null
     };
   }
 
-  const animationRef = findAnimationNameRefAtCursor(styleDocument, params.line, params.character);
-  if (!animationRef) return null;
-  const targetKeyframes = findKeyframesByName(styleDocument, animationRef.name);
-  if (!targetKeyframes) return null;
+  const valueDecl = findValueDeclAtCursor(styleDocument, params.line, params.character);
+  if (valueDecl) {
+    const markdown = renderValueHover({
+      valueDecl,
+      scssModulePath: params.filePath,
+      referenceCount: listValueRefs(styleDocument, valueDecl.name).length,
+      workspaceRoot: deps.workspaceRoot,
+    });
+    return {
+      range: toLspRange(valueDecl.range),
+      contents: { kind: "markdown", value: markdown },
+    };
+  }
 
-  const markdown = renderKeyframesHover({
-    keyframes: targetKeyframes,
-    headingName: animationRef.name,
-    note: `Referenced via \`${animationRef.property}\``,
+  const animationRef = findAnimationNameRefAtCursor(styleDocument, params.line, params.character);
+  if (animationRef) {
+    const targetKeyframes = findKeyframesByName(styleDocument, animationRef.name);
+    if (!targetKeyframes) return null;
+
+    const markdown = renderKeyframesHover({
+      keyframes: targetKeyframes,
+      headingName: animationRef.name,
+      note: `Referenced via \`${animationRef.property}\``,
+      scssModulePath: params.filePath,
+      referenceCount: listAnimationNameRefs(styleDocument, targetKeyframes.name).length,
+      workspaceRoot: deps.workspaceRoot,
+    });
+    return {
+      range: toLspRange(animationRef.range),
+      contents: { kind: "markdown", value: markdown },
+    };
+  }
+
+  const valueRef = findValueRefAtCursor(styleDocument, params.line, params.character);
+  if (!valueRef) return null;
+  const targetValueDecl = findValueDeclByName(styleDocument, valueRef.name);
+  if (!targetValueDecl) return null;
+
+  const markdown = renderValueHover({
+    valueDecl: targetValueDecl,
+    headingName: valueRef.name,
+    note: `Referenced via \`${valueRef.source === "declaration" ? "declaration value" : "@value"}\``,
     scssModulePath: params.filePath,
-    referenceCount: listAnimationNameRefs(styleDocument, targetKeyframes.name).length,
+    referenceCount: listValueRefs(styleDocument, targetValueDecl.name).length,
     workspaceRoot: deps.workspaceRoot,
   });
   return {
-    range: toLspRange(animationRef.range),
+    range: toLspRange(valueRef.range),
     contents: { kind: "markdown", value: markdown },
   };
 }

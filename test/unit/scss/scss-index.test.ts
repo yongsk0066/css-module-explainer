@@ -336,6 +336,27 @@ describe("parseStyleSelectorMap / edge cases", () => {
     });
   });
 
+  describe("@value first pass", () => {
+    it("records local @value declarations and same-file refs", () => {
+      const document = parseStyleDocument(
+        `@value primary: #ff3355;
+@value accent: primary;
+.button { color: primary; border-color: accent; }
+.copy { color: "primary"; }`,
+        "/fake/a.module.scss",
+      );
+      expect(document.valueDecls.map((valueDecl) => [valueDecl.name, valueDecl.value])).toEqual([
+        ["primary", "#ff3355"],
+        ["accent", "primary"],
+      ]);
+      expect(document.valueRefs.map((valueRef) => [valueRef.name, valueRef.source])).toEqual([
+        ["primary", "valueDecl"],
+        ["primary", "declaration"],
+        ["accent", "declaration"],
+      ]);
+    });
+  });
+
   describe("@media / @at-root unwrapping", () => {
     it("indexes classes inside @media", () => {
       const map = parseStyleSelectorMap(

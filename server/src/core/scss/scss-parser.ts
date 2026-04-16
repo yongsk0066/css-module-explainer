@@ -12,6 +12,8 @@ import {
   type NestedSelectorSafety,
   type SelectorDeclHIR,
   type StyleDocumentHIR,
+  type ValueDeclHIR,
+  type ValueRefHIR,
 } from "../hir/style-types";
 import { classifyBemSuffixSite } from "./bem-suffix";
 import { findLangForPath, getRuntimeSyntax } from "./lang-registry";
@@ -104,6 +106,9 @@ export function parseStyleDocument(content: string, filePath: string): StyleDocu
     return makeStyleDocumentHIR(filePath, []);
   }
 
+  const valueDecls = collectValueDecls(root);
+  const valueRefs = collectValueRefs(root, valueDecls);
+
   walkStyleNodes(
     root.nodes as ChildNode[],
     { selector: "" },
@@ -116,6 +121,8 @@ export function parseStyleDocument(content: string, filePath: string): StyleDocu
     Array.from(selectorsByName.values()).toSorted(compareSelectors),
     Array.from(keyframesByName.values()).toSorted(compareNamedStyleFacts),
     [...animationNameRefs].toSorted(compareNamedStyleFacts),
+    [...valueDecls].toSorted(compareNamedStyleFacts),
+    [...valueRefs].toSorted(compareNamedStyleFacts),
   );
 }
 
@@ -367,6 +374,130 @@ function recordKeyframesAtRule(
   });
 }
 
+function collectValueDecls(root: Root): readonly ValueDeclHIR[] {
+  const valueDecls: ValueDeclHIR[] = [];
+  root.walkAtRules("value", (atrule) => {
+    const localValueDecl = parseLocalValueDecl(atrule);
+    if (!localValueDecl) return;
+    valueDecls.push(localValueDecl);
+  });
+  return valueDecls;
+}
+
+function parseLocalValueDecl(atrule: AtRule): ValueDeclHIR | null {
+  if (/\bfrom\b/u.test(atrule.params)) return null;
+  const match = /^\s*([\p{L}_-][\p{L}\p{N}\p{M}_-]*)\s*:\s*(.+?)\s*$/u.exec(atrule.params);
+  const name = match?.[1];
+  const value = match?.[2];
+  if (!name || !value) return null;
+  const range = findAtRuleParamTokenRange(atrule, name, name.length);
+  if (!range) return null;
+  return {
+    kind: "valueDecl",
+    id: `value:${name}:${range.start.line}:${range.start.character}`,
+    name,
+    value,
+    range,
+    ruleRange: rangeForSourceNode(atrule),
+  };
+}
+
+function collectValueRefs(root: Root, valueDecls: readonly ValueDeclHIR[]): readonly ValueRefHIR[] {
+  if (valueDecls.length === 0) return [];
+  const valueNames = new Set(valueDecls.map((decl) => decl.name));
+  const refs: ValueRefHIR[] = [];
+
+  root.walkDecls((node) => {
+    if (node.prop === "composes") return;
+    const matches = findValueIdentifierMatches(node.value, valueNames);
+    for (const match of matches) {
+      const range = findDeclValueTokenRange(node, match.offset, match.name.length);
+      if (!range) continue;
+      refs.push({
+        kind: "valueRef",
+        id: `value-ref:decl:${node.source?.start?.line ?? 0}:${match.name}:${match.offset}`,
+        name: match.name,
+        range,
+        source: "declaration",
+      });
+    }
+  });
+
+  root.walkAtRules("value", (atrule) => {
+    const localValueDecl = parseLocalValueDecl(atrule);
+    if (!localValueDecl) return;
+    const colonIndex = atrule.params.indexOf(":");
+    if (colonIndex < 0) return;
+    const rawValue = atrule.params.slice(colonIndex + 1);
+    const matches = findValueIdentifierMatches(rawValue, valueNames);
+    for (const match of matches) {
+      if (match.name === localValueDecl.name) continue;
+      const range = findAtRuleParamValueTokenRange(
+        atrule,
+        colonIndex + 1 + match.offset,
+        match.name.length,
+      );
+      if (!range) continue;
+      refs.push({
+        kind: "valueRef",
+        id: `value-ref:value:${atrule.source?.start?.line ?? 0}:${match.name}:${match.offset}`,
+        name: match.name,
+        range,
+        source: "valueDecl",
+      });
+    }
+  });
+
+  return refs;
+}
+
+function findValueIdentifierMatches(
+  raw: string,
+  valueNames: ReadonlySet<string>,
+): Array<{ name: string; offset: number }> {
+  const matches: Array<{ name: string; offset: number }> = [];
+  let quote: "'" | '"' | null = null;
+  let identifierStart = -1;
+
+  const flushIdentifier = (endIndex: number) => {
+    if (identifierStart === -1) return;
+    const name = raw.slice(identifierStart, endIndex);
+    if (valueNames.has(name)) {
+      matches.push({ name, offset: identifierStart });
+    }
+    identifierStart = -1;
+  };
+
+  for (let index = 0; index < raw.length; index += 1) {
+    const ch = raw[index]!;
+    if (quote) {
+      if (ch === "\\" && index + 1 < raw.length) {
+        index += 1;
+        continue;
+      }
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === "'" || ch === '"') {
+      flushIdentifier(index);
+      quote = ch;
+      continue;
+    }
+    if (identifierStart === -1) {
+      if (/[\p{L}_-]/u.test(ch)) {
+        identifierStart = index;
+      }
+      continue;
+    }
+    if (!/[\p{L}\p{N}\p{M}_-]/u.test(ch)) {
+      flushIdentifier(index);
+    }
+  }
+
+  flushIdentifier(raw.length);
+  return matches;
+}
+
 function parseKeyframesName(atrule: AtRule): { name: string; range: Range } | null {
   const rawName = atrule.params.trim();
   if (!rawName) return null;
@@ -579,6 +710,26 @@ function findAtRuleParamTokenRange(
   const tokenIndex = atrule.params.indexOf(token);
   if (paramsIndex < 0 || tokenIndex < 0) return null;
   const startOffset = source.start.offset + paramsIndex + tokenIndex;
+  const endOffset = startOffset + tokenLength;
+  const startPos = source.input.fromOffset(startOffset);
+  const endPos = source.input.fromOffset(endOffset);
+  if (!startPos || !endPos) return null;
+  return {
+    start: { line: startPos.line - 1, character: startPos.col - 1 },
+    end: { line: endPos.line - 1, character: endPos.col - 1 },
+  };
+}
+
+function findAtRuleParamValueTokenRange(
+  atrule: AtRule,
+  valueOffset: number,
+  tokenLength: number,
+): Range | null {
+  const source = atrule.source;
+  if (!source?.start) return null;
+  const paramsIndex = atrule.toString().indexOf(atrule.params);
+  if (paramsIndex < 0) return null;
+  const startOffset = source.start.offset + paramsIndex + valueOffset;
   const endOffset = startOffset + tokenLength;
   const startPos = source.input.fromOffset(startOffset);
   const endPos = source.input.fromOffset(endOffset);

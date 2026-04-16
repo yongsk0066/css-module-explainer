@@ -5,10 +5,12 @@ import {
   findCanonicalSelector,
   findComposesTokenAtCursor,
   findKeyframesByName,
+  findValueDeclByName,
+  findValueRefAtCursor,
   readSourceExpressionResolution,
   resolveComposesTarget,
 } from "../core/query";
-import type { KeyframesDeclHIR, SelectorDeclHIR } from "../core/hir/style-types";
+import type { KeyframesDeclHIR, SelectorDeclHIR, ValueDeclHIR } from "../core/hir/style-types";
 import { findLangForPath } from "../core/scss/lang-registry";
 import { pathToFileUrl } from "../core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
@@ -81,7 +83,7 @@ function buildLinks(
 function toLocationLink(
   originRange: Range,
   targetUri: string,
-  target: SelectorDeclHIR | KeyframesDeclHIR,
+  target: SelectorDeclHIR | KeyframesDeclHIR | ValueDeclHIR,
 ): LocationLink {
   return {
     originSelectionRange: toLspRange(originRange),
@@ -108,8 +110,15 @@ function buildStyleDefinition(params: CursorParams, deps: ProviderDeps): Locatio
   }
 
   const animationRef = findAnimationNameRefAtCursor(styleDocument, params.line, params.character);
-  if (!animationRef) return null;
-  const keyframes = findKeyframesByName(styleDocument, animationRef.name);
-  if (!keyframes) return null;
-  return [toLocationLink(animationRef.range, pathToFileUrl(styleDocument.filePath), keyframes)];
+  if (animationRef) {
+    const keyframes = findKeyframesByName(styleDocument, animationRef.name);
+    if (!keyframes) return null;
+    return [toLocationLink(animationRef.range, pathToFileUrl(styleDocument.filePath), keyframes)];
+  }
+
+  const valueRef = findValueRefAtCursor(styleDocument, params.line, params.character);
+  if (!valueRef) return null;
+  const valueDecl = findValueDeclByName(styleDocument, valueRef.name);
+  if (!valueDecl) return null;
+  return [toLocationLink(valueRef.range, pathToFileUrl(styleDocument.filePath), valueDecl)];
 }

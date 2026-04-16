@@ -6,6 +6,8 @@ import {
   type NestedSelectorSafety,
   type SelectorDeclHIR,
   type StyleDocumentHIR,
+  type ValueDeclHIR,
+  type ValueRefHIR,
 } from "../../server/src/core/hir/style-types";
 import {
   expandStyleDocumentWithTransform,
@@ -65,12 +67,16 @@ export function makeStyleDocumentFixture(
   selectors: readonly SelectorDeclHIR[],
   keyframes: readonly KeyframesDeclHIR[] = [],
   animationNameRefs: readonly AnimationNameRefHIR[] = [],
+  valueDecls: readonly ValueDeclHIR[] = [],
+  valueRefs: readonly ValueRefHIR[] = [],
 ): StyleDocumentHIR {
   return makeStyleDocumentHIR(
     filePath,
     [...selectors].toSorted(compareByRangeAndName),
     [...keyframes].toSorted(compareByRangeAndName),
     [...animationNameRefs].toSorted(compareByRangeAndName),
+    [...valueDecls].toSorted(compareByRangeAndName),
+    [...valueRefs].toSorted(compareByRangeAndName),
   );
 }
 

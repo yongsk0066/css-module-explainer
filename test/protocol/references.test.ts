@@ -302,3 +302,43 @@ test("references protocol returns same-file animation references for @keyframes"
   expect(result!.some((location) => location.range.start.line === 6)).toBe(true);
   expect(result!.some((location) => location.range.start.line === 10)).toBe(true);
 });
+
+test("references protocol returns same-file value references for @value", async ({
+  makeClient,
+}) => {
+  const scssUri = "file:///fake/workspace/src/Button.module.scss";
+  const scss = `@value primary: #ff3355;
+
+.button {
+  color: primary;
+}
+`;
+
+  const client = makeClient({
+    readStyleFile: (path) => (path.endsWith("Button.module.scss") ? scss : null),
+    typeResolver: new FakeTypeResolver(),
+  });
+
+  await client.initialize();
+  client.initialized();
+  client.didOpen({
+    textDocument: {
+      uri: scssUri,
+      languageId: "scss",
+      version: 1,
+      text: scss,
+    },
+  });
+
+  const result = await client.references({
+    textDocument: { uri: scssUri },
+    position: { line: 0, character: 9 },
+    context: { includeDeclaration: true },
+  });
+
+  expect(result).not.toBeNull();
+  expect(result).toHaveLength(2);
+  expect(result!.every((location) => location.uri === scssUri)).toBe(true);
+  expect(result!.some((location) => location.range.start.line === 0)).toBe(true);
+  expect(result!.some((location) => location.range.start.line === 3)).toBe(true);
+});

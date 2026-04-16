@@ -108,5 +108,7 @@ export function expandStyleDocumentWithTransform(
     expandedSelectors,
     base.keyframes,
     base.animationNameRefs,
+    base.valueDecls,
+    base.valueRefs,
   );
 }

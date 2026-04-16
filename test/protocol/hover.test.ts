@@ -31,6 +31,13 @@ const KEYFRAMES_SCSS = `@keyframes fade {
 }
 `;
 
+const VALUE_SCSS = `@value primary: #ff3355;
+
+.button {
+  color: primary;
+}
+`;
+
 describe("hover protocol / clsx", () => {
   let client: LspTestClient | null = null;
 
@@ -269,6 +276,33 @@ export function Base() {
     const value = (hover!.contents as { value: string }).value;
     expect(value).toContain("`@keyframes fade`");
     expect(value).toContain("2 animation references");
+  });
+
+  it("returns a value hover for @value declarations", async () => {
+    const scssUri = "file:///fake/workspace/src/Button.module.scss";
+    client = createInProcessServer({
+      readStyleFile: (path) => (path.endsWith("Button.module.scss") ? VALUE_SCSS : null),
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    client.didOpen({
+      textDocument: {
+        uri: scssUri,
+        languageId: "scss",
+        version: 1,
+        text: VALUE_SCSS,
+      },
+    });
+
+    const hover = await client.hover({
+      textDocument: { uri: scssUri },
+      position: { line: 0, character: 9 },
+    });
+    expect(hover).not.toBeNull();
+    const value = (hover!.contents as { value: string }).value;
+    expect(value).toContain("`@value primary`");
+    expect(value).toContain("1 value reference");
   });
 
   it("includes dynamic explanation for a flow-resolved symbol ref", async () => {

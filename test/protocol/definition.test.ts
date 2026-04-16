@@ -34,6 +34,13 @@ const KEYFRAMES_SCSS = `@keyframes fade {
 }
 `;
 
+const VALUE_SCSS = `@value primary: #ff3355;
+
+.button {
+  color: primary;
+}
+`;
+
 function openButton(client: LspTestClient): void {
   client.didOpen({
     textDocument: {
@@ -287,6 +294,37 @@ describe("definition protocol", () => {
     const result = await client.definition({
       textDocument: { uri: scssUri },
       position: { line: 6, character: 15 },
+    });
+    expect(result).not.toBeNull();
+    const links = result as Array<{
+      targetUri: string;
+      targetSelectionRange: { start: { line: number } };
+    }>;
+    expect(links).toHaveLength(1);
+    expect(links[0]!.targetUri).toBe(scssUri);
+    expect(links[0]!.targetSelectionRange.start.line).toBe(0);
+  });
+
+  it("navigates from a value token to its @value declaration", async () => {
+    const scssUri = "file:///fake/workspace/src/Button.module.scss";
+    client = createInProcessServer({
+      readStyleFile: (path) => (path.endsWith("Button.module.scss") ? VALUE_SCSS : null),
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    client.didOpen({
+      textDocument: {
+        uri: scssUri,
+        languageId: "scss",
+        version: 1,
+        text: VALUE_SCSS,
+      },
+    });
+
+    const result = await client.definition({
+      textDocument: { uri: scssUri },
+      position: { line: 3, character: 10 },
     });
     expect(result).not.toBeNull();
     const links = result as Array<{

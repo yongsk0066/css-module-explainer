@@ -147,5 +147,35 @@ export function styleDocumentSemanticFingerprint(styleDocument: StyleDocumentHIR
       ].join("::"),
     )
     .join("\n");
-  return [selectorFingerprint, keyframesFingerprint, animationRefFingerprint].join("\n---\n");
+  const valueDeclFingerprint = styleDocument.valueDecls
+    .map((valueDecl) =>
+      [
+        valueDecl.name,
+        valueDecl.value,
+        valueDecl.range.start.line,
+        valueDecl.range.start.character,
+        valueDecl.range.end.line,
+        valueDecl.range.end.character,
+      ].join("::"),
+    )
+    .join("\n");
+  const valueRefFingerprint = styleDocument.valueRefs
+    .map((valueRef) =>
+      [
+        valueRef.name,
+        valueRef.source,
+        valueRef.range.start.line,
+        valueRef.range.start.character,
+        valueRef.range.end.line,
+        valueRef.range.end.character,
+      ].join("::"),
+    )
+    .join("\n");
+  return [
+    selectorFingerprint,
+    keyframesFingerprint,
+    animationRefFingerprint,
+    valueDeclFingerprint,
+    valueRefFingerprint,
+  ].join("\n---\n");
 }

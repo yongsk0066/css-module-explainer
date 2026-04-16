@@ -4,6 +4,8 @@ import type {
   KeyframesDeclHIR,
   SelectorDeclHIR,
   StyleDocumentHIR,
+  ValueDeclHIR,
+  ValueRefHIR,
 } from "../hir/style-types";
 import { rangeContains } from "../util/range-utils";
 import type { ComposesClassToken, ComposesRef } from "@css-module-explainer/shared";
@@ -138,4 +140,40 @@ export function listAnimationNameRefs(
   name: string,
 ): readonly AnimationNameRefHIR[] {
   return styleDocument.animationNameRefs.filter((ref) => ref.name === name);
+}
+
+export function findValueDeclAtCursor(
+  styleDocument: StyleDocumentHIR,
+  line: number,
+  character: number,
+): ValueDeclHIR | null {
+  for (const valueDecl of styleDocument.valueDecls) {
+    if (rangeContains(valueDecl.range, line, character)) return valueDecl;
+  }
+  return null;
+}
+
+export function findValueRefAtCursor(
+  styleDocument: StyleDocumentHIR,
+  line: number,
+  character: number,
+): ValueRefHIR | null {
+  for (const valueRef of styleDocument.valueRefs) {
+    if (rangeContains(valueRef.range, line, character)) return valueRef;
+  }
+  return null;
+}
+
+export function findValueDeclByName(
+  styleDocument: StyleDocumentHIR,
+  name: string,
+): ValueDeclHIR | null {
+  return styleDocument.valueDecls.find((valueDecl) => valueDecl.name === name) ?? null;
+}
+
+export function listValueRefs(
+  styleDocument: StyleDocumentHIR,
+  name: string,
+): readonly ValueRefHIR[] {
+  return styleDocument.valueRefs.filter((valueRef) => valueRef.name === name);
 }

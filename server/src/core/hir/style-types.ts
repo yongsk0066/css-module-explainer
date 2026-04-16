@@ -6,6 +6,8 @@ export interface StyleDocumentHIR extends HirDocumentBase {
   readonly selectors: readonly SelectorDeclHIR[];
   readonly keyframes: readonly KeyframesDeclHIR[];
   readonly animationNameRefs: readonly AnimationNameRefHIR[];
+  readonly valueDecls: readonly ValueDeclHIR[];
+  readonly valueRefs: readonly ValueRefHIR[];
 }
 
 export type SelectorViewKind = "canonical" | "alias";
@@ -41,11 +43,28 @@ export interface AnimationNameRefHIR extends HirNodeBase {
   readonly property: "animation" | "animation-name";
 }
 
+export interface ValueDeclHIR extends HirNodeBase {
+  readonly kind: "valueDecl";
+  readonly range: Range;
+  readonly name: string;
+  readonly value: string;
+  readonly ruleRange: Range;
+}
+
+export interface ValueRefHIR extends HirNodeBase {
+  readonly kind: "valueRef";
+  readonly range: Range;
+  readonly name: string;
+  readonly source: "declaration" | "valueDecl";
+}
+
 export function makeStyleDocumentHIR(
   filePath: string,
   selectors: readonly SelectorDeclHIR[],
   keyframes: readonly KeyframesDeclHIR[] = [],
   animationNameRefs: readonly AnimationNameRefHIR[] = [],
+  valueDecls: readonly ValueDeclHIR[] = [],
+  valueRefs: readonly ValueRefHIR[] = [],
 ): StyleDocumentHIR {
   return {
     kind: "style",
@@ -53,5 +72,7 @@ export function makeStyleDocumentHIR(
     selectors,
     keyframes,
     animationNameRefs,
+    valueDecls,
+    valueRefs,
   };
 }

@@ -11,8 +11,12 @@ export {
   findKeyframesAtCursor,
   findKeyframesByName,
   findSelectorAtCursor,
+  findValueDeclAtCursor,
+  findValueDeclByName,
+  findValueRefAtCursor,
   listAnimationNameRefs,
   listCanonicalSelectors,
+  listValueRefs,
   resolveComposesTarget,
 } from "./find-style-selector";
 export { findInvalidClassReference } from "./find-invalid-class-references";
