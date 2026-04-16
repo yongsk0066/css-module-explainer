@@ -26,6 +26,7 @@ export type CheckerCliFailOn = "none" | "warning" | "hint";
 export type CheckerCliFormat = "text" | "json";
 export type CheckerCliCategory = "all" | "source" | "style";
 export type CheckerCliSeverity = "all" | "warning" | "hint";
+export type CheckerCliSummaryMode = "full" | "summary";
 const CHECKER_JSON_SCHEMA_VERSION = "1" as const;
 const CHECKER_TOOL_NAME = "css-module-explainer/checker" as const;
 
@@ -45,8 +46,14 @@ export async function runCheckerCli(
   }
 
   const result = await checkWorkspace(parsed.options);
-  const filtered = filterResult(result, parsed.category, parsed.severity);
-  writeResult(filtered, parsed.format, io);
+  const filtered = filterResult(
+    result,
+    parsed.category,
+    parsed.severity,
+    parsed.includeCodes,
+    parsed.excludeCodes,
+  );
+  writeResult(filtered, parsed.format, parsed.summaryMode, io);
   return shouldFail(filtered, parsed.failOn) ? 1 : 0;
 }
 
@@ -56,6 +63,9 @@ interface ParsedCliOptions {
   readonly failOn: CheckerCliFailOn;
   readonly category: CheckerCliCategory;
   readonly severity: CheckerCliSeverity;
+  readonly summaryMode: CheckerCliSummaryMode;
+  readonly includeCodes: readonly string[];
+  readonly excludeCodes: readonly string[];
 }
 
 async function parseCliArgs(
@@ -69,10 +79,13 @@ async function parseCliArgs(
   let failOn: CheckerCliFailOn = "warning";
   let category: CheckerCliCategory = "all";
   let severity: CheckerCliSeverity = "all";
+  let summaryMode: CheckerCliSummaryMode = "full";
   let classnameTransform: ClassnameTransformMode = "asIs";
   const pathAlias: Record<string, string> = {};
   const sourceFilePaths: string[] = [];
   const styleFilePaths: string[] = [];
+  const includeCodes: string[] = [];
+  const excludeCodes: string[] = [];
   let hasExplicitFileSelection = false;
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -134,6 +147,11 @@ async function parseCliArgs(
       continue;
     }
 
+    if (arg === "--summary") {
+      summaryMode = "summary";
+      continue;
+    }
+
     if (arg === "--classname-transform") {
       const value = argv[index + 1];
       if (
@@ -164,6 +182,22 @@ async function parseCliArgs(
         return { error: "Expected --path-alias prefix=target" };
       }
       pathAlias[key] = target;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--include-code") {
+      const value = argv[index + 1];
+      if (!value) return { error: "Missing value for --include-code" };
+      includeCodes.push(value);
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--exclude-code") {
+      const value = argv[index + 1];
+      if (!value) return { error: "Missing value for --exclude-code" };
+      excludeCodes.push(value);
       index += 1;
       continue;
     }
@@ -244,12 +278,16 @@ async function parseCliArgs(
     failOn,
     category,
     severity,
+    summaryMode,
+    includeCodes: [...new Set(includeCodes)],
+    excludeCodes: [...new Set(excludeCodes)],
   };
 }
 
 function writeResult(
   result: WorkspaceCheckResult,
   format: CheckerCliFormat,
+  summaryMode: CheckerCliSummaryMode,
   io: CheckerCliIO,
 ): void {
   if (format === "json") {
@@ -257,12 +295,14 @@ function writeResult(
     return;
   }
 
-  for (const { filePath, finding } of result.findings) {
-    io.stdout(
-      `${filePath}:${finding.range.start.line + 1}:${finding.range.start.character + 1} [${
-        finding.severity
-      }] ${finding.code} ${formatCheckerFinding(finding, path.dirname(filePath))}\n`,
-    );
+  if (summaryMode === "full") {
+    for (const { filePath, finding } of result.findings) {
+      io.stdout(
+        `${filePath}:${finding.range.start.line + 1}:${finding.range.start.character + 1} [${
+          finding.severity
+        }] ${finding.code} ${formatCheckerFinding(finding, path.dirname(filePath))}\n`,
+      );
+    }
   }
 
   io.stdout(
@@ -281,10 +321,14 @@ function filterResult(
   result: WorkspaceCheckResult,
   category: CheckerCliCategory,
   severity: CheckerCliSeverity,
+  includeCodes: readonly string[],
+  excludeCodes: readonly string[],
 ): WorkspaceCheckResult {
   const findings = result.findings.filter(({ finding }) => {
     if (category !== "all" && finding.category !== category) return false;
     if (severity !== "all" && finding.severity !== severity) return false;
+    if (includeCodes.length > 0 && !includeCodes.includes(finding.code)) return false;
+    if (excludeCodes.includes(finding.code)) return false;
     return true;
   });
   return {
@@ -393,8 +437,11 @@ function buildHelpText(): string {
     "  --fail-on <none|warning|hint> Exit threshold (default: warning)",
     "  --category <all|source|style> Filter findings by category",
     "  --severity <all|warning|hint> Filter findings by severity",
+    "  --summary                    Print summary only for text output",
     "  --classname-transform <mode> Style transform mode",
     "  --path-alias <prefix=target> Repeatable native path-alias override",
+    "  --include-code <code>        Restrict findings to one rule code (repeatable)",
+    "  --exclude-code <code>        Remove one rule code from output (repeatable)",
     "  --source-file <path>         Restrict source checking to one file (repeatable)",
     "  --style-file <path>          Restrict style checking to one file (repeatable)",
     "  --changed-file <path>        Auto-route changed source/style file (repeatable)",

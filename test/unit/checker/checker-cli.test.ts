@@ -153,6 +153,46 @@ describe("runCheckerCli", () => {
       ]),
     );
   });
+
+  it("supports summary-only text output and code filters", async () => {
+    const workspaceRoot = makeWorkspace({
+      "src/App.tsx": [
+        "import classNames from 'classnames/bind';",
+        "import styles from './Button.module.scss';",
+        "const cx = classNames.bind(styles);",
+        "const bad = cx('missing');",
+        "",
+      ].join("\n"),
+      "src/Button.module.scss": ".button {}\n.unused {}",
+    });
+    const stdout: string[] = [];
+
+    const exitCode = await runCheckerCli(
+      [
+        workspaceRoot,
+        "--include-code",
+        "missing-static-class",
+        "--exclude-code",
+        "unused-selector",
+        "--summary",
+        "--fail-on",
+        "none",
+      ],
+      {
+        stdout: (message) => stdout.push(message),
+        stderr: () => {},
+        cwd: () => workspaceRoot,
+      },
+    );
+
+    expect(exitCode).toBe(0);
+    const output = stdout.join("");
+    expect(output).not.toContain("[warning] missing-static-class");
+    expect(output).not.toContain("unused-selector");
+    expect(output).toContain(
+      "Checked 1 source files and 1 style modules. 1 findings (1 warnings, 0 hints).",
+    );
+  });
 });
 
 function makeWorkspace(files: Readonly<Record<string, string>>): string {
