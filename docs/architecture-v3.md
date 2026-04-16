@@ -314,7 +314,7 @@ Current split:
 - workspace registry
   - file-to-workspace ownership and routing
 
-`server/src/composition-root.ts` is the top-level assembly point. Its job is
+`server/adapter-vscode/src/composition-root.ts` is the top-level assembly point. Its job is
 orchestration, not feature logic.
 
 Benefits:

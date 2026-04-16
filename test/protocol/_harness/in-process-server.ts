@@ -54,7 +54,10 @@ import {
 } from "vscode-languageserver-protocol/node";
 import { StreamMessageReader, StreamMessageWriter } from "vscode-jsonrpc/node";
 import ts from "typescript";
-import { createServer, type CreateServerOptions } from "../../../server/src/composition-root";
+import {
+  createServer,
+  type CreateServerOptions,
+} from "../../../server/adapter-vscode/src/composition-root";
 import type { FileTask } from "../../../server/src/core/indexing/indexer-worker";
 
 const LEGACY_WORKSPACE_URI = "file:///fake/workspace";

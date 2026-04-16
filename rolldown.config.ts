@@ -16,8 +16,8 @@ export default defineConfig([
     },
   },
   {
-    input: { server: "server/src/server.ts" },
-    tsconfig: "server/tsconfig.json",
+    input: { server: "server/adapter-vscode/src/server.ts" },
+    tsconfig: "server/adapter-vscode/tsconfig.json",
     platform: "node",
     output: {
       dir: "dist/server",

@@ -4,8 +4,8 @@ import {
   type TextDocuments,
 } from "vscode-languageserver/node";
 import type { TextDocument } from "vscode-languageserver-textdocument";
-import { pathToFileUrl } from "./core/util/text-utils";
-import type { RuntimeSink } from "./runtime";
+import { pathToFileUrl } from "../../src/core/util/text-utils";
+import type { RuntimeSink } from "../../src/runtime";
 
 export function readStyleTextFromOpenDocuments(
   path: string,

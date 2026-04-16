@@ -3,16 +3,19 @@ import type { TextDocuments } from "vscode-languageserver/node";
 import type { Connection, InitializeParams } from "vscode-languageserver/node";
 import type { TextDocument } from "vscode-languageserver-textdocument";
 import type ts from "typescript";
-import { DEFAULT_RESOURCE_SETTINGS } from "./settings";
-import type { TypeResolver } from "./core/ts/type-resolver";
-import type { FileTask } from "./core/indexing/indexer-worker";
+import { DEFAULT_RESOURCE_SETTINGS } from "../../src/settings";
+import type { TypeResolver } from "../../src/core/ts/type-resolver";
+import type { FileTask } from "../../src/core/indexing/indexer-worker";
 import {
   resolveClientRuntimeCapabilities,
   type ClientRuntimeCapabilities,
 } from "./server-capabilities";
 import { createRuntimeSink, readStyleTextFromOpenDocuments } from "./server-runtime-support";
-import { resolveWorkspaceFolders, toWorkspaceFolderInfo } from "./workspace/workspace-folder-info";
-import type { WorkspaceRegistry } from "./workspace/workspace-registry";
+import {
+  resolveWorkspaceFolders,
+  toWorkspaceFolderInfo,
+} from "../../src/workspace/workspace-folder-info";
+import type { WorkspaceRegistry } from "../../src/workspace/workspace-registry";
 import {
   buildSharedRuntimeCaches,
   createRuntimeTypeResolver,
@@ -20,7 +23,7 @@ import {
   createWorkspaceRuntimeIO,
   createWorkspaceRuntimeManager,
   type WorkspaceRuntimeManager,
-} from "./runtime";
+} from "../../src/runtime";
 
 export interface ServerRuntimeSessionOptions {
   readonly typeResolver?: TypeResolver;

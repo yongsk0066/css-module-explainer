@@ -9,7 +9,7 @@ const PROVIDERS_ROOT = path.join(REPO_ROOT, "server/src/providers");
 const CHECKER_HOST_ROOT = path.join(REPO_ROOT, "server/src/checker-host");
 const CHECKER_CLI_ROOT = path.join(REPO_ROOT, "server/src/checker-cli");
 const CHECKER_SURFACE_ROOT = path.join(REPO_ROOT, "server/src/checker-surface");
-const COMPOSITION_ROOT = path.join(REPO_ROOT, "server/src/composition-root.ts");
+const COMPOSITION_ROOT = path.join(REPO_ROOT, "server/adapter-vscode/src/composition-root.ts");
 const HANDLER_ROOT = path.join(REPO_ROOT, "server/src/handler-registration.ts");
 
 describe("package-ready boundaries", () => {

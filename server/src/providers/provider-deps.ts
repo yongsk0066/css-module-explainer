@@ -30,7 +30,7 @@ export interface CursorParams extends DocumentParams {
 /**
  * The dependency bag every provider handler accepts.
  *
- * Composition root (server/src/composition-root.ts) builds this
+ * Composition root (server/adapter-vscode/src/composition-root.ts) builds this
  * once at startup; provider unit tests build a stub via
  * `makeBaseDeps()` in test helpers. Keeping this a plain
  * interface with no methods keeps provider tests trivial.

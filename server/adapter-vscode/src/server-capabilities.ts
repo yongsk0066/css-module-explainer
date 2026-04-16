@@ -4,8 +4,8 @@ import {
   type InitializeParams,
   type InitializeResult,
 } from "vscode-languageserver/node";
-import { buildStyleFileWatcherGlob } from "./core/scss/lang-registry";
-import { COMPLETION_TRIGGER_CHARACTERS } from "./providers/completion";
+import { buildStyleFileWatcherGlob } from "../../src/core/scss/lang-registry";
+import { COMPLETION_TRIGGER_CHARACTERS } from "../../src/providers/completion";
 
 export interface ClientRuntimeCapabilities {
   readonly dynamicWatchers: boolean;

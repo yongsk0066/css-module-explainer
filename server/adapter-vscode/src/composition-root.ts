@@ -8,13 +8,13 @@ import {
 } from "vscode-languageserver/node";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import type ts from "typescript";
-import type { TypeResolver } from "./core/ts/type-resolver";
-import type { FileTask } from "./core/indexing/indexer-worker";
-import { registerHandlers } from "./handler-registration";
+import type { TypeResolver } from "../../src/core/ts/type-resolver";
+import type { FileTask } from "../../src/core/indexing/indexer-worker";
+import { registerHandlers } from "../../src/handler-registration";
 import { buildServerCapabilities, registerDynamicFileWatchers } from "./server-capabilities";
 import { createServerRuntimeSession, type ServerRuntimeSession } from "./server-runtime-session";
-import type { WorkspaceRegistry } from "./workspace/workspace-registry";
-import { defaultReadStyleFile } from "./runtime";
+import type { WorkspaceRegistry } from "../../src/workspace/workspace-registry";
+import { defaultReadStyleFile } from "../../src/runtime";
 
 const SERVER_NAME = "css-module-explainer";
 const SERVER_VERSION = "3.2.0";
@@ -68,7 +68,7 @@ export interface CreatedServer {
   readonly documents: TextDocuments<TextDocument>;
 }
 
-export { createDefaultProgram } from "./core/ts/default-program";
+export { createDefaultProgram } from "../../src/core/ts/default-program";
 
 /**
  * Build an LSP server instance from a pair of streams plus

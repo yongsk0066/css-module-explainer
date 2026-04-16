@@ -1,4 +1,9 @@
 {
   "files": [],
-  "references": [{ "path": "./shared" }, { "path": "./server" }, { "path": "./client" }]
+  "references": [
+    { "path": "./shared" },
+    { "path": "./server" },
+    { "path": "./server/adapter-vscode" },
+    { "path": "./client" }
+  ]
 }
