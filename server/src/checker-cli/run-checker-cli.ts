@@ -17,7 +17,7 @@ import {
   type CheckerCodeBundle,
 } from "../core/checker/checker-code-bundles";
 import { formatCheckerFinding } from "../core/checker/format-checker-finding";
-import type { CheckerReportJsonV1 } from "../core/checker/contracts";
+import { buildCheckerJsonReport, type CheckerReportJsonV1 } from "./checker-report";
 
 export interface CheckerCliIO {
   readonly stdout: (message: string) => void;
@@ -56,7 +56,12 @@ export async function runCheckerCli(
     workspace: parsed.options,
     filters: parsed.filters,
   });
-  writeResult(command.workspaceCheck, command.jsonReport, parsed, io);
+  const jsonReport = buildCheckerJsonReport(
+    command.workspaceCheck,
+    parsed.options.workspaceRoot,
+    parsed.filters,
+  );
+  writeResult(command.workspaceCheck, jsonReport, parsed, io);
   return shouldFail(command.workspaceCheck, parsed.failOn) ? 1 : 0;
 }
 

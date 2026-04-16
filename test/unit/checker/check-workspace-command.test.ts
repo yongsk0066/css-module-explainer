@@ -13,7 +13,7 @@ afterEach(() => {
 });
 
 describe("runWorkspaceCheckCommand", () => {
-  it("filters findings and emits stable JSON report metadata", async () => {
+  it("filters findings without consumer-facing report shaping", async () => {
     const workspaceRoot = makeWorkspace({
       "src/App.tsx": [
         "import classNames from 'classnames/bind';",
@@ -38,21 +38,15 @@ describe("runWorkspaceCheckCommand", () => {
     });
 
     expect(result.workspaceCheck.summary).toEqual({ warnings: 1, hints: 0, total: 1 });
-    expect(result.jsonReport.workspaceRoot).toBe(workspaceRoot);
-    expect(result.jsonReport.filters).toEqual({
-      preset: "ci",
-      category: "all",
-      severity: "warning",
-      includeBundles: ["ci-default"],
-      includeCodes: [],
-      excludeCodes: ["unused-selector"],
-    });
-    expect(result.jsonReport.findings).toEqual(
+    expect(result.workspaceCheck.findings).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          category: "source",
-          code: "missing-static-class",
-          severity: "warning",
+          filePath: path.join(workspaceRoot, "src/App.tsx"),
+          finding: expect.objectContaining({
+            category: "source",
+            code: "missing-static-class",
+            severity: "warning",
+          }),
         }),
       ]),
     );

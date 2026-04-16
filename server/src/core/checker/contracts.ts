@@ -10,37 +10,6 @@ export interface WorkspaceCheckerFinding {
   readonly finding: CheckerFinding;
 }
 
-export interface CheckerReportJsonFinding {
-  readonly filePath: string;
-  readonly category: CheckerFinding["category"];
-  readonly code: CheckerFinding["code"];
-  readonly severity: CheckerFinding["severity"];
-  readonly range: CheckerFinding["range"];
-  readonly message: string;
-}
-
-export interface CheckerReportJsonV1 {
-  readonly schemaVersion: "1";
-  readonly tool: "css-module-explainer/checker";
-  readonly workspaceRoot: string;
-  readonly filters: {
-    readonly preset: "ci" | "changed-style" | "changed-source" | null;
-    readonly category: CheckerFinding["category"] | "all";
-    readonly severity: CheckerSeverity | "all";
-    readonly includeBundles: readonly string[];
-    readonly includeCodes: readonly string[];
-    readonly excludeCodes: readonly string[];
-  };
-  readonly sourceFiles: readonly string[];
-  readonly styleFiles: readonly string[];
-  readonly summary: {
-    readonly warnings: number;
-    readonly hints: number;
-    readonly total: number;
-  };
-  readonly findings: readonly CheckerReportJsonFinding[];
-}
-
 export type SourceCheckerFinding =
   | {
       readonly category: "source";

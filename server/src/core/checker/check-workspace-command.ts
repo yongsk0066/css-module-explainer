@@ -1,5 +1,3 @@
-import path from "node:path";
-import { formatCheckerFinding } from "./format-checker-finding";
 import {
   checkWorkspace,
   type WorkspaceCheckOptions,
@@ -7,11 +5,7 @@ import {
   type WorkspaceCheckSummary,
 } from "./check-workspace";
 import type { CheckerCodeBundle } from "./checker-code-bundles";
-import type {
-  CheckerReportJsonFinding,
-  CheckerReportJsonV1,
-  WorkspaceCheckerFinding,
-} from "./contracts";
+import type { WorkspaceCheckerFinding } from "./contracts";
 
 export type WorkspaceCheckCommandPreset = "ci" | "changed-style" | "changed-source";
 export type WorkspaceCheckCommandCategory = "all" | "source" | "style";
@@ -33,25 +27,14 @@ export interface WorkspaceCheckCommandOptions {
 
 export interface WorkspaceCheckCommandResult {
   readonly workspaceCheck: WorkspaceCheckResult;
-  readonly jsonReport: CheckerReportJsonV1;
 }
-
-const CHECKER_JSON_SCHEMA_VERSION = "1" as const;
-const CHECKER_TOOL_NAME = "css-module-explainer/checker" as const;
 
 export async function runWorkspaceCheckCommand(
   options: WorkspaceCheckCommandOptions,
 ): Promise<WorkspaceCheckCommandResult> {
-  const workspaceCheck = filterWorkspaceCheckResult(
-    await checkWorkspace(options.workspace),
-    options.filters,
-  );
-
   return {
-    workspaceCheck,
-    jsonReport: buildCheckerJsonReport(
-      workspaceCheck,
-      options.workspace.workspaceRoot,
+    workspaceCheck: filterWorkspaceCheckResult(
+      await checkWorkspace(options.workspace),
       options.filters,
     ),
   };
@@ -74,39 +57,6 @@ export function filterWorkspaceCheckResult(
     ...result,
     findings,
     summary: summarizeFilteredFindings(findings),
-  };
-}
-
-export function buildCheckerJsonReport(
-  result: WorkspaceCheckResult,
-  workspaceRoot: string,
-  filters: WorkspaceCheckCommandFilters,
-): CheckerReportJsonV1 {
-  return {
-    schemaVersion: CHECKER_JSON_SCHEMA_VERSION,
-    tool: CHECKER_TOOL_NAME,
-    workspaceRoot,
-    filters: {
-      preset: filters.preset,
-      category: filters.category,
-      severity: filters.severity,
-      includeBundles: filters.includeBundles,
-      includeCodes: filters.includeCodes,
-      excludeCodes: filters.excludeCodes,
-    },
-    sourceFiles: result.sourceFiles,
-    styleFiles: result.styleFiles,
-    summary: result.summary,
-    findings: result.findings.map(
-      ({ filePath, finding }): CheckerReportJsonFinding => ({
-        filePath,
-        category: finding.category,
-        code: finding.code,
-        severity: finding.severity,
-        range: finding.range,
-        message: formatCheckerFinding(finding, path.dirname(filePath)),
-      }),
-    ),
   };
 }
 

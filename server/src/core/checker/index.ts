@@ -1,7 +1,5 @@
 export type {
   CheckerFinding,
-  CheckerReportJsonFinding,
-  CheckerReportJsonV1,
   CheckerSeverity,
   SourceCheckerFinding,
   StyleCheckerFinding,
@@ -32,7 +30,6 @@ export {
   type CheckerCodeBundle,
 } from "./checker-code-bundles";
 export {
-  buildCheckerJsonReport,
   filterWorkspaceCheckResult,
   runWorkspaceCheckCommand,
   type WorkspaceCheckCommandCategory,
