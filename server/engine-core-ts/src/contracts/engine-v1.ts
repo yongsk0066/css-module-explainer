@@ -58,12 +58,60 @@ export type QueryResultKindV1 =
   | "selector-usage"
   | "source-expression-resolution";
 
-export interface QueryResultV1 {
-  readonly kind: QueryResultKindV1;
+export interface ExpressionSemanticsQueryResultV1 {
+  readonly kind: "expression-semantics";
   readonly filePath: string;
   readonly queryId: string;
-  readonly payload: Record<string, unknown>;
+  readonly payload: {
+    readonly expressionId: string;
+    readonly expressionKind: string;
+    readonly styleFilePath: string | null;
+    readonly selectorNames: readonly string[];
+    readonly candidateNames: readonly string[];
+    readonly finiteValues: readonly string[] | null;
+    readonly valueDomainKind: string;
+    readonly selectorCertainty: string;
+    readonly valueCertainty?: string;
+    readonly reason?: string;
+  };
 }
+
+export interface SourceExpressionResolutionQueryResultV1 {
+  readonly kind: "source-expression-resolution";
+  readonly filePath: string;
+  readonly queryId: string;
+  readonly payload: {
+    readonly expressionId: string;
+    readonly styleFilePath: string | null;
+    readonly selectorNames: readonly string[];
+    readonly finiteValues: readonly string[] | null;
+    readonly selectorCertainty: string;
+    readonly valueCertainty?: string;
+    readonly reason?: string;
+  };
+}
+
+export interface SelectorUsageQueryResultV1 {
+  readonly kind: "selector-usage";
+  readonly filePath: string;
+  readonly queryId: string;
+  readonly payload: {
+    readonly canonicalName: string;
+    readonly totalReferences: number;
+    readonly directReferenceCount: number;
+    readonly editableDirectReferenceCount: number;
+    readonly exactReferenceCount: number;
+    readonly inferredOrBetterReferenceCount: number;
+    readonly hasExpandedReferences: boolean;
+    readonly hasStyleDependencyReferences: boolean;
+    readonly hasAnyReferences: boolean;
+  };
+}
+
+export type QueryResultV1 =
+  | ExpressionSemanticsQueryResultV1
+  | SourceExpressionResolutionQueryResultV1
+  | SelectorUsageQueryResultV1;
 
 export interface EngineInputV1 {
   readonly version: typeof ENGINE_CONTRACT_VERSION_V1;

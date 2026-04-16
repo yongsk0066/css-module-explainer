@@ -67,6 +67,8 @@ describe("buildCheckerEngineParitySnapshotV1", () => {
       styleDocumentForPath: styleHost.styleDocumentForPath,
       typeResolver: analysisHost.typeResolver,
       checkerReport: command.checkerReport,
+      semanticReferenceIndex: analysisHost.semanticReferenceIndex,
+      styleDependencyGraph: styleHost.styleDependencyGraph,
     });
 
     expect(snapshot.input.version).toBe("1");
@@ -77,7 +79,22 @@ describe("buildCheckerEngineParitySnapshotV1", () => {
       hints: 1,
       total: 2,
     });
-    expect(snapshot.output.queryResults).toEqual([]);
+    expect(snapshot.output.queryResults).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "expression-semantics",
+          filePath: path.join(workspaceRoot, "src/App.tsx"),
+        }),
+        expect.objectContaining({
+          kind: "source-expression-resolution",
+          filePath: path.join(workspaceRoot, "src/App.tsx"),
+        }),
+        expect.objectContaining({
+          kind: "selector-usage",
+          filePath: path.join(workspaceRoot, "src/Button.module.scss"),
+        }),
+      ]),
+    );
     expect(snapshot.output.rewritePlans).toEqual([]);
   });
 });
