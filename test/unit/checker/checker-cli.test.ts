@@ -216,6 +216,48 @@ describe("runCheckerCli", () => {
     );
   });
 
+  it("supports named code bundles", async () => {
+    const workspaceRoot = makeWorkspace({
+      "src/App.tsx": [
+        "import classNames from 'classnames/bind';",
+        "import styles from './Button.module.scss';",
+        "const cx = classNames.bind(styles);",
+        "const bad = cx('missing');",
+        "",
+      ].join("\n"),
+      "src/Button.module.scss": ".button {}\n.unused {}",
+    });
+    const stdout: string[] = [];
+
+    const exitCode = await runCheckerCli(
+      [workspaceRoot, "--include-bundle", "style-unused", "--format", "json", "--fail-on", "none"],
+      {
+        stdout: (message) => stdout.push(message),
+        stderr: () => {},
+        cwd: () => workspaceRoot,
+      },
+    );
+
+    expect(exitCode).toBe(0);
+    const payload = JSON.parse(stdout.join(""));
+    expect(payload.filters).toEqual({
+      preset: null,
+      category: "all",
+      severity: "all",
+      includeCodes: ["unused-selector"],
+      excludeCodes: [],
+    });
+    expect(payload.findings).toHaveLength(2);
+    expect(payload.findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          category: "style",
+          code: "unused-selector",
+        }),
+      ]),
+    );
+  });
+
   it("applies the ci preset defaults", async () => {
     const workspaceRoot = makeWorkspace({
       "src/App.tsx": [

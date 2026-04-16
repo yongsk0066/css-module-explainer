@@ -2,18 +2,21 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import type { ClassnameTransformMode } from "../scss/classname-transform";
 import { findLangForPath } from "../scss/lang-registry";
+import type { WorkspaceCheckOptions, WorkspaceCheckResult } from "./check-workspace";
 import {
-  checkWorkspace,
-  type WorkspaceCheckOptions,
-  type WorkspaceCheckResult,
-  type WorkspaceCheckSummary,
-} from "./check-workspace";
+  runWorkspaceCheckCommand,
+  type WorkspaceCheckCommandCategory,
+  type WorkspaceCheckCommandFilters,
+  type WorkspaceCheckCommandPreset,
+  type WorkspaceCheckCommandSeverity,
+} from "./check-workspace-command";
+import {
+  expandCheckerCodeBundles,
+  isCheckerCodeBundle,
+  type CheckerCodeBundle,
+} from "./checker-code-bundles";
 import { formatCheckerFinding } from "./format-checker-finding";
-import type {
-  CheckerReportJsonFinding,
-  CheckerReportJsonV1,
-  WorkspaceCheckerFinding,
-} from "./contracts";
+import type { CheckerReportJsonV1 } from "./contracts";
 
 export interface CheckerCliIO {
   readonly stdout: (message: string) => void;
@@ -24,12 +27,10 @@ export interface CheckerCliIO {
 
 export type CheckerCliFailOn = "none" | "warning" | "hint";
 export type CheckerCliFormat = "text" | "json";
-export type CheckerCliCategory = "all" | "source" | "style";
-export type CheckerCliSeverity = "all" | "warning" | "hint";
+export type CheckerCliCategory = WorkspaceCheckCommandCategory;
+export type CheckerCliSeverity = WorkspaceCheckCommandSeverity;
 export type CheckerCliSummaryMode = "full" | "summary";
-export type CheckerCliPreset = "ci" | "changed-style" | "changed-source";
-const CHECKER_JSON_SCHEMA_VERSION = "1" as const;
-const CHECKER_TOOL_NAME = "css-module-explainer/checker" as const;
+export type CheckerCliPreset = WorkspaceCheckCommandPreset;
 
 export async function runCheckerCli(
   argv: readonly string[],
@@ -46,28 +47,20 @@ export async function runCheckerCli(
     return 2;
   }
 
-  const result = await checkWorkspace(parsed.options);
-  const filtered = filterResult(
-    result,
-    parsed.category,
-    parsed.severity,
-    parsed.includeCodes,
-    parsed.excludeCodes,
-  );
-  writeResult(filtered, parsed, io);
-  return shouldFail(filtered, parsed.failOn) ? 1 : 0;
+  const command = await runWorkspaceCheckCommand({
+    workspace: parsed.options,
+    filters: parsed.filters,
+  });
+  writeResult(command.workspaceCheck, command.jsonReport, parsed, io);
+  return shouldFail(command.workspaceCheck, parsed.failOn) ? 1 : 0;
 }
 
 interface ParsedCliOptions {
   readonly options: WorkspaceCheckOptions;
-  readonly preset: CheckerCliPreset | null;
+  readonly filters: WorkspaceCheckCommandFilters;
   readonly format: CheckerCliFormat;
   readonly failOn: CheckerCliFailOn;
-  readonly category: CheckerCliCategory;
-  readonly severity: CheckerCliSeverity;
   readonly summaryMode: CheckerCliSummaryMode;
-  readonly includeCodes: readonly string[];
-  readonly excludeCodes: readonly string[];
 }
 
 async function parseCliArgs(
@@ -92,19 +85,15 @@ async function parseCliArgs(
   const sourceFilePaths: string[] = [];
   const styleFilePaths: string[] = [];
   const includeCodes: string[] = [];
+  const includeBundles: CheckerCodeBundle[] = [];
   const excludeCodes: string[] = [];
   let hasExplicitFileSelection = false;
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index]!;
 
-    if (arg === "--") {
-      continue;
-    }
-
-    if (arg === "--help" || arg === "-h") {
-      return { helpText: buildHelpText() };
-    }
+    if (arg === "--") continue;
+    if (arg === "--help" || arg === "-h") return { helpText: buildHelpText() };
 
     if (arg === "--root") {
       const value = argv[index + 1];
@@ -116,9 +105,7 @@ async function parseCliArgs(
 
     if (arg === "--format") {
       const value = argv[index + 1];
-      if (value !== "text" && value !== "json") {
-        return { error: "Expected --format text|json" };
-      }
+      if (value !== "text" && value !== "json") return { error: "Expected --format text|json" };
       format = value;
       index += 1;
       continue;
@@ -193,15 +180,11 @@ async function parseCliArgs(
 
     if (arg === "--path-alias") {
       const value = argv[index + 1];
-      if (!value || !value.includes("=")) {
-        return { error: "Expected --path-alias prefix=target" };
-      }
+      if (!value || !value.includes("=")) return { error: "Expected --path-alias prefix=target" };
       const eq = value.indexOf("=");
       const key = value.slice(0, eq);
       const target = value.slice(eq + 1);
-      if (!key || !target) {
-        return { error: "Expected --path-alias prefix=target" };
-      }
+      if (!key || !target) return { error: "Expected --path-alias prefix=target" };
       pathAlias[key] = target;
       index += 1;
       continue;
@@ -211,6 +194,17 @@ async function parseCliArgs(
       const value = argv[index + 1];
       if (!value) return { error: "Missing value for --include-code" };
       includeCodes.push(value);
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--include-bundle") {
+      const value = argv[index + 1];
+      if (!value) return { error: "Missing value for --include-bundle" };
+      if (!isCheckerCodeBundle(value)) {
+        return { error: "Expected --include-bundle source-missing|style-recovery|style-unused" };
+      }
+      includeBundles.push(value);
       index += 1;
       continue;
     }
@@ -237,10 +231,7 @@ async function parseCliArgs(
 
     if (arg === "--stdin-file-list") {
       hasExplicitFileSelection = true;
-      addFileListEntries(stdinFileList ?? [], workspaceRoot, {
-        sourceFilePaths,
-        styleFilePaths,
-      });
+      addFileListEntries(stdinFileList ?? [], workspaceRoot, { sourceFilePaths, styleFilePaths });
       continue;
     }
 
@@ -276,10 +267,7 @@ async function parseCliArgs(
       continue;
     }
 
-    if (arg.startsWith("-")) {
-      return { error: `Unknown option: ${arg}` };
-    }
-
+    if (arg.startsWith("-")) return { error: `Unknown option: ${arg}` };
     workspaceRoot = path.resolve(cwd, arg);
   }
 
@@ -303,14 +291,19 @@ async function parseCliArgs(
           }
         : {}),
     },
-    preset,
+    filters: {
+      preset,
+      category,
+      severity,
+      includeCodes: expandCheckerCodeBundles(
+        [...new Set(includeBundles)],
+        [...new Set(includeCodes)],
+      ),
+      excludeCodes: [...new Set(excludeCodes)],
+    },
     format,
     failOn,
-    category,
-    severity,
     summaryMode,
-    includeCodes: [...new Set(includeCodes)],
-    excludeCodes: [...new Set(excludeCodes)],
   };
 }
 
@@ -355,15 +348,12 @@ function presetDefaults(preset: CheckerCliPreset): {
 
 function writeResult(
   result: WorkspaceCheckResult,
-  parsed: Pick<ParsedCliOptions, "format" | "summaryMode"> &
-    Pick<
-      ParsedCliOptions,
-      "options" | "preset" | "category" | "severity" | "includeCodes" | "excludeCodes"
-    >,
+  jsonReport: CheckerReportJsonV1,
+  parsed: Pick<ParsedCliOptions, "format" | "summaryMode">,
   io: CheckerCliIO,
 ): void {
   if (parsed.format === "json") {
-    io.stdout(`${JSON.stringify(buildJsonReport(result, parsed), null, 2)}\n`);
+    io.stdout(`${JSON.stringify(jsonReport, null, 2)}\n`);
     return;
   }
 
@@ -387,77 +377,6 @@ function shouldFail(result: WorkspaceCheckResult, failOn: CheckerCliFailOn): boo
   if (failOn === "none") return false;
   if (failOn === "hint") return result.summary.total > 0;
   return result.summary.warnings > 0;
-}
-
-function filterResult(
-  result: WorkspaceCheckResult,
-  category: CheckerCliCategory,
-  severity: CheckerCliSeverity,
-  includeCodes: readonly string[],
-  excludeCodes: readonly string[],
-): WorkspaceCheckResult {
-  const findings = result.findings.filter(({ finding }) => {
-    if (category !== "all" && finding.category !== category) return false;
-    if (severity !== "all" && finding.severity !== severity) return false;
-    if (includeCodes.length > 0 && !includeCodes.includes(finding.code)) return false;
-    if (excludeCodes.includes(finding.code)) return false;
-    return true;
-  });
-  return {
-    ...result,
-    findings,
-    summary: summarizeFilteredFindings(findings),
-  };
-}
-
-function summarizeFilteredFindings(
-  findings: readonly WorkspaceCheckerFinding[],
-): WorkspaceCheckSummary {
-  let warnings = 0;
-  let hints = 0;
-  for (const { finding } of findings) {
-    if (finding.severity === "warning") warnings += 1;
-    if (finding.severity === "hint") hints += 1;
-  }
-  return {
-    warnings,
-    hints,
-    total: findings.length,
-  };
-}
-
-function buildJsonReport(
-  result: WorkspaceCheckResult,
-  parsed: Pick<
-    ParsedCliOptions,
-    "options" | "preset" | "category" | "severity" | "includeCodes" | "excludeCodes"
-  >,
-): CheckerReportJsonV1 {
-  return {
-    schemaVersion: CHECKER_JSON_SCHEMA_VERSION,
-    tool: CHECKER_TOOL_NAME,
-    workspaceRoot: parsed.options.workspaceRoot,
-    filters: {
-      preset: parsed.preset,
-      category: parsed.category,
-      severity: parsed.severity,
-      includeCodes: parsed.includeCodes,
-      excludeCodes: parsed.excludeCodes,
-    },
-    sourceFiles: result.sourceFiles,
-    styleFiles: result.styleFiles,
-    summary: result.summary,
-    findings: result.findings.map(
-      ({ filePath, finding }): CheckerReportJsonFinding => ({
-        filePath,
-        category: finding.category,
-        code: finding.code,
-        severity: finding.severity,
-        range: finding.range,
-        message: formatCheckerFinding(finding, path.dirname(filePath)),
-      }),
-    ),
-  };
 }
 
 function isSourceFilePath(filePath: string): boolean {
@@ -528,6 +447,7 @@ function buildHelpText(): string {
     "  --classname-transform <mode> Style transform mode",
     "  --path-alias <prefix=target> Repeatable native path-alias override",
     "  --include-code <code>        Restrict findings to one rule code (repeatable)",
+    "  --include-bundle <bundle>    Restrict findings to one named code bundle",
     "  --exclude-code <code>        Remove one rule code from output (repeatable)",
     "  --source-file <path>         Restrict source checking to one file (repeatable)",
     "  --style-file <path>          Restrict style checking to one file (repeatable)",
