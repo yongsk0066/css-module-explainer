@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DiagnosticSeverity, DiagnosticTag } from "vscode-languageserver-protocol/node";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
 import { WorkspaceStyleDependencyGraph } from "../../../server/src/core/semantic/style-dependency-graph";
+import { parseStyleDocument } from "../../../server/src/core/scss/scss-parser";
 import { computeScssUnusedDiagnostics } from "../../../server/src/providers/scss-diagnostics";
 import { infoAtLine as info, semanticSiteAt } from "../../_fixtures/test-helpers";
 import {
@@ -500,5 +501,58 @@ describe("computeScssUnusedDiagnostics", () => {
         uri: "file:///fake/Base.module.scss",
       },
     });
+  });
+
+  it("reports a missing imported @value module with create-file data", () => {
+    const styleDoc = parseStyleDocument(
+      `@value primary from "./tokens.module.scss";
+.button { color: primary; }`,
+      SCSS_PATH,
+    );
+
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      styleDoc,
+      new WorkspaceSemanticWorkspaceReferenceIndex(),
+      new WorkspaceStyleDependencyGraph(),
+      () => null,
+    );
+
+    const diagnostic = diagnostics.find((entry) =>
+      entry.message.includes("Cannot resolve imported @value module './tokens.module.scss'."),
+    );
+    expect(diagnostic).toBeDefined();
+    expect(diagnostic!.data).toMatchObject({
+      createModuleFile: {
+        uri: "file:///fake/tokens.module.scss",
+      },
+    });
+  });
+
+  it("reports a missing imported @value binding", () => {
+    const styleDoc = parseStyleDocument(
+      `@value primary, secondary as accent from "./tokens.module.scss";
+.button { color: accent; }`,
+      SCSS_PATH,
+    );
+
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      styleDoc,
+      new WorkspaceSemanticWorkspaceReferenceIndex(),
+      new WorkspaceStyleDependencyGraph(),
+      (filePath) =>
+        filePath === "/fake/tokens.module.scss"
+          ? parseStyleDocument(`@value primary: #ff3355;`, filePath)
+          : null,
+    );
+
+    expect(
+      diagnostics.some((entry) =>
+        entry.message.includes(
+          "@value 'secondary' not found in './tokens.module.scss' for local binding 'accent'.",
+        ),
+      ),
+    ).toBe(true);
   });
 });

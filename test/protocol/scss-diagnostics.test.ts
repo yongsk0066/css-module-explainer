@@ -250,4 +250,89 @@ export function App(enabled: boolean) {
       ),
     ).toBeDefined();
   });
+
+  it("reports an unresolved imported @value module", async () => {
+    const VALUE_SCSS = `
+@value primary from './tokens.module.scss';
+
+.button {
+  color: primary;
+}
+`;
+    client = createInProcessServer({
+      readStyleFile: (filePath) => (filePath.endsWith("Button.module.scss") ? VALUE_SCSS : null),
+      typeResolver: new FakeTypeResolver(),
+      fileSupplier: emptySupplier,
+    });
+    await client.initialize();
+    client.initialized();
+
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/Button.module.scss",
+        languageId: "scss",
+        version: 1,
+        text: VALUE_SCSS,
+      },
+    });
+
+    const diagnostics = await client.waitForDiagnostics(
+      "file:///fake/workspace/src/Button.module.scss",
+    );
+    expect(
+      diagnostics.find((d) =>
+        d.message.includes("Cannot resolve imported @value module './tokens.module.scss'."),
+      ),
+    ).toBeDefined();
+  });
+
+  it("reports a missing imported @value in an existing module", async () => {
+    const VALUE_SCSS = `
+@value primary, secondary as accent from './tokens.module.scss';
+
+.button {
+  color: accent;
+}
+`;
+    const TOKENS_SCSS = `@value primary: #ff3355;`;
+    client = createInProcessServer({
+      readStyleFile: (filePath) => {
+        if (filePath.endsWith("Button.module.scss")) return VALUE_SCSS;
+        if (filePath.endsWith("tokens.module.scss")) return TOKENS_SCSS;
+        return null;
+      },
+      typeResolver: new FakeTypeResolver(),
+      fileSupplier: emptySupplier,
+    });
+    await client.initialize();
+    client.initialized();
+
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/Button.module.scss",
+        languageId: "scss",
+        version: 1,
+        text: VALUE_SCSS,
+      },
+    });
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/tokens.module.scss",
+        languageId: "scss",
+        version: 1,
+        text: TOKENS_SCSS,
+      },
+    });
+
+    const diagnostics = await client.waitForDiagnostics(
+      "file:///fake/workspace/src/Button.module.scss",
+    );
+    expect(
+      diagnostics.find((d) =>
+        d.message.includes(
+          "@value 'secondary' not found in './tokens.module.scss' for local binding 'accent'.",
+        ),
+      ),
+    ).toBeDefined();
+  });
 });

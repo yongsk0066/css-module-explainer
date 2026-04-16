@@ -109,4 +109,24 @@ export type StyleCheckerFinding =
       readonly fromSpecifier?: string;
       readonly targetFilePath: string;
       readonly className: string;
+    }
+  | {
+      readonly category: "style";
+      readonly code: "missing-value-module";
+      readonly severity: "warning";
+      readonly range: Range;
+      readonly selectorFilePath: string;
+      readonly fromSpecifier: string;
+      readonly targetFilePath: string;
+    }
+  | {
+      readonly category: "style";
+      readonly code: "missing-imported-value";
+      readonly severity: "warning";
+      readonly range: Range;
+      readonly selectorFilePath: string;
+      readonly fromSpecifier: string;
+      readonly targetFilePath: string;
+      readonly importedName: string;
+      readonly localName: string;
     };

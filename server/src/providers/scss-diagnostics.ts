@@ -78,6 +78,25 @@ function toDiagnostic(
         data,
       };
     }
+    case "missing-value-module":
+      return {
+        range: toLspRange(finding.range),
+        severity: DiagnosticSeverity.Warning,
+        source: "css-module-explainer",
+        message: formatCheckerFinding(finding, ""),
+        data: {
+          createModuleFile: {
+            uri: pathToFileUrl(finding.targetFilePath),
+          },
+        },
+      };
+    case "missing-imported-value":
+      return {
+        range: toLspRange(finding.range),
+        severity: DiagnosticSeverity.Warning,
+        source: "css-module-explainer",
+        message: formatCheckerFinding(finding, ""),
+      };
     default:
       finding satisfies never;
       return finding;

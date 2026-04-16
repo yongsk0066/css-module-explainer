@@ -88,6 +88,50 @@ export function checkStyleDocument(
     }
   }
 
+  const reportedMissingValueModules = new Set<string>();
+
+  for (const valueImport of params.styleDocument.valueImports) {
+    const targetFilePath = path.resolve(
+      path.dirname(params.styleDocument.filePath),
+      valueImport.from,
+    );
+    const targetDocument = env.styleDocumentForPath(targetFilePath);
+    if (!targetDocument) {
+      const moduleKey = `${valueImport.from}:${targetFilePath}`;
+      if (!reportedMissingValueModules.has(moduleKey)) {
+        reportedMissingValueModules.add(moduleKey);
+        findings.push({
+          category: "style",
+          code: "missing-value-module",
+          severity: "warning",
+          range: valueImport.range,
+          selectorFilePath: params.styleDocument.filePath,
+          fromSpecifier: valueImport.from,
+          targetFilePath,
+        });
+      }
+      continue;
+    }
+
+    const targetValueDecl = targetDocument.valueDecls.find(
+      (valueDecl) => valueDecl.name === valueImport.importedName,
+    );
+    if (!targetValueDecl) {
+      findings.push({
+        category: "style",
+        code: "missing-imported-value",
+        severity: "warning",
+        range: valueImport.range,
+        selectorFilePath: params.styleDocument.filePath,
+        fromSpecifier: valueImport.from,
+        targetFilePath,
+        importedName: valueImport.importedName,
+        localName: valueImport.name,
+      });
+      continue;
+    }
+  }
+
   return findings;
 }
 

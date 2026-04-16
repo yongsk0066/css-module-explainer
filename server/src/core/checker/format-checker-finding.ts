@@ -47,6 +47,13 @@ export function formatCheckerFinding(finding: CheckerFinding, workspaceRoot: str
         return `Selector '.${finding.className}' not found in composed module '${finding.fromSpecifier}'.`;
       }
       return `Selector '.${finding.className}' not found in this file for composes.`;
+    case "missing-value-module":
+      return `Cannot resolve imported @value module '${finding.fromSpecifier}'.`;
+    case "missing-imported-value":
+      if (finding.localName === finding.importedName) {
+        return `@value '${finding.importedName}' not found in '${finding.fromSpecifier}'.`;
+      }
+      return `@value '${finding.importedName}' not found in '${finding.fromSpecifier}' for local binding '${finding.localName}'.`;
     default:
       finding satisfies never;
       return "";

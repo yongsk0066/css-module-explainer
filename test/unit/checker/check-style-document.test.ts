@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/src/core/semantic/workspace-reference-index";
 import { WorkspaceStyleDependencyGraph } from "../../../server/src/core/semantic/style-dependency-graph";
 import { checkStyleDocument } from "../../../server/src/core/checker";
+import { parseStyleDocument } from "../../../server/src/core/scss/scss-parser";
 import { info, semanticSiteAt } from "../../_fixtures/test-helpers";
 import { buildStyleDocumentFromSelectorMap } from "../../_fixtures/style-documents";
 
@@ -80,6 +81,73 @@ describe("checkStyleDocument", () => {
           category: "style",
           code: "missing-composed-selector",
           className: "base",
+        }),
+      ]),
+    );
+  });
+
+  it("returns missing imported value module findings once per source module", () => {
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    const styleDocumentWithValues = parseStyleDocument(
+      `@value colors: "./colors.module.scss";
+@value primary, secondary as accent from colors;
+.button { color: primary; border-color: accent; }`,
+      SCSS_PATH,
+    );
+
+    const findings = checkStyleDocument(
+      {
+        scssPath: SCSS_PATH,
+        styleDocument: styleDocumentWithValues,
+      },
+      {
+        semanticReferenceIndex,
+        styleDependencyGraph: new WorkspaceStyleDependencyGraph(),
+        styleDocumentForPath: () => null,
+      },
+    );
+
+    expect(findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          category: "style",
+          code: "missing-value-module",
+          fromSpecifier: "./colors.module.scss",
+        }),
+      ]),
+    );
+  });
+
+  it("returns missing imported value when the target module exists without the named value", () => {
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    const styleDocumentWithValues = parseStyleDocument(
+      `@value primary, secondary as accent from "./colors.module.scss";
+.button { color: primary; border-color: accent; }`,
+      SCSS_PATH,
+    );
+
+    const findings = checkStyleDocument(
+      {
+        scssPath: SCSS_PATH,
+        styleDocument: styleDocumentWithValues,
+      },
+      {
+        semanticReferenceIndex,
+        styleDependencyGraph: new WorkspaceStyleDependencyGraph(),
+        styleDocumentForPath: (filePath) =>
+          filePath === "/fake/colors.module.scss"
+            ? parseStyleDocument(`@value primary: #ff3355;`, filePath)
+            : null,
+      },
+    );
+
+    expect(findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          category: "style",
+          code: "missing-imported-value",
+          importedName: "secondary",
+          localName: "accent",
         }),
       ]),
     );
