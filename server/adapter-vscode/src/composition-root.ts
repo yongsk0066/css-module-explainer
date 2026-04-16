@@ -10,7 +10,7 @@ import { TextDocument } from "vscode-languageserver-textdocument";
 import type ts from "typescript";
 import type { TypeResolver } from "../../src/core/ts/type-resolver";
 import type { FileTask } from "../../src/core/indexing/indexer-worker";
-import { registerHandlers } from "../../src/handler-registration";
+import { registerHandlers } from "./handler-registration";
 import { buildServerCapabilities, registerDynamicFileWatchers } from "./server-capabilities";
 import { createServerRuntimeSession, type ServerRuntimeSession } from "./server-runtime-session";
 import type { WorkspaceRegistry } from "../../src/workspace/workspace-registry";
@@ -79,7 +79,7 @@ export { createDefaultProgram } from "../../src/core/ts/default-program";
  *
  * Responsibilities are split:
  *   - THIS file: DI assembly (buildBundle) + lifecycle (init/initialized)
- *   - handler-registration.ts: LSP request routing + diagnostics scheduler
+ *   - adapter-vscode/handler-registration.ts: LSP request routing + diagnostics scheduler
  */
 export function createServer(options: CreateServerOptions): CreatedServer {
   const connection =

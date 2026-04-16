@@ -10,7 +10,7 @@ const CHECKER_HOST_ROOT = path.join(REPO_ROOT, "server/engine-host-node/src/chec
 const CHECKER_CLI_ROOT = path.join(REPO_ROOT, "server/checker-cli/src");
 const CHECKER_SURFACE_ROOT = path.join(REPO_ROOT, "server/src/checker-surface");
 const COMPOSITION_ROOT = path.join(REPO_ROOT, "server/adapter-vscode/src/composition-root.ts");
-const HANDLER_ROOT = path.join(REPO_ROOT, "server/src/handler-registration.ts");
+const HANDLER_ROOT = path.join(REPO_ROOT, "server/adapter-vscode/src/handler-registration.ts");
 
 describe("package-ready boundaries", () => {
   it("core modules do not depend on provider or runtime modules", () => {

@@ -338,7 +338,7 @@ The flow is:
 3. compute an invalidation plan
 4. apply the plan from handler/runtime wiring
 
-`server/src/handler-registration.ts` applies plans. It should not own semantic
+`server/adapter-vscode/src/handler-registration.ts` applies plans. It should not own semantic
 diffing rules itself.
 
 Benefits:
