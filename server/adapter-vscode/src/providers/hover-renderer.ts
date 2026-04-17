@@ -189,6 +189,12 @@ function renderDynamicExplanation(
     if (explanation.selectorCertainty) {
       lines.push(`_Selector certainty: ${explanation.selectorCertainty}._`);
     }
+    if (explanation.selectorCertaintyShapeLabel) {
+      lines.push(`_Selector certainty shape: ${explanation.selectorCertaintyShapeLabel}._`);
+    }
+    if (explanation.selectorCertaintyReasonLabel) {
+      lines.push(`_Selector certainty reason: ${explanation.selectorCertaintyReasonLabel}._`);
+    }
     if (explanation.valueDomainLabel) {
       lines.push(`_Value domain: ${explanation.valueDomainLabel}._`);
     }
@@ -199,6 +205,12 @@ function renderDynamicExplanation(
     lines.push(`_Resolved by template prefix \`${explanation.subject}\`._`);
     if (explanation.selectorCertainty) {
       lines.push(`_Selector certainty: ${explanation.selectorCertainty}._`);
+    }
+    if (explanation.selectorCertaintyShapeLabel) {
+      lines.push(`_Selector certainty shape: ${explanation.selectorCertaintyShapeLabel}._`);
+    }
+    if (explanation.selectorCertaintyReasonLabel) {
+      lines.push(`_Selector certainty reason: ${explanation.selectorCertaintyReasonLabel}._`);
     }
     if (explanation.valueCertaintyReasonLabel) {
       lines.push(`_Value certainty reason: ${explanation.valueCertaintyReasonLabel}._`);

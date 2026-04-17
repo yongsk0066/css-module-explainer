@@ -7,10 +7,17 @@ import type { SourceExpressionKind } from "../hir/source-types";
 export type EdgeCertainty = "exact" | "inferred" | "possible";
 
 export type ValueCertaintyShapeKind = "exact" | "boundedFinite" | "constrainedPrefix" | "unknown";
+export type SelectorCertaintyShapeKind = "exact" | "boundedFinite" | "constrained" | "unknown";
 
 export interface ValueCertaintyProfile {
   readonly certainty: EdgeCertainty;
   readonly shapeKind: ValueCertaintyShapeKind;
+  readonly shapeLabel: string;
+}
+
+export interface SelectorCertaintyProfile {
+  readonly certainty: EdgeCertainty;
+  readonly shapeKind: SelectorCertaintyShapeKind;
   readonly shapeLabel: string;
 }
 
@@ -76,6 +83,45 @@ export function deriveValueCertaintyProfile(
           value satisfies never;
           return null;
       }
+    case "possible":
+      return {
+        certainty,
+        shapeKind: "unknown",
+        shapeLabel: "unknown",
+      };
+    default:
+      certainty satisfies never;
+      return null;
+  }
+}
+
+export function deriveSelectorCertaintyProfile(
+  matchedSelectorCount: number,
+  certainty: EdgeCertainty | undefined,
+  value: AbstractClassValue | undefined,
+): SelectorCertaintyProfile | null {
+  if (!certainty) return null;
+
+  switch (certainty) {
+    case "exact":
+      return {
+        certainty,
+        shapeKind: "exact",
+        shapeLabel: "exact",
+      };
+    case "inferred":
+      if (value?.kind === "prefix") {
+        return {
+          certainty,
+          shapeKind: "constrained",
+          shapeLabel: `constrained selector set (${matchedSelectorCount})`,
+        };
+      }
+      return {
+        certainty,
+        shapeKind: "boundedFinite",
+        shapeLabel: `bounded selector set (${matchedSelectorCount})`,
+      };
     case "possible":
       return {
         certainty,

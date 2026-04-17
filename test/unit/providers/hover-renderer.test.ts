@@ -155,6 +155,8 @@ describe("renderHover", () => {
         valueCertainty: "exact",
         valueCertaintyShapeLabel: "exact",
         selectorCertainty: "inferred",
+        selectorCertaintyShapeLabel: "bounded selector set (2)",
+        selectorCertaintyReasonLabel: "finite candidate values matched a bounded selector set",
         reasonLabel: "TypeScript string-literal union analysis",
       },
     });
@@ -165,6 +167,10 @@ describe("renderHover", () => {
     expect(markdown).toContain("Value certainty: exact.");
     expect(markdown).toContain("Value certainty shape: exact.");
     expect(markdown).toContain("Selector certainty: inferred.");
+    expect(markdown).toContain("Selector certainty shape: bounded selector set (2).");
+    expect(markdown).toContain(
+      "Selector certainty reason: finite candidate values matched a bounded selector set.",
+    );
   });
 
   it("renders value certainty reasons when present", () => {
@@ -181,12 +187,18 @@ describe("renderHover", () => {
         valueCertaintyShapeLabel: "bounded finite (2)",
         valueCertaintyReasonLabel: "TypeScript exposed multiple string-literal candidates",
         selectorCertainty: "inferred",
+        selectorCertaintyShapeLabel: "bounded selector set (1)",
+        selectorCertaintyReasonLabel: "finite candidate values matched a bounded selector set",
         reasonLabel: "TypeScript string-literal union analysis",
       },
     });
     expect(markdown).toContain("Value certainty shape: bounded finite (2).");
     expect(markdown).toContain(
       "Value certainty reason: TypeScript exposed multiple string-literal candidates.",
+    );
+    expect(markdown).toContain("Selector certainty shape: bounded selector set (1).");
+    expect(markdown).toContain(
+      "Selector certainty reason: finite candidate values matched a bounded selector set.",
     );
   });
 

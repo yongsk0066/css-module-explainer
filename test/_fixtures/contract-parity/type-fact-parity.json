@@ -236,6 +236,8 @@
           "expressionKind": "symbolRef",
           "finiteValues": null,
           "selectorCertainty": "possible",
+          "selectorCertaintyReason": "no selector could be proven for this value",
+          "selectorCertaintyShapeLabel": "unknown",
           "selectorNames": [],
           "styleFilePath": "<workspace>/test/_fixtures/contract-parity/TypeFactParity.module.scss",
           "valueDomainKind": "none"
@@ -249,6 +251,8 @@
           "expressionId": "class-expr:0",
           "finiteValues": null,
           "selectorCertainty": "possible",
+          "selectorCertaintyReason": "no selector could be proven for this value",
+          "selectorCertaintyShapeLabel": "unknown",
           "selectorNames": [],
           "styleFilePath": "<workspace>/test/_fixtures/contract-parity/TypeFactParity.module.scss"
         },

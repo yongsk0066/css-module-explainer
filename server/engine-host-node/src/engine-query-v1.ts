@@ -1,12 +1,16 @@
 import {
   describeAbstractValueReason,
+  describeSelectorCertaintyReason,
   describeValueCertaintyReason,
   listCanonicalSelectors,
   readExpressionSemantics,
   readSelectorUsageSummary,
   readSourceExpressionResolution,
 } from "../../engine-core-ts/src/core/query";
-import { deriveValueCertaintyProfile } from "../../engine-core-ts/src/core/semantic/certainty";
+import {
+  deriveSelectorCertaintyProfile,
+  deriveValueCertaintyProfile,
+} from "../../engine-core-ts/src/core/semantic/certainty";
 import type { DocumentAnalysisCache } from "../../engine-core-ts/src/core/indexing/document-analysis-cache";
 import type { StyleDocumentHIR } from "../../engine-core-ts/src/core/hir/style-types";
 import type { WorkspaceSemanticWorkspaceReferenceIndex } from "../../engine-core-ts/src/core/semantic/workspace-reference-index";
@@ -112,11 +116,21 @@ function expressionSemanticsResult(
     semantics.abstractValue,
     semantics.valueCertainty,
   );
+  const selectorCertaintyProfile = deriveSelectorCertaintyProfile(
+    semantics.selectorNames.length,
+    semantics.selectorCertainty,
+    semantics.abstractValue,
+  );
   const valueDomainReason = describeAbstractValueReason(semantics.abstractValue);
   const valueCertaintyReason = describeValueCertaintyReason(
     semantics.abstractValue,
     semantics.valueCertainty,
     semantics.reason,
+  );
+  const selectorCertaintyReason = describeSelectorCertaintyReason(
+    semantics.abstractValue,
+    semantics.selectorCertainty,
+    semantics.selectorNames.length,
   );
   return {
     kind: "expression-semantics",
@@ -132,6 +146,10 @@ function expressionSemanticsResult(
       valueDomainKind: semantics.valueDomainKind,
       ...(valueDomainReason ? { valueDomainReason } : {}),
       selectorCertainty: semantics.selectorCertainty,
+      ...(selectorCertaintyProfile
+        ? { selectorCertaintyShapeLabel: selectorCertaintyProfile.shapeLabel }
+        : {}),
+      ...(selectorCertaintyReason ? { selectorCertaintyReason } : {}),
       ...(semantics.valueCertainty ? { valueCertainty: semantics.valueCertainty } : {}),
       ...(valueCertaintyProfile
         ? { valueCertaintyShapeLabel: valueCertaintyProfile.shapeLabel }
@@ -151,10 +169,20 @@ function sourceExpressionResolutionResult(
     resolution.abstractValue,
     resolution.valueCertainty,
   );
+  const selectorCertaintyProfile = deriveSelectorCertaintyProfile(
+    resolution.selectors.length,
+    resolution.selectorCertainty,
+    resolution.abstractValue,
+  );
   const valueCertaintyReason = describeValueCertaintyReason(
     resolution.abstractValue,
     resolution.valueCertainty,
     resolution.reason,
+  );
+  const selectorCertaintyReason = describeSelectorCertaintyReason(
+    resolution.abstractValue,
+    resolution.selectorCertainty,
+    resolution.selectors.length,
   );
   return {
     kind: "source-expression-resolution",
@@ -166,6 +194,10 @@ function sourceExpressionResolutionResult(
       selectorNames: resolution.selectors.map((selector) => selector.name),
       finiteValues: resolution.finiteValues,
       selectorCertainty: resolution.selectorCertainty,
+      ...(selectorCertaintyProfile
+        ? { selectorCertaintyShapeLabel: selectorCertaintyProfile.shapeLabel }
+        : {}),
+      ...(selectorCertaintyReason ? { selectorCertaintyReason } : {}),
       ...(resolution.valueCertainty ? { valueCertainty: resolution.valueCertainty } : {}),
       ...(valueCertaintyProfile
         ? { valueCertaintyShapeLabel: valueCertaintyProfile.shapeLabel }

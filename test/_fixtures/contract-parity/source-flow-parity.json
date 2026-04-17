@@ -124,8 +124,8 @@
               },
               "ruleRange": {
                 "end": {
-                  "character": 8,
-                  "line": 0
+                  "character": 0,
+                  "line": 1
                 },
                 "start": {
                   "character": 0,
@@ -215,6 +215,8 @@
           "finiteValues": ["large", "small"],
           "reason": "flowBranch",
           "selectorCertainty": "inferred",
+          "selectorCertaintyReason": "finite candidate values matched a bounded selector set",
+          "selectorCertaintyShapeLabel": "bounded selector set (1)",
           "selectorNames": ["small"],
           "styleFilePath": "<workspace>/test/_fixtures/contract-parity/SourceFlowParity.module.scss",
           "valueCertainty": "inferred",
@@ -232,6 +234,8 @@
           "finiteValues": ["large", "small"],
           "reason": "flowBranch",
           "selectorCertainty": "inferred",
+          "selectorCertaintyReason": "finite candidate values matched a bounded selector set",
+          "selectorCertaintyShapeLabel": "bounded selector set (1)",
           "selectorNames": ["small"],
           "styleFilePath": "<workspace>/test/_fixtures/contract-parity/SourceFlowParity.module.scss",
           "valueCertainty": "inferred",

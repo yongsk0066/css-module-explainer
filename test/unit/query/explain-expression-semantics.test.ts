@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   describeAbstractValue,
   describeAbstractValueReason,
+  describeSelectorCertaintyReason,
   describeValueCertaintyReason,
 } from "../../../server/engine-core-ts/src/core/query/explain-expression-semantics";
 
@@ -70,6 +71,35 @@ describe("describeAbstractValue", () => {
 
     expect(describeValueCertaintyReason({ kind: "top" }, "possible", "flowBranch")).toBe(
       "analysis lost finite shape information for this value",
+    );
+  });
+
+  it("explains selector certainty from value domain and match count", () => {
+    expect(
+      describeSelectorCertaintyReason(
+        {
+          kind: "prefix",
+          prefix: "btn-",
+          provenance: "finiteSetWidening",
+        },
+        "inferred",
+        3,
+      ),
+    ).toBe("finite candidates widened to a shared prefix");
+
+    expect(
+      describeSelectorCertaintyReason(
+        {
+          kind: "finiteSet",
+          values: ["small", "large"],
+        },
+        "inferred",
+        1,
+      ),
+    ).toBe("finite candidate values matched a bounded selector set");
+
+    expect(describeSelectorCertaintyReason({ kind: "top" }, "possible", 0)).toBe(
+      "no selector could be proven for this value",
     );
   });
 });

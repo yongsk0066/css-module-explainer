@@ -3,6 +3,7 @@ export {
   buildInvalidClassAnalysisMetadata,
   buildDynamicExpressionExplanation,
   describeAbstractValueReason,
+  describeSelectorCertaintyReason,
   describeValueCertaintyReason,
   messageForInvalidClassFinding,
   type DynamicExpressionExplanation,

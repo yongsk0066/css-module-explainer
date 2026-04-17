@@ -1,6 +1,10 @@
 import type { ClassExpressionHIR } from "../hir/source-types";
 import type { FlowResolution } from "../flow/lattice";
-import { deriveValueCertaintyProfile, type EdgeCertainty } from "../semantic/certainty";
+import {
+  deriveSelectorCertaintyProfile,
+  deriveValueCertaintyProfile,
+  type EdgeCertainty,
+} from "../semantic/certainty";
 import type { ExpressionSemanticsSummary } from "./read-expression-semantics";
 import type { InvalidClassReferenceFinding } from "./find-invalid-class-references";
 
@@ -16,6 +20,8 @@ export interface DynamicExpressionExplanation {
   readonly valueCertaintyShapeLabel?: string;
   readonly valueCertaintyReasonLabel?: string;
   readonly selectorCertainty?: EdgeCertainty;
+  readonly selectorCertaintyShapeLabel?: string;
+  readonly selectorCertaintyReasonLabel?: string;
   readonly reasonLabel?: string;
 }
 
@@ -42,6 +48,16 @@ export function buildDynamicExpressionExplanation(
         semantics.valueCertainty,
         semantics.reason,
       );
+      const selectorCertaintyProfile = deriveSelectorCertaintyProfile(
+        semantics.selectors.length,
+        semantics.selectorCertainty,
+        semantics.abstractValue,
+      );
+      const selectorCertaintyReasonLabel = describeSelectorCertaintyReason(
+        semantics.abstractValue,
+        semantics.selectorCertainty,
+        semantics.selectors.length,
+      );
       const reasonLabel = describeResolutionReason(semantics.reason);
       return {
         kind: "symbolRef",
@@ -55,6 +71,10 @@ export function buildDynamicExpressionExplanation(
           : {}),
         ...(valueCertaintyReasonLabel ? { valueCertaintyReasonLabel } : {}),
         ...(semantics.selectorCertainty ? { selectorCertainty: semantics.selectorCertainty } : {}),
+        ...(selectorCertaintyProfile
+          ? { selectorCertaintyShapeLabel: selectorCertaintyProfile.shapeLabel }
+          : {}),
+        ...(selectorCertaintyReasonLabel ? { selectorCertaintyReasonLabel } : {}),
         ...(reasonLabel ? { reasonLabel } : {}),
       };
     }
@@ -62,6 +82,16 @@ export function buildDynamicExpressionExplanation(
       if (semantics.selectors.length === 0) return null;
       const valueDomainLabel = describeAbstractValue(semantics.abstractValue);
       const valueDomainReasonLabel = describeAbstractValueReason(semantics.abstractValue);
+      const selectorCertaintyProfile = deriveSelectorCertaintyProfile(
+        semantics.selectors.length,
+        semantics.selectorCertainty,
+        semantics.abstractValue,
+      );
+      const selectorCertaintyReasonLabel = describeSelectorCertaintyReason(
+        semantics.abstractValue,
+        semantics.selectorCertainty,
+        semantics.selectors.length,
+      );
       return {
         kind: "template",
         subject: expression.staticPrefix,
@@ -69,6 +99,10 @@ export function buildDynamicExpressionExplanation(
         ...(valueDomainLabel ? { valueDomainLabel } : {}),
         ...(valueDomainReasonLabel ? { valueDomainReasonLabel } : {}),
         ...(semantics.selectorCertainty ? { selectorCertainty: semantics.selectorCertainty } : {}),
+        ...(selectorCertaintyProfile
+          ? { selectorCertaintyShapeLabel: selectorCertaintyProfile.shapeLabel }
+          : {}),
+        ...(selectorCertaintyReasonLabel ? { selectorCertaintyReasonLabel } : {}),
       };
     }
     case "literal":
@@ -248,6 +282,34 @@ export function describeValueCertaintyReason(
         : "analysis could not narrow this value to a finite selector set";
     default:
       valueCertainty satisfies never;
+      return null;
+  }
+}
+
+export function describeSelectorCertaintyReason(
+  abstractValue: FlowResolution["abstractValue"] | undefined,
+  selectorCertainty: EdgeCertainty | undefined,
+  matchedSelectorCount: number,
+): string | null {
+  if (!selectorCertainty) return null;
+
+  switch (selectorCertainty) {
+    case "exact":
+      return null;
+    case "inferred":
+      if (abstractValue?.kind === "prefix") {
+        return (
+          describeAbstractValueReason(abstractValue) ??
+          "constrained prefix matched a bounded selector set"
+        );
+      }
+      return "finite candidate values matched a bounded selector set";
+    case "possible":
+      return matchedSelectorCount === 0
+        ? "no selector could be proven for this value"
+        : "analysis could not prove an exact selector set";
+    default:
+      selectorCertainty satisfies never;
       return null;
   }
 }
