@@ -10,6 +10,10 @@ import type { InvalidClassReferenceFinding } from "./find-invalid-class-referenc
 
 type PrefixProvenance = Extract<FlowResolution["abstractValue"], { kind: "prefix" }>["provenance"];
 type SuffixProvenance = Extract<FlowResolution["abstractValue"], { kind: "suffix" }>["provenance"];
+type PrefixSuffixProvenance = Extract<
+  FlowResolution["abstractValue"],
+  { kind: "prefixSuffix" }
+>["provenance"];
 
 export interface DynamicExpressionExplanation {
   readonly kind: "symbolRef" | "template";
@@ -220,6 +224,8 @@ export function describeAbstractValue(
         : `prefix \`${abstractValue.prefix}\``;
     case "suffix":
       return `suffix \`${abstractValue.suffix}\``;
+    case "prefixSuffix":
+      return `prefix \`${abstractValue.prefix}\` + suffix \`${abstractValue.suffix}\``;
     case "top":
       return "unknown";
     default:
@@ -251,6 +257,8 @@ export function describeAbstractValueReason(
     }
     case "suffix":
       return describeSuffixReason(abstractValue.provenance);
+    case "prefixSuffix":
+      return describePrefixSuffixReason(abstractValue.provenance);
     default:
       return null;
   }
@@ -282,6 +290,11 @@ export function describeValueCertaintyReason(
             describeAbstractValueReason(abstractValue) ??
             "analysis preserved only a constrained suffix of the runtime value"
           );
+        case "prefixSuffix":
+          return (
+            describeAbstractValueReason(abstractValue) ??
+            "analysis preserved both a constrained prefix and suffix of the runtime value"
+          );
         case "exact":
         case "bottom":
         case "top":
@@ -311,7 +324,11 @@ export function describeSelectorCertaintyReason(
     case "exact":
       return null;
     case "inferred":
-      if (abstractValue?.kind === "prefix" || abstractValue?.kind === "suffix") {
+      if (
+        abstractValue?.kind === "prefix" ||
+        abstractValue?.kind === "suffix" ||
+        abstractValue?.kind === "prefixSuffix"
+      ) {
         return (
           describeAbstractValueReason(abstractValue) ??
           "constrained runtime shape matched a bounded selector set"
@@ -338,6 +355,24 @@ function describeSuffixReason(provenance: SuffixProvenance): string | null {
       return "known suffix preserved while prepending an unknown prefix";
     case "suffixJoinLcs":
       return "branched suffixes merged at their longest common suffix";
+    case undefined:
+      return null;
+    default:
+      provenance satisfies never;
+      return null;
+  }
+}
+
+function describePrefixSuffixReason(provenance: PrefixSuffixProvenance): string | null {
+  switch (provenance) {
+    case "concatKnownEdges":
+      return "known prefix and suffix were preserved across concatenation";
+    case "prefixFiniteSetSharedSuffix":
+      return "known prefix combined with finite candidates that shared a stable suffix";
+    case "finiteSetConcatSuffixProduct":
+      return "finite candidates preserved a shared prefix while concatenating a known suffix";
+    case "prefixSuffixJoin":
+      return "branched values merged to a shared prefix and suffix";
     case undefined:
       return null;
     default:

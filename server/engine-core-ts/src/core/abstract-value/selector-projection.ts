@@ -42,6 +42,8 @@ export function resolveAbstractValueSelectors(
       return findCanonicalSelectorsByPrefix(styleDocument, value.prefix);
     case "suffix":
       return findCanonicalSelectorsBySuffix(styleDocument, value.suffix);
+    case "prefixSuffix":
+      return findCanonicalSelectorsByPrefixSuffix(styleDocument, value.prefix, value.suffix);
     case "top":
       return styleDocument.selectors.filter((selector) => selector.viewKind === "canonical");
     default:
@@ -77,6 +79,25 @@ function findCanonicalSelectorsBySuffix(
 
   for (const selector of styleDocument.selectors) {
     if (!selector.name.endsWith(suffix)) continue;
+    const canonical = findCanonicalSelector(styleDocument, selector.name);
+    if (!canonical || emitted.has(canonical.canonicalName)) continue;
+    emitted.add(canonical.canonicalName);
+    resolved.push(canonical);
+  }
+
+  return resolved;
+}
+
+function findCanonicalSelectorsByPrefixSuffix(
+  styleDocument: StyleDocumentHIR,
+  prefix: string,
+  suffix: string,
+): readonly SelectorDeclHIR[] {
+  const emitted = new Set<string>();
+  const resolved: SelectorDeclHIR[] = [];
+
+  for (const selector of styleDocument.selectors) {
+    if (!selector.name.startsWith(prefix) || !selector.name.endsWith(suffix)) continue;
     const canonical = findCanonicalSelector(styleDocument, selector.name);
     if (!canonical || emitted.has(canonical.canonicalName)) continue;
     emitted.add(canonical.canonicalName);

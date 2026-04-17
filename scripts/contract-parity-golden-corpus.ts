@@ -45,6 +45,29 @@ export const CONTRACT_PARITY_GOLDEN_CORPUS: readonly ContractParityEntry[] = [
     },
   },
   {
+    label: "source-prefix-suffix-parity",
+    workspace: {
+      workspaceRoot,
+      sourceFilePaths: [
+        path.join(workspaceRoot, "test/_fixtures/contract-parity/SourcePrefixSuffixParity.tsx"),
+      ],
+      styleFilePaths: [
+        path.join(
+          workspaceRoot,
+          "test/_fixtures/contract-parity/SourcePrefixSuffixParity.module.scss",
+        ),
+      ],
+    },
+    filters: {
+      preset: "changed-source",
+      category: "source",
+      severity: "all",
+      includeBundles: ["source-missing"],
+      includeCodes: [],
+      excludeCodes: [],
+    },
+  },
+  {
     label: "style-composes-parity",
     workspace: {
       workspaceRoot,

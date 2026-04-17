@@ -92,6 +92,22 @@ const SUFFIX_DYNAMIC_SCSS = `
 .error-chip { color: crimson; }
 `;
 
+const PREFIX_SUFFIX_DYNAMIC_TSX = `import classNames from 'classnames/bind';
+import styles from './ButtonChip.module.scss';
+const cx = classNames.bind(styles);
+export function ButtonChip(variant: string) {
+  const derivedChipClass = 'btn-' + variant + '-chip';
+  return <div className={cx('chip', derivedChipClass)}>hi</div>;
+}
+`;
+
+const PREFIX_SUFFIX_DYNAMIC_SCSS = `
+.chip { color: slategray; }
+.btn-idle-chip { color: teal; }
+.btn-busy-chip { color: orange; }
+.btn-error-chip { color: crimson; }
+`;
+
 describe("hover protocol / clsx", () => {
   let client: LspTestClient | null = null;
 
@@ -230,6 +246,37 @@ describe("hover protocol", () => {
     expect(value).toContain("Value domain: suffix `-chip`.");
     expect(value).toContain(
       "Value certainty reason: known suffix preserved while prepending an unknown prefix.",
+    );
+  });
+
+  it("returns a hover for prefix-suffix constrained derived class candidates", async () => {
+    client = createInProcessServer({
+      readStyleFile: (path) =>
+        path.endsWith("ButtonChip.module.scss") ? PREFIX_SUFFIX_DYNAMIC_SCSS : null,
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/ButtonChip.tsx",
+        languageId: "typescriptreact",
+        version: 1,
+        text: PREFIX_SUFFIX_DYNAMIC_TSX,
+      },
+    });
+    const hover = await client.hover({
+      textDocument: { uri: "file:///fake/workspace/src/ButtonChip.tsx" },
+      position: { line: 5, character: 42 },
+    });
+    expect(hover).not.toBeNull();
+    const value = (hover!.contents as { value: string }).value;
+    expect(value).toContain("btn-idle-chip");
+    expect(value).toContain("btn-busy-chip");
+    expect(value).toContain("btn-error-chip");
+    expect(value).toContain("Value domain: prefix `btn-` + suffix `-chip`.");
+    expect(value).toContain(
+      "Value certainty reason: known prefix and suffix were preserved across concatenation.",
     );
   });
 

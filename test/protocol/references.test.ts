@@ -269,6 +269,50 @@ export function StateChip(variant: string) {
   expect(result![0]!.range.start.line).toBe(5);
 });
 
+test("references protocol returns prefix-suffix-derived TSX sites for known-edge concatenation", async ({
+  makeClient,
+}) => {
+  const tsxUri = "file:///fake/workspace/src/ButtonChip.tsx";
+  const scssUri = "file:///fake/workspace/src/ButtonChip.module.scss";
+  const tsx = `import classNames from 'classnames/bind';
+import styles from './ButtonChip.module.scss';
+const cx = classNames.bind(styles);
+export function ButtonChip(variant: string) {
+  const derivedChipClass = 'btn-' + variant + '-chip';
+  return <div className={cx('chip', derivedChipClass)}>hi</div>;
+}
+`;
+  const scss = `.chip { color: slategray; }\n.btn-idle-chip { color: teal; }\n.btn-busy-chip { color: orange; }\n.btn-error-chip { color: crimson; }\n`;
+
+  const client = makeClient({
+    readStyleFile: (path) => (path.endsWith("ButtonChip.module.scss") ? scss : null),
+    typeResolver: new FakeTypeResolver(),
+  });
+
+  await client.initialize();
+  client.initialized();
+  client.didOpen({
+    textDocument: {
+      uri: tsxUri,
+      languageId: "typescriptreact",
+      version: 1,
+      text: tsx,
+    },
+  });
+  await client.waitForDiagnostics(tsxUri);
+
+  const result = await client.references({
+    textDocument: { uri: scssUri },
+    position: { line: 1, character: 6 },
+    context: { includeDeclaration: false },
+  });
+
+  expect(result).not.toBeNull();
+  expect(result).toHaveLength(1);
+  expect(result![0]!.uri).toBe(tsxUri);
+  expect(result![0]!.range.start.line).toBe(5);
+});
+
 test("references protocol resolves a cross-file composes token to the target selector usage", async ({
   makeClient,
 }) => {

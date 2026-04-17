@@ -4,6 +4,7 @@ import {
   exactClassValue,
   finiteSetClassValue,
   prefixClassValue,
+  prefixSuffixClassValue,
   suffixClassValue,
 } from "../../../server/engine-core-ts/src/core/abstract-value/class-value-domain";
 import { resolveAbstractValueSelectors } from "../../../server/engine-core-ts/src/core/abstract-value/selector-projection";
@@ -48,6 +49,14 @@ describe("resolveAbstractValueSelectors", () => {
   it("projects suffixes to matching canonical selectors", () => {
     expect(
       resolveAbstractValueSelectors(suffixClassValue("-primary"), styleDocument).map(
+        (selector) => selector.name,
+      ),
+    ).toEqual(["btn-primary"]);
+  });
+
+  it("projects prefix-suffix products to matching canonical selectors", () => {
+    expect(
+      resolveAbstractValueSelectors(prefixSuffixClassValue("btn-", "-primary"), styleDocument).map(
         (selector) => selector.name,
       ),
     ).toEqual(["btn-primary"]);

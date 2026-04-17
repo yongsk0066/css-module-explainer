@@ -68,6 +68,8 @@ export function deriveValueCertaintyProfile(
           };
         case "suffix":
           return null;
+        case "prefixSuffix":
+          return null;
         case "exact":
           return {
             certainty,
@@ -112,7 +114,7 @@ export function deriveSelectorCertaintyProfile(
         shapeLabel: "exact",
       };
     case "inferred":
-      if (value?.kind === "prefix" || value?.kind === "suffix") {
+      if (value?.kind === "prefix" || value?.kind === "suffix" || value?.kind === "prefixSuffix") {
         return {
           certainty,
           shapeKind: "constrained",
@@ -153,6 +155,7 @@ export function deriveSelectorProjectionCertainty(
     }
     case "prefix":
     case "suffix":
+    case "prefixSuffix":
       if (matchedSelectorCount === 0) return "possible";
       return matchedSelectorCount === selectorUniverseCount ? "exact" : "inferred";
     case "top":

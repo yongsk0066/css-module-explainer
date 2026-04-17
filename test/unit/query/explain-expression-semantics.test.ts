@@ -51,6 +51,16 @@ describe("describeAbstractValue", () => {
         provenance: "concatUnknownLeft",
       }),
     ).toBe("known suffix preserved while prepending an unknown prefix");
+
+    expect(
+      describeAbstractValueReason({
+        kind: "prefixSuffix",
+        prefix: "btn-",
+        suffix: "-chip",
+        minLength: 9,
+        provenance: "concatKnownEdges",
+      }),
+    ).toBe("known prefix and suffix were preserved across concatenation");
   });
 
   it("explains inferred and possible certainty from domain provenance", () => {
@@ -89,6 +99,20 @@ describe("describeAbstractValue", () => {
       ),
     ).toBe("known suffix preserved while prepending an unknown prefix");
 
+    expect(
+      describeValueCertaintyReason(
+        {
+          kind: "prefixSuffix",
+          prefix: "btn-",
+          suffix: "-chip",
+          minLength: 9,
+          provenance: "concatKnownEdges",
+        },
+        "inferred",
+        "flowLiteral",
+      ),
+    ).toBe("known prefix and suffix were preserved across concatenation");
+
     expect(describeValueCertaintyReason({ kind: "top" }, "possible", "flowBranch")).toBe(
       "analysis lost finite shape information for this value",
     );
@@ -118,6 +142,20 @@ describe("describeAbstractValue", () => {
         2,
       ),
     ).toBe("known suffix preserved while prepending an unknown prefix");
+
+    expect(
+      describeSelectorCertaintyReason(
+        {
+          kind: "prefixSuffix",
+          prefix: "btn-",
+          suffix: "-chip",
+          minLength: 9,
+          provenance: "concatKnownEdges",
+        },
+        "inferred",
+        3,
+      ),
+    ).toBe("known prefix and suffix were preserved across concatenation");
 
     expect(
       describeSelectorCertaintyReason(

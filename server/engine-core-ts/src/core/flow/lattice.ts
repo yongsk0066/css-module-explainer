@@ -86,6 +86,13 @@ function sameAbstractValue(left: AbstractClassValue, right: AbstractClassValue):
   if (left.kind === "exact" && right.kind === "exact") return left.value === right.value;
   if (left.kind === "prefix" && right.kind === "prefix") return left.prefix === right.prefix;
   if (left.kind === "suffix" && right.kind === "suffix") return left.suffix === right.suffix;
+  if (left.kind === "prefixSuffix" && right.kind === "prefixSuffix") {
+    return (
+      left.prefix === right.prefix &&
+      left.suffix === right.suffix &&
+      left.minLength === right.minLength
+    );
+  }
   if (left.kind === "finiteSet" && right.kind === "finiteSet") {
     return left.values.length === right.values.length
       ? left.values.every((value, index) => value === right.values[index])

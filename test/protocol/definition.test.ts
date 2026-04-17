@@ -95,6 +95,22 @@ const SUFFIX_DYNAMIC_SCSS = `
 .error-chip { color: crimson; }
 `;
 
+const PREFIX_SUFFIX_DYNAMIC_TSX = `import classNames from 'classnames/bind';
+import styles from './ButtonChip.module.scss';
+const cx = classNames.bind(styles);
+export function ButtonChip(variant: string) {
+  const derivedChipClass = 'btn-' + variant + '-chip';
+  return <div className={cx('chip', derivedChipClass)}>hi</div>;
+}
+`;
+
+const PREFIX_SUFFIX_DYNAMIC_SCSS = `
+.chip { color: slategray; }
+.btn-idle-chip { color: teal; }
+.btn-busy-chip { color: orange; }
+.btn-error-chip { color: crimson; }
+`;
+
 function openButton(client: LspTestClient): void {
   client.didOpen({
     textDocument: {
@@ -237,6 +253,33 @@ describe("definition protocol", () => {
     const links = result as Array<{ targetUri: string }>;
     expect(links).toHaveLength(3);
     expect(links.every((link) => link.targetUri.endsWith("StateChip.module.scss"))).toBe(true);
+  });
+
+  it("returns definition links for prefix-suffix constrained derived class candidates", async () => {
+    client = createInProcessServer({
+      readStyleFile: (path) =>
+        path.endsWith("ButtonChip.module.scss") ? PREFIX_SUFFIX_DYNAMIC_SCSS : null,
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/ButtonChip.tsx",
+        languageId: "typescriptreact",
+        version: 1,
+        text: PREFIX_SUFFIX_DYNAMIC_TSX,
+      },
+    });
+    const result = await client.definition({
+      textDocument: { uri: "file:///fake/workspace/src/ButtonChip.tsx" },
+      position: { line: 5, character: 42 },
+    });
+    expect(result).not.toBeNull();
+    expect(Array.isArray(result)).toBe(true);
+    const links = result as Array<{ targetUri: string }>;
+    expect(links).toHaveLength(3);
+    expect(links.every((link) => link.targetUri.endsWith("ButtonChip.module.scss"))).toBe(true);
   });
 
   it("returns null when the cursor is outside any cx call", async () => {
