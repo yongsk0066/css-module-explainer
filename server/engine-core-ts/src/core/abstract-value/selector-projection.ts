@@ -56,6 +56,7 @@ export function resolveAbstractValueSelectors(
         styleDocument,
         value.prefix,
         value.suffix,
+        value.minLength,
         value.mustChars,
         value.mayChars,
         Boolean(value.mayIncludeOtherChars),
@@ -151,6 +152,7 @@ function findCanonicalSelectorsByComposite(
   styleDocument: StyleDocumentHIR,
   prefix: string | undefined,
   suffix: string | undefined,
+  minLength: number | undefined,
   mustChars: string,
   mayChars: string,
   mayIncludeOtherChars: boolean,
@@ -161,6 +163,7 @@ function findCanonicalSelectorsByComposite(
   const resolved: SelectorDeclHIR[] = [];
 
   for (const selector of styleDocument.selectors) {
+    if (minLength !== undefined && selector.name.length < minLength) continue;
     if (prefix && !selector.name.startsWith(prefix)) continue;
     if (suffix && !selector.name.endsWith(suffix)) continue;
     const charSet = new Set(Array.from(selector.name));

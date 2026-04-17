@@ -976,6 +976,7 @@ function charSetForString(value: string): string {
 }
 
 function matchesCompositeConstraints(composite: CompositeClassValue, value: string): boolean {
+  if (composite.minLength !== undefined && value.length < composite.minLength) return false;
   if (composite.prefix && !value.startsWith(composite.prefix)) return false;
   if (composite.suffix && !value.endsWith(composite.suffix)) return false;
   return matchesCharConstraints(composite, value);

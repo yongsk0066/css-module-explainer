@@ -87,6 +87,21 @@ describe("resolveAbstractValueSelectors", () => {
     ).toEqual(["btn-primary", "btn-secondary"]);
   });
 
+  it("respects composite minLength constraints during projection", () => {
+    expect(
+      resolveAbstractValueSelectors(
+        compositeClassValue({
+          prefix: "btn-",
+          minLength: 20,
+          mustChars: "-btn",
+          mayChars: "-abcdeimnoprstuy",
+          provenance: "finiteSetWideningComposite",
+        }),
+        styleDocument,
+      ).map((selector) => selector.name),
+    ).toEqual([]);
+  });
+
   it("treats top as the whole canonical selector universe", () => {
     expect(
       resolveAbstractValueSelectors(TOP_CLASS_VALUE, styleDocument)

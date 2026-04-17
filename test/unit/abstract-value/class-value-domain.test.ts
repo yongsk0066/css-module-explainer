@@ -286,6 +286,21 @@ describe("class-value-domain", () => {
     ).toEqual(prefixSuffixClassValue("btn-", "-chip", 10));
   });
 
+  it("degrades composite joins when only the edge survives minLength mismatch", () => {
+    expect(
+      joinClassValues(
+        compositeClassValue({
+          prefix: "btn-",
+          minLength: 20,
+          mustChars: "-btn",
+          mayChars: "-abcdeimnoprstuy",
+          provenance: "compositeJoin",
+        }),
+        exactClassValue("btn-primary"),
+      ),
+    ).toEqual(prefixClassValue("btn-", "prefixJoinLcp"));
+  });
+
   it("preserves useful prefix information when joining prefixes with prefix-suffix products", () => {
     expect(
       joinClassValues(prefixClassValue("btn-"), prefixSuffixClassValue("btn-", "-chip", 10)),
