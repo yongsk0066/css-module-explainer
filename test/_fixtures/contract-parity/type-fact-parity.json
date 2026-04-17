@@ -1,0 +1,261 @@
+{
+  "input": {
+    "sources": [
+      {
+        "bindingGraph": {
+          "declarations": [
+            {
+              "id": "decl:0",
+              "kind": "import",
+              "name": "classNames"
+            },
+            {
+              "id": "decl:1",
+              "kind": "import",
+              "name": "styles"
+            },
+            {
+              "id": "decl:2",
+              "kind": "localVar",
+              "name": "cx"
+            },
+            {
+              "id": "decl:3",
+              "kind": "localVar",
+              "name": "TypeFactParity"
+            },
+            {
+              "id": "decl:4",
+              "kind": "parameter",
+              "name": "size"
+            }
+          ],
+          "resolutions": [
+            {
+              "declarationId": "decl:4",
+              "expressionId": "class-expr:0"
+            }
+          ]
+        },
+        "document": {
+          "classExpressions": [
+            {
+              "id": "class-expr:0",
+              "kind": "symbolRef",
+              "origin": "cxCall",
+              "pathSegments": [],
+              "range": {
+                "end": {
+                  "character": 32,
+                  "line": 6
+                },
+                "start": {
+                  "character": 28,
+                  "line": 6
+                }
+              },
+              "rawReference": "size",
+              "rootBindingDeclId": "decl:4",
+              "rootName": "size",
+              "scssModulePath": "<workspace>/test/_fixtures/contract-parity/TypeFactParity.module.scss"
+            }
+          ],
+          "filePath": "<workspace>/test/_fixtures/contract-parity/TypeFactParity.tsx",
+          "kind": "source",
+          "language": "typescriptreact",
+          "styleImports": [
+            {
+              "bindingDeclId": "decl:1",
+              "id": "style-import:0",
+              "kind": "styleImport",
+              "localName": "styles",
+              "resolved": {
+                "absolutePath": "<workspace>/test/_fixtures/contract-parity/TypeFactParity.module.scss",
+                "kind": "resolved"
+              }
+            }
+          ],
+          "utilityBindings": [
+            {
+              "bindingDeclId": "decl:2",
+              "classNamesImportName": "classNames",
+              "id": "utility-binding:cx:0",
+              "kind": "classnamesBind",
+              "localName": "cx",
+              "scssModulePath": "<workspace>/test/_fixtures/contract-parity/TypeFactParity.module.scss",
+              "stylesLocalName": "styles"
+            }
+          ]
+        },
+        "filePath": "<workspace>/test/_fixtures/contract-parity/TypeFactParity.tsx"
+      }
+    ],
+    "styles": [
+      {
+        "document": {
+          "animationNameRefs": [],
+          "filePath": "<workspace>/test/_fixtures/contract-parity/TypeFactParity.module.scss",
+          "keyframes": [],
+          "kind": "style",
+          "selectors": [
+            {
+              "canonicalName": "primary",
+              "composes": [],
+              "declarations": "",
+              "fullSelector": ".primary",
+              "id": "selector:primary:0:1",
+              "kind": "selector",
+              "name": "primary",
+              "nestedSafety": "flat",
+              "range": {
+                "end": {
+                  "character": 8,
+                  "line": 0
+                },
+                "start": {
+                  "character": 1,
+                  "line": 0
+                }
+              },
+              "ruleRange": {
+                "end": {
+                  "character": 0,
+                  "line": 1
+                },
+                "start": {
+                  "character": 0,
+                  "line": 0
+                }
+              },
+              "viewKind": "canonical"
+            },
+            {
+              "canonicalName": "secondary",
+              "composes": [],
+              "declarations": "",
+              "fullSelector": ".secondary",
+              "id": "selector:secondary:2:1",
+              "kind": "selector",
+              "name": "secondary",
+              "nestedSafety": "flat",
+              "range": {
+                "end": {
+                  "character": 10,
+                  "line": 2
+                },
+                "start": {
+                  "character": 1,
+                  "line": 2
+                }
+              },
+              "ruleRange": {
+                "end": {
+                  "character": 0,
+                  "line": 3
+                },
+                "start": {
+                  "character": 0,
+                  "line": 2
+                }
+              },
+              "viewKind": "canonical"
+            }
+          ],
+          "valueDecls": [],
+          "valueImports": [],
+          "valueRefs": []
+        },
+        "filePath": "<workspace>/test/_fixtures/contract-parity/TypeFactParity.module.scss"
+      }
+    ],
+    "typeFacts": [
+      {
+        "expressionId": "class-expr:0",
+        "facts": {
+          "kind": "unknown"
+        },
+        "filePath": "<workspace>/test/_fixtures/contract-parity/TypeFactParity.tsx"
+      }
+    ],
+    "version": "1",
+    "workspace": {
+      "classnameTransform": "asIs",
+      "root": "<workspace>",
+      "settingsKey": "transform:asIs;alias:"
+    }
+  },
+  "output": {
+    "checkerReport": {
+      "findings": [],
+      "summary": {
+        "hints": 0,
+        "total": 0,
+        "warnings": 0
+      },
+      "version": "1"
+    },
+    "queryResults": [
+      {
+        "filePath": "<workspace>/test/_fixtures/contract-parity/TypeFactParity.module.scss",
+        "kind": "selector-usage",
+        "payload": {
+          "canonicalName": "primary",
+          "directReferenceCount": 0,
+          "editableDirectReferenceCount": 0,
+          "exactReferenceCount": 0,
+          "hasAnyReferences": false,
+          "hasExpandedReferences": false,
+          "hasStyleDependencyReferences": false,
+          "inferredOrBetterReferenceCount": 0,
+          "totalReferences": 0
+        },
+        "queryId": "primary"
+      },
+      {
+        "filePath": "<workspace>/test/_fixtures/contract-parity/TypeFactParity.module.scss",
+        "kind": "selector-usage",
+        "payload": {
+          "canonicalName": "secondary",
+          "directReferenceCount": 0,
+          "editableDirectReferenceCount": 0,
+          "exactReferenceCount": 0,
+          "hasAnyReferences": false,
+          "hasExpandedReferences": false,
+          "hasStyleDependencyReferences": false,
+          "inferredOrBetterReferenceCount": 0,
+          "totalReferences": 0
+        },
+        "queryId": "secondary"
+      },
+      {
+        "filePath": "<workspace>/test/_fixtures/contract-parity/TypeFactParity.tsx",
+        "kind": "expression-semantics",
+        "payload": {
+          "candidateNames": [],
+          "expressionId": "class-expr:0",
+          "expressionKind": "symbolRef",
+          "finiteValues": null,
+          "selectorCertainty": "possible",
+          "selectorNames": [],
+          "styleFilePath": "<workspace>/test/_fixtures/contract-parity/TypeFactParity.module.scss",
+          "valueDomainKind": "none"
+        },
+        "queryId": "class-expr:0"
+      },
+      {
+        "filePath": "<workspace>/test/_fixtures/contract-parity/TypeFactParity.tsx",
+        "kind": "source-expression-resolution",
+        "payload": {
+          "expressionId": "class-expr:0",
+          "finiteValues": null,
+          "selectorCertainty": "possible",
+          "selectorNames": [],
+          "styleFilePath": "<workspace>/test/_fixtures/contract-parity/TypeFactParity.module.scss"
+        },
+        "queryId": "class-expr:0"
+      }
+    ],
+    "rewritePlans": [],
+    "version": "1"
+  }
+}

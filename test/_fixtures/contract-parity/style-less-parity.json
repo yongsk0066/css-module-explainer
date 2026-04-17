@@ -1,0 +1,300 @@
+{
+  "input": {
+    "sources": [],
+    "styles": [
+      {
+        "document": {
+          "animationNameRefs": [],
+          "filePath": "<workspace>/examples/src/scenarios/18-less-module/LessModule.module.less",
+          "keyframes": [],
+          "kind": "style",
+          "selectors": [
+            {
+              "canonicalName": "card",
+              "composes": [],
+              "declarations": "display: grid; gap: 12px; padding: 18px; border: 1px solid fade(@accent, 34%); border-radius: 16px; background: white",
+              "fullSelector": ".card",
+              "id": "selector:card:3:1",
+              "kind": "selector",
+              "name": "card",
+              "nestedSafety": "flat",
+              "range": {
+                "end": {
+                  "character": 5,
+                  "line": 3
+                },
+                "start": {
+                  "character": 1,
+                  "line": 3
+                }
+              },
+              "ruleRange": {
+                "end": {
+                  "character": 0,
+                  "line": 14
+                },
+                "start": {
+                  "character": 0,
+                  "line": 3
+                }
+              },
+              "viewKind": "canonical"
+            },
+            {
+              "canonicalName": "active",
+              "composes": [],
+              "declarations": "box-shadow: inset 0 0 0 2px fade(@accent, 24%)",
+              "fullSelector": ".card.active",
+              "id": "selector:active:11:4",
+              "kind": "selector",
+              "name": "active",
+              "nestedSafety": "nestedUnsafe",
+              "range": {
+                "end": {
+                  "character": 10,
+                  "line": 11
+                },
+                "start": {
+                  "character": 4,
+                  "line": 11
+                }
+              },
+              "ruleRange": {
+                "end": {
+                  "character": 2,
+                  "line": 13
+                },
+                "start": {
+                  "character": 2,
+                  "line": 11
+                }
+              },
+              "viewKind": "canonical"
+            },
+            {
+              "canonicalName": "title",
+              "composes": [],
+              "declarations": "font-size: 18px; font-weight: 700; color: #0f172a",
+              "fullSelector": ".title",
+              "id": "selector:title:16:1",
+              "kind": "selector",
+              "name": "title",
+              "nestedSafety": "flat",
+              "range": {
+                "end": {
+                  "character": 6,
+                  "line": 16
+                },
+                "start": {
+                  "character": 1,
+                  "line": 16
+                }
+              },
+              "ruleRange": {
+                "end": {
+                  "character": 0,
+                  "line": 20
+                },
+                "start": {
+                  "character": 0,
+                  "line": 16
+                }
+              },
+              "viewKind": "canonical"
+            },
+            {
+              "canonicalName": "accent-badge",
+              "composes": [],
+              "declarations": "display: inline-flex; align-items: center; gap: 8px; width: fit-content; padding: 8px 12px; border-radius: 999px; background: @accent-soft; color: #0369a1; font-weight: 600",
+              "fullSelector": ".accent-badge",
+              "id": "selector:accent-badge:22:1",
+              "kind": "selector",
+              "name": "accent-badge",
+              "nestedSafety": "flat",
+              "range": {
+                "end": {
+                  "character": 13,
+                  "line": 22
+                },
+                "start": {
+                  "character": 1,
+                  "line": 22
+                }
+              },
+              "ruleRange": {
+                "end": {
+                  "character": 0,
+                  "line": 32
+                },
+                "start": {
+                  "character": 0,
+                  "line": 22
+                }
+              },
+              "viewKind": "canonical"
+            }
+          ],
+          "valueDecls": [],
+          "valueImports": [],
+          "valueRefs": []
+        },
+        "filePath": "<workspace>/examples/src/scenarios/18-less-module/LessModule.module.less"
+      }
+    ],
+    "typeFacts": [],
+    "version": "1",
+    "workspace": {
+      "classnameTransform": "asIs",
+      "root": "<workspace>",
+      "settingsKey": "transform:asIs;alias:"
+    }
+  },
+  "output": {
+    "checkerReport": {
+      "findings": [
+        {
+          "category": "style",
+          "code": "unused-selector",
+          "filePath": "<workspace>/examples/src/scenarios/18-less-module/LessModule.module.less",
+          "message": "Selector '.card' is declared but never used.",
+          "range": {
+            "end": {
+              "character": 5,
+              "line": 3
+            },
+            "start": {
+              "character": 1,
+              "line": 3
+            }
+          },
+          "severity": "hint"
+        },
+        {
+          "category": "style",
+          "code": "unused-selector",
+          "filePath": "<workspace>/examples/src/scenarios/18-less-module/LessModule.module.less",
+          "message": "Selector '.active' is declared but never used.",
+          "range": {
+            "end": {
+              "character": 10,
+              "line": 11
+            },
+            "start": {
+              "character": 4,
+              "line": 11
+            }
+          },
+          "severity": "hint"
+        },
+        {
+          "category": "style",
+          "code": "unused-selector",
+          "filePath": "<workspace>/examples/src/scenarios/18-less-module/LessModule.module.less",
+          "message": "Selector '.title' is declared but never used.",
+          "range": {
+            "end": {
+              "character": 6,
+              "line": 16
+            },
+            "start": {
+              "character": 1,
+              "line": 16
+            }
+          },
+          "severity": "hint"
+        },
+        {
+          "category": "style",
+          "code": "unused-selector",
+          "filePath": "<workspace>/examples/src/scenarios/18-less-module/LessModule.module.less",
+          "message": "Selector '.accent-badge' is declared but never used.",
+          "range": {
+            "end": {
+              "character": 13,
+              "line": 22
+            },
+            "start": {
+              "character": 1,
+              "line": 22
+            }
+          },
+          "severity": "hint"
+        }
+      ],
+      "summary": {
+        "hints": 4,
+        "total": 4,
+        "warnings": 0
+      },
+      "version": "1"
+    },
+    "queryResults": [
+      {
+        "filePath": "<workspace>/examples/src/scenarios/18-less-module/LessModule.module.less",
+        "kind": "selector-usage",
+        "payload": {
+          "canonicalName": "accent-badge",
+          "directReferenceCount": 0,
+          "editableDirectReferenceCount": 0,
+          "exactReferenceCount": 0,
+          "hasAnyReferences": false,
+          "hasExpandedReferences": false,
+          "hasStyleDependencyReferences": false,
+          "inferredOrBetterReferenceCount": 0,
+          "totalReferences": 0
+        },
+        "queryId": "accent-badge"
+      },
+      {
+        "filePath": "<workspace>/examples/src/scenarios/18-less-module/LessModule.module.less",
+        "kind": "selector-usage",
+        "payload": {
+          "canonicalName": "active",
+          "directReferenceCount": 0,
+          "editableDirectReferenceCount": 0,
+          "exactReferenceCount": 0,
+          "hasAnyReferences": false,
+          "hasExpandedReferences": false,
+          "hasStyleDependencyReferences": false,
+          "inferredOrBetterReferenceCount": 0,
+          "totalReferences": 0
+        },
+        "queryId": "active"
+      },
+      {
+        "filePath": "<workspace>/examples/src/scenarios/18-less-module/LessModule.module.less",
+        "kind": "selector-usage",
+        "payload": {
+          "canonicalName": "card",
+          "directReferenceCount": 0,
+          "editableDirectReferenceCount": 0,
+          "exactReferenceCount": 0,
+          "hasAnyReferences": false,
+          "hasExpandedReferences": false,
+          "hasStyleDependencyReferences": false,
+          "inferredOrBetterReferenceCount": 0,
+          "totalReferences": 0
+        },
+        "queryId": "card"
+      },
+      {
+        "filePath": "<workspace>/examples/src/scenarios/18-less-module/LessModule.module.less",
+        "kind": "selector-usage",
+        "payload": {
+          "canonicalName": "title",
+          "directReferenceCount": 0,
+          "editableDirectReferenceCount": 0,
+          "exactReferenceCount": 0,
+          "hasAnyReferences": false,
+          "hasExpandedReferences": false,
+          "hasStyleDependencyReferences": false,
+          "inferredOrBetterReferenceCount": 0,
+          "totalReferences": 0
+        },
+        "queryId": "title"
+      }
+    ],
+    "rewritePlans": [],
+    "version": "1"
+  }
+}

@@ -1,0 +1,196 @@
+{
+  "input": {
+    "sources": [],
+    "styles": [
+      {
+        "document": {
+          "animationNameRefs": [],
+          "filePath": "<workspace>/test/_fixtures/semantic-smoke/ValueSmoke.module.scss",
+          "keyframes": [],
+          "kind": "style",
+          "selectors": [
+            {
+              "canonicalName": "button",
+              "composes": [],
+              "declarations": "color: primary; box-shadow: 0 0 0 2px accent",
+              "fullSelector": ".button",
+              "id": "selector:button:2:1",
+              "kind": "selector",
+              "name": "button",
+              "nestedSafety": "flat",
+              "range": {
+                "end": {
+                  "character": 7,
+                  "line": 2
+                },
+                "start": {
+                  "character": 1,
+                  "line": 2
+                }
+              },
+              "ruleRange": {
+                "end": {
+                  "character": 0,
+                  "line": 5
+                },
+                "start": {
+                  "character": 0,
+                  "line": 2
+                }
+              },
+              "viewKind": "canonical"
+            }
+          ],
+          "valueDecls": [],
+          "valueImports": [
+            {
+              "from": "./Tokens.module.scss",
+              "id": "value-import:1:0:primary",
+              "importedName": "primary",
+              "kind": "valueImport",
+              "name": "primary",
+              "range": {
+                "end": {
+                  "character": 14,
+                  "line": 0
+                },
+                "start": {
+                  "character": 7,
+                  "line": 0
+                }
+              },
+              "ruleRange": {
+                "end": {
+                  "character": 50,
+                  "line": 0
+                },
+                "start": {
+                  "character": 0,
+                  "line": 0
+                }
+              }
+            },
+            {
+              "from": "./Tokens.module.scss",
+              "id": "value-import:1:1:accent",
+              "importedName": "accent",
+              "kind": "valueImport",
+              "name": "accent",
+              "range": {
+                "end": {
+                  "character": 22,
+                  "line": 0
+                },
+                "start": {
+                  "character": 16,
+                  "line": 0
+                }
+              },
+              "ruleRange": {
+                "end": {
+                  "character": 50,
+                  "line": 0
+                },
+                "start": {
+                  "character": 0,
+                  "line": 0
+                }
+              }
+            }
+          ],
+          "valueRefs": [
+            {
+              "id": "value-ref:decl:4:primary:0",
+              "kind": "valueRef",
+              "name": "primary",
+              "range": {
+                "end": {
+                  "character": 16,
+                  "line": 3
+                },
+                "start": {
+                  "character": 9,
+                  "line": 3
+                }
+              },
+              "source": "declaration"
+            },
+            {
+              "id": "value-ref:decl:5:accent:10",
+              "kind": "valueRef",
+              "name": "accent",
+              "range": {
+                "end": {
+                  "character": 30,
+                  "line": 4
+                },
+                "start": {
+                  "character": 24,
+                  "line": 4
+                }
+              },
+              "source": "declaration"
+            }
+          ]
+        },
+        "filePath": "<workspace>/test/_fixtures/semantic-smoke/ValueSmoke.module.scss"
+      }
+    ],
+    "typeFacts": [],
+    "version": "1",
+    "workspace": {
+      "classnameTransform": "asIs",
+      "root": "<workspace>",
+      "settingsKey": "transform:asIs;alias:"
+    }
+  },
+  "output": {
+    "checkerReport": {
+      "findings": [
+        {
+          "category": "style",
+          "code": "unused-selector",
+          "filePath": "<workspace>/test/_fixtures/semantic-smoke/ValueSmoke.module.scss",
+          "message": "Selector '.button' is declared but never used.",
+          "range": {
+            "end": {
+              "character": 7,
+              "line": 2
+            },
+            "start": {
+              "character": 1,
+              "line": 2
+            }
+          },
+          "severity": "hint"
+        }
+      ],
+      "summary": {
+        "hints": 1,
+        "total": 1,
+        "warnings": 0
+      },
+      "version": "1"
+    },
+    "queryResults": [
+      {
+        "filePath": "<workspace>/test/_fixtures/semantic-smoke/ValueSmoke.module.scss",
+        "kind": "selector-usage",
+        "payload": {
+          "canonicalName": "button",
+          "directReferenceCount": 0,
+          "editableDirectReferenceCount": 0,
+          "exactReferenceCount": 0,
+          "hasAnyReferences": false,
+          "hasExpandedReferences": false,
+          "hasStyleDependencyReferences": false,
+          "inferredOrBetterReferenceCount": 0,
+          "totalReferences": 0
+        },
+        "queryId": "button"
+      }
+    ],
+    "rewritePlans": [],
+    "version": "1"
+  }
+}

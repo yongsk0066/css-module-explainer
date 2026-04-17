@@ -1,0 +1,151 @@
+{
+  "input": {
+    "sources": [],
+    "styles": [
+      {
+        "document": {
+          "animationNameRefs": [
+            {
+              "id": "animation-ref:12:0:fade",
+              "kind": "animationNameRef",
+              "name": "fade",
+              "property": "animation",
+              "range": {
+                "end": {
+                  "character": 17,
+                  "line": 11
+                },
+                "start": {
+                  "character": 13,
+                  "line": 11
+                }
+              }
+            }
+          ],
+          "filePath": "<workspace>/test/_fixtures/semantic-smoke/KeyframesSmoke.module.scss",
+          "keyframes": [
+            {
+              "id": "keyframes:fade:0:11",
+              "kind": "keyframes",
+              "name": "fade",
+              "range": {
+                "end": {
+                  "character": 15,
+                  "line": 0
+                },
+                "start": {
+                  "character": 11,
+                  "line": 0
+                }
+              },
+              "ruleRange": {
+                "end": {
+                  "character": 0,
+                  "line": 8
+                },
+                "start": {
+                  "character": 0,
+                  "line": 0
+                }
+              }
+            }
+          ],
+          "kind": "style",
+          "selectors": [
+            {
+              "canonicalName": "spinner",
+              "composes": [],
+              "declarations": "animation: fade 200ms linear",
+              "fullSelector": ".spinner",
+              "id": "selector:spinner:10:1",
+              "kind": "selector",
+              "name": "spinner",
+              "nestedSafety": "flat",
+              "range": {
+                "end": {
+                  "character": 8,
+                  "line": 10
+                },
+                "start": {
+                  "character": 1,
+                  "line": 10
+                }
+              },
+              "ruleRange": {
+                "end": {
+                  "character": 0,
+                  "line": 12
+                },
+                "start": {
+                  "character": 0,
+                  "line": 10
+                }
+              },
+              "viewKind": "canonical"
+            }
+          ],
+          "valueDecls": [],
+          "valueImports": [],
+          "valueRefs": []
+        },
+        "filePath": "<workspace>/test/_fixtures/semantic-smoke/KeyframesSmoke.module.scss"
+      }
+    ],
+    "typeFacts": [],
+    "version": "1",
+    "workspace": {
+      "classnameTransform": "asIs",
+      "root": "<workspace>",
+      "settingsKey": "transform:asIs;alias:"
+    }
+  },
+  "output": {
+    "checkerReport": {
+      "findings": [
+        {
+          "category": "style",
+          "code": "unused-selector",
+          "filePath": "<workspace>/test/_fixtures/semantic-smoke/KeyframesSmoke.module.scss",
+          "message": "Selector '.spinner' is declared but never used.",
+          "range": {
+            "end": {
+              "character": 8,
+              "line": 10
+            },
+            "start": {
+              "character": 1,
+              "line": 10
+            }
+          },
+          "severity": "hint"
+        }
+      ],
+      "summary": {
+        "hints": 1,
+        "total": 1,
+        "warnings": 0
+      },
+      "version": "1"
+    },
+    "queryResults": [
+      {
+        "filePath": "<workspace>/test/_fixtures/semantic-smoke/KeyframesSmoke.module.scss",
+        "kind": "selector-usage",
+        "payload": {
+          "canonicalName": "spinner",
+          "directReferenceCount": 0,
+          "editableDirectReferenceCount": 0,
+          "exactReferenceCount": 0,
+          "hasAnyReferences": false,
+          "hasExpandedReferences": false,
+          "hasStyleDependencyReferences": false,
+          "inferredOrBetterReferenceCount": 0,
+          "totalReferences": 0
+        },
+        "queryId": "spinner"
+      }
+    ],
+    "rewritePlans": [],
+    "version": "1"
+  }
+}
