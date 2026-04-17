@@ -212,6 +212,9 @@ const el = cx(size);
     const value = (hover!.contents as { value: string }).value;
     expect(value).toContain("Resolved from `size` via TypeScript string-literal union analysis.");
     expect(value).toContain("Value certainty: inferred.");
+    expect(value).toContain(
+      "Value certainty reason: TypeScript exposed multiple string-literal candidates.",
+    );
     expect(value).toContain("Selector certainty: exact.");
     expect(value).toContain("Value domain: finite set (2).");
     expect(value).toContain("Candidates: `active`, `indicator`.");

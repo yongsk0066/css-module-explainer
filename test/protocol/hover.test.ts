@@ -431,6 +431,9 @@ export function Button(enabled: boolean) {
     const value = (hover!.contents as { value: string }).value;
     expect(value).toContain("Resolved from `size` via branched local flow analysis.");
     expect(value).toContain("Value certainty: inferred.");
+    expect(value).toContain(
+      "Value certainty reason: analysis preserved multiple finite candidate values.",
+    );
     expect(value).toContain("Selector certainty: inferred.");
     expect(value).toContain("Candidates: `active`, `indicator`.");
   });

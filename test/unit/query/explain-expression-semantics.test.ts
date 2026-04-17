@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   describeAbstractValue,
   describeAbstractValueReason,
+  describeValueCertaintyReason,
 } from "../../../server/engine-core-ts/src/core/query/explain-expression-semantics";
 
 describe("describeAbstractValue", () => {
@@ -41,5 +42,34 @@ describe("describeAbstractValue", () => {
         provenance: "concatUnknownRight",
       }),
     ).toBe("known prefix preserved while concatenating an unknown suffix");
+  });
+
+  it("explains inferred and possible certainty from domain provenance", () => {
+    expect(
+      describeValueCertaintyReason(
+        {
+          kind: "prefix",
+          prefix: "btn-",
+          provenance: "finiteSetWidening",
+        },
+        "inferred",
+        "flowBranch",
+      ),
+    ).toBe("finite candidates widened to a shared prefix");
+
+    expect(
+      describeValueCertaintyReason(
+        {
+          kind: "finiteSet",
+          values: ["active", "indicator"],
+        },
+        "inferred",
+        "typeUnion",
+      ),
+    ).toBe("TypeScript exposed multiple string-literal candidates");
+
+    expect(describeValueCertaintyReason({ kind: "top" }, "possible", "flowBranch")).toBe(
+      "analysis lost finite shape information for this value",
+    );
   });
 });

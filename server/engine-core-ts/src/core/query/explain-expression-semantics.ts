@@ -13,6 +13,7 @@ export interface DynamicExpressionExplanation {
   readonly valueDomainLabel?: string;
   readonly valueDomainReasonLabel?: string;
   readonly valueCertainty?: EdgeCertainty;
+  readonly valueCertaintyReasonLabel?: string;
   readonly selectorCertainty?: EdgeCertainty;
   readonly reasonLabel?: string;
 }
@@ -26,6 +27,11 @@ export function buildDynamicExpressionExplanation(
       if (!semantics.abstractValue || !semantics.reason) return null;
       const valueDomainLabel = describeAbstractValue(semantics.abstractValue);
       const valueDomainReasonLabel = describeAbstractValueReason(semantics.abstractValue);
+      const valueCertaintyReasonLabel = describeValueCertaintyReason(
+        semantics.abstractValue,
+        semantics.valueCertainty,
+        semantics.reason,
+      );
       const reasonLabel = describeResolutionReason(semantics.reason);
       return {
         kind: "symbolRef",
@@ -34,6 +40,7 @@ export function buildDynamicExpressionExplanation(
         ...(valueDomainLabel ? { valueDomainLabel } : {}),
         ...(valueDomainReasonLabel ? { valueDomainReasonLabel } : {}),
         ...(semantics.valueCertainty ? { valueCertainty: semantics.valueCertainty } : {}),
+        ...(valueCertaintyReasonLabel ? { valueCertaintyReasonLabel } : {}),
         ...(semantics.selectorCertainty ? { selectorCertainty: semantics.selectorCertainty } : {}),
         ...(reasonLabel ? { reasonLabel } : {}),
       };
@@ -130,6 +137,45 @@ export function describeAbstractValueReason(
       return null;
     default:
       abstractValue.provenance satisfies never;
+      return null;
+  }
+}
+
+export function describeValueCertaintyReason(
+  abstractValue: FlowResolution["abstractValue"] | undefined,
+  valueCertainty: EdgeCertainty | undefined,
+  reason: FlowResolution["reason"] | undefined,
+): string | null {
+  if (!abstractValue || !valueCertainty) return null;
+
+  switch (valueCertainty) {
+    case "exact":
+      return null;
+    case "inferred":
+      switch (abstractValue.kind) {
+        case "finiteSet":
+          return reason === "typeUnion"
+            ? "TypeScript exposed multiple string-literal candidates"
+            : "analysis preserved multiple finite candidate values";
+        case "prefix":
+          return (
+            describeAbstractValueReason(abstractValue) ??
+            "analysis preserved only a constrained prefix of the runtime value"
+          );
+        case "exact":
+        case "bottom":
+        case "top":
+          return null;
+        default:
+          abstractValue satisfies never;
+          return null;
+      }
+    case "possible":
+      return abstractValue.kind === "top"
+        ? "analysis lost finite shape information for this value"
+        : "analysis could not narrow this value to a finite selector set";
+    default:
+      valueCertainty satisfies never;
       return null;
   }
 }

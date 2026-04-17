@@ -165,6 +165,27 @@ describe("renderHover", () => {
     expect(markdown).toContain("Selector certainty: inferred.");
   });
 
+  it("renders value certainty reasons when present", () => {
+    const markdown = renderHover({
+      expression: symbolExpression,
+      scssModulePath: SCSS_PATH,
+      selectors: [selector("active", 10, "font-size: 12px")],
+      workspaceRoot: "/fake/ws",
+      dynamicExplanation: {
+        kind: "symbolRef",
+        subject: "size",
+        candidates: ["active", "indicator"],
+        valueCertainty: "inferred",
+        valueCertaintyReasonLabel: "TypeScript exposed multiple string-literal candidates",
+        selectorCertainty: "inferred",
+        reasonLabel: "TypeScript string-literal union analysis",
+      },
+    });
+    expect(markdown).toContain(
+      "Value certainty reason: TypeScript exposed multiple string-literal candidates.",
+    );
+  });
+
   it("caps multi-match at MAX_CANDIDATES=10 with a tail summary", () => {
     const many = Array.from({ length: 15 }, (_, i) => selector(`item-${i}`, i + 1, "color: red"));
     const markdown = renderHover({
