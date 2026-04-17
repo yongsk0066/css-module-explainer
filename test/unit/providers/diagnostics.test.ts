@@ -288,6 +288,9 @@ describe("computeDiagnostics", () => {
     expect(result).toHaveLength(1);
     expect(result[0]!.message).toContain("Missing class for union member");
     expect(result[0]!.message).toContain("'large'");
+    expect(result[0]!.message).toContain(
+      "Analysis reason: TypeScript exposed multiple string-literal candidates.",
+    );
   });
 
   it("warns on a variable call when local flow resolves a missing value", () => {
@@ -345,6 +348,9 @@ const a = cx(size);
     expect(result).toHaveLength(1);
     expect(result[0]!.message).toContain("Missing class for possible value");
     expect(result[0]!.message).toContain("'large'");
+    expect(result[0]!.message).toContain(
+      "Analysis reason: analysis preserved multiple finite candidate values.",
+    );
   });
 
   it("skips variable calls with an unresolvable type (ignoreUnresolvableUnions)", () => {

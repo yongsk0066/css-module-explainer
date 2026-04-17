@@ -98,6 +98,9 @@ export function Button(enabled: boolean) {
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0]!.message).toContain("Missing class for possible value");
     expect(diagnostics[0]!.message).toContain("'missing'");
+    expect(diagnostics[0]!.message).toContain(
+      "Analysis reason: analysis preserved multiple finite candidate values.",
+    );
   });
 
   it("publishes a missing-module diagnostic with create-file data", async () => {

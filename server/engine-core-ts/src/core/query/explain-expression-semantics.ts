@@ -74,25 +74,59 @@ export function messageForInvalidClassFinding(finding: InvalidClassReferenceFind
       return "";
     case "missingResolvedClassValues":
       if (finding.reason === "typeUnion") {
-        return `Missing class for union member${finding.missingValues.length > 1 ? "s" : ""}: ${finding.missingValues.map((value) => `'${value}'`).join(", ")}.`;
+        return withAnalysisReason(
+          `Missing class for union member${finding.missingValues.length > 1 ? "s" : ""}: ${finding.missingValues.map((value) => `'${value}'`).join(", ")}.`,
+          finding,
+        );
       }
       if (finding.missingValues.length === 1 && finding.valueCertainty === "exact") {
-        return `Missing class for resolved value: '${finding.missingValues[0]}'.`;
+        return withAnalysisReason(
+          `Missing class for resolved value: '${finding.missingValues[0]}'.`,
+          finding,
+        );
       }
-      return `Missing class for possible value${finding.missingValues.length > 1 ? "s" : ""}: ${finding.missingValues.map((value) => `'${value}'`).join(", ")}.`;
+      return withAnalysisReason(
+        `Missing class for possible value${finding.missingValues.length > 1 ? "s" : ""}: ${finding.missingValues.map((value) => `'${value}'`).join(", ")}.`,
+        finding,
+      );
     case "missingResolvedClassDomain":
       switch (finding.abstractValue.kind) {
         case "prefix":
-          return `No class matched resolved prefix '${finding.abstractValue.prefix}'.`;
+          return withAnalysisReason(
+            `No class matched resolved prefix '${finding.abstractValue.prefix}'.`,
+            finding,
+          );
         case "top":
-          return "Dynamic class value could not be matched to any known selector.";
+          return withAnalysisReason(
+            "Dynamic class value could not be matched to any known selector.",
+            finding,
+          );
         default:
-          return "Resolved dynamic class domain did not match any known selector.";
+          return withAnalysisReason(
+            "Resolved dynamic class domain did not match any known selector.",
+            finding,
+          );
       }
     default:
       finding satisfies never;
       return "";
   }
+}
+
+function withAnalysisReason(
+  message: string,
+  finding: Extract<
+    InvalidClassReferenceFinding,
+    { kind: "missingResolvedClassValues" | "missingResolvedClassDomain" }
+  >,
+): string {
+  const reasons = [
+    describeValueCertaintyReason(finding.abstractValue, finding.valueCertainty, finding.reason),
+    describeAbstractValueReason(finding.abstractValue),
+  ].filter((reason): reason is string => Boolean(reason));
+  const uniqueReasons = Array.from(new Set(reasons));
+  if (uniqueReasons.length === 0) return message;
+  return `${message} Analysis reason: ${uniqueReasons.join("; ")}.`;
 }
 
 export function describeAbstractValue(
