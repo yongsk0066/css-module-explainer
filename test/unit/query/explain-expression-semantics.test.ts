@@ -70,6 +70,17 @@ describe("describeAbstractValue", () => {
         provenance: "finiteSetWideningChars",
       }),
     ).toBe("finite candidates widened to shared character inclusion constraints");
+
+    expect(
+      describeAbstractValueReason({
+        kind: "composite",
+        prefix: "btn-",
+        minLength: 5,
+        mustChars: "-btn",
+        mayChars: "-012345678btn",
+        provenance: "finiteSetWideningComposite",
+      }),
+    ).toBe("finite candidates widened to shared edge and character constraints");
   });
 
   it("explains inferred and possible certainty from domain provenance", () => {
@@ -135,6 +146,21 @@ describe("describeAbstractValue", () => {
       ),
     ).toBe("finite candidates widened to shared character inclusion constraints");
 
+    expect(
+      describeValueCertaintyReason(
+        {
+          kind: "composite",
+          prefix: "btn-",
+          minLength: 5,
+          mustChars: "-btn",
+          mayChars: "-012345678btn",
+          provenance: "finiteSetWideningComposite",
+        },
+        "inferred",
+        "flowBranch",
+      ),
+    ).toBe("finite candidates widened to shared edge and character constraints");
+
     expect(describeValueCertaintyReason({ kind: "top" }, "possible", "flowBranch")).toBe(
       "analysis lost finite shape information for this value",
     );
@@ -191,6 +217,21 @@ describe("describeAbstractValue", () => {
         3,
       ),
     ).toBe("finite candidates widened to shared character inclusion constraints");
+
+    expect(
+      describeSelectorCertaintyReason(
+        {
+          kind: "composite",
+          prefix: "btn-",
+          minLength: 5,
+          mustChars: "-btn",
+          mayChars: "-012345678btn",
+          provenance: "finiteSetWideningComposite",
+        },
+        "inferred",
+        3,
+      ),
+    ).toBe("finite candidates widened to shared edge and character constraints");
 
     expect(
       describeSelectorCertaintyReason(

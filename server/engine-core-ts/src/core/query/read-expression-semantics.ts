@@ -70,6 +70,7 @@ function classifyValueDomain(
     case "suffix":
     case "prefixSuffix":
     case "charInclusion":
+    case "composite":
       return "top";
     case "top":
       return "top";

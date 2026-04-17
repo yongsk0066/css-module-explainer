@@ -18,6 +18,10 @@ type CharInclusionProvenance = Extract<
   FlowResolution["abstractValue"],
   { kind: "charInclusion" }
 >["provenance"];
+type CompositeProvenance = Extract<
+  FlowResolution["abstractValue"],
+  { kind: "composite" }
+>["provenance"];
 
 export interface DynamicExpressionExplanation {
   readonly kind: "symbolRef" | "template";
@@ -234,6 +238,14 @@ export function describeAbstractValue(
       return abstractValue.mayIncludeOtherChars
         ? `character inclusion (must: \`${abstractValue.mustChars || "none"}\`)`
         : `character inclusion (must: \`${abstractValue.mustChars || "none"}\`, may: \`${abstractValue.mayChars}\`)`;
+    case "composite":
+      return [
+        abstractValue.prefix ? `prefix \`${abstractValue.prefix}\`` : null,
+        abstractValue.suffix ? `suffix \`${abstractValue.suffix}\`` : null,
+        `character inclusion (must: \`${abstractValue.mustChars || "none"}\`)`,
+      ]
+        .filter((part): part is string => Boolean(part))
+        .join(" + ");
     case "top":
       return "unknown";
     default:
@@ -269,6 +281,8 @@ export function describeAbstractValueReason(
       return describePrefixSuffixReason(abstractValue.provenance);
     case "charInclusion":
       return describeCharInclusionReason(abstractValue.provenance);
+    case "composite":
+      return describeCompositeReason(abstractValue.provenance);
     default:
       return null;
   }
@@ -310,6 +324,11 @@ export function describeValueCertaintyReason(
             describeAbstractValueReason(abstractValue) ??
             "analysis preserved character inclusion constraints of the runtime value"
           );
+        case "composite":
+          return (
+            describeAbstractValueReason(abstractValue) ??
+            "analysis preserved multiple orthogonal runtime string constraints"
+          );
         case "exact":
         case "bottom":
         case "top":
@@ -343,7 +362,8 @@ export function describeSelectorCertaintyReason(
         abstractValue?.kind === "prefix" ||
         abstractValue?.kind === "suffix" ||
         abstractValue?.kind === "prefixSuffix" ||
-        abstractValue?.kind === "charInclusion"
+        abstractValue?.kind === "charInclusion" ||
+        abstractValue?.kind === "composite"
       ) {
         return (
           describeAbstractValueReason(abstractValue) ??
@@ -409,6 +429,20 @@ function describeCharInclusionReason(provenance: CharInclusionProvenance): strin
       return "known required characters were preserved while prepending an unknown prefix";
     case "concatUnknownRight":
       return "known required characters were preserved while concatenating an unknown suffix";
+    case undefined:
+      return null;
+    default:
+      provenance satisfies never;
+      return null;
+  }
+}
+
+function describeCompositeReason(provenance: CompositeProvenance): string | null {
+  switch (provenance) {
+    case "finiteSetWideningComposite":
+      return "finite candidates widened to shared edge and character constraints";
+    case "compositeJoin":
+      return "branched values merged to shared multi-axis string constraints";
     case undefined:
       return null;
     default:

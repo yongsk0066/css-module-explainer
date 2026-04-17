@@ -69,6 +69,7 @@ export function deriveValueCertaintyProfile(
         case "suffix":
         case "prefixSuffix":
         case "charInclusion":
+        case "composite":
           return null;
         case "exact":
           return {
@@ -118,7 +119,8 @@ export function deriveSelectorCertaintyProfile(
         value?.kind === "prefix" ||
         value?.kind === "suffix" ||
         value?.kind === "prefixSuffix" ||
-        value?.kind === "charInclusion"
+        value?.kind === "charInclusion" ||
+        value?.kind === "composite"
       ) {
         return {
           certainty,
@@ -162,6 +164,7 @@ export function deriveSelectorProjectionCertainty(
     case "suffix":
     case "prefixSuffix":
     case "charInclusion":
+    case "composite":
       if (matchedSelectorCount === 0) return "possible";
       return matchedSelectorCount === selectorUniverseCount ? "exact" : "inferred";
     case "top":

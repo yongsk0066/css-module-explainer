@@ -277,6 +277,49 @@ function render(flag: number) {
       reason: "flowBranch",
     });
   });
+
+  it("widens a large same-file helper literal set with shared prefix to a composite domain", () => {
+    const source = `
+function resolveSize(flag: number): string {
+  switch (flag) {
+    case 0: return "btn-0";
+    case 1: return "btn-1";
+    case 2: return "btn-2";
+    case 3: return "btn-3";
+    case 4: return "btn-4";
+    case 5: return "btn-5";
+    case 6: return "btn-6";
+    case 7: return "btn-7";
+    default: return "btn-8";
+  }
+}
+
+function render(flag: number) {
+  const size = resolveSize(flag);
+  return cx(size);
+}
+`;
+    const sourceFile = ts.createSourceFile(
+      "/fake/Flow.tsx",
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
+    );
+
+    expect(resolveFlowClassValues(sourceFile, rangeOf(source, "cx(size)"), "size")).toEqual({
+      abstractValue: {
+        kind: "composite",
+        prefix: "btn-",
+        minLength: 5,
+        mustChars: "-bnt",
+        mayChars: "-012345678bnt",
+        provenance: "finiteSetWideningComposite",
+      },
+      valueCertainty: "inferred",
+      reason: "flowBranch",
+    });
+  });
 });
 
 function rangeOf(source: string, token: string) {

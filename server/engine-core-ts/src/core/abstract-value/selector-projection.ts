@@ -51,6 +51,15 @@ export function resolveAbstractValueSelectors(
         value.mayChars,
         Boolean(value.mayIncludeOtherChars),
       );
+    case "composite":
+      return findCanonicalSelectorsByComposite(
+        styleDocument,
+        value.prefix,
+        value.suffix,
+        value.mustChars,
+        value.mayChars,
+        Boolean(value.mayIncludeOtherChars),
+      );
     case "top":
       return styleDocument.selectors.filter((selector) => selector.viewKind === "canonical");
     default:
@@ -126,6 +135,34 @@ function findCanonicalSelectorsByCharInclusion(
   const resolved: SelectorDeclHIR[] = [];
 
   for (const selector of styleDocument.selectors) {
+    const charSet = new Set(Array.from(selector.name));
+    if (Array.from(mustSet).some((char) => !charSet.has(char))) continue;
+    if (!mayIncludeOtherChars && Array.from(charSet).some((char) => !maySet.has(char))) continue;
+    const canonical = findCanonicalSelector(styleDocument, selector.name);
+    if (!canonical || emitted.has(canonical.canonicalName)) continue;
+    emitted.add(canonical.canonicalName);
+    resolved.push(canonical);
+  }
+
+  return resolved;
+}
+
+function findCanonicalSelectorsByComposite(
+  styleDocument: StyleDocumentHIR,
+  prefix: string | undefined,
+  suffix: string | undefined,
+  mustChars: string,
+  mayChars: string,
+  mayIncludeOtherChars: boolean,
+): readonly SelectorDeclHIR[] {
+  const mustSet = new Set(Array.from(mustChars));
+  const maySet = new Set(Array.from(mayChars));
+  const emitted = new Set<string>();
+  const resolved: SelectorDeclHIR[] = [];
+
+  for (const selector of styleDocument.selectors) {
+    if (prefix && !selector.name.startsWith(prefix)) continue;
+    if (suffix && !selector.name.endsWith(suffix)) continue;
     const charSet = new Set(Array.from(selector.name));
     if (Array.from(mustSet).some((char) => !charSet.has(char))) continue;
     if (!mayIncludeOtherChars && Array.from(charSet).some((char) => !maySet.has(char))) continue;

@@ -6,6 +6,7 @@ export type AbstractClassValue =
   | SuffixClassValue
   | PrefixSuffixClassValue
   | CharInclusionClassValue
+  | CompositeClassValue
   | TopClassValue;
 
 export interface BottomClassValue {
@@ -63,6 +64,17 @@ export interface CharInclusionClassValue {
     | "concatUnknownRight";
 }
 
+export interface CompositeClassValue {
+  readonly kind: "composite";
+  readonly prefix?: string;
+  readonly suffix?: string;
+  readonly minLength?: number;
+  readonly mustChars: string;
+  readonly mayChars: string;
+  readonly mayIncludeOtherChars?: true;
+  readonly provenance?: "finiteSetWideningComposite" | "compositeJoin";
+}
+
 export interface TopClassValue {
   readonly kind: "top";
 }
@@ -81,9 +93,23 @@ export function finiteSetClassValue(values: readonly string[]): AbstractClassVal
   if (normalized.length === 1) return exactClassValue(normalized[0]!);
   if (normalized.length > MAX_FINITE_CLASS_VALUES) {
     const prefix = meaningfulLongestCommonPrefix(normalized);
-    return prefix.length > 0
-      ? prefixClassValue(prefix, "finiteSetWidening")
-      : charInclusionFromFiniteValues(normalized, "finiteSetWideningChars");
+    const suffix = meaningfulLongestCommonSuffix(normalized);
+    const chars = charInclusionFromFiniteValues(
+      normalized,
+      "finiteSetWideningChars",
+    ) as CharInclusionClassValue;
+    if (prefix.length > 0 || suffix.length > 0) {
+      return compositeClassValue({
+        ...(prefix.length > 0 ? { prefix } : {}),
+        ...(suffix.length > 0 ? { suffix } : {}),
+        minLength: Math.min(...normalized.map((value) => value.length)),
+        mustChars: chars.mustChars,
+        mayChars: chars.mayChars,
+        ...(chars.mayIncludeOtherChars ? { mayIncludeOtherChars: true } : {}),
+        provenance: "finiteSetWideningComposite",
+      });
+    }
+    return chars;
   }
   return { kind: "finiteSet", values: normalized };
 }
@@ -146,6 +172,58 @@ export function charInclusionClassValue(
   return provenance ? { ...base, provenance } : base;
 }
 
+export function compositeClassValue(input: {
+  readonly prefix?: string;
+  readonly suffix?: string;
+  readonly minLength?: number;
+  readonly mustChars: string;
+  readonly mayChars: string;
+  readonly mayIncludeOtherChars?: boolean;
+  readonly provenance?: CompositeClassValue["provenance"];
+}): AbstractClassValue {
+  const normalizedPrefix = input.prefix ?? "";
+  const normalizedSuffix = input.suffix ?? "";
+  const normalizedMustChars = normalizeCharSet(input.mustChars);
+  const normalizedMayChars = normalizeCharSet(input.mayChars + normalizedMustChars);
+  const mayIncludeOtherChars = Boolean(input.mayIncludeOtherChars);
+  const hasCharInfo =
+    normalizedMustChars.length > 0 || (!mayIncludeOtherChars && normalizedMayChars.length > 0);
+
+  if (!hasCharInfo) {
+    if (normalizedPrefix.length > 0 && normalizedSuffix.length > 0) {
+      return prefixSuffixClassValue(normalizedPrefix, normalizedSuffix, input.minLength);
+    }
+    if (normalizedPrefix.length > 0) return prefixClassValue(normalizedPrefix);
+    if (normalizedSuffix.length > 0) return suffixClassValue(normalizedSuffix);
+    return TOP_CLASS_VALUE;
+  }
+
+  if (normalizedPrefix.length === 0 && normalizedSuffix.length === 0) {
+    return charInclusionClassValue(
+      normalizedMustChars,
+      normalizedMayChars,
+      undefined,
+      mayIncludeOtherChars,
+    );
+  }
+
+  const minLength =
+    normalizedPrefix.length > 0 || normalizedSuffix.length > 0
+      ? Math.max(input.minLength ?? 0, normalizedPrefix.length + normalizedSuffix.length)
+      : input.minLength;
+
+  const base = {
+    kind: "composite" as const,
+    ...(normalizedPrefix.length > 0 ? { prefix: normalizedPrefix } : {}),
+    ...(normalizedSuffix.length > 0 ? { suffix: normalizedSuffix } : {}),
+    ...(minLength !== undefined ? { minLength } : {}),
+    mustChars: normalizedMustChars,
+    mayChars: normalizedMayChars,
+    ...(mayIncludeOtherChars ? { mayIncludeOtherChars: true as const } : {}),
+  };
+  return input.provenance ? { ...base, provenance: input.provenance } : base;
+}
+
 export function concatenateClassValues(
   left: AbstractClassValue,
   right: AbstractClassValue,
@@ -172,6 +250,10 @@ export function concatenateClassValues(
       default:
         return TOP_CLASS_VALUE;
     }
+  }
+
+  if (left.kind === "composite" || right.kind === "composite") {
+    return TOP_CLASS_VALUE;
   }
 
   if (left.kind === "prefix") {
@@ -360,6 +442,14 @@ export function concatenateWithUnknownRight(value: AbstractClassValue): Abstract
       return prefixClassValue(value.prefix);
     case "charInclusion":
       return charInclusionClassValue(value.mustChars, value.mayChars, "concatUnknownRight", true);
+    case "composite":
+      return compositeClassValue({
+        mustChars: value.mustChars,
+        mayChars: value.mayChars,
+        mayIncludeOtherChars: true,
+        ...(value.prefix ? { prefix: value.prefix } : {}),
+        provenance: value.provenance,
+      });
     case "top":
       return TOP_CLASS_VALUE;
     default:
@@ -386,6 +476,14 @@ export function concatenateWithUnknownLeft(value: AbstractClassValue): AbstractC
       return suffixClassValue(value.suffix);
     case "charInclusion":
       return charInclusionClassValue(value.mustChars, value.mayChars, "concatUnknownLeft", true);
+    case "composite":
+      return compositeClassValue({
+        mustChars: value.mustChars,
+        mayChars: value.mayChars,
+        mayIncludeOtherChars: true,
+        ...(value.suffix ? { suffix: value.suffix } : {}),
+        provenance: value.provenance,
+      });
     case "top":
       return TOP_CLASS_VALUE;
     default:
@@ -421,6 +519,28 @@ export function joinClassValues(
       case "exact":
       case "finiteSet":
         return joinCharInclusions(toCharInclusion(left), right);
+      default:
+        return TOP_CLASS_VALUE;
+    }
+  }
+
+  if (left.kind === "composite") {
+    switch (right.kind) {
+      case "exact":
+      case "finiteSet":
+        return joinCompositeWithValue(left, right);
+      case "composite":
+        return joinComposites(left, right);
+      default:
+        return TOP_CLASS_VALUE;
+    }
+  }
+
+  if (right.kind === "composite") {
+    switch (left.kind) {
+      case "exact":
+      case "finiteSet":
+        return joinCompositeWithValue(right, left);
       default:
         return TOP_CLASS_VALUE;
     }
@@ -550,6 +670,7 @@ export function enumerateFiniteClassValues(value: AbstractClassValue): readonly 
     case "suffix":
     case "prefixSuffix":
     case "charInclusion":
+    case "composite":
     case "top":
       return null;
     default:
@@ -567,6 +688,7 @@ function joinPrefixWithValue(
     | SuffixClassValue
     | PrefixSuffixClassValue
     | CharInclusionClassValue
+    | CompositeClassValue
     | TopClassValue
   >,
 ): AbstractClassValue {
@@ -601,6 +723,7 @@ function joinSuffixWithValue(
     | SuffixClassValue
     | PrefixSuffixClassValue
     | CharInclusionClassValue
+    | CompositeClassValue
     | TopClassValue
   >,
 ): AbstractClassValue {
@@ -619,6 +742,7 @@ function joinPrefixSuffixWithValue(
     | SuffixClassValue
     | PrefixSuffixClassValue
     | CharInclusionClassValue
+    | CompositeClassValue
     | TopClassValue
   >,
 ): AbstractClassValue {
@@ -657,6 +781,67 @@ function joinCharInclusions(
     "charInclusionJoin",
     Boolean(left.mayIncludeOtherChars || right.mayIncludeOtherChars),
   );
+}
+
+function joinCompositeWithValue(
+  compositeValue: CompositeClassValue,
+  other: ExactClassValue | FiniteSetClassValue,
+): AbstractClassValue {
+  const finiteValues = toFiniteValues(other);
+  const allMatchComposite = finiteValues.every((value) =>
+    matchesCompositeConstraints(compositeValue, value),
+  );
+  if (allMatchComposite) return compositeValue;
+  if (
+    compositeValue.prefix &&
+    finiteValues.every((value) => value.startsWith(compositeValue.prefix!))
+  ) {
+    return prefixClassValue(compositeValue.prefix, "prefixJoinLcp");
+  }
+  if (
+    compositeValue.suffix &&
+    finiteValues.every((value) => value.endsWith(compositeValue.suffix!))
+  ) {
+    return suffixClassValue(compositeValue.suffix, "suffixJoinLcs");
+  }
+  if (finiteValues.every((value) => matchesCharConstraints(compositeValue, value))) {
+    return charInclusionClassValue(
+      compositeValue.mustChars,
+      compositeValue.mayChars,
+      "charInclusionJoin",
+      Boolean(compositeValue.mayIncludeOtherChars),
+    );
+  }
+  return TOP_CLASS_VALUE;
+}
+
+function joinComposites(left: CompositeClassValue, right: CompositeClassValue): AbstractClassValue {
+  const prefix =
+    left.prefix && right.prefix
+      ? meaningfulLongestCommonPrefix([left.prefix, right.prefix]) || undefined
+      : undefined;
+  const suffix =
+    left.suffix && right.suffix
+      ? meaningfulLongestCommonSuffix([left.suffix, right.suffix]) || undefined
+      : undefined;
+  return compositeClassValue({
+    ...(prefix ? { prefix } : {}),
+    ...(suffix ? { suffix } : {}),
+    ...(prefix || suffix
+      ? {
+          minLength: Math.max(
+            (prefix?.length ?? 0) + (suffix?.length ?? 0),
+            Math.min(left.minLength ?? 0, right.minLength ?? 0),
+          ),
+        }
+      : {}),
+    mustChars: intersectCharSets(left.mustChars, right.mustChars),
+    mayChars: unionCharSets(left.mayChars, right.mayChars),
+    ...(left.mayIncludeOtherChars || right.mayIncludeOtherChars
+      ? { mayIncludeOtherChars: true }
+      : {}),
+    provenance: "compositeJoin",
+  });
 }
 
 function charInclusionFromFiniteValues(
@@ -701,6 +886,7 @@ function toFiniteValues(
     | SuffixClassValue
     | PrefixSuffixClassValue
     | CharInclusionClassValue
+    | CompositeClassValue
     | TopClassValue
   >,
 ): readonly string[] {
@@ -730,6 +916,26 @@ function intersectCharSets(left: string, right: string): string {
 
 function charSetForString(value: string): string {
   return normalizeCharSet(value);
+}
+
+function matchesCompositeConstraints(composite: CompositeClassValue, value: string): boolean {
+  if (composite.prefix && !value.startsWith(composite.prefix)) return false;
+  if (composite.suffix && !value.endsWith(composite.suffix)) return false;
+  return matchesCharConstraints(composite, value);
+}
+
+function matchesCharConstraints(
+  value: Pick<
+    CharInclusionClassValue | CompositeClassValue,
+    "mustChars" | "mayChars" | "mayIncludeOtherChars"
+  >,
+  candidate: string,
+): boolean {
+  const charSet = new Set(Array.from(candidate));
+  if (Array.from(value.mustChars).some((char) => !charSet.has(char))) return false;
+  if (value.mayIncludeOtherChars) return true;
+  const maySet = new Set(Array.from(value.mayChars));
+  return Array.from(charSet).every((char) => maySet.has(char));
 }
 
 function longestCommonPrefix(values: readonly string[]): string {

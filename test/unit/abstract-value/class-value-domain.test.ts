@@ -8,6 +8,7 @@ import {
   concatenateWithUnknownLeft,
   concatenateWithUnknownRight,
   charInclusionClassValue,
+  compositeClassValue,
   enumerateFiniteClassValues,
   exactClassValue,
   finiteSetClassValue,
@@ -354,12 +355,20 @@ describe("class-value-domain", () => {
     expect(concatenateWithUnknownLeft(prefixClassValue("btn-"))).toBe(TOP_CLASS_VALUE);
   });
 
-  it("widens large finite sets to a prefix when a meaningful LCP exists", () => {
+  it("widens large finite sets to a composite when a meaningful LCP exists", () => {
     const values = Array.from(
       { length: MAX_FINITE_CLASS_VALUES + 1 },
       (_, index) => `btn-${index}`,
     );
-    expect(finiteSetClassValue(values)).toEqual(prefixClassValue("btn-", "finiteSetWidening"));
+    expect(finiteSetClassValue(values)).toEqual(
+      compositeClassValue({
+        prefix: "btn-",
+        minLength: 5,
+        mustChars: "-btn",
+        mayChars: "-012345678btn",
+        provenance: "finiteSetWideningComposite",
+      }),
+    );
   });
 
   it("widens large finite sets to character inclusion when no meaningful LCP exists", () => {

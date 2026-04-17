@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   TOP_CLASS_VALUE,
   charInclusionClassValue,
+  compositeClassValue,
   exactClassValue,
   finiteSetClassValue,
   prefixClassValue,
@@ -67,6 +68,20 @@ describe("resolveAbstractValueSelectors", () => {
     expect(
       resolveAbstractValueSelectors(
         charInclusionClassValue("-", "-abcdeimnoprstuy"),
+        styleDocument,
+      ).map((selector) => selector.name),
+    ).toEqual(["btn-primary", "btn-secondary"]);
+  });
+
+  it("projects composite constraints to matching canonical selectors", () => {
+    expect(
+      resolveAbstractValueSelectors(
+        compositeClassValue({
+          prefix: "btn-",
+          mustChars: "-btn",
+          mayChars: "-abcdeimnoprstuy",
+          provenance: "finiteSetWideningComposite",
+        }),
         styleDocument,
       ).map((selector) => selector.name),
     ).toEqual(["btn-primary", "btn-secondary"]);
