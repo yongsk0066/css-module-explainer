@@ -50,6 +50,35 @@ const IMPORTED_VALUE_SCSS = `@value primary from "./tokens.module.scss";
 
 const TOKENS_SCSS = `@value primary: #ff3355;`;
 
+const FUNCTION_DYNAMIC_TSX = `import classNames from 'classnames/bind';
+import styles from './Status.module.scss';
+const cx = classNames.bind(styles);
+type Status = 'idle' | 'busy' | 'error';
+function resolveStatusClass(status: Status): string {
+  switch (status) {
+    case 'idle':
+      return 'state-idle';
+    case 'busy':
+      return 'state-busy';
+    case 'error':
+      return 'state-error';
+    default:
+      return 'state-idle';
+  }
+}
+export function StatusChip(status: Status) {
+  const derivedStatusClass = resolveStatusClass(status);
+  return <div className={cx('chip', derivedStatusClass)}>hi</div>;
+}
+`;
+
+const FUNCTION_DYNAMIC_SCSS = `
+.chip { color: slategray; }
+.state-idle { color: teal; }
+.state-busy { color: orange; }
+.state-error { color: crimson; }
+`;
+
 function openButton(client: LspTestClient): void {
   client.didOpen({
     textDocument: {
@@ -139,6 +168,32 @@ describe("definition protocol", () => {
     expect(links[0]!.targetUri).toMatch(/Button\.module\.scss$/);
     expect(links[0]!.targetUri.startsWith("file://")).toBe(true);
     expect(links[0]!.originSelectionRange).toBeDefined();
+  });
+
+  it("returns definition links for same-file helper derived class candidates", async () => {
+    client = createInProcessServer({
+      readStyleFile: (path) => (path.endsWith("Status.module.scss") ? FUNCTION_DYNAMIC_SCSS : null),
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/Status.tsx",
+        languageId: "typescriptreact",
+        version: 1,
+        text: FUNCTION_DYNAMIC_TSX,
+      },
+    });
+    const result = await client.definition({
+      textDocument: { uri: "file:///fake/workspace/src/Status.tsx" },
+      position: { line: 18, character: 40 },
+    });
+    expect(result).not.toBeNull();
+    expect(Array.isArray(result)).toBe(true);
+    const links = result as Array<{ targetUri: string }>;
+    expect(links).toHaveLength(3);
+    expect(links.every((link) => link.targetUri.endsWith("Status.module.scss"))).toBe(true);
   });
 
   it("returns null when the cursor is outside any cx call", async () => {

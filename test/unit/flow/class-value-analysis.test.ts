@@ -136,6 +136,52 @@ function render(flag: boolean, variant: string) {
       reason: "flowBranch",
     });
   });
+
+  it("derives a finite set from a same-file helper call that returns string literals", () => {
+    const source = `
+type Status = "idle" | "busy" | "error";
+
+function resolveStatusClass(status: Status): string {
+  switch (status) {
+    case "idle":
+      return "state-idle";
+    case "busy":
+      return "state-busy";
+    case "error":
+      return "state-error";
+    default:
+      return "state-idle";
+  }
+}
+
+function render(status: Status) {
+  const derivedStatusClass = resolveStatusClass(status);
+  return cx(derivedStatusClass);
+}
+`;
+    const sourceFile = ts.createSourceFile(
+      "/fake/Flow.tsx",
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
+    );
+
+    expect(
+      resolveFlowClassValues(
+        sourceFile,
+        rangeOf(source, "cx(derivedStatusClass)"),
+        "derivedStatusClass",
+      ),
+    ).toEqual({
+      abstractValue: {
+        kind: "finiteSet",
+        values: ["state-busy", "state-error", "state-idle"],
+      },
+      valueCertainty: "inferred",
+      reason: "flowBranch",
+    });
+  });
 });
 
 function rangeOf(source: string, token: string) {

@@ -30,11 +30,15 @@ export function resolveFlowClassValues(
   const slice = buildFlowSlice(sourceFile, range, variableName);
   if (!slice) return null;
 
-  const result = analyzeNodes(slice.nodes, new Map());
+  const result = analyzeNodes(slice.nodes, new Map(), sourceFile);
   return toFlowResolution(result.env.get(variableName) ?? null);
 }
 
-function analyzeNodes(nodes: readonly FlowNode[], incoming: FlowEnv): FlowState {
+function analyzeNodes(
+  nodes: readonly FlowNode[],
+  incoming: FlowEnv,
+  sourceFile: ts.SourceFile,
+): FlowState {
   let env = cloneEnv(incoming);
   let terminated = false;
 
@@ -43,7 +47,7 @@ function analyzeNodes(nodes: readonly FlowNode[], incoming: FlowEnv): FlowState 
 
     switch (node.kind) {
       case "assignment": {
-        const resolved = resolveExpression(node.expression, env);
+        const resolved = resolveExpression(node.expression, env, sourceFile);
         if (resolved) {
           env.set(node.variableName, resolved);
         } else {
@@ -53,16 +57,16 @@ function analyzeNodes(nodes: readonly FlowNode[], incoming: FlowEnv): FlowState 
       }
       case "branch": {
         if (node.referenceLocation === "then") {
-          return analyzeNodes(node.thenNodes, env);
+          return analyzeNodes(node.thenNodes, env, sourceFile);
         }
         if (node.referenceLocation === "else") {
-          return analyzeNodes(node.elseNodes, env);
+          return analyzeNodes(node.elseNodes, env, sourceFile);
         }
 
-        const thenState = analyzeNodes(node.thenNodes, env);
+        const thenState = analyzeNodes(node.thenNodes, env, sourceFile);
         const elseState =
           node.elseNodes.length > 0
-            ? analyzeNodes(node.elseNodes, env)
+            ? analyzeNodes(node.elseNodes, env, sourceFile)
             : { env, terminated: false };
         const merged = mergeEnvs(env, thenState, elseState);
         env = merged.env;
@@ -84,6 +88,7 @@ function analyzeNodes(nodes: readonly FlowNode[], incoming: FlowEnv): FlowState 
 function resolveExpression(
   expression: ts.Expression | null,
   env: FlowEnv,
+  sourceFile: ts.SourceFile,
 ): ClassValueLattice | null {
   if (!expression) return null;
 
@@ -96,16 +101,16 @@ function resolveExpression(
   }
 
   if (ts.isParenthesizedExpression(expression)) {
-    return resolveExpression(expression.expression, env);
+    return resolveExpression(expression.expression, env, sourceFile);
   }
 
   if (ts.isAsExpression(expression) || ts.isTypeAssertionExpression(expression)) {
-    return resolveExpression(expression.expression, env);
+    return resolveExpression(expression.expression, env, sourceFile);
   }
 
   if (ts.isConditionalExpression(expression)) {
-    const whenTrue = resolveExpression(expression.whenTrue, env);
-    const whenFalse = resolveExpression(expression.whenFalse, env);
+    const whenTrue = resolveExpression(expression.whenTrue, env, sourceFile);
+    const whenFalse = resolveExpression(expression.whenFalse, env, sourceFile);
     return markBranched(mergeValues(whenTrue, whenFalse));
   }
 
@@ -113,8 +118,8 @@ function resolveExpression(
     ts.isBinaryExpression(expression) &&
     expression.operatorToken.kind === ts.SyntaxKind.PlusToken
   ) {
-    const left = resolveExpression(expression.left, env);
-    const right = resolveExpression(expression.right, env);
+    const left = resolveExpression(expression.left, env, sourceFile);
+    const right = resolveExpression(expression.right, env, sourceFile);
 
     if (left && right) {
       return {
@@ -134,6 +139,206 @@ function resolveExpression(
     }
   }
 
+  if (ts.isCallExpression(expression)) {
+    return resolveDirectFunctionCall(expression, env, sourceFile);
+  }
+
+  return null;
+}
+
+interface ReturnAnalysis {
+  readonly value: ClassValueLattice | null;
+  readonly complete: boolean;
+  readonly valid: boolean;
+}
+
+function resolveDirectFunctionCall(
+  expression: ts.CallExpression,
+  env: FlowEnv,
+  sourceFile: ts.SourceFile,
+): ClassValueLattice | null {
+  if (!ts.isIdentifier(expression.expression)) return null;
+  const callable = findSameFileFunction(sourceFile, expression.expression.text);
+  if (!callable?.body || !ts.isBlock(callable.body)) return null;
+
+  const analysis = analyzeReturnStatements(callable.body.statements, env, sourceFile, callable);
+  if (!analysis.complete || !analysis.valid) return null;
+  return analysis.value;
+}
+
+function analyzeReturnStatements(
+  statements: readonly ts.Statement[],
+  env: FlowEnv,
+  sourceFile: ts.SourceFile,
+  callable?: ts.FunctionLikeDeclaration,
+): ReturnAnalysis {
+  let value: ClassValueLattice | null = null;
+
+  for (const statement of statements) {
+    const analysis = analyzeReturnStatement(statement, env, sourceFile, callable);
+    if (!analysis.valid) return analysis;
+    value = mergeValues(value, analysis.value);
+    if (analysis.complete) {
+      return { value, complete: true, valid: true };
+    }
+  }
+
+  return { value, complete: false, valid: true };
+}
+
+function analyzeReturnStatement(
+  statement: ts.Statement,
+  env: FlowEnv,
+  sourceFile: ts.SourceFile,
+  callable?: ts.FunctionLikeDeclaration,
+): ReturnAnalysis {
+  if (ts.isReturnStatement(statement)) {
+    const value = resolveExpression(statement.expression ?? null, env, sourceFile);
+    return {
+      value,
+      complete: true,
+      valid: value !== null,
+    };
+  }
+
+  if (ts.isBlock(statement)) {
+    return analyzeReturnStatements(statement.statements, env, sourceFile, callable);
+  }
+
+  if (ts.isIfStatement(statement)) {
+    const thenAnalysis = analyzeReturnStatement(statement.thenStatement, env, sourceFile, callable);
+    const elseAnalysis = statement.elseStatement
+      ? analyzeReturnStatement(statement.elseStatement, env, sourceFile, callable)
+      : { value: null, complete: false, valid: true };
+
+    return {
+      value: mergeValues(thenAnalysis.value, elseAnalysis.value),
+      complete: thenAnalysis.complete && elseAnalysis.complete,
+      valid: thenAnalysis.valid && elseAnalysis.valid,
+    };
+  }
+
+  if (ts.isSwitchStatement(statement)) {
+    let value: ClassValueLattice | null = null;
+    let hasDefault = false;
+
+    for (const clause of statement.caseBlock.clauses) {
+      if (ts.isDefaultClause(clause)) hasDefault = true;
+      const analysis = analyzeReturnStatements(clause.statements, env, sourceFile, callable);
+      if (!analysis.valid) return analysis;
+      value = mergeValues(value, analysis.value);
+      if (!analysis.complete) {
+        return { value, complete: false, valid: true };
+      }
+    }
+
+    return {
+      value,
+      complete:
+        hasDefault ||
+        (callable ? isExhaustiveStringSwitch(statement, callable, sourceFile) : false),
+      valid: true,
+    };
+  }
+
+  return { value: null, complete: false, valid: true };
+}
+
+function findSameFileFunction(
+  sourceFile: ts.SourceFile,
+  name: string,
+): ts.FunctionLikeDeclaration | null {
+  for (const statement of sourceFile.statements) {
+    if (ts.isFunctionDeclaration(statement) && statement.name?.text === name) {
+      return statement;
+    }
+
+    if (!ts.isVariableStatement(statement)) continue;
+
+    for (const declaration of statement.declarationList.declarations) {
+      if (!ts.isIdentifier(declaration.name) || declaration.name.text !== name) continue;
+      if (
+        declaration.initializer &&
+        (ts.isArrowFunction(declaration.initializer) ||
+          ts.isFunctionExpression(declaration.initializer))
+      ) {
+        return declaration.initializer;
+      }
+    }
+  }
+
+  return null;
+}
+
+function isExhaustiveStringSwitch(
+  statement: ts.SwitchStatement,
+  callable: ts.FunctionLikeDeclaration,
+  sourceFile: ts.SourceFile,
+): boolean {
+  if (!ts.isIdentifier(statement.expression)) return false;
+  const discriminantName = statement.expression.text;
+
+  const parameter = callable.parameters.find(
+    (candidate) => ts.isIdentifier(candidate.name) && candidate.name.text === discriminantName,
+  );
+  if (!parameter?.type) return false;
+
+  const parameterMembers = resolveStringLiteralTypeMembers(parameter.type, sourceFile, new Set());
+  if (!parameterMembers || parameterMembers.length === 0) return false;
+
+  const caseMembers = statement.caseBlock.clauses.flatMap((clause) => {
+    if (!ts.isCaseClause(clause)) return [];
+    return ts.isStringLiteral(clause.expression) ? [clause.expression.text] : [];
+  });
+  if (caseMembers.length !== statement.caseBlock.clauses.length) return false;
+
+  const expected = [...new Set(parameterMembers)].toSorted();
+  const actual = [...new Set(caseMembers)].toSorted();
+  return (
+    expected.length === actual.length && expected.every((value, index) => value === actual[index])
+  );
+}
+
+function resolveStringLiteralTypeMembers(
+  typeNode: ts.TypeNode,
+  sourceFile: ts.SourceFile,
+  seen: Set<string>,
+): readonly string[] | null {
+  if (ts.isUnionTypeNode(typeNode)) {
+    const members: string[] = [];
+    for (const member of typeNode.types) {
+      if (!ts.isLiteralTypeNode(member) || !ts.isStringLiteral(member.literal)) {
+        return null;
+      }
+      members.push(member.literal.text);
+    }
+    return members;
+  }
+
+  if (ts.isParenthesizedTypeNode(typeNode)) {
+    return resolveStringLiteralTypeMembers(typeNode.type, sourceFile, seen);
+  }
+
+  if (ts.isTypeReferenceNode(typeNode) && ts.isIdentifier(typeNode.typeName)) {
+    const name = typeNode.typeName.text;
+    if (seen.has(name)) return null;
+    seen.add(name);
+    const alias = findTypeAliasDeclaration(sourceFile, name);
+    return alias?.type ? resolveStringLiteralTypeMembers(alias.type, sourceFile, seen) : null;
+  }
+
+  return null;
+}
+
+function findTypeAliasDeclaration(
+  sourceFile: ts.SourceFile,
+  name: string,
+): ts.TypeAliasDeclaration | null {
+  for (const statement of sourceFile.statements) {
+    if (ts.isTypeAliasDeclaration(statement) && statement.name.text === name) {
+      return statement;
+    }
+  }
   return null;
 }
 

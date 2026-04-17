@@ -47,6 +47,35 @@ const IMPORTED_VALUE_SCSS = `@value primary from "./tokens.module.scss";
 
 const TOKENS_SCSS = `@value primary: #ff3355;`;
 
+const FUNCTION_DYNAMIC_TSX = `import classNames from 'classnames/bind';
+import styles from './Status.module.scss';
+const cx = classNames.bind(styles);
+type Status = 'idle' | 'busy' | 'error';
+function resolveStatusClass(status: Status): string {
+  switch (status) {
+    case 'idle':
+      return 'state-idle';
+    case 'busy':
+      return 'state-busy';
+    case 'error':
+      return 'state-error';
+    default:
+      return 'state-idle';
+  }
+}
+export function StatusChip(status: Status) {
+  const derivedStatusClass = resolveStatusClass(status);
+  return <div className={cx('chip', derivedStatusClass)}>hi</div>;
+}
+`;
+
+const FUNCTION_DYNAMIC_SCSS = `
+.chip { color: slategray; }
+.state-idle { color: teal; }
+.state-busy { color: orange; }
+.state-error { color: crimson; }
+`;
+
 describe("hover protocol / clsx", () => {
   let client: LspTestClient | null = null;
 
@@ -129,6 +158,32 @@ describe("hover protocol", () => {
     expect(value).toContain("`.indicator`");
     expect(value).toContain("color: red;");
     expect(value).toContain("font-size: 14px;");
+  });
+
+  it("returns a hover for same-file helper derived class candidates", async () => {
+    client = createInProcessServer({
+      readStyleFile: (path) => (path.endsWith("Status.module.scss") ? FUNCTION_DYNAMIC_SCSS : null),
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/Status.tsx",
+        languageId: "typescriptreact",
+        version: 1,
+        text: FUNCTION_DYNAMIC_TSX,
+      },
+    });
+    const hover = await client.hover({
+      textDocument: { uri: "file:///fake/workspace/src/Status.tsx" },
+      position: { line: 18, character: 40 },
+    });
+    expect(hover).not.toBeNull();
+    const value = (hover!.contents as { value: string }).value;
+    expect(value).toContain("state-idle");
+    expect(value).toContain("state-busy");
+    expect(value).toContain("state-error");
   });
 
   it("returns a selector hover for SCSS declarations", async () => {

@@ -168,6 +168,63 @@ export function Sized(flag: boolean) {
   expect(result![0]!.range.start.line).toBe(8);
 });
 
+test("references protocol returns helper-derived TSX sites for finite same-file call results", async ({
+  makeClient,
+}) => {
+  const tsxUri = "file:///fake/workspace/src/Status.tsx";
+  const scssUri = "file:///fake/workspace/src/Status.module.scss";
+  const tsx = `import classNames from 'classnames/bind';
+import styles from './Status.module.scss';
+const cx = classNames.bind(styles);
+type Status = 'idle' | 'busy' | 'error';
+function resolveStatusClass(status: Status): string {
+  switch (status) {
+    case 'idle':
+      return 'state-idle';
+    case 'busy':
+      return 'state-busy';
+    case 'error':
+      return 'state-error';
+    default:
+      return 'state-idle';
+  }
+}
+export function StatusChip(status: Status) {
+  const derivedStatusClass = resolveStatusClass(status);
+  return <div className={cx('chip', derivedStatusClass)}>hi</div>;
+}
+`;
+  const scss = `.chip { color: slategray; }\n.state-idle { color: teal; }\n.state-busy { color: orange; }\n.state-error { color: crimson; }\n`;
+
+  const client = makeClient({
+    readStyleFile: (path) => (path.endsWith("Status.module.scss") ? scss : null),
+    typeResolver: new FakeTypeResolver(),
+  });
+
+  await client.initialize();
+  client.initialized();
+  client.didOpen({
+    textDocument: {
+      uri: tsxUri,
+      languageId: "typescriptreact",
+      version: 1,
+      text: tsx,
+    },
+  });
+  await client.waitForDiagnostics(tsxUri);
+
+  const result = await client.references({
+    textDocument: { uri: scssUri },
+    position: { line: 1, character: 3 },
+    context: { includeDeclaration: false },
+  });
+
+  expect(result).not.toBeNull();
+  expect(result).toHaveLength(1);
+  expect(result![0]!.uri).toBe(tsxUri);
+  expect(result![0]!.range.start.line).toBe(18);
+});
+
 test("references protocol resolves a cross-file composes token to the target selector usage", async ({
   makeClient,
 }) => {
