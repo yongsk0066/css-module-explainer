@@ -98,6 +98,11 @@ export function concatenateClassValues(
     }
   }
 
+  if (left.kind === "finiteSet" && right.kind === "prefix") {
+    const prefix = meaningfulLongestCommonPrefix(left.values.map((value) => value + right.prefix));
+    return prefix.length > 0 ? prefixClassValue(prefix) : TOP_CLASS_VALUE;
+  }
+
   if (left.kind === "finiteSet" && right.kind === "finiteSet") {
     return finiteSetClassValue(
       left.values.flatMap((leftValue) => right.values.map((rightValue) => leftValue + rightValue)),

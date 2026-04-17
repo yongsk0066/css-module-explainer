@@ -71,6 +71,7 @@ Required invariant:
 - `exact + finiteSet` -> `finiteSet`
 - `exact + prefix` -> `prefix(left + prefix)`
 - `finiteSet + exact` -> `finiteSet`
+- `finiteSet + prefix` -> `prefix(lcp(left_i + prefix))` when the concatenated prefixes keep a meaningful shared class prefix, otherwise `top`
 - `exact + unknownRight` -> `prefix(left)`
 - `prefix + exact` -> `prefix(left)`
 - `prefix + finiteSet` -> `prefix(left)`

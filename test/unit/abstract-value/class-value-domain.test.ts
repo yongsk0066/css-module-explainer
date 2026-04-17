@@ -76,10 +76,10 @@ describe("class-value-domain", () => {
         expected: finiteSetClassValue(["btn-sm", "btn-lg", "card-sm", "card-lg"]),
       },
       {
-        name: "finiteSet + prefix stays top for now",
-        left: finiteSetClassValue(["btn-", "card-"]),
+        name: "finiteSet + prefix preserves a meaningful shared prefix",
+        left: finiteSetClassValue(["btn-sm-", "btn-lg-"]),
         right: prefixClassValue("state-"),
-        expected: TOP_CLASS_VALUE,
+        expected: prefixClassValue("btn-"),
       },
       {
         name: "prefix + exact preserves left prefix",
@@ -197,6 +197,21 @@ describe("class-value-domain", () => {
     expect(concatenateClassValues(prefixClassValue("btn-"), prefixClassValue("variant-"))).toEqual(
       prefixClassValue("btn-"),
     );
+  });
+
+  it("recovers a shared prefix for finiteSet + prefix when the concatenated prefixes converge", () => {
+    expect(
+      concatenateClassValues(
+        finiteSetClassValue(["chip-sm-", "chip-lg-"]),
+        prefixClassValue("state-"),
+      ),
+    ).toEqual(prefixClassValue("chip-"));
+  });
+
+  it("keeps finiteSet + prefix at top when no meaningful shared prefix survives", () => {
+    expect(
+      concatenateClassValues(finiteSetClassValue(["btn-", "card-"]), prefixClassValue("state-")),
+    ).toBe(TOP_CLASS_VALUE);
   });
 
   it("derives prefixes from known left concatenation with unknown suffixes", () => {
