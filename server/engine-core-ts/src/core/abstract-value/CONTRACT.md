@@ -75,6 +75,8 @@ Required invariant:
 - prefix joins stay `prefix` only when both sides remain inside the same prefix language
 - suffix joins stay `suffix` only when both sides remain inside the same suffix language
 - prefix/suffix product joins stay `prefixSuffix` only when both sides remain inside the same prefix and suffix languages
+- `prefix ⊔ prefixSuffix` may degrade to a weaker shared `prefix` when the product's leading edge remains informative
+- `prefixSuffix ⊔ finite` may degrade to `prefix` or `suffix` when only one edge survives the join
 - incompatible prefixes widen to `top`
 
 ### Concatenation

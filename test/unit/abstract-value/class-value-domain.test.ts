@@ -227,6 +227,30 @@ describe("class-value-domain", () => {
     ).toEqual(prefixSuffixClassValue("btn-", "-chip", 10));
   });
 
+  it("preserves useful prefix information when joining prefixes with prefix-suffix products", () => {
+    expect(
+      joinClassValues(prefixClassValue("btn-"), prefixSuffixClassValue("btn-", "-chip", 10)),
+    ).toEqual(prefixClassValue("btn-"));
+    expect(
+      joinClassValues(
+        prefixClassValue("btn-primary-"),
+        prefixSuffixClassValue("btn-", "-chip", 10),
+      ),
+    ).toEqual(prefixClassValue("btn-", "prefixJoinLcp"));
+  });
+
+  it("degrades prefix-suffix joins to one-sided constraints when only one edge survives", () => {
+    expect(
+      joinClassValues(prefixSuffixClassValue("btn-", "-chip", 10), exactClassValue("btn-sm-card")),
+    ).toEqual(prefixClassValue("btn-", "prefixJoinLcp"));
+    expect(
+      joinClassValues(
+        prefixSuffixClassValue("btn-", "-chip", 10),
+        finiteSetClassValue(["card-chip", "icon-chip"]),
+      ),
+    ).toEqual(suffixClassValue("-chip", "suffixJoinLcs"));
+  });
+
   it("keeps a meaningful longest common prefix when joining related prefixes", () => {
     expect(joinClassValues(prefixClassValue("btn-sm"), prefixClassValue("btn-lg"))).toEqual(
       prefixClassValue("btn-", "prefixJoinLcp"),

@@ -369,9 +369,10 @@ export function joinClassValues(
       case "exact":
       case "finiteSet":
         return joinPrefixWithValue(left, right);
+      case "prefixSuffix":
+        return joinPrefixWithPrefixSuffix(left, right);
       case "suffix":
       case "prefix":
-      case "prefixSuffix":
         return TOP_CLASS_VALUE;
       default:
         right satisfies never;
@@ -384,8 +385,9 @@ export function joinClassValues(
       case "exact":
       case "finiteSet":
         return joinPrefixWithValue(right, left);
-      case "suffix":
       case "prefixSuffix":
+        return joinPrefixWithPrefixSuffix(right, left);
+      case "suffix":
         return TOP_CLASS_VALUE;
       default:
         return TOP_CLASS_VALUE;
@@ -474,6 +476,22 @@ function joinPrefixWithValue(
     : TOP_CLASS_VALUE;
 }
 
+function joinPrefixWithPrefixSuffix(
+  prefixValue: PrefixClassValue,
+  prefixSuffixValue: PrefixSuffixClassValue,
+): AbstractClassValue {
+  if (prefixSuffixValue.prefix.startsWith(prefixValue.prefix)) {
+    return prefixValue;
+  }
+  const sharedPrefix = meaningfulLongestCommonPrefix([
+    prefixValue.prefix,
+    prefixSuffixValue.prefix,
+  ]);
+  return sharedPrefix.length > 0
+    ? prefixClassValue(sharedPrefix, "prefixJoinLcp")
+    : TOP_CLASS_VALUE;
+}
+
 function joinSuffixWithValue(
   suffixValue: SuffixClassValue,
   other: Exclude<
@@ -500,7 +518,11 @@ function joinPrefixSuffixWithValue(
       value.startsWith(prefixSuffixValue.prefix) && value.endsWith(prefixSuffixValue.suffix),
   )
     ? prefixSuffixValue
-    : TOP_CLASS_VALUE;
+    : finiteValues.every((value) => value.startsWith(prefixSuffixValue.prefix))
+      ? prefixClassValue(prefixSuffixValue.prefix, "prefixJoinLcp")
+      : finiteValues.every((value) => value.endsWith(prefixSuffixValue.suffix))
+        ? suffixClassValue(prefixSuffixValue.suffix, "suffixJoinLcs")
+        : TOP_CLASS_VALUE;
 }
 
 function toFiniteValues(
