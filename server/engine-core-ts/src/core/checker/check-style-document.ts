@@ -4,6 +4,7 @@ import type { StyleDocumentHIR } from "../hir/style-types";
 import { readStyleModuleUsageSummary } from "../query";
 import type { SemanticWorkspaceReferenceIndex, StyleDependencyGraph } from "../semantic";
 import type { StyleCheckerFinding } from "./contracts";
+import { runCheckerRules, type CheckerRule } from "./rule-template";
 
 export interface StyleDocumentCheckParams {
   readonly scssPath: string;
@@ -27,34 +28,63 @@ export function checkStyleDocument(
   env: StyleDocumentCheckEnv,
   options: StyleDocumentCheckOptions = {},
 ): readonly StyleCheckerFinding[] {
+  return runCheckerRules(STYLE_DOCUMENT_RULES, { params, env, options });
+}
+
+const STYLE_DOCUMENT_RULES: readonly CheckerRule<
+  StyleDocumentCheckParams,
+  StyleDocumentCheckEnv,
+  StyleDocumentCheckOptions,
+  StyleCheckerFinding
+>[] = [
+  checkUnusedSelectorsRule,
+  checkComposesResolutionRule,
+  checkImportedValuesRule,
+  checkMissingKeyframesRule,
+];
+
+function checkUnusedSelectorsRule({
+  params,
+  env,
+  options,
+}: {
+  readonly params: StyleDocumentCheckParams;
+  readonly env: StyleDocumentCheckEnv;
+  readonly options: StyleDocumentCheckOptions;
+}): readonly StyleCheckerFinding[] {
+  if (!(options.includeUnusedSelectors ?? true)) return [];
   const findings: StyleCheckerFinding[] = [];
-
-  if (options.includeUnusedSelectors ?? true) {
-    const usage = readStyleModuleUsageSummary(
-      params.scssPath,
-      params.styleDocument,
-      env.semanticReferenceIndex,
-      env.styleDependencyGraph,
-    );
-    for (const selector of usage.unusedSelectors) {
-      findings.push({
-        category: "style",
-        code: "unused-selector",
-        severity: "hint",
-        range: selector.range,
-        selectorFilePath: params.scssPath,
-        canonicalName: selector.canonicalName,
-      });
-    }
+  const usage = readStyleModuleUsageSummary(
+    params.scssPath,
+    params.styleDocument,
+    env.semanticReferenceIndex,
+    env.styleDependencyGraph,
+  );
+  for (const selector of usage.unusedSelectors) {
+    findings.push({
+      category: "style",
+      code: "unused-selector",
+      severity: "hint",
+      range: selector.range,
+      selectorFilePath: params.scssPath,
+      canonicalName: selector.canonicalName,
+    });
   }
 
-  if (!(options.includeComposesResolution ?? true) || !env.styleDocumentForPath) {
-    if (options.includeKeyframesResolution ?? true) {
-      findings.push(...findMissingKeyframes(params));
-    }
-    return findings;
-  }
+  return findings;
+}
 
+function checkComposesResolutionRule({
+  params,
+  env,
+  options,
+}: {
+  readonly params: StyleDocumentCheckParams;
+  readonly env: StyleDocumentCheckEnv;
+  readonly options: StyleDocumentCheckOptions;
+}): readonly StyleCheckerFinding[] {
+  if (!(options.includeComposesResolution ?? true) || !env.styleDocumentForPath) return [];
+  const findings: StyleCheckerFinding[] = [];
   for (const selector of params.styleDocument.selectors) {
     if (selector.viewKind !== "canonical") continue;
     for (const ref of selector.composes) {
@@ -92,6 +122,19 @@ export function checkStyleDocument(
     }
   }
 
+  return findings;
+}
+
+function checkImportedValuesRule({
+  params,
+  env,
+}: {
+  readonly params: StyleDocumentCheckParams;
+  readonly env: StyleDocumentCheckEnv;
+  readonly options: StyleDocumentCheckOptions;
+}): readonly StyleCheckerFinding[] {
+  if (!env.styleDocumentForPath) return [];
+  const findings: StyleCheckerFinding[] = [];
   const reportedMissingValueModules = new Set<string>();
 
   for (const valueImport of params.styleDocument.valueImports) {
@@ -136,11 +179,19 @@ export function checkStyleDocument(
     }
   }
 
-  if (options.includeKeyframesResolution ?? true) {
-    findings.push(...findMissingKeyframes(params));
-  }
-
   return findings;
+}
+
+function checkMissingKeyframesRule({
+  params,
+  options,
+}: {
+  readonly params: StyleDocumentCheckParams;
+  readonly env: StyleDocumentCheckEnv;
+  readonly options: StyleDocumentCheckOptions;
+}): readonly StyleCheckerFinding[] {
+  if (!(options.includeKeyframesResolution ?? true)) return [];
+  return findMissingKeyframes(params);
 }
 
 function findMissingKeyframes(

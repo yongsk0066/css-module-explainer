@@ -3,6 +3,7 @@ import type { StyleDocumentHIR } from "../hir/style-types";
 import { findInvalidClassReference } from "../query";
 import type { TypeResolver } from "../ts/type-resolver";
 import type { SourceCheckerFinding } from "./contracts";
+import { runCheckerRules, type CheckerRule } from "./rule-template";
 
 export interface SourceDocumentCheckParams {
   readonly documentUri: string;
@@ -28,6 +29,26 @@ export function checkSourceDocument(
   env: SourceDocumentCheckEnv,
   options: SourceDocumentCheckOptions = {},
 ): readonly SourceCheckerFinding[] {
+  return runCheckerRules(SOURCE_DOCUMENT_RULES, { params, env, options });
+}
+
+const SOURCE_DOCUMENT_RULES: readonly CheckerRule<
+  SourceDocumentCheckParams,
+  SourceDocumentCheckEnv,
+  SourceDocumentCheckOptions,
+  SourceCheckerFinding
+>[] = [checkMissingModulesRule, checkInvalidClassReferencesRule];
+
+function checkMissingModulesRule({
+  params,
+  env,
+  options,
+}: {
+  readonly params: SourceDocumentCheckParams;
+  readonly env: SourceDocumentCheckEnv;
+  readonly options: SourceDocumentCheckOptions;
+}): readonly SourceCheckerFinding[] {
+  if (!(options.includeMissingModule ?? true)) return [];
   const entry = env.analysisCache.get(
     params.documentUri,
     params.content,
@@ -35,25 +56,41 @@ export function checkSourceDocument(
     params.version,
   );
   const findings: SourceCheckerFinding[] = [];
-  const cxExpressions = entry.sourceDocument.classExpressions.filter(
-    (expression) => expression.origin === "cxCall",
-  );
 
-  if (options.includeMissingModule ?? true) {
-    for (const imp of entry.stylesBindings.values()) {
-      if (imp.kind !== "missing") continue;
-      findings.push({
-        category: "source",
-        code: "missing-module",
-        severity: "warning",
-        range: imp.range,
-        specifier: imp.specifier,
-        absolutePath: imp.absolutePath,
-      });
-    }
+  for (const imp of entry.stylesBindings.values()) {
+    if (imp.kind !== "missing") continue;
+    findings.push({
+      category: "source",
+      code: "missing-module",
+      severity: "warning",
+      range: imp.range,
+      specifier: imp.specifier,
+      absolutePath: imp.absolutePath,
+    });
   }
 
-  for (const expression of cxExpressions) {
+  return findings;
+}
+
+function checkInvalidClassReferencesRule({
+  params,
+  env,
+  options,
+}: {
+  readonly params: SourceDocumentCheckParams;
+  readonly env: SourceDocumentCheckEnv;
+  readonly options: SourceDocumentCheckOptions;
+}): readonly SourceCheckerFinding[] {
+  const entry = env.analysisCache.get(
+    params.documentUri,
+    params.content,
+    params.filePath,
+    params.version,
+  );
+  const findings: SourceCheckerFinding[] = [];
+
+  for (const expression of entry.sourceDocument.classExpressions) {
+    if (expression.origin !== "cxCall") continue;
     try {
       const styleDocument = env.styleDocumentForPath(expression.scssModulePath);
       if (!styleDocument) continue;

@@ -23,3 +23,4 @@ export {
   listCheckerCodeBundles,
   type CheckerCodeBundle,
 } from "./checker-code-bundles";
+export { runCheckerRules, type CheckerRule, type CheckerRuleContext } from "./rule-template";
