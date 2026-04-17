@@ -77,9 +77,12 @@ describe("flow/lattice", () => {
       ]),
     ).toEqual({
       abstractValue: {
-        kind: "prefix",
+        kind: "composite",
         prefix: "btn-",
-        provenance: "finiteSetWidening",
+        mustChars: "-bnt",
+        mayChars: "-abcdefghilmnoprstuwy",
+        minLength: 8,
+        provenance: "finiteSetWideningComposite",
       },
       valueCertainty: "inferred",
       reason: "typeUnion",
@@ -101,9 +104,12 @@ describe("flow/lattice", () => {
       ]),
     ).toEqual({
       abstractValue: {
-        kind: "top",
+        kind: "charInclusion",
+        mustChars: "aest",
+        mayChars: "EFNOSTaeghinorstuvwx",
+        provenance: "finiteSetWideningChars",
       },
-      valueCertainty: "possible",
+      valueCertainty: "inferred",
       reason: "typeUnion",
     });
   });
