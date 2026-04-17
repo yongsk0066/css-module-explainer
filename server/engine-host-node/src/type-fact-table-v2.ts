@@ -1,7 +1,33 @@
 import type { TypeFactTableV2 } from "../../engine-core-ts/src/contracts";
-import { upcastTypeFactTableEntryV1ToV2 } from "../../engine-core-ts/src/contracts";
-import { collectTypeFactTableV1, type CollectTypeFactTableV1Options } from "./type-fact-table-v1";
+import { createTypeFactTableEntryV2 } from "../../engine-core-ts/src/contracts";
+import type { CollectTypeFactTableV1Options } from "./type-fact-table-v1";
 
 export function collectTypeFactTableV2(options: CollectTypeFactTableV1Options): TypeFactTableV2 {
-  return collectTypeFactTableV1(options).map(upcastTypeFactTableEntryV1ToV2);
+  return options.sourceEntries
+    .flatMap(({ document, analysis }) =>
+      analysis.sourceDocument.classExpressions.flatMap((expression) => {
+        if (expression.kind !== "symbolRef") return [];
+        return [
+          createTypeFactTableEntryV2(
+            document.filePath,
+            expression.id,
+            options.typeResolver.resolve(
+              document.filePath,
+              expression.rootName,
+              options.workspaceRoot,
+              expression.range,
+              {
+                sourceBinder: analysis.sourceBinder,
+                sourceBindingGraph: analysis.sourceBindingGraph,
+                rootBindingDeclId: expression.rootBindingDeclId ?? null,
+              },
+            ),
+          ),
+        ];
+      }),
+    )
+    .toSorted(
+      (a, b) =>
+        a.filePath.localeCompare(b.filePath) || a.expressionId.localeCompare(b.expressionId),
+    );
 }

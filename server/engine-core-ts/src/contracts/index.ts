@@ -50,6 +50,7 @@ export {
 export {
   createTypeFactTableEntryV2,
   downcastFactsV2ToV1,
+  normalizeResolvedTypeToTypeFactsV2,
   upcastFactsV1ToV2,
   upcastTypeFactTableEntryV1ToV2,
 } from "./engine-v2-builders";

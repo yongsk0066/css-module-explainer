@@ -1,7 +1,10 @@
 import type { ResolvedType } from "@css-module-explainer/shared";
+import {
+  finiteSetClassValue,
+  type AbstractClassValue,
+} from "../core/abstract-value/class-value-domain";
 import type { StringTypeFactsV1, TypeFactTableEntryV1 } from "./engine-v1";
 import type { StringTypeFactsV2, TypeFactTableEntryV2 } from "./engine-v2";
-import { createTypeFactTableEntryV1 } from "./engine-v1-builders";
 
 export function upcastFactsV1ToV2(facts: StringTypeFactsV1): StringTypeFactsV2 {
   switch (facts.kind) {
@@ -22,6 +25,14 @@ export function upcastFactsV1ToV2(facts: StringTypeFactsV1): StringTypeFactsV2 {
     default:
       return { kind: "unknown" };
   }
+}
+
+export function normalizeResolvedTypeToTypeFactsV2(resolvedType: ResolvedType): StringTypeFactsV2 {
+  if (resolvedType.kind === "unresolvable") {
+    return { kind: "unknown" };
+  }
+
+  return externalizeAbstractClassValueToTypeFactsV2(finiteSetClassValue(resolvedType.values));
 }
 
 export function downcastFactsV2ToV1(facts: StringTypeFactsV2): StringTypeFactsV1 {
@@ -66,7 +77,92 @@ export function createTypeFactTableEntryV2(
   expressionId: string,
   resolvedType: ResolvedType,
 ): TypeFactTableEntryV2 {
-  return upcastTypeFactTableEntryV1ToV2(
-    createTypeFactTableEntryV1(filePath, expressionId, resolvedType),
-  );
+  return {
+    filePath,
+    expressionId,
+    facts: normalizeResolvedTypeToTypeFactsV2(resolvedType),
+  };
+}
+
+function externalizeAbstractClassValueToTypeFactsV2(value: AbstractClassValue): StringTypeFactsV2 {
+  switch (value.kind) {
+    case "bottom":
+      return { kind: "unknown" };
+    case "exact":
+      return { kind: "exact", values: [value.value] };
+    case "finiteSet":
+      return { kind: "finiteSet", values: value.values };
+    case "prefix":
+      return {
+        kind: "constrained",
+        constraintKind: "prefix",
+        prefix: value.prefix,
+        ...(value.provenance ? { provenance: value.provenance } : {}),
+      };
+    case "suffix":
+      return {
+        kind: "constrained",
+        constraintKind: "suffix",
+        suffix: value.suffix,
+        ...(value.provenance ? { provenance: value.provenance } : {}),
+      };
+    case "prefixSuffix":
+      return {
+        kind: "constrained",
+        constraintKind: "prefixSuffix",
+        prefix: value.prefix,
+        suffix: value.suffix,
+        minLen: value.minLength,
+        ...(value.provenance ? { provenance: value.provenance } : {}),
+      };
+    case "charInclusion":
+      return {
+        kind: "constrained",
+        constraintKind: "charInclusion",
+        charMust: value.mustChars,
+        charMay: value.mayChars,
+        ...(value.mayIncludeOtherChars ? { mayIncludeOtherChars: true } : {}),
+        ...(value.provenance ? { provenance: value.provenance } : {}),
+      };
+    case "composite":
+      if (value.prefix && value.suffix) {
+        return {
+          kind: "constrained",
+          constraintKind: "prefixSuffix",
+          prefix: value.prefix,
+          suffix: value.suffix,
+          ...(value.minLength ? { minLen: value.minLength } : {}),
+          ...(value.provenance ? { provenance: value.provenance } : {}),
+        };
+      }
+      if (value.prefix) {
+        return {
+          kind: "constrained",
+          constraintKind: "prefix",
+          prefix: value.prefix,
+          ...(value.provenance ? { provenance: value.provenance } : {}),
+        };
+      }
+      if (value.suffix) {
+        return {
+          kind: "constrained",
+          constraintKind: "suffix",
+          suffix: value.suffix,
+          ...(value.provenance ? { provenance: value.provenance } : {}),
+        };
+      }
+      return {
+        kind: "constrained",
+        constraintKind: "charInclusion",
+        charMust: value.mustChars,
+        charMay: value.mayChars,
+        ...(value.mayIncludeOtherChars ? { mayIncludeOtherChars: true } : {}),
+        ...(value.provenance ? { provenance: value.provenance } : {}),
+      };
+    case "top":
+      return { kind: "top" };
+    default:
+      value satisfies never;
+      return { kind: "unknown" };
+  }
 }

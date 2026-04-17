@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   downcastFactsV2ToV1,
+  normalizeResolvedTypeToTypeFactsV2,
   upcastFactsV1ToV2,
 } from "../../../server/engine-core-ts/src/contracts";
 
@@ -40,5 +41,30 @@ describe("engine-v2 builders", () => {
         charMay: "EFNOSTaeghinorstuvwx",
       }),
     ).toEqual({ kind: "top" });
+  });
+
+  it("normalizes large unions into bundle-2 char-inclusion facts", () => {
+    expect(
+      normalizeResolvedTypeToTypeFactsV2({
+        kind: "union",
+        values: [
+          "stateOne",
+          "stateTwo",
+          "stateThree",
+          "stateFour",
+          "stateFive",
+          "stateSix",
+          "stateSeven",
+          "stateEight",
+          "stateNine",
+        ],
+      }),
+    ).toEqual({
+      kind: "constrained",
+      constraintKind: "charInclusion",
+      charMust: "aest",
+      charMay: "EFNOSTaeghinorstuvwx",
+      provenance: "finiteSetWideningChars",
+    });
   });
 });
