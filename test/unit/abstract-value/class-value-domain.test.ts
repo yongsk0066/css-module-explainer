@@ -484,6 +484,24 @@ describe("class-value-domain", () => {
     );
   });
 
+  it("tightens composite minLength from guaranteed distinct characters", () => {
+    expect(
+      compositeClassValue({
+        prefix: "btn-",
+        mustChars: "xyz",
+        mayChars: "xyz",
+        provenance: "compositeJoin",
+      }),
+    ).toEqual({
+      kind: "composite",
+      prefix: "btn-",
+      minLength: 7,
+      mustChars: "-bntxyz",
+      mayChars: "-bntxyz",
+      provenance: "compositeJoin",
+    });
+  });
+
   it("widens large finite sets to character inclusion when no meaningful LCP exists", () => {
     const values = Array.from(
       { length: MAX_FINITE_CLASS_VALUES + 1 },

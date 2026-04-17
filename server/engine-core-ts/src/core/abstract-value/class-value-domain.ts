@@ -208,16 +208,23 @@ export function compositeClassValue(input: {
     );
   }
 
+  const guaranteedDistinctCharCount = Array.from(normalizedMustChars).length;
   const minLength =
     normalizedPrefix.length > 0 || normalizedSuffix.length > 0
       ? Math.max(input.minLength ?? 0, normalizedPrefix.length + normalizedSuffix.length)
       : input.minLength;
+  const tightenedMinLength =
+    minLength !== undefined
+      ? Math.max(minLength, guaranteedDistinctCharCount)
+      : guaranteedDistinctCharCount > 0
+        ? guaranteedDistinctCharCount
+        : undefined;
 
   const base = {
     kind: "composite" as const,
     ...(normalizedPrefix.length > 0 ? { prefix: normalizedPrefix } : {}),
     ...(normalizedSuffix.length > 0 ? { suffix: normalizedSuffix } : {}),
-    ...(minLength !== undefined ? { minLength } : {}),
+    ...(tightenedMinLength !== undefined ? { minLength: tightenedMinLength } : {}),
     mustChars: normalizedMustChars,
     mayChars: normalizedMayChars,
     ...(mayIncludeOtherChars ? { mayIncludeOtherChars: true as const } : {}),
