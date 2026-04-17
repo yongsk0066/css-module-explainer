@@ -4,11 +4,14 @@ import type { EdgeCertainty } from "../semantic/certainty";
 import type { ExpressionSemanticsSummary } from "./read-expression-semantics";
 import type { InvalidClassReferenceFinding } from "./find-invalid-class-references";
 
+type PrefixProvenance = Extract<FlowResolution["abstractValue"], { kind: "prefix" }>["provenance"];
+
 export interface DynamicExpressionExplanation {
   readonly kind: "symbolRef" | "template";
   readonly subject: string;
   readonly candidates: readonly string[];
   readonly valueDomainLabel?: string;
+  readonly valueDomainReasonLabel?: string;
   readonly valueCertainty?: EdgeCertainty;
   readonly selectorCertainty?: EdgeCertainty;
   readonly reasonLabel?: string;
@@ -22,12 +25,14 @@ export function buildDynamicExpressionExplanation(
     case "symbolRef": {
       if (!semantics.abstractValue || !semantics.reason) return null;
       const valueDomainLabel = describeAbstractValue(semantics.abstractValue);
+      const valueDomainReasonLabel = describeAbstractValueReason(semantics.abstractValue);
       const reasonLabel = describeResolutionReason(semantics.reason);
       return {
         kind: "symbolRef",
         subject: expression.rawReference,
         candidates: semantics.candidateNames,
         ...(valueDomainLabel ? { valueDomainLabel } : {}),
+        ...(valueDomainReasonLabel ? { valueDomainReasonLabel } : {}),
         ...(semantics.valueCertainty ? { valueCertainty: semantics.valueCertainty } : {}),
         ...(semantics.selectorCertainty ? { selectorCertainty: semantics.selectorCertainty } : {}),
         ...(reasonLabel ? { reasonLabel } : {}),
@@ -36,11 +41,13 @@ export function buildDynamicExpressionExplanation(
     case "template": {
       if (semantics.selectors.length === 0) return null;
       const valueDomainLabel = describeAbstractValue(semantics.abstractValue);
+      const valueDomainReasonLabel = describeAbstractValueReason(semantics.abstractValue);
       return {
         kind: "template",
         subject: expression.staticPrefix,
         candidates: semantics.candidateNames,
         ...(valueDomainLabel ? { valueDomainLabel } : {}),
+        ...(valueDomainReasonLabel ? { valueDomainReasonLabel } : {}),
         ...(semantics.selectorCertainty ? { selectorCertainty: semantics.selectorCertainty } : {}),
       };
     }
@@ -94,7 +101,7 @@ export function describeAbstractValue(
     case "finiteSet":
       return abstractValue.values.length > 1 ? `finite set (${abstractValue.values.length})` : null;
     case "prefix":
-      return abstractValue.provenance === "finiteSetWidening"
+      return isWidenedPrefix(abstractValue.provenance)
         ? `prefix \`${abstractValue.prefix}\` (widened)`
         : `prefix \`${abstractValue.prefix}\``;
     case "top":
@@ -103,6 +110,32 @@ export function describeAbstractValue(
       abstractValue satisfies never;
       return null;
   }
+}
+
+export function describeAbstractValueReason(
+  abstractValue?: FlowResolution["abstractValue"],
+): string | null {
+  if (!abstractValue || abstractValue.kind !== "prefix") return null;
+
+  switch (abstractValue.provenance) {
+    case "concatUnknownRight":
+      return "known prefix preserved while concatenating an unknown suffix";
+    case "prefixJoinLcp":
+      return "branched prefixes merged at their longest common prefix";
+    case "finiteSetWidening":
+      return "finite candidates widened to a shared prefix";
+    case "finiteSetConcatPrefixLcp":
+      return "finite candidates concatenated with a prefix and reduced to their shared prefix";
+    case undefined:
+      return null;
+    default:
+      abstractValue.provenance satisfies never;
+      return null;
+  }
+}
+
+function isWidenedPrefix(provenance: PrefixProvenance): boolean {
+  return provenance === "finiteSetWidening" || provenance === "finiteSetConcatPrefixLcp";
 }
 
 export function describeResolutionReason(reason?: FlowResolution["reason"]): string | null {

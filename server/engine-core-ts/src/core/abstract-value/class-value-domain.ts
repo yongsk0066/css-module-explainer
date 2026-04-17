@@ -22,7 +22,11 @@ export interface FiniteSetClassValue {
 export interface PrefixClassValue {
   readonly kind: "prefix";
   readonly prefix: string;
-  readonly provenance?: "concatUnknownRight" | "prefixJoinLcp" | "finiteSetWidening";
+  readonly provenance?:
+    | "concatUnknownRight"
+    | "prefixJoinLcp"
+    | "finiteSetWidening"
+    | "finiteSetConcatPrefixLcp";
 }
 
 export interface TopClassValue {
@@ -100,7 +104,9 @@ export function concatenateClassValues(
 
   if (left.kind === "finiteSet" && right.kind === "prefix") {
     const prefix = meaningfulLongestCommonPrefix(left.values.map((value) => value + right.prefix));
-    return prefix.length > 0 ? prefixClassValue(prefix) : TOP_CLASS_VALUE;
+    return prefix.length > 0
+      ? prefixClassValue(prefix, "finiteSetConcatPrefixLcp")
+      : TOP_CLASS_VALUE;
   }
 
   if (left.kind === "finiteSet" && right.kind === "finiteSet") {

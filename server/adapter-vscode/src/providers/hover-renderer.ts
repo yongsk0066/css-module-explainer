@@ -186,6 +186,9 @@ function renderDynamicExplanation(
     if (explanation.valueDomainLabel) {
       lines.push(`_Value domain: ${explanation.valueDomainLabel}._`);
     }
+    if (explanation.valueDomainReasonLabel) {
+      lines.push(`_Value domain reason: ${explanation.valueDomainReasonLabel}._`);
+    }
   } else {
     lines.push(`_Resolved by template prefix \`${explanation.subject}\`._`);
     if (explanation.selectorCertainty) {
@@ -193,6 +196,9 @@ function renderDynamicExplanation(
     }
     if (explanation.valueDomainLabel) {
       lines.push(`_Value domain: ${explanation.valueDomainLabel}._`);
+    }
+    if (explanation.valueDomainReasonLabel) {
+      lines.push(`_Value domain reason: ${explanation.valueDomainReasonLabel}._`);
     }
   }
 

@@ -79,7 +79,7 @@ describe("class-value-domain", () => {
         name: "finiteSet + prefix preserves a meaningful shared prefix",
         left: finiteSetClassValue(["btn-sm-", "btn-lg-"]),
         right: prefixClassValue("state-"),
-        expected: prefixClassValue("btn-"),
+        expected: prefixClassValue("btn-", "finiteSetConcatPrefixLcp"),
       },
       {
         name: "prefix + exact preserves left prefix",
@@ -205,7 +205,7 @@ describe("class-value-domain", () => {
         finiteSetClassValue(["chip-sm-", "chip-lg-"]),
         prefixClassValue("state-"),
       ),
-    ).toEqual(prefixClassValue("chip-"));
+    ).toEqual(prefixClassValue("chip-", "finiteSetConcatPrefixLcp"));
   });
 
   it("keeps finiteSet + prefix at top when no meaningful shared prefix survives", () => {

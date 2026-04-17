@@ -151,12 +151,16 @@ describe("renderHover", () => {
         subject: "size",
         candidates: ["small", "medium"],
         valueDomainLabel: "finite set (2)",
+        valueDomainReasonLabel: "finite candidates widened to a shared prefix",
         valueCertainty: "exact",
         selectorCertainty: "inferred",
         reasonLabel: "TypeScript string-literal union analysis",
       },
     });
     expect(markdown).toContain("Value domain: finite set (2).");
+    expect(markdown).toContain(
+      "Value domain reason: finite candidates widened to a shared prefix.",
+    );
     expect(markdown).toContain("Value certainty: exact.");
     expect(markdown).toContain("Selector certainty: inferred.");
   });
