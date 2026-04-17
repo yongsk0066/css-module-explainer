@@ -2,6 +2,8 @@ export type { SourceExpressionCursor, SourceExpressionQueryDeps } from "./contra
 export {
   buildInvalidClassAnalysisMetadata,
   buildDynamicExpressionExplanation,
+  describeAbstractValueReason,
+  describeValueCertaintyReason,
   messageForInvalidClassFinding,
   type DynamicExpressionExplanation,
   type InvalidClassAnalysisMetadata,

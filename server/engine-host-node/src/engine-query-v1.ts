@@ -1,9 +1,12 @@
 import {
+  describeAbstractValueReason,
+  describeValueCertaintyReason,
   listCanonicalSelectors,
   readExpressionSemantics,
   readSelectorUsageSummary,
   readSourceExpressionResolution,
 } from "../../engine-core-ts/src/core/query";
+import { deriveValueCertaintyProfile } from "../../engine-core-ts/src/core/semantic/certainty";
 import type { DocumentAnalysisCache } from "../../engine-core-ts/src/core/indexing/document-analysis-cache";
 import type { StyleDocumentHIR } from "../../engine-core-ts/src/core/hir/style-types";
 import type { WorkspaceSemanticWorkspaceReferenceIndex } from "../../engine-core-ts/src/core/semantic/workspace-reference-index";
@@ -105,6 +108,16 @@ function expressionSemanticsResult(
   filePath: string,
   semantics: ReturnType<typeof readExpressionSemantics>,
 ): ExpressionSemanticsQueryResultV1 {
+  const valueCertaintyProfile = deriveValueCertaintyProfile(
+    semantics.abstractValue,
+    semantics.valueCertainty,
+  );
+  const valueDomainReason = describeAbstractValueReason(semantics.abstractValue);
+  const valueCertaintyReason = describeValueCertaintyReason(
+    semantics.abstractValue,
+    semantics.valueCertainty,
+    semantics.reason,
+  );
   return {
     kind: "expression-semantics",
     filePath,
@@ -117,8 +130,13 @@ function expressionSemanticsResult(
       candidateNames: semantics.candidateNames,
       finiteValues: semantics.finiteValues,
       valueDomainKind: semantics.valueDomainKind,
+      ...(valueDomainReason ? { valueDomainReason } : {}),
       selectorCertainty: semantics.selectorCertainty,
       ...(semantics.valueCertainty ? { valueCertainty: semantics.valueCertainty } : {}),
+      ...(valueCertaintyProfile
+        ? { valueCertaintyShapeLabel: valueCertaintyProfile.shapeLabel }
+        : {}),
+      ...(valueCertaintyReason ? { valueCertaintyReason } : {}),
       ...(semantics.reason ? { reason: semantics.reason } : {}),
     },
   };
@@ -129,6 +147,15 @@ function sourceExpressionResolutionResult(
   expressionId: string,
   resolution: ReturnType<typeof readSourceExpressionResolution>,
 ): SourceExpressionResolutionQueryResultV1 {
+  const valueCertaintyProfile = deriveValueCertaintyProfile(
+    resolution.abstractValue,
+    resolution.valueCertainty,
+  );
+  const valueCertaintyReason = describeValueCertaintyReason(
+    resolution.abstractValue,
+    resolution.valueCertainty,
+    resolution.reason,
+  );
   return {
     kind: "source-expression-resolution",
     filePath,
@@ -140,6 +167,10 @@ function sourceExpressionResolutionResult(
       finiteValues: resolution.finiteValues,
       selectorCertainty: resolution.selectorCertainty,
       ...(resolution.valueCertainty ? { valueCertainty: resolution.valueCertainty } : {}),
+      ...(valueCertaintyProfile
+        ? { valueCertaintyShapeLabel: valueCertaintyProfile.shapeLabel }
+        : {}),
+      ...(valueCertaintyReason ? { valueCertaintyReason } : {}),
       ...(resolution.reason ? { reason: resolution.reason } : {}),
     },
   };

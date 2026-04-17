@@ -72,8 +72,11 @@ export interface ExpressionSemanticsQueryResultV1 {
     readonly candidateNames: readonly string[];
     readonly finiteValues: readonly string[] | null;
     readonly valueDomainKind: string;
+    readonly valueDomainReason?: string;
     readonly selectorCertainty: string;
     readonly valueCertainty?: string;
+    readonly valueCertaintyShapeLabel?: string;
+    readonly valueCertaintyReason?: string;
     readonly reason?: string;
   };
 }
@@ -89,6 +92,8 @@ export interface SourceExpressionResolutionQueryResultV1 {
     readonly finiteValues: readonly string[] | null;
     readonly selectorCertainty: string;
     readonly valueCertainty?: string;
+    readonly valueCertaintyShapeLabel?: string;
+    readonly valueCertaintyReason?: string;
     readonly reason?: string;
   };
 }
