@@ -17,6 +17,8 @@ import { ComposesScenario } from "./scenarios/15-composes/ComposesScenario";
 import { DiagnosticsRecoveryScenario } from "./scenarios/16-diagnostics-recovery/DiagnosticsRecoveryScenario";
 import { BracketAccessScenario } from "./scenarios/17-bracket-access/BracketAccessScenario";
 import { LessModuleScenario } from "./scenarios/18-less-module/LessModuleScenario";
+import { KeyframesScenario } from "./scenarios/19-keyframes/KeyframesScenario";
+import { ValueScenario } from "./scenarios/20-value/ValueScenario";
 
 type ScenarioGroup =
   | "Basics"
@@ -170,6 +172,20 @@ const SCENARIOS: readonly Scenario[] = [
     title: "18 · .module.less",
     description: "LESS module parsing, nested classes, and dashed selector access.",
     render: () => <LessModuleScenario />,
+  },
+  {
+    id: "19-keyframes",
+    group: "Style-side",
+    title: "19 · keyframes",
+    description: "Same-file @keyframes declarations plus animation-name and shorthand lookups.",
+    render: () => <KeyframesScenario />,
+  },
+  {
+    id: "20-value",
+    group: "Style-side",
+    title: "20 · @value tokens",
+    description: "Local and imported @value definition, references, and diagnostics surface.",
+    render: () => <ValueScenario />,
   },
 ];
 

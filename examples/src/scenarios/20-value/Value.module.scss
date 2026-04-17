@@ -1,0 +1,45 @@
+@value accentLocal: #0f766e;
+@value accentImported from "./ValueTokens.module.scss";
+@value surfaceTone from "./ValueTokens.module.scss";
+
+.panel {
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+}
+
+.eyebrow {
+  display: inline-flex;
+  width: fit-content;
+  padding: 7px 11px;
+  border: 1px solid accentImported;
+  border-radius: 999px;
+  background: surfaceTone;
+  color: accentImported;
+  font-weight: 700;
+}
+
+.card {
+  display: grid;
+  gap: 10px;
+  max-width: 540px;
+  padding: 18px;
+  border-left: 6px solid accentLocal;
+  border-radius: 16px;
+  background: white;
+  box-shadow: 0 12px 30px -24px rgba(15, 23, 42, 0.5);
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 700;
+  color: accentImported;
+}
+
+.hint {
+  margin: 0;
+  color: #475569;
+  line-height: 1.6;
+}

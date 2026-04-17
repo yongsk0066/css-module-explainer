@@ -74,6 +74,8 @@ listed in `src/App.tsx`'s sidebar.
 | 05 | `05-global-local/` | `:global` / `:local` selectors |
 | 12 | `12-nested-style-facts/` | `&.class`, plain nesting, and BEM suffix selector registration |
 | 15 | `15-composes/` | same-file and cross-file `composes` navigation and references |
+| 19 | `19-keyframes/` | same-file `@keyframes` and animation token navigation |
+| 20 | `20-value/` | local and imported `@value` token navigation |
 
 ### Diagnostics
 
@@ -147,6 +149,15 @@ through them whenever you update the provider layer.
   definition, references, diagnostics, and rename against
   `.module.less` selectors, including the nested `&.active` selector
   and the dashed `accent-badge` token.
+- **`@keyframes` inspect surface**: in `19-keyframes`, open
+  `Keyframes.module.scss` and use hover, go to definition, and find
+  references on `pulse` and `slide-up` in both the `@keyframes`
+  declarations and the `animation-name` / `animation` properties.
+- **`@value` inspect surface**: in `20-value`, open
+  `Value.module.scss` and `ValueTokens.module.scss`. Hover,
+  go to definition, and find references on the local token
+  `accentLocal` and the imported tokens `accentImported` and
+  `surfaceTone`.
 - **Unsaved SCSS edits reflect in diagnostics immediately**: open
   any scenario's `.module.scss`, add or remove a class without
   saving, and any diagnostic in the matching `.tsx` file updates
