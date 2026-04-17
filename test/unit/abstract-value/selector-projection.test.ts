@@ -4,6 +4,7 @@ import {
   exactClassValue,
   finiteSetClassValue,
   prefixClassValue,
+  suffixClassValue,
 } from "../../../server/engine-core-ts/src/core/abstract-value/class-value-domain";
 import { resolveAbstractValueSelectors } from "../../../server/engine-core-ts/src/core/abstract-value/selector-projection";
 import { info } from "../../_fixtures/test-helpers";
@@ -42,6 +43,14 @@ describe("resolveAbstractValueSelectors", () => {
         (selector) => selector.name,
       ),
     ).toEqual(["btn-primary", "btn-secondary"]);
+  });
+
+  it("projects suffixes to matching canonical selectors", () => {
+    expect(
+      resolveAbstractValueSelectors(suffixClassValue("-primary"), styleDocument).map(
+        (selector) => selector.name,
+      ),
+    ).toEqual(["btn-primary"]);
   });
 
   it("treats top as the whole canonical selector universe", () => {

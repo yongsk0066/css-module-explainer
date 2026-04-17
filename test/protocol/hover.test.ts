@@ -76,6 +76,22 @@ const FUNCTION_DYNAMIC_SCSS = `
 .state-error { color: crimson; }
 `;
 
+const SUFFIX_DYNAMIC_TSX = `import classNames from 'classnames/bind';
+import styles from './StateChip.module.scss';
+const cx = classNames.bind(styles);
+export function StateChip(variant: string) {
+  const derivedChipClass = variant + '-chip';
+  return <div className={cx('chip', derivedChipClass)}>hi</div>;
+}
+`;
+
+const SUFFIX_DYNAMIC_SCSS = `
+.chip { color: slategray; }
+.idle-chip { color: teal; }
+.busy-chip { color: orange; }
+.error-chip { color: crimson; }
+`;
+
 describe("hover protocol / clsx", () => {
   let client: LspTestClient | null = null;
 
@@ -184,6 +200,37 @@ describe("hover protocol", () => {
     expect(value).toContain("state-idle");
     expect(value).toContain("state-busy");
     expect(value).toContain("state-error");
+  });
+
+  it("returns a hover for suffix-constrained derived class candidates", async () => {
+    client = createInProcessServer({
+      readStyleFile: (path) =>
+        path.endsWith("StateChip.module.scss") ? SUFFIX_DYNAMIC_SCSS : null,
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/StateChip.tsx",
+        languageId: "typescriptreact",
+        version: 1,
+        text: SUFFIX_DYNAMIC_TSX,
+      },
+    });
+    const hover = await client.hover({
+      textDocument: { uri: "file:///fake/workspace/src/StateChip.tsx" },
+      position: { line: 5, character: 42 },
+    });
+    expect(hover).not.toBeNull();
+    const value = (hover!.contents as { value: string }).value;
+    expect(value).toContain("idle-chip");
+    expect(value).toContain("busy-chip");
+    expect(value).toContain("error-chip");
+    expect(value).toContain("Value domain: suffix `-chip`.");
+    expect(value).toContain(
+      "Value certainty reason: known suffix preserved while prepending an unknown prefix.",
+    );
   });
 
   it("returns a selector hover for SCSS declarations", async () => {

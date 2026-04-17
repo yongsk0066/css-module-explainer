@@ -9,6 +9,7 @@ import type { ExpressionSemanticsSummary } from "./read-expression-semantics";
 import type { InvalidClassReferenceFinding } from "./find-invalid-class-references";
 
 type PrefixProvenance = Extract<FlowResolution["abstractValue"], { kind: "prefix" }>["provenance"];
+type SuffixProvenance = Extract<FlowResolution["abstractValue"], { kind: "suffix" }>["provenance"];
 
 export interface DynamicExpressionExplanation {
   readonly kind: "symbolRef" | "template";
@@ -217,6 +218,8 @@ export function describeAbstractValue(
       return isWidenedPrefix(abstractValue.provenance)
         ? `prefix \`${abstractValue.prefix}\` (widened)`
         : `prefix \`${abstractValue.prefix}\``;
+    case "suffix":
+      return `suffix \`${abstractValue.suffix}\``;
     case "top":
       return "unknown";
     default:
@@ -228,21 +231,27 @@ export function describeAbstractValue(
 export function describeAbstractValueReason(
   abstractValue?: FlowResolution["abstractValue"],
 ): string | null {
-  if (!abstractValue || abstractValue.kind !== "prefix") return null;
+  if (!abstractValue) return null;
 
-  switch (abstractValue.provenance) {
-    case "concatUnknownRight":
-      return "known prefix preserved while concatenating an unknown suffix";
-    case "prefixJoinLcp":
-      return "branched prefixes merged at their longest common prefix";
-    case "finiteSetWidening":
-      return "finite candidates widened to a shared prefix";
-    case "finiteSetConcatPrefixLcp":
-      return "finite candidates concatenated with a prefix and reduced to their shared prefix";
-    case undefined:
+  switch (abstractValue.kind) {
+    case "prefix": {
+      switch (abstractValue.provenance) {
+        case "concatUnknownRight":
+          return "known prefix preserved while concatenating an unknown suffix";
+        case "prefixJoinLcp":
+          return "branched prefixes merged at their longest common prefix";
+        case "finiteSetWidening":
+          return "finite candidates widened to a shared prefix";
+        case "finiteSetConcatPrefixLcp":
+          return "finite candidates concatenated with a prefix and reduced to their shared prefix";
+        case undefined:
+          return null;
+      }
       return null;
+    }
+    case "suffix":
+      return describeSuffixReason(abstractValue.provenance);
     default:
-      abstractValue.provenance satisfies never;
       return null;
   }
 }
@@ -267,6 +276,11 @@ export function describeValueCertaintyReason(
           return (
             describeAbstractValueReason(abstractValue) ??
             "analysis preserved only a constrained prefix of the runtime value"
+          );
+        case "suffix":
+          return (
+            describeAbstractValueReason(abstractValue) ??
+            "analysis preserved only a constrained suffix of the runtime value"
           );
         case "exact":
         case "bottom":
@@ -297,10 +311,10 @@ export function describeSelectorCertaintyReason(
     case "exact":
       return null;
     case "inferred":
-      if (abstractValue?.kind === "prefix") {
+      if (abstractValue?.kind === "prefix" || abstractValue?.kind === "suffix") {
         return (
           describeAbstractValueReason(abstractValue) ??
-          "constrained prefix matched a bounded selector set"
+          "constrained runtime shape matched a bounded selector set"
         );
       }
       return "finite candidate values matched a bounded selector set";
@@ -316,6 +330,20 @@ export function describeSelectorCertaintyReason(
 
 function isWidenedPrefix(provenance: PrefixProvenance): boolean {
   return provenance === "finiteSetWidening" || provenance === "finiteSetConcatPrefixLcp";
+}
+
+function describeSuffixReason(provenance: SuffixProvenance): string | null {
+  switch (provenance) {
+    case "concatUnknownLeft":
+      return "known suffix preserved while prepending an unknown prefix";
+    case "suffixJoinLcs":
+      return "branched suffixes merged at their longest common suffix";
+    case undefined:
+      return null;
+    default:
+      provenance satisfies never;
+      return null;
+  }
 }
 
 export function describeResolutionReason(reason?: FlowResolution["reason"]): string | null {

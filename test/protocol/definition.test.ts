@@ -79,6 +79,22 @@ const FUNCTION_DYNAMIC_SCSS = `
 .state-error { color: crimson; }
 `;
 
+const SUFFIX_DYNAMIC_TSX = `import classNames from 'classnames/bind';
+import styles from './StateChip.module.scss';
+const cx = classNames.bind(styles);
+export function StateChip(variant: string) {
+  const derivedChipClass = variant + '-chip';
+  return <div className={cx('chip', derivedChipClass)}>hi</div>;
+}
+`;
+
+const SUFFIX_DYNAMIC_SCSS = `
+.chip { color: slategray; }
+.idle-chip { color: teal; }
+.busy-chip { color: orange; }
+.error-chip { color: crimson; }
+`;
+
 function openButton(client: LspTestClient): void {
   client.didOpen({
     textDocument: {
@@ -194,6 +210,33 @@ describe("definition protocol", () => {
     const links = result as Array<{ targetUri: string }>;
     expect(links).toHaveLength(3);
     expect(links.every((link) => link.targetUri.endsWith("Status.module.scss"))).toBe(true);
+  });
+
+  it("returns definition links for suffix-constrained derived class candidates", async () => {
+    client = createInProcessServer({
+      readStyleFile: (path) =>
+        path.endsWith("StateChip.module.scss") ? SUFFIX_DYNAMIC_SCSS : null,
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/StateChip.tsx",
+        languageId: "typescriptreact",
+        version: 1,
+        text: SUFFIX_DYNAMIC_TSX,
+      },
+    });
+    const result = await client.definition({
+      textDocument: { uri: "file:///fake/workspace/src/StateChip.tsx" },
+      position: { line: 5, character: 42 },
+    });
+    expect(result).not.toBeNull();
+    expect(Array.isArray(result)).toBe(true);
+    const links = result as Array<{ targetUri: string }>;
+    expect(links).toHaveLength(3);
+    expect(links.every((link) => link.targetUri.endsWith("StateChip.module.scss"))).toBe(true);
   });
 
   it("returns null when the cursor is outside any cx call", async () => {

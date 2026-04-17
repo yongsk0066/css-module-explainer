@@ -67,6 +67,8 @@ function classifyValueDomain(
       return "finiteSet";
     case "prefix":
       return "prefix";
+    case "suffix":
+      return "top";
     case "top":
       return "top";
     default:

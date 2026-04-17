@@ -32,6 +32,9 @@ The runtime uses these abstract values:
 - `prefix(p)`
   - denotes some non-empty set of strings whose members all start with `p`
   - the analysis does not claim the set is complete or finite
+- `suffix(s)` _(internal-only pre-V2)_
+  - denotes some non-empty set of strings whose members all end with `s`
+  - the analysis may use this domain internally before V2 contracts expose it directly
 - `top`
   - denotes an unknown set of strings
 
@@ -44,12 +47,14 @@ The implementation is not machine-checked, but the intended abstraction/concreti
   - singleton set -> `exact`
   - known finite set -> `finiteSet`
   - non-finite or widened set with stable leading prefix -> `prefix`
+  - non-finite or widened set with stable trailing suffix -> `suffix`
   - otherwise -> `top`
 - `gamma(a)`
   - `bottom` -> `{}`
   - `exact(v)` -> `{ v }`
   - `finiteSet(vs)` -> `set(vs)`
   - `prefix(p)` -> `{ s | s startsWith p }`
+  - `suffix(s)` -> `{ s' | s' endsWith s }`
   - `top` -> all strings
 
 Required invariant:
@@ -63,6 +68,7 @@ Required invariant:
 
 - joins preserve exact finite information when both sides remain finite
 - prefix joins stay `prefix` only when both sides remain inside the same prefix language
+- suffix joins stay `suffix` only when both sides remain inside the same suffix language
 - incompatible prefixes widen to `top`
 
 ### Concatenation
@@ -70,12 +76,18 @@ Required invariant:
 - `exact + exact` -> `exact`
 - `exact + finiteSet` -> `finiteSet`
 - `exact + prefix` -> `prefix(left + prefix)`
+- `exact + suffix` -> `suffix`
 - `finiteSet + exact` -> `finiteSet`
 - `finiteSet + prefix` -> `prefix(lcp(left_i + prefix))` when the concatenated prefixes keep a meaningful shared class prefix, otherwise `top`
+- `finiteSet + suffix` -> `suffix`
 - `exact + unknownRight` -> `prefix(left)`
+- `unknownLeft + exact` -> `suffix(right)`
+- `unknownLeft + finiteSet(vs)` -> `suffix(lcs(vs))` when the finite right values keep a meaningful shared class suffix, otherwise `top`
 - `prefix + exact` -> `prefix(left)`
 - `prefix + finiteSet` -> `prefix(left)`
 - `prefix + prefix` -> `prefix(left)`
+- `suffix + exact` -> `suffix(right)`
+- `suffix + finiteSet(vs)` -> `suffix(lcs(vs))` when the finite right values keep a meaningful shared class suffix, otherwise `top`
 - incompatible non-finite concatenation widens to `top`
 
 ### Type Union Lift
@@ -109,6 +121,9 @@ Rules:
 - `prefix`
   - `inferred` when some selectors match the prefix
   - `exact` only when the selector universe is fully captured by that prefix
+- `suffix`
+  - `inferred` when some selectors match the suffix
+  - `exact` only when the selector universe is fully captured by that suffix
 - `top`
   - `possible`
 

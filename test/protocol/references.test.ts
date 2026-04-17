@@ -225,6 +225,50 @@ export function StatusChip(status: Status) {
   expect(result![0]!.range.start.line).toBe(18);
 });
 
+test("references protocol returns suffix-derived TSX sites for unknown-left concatenation", async ({
+  makeClient,
+}) => {
+  const tsxUri = "file:///fake/workspace/src/StateChip.tsx";
+  const scssUri = "file:///fake/workspace/src/StateChip.module.scss";
+  const tsx = `import classNames from 'classnames/bind';
+import styles from './StateChip.module.scss';
+const cx = classNames.bind(styles);
+export function StateChip(variant: string) {
+  const derivedChipClass = variant + '-chip';
+  return <div className={cx('chip', derivedChipClass)}>hi</div>;
+}
+`;
+  const scss = `.chip { color: slategray; }\n.idle-chip { color: teal; }\n.busy-chip { color: orange; }\n.error-chip { color: crimson; }\n`;
+
+  const client = makeClient({
+    readStyleFile: (path) => (path.endsWith("StateChip.module.scss") ? scss : null),
+    typeResolver: new FakeTypeResolver(),
+  });
+
+  await client.initialize();
+  client.initialized();
+  client.didOpen({
+    textDocument: {
+      uri: tsxUri,
+      languageId: "typescriptreact",
+      version: 1,
+      text: tsx,
+    },
+  });
+  await client.waitForDiagnostics(tsxUri);
+
+  const result = await client.references({
+    textDocument: { uri: scssUri },
+    position: { line: 1, character: 3 },
+    context: { includeDeclaration: false },
+  });
+
+  expect(result).not.toBeNull();
+  expect(result).toHaveLength(1);
+  expect(result![0]!.uri).toBe(tsxUri);
+  expect(result![0]!.range.start.line).toBe(5);
+});
+
 test("references protocol resolves a cross-file composes token to the target selector usage", async ({
   makeClient,
 }) => {

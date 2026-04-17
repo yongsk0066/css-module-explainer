@@ -112,6 +112,32 @@ function render(variant: string) {
     });
   });
 
+  it("derives a suffix domain from concatenation with an unknown prefix", () => {
+    const source = `
+function render(variant: string) {
+  const size = variant + "-chip";
+  return cx(size);
+}
+`;
+    const sourceFile = ts.createSourceFile(
+      "/fake/Flow.tsx",
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
+    );
+
+    expect(resolveFlowClassValues(sourceFile, rangeOf(source, "cx(size)"), "size")).toEqual({
+      abstractValue: {
+        kind: "suffix",
+        suffix: "-chip",
+        provenance: "concatUnknownLeft",
+      },
+      valueCertainty: "inferred",
+      reason: "flowLiteral",
+    });
+  });
+
   it("widens conflicting concatenation prefixes to top", () => {
     const source = `
 function render(flag: boolean, variant: string) {

@@ -5,12 +5,14 @@ import {
   TOP_CLASS_VALUE,
   type AbstractClassValue,
   concatenateClassValues,
+  concatenateWithUnknownLeft,
   concatenateWithUnknownRight,
   enumerateFiniteClassValues,
   exactClassValue,
   finiteSetClassValue,
   joinClassValues,
   prefixClassValue,
+  suffixClassValue,
 } from "../../../server/engine-core-ts/src/core/abstract-value/class-value-domain";
 
 describe("class-value-domain", () => {
@@ -64,6 +66,12 @@ describe("class-value-domain", () => {
         expected: prefixClassValue("btn-state-"),
       },
       {
+        name: "exact + suffix => suffix(right)",
+        left: exactClassValue("btn-"),
+        right: suffixClassValue("-active"),
+        expected: suffixClassValue("-active"),
+      },
+      {
         name: "finiteSet + exact => finiteSet",
         left: finiteSetClassValue(["btn-sm", "btn-lg"]),
         right: exactClassValue("--active"),
@@ -82,6 +90,12 @@ describe("class-value-domain", () => {
         expected: prefixClassValue("btn-", "finiteSetConcatPrefixLcp"),
       },
       {
+        name: "finiteSet + suffix preserves the right suffix",
+        left: finiteSetClassValue(["btn-sm-", "btn-lg-"]),
+        right: suffixClassValue("-active"),
+        expected: suffixClassValue("-active"),
+      },
+      {
         name: "prefix + exact preserves left prefix",
         left: prefixClassValue("btn-"),
         right: exactClassValue("active"),
@@ -98,6 +112,30 @@ describe("class-value-domain", () => {
         left: prefixClassValue("btn-"),
         right: prefixClassValue("state-"),
         expected: prefixClassValue("btn-"),
+      },
+      {
+        name: "prefix + suffix stays conservative until prefix-suffix product exists",
+        left: prefixClassValue("btn-"),
+        right: suffixClassValue("-active"),
+        expected: TOP_CLASS_VALUE,
+      },
+      {
+        name: "suffix + exact keeps the final exact suffix",
+        left: suffixClassValue("-active"),
+        right: exactClassValue("--busy"),
+        expected: suffixClassValue("--busy"),
+      },
+      {
+        name: "suffix + finiteSet recovers a shared suffix",
+        left: suffixClassValue("-active"),
+        right: finiteSetClassValue(["btn-primary", "card-primary"]),
+        expected: suffixClassValue("-primary"),
+      },
+      {
+        name: "suffix + suffix keeps the right suffix",
+        left: suffixClassValue("-active"),
+        right: suffixClassValue("-busy"),
+        expected: suffixClassValue("-busy"),
       },
     ];
 
@@ -152,6 +190,24 @@ describe("class-value-domain", () => {
     );
   });
 
+  it("joins suffix-compatible values without losing the suffix", () => {
+    expect(joinClassValues(suffixClassValue("-active"), exactClassValue("btn-active"))).toEqual(
+      suffixClassValue("-active"),
+    );
+    expect(
+      joinClassValues(
+        suffixClassValue("-primary"),
+        finiteSetClassValue(["btn-primary", "card-primary"]),
+      ),
+    ).toEqual(suffixClassValue("-primary"));
+  });
+
+  it("widens incompatible suffixes to top when no meaningful shared suffix survives", () => {
+    expect(joinClassValues(suffixClassValue("-primary"), suffixClassValue("-secondary"))).toBe(
+      TOP_CLASS_VALUE,
+    );
+  });
+
   it("keeps a meaningful longest common prefix when joining related prefixes", () => {
     expect(joinClassValues(prefixClassValue("btn-sm"), prefixClassValue("btn-lg"))).toEqual(
       prefixClassValue("btn-", "prefixJoinLcp"),
@@ -172,6 +228,7 @@ describe("class-value-domain", () => {
     expect(enumerateFiniteClassValues(exactClassValue("button"))).toEqual(["button"]);
     expect(enumerateFiniteClassValues(finiteSetClassValue(["sm", "lg"]))).toEqual(["lg", "sm"]);
     expect(enumerateFiniteClassValues(prefixClassValue("btn-"))).toBeNull();
+    expect(enumerateFiniteClassValues(suffixClassValue("-active"))).toBeNull();
     expect(enumerateFiniteClassValues(TOP_CLASS_VALUE)).toBeNull();
   });
 
@@ -224,6 +281,16 @@ describe("class-value-domain", () => {
     expect(concatenateWithUnknownRight(finiteSetClassValue(["btn-", "card-"]))).toBe(
       TOP_CLASS_VALUE,
     );
+  });
+
+  it("derives suffixes from unknown left concatenation with known suffixes", () => {
+    expect(concatenateWithUnknownLeft(exactClassValue("-active"))).toEqual(
+      suffixClassValue("-active", "concatUnknownLeft"),
+    );
+    expect(
+      concatenateWithUnknownLeft(finiteSetClassValue(["btn-primary", "card-primary"])),
+    ).toEqual(suffixClassValue("-primary", "concatUnknownLeft"));
+    expect(concatenateWithUnknownLeft(prefixClassValue("btn-"))).toBe(TOP_CLASS_VALUE);
   });
 
   it("widens large finite sets to a prefix when a meaningful LCP exists", () => {

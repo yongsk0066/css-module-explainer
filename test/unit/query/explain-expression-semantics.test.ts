@@ -43,6 +43,14 @@ describe("describeAbstractValue", () => {
         provenance: "concatUnknownRight",
       }),
     ).toBe("known prefix preserved while concatenating an unknown suffix");
+
+    expect(
+      describeAbstractValueReason({
+        kind: "suffix",
+        suffix: "-chip",
+        provenance: "concatUnknownLeft",
+      }),
+    ).toBe("known suffix preserved while prepending an unknown prefix");
   });
 
   it("explains inferred and possible certainty from domain provenance", () => {
@@ -69,6 +77,18 @@ describe("describeAbstractValue", () => {
       ),
     ).toBe("TypeScript exposed multiple string-literal candidates");
 
+    expect(
+      describeValueCertaintyReason(
+        {
+          kind: "suffix",
+          suffix: "-chip",
+          provenance: "concatUnknownLeft",
+        },
+        "inferred",
+        "flowLiteral",
+      ),
+    ).toBe("known suffix preserved while prepending an unknown prefix");
+
     expect(describeValueCertaintyReason({ kind: "top" }, "possible", "flowBranch")).toBe(
       "analysis lost finite shape information for this value",
     );
@@ -86,6 +106,18 @@ describe("describeAbstractValue", () => {
         3,
       ),
     ).toBe("finite candidates widened to a shared prefix");
+
+    expect(
+      describeSelectorCertaintyReason(
+        {
+          kind: "suffix",
+          suffix: "-chip",
+          provenance: "concatUnknownLeft",
+        },
+        "inferred",
+        2,
+      ),
+    ).toBe("known suffix preserved while prepending an unknown prefix");
 
     expect(
       describeSelectorCertaintyReason(

@@ -2,6 +2,7 @@ import ts from "typescript";
 import type { Range } from "@css-module-explainer/shared";
 import {
   concatenateClassValues,
+  concatenateWithUnknownLeft,
   concatenateWithUnknownRight,
 } from "../abstract-value/class-value-domain";
 import { buildFlowSlice } from "./flow-slice";
@@ -135,6 +136,13 @@ function resolveExpression(
       return {
         abstractValue: concatenateWithUnknownRight(left.abstractValue),
         reason: left.reason,
+      };
+    }
+
+    if (right) {
+      return {
+        abstractValue: concatenateWithUnknownLeft(right.abstractValue),
+        reason: right.reason,
       };
     }
   }
