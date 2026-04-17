@@ -123,7 +123,7 @@ function enumerateCompoundSegments(selector: string): readonly string[] {
   let start = -1;
 
   for (let index = 0; index < selector.length; index++) {
-    const ch = selector[index];
+    const ch = selector.charAt(index);
     if (ch === "(" || ch === "[") {
       depth++;
       if (start === -1) start = index;

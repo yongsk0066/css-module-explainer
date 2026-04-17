@@ -746,7 +746,7 @@ function enumerateWhitespaceTokens(segment: string): Array<{ raw: string; offset
   let depth = 0;
   let start = -1;
   for (let index = 0; index < segment.length; index++) {
-    const ch = segment[index];
+    const ch = segment.charAt(index);
     if (ch === "(" || ch === "[") {
       depth += 1;
       if (start === -1) start = index;
