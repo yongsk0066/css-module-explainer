@@ -301,6 +301,53 @@ describe("class-value-domain", () => {
     ).toEqual(prefixClassValue("btn-", "prefixJoinLcp"));
   });
 
+  it("degrades composite joins to shared edge domains when joined with edge domains", () => {
+    expect(
+      joinClassValues(
+        compositeClassValue({
+          prefix: "btn-",
+          suffix: "-chip",
+          minLength: 9,
+          mustChars: "-bchinpst",
+          mayChars: "-bchinpst",
+          mayIncludeOtherChars: true,
+          provenance: "compositeJoin",
+        }),
+        prefixClassValue("btn-primary-"),
+      ),
+    ).toEqual(prefixClassValue("btn-", "prefixJoinLcp"));
+
+    expect(
+      joinClassValues(
+        compositeClassValue({
+          prefix: "btn-",
+          suffix: "-chip",
+          minLength: 9,
+          mustChars: "-bchinpst",
+          mayChars: "-bchinpst",
+          mayIncludeOtherChars: true,
+          provenance: "compositeJoin",
+        }),
+        prefixSuffixClassValue("btn-", "-chip", 12),
+      ),
+    ).toEqual(prefixSuffixClassValue("btn-", "-chip", 9, "prefixSuffixJoin"));
+  });
+
+  it("degrades composite joins to char inclusion when joined with char inclusion", () => {
+    expect(
+      joinClassValues(
+        compositeClassValue({
+          prefix: "btn-",
+          minLength: 4,
+          mustChars: "-bnt",
+          mayChars: "-abcdefghilmnoprstuwy",
+          provenance: "compositeJoin",
+        }),
+        charInclusionClassValue("a", "abc"),
+      ),
+    ).toEqual(charInclusionClassValue("", "-abcdefghilmnoprstuwy", "charInclusionJoin"));
+  });
+
   it("preserves useful prefix information when joining prefixes with prefix-suffix products", () => {
     expect(
       joinClassValues(prefixClassValue("btn-"), prefixSuffixClassValue("btn-", "-chip", 10)),

@@ -566,6 +566,8 @@ export function joinClassValues(
       case "exact":
       case "finiteSet":
         return joinCharInclusions(left, toCharInclusion(right));
+      case "composite":
+        return joinCharInclusions(left, toCompositeCharInclusion(right));
       default:
         return TOP_CLASS_VALUE;
     }
@@ -576,6 +578,8 @@ export function joinClassValues(
       case "exact":
       case "finiteSet":
         return joinCharInclusions(toCharInclusion(left), right);
+      case "composite":
+        return joinCharInclusions(toCompositeCharInclusion(left), right);
       default:
         return TOP_CLASS_VALUE;
     }
@@ -588,6 +592,12 @@ export function joinClassValues(
         return joinCompositeWithValue(left, right);
       case "composite":
         return joinComposites(left, right);
+      case "prefix":
+        return joinCompositeWithPrefix(left, right);
+      case "suffix":
+        return joinCompositeWithSuffix(left, right);
+      case "prefixSuffix":
+        return joinCompositeWithPrefixSuffix(left, right);
       default:
         return TOP_CLASS_VALUE;
     }
@@ -598,6 +608,12 @@ export function joinClassValues(
       case "exact":
       case "finiteSet":
         return joinCompositeWithValue(right, left);
+      case "prefix":
+        return joinCompositeWithPrefix(right, left);
+      case "suffix":
+        return joinCompositeWithSuffix(right, left);
+      case "prefixSuffix":
+        return joinCompositeWithPrefixSuffix(right, left);
       default:
         return TOP_CLASS_VALUE;
     }
@@ -872,6 +888,54 @@ function joinCompositeWithValue(
   return TOP_CLASS_VALUE;
 }
 
+function joinCompositeWithPrefix(
+  compositeValue: CompositeClassValue,
+  prefixValue: PrefixClassValue,
+): AbstractClassValue {
+  if (!compositeValue.prefix) return TOP_CLASS_VALUE;
+  const sharedPrefix = meaningfulLongestCommonPrefix([compositeValue.prefix, prefixValue.prefix]);
+  return sharedPrefix.length > 0
+    ? prefixClassValue(sharedPrefix, "prefixJoinLcp")
+    : TOP_CLASS_VALUE;
+}
+
+function joinCompositeWithSuffix(
+  compositeValue: CompositeClassValue,
+  suffixValue: SuffixClassValue,
+): AbstractClassValue {
+  if (!compositeValue.suffix) return TOP_CLASS_VALUE;
+  const sharedSuffix = meaningfulLongestCommonSuffix([compositeValue.suffix, suffixValue.suffix]);
+  return sharedSuffix.length > 0
+    ? suffixClassValue(sharedSuffix, "suffixJoinLcs")
+    : TOP_CLASS_VALUE;
+}
+
+function joinCompositeWithPrefixSuffix(
+  compositeValue: CompositeClassValue,
+  prefixSuffixValue: PrefixSuffixClassValue,
+): AbstractClassValue {
+  const sharedPrefix = compositeValue.prefix
+    ? meaningfulLongestCommonPrefix([compositeValue.prefix, prefixSuffixValue.prefix])
+    : "";
+  const sharedSuffix = compositeValue.suffix
+    ? meaningfulLongestCommonSuffix([compositeValue.suffix, prefixSuffixValue.suffix])
+    : "";
+  if (sharedPrefix.length > 0 && sharedSuffix.length > 0) {
+    return prefixSuffixClassValue(
+      sharedPrefix,
+      sharedSuffix,
+      Math.max(
+        sharedPrefix.length + sharedSuffix.length,
+        Math.min(compositeValue.minLength ?? 0, prefixSuffixValue.minLength),
+      ),
+      "prefixSuffixJoin",
+    );
+  }
+  if (sharedPrefix.length > 0) return prefixClassValue(sharedPrefix, "prefixJoinLcp");
+  if (sharedSuffix.length > 0) return suffixClassValue(sharedSuffix, "suffixJoinLcs");
+  return TOP_CLASS_VALUE;
+}
+
 function joinComposites(left: CompositeClassValue, right: CompositeClassValue): AbstractClassValue {
   const prefix =
     left.prefix && right.prefix
@@ -912,6 +976,15 @@ function charInclusionFromFiniteValues(
   }, "");
   const mayChars = charSets.reduce((acc, next) => unionCharSets(acc, next), "");
   return charInclusionClassValue(mustChars, mayChars, provenance);
+}
+
+function toCompositeCharInclusion(value: CompositeClassValue): CharInclusionClassValue {
+  return charInclusionClassValue(
+    value.mustChars,
+    value.mayChars,
+    "charInclusionJoin",
+    Boolean(value.mayIncludeOtherChars),
+  ) as CharInclusionClassValue;
 }
 
 function toCharInclusion(

@@ -87,6 +87,8 @@ Required invariant:
 - prefix/suffix product joins stay `prefixSuffix` only when both sides remain inside the same prefix and suffix languages
 - `charInclusion` joins intersect required characters and union allowed characters
 - `composite` joins keep all surviving axes and degrade to weaker non-composite domains when only one axis remains informative
+- `composite ⊔ prefix/suffix/prefixSuffix` may degrade to the strongest shared edge-only domain when multi-axis information no longer survives the join
+- `composite ⊔ charInclusion` degrades to `charInclusion` over the shared character constraints
 - `prefix ⊔ prefixSuffix` may degrade to a weaker shared `prefix` when the product's leading edge remains informative
 - `prefixSuffix ⊔ finite` may degrade to `prefix` or `suffix` when only one edge survives the join
 - incompatible prefixes widen to `top`
