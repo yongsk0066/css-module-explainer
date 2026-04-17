@@ -194,6 +194,8 @@ pnpm install
 pnpm check
 pnpm check:semantic-smoke
 pnpm check:release-batch
+pnpm check:contract-parity-v2-smoke
+pnpm check:contract-parity-v2-golden
 pnpm test
 pnpm test:bench
 pnpm build
@@ -213,6 +215,7 @@ pnpm check:workspace -- . --include-bundle source-missing --summary
 pnpm check:workspace -- . --preset changed-style --changed-file src/Button.module.scss --compact
 pnpm check:workspace -- . --format json --fail-on none
 pnpm explain:expression -- src/App.tsx:12:24
+pnpm explain:expression -- src/App.tsx:12:24 --json
 ```
 
 Current checker policy:
@@ -229,6 +232,12 @@ Current checker policy:
 - semantic smoke cases are versioned in `scripts/semantic-smoke-corpus.ts` and should be updated when new semantic surfaces become release-relevant
 - `pnpm check:release-batch` is the canonical release-facing batch checker pass
 - the release batch corpus is versioned in `scripts/release-batch-corpus.ts`; it stays intentionally clean even if `examples/` contains negative recovery fixtures
+- `pnpm check:contract-parity-v2-smoke` and `pnpm check:contract-parity-v2-golden` validate V2 parity fixtures alongside the frozen V1 corpus
+- V2 Bundle 1 is externally exposed today for `suffix` and `prefixSuffix`
+  - `TypeFactTableV2`
+  - `EngineOutputV2.queryResults`
+  - `pnpm explain:expression --json`
+- `charInclusion` and `composite` are still internal-only and remain downcast in V2 outputs
 - explicit CLI flags override preset defaults
 
 Test layout:

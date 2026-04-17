@@ -6,6 +6,38 @@ It is not a formal proof.
 
 It is the contract that query policy, projection, certainty, and rewrite safety are expected to follow.
 
+## Exposure Boundary
+
+The runtime distinguishes between:
+
+- internal abstract domains
+  - used by transfer, projection, certainty, and explanation logic
+- externally exposed contract shapes
+  - serialized through engine contracts, parity snapshots, and CLI surfaces
+
+Current exposure status:
+
+- V1 external contract
+  - `exact`
+  - `finiteSet`
+  - `prefix`
+  - all other constrained domains downcast to `top` or `unknown`
+- V2 Bundle 1 external contract
+  - `suffix`
+  - `prefixSuffix`
+  - exposed through:
+    - `TypeFactTableV2`
+    - `EngineOutputV2.queryResults`
+    - `pnpm explain:expression -- --json`
+- not yet externally exposed in V2
+  - `charInclusion`
+  - `composite`
+
+Important rule:
+
+- internal landing does not imply external exposure
+- a domain may participate in analysis and projection before contracts or CLI surfaces expose it directly
+
 ## Concrete Domain
 
 The concrete meaning is:
@@ -32,16 +64,17 @@ The runtime uses these abstract values:
 - `prefix(p)`
   - denotes some non-empty set of strings whose members all start with `p`
   - the analysis does not claim the set is complete or finite
-- `suffix(s)` _(internal-only pre-V2)_
+- `suffix(s)`
   - denotes some non-empty set of strings whose members all end with `s`
-  - the analysis may use this domain internally before V2 contracts expose it directly
-- `prefixSuffix(p, s)` _(internal-only pre-V2)_
+  - V2 Bundle 1 may expose this as `constrained + constraintKind: "suffix"`
+- `prefixSuffix(p, s)`
   - denotes some non-empty set of strings whose members all start with `p` and end with `s`
   - `minLength` tracks the shortest known concrete string length for this constrained shape
-- `charInclusion(must, may)` _(internal-only pre-V2)_
+  - V2 Bundle 1 may expose this as `constrained + constraintKind: "prefixSuffix"`
+- `charInclusion(must, may)` _(internal-only pre-Bundle 2)_
   - denotes some non-empty set of strings whose members contain every character in `must`
   - when `mayIncludeOtherChars` is false, members may only use characters from `may`
-- `composite(prefix?, suffix?, must, may)` _(internal-only pre-V2)_
+- `composite(prefix?, suffix?, must, may)` _(internal-only pre-Bundle 3)_
   - denotes a reduced product of edge constraints and character inclusion constraints
   - absent axes mean "no information on that axis"
 - `top`
