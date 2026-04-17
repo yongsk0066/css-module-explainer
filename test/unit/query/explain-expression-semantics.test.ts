@@ -61,6 +61,15 @@ describe("describeAbstractValue", () => {
         provenance: "concatKnownEdges",
       }),
     ).toBe("known prefix and suffix were preserved across concatenation");
+
+    expect(
+      describeAbstractValueReason({
+        kind: "charInclusion",
+        mustChars: "-",
+        mayChars: "-012abc",
+        provenance: "finiteSetWideningChars",
+      }),
+    ).toBe("finite candidates widened to shared character inclusion constraints");
   });
 
   it("explains inferred and possible certainty from domain provenance", () => {
@@ -113,6 +122,19 @@ describe("describeAbstractValue", () => {
       ),
     ).toBe("known prefix and suffix were preserved across concatenation");
 
+    expect(
+      describeValueCertaintyReason(
+        {
+          kind: "charInclusion",
+          mustChars: "-",
+          mayChars: "-012abc",
+          provenance: "finiteSetWideningChars",
+        },
+        "inferred",
+        "flowBranch",
+      ),
+    ).toBe("finite candidates widened to shared character inclusion constraints");
+
     expect(describeValueCertaintyReason({ kind: "top" }, "possible", "flowBranch")).toBe(
       "analysis lost finite shape information for this value",
     );
@@ -156,6 +178,19 @@ describe("describeAbstractValue", () => {
         3,
       ),
     ).toBe("known prefix and suffix were preserved across concatenation");
+
+    expect(
+      describeSelectorCertaintyReason(
+        {
+          kind: "charInclusion",
+          mustChars: "-",
+          mayChars: "-012abc",
+          provenance: "finiteSetWideningChars",
+        },
+        "inferred",
+        3,
+      ),
+    ).toBe("finite candidates widened to shared character inclusion constraints");
 
     expect(
       describeSelectorCertaintyReason(

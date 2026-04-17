@@ -44,6 +44,13 @@ export function resolveAbstractValueSelectors(
       return findCanonicalSelectorsBySuffix(styleDocument, value.suffix);
     case "prefixSuffix":
       return findCanonicalSelectorsByPrefixSuffix(styleDocument, value.prefix, value.suffix);
+    case "charInclusion":
+      return findCanonicalSelectorsByCharInclusion(
+        styleDocument,
+        value.mustChars,
+        value.mayChars,
+        Boolean(value.mayIncludeOtherChars),
+      );
     case "top":
       return styleDocument.selectors.filter((selector) => selector.viewKind === "canonical");
     default:
@@ -98,6 +105,30 @@ function findCanonicalSelectorsByPrefixSuffix(
 
   for (const selector of styleDocument.selectors) {
     if (!selector.name.startsWith(prefix) || !selector.name.endsWith(suffix)) continue;
+    const canonical = findCanonicalSelector(styleDocument, selector.name);
+    if (!canonical || emitted.has(canonical.canonicalName)) continue;
+    emitted.add(canonical.canonicalName);
+    resolved.push(canonical);
+  }
+
+  return resolved;
+}
+
+function findCanonicalSelectorsByCharInclusion(
+  styleDocument: StyleDocumentHIR,
+  mustChars: string,
+  mayChars: string,
+  mayIncludeOtherChars: boolean,
+): readonly SelectorDeclHIR[] {
+  const mustSet = new Set(Array.from(mustChars));
+  const maySet = new Set(Array.from(mayChars));
+  const emitted = new Set<string>();
+  const resolved: SelectorDeclHIR[] = [];
+
+  for (const selector of styleDocument.selectors) {
+    const charSet = new Set(Array.from(selector.name));
+    if (Array.from(mustSet).some((char) => !charSet.has(char))) continue;
+    if (!mayIncludeOtherChars && Array.from(charSet).some((char) => !maySet.has(char))) continue;
     const canonical = findCanonicalSelector(styleDocument, selector.name);
     if (!canonical || emitted.has(canonical.canonicalName)) continue;
     emitted.add(canonical.canonicalName);

@@ -5,6 +5,7 @@ export type AbstractClassValue =
   | PrefixClassValue
   | SuffixClassValue
   | PrefixSuffixClassValue
+  | CharInclusionClassValue
   | TopClassValue;
 
 export interface BottomClassValue {
@@ -49,6 +50,19 @@ export interface PrefixSuffixClassValue {
     | "prefixSuffixJoin";
 }
 
+export interface CharInclusionClassValue {
+  readonly kind: "charInclusion";
+  readonly mustChars: string;
+  readonly mayChars: string;
+  readonly mayIncludeOtherChars?: true;
+  readonly provenance?:
+    | "finiteSetWideningChars"
+    | "charInclusionJoin"
+    | "charInclusionConcat"
+    | "concatUnknownLeft"
+    | "concatUnknownRight";
+}
+
 export interface TopClassValue {
   readonly kind: "top";
 }
@@ -67,7 +81,9 @@ export function finiteSetClassValue(values: readonly string[]): AbstractClassVal
   if (normalized.length === 1) return exactClassValue(normalized[0]!);
   if (normalized.length > MAX_FINITE_CLASS_VALUES) {
     const prefix = meaningfulLongestCommonPrefix(normalized);
-    return prefix.length > 0 ? prefixClassValue(prefix, "finiteSetWidening") : TOP_CLASS_VALUE;
+    return prefix.length > 0
+      ? prefixClassValue(prefix, "finiteSetWidening")
+      : charInclusionFromFiniteValues(normalized, "finiteSetWideningChars");
   }
   return { kind: "finiteSet", values: normalized };
 }
@@ -101,12 +117,62 @@ export function prefixSuffixClassValue(
     : { kind: "prefixSuffix", prefix, suffix, minLength: normalizedMinLength };
 }
 
+export function charInclusionClassValue(
+  mustChars: string,
+  mayChars: string,
+  provenance?: CharInclusionClassValue["provenance"],
+  mayIncludeOtherChars = false,
+): AbstractClassValue {
+  const normalizedMustChars = normalizeCharSet(mustChars);
+  const normalizedMayChars = normalizeCharSet(mayChars + normalizedMustChars);
+  if (mayIncludeOtherChars && normalizedMustChars.length === 0) {
+    return TOP_CLASS_VALUE;
+  }
+  if (!mayIncludeOtherChars && normalizedMayChars.length === 0) {
+    return TOP_CLASS_VALUE;
+  }
+  const base = mayIncludeOtherChars
+    ? {
+        kind: "charInclusion" as const,
+        mustChars: normalizedMustChars,
+        mayChars: normalizedMayChars,
+        mayIncludeOtherChars: true as const,
+      }
+    : {
+        kind: "charInclusion" as const,
+        mustChars: normalizedMustChars,
+        mayChars: normalizedMayChars,
+      };
+  return provenance ? { ...base, provenance } : base;
+}
+
 export function concatenateClassValues(
   left: AbstractClassValue,
   right: AbstractClassValue,
 ): AbstractClassValue {
   if (left.kind === "bottom" || right.kind === "bottom") return BOTTOM_CLASS_VALUE;
   if (left.kind === "top" || right.kind === "top") return TOP_CLASS_VALUE;
+
+  if (left.kind === "charInclusion") {
+    switch (right.kind) {
+      case "exact":
+      case "finiteSet":
+      case "charInclusion":
+        return concatenateCharInclusions(left, toCharInclusion(right));
+      default:
+        return TOP_CLASS_VALUE;
+    }
+  }
+
+  if (right.kind === "charInclusion") {
+    switch (left.kind) {
+      case "exact":
+      case "finiteSet":
+        return concatenateCharInclusions(toCharInclusion(left), right);
+      default:
+        return TOP_CLASS_VALUE;
+    }
+  }
 
   if (left.kind === "prefix") {
     switch (right.kind) {
@@ -292,6 +358,8 @@ export function concatenateWithUnknownRight(value: AbstractClassValue): Abstract
       return TOP_CLASS_VALUE;
     case "prefixSuffix":
       return prefixClassValue(value.prefix);
+    case "charInclusion":
+      return charInclusionClassValue(value.mustChars, value.mayChars, "concatUnknownRight", true);
     case "top":
       return TOP_CLASS_VALUE;
     default:
@@ -316,6 +384,8 @@ export function concatenateWithUnknownLeft(value: AbstractClassValue): AbstractC
       return value;
     case "prefixSuffix":
       return suffixClassValue(value.suffix);
+    case "charInclusion":
+      return charInclusionClassValue(value.mustChars, value.mayChars, "concatUnknownLeft", true);
     case "top":
       return TOP_CLASS_VALUE;
     default:
@@ -331,6 +401,30 @@ export function joinClassValues(
   if (left.kind === "bottom") return right;
   if (right.kind === "bottom") return left;
   if (left.kind === "top" || right.kind === "top") return TOP_CLASS_VALUE;
+
+  if (left.kind === "charInclusion" && right.kind === "charInclusion") {
+    return joinCharInclusions(left, right);
+  }
+
+  if (left.kind === "charInclusion") {
+    switch (right.kind) {
+      case "exact":
+      case "finiteSet":
+        return joinCharInclusions(left, toCharInclusion(right));
+      default:
+        return TOP_CLASS_VALUE;
+    }
+  }
+
+  if (right.kind === "charInclusion") {
+    switch (left.kind) {
+      case "exact":
+      case "finiteSet":
+        return joinCharInclusions(toCharInclusion(left), right);
+      default:
+        return TOP_CLASS_VALUE;
+    }
+  }
 
   if (left.kind === "prefix" && right.kind === "prefix") {
     if (left.prefix === right.prefix) {
@@ -455,6 +549,7 @@ export function enumerateFiniteClassValues(value: AbstractClassValue): readonly 
     case "prefix":
     case "suffix":
     case "prefixSuffix":
+    case "charInclusion":
     case "top":
       return null;
     default:
@@ -467,7 +562,12 @@ function joinPrefixWithValue(
   prefixValue: PrefixClassValue,
   other: Exclude<
     AbstractClassValue,
-    BottomClassValue | PrefixClassValue | SuffixClassValue | PrefixSuffixClassValue | TopClassValue
+    | BottomClassValue
+    | PrefixClassValue
+    | SuffixClassValue
+    | PrefixSuffixClassValue
+    | CharInclusionClassValue
+    | TopClassValue
   >,
 ): AbstractClassValue {
   const finiteValues = toFiniteValues(other);
@@ -496,7 +596,12 @@ function joinSuffixWithValue(
   suffixValue: SuffixClassValue,
   other: Exclude<
     AbstractClassValue,
-    BottomClassValue | PrefixClassValue | SuffixClassValue | PrefixSuffixClassValue | TopClassValue
+    | BottomClassValue
+    | PrefixClassValue
+    | SuffixClassValue
+    | PrefixSuffixClassValue
+    | CharInclusionClassValue
+    | TopClassValue
   >,
 ): AbstractClassValue {
   const finiteValues = toFiniteValues(other);
@@ -509,7 +614,12 @@ function joinPrefixSuffixWithValue(
   prefixSuffixValue: PrefixSuffixClassValue,
   other: Exclude<
     AbstractClassValue,
-    BottomClassValue | PrefixClassValue | SuffixClassValue | PrefixSuffixClassValue | TopClassValue
+    | BottomClassValue
+    | PrefixClassValue
+    | SuffixClassValue
+    | PrefixSuffixClassValue
+    | CharInclusionClassValue
+    | TopClassValue
   >,
 ): AbstractClassValue {
   const finiteValues = toFiniteValues(other);
@@ -525,10 +635,73 @@ function joinPrefixSuffixWithValue(
         : TOP_CLASS_VALUE;
 }
 
+function concatenateCharInclusions(
+  left: CharInclusionClassValue,
+  right: CharInclusionClassValue,
+): AbstractClassValue {
+  return charInclusionClassValue(
+    unionCharSets(left.mustChars, right.mustChars),
+    unionCharSets(left.mayChars, right.mayChars),
+    "charInclusionConcat",
+    Boolean(left.mayIncludeOtherChars || right.mayIncludeOtherChars),
+  );
+}
+
+function joinCharInclusions(
+  left: CharInclusionClassValue,
+  right: CharInclusionClassValue,
+): AbstractClassValue {
+  return charInclusionClassValue(
+    intersectCharSets(left.mustChars, right.mustChars),
+    unionCharSets(left.mayChars, right.mayChars),
+    "charInclusionJoin",
+    Boolean(left.mayIncludeOtherChars || right.mayIncludeOtherChars),
+  );
+}
+
+function charInclusionFromFiniteValues(
+  values: readonly string[],
+  provenance: Extract<CharInclusionClassValue["provenance"], "finiteSetWideningChars">,
+): AbstractClassValue {
+  const charSets = values.map((value) => charSetForString(value));
+  const mustChars = charSets.reduce((acc, next, index) => {
+    if (index === 0) return next;
+    return intersectCharSets(acc, next);
+  }, "");
+  const mayChars = charSets.reduce((acc, next) => unionCharSets(acc, next), "");
+  return charInclusionClassValue(mustChars, mayChars, provenance);
+}
+
+function toCharInclusion(
+  value: ExactClassValue | FiniteSetClassValue | CharInclusionClassValue,
+): CharInclusionClassValue {
+  switch (value.kind) {
+    case "exact": {
+      const chars = charSetForString(value.value);
+      return charInclusionClassValue(chars, chars) as CharInclusionClassValue;
+    }
+    case "finiteSet":
+      return charInclusionFromFiniteValues(
+        value.values,
+        "finiteSetWideningChars",
+      ) as CharInclusionClassValue;
+    case "charInclusion":
+      return value;
+    default:
+      value satisfies never;
+      return TOP_CLASS_VALUE as never;
+  }
+}
+
 function toFiniteValues(
   value: Exclude<
     AbstractClassValue,
-    BottomClassValue | PrefixClassValue | SuffixClassValue | PrefixSuffixClassValue | TopClassValue
+    | BottomClassValue
+    | PrefixClassValue
+    | SuffixClassValue
+    | PrefixSuffixClassValue
+    | CharInclusionClassValue
+    | TopClassValue
   >,
 ): readonly string[] {
   return value.kind === "exact" ? [value.value] : value.values;
@@ -536,6 +709,27 @@ function toFiniteValues(
 
 function normalizeValues(values: readonly string[]): readonly string[] {
   return Array.from(new Set(values)).toSorted();
+}
+
+function normalizeCharSet(chars: string): string {
+  return Array.from(new Set(Array.from(chars)))
+    .toSorted()
+    .join("");
+}
+
+function unionCharSets(left: string, right: string): string {
+  return normalizeCharSet(left + right);
+}
+
+function intersectCharSets(left: string, right: string): string {
+  const rightSet = new Set(Array.from(right));
+  return Array.from(new Set(Array.from(left).filter((char) => rightSet.has(char))))
+    .toSorted()
+    .join("");
+}
+
+function charSetForString(value: string): string {
+  return normalizeCharSet(value);
 }
 
 function longestCommonPrefix(values: readonly string[]): string {

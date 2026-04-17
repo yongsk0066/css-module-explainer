@@ -7,6 +7,7 @@ import {
   concatenateClassValues,
   concatenateWithUnknownLeft,
   concatenateWithUnknownRight,
+  charInclusionClassValue,
   enumerateFiniteClassValues,
   exactClassValue,
   finiteSetClassValue,
@@ -155,6 +156,12 @@ describe("class-value-domain", () => {
     expect(finiteSetClassValue(["button"])).toEqual(exactClassValue("button"));
   });
 
+  it("widens large non-prefix finite sets to character inclusion constraints", () => {
+    expect(
+      finiteSetClassValue(["a-0", "a-1", "a-2", "b-0", "b-1", "b-2", "c-0", "c-1", "c-2"]),
+    ).toEqual(charInclusionClassValue("-", "-012abc", "finiteSetWideningChars"));
+  });
+
   it("canonicalizes empty finite sets to bottom", () => {
     expect(finiteSetClassValue([])).toBe(BOTTOM_CLASS_VALUE);
   });
@@ -273,7 +280,17 @@ describe("class-value-domain", () => {
     expect(enumerateFiniteClassValues(prefixClassValue("btn-"))).toBeNull();
     expect(enumerateFiniteClassValues(suffixClassValue("-active"))).toBeNull();
     expect(enumerateFiniteClassValues(prefixSuffixClassValue("btn-", "-chip"))).toBeNull();
+    expect(enumerateFiniteClassValues(charInclusionClassValue("a", "abc"))).toBeNull();
     expect(enumerateFiniteClassValues(TOP_CLASS_VALUE)).toBeNull();
+  });
+
+  it("propagates character inclusion through concat and join", () => {
+    expect(
+      concatenateClassValues(charInclusionClassValue("a", "abc"), exactClassValue("-chip")),
+    ).toEqual(charInclusionClassValue("-achip", "-abchip", "charInclusionConcat"));
+    expect(
+      joinClassValues(charInclusionClassValue("a", "abc"), finiteSetClassValue(["ab", "ac", "ad"])),
+    ).toEqual(charInclusionClassValue("a", "abcd", "charInclusionJoin"));
   });
 
   it("concatenates exact and finite values into derived exact/finite results", () => {
@@ -345,11 +362,13 @@ describe("class-value-domain", () => {
     expect(finiteSetClassValue(values)).toEqual(prefixClassValue("btn-", "finiteSetWidening"));
   });
 
-  it("widens large finite sets to top when no meaningful LCP exists", () => {
+  it("widens large finite sets to character inclusion when no meaningful LCP exists", () => {
     const values = Array.from(
       { length: MAX_FINITE_CLASS_VALUES + 1 },
       (_, index) => `state${index}`,
     );
-    expect(finiteSetClassValue(values)).toBe(TOP_CLASS_VALUE);
+    expect(finiteSetClassValue(values)).toEqual(
+      charInclusionClassValue("aest", "012345678aest", "finiteSetWideningChars"),
+    );
   });
 });

@@ -236,6 +236,47 @@ function render(status: Status) {
       reason: "flowBranch",
     });
   });
+
+  it("widens a large same-file helper literal set to character inclusion constraints", () => {
+    const source = `
+function resolveSize(flag: number): string {
+  switch (flag) {
+    case 0: return "a-0";
+    case 1: return "a-1";
+    case 2: return "a-2";
+    case 3: return "b-0";
+    case 4: return "b-1";
+    case 5: return "b-2";
+    case 6: return "c-0";
+    case 7: return "c-1";
+    default: return "c-2";
+  }
+}
+
+function render(flag: number) {
+  const size = resolveSize(flag);
+  return cx(size);
+}
+`;
+    const sourceFile = ts.createSourceFile(
+      "/fake/Flow.tsx",
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
+    );
+
+    expect(resolveFlowClassValues(sourceFile, rangeOf(source, "cx(size)"), "size")).toEqual({
+      abstractValue: {
+        kind: "charInclusion",
+        mustChars: "-",
+        mayChars: "-012abc",
+        provenance: "finiteSetWideningChars",
+      },
+      valueCertainty: "inferred",
+      reason: "flowBranch",
+    });
+  });
 });
 
 function rangeOf(source: string, token: string) {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   TOP_CLASS_VALUE,
+  charInclusionClassValue,
   exactClassValue,
   finiteSetClassValue,
   prefixClassValue,
@@ -60,6 +61,15 @@ describe("resolveAbstractValueSelectors", () => {
         (selector) => selector.name,
       ),
     ).toEqual(["btn-primary"]);
+  });
+
+  it("projects character inclusion constraints to matching canonical selectors", () => {
+    expect(
+      resolveAbstractValueSelectors(
+        charInclusionClassValue("-", "-abcdeimnoprstuy"),
+        styleDocument,
+      ).map((selector) => selector.name),
+    ).toEqual(["btn-primary", "btn-secondary"]);
   });
 
   it("treats top as the whole canonical selector universe", () => {

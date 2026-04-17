@@ -93,6 +93,13 @@ function sameAbstractValue(left: AbstractClassValue, right: AbstractClassValue):
       left.minLength === right.minLength
     );
   }
+  if (left.kind === "charInclusion" && right.kind === "charInclusion") {
+    return (
+      left.mustChars === right.mustChars &&
+      left.mayChars === right.mayChars &&
+      Boolean(left.mayIncludeOtherChars) === Boolean(right.mayIncludeOtherChars)
+    );
+  }
   if (left.kind === "finiteSet" && right.kind === "finiteSet") {
     return left.values.length === right.values.length
       ? left.values.every((value, index) => value === right.values[index])

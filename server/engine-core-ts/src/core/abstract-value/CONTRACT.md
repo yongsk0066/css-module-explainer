@@ -38,6 +38,9 @@ The runtime uses these abstract values:
 - `prefixSuffix(p, s)` _(internal-only pre-V2)_
   - denotes some non-empty set of strings whose members all start with `p` and end with `s`
   - `minLength` tracks the shortest known concrete string length for this constrained shape
+- `charInclusion(must, may)` _(internal-only pre-V2)_
+  - denotes some non-empty set of strings whose members contain every character in `must`
+  - when `mayIncludeOtherChars` is false, members may only use characters from `may`
 - `top`
   - denotes an unknown set of strings
 
@@ -52,6 +55,7 @@ The implementation is not machine-checked, but the intended abstraction/concreti
   - non-finite or widened set with stable leading prefix -> `prefix`
   - non-finite or widened set with stable trailing suffix -> `suffix`
   - non-finite values with both stable leading and trailing constraints -> `prefixSuffix`
+  - non-finite widened values with no stable edge but stable character constraints -> `charInclusion`
   - otherwise -> `top`
 - `gamma(a)`
   - `bottom` -> `{}`
@@ -60,6 +64,7 @@ The implementation is not machine-checked, but the intended abstraction/concreti
   - `prefix(p)` -> `{ s | s startsWith p }`
   - `suffix(s)` -> `{ s' | s' endsWith s }`
   - `prefixSuffix(p, s)` -> `{ s' | s' startsWith p and endsWith s }`
+  - `charInclusion(must, may)` -> `{ s' | must ⊆ chars(s') ∧ chars(s') ⊆ may }`
   - `top` -> all strings
 
 Required invariant:
@@ -75,6 +80,7 @@ Required invariant:
 - prefix joins stay `prefix` only when both sides remain inside the same prefix language
 - suffix joins stay `suffix` only when both sides remain inside the same suffix language
 - prefix/suffix product joins stay `prefixSuffix` only when both sides remain inside the same prefix and suffix languages
+- `charInclusion` joins intersect required characters and union allowed characters
 - `prefix ⊔ prefixSuffix` may degrade to a weaker shared `prefix` when the product's leading edge remains informative
 - `prefixSuffix ⊔ finite` may degrade to `prefix` or `suffix` when only one edge survives the join
 - incompatible prefixes widen to `top`
@@ -88,6 +94,7 @@ Required invariant:
 - `finiteSet + exact` -> `finiteSet`
 - `finiteSet + prefix` -> `prefix(lcp(left_i + prefix))` when the concatenated prefixes keep a meaningful shared class prefix, otherwise `top`
 - `finiteSet + suffix` -> `suffix` and may refine to `prefixSuffix(lcp(left_i), suffix)` when the left values keep a meaningful shared class prefix
+- large finite widening with no meaningful shared prefix may preserve `charInclusion(intersect(chars(v_i)), union(chars(v_i)))`
 - `exact + unknownRight` -> `prefix(left)`
 - `unknownLeft + exact` -> `suffix(right)`
 - `unknownLeft + finiteSet(vs)` -> `suffix(lcs(vs))` when the finite right values keep a meaningful shared class suffix, otherwise `top`
@@ -137,6 +144,9 @@ Rules:
 - `prefixSuffix`
   - `inferred` when some selectors match both the prefix and suffix
   - `exact` only when the selector universe is fully captured by that prefix/suffix pair
+- `charInclusion`
+  - `inferred` when some selectors satisfy the required/allowed character constraints
+  - `exact` only when the selector universe is fully captured by that character filter
 - `top`
   - `possible`
 

@@ -14,6 +14,10 @@ type PrefixSuffixProvenance = Extract<
   FlowResolution["abstractValue"],
   { kind: "prefixSuffix" }
 >["provenance"];
+type CharInclusionProvenance = Extract<
+  FlowResolution["abstractValue"],
+  { kind: "charInclusion" }
+>["provenance"];
 
 export interface DynamicExpressionExplanation {
   readonly kind: "symbolRef" | "template";
@@ -226,6 +230,10 @@ export function describeAbstractValue(
       return `suffix \`${abstractValue.suffix}\``;
     case "prefixSuffix":
       return `prefix \`${abstractValue.prefix}\` + suffix \`${abstractValue.suffix}\``;
+    case "charInclusion":
+      return abstractValue.mayIncludeOtherChars
+        ? `character inclusion (must: \`${abstractValue.mustChars || "none"}\`)`
+        : `character inclusion (must: \`${abstractValue.mustChars || "none"}\`, may: \`${abstractValue.mayChars}\`)`;
     case "top":
       return "unknown";
     default:
@@ -259,6 +267,8 @@ export function describeAbstractValueReason(
       return describeSuffixReason(abstractValue.provenance);
     case "prefixSuffix":
       return describePrefixSuffixReason(abstractValue.provenance);
+    case "charInclusion":
+      return describeCharInclusionReason(abstractValue.provenance);
     default:
       return null;
   }
@@ -295,6 +305,11 @@ export function describeValueCertaintyReason(
             describeAbstractValueReason(abstractValue) ??
             "analysis preserved both a constrained prefix and suffix of the runtime value"
           );
+        case "charInclusion":
+          return (
+            describeAbstractValueReason(abstractValue) ??
+            "analysis preserved character inclusion constraints of the runtime value"
+          );
         case "exact":
         case "bottom":
         case "top":
@@ -327,7 +342,8 @@ export function describeSelectorCertaintyReason(
       if (
         abstractValue?.kind === "prefix" ||
         abstractValue?.kind === "suffix" ||
-        abstractValue?.kind === "prefixSuffix"
+        abstractValue?.kind === "prefixSuffix" ||
+        abstractValue?.kind === "charInclusion"
       ) {
         return (
           describeAbstractValueReason(abstractValue) ??
@@ -373,6 +389,26 @@ function describePrefixSuffixReason(provenance: PrefixSuffixProvenance): string 
       return "finite candidates preserved a shared prefix while concatenating a known suffix";
     case "prefixSuffixJoin":
       return "branched values merged to a shared prefix and suffix";
+    case undefined:
+      return null;
+    default:
+      provenance satisfies never;
+      return null;
+  }
+}
+
+function describeCharInclusionReason(provenance: CharInclusionProvenance): string | null {
+  switch (provenance) {
+    case "finiteSetWideningChars":
+      return "finite candidates widened to shared character inclusion constraints";
+    case "charInclusionJoin":
+      return "branched values merged to shared character inclusion constraints";
+    case "charInclusionConcat":
+      return "concatenation preserved character inclusion constraints";
+    case "concatUnknownLeft":
+      return "known required characters were preserved while prepending an unknown prefix";
+    case "concatUnknownRight":
+      return "known required characters were preserved while concatenating an unknown suffix";
     case undefined:
       return null;
     default:
