@@ -6,11 +6,13 @@
 }
 
 .infoButton {
-  composes: localBase toneInfo from "./Base.module.scss";
+  composes: localBase;
+  composes: toneInfo from "./Base.module.scss";
 }
 
 .successButton {
-  composes: localBase toneSuccess from "./Base.module.scss";
+  composes: localBase;
+  composes: toneSuccess from "./Base.module.scss";
 }
 
 .sameFileAlias {

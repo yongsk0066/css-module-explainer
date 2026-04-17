@@ -193,6 +193,7 @@ Common commands:
 pnpm install
 pnpm check
 pnpm check:semantic-smoke
+pnpm check:release-batch
 pnpm test
 pnpm test:bench
 pnpm build
@@ -203,9 +204,10 @@ Batch checker:
 
 ```bash
 pnpm check:semantic-smoke
-pnpm check:workspace -- . --preset ci
+pnpm check:release-batch
 pnpm check:workspace -- . --preset changed-style --changed-file src/Button.module.scss
 pnpm check:workspace -- . --preset changed-source --changed-file src/App.tsx
+pnpm check:workspace -- . --preset ci
 pnpm check:workspace -- --list-bundles
 pnpm check:workspace -- . --include-bundle source-missing --summary
 pnpm check:workspace -- . --preset changed-style --changed-file src/Button.module.scss --compact
@@ -224,6 +226,8 @@ Current checker policy:
 - `changed-style` and `changed-source` presets use compact text output by default
 - `pnpm check:semantic-smoke` is the canonical repo-local smoke command
 - semantic smoke cases are versioned in `scripts/semantic-smoke-corpus.ts` and should be updated when new semantic surfaces become release-relevant
+- `pnpm check:release-batch` is the canonical release-facing batch checker pass
+- the release batch corpus is versioned in `scripts/release-batch-corpus.ts`; it stays intentionally clean even if `examples/` contains negative recovery fixtures
 - explicit CLI flags override preset defaults
 
 Test layout:

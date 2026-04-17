@@ -105,6 +105,7 @@ function render(variant: string) {
       abstractValue: {
         kind: "prefix",
         prefix: "btn-",
+        provenance: "concatUnknownRight",
       },
       valueCertainty: "inferred",
       reason: "flowLiteral",

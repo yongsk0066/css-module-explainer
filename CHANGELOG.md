@@ -1,5 +1,24 @@
 # Changelog
 
+## [3.4.0] — 2026-04-17
+
+### Added
+
+- **Checker as a second consumer** — the workspace batch checker now has stable JSON report metadata, named bundles, presets, compact changed-file output, semantic smoke coverage, and contract parity smoke/golden fixtures.
+- **Token-semantic first pass surfaces** — `@keyframes` and `@value` now participate in hover, definition, references, diagnostics, and recovery flows, including imported `@value` bindings between style modules.
+- **Contract freeze baseline** — `EngineInputV1`, `EngineOutputV1`, `TypeFactTableV1`, `CheckerReportV1`, and selected query parity are now assembled and snapshot-tested for future Rust parity work. Richer string-fact domains remain a future `V2` concern rather than expanding the frozen `V1` shape.
+- **Release batch corpus** — stable release verification now uses a curated clean batch-check corpus instead of a repo-wide `ci` pass, so intentional negative recovery fixtures do not block shipping.
+
+### Changed
+
+- **Internal server structure is now split by role** — the monolithic server tree is divided into `engine-core-ts`, `engine-host-node`, `adapter-vscode`, and `checker-cli` subprojects, matching the runtime, core, adapter, and batch-consumer boundaries.
+- **Release operations include contract validation** — release verification now includes contract parity smoke/golden checks and the release batch corpus in addition to the semantic smoke pass.
+- **Current roadmap ranges are consolidated in one release** — this release rolls up the feature-closure, internal split, and contract-freeze work that landed across the 3.3/3.4/3.5/3.6 roadmap waves.
+
+### Fixed
+
+- **Prefix concatenation precision** — left-hand prefixes are now preserved under concatenation with exact values, finite sets, and other prefixes, preventing avoidable drops to `top` in common BEM-style patterns.
+
 ## [3.2.0] — 2026-04-15
 
 ### Added

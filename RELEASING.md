@@ -19,6 +19,7 @@ Allowed:
 - `3.2.0`
 - `3.2.1`
 - `3.3.0`
+- `3.4.0`
 
 Do not use:
 
@@ -65,6 +66,9 @@ pnpm install
 pnpm release:verify
 pnpm test:extension-host
 pnpm check:semantic-smoke
+pnpm check:release-batch
+pnpm check:contract-parity-smoke
+pnpm check:contract-parity-golden
 pnpm --dir examples exec tsc -p tsconfig.json --noEmit
 pnpm --dir examples build
 pnpm exec vsce package --no-dependencies
@@ -85,6 +89,18 @@ The smoke corpus is defined in `scripts/semantic-smoke-corpus.ts`. Treat that
 file as the release-facing semantic fixture list. Update it when a new semantic
 surface becomes release-relevant.
 
+`pnpm check:contract-parity-smoke` verifies that the frozen engine contracts can
+still be assembled across the parity corpus.
+
+`pnpm check:contract-parity-golden` verifies the normalized `EngineInputV1` /
+`EngineOutputV1` golden fixtures under `test/_fixtures/contract-parity/`.
+
+`pnpm check:release-batch` is the release-facing batch checker gate. It runs the
+current `ci` preset against the curated clean corpus in
+`scripts/release-batch-corpus.ts`. Use this instead of a repo-wide
+`pnpm check:workspace -- . --preset ci` run because `examples/` intentionally
+contains negative recovery fixtures that should not block a stable release.
+
 For focused local review, prefer the changed-file presets:
 
 ```bash
@@ -97,6 +113,11 @@ Preset policy:
 - `ci` => warning-only `ci-default` bundle
 - `changed-source` => `source-missing` bundle with compact text output
 - `changed-style` => `style-recovery` + `style-unused` bundles with compact text output
+
+Treat `pnpm check:workspace -- . --preset ci` as the release-facing batch
+checker command for full-repo operational review. It exercises the current CLI
+preset policy instead of the raw default checker output, but it is not the
+stable release gate while intentional negative fixtures live in the repo.
 
 Use `pnpm check:workspace -- --list-bundles` to inspect the current named bundle map.
 
