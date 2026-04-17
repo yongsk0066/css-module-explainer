@@ -4,6 +4,7 @@ import { FakeTypeResolver } from "../_fixtures/fake-type-resolver";
 
 const ROOT_A_URI = "file:///fake/workspace-a";
 const ROOT_B_URI = "file:///fake/workspace-b";
+const itNonWindows = process.platform === "win32" ? it.skip : it;
 
 const CLSX_TSX = `import clsx from 'clsx';
 import styles from './Button.module.scss';
@@ -22,7 +23,7 @@ describe("multi-root resource-scoped settings", () => {
     client = null;
   });
 
-  it("applies classnameTransform per workspace folder", async () => {
+  itNonWindows("applies classnameTransform per workspace folder", async () => {
     client = createInProcessServer({
       readStyleFile: (path) => (path.endsWith("Button.module.scss") ? SCSS : null),
       typeResolver: new FakeTypeResolver(),

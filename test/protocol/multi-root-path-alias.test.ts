@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createInProcessServer, type LspTestClient } from "./_harness/in-process-server";
 import { FakeTypeResolver } from "../_fixtures/fake-type-resolver";
-
 const ROOT_A_URI = "file:///fake/workspace-a";
 const ROOT_B_URI = "file:///fake/workspace-b";
+const itNonWindows = process.platform === "win32" ? it.skip : it;
 
 const APP_TSX = `import classNames from 'classnames/bind';
 import styles from '@styles/Button.module.scss';
@@ -31,7 +31,7 @@ describe("multi-root pathAlias", () => {
     client = null;
   });
 
-  it("resolves native pathAlias per workspace folder", async () => {
+  itNonWindows("resolves native pathAlias per workspace folder", async () => {
     client = createInProcessServer({
       readStyleFile,
       typeResolver: new FakeTypeResolver(),
@@ -73,7 +73,6 @@ describe("multi-root pathAlias", () => {
 
     expect(await client.waitForDiagnostics(appAUri)).toEqual([]);
     expect(await client.waitForDiagnostics(appBUri)).toEqual([]);
-
     const definitionA = await client.definition({
       textDocument: { uri: appAUri },
       position: { line: 4, character: 30 },

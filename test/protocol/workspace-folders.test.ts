@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createInProcessServer, type LspTestClient } from "./_harness/in-process-server";
 import { FakeTypeResolver } from "../_fixtures/fake-type-resolver";
-
 const ROOT_A_URI = "file:///fake/workspace-a";
 const ROOT_B_URI = "file:///fake/workspace-b";
+const itNonWindows = process.platform === "win32" ? it.skip : it;
 
 const APP_A_TSX = `import classNames from 'classnames/bind';
 import styles from './Button.module.scss';
@@ -39,7 +39,7 @@ describe("workspace folder changes", () => {
     client = null;
   });
 
-  it("registers a newly added workspace folder", async () => {
+  itNonWindows("registers a newly added workspace folder", async () => {
     client = createInProcessServer({
       readStyleFile,
       typeResolver: new FakeTypeResolver(),
@@ -68,7 +68,6 @@ describe("workspace folder changes", () => {
     });
 
     expect(await client.waitForDiagnostics(tsxUri)).toEqual([]);
-
     const definition = await client.definition({
       textDocument: { uri: tsxUri },
       position: { line: 4, character: 30 },
@@ -79,7 +78,7 @@ describe("workspace folder changes", () => {
     );
   });
 
-  it("drops open documents that belong to a removed workspace folder", async () => {
+  itNonWindows("drops open documents that belong to a removed workspace folder", async () => {
     client = createInProcessServer({
       readStyleFile,
       typeResolver: new FakeTypeResolver(),

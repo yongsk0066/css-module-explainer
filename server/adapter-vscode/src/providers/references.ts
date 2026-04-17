@@ -190,7 +190,7 @@ export const handleReferences = wrapHandler<ReferenceParams, [], Location[] | nu
         uri:
           valueTarget.filePath === styleDocument.filePath
             ? params.textDocument.uri
-            : `file://${valueTarget.filePath}`,
+            : pathToFileUrl(valueTarget.filePath),
         range: toLspRange(valueTarget.valueDecl.range),
       });
     }
