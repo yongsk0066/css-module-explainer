@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.5.0] — 2026-04-18
+
+### Added
+
+- **V2 constrained contract exposure** — `TypeFactTableV2`, `EngineOutputV2.queryResults`, and `pnpm explain:expression --json` now expose constrained string facts across three rollout bundles: Bundle 1 (`suffix`, `prefixSuffix`), Bundle 2 (`charInclusion`), and Bundle 3 (`composite`).
+- **V2 parity corpus and explain surface** — dedicated V2 smoke/golden fixtures now cover prefix-suffix, character-inclusion, and composite flow cases, and `explain:expression` prints the same structured V2 analysis metadata in both text and JSON modes.
+
+### Changed
+
+- **Pattern B contract rollout is now proven in production code** — V2 keeps a stable top-level schema (`exact | finiteSet | constrained | unknown | top`) while growing only sub-discriminators (`constraintKind`), which allowed Bundle 1/2/3 to land without reshaping the top-level contract.
+- **V2 type facts now normalize directly** — the V2 path no longer routes through V1 upcasts. `TypeFactTableV2` is normalized directly while the frozen V1 path continues to run independently in parallel.
+- **Reduced-product analysis is externally visible in V2** — the internal `suffix`, `prefixSuffix`, `charInclusion`, and `composite` domains now drive user-visible V2 metadata instead of remaining internal-only analysis details.
+
 ## [3.4.0] — 2026-04-17
 
 ### Added
