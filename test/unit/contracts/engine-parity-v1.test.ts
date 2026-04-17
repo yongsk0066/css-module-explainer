@@ -97,6 +97,84 @@ describe("buildCheckerEngineParitySnapshotV1", () => {
     );
     expect(snapshot.output.rewritePlans).toEqual([]);
   });
+
+  it("captures query analysis metadata for local flow finite sets", async () => {
+    const workspaceRoot = makeWorkspace({
+      "src/App.tsx": [
+        "import classNames from 'classnames/bind';",
+        "import styles from './Button.module.scss';",
+        "const cx = classNames.bind(styles);",
+        "export function App(enabled: boolean) {",
+        "  const size = enabled ? 'small' : 'large';",
+        "  return <div className={cx(size)} />;",
+        "}",
+        "",
+      ].join("\n"),
+      "src/Button.module.scss": ".small {}",
+    });
+
+    const { sourceFiles, styleFiles } = await resolveWorkspaceCheckFiles({ workspaceRoot });
+    const styleHost = createWorkspaceStyleHost({
+      styleFiles,
+      classnameTransform: "asIs",
+    });
+    styleHost.preloadStyleDocuments();
+    const analysisHost = createWorkspaceAnalysisHost({
+      workspaceRoot,
+      classnameTransform: "asIs",
+      pathAlias: {},
+      styleDocumentForPath: styleHost.styleDocumentForPath,
+    });
+    const sourceDocuments = collectSourceDocuments(sourceFiles, analysisHost.analysisCache);
+    const command = await runWorkspaceCheckCommand({
+      workspace: { workspaceRoot },
+      filters: {
+        preset: "changed-source",
+        category: "source",
+        severity: "all",
+        includeBundles: ["source-missing"],
+        includeCodes: [],
+        excludeCodes: [],
+      },
+    });
+
+    const snapshot = buildCheckerEngineParitySnapshotV1({
+      workspaceRoot,
+      classnameTransform: "asIs",
+      pathAlias: {},
+      sourceDocuments,
+      styleFiles,
+      analysisCache: analysisHost.analysisCache,
+      styleDocumentForPath: styleHost.styleDocumentForPath,
+      typeResolver: analysisHost.typeResolver,
+      checkerReport: command.checkerReport,
+      semanticReferenceIndex: analysisHost.semanticReferenceIndex,
+      styleDependencyGraph: styleHost.styleDependencyGraph,
+    });
+
+    expect(snapshot.output.queryResults).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "expression-semantics",
+          filePath: path.join(workspaceRoot, "src/App.tsx"),
+          payload: expect.objectContaining({
+            valueCertainty: "inferred",
+            valueCertaintyShapeLabel: "bounded finite (2)",
+            valueCertaintyReason: "analysis preserved multiple finite candidate values",
+          }),
+        }),
+        expect.objectContaining({
+          kind: "source-expression-resolution",
+          filePath: path.join(workspaceRoot, "src/App.tsx"),
+          payload: expect.objectContaining({
+            valueCertainty: "inferred",
+            valueCertaintyShapeLabel: "bounded finite (2)",
+            valueCertaintyReason: "analysis preserved multiple finite candidate values",
+          }),
+        }),
+      ]),
+    );
+  });
 });
 
 function makeWorkspace(files: Record<string, string>): string {

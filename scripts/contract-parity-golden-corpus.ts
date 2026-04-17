@@ -25,6 +25,26 @@ export const CONTRACT_PARITY_GOLDEN_CORPUS: readonly ContractParityEntry[] = [
     },
   },
   {
+    label: "source-flow-parity",
+    workspace: {
+      workspaceRoot,
+      sourceFilePaths: [
+        path.join(workspaceRoot, "test/_fixtures/contract-parity/SourceFlowParity.tsx"),
+      ],
+      styleFilePaths: [
+        path.join(workspaceRoot, "test/_fixtures/contract-parity/SourceFlowParity.module.scss"),
+      ],
+    },
+    filters: {
+      preset: "changed-source",
+      category: "source",
+      severity: "all",
+      includeBundles: ["source-missing"],
+      includeCodes: [],
+      excludeCodes: [],
+    },
+  },
+  {
     label: "style-composes-parity",
     workspace: {
       workspaceRoot,

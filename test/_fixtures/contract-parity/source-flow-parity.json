@@ -1,0 +1,247 @@
+{
+  "input": {
+    "sources": [
+      {
+        "bindingGraph": {
+          "declarations": [
+            {
+              "id": "decl:0",
+              "kind": "import",
+              "name": "classNames"
+            },
+            {
+              "id": "decl:1",
+              "kind": "import",
+              "name": "styles"
+            },
+            {
+              "id": "decl:2",
+              "kind": "localVar",
+              "name": "cx"
+            },
+            {
+              "id": "decl:3",
+              "kind": "localVar",
+              "name": "SourceFlowParity"
+            },
+            {
+              "id": "decl:4",
+              "kind": "parameter",
+              "name": "enabled"
+            },
+            {
+              "id": "decl:5",
+              "kind": "localVar",
+              "name": "size"
+            }
+          ],
+          "resolutions": [
+            {
+              "declarationId": "decl:5",
+              "expressionId": "class-expr:0"
+            }
+          ]
+        },
+        "document": {
+          "classExpressions": [
+            {
+              "id": "class-expr:0",
+              "kind": "symbolRef",
+              "origin": "cxCall",
+              "pathSegments": [],
+              "range": {
+                "end": {
+                  "character": 32,
+                  "line": 7
+                },
+                "start": {
+                  "character": 28,
+                  "line": 7
+                }
+              },
+              "rawReference": "size",
+              "rootBindingDeclId": "decl:5",
+              "rootName": "size",
+              "scssModulePath": "<workspace>/test/_fixtures/contract-parity/SourceFlowParity.module.scss"
+            }
+          ],
+          "filePath": "<workspace>/test/_fixtures/contract-parity/SourceFlowParity.tsx",
+          "kind": "source",
+          "language": "typescriptreact",
+          "styleImports": [
+            {
+              "bindingDeclId": "decl:1",
+              "id": "style-import:0",
+              "kind": "styleImport",
+              "localName": "styles",
+              "resolved": {
+                "absolutePath": "<workspace>/test/_fixtures/contract-parity/SourceFlowParity.module.scss",
+                "kind": "resolved"
+              }
+            }
+          ],
+          "utilityBindings": [
+            {
+              "bindingDeclId": "decl:2",
+              "classNamesImportName": "classNames",
+              "id": "utility-binding:cx:0",
+              "kind": "classnamesBind",
+              "localName": "cx",
+              "scssModulePath": "<workspace>/test/_fixtures/contract-parity/SourceFlowParity.module.scss",
+              "stylesLocalName": "styles"
+            }
+          ]
+        },
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourceFlowParity.tsx"
+      }
+    ],
+    "styles": [
+      {
+        "document": {
+          "animationNameRefs": [],
+          "filePath": "<workspace>/test/_fixtures/contract-parity/SourceFlowParity.module.scss",
+          "keyframes": [],
+          "kind": "style",
+          "selectors": [
+            {
+              "canonicalName": "small",
+              "composes": [],
+              "declarations": "",
+              "fullSelector": ".small",
+              "id": "selector:small:0:1",
+              "kind": "selector",
+              "name": "small",
+              "nestedSafety": "flat",
+              "range": {
+                "end": {
+                  "character": 6,
+                  "line": 0
+                },
+                "start": {
+                  "character": 1,
+                  "line": 0
+                }
+              },
+              "ruleRange": {
+                "end": {
+                  "character": 8,
+                  "line": 0
+                },
+                "start": {
+                  "character": 0,
+                  "line": 0
+                }
+              },
+              "viewKind": "canonical"
+            }
+          ],
+          "valueDecls": [],
+          "valueImports": [],
+          "valueRefs": []
+        },
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourceFlowParity.module.scss"
+      }
+    ],
+    "typeFacts": [
+      {
+        "expressionId": "class-expr:0",
+        "facts": {
+          "kind": "unknown"
+        },
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourceFlowParity.tsx"
+      }
+    ],
+    "version": "1",
+    "workspace": {
+      "classnameTransform": "asIs",
+      "root": "<workspace>",
+      "settingsKey": "transform:asIs;alias:"
+    }
+  },
+  "output": {
+    "checkerReport": {
+      "findings": [
+        {
+          "analysisReason": "analysis preserved multiple finite candidate values",
+          "category": "source",
+          "code": "missing-resolved-class-values",
+          "filePath": "<workspace>/test/_fixtures/contract-parity/SourceFlowParity.tsx",
+          "message": "Missing class for possible value: 'large'. Analysis reason: analysis preserved multiple finite candidate values. Analysis shape: bounded finite (2).",
+          "range": {
+            "end": {
+              "character": 32,
+              "line": 7
+            },
+            "start": {
+              "character": 28,
+              "line": 7
+            }
+          },
+          "severity": "warning",
+          "valueCertaintyShapeLabel": "bounded finite (2)"
+        }
+      ],
+      "summary": {
+        "hints": 0,
+        "total": 1,
+        "warnings": 1
+      },
+      "version": "1"
+    },
+    "queryResults": [
+      {
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourceFlowParity.module.scss",
+        "kind": "selector-usage",
+        "payload": {
+          "canonicalName": "small",
+          "directReferenceCount": 0,
+          "editableDirectReferenceCount": 0,
+          "exactReferenceCount": 0,
+          "hasAnyReferences": true,
+          "hasExpandedReferences": true,
+          "hasStyleDependencyReferences": false,
+          "inferredOrBetterReferenceCount": 1,
+          "totalReferences": 1
+        },
+        "queryId": "small"
+      },
+      {
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourceFlowParity.tsx",
+        "kind": "expression-semantics",
+        "payload": {
+          "candidateNames": ["large", "small"],
+          "expressionId": "class-expr:0",
+          "expressionKind": "symbolRef",
+          "finiteValues": ["large", "small"],
+          "reason": "flowBranch",
+          "selectorCertainty": "inferred",
+          "selectorNames": ["small"],
+          "styleFilePath": "<workspace>/test/_fixtures/contract-parity/SourceFlowParity.module.scss",
+          "valueCertainty": "inferred",
+          "valueCertaintyReason": "analysis preserved multiple finite candidate values",
+          "valueCertaintyShapeLabel": "bounded finite (2)",
+          "valueDomainKind": "finiteSet"
+        },
+        "queryId": "class-expr:0"
+      },
+      {
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourceFlowParity.tsx",
+        "kind": "source-expression-resolution",
+        "payload": {
+          "expressionId": "class-expr:0",
+          "finiteValues": ["large", "small"],
+          "reason": "flowBranch",
+          "selectorCertainty": "inferred",
+          "selectorNames": ["small"],
+          "styleFilePath": "<workspace>/test/_fixtures/contract-parity/SourceFlowParity.module.scss",
+          "valueCertainty": "inferred",
+          "valueCertaintyReason": "analysis preserved multiple finite candidate values",
+          "valueCertaintyShapeLabel": "bounded finite (2)"
+        },
+        "queryId": "class-expr:0"
+      }
+    ],
+    "rewritePlans": [],
+    "version": "1"
+  }
+}
