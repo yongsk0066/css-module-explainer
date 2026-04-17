@@ -8,6 +8,10 @@ export type EdgeCertainty = "exact" | "inferred" | "possible";
 
 export type ValueCertaintyShapeKind = "exact" | "boundedFinite" | "constrainedPrefix" | "unknown";
 export type SelectorCertaintyShapeKind = "exact" | "boundedFinite" | "constrained" | "unknown";
+export type ValueCertaintyShapeKindV2 = "exact" | "boundedFinite" | "constrained" | "unknown";
+export type SelectorCertaintyShapeKindV2 = "exact" | "boundedFinite" | "constrained" | "unknown";
+export type ValueConstraintKindV2 = "prefix" | "suffix" | "prefixSuffix";
+export type SelectorConstraintKindV2 = "prefix" | "suffix" | "prefixSuffix";
 
 export interface ValueCertaintyProfile {
   readonly certainty: EdgeCertainty;
@@ -18,6 +22,20 @@ export interface ValueCertaintyProfile {
 export interface SelectorCertaintyProfile {
   readonly certainty: EdgeCertainty;
   readonly shapeKind: SelectorCertaintyShapeKind;
+  readonly shapeLabel: string;
+}
+
+export interface ValueCertaintyProfileV2 {
+  readonly certainty: EdgeCertainty;
+  readonly shapeKind: ValueCertaintyShapeKindV2;
+  readonly valueConstraintKind?: ValueConstraintKindV2;
+  readonly shapeLabel: string;
+}
+
+export interface SelectorCertaintyProfileV2 {
+  readonly certainty: EdgeCertainty;
+  readonly shapeKind: SelectorCertaintyShapeKindV2;
+  readonly selectorConstraintKind?: SelectorConstraintKindV2;
   readonly shapeLabel: string;
 }
 
@@ -100,6 +118,79 @@ export function deriveValueCertaintyProfile(
   }
 }
 
+export function deriveValueCertaintyProfileV2(
+  value: AbstractClassValue | undefined,
+  certainty: EdgeCertainty | undefined,
+): ValueCertaintyProfileV2 | null {
+  if (!value || !certainty) return null;
+
+  switch (certainty) {
+    case "exact":
+      return {
+        certainty,
+        shapeKind: "exact",
+        shapeLabel: "exact",
+      };
+    case "inferred":
+      switch (value.kind) {
+        case "finiteSet":
+          return {
+            certainty,
+            shapeKind: "boundedFinite",
+            shapeLabel: `bounded finite (${value.values.length})`,
+          };
+        case "prefix":
+          return {
+            certainty,
+            shapeKind: "constrained",
+            valueConstraintKind: "prefix",
+            shapeLabel: `constrained prefix \`${value.prefix}\``,
+          };
+        case "suffix":
+          return {
+            certainty,
+            shapeKind: "constrained",
+            valueConstraintKind: "suffix",
+            shapeLabel: `constrained suffix \`${value.suffix}\``,
+          };
+        case "prefixSuffix":
+          return {
+            certainty,
+            shapeKind: "constrained",
+            valueConstraintKind: "prefixSuffix",
+            shapeLabel: `constrained prefix \`${value.prefix}\` + suffix \`${value.suffix}\``,
+          };
+        case "exact":
+          return {
+            certainty,
+            shapeKind: "exact",
+            shapeLabel: "exact",
+          };
+        case "bottom":
+        case "charInclusion":
+        case "composite":
+        case "top":
+          return {
+            certainty,
+            shapeKind: "unknown",
+            shapeLabel: "unknown",
+          };
+        default:
+          value satisfies never;
+          return null;
+      }
+    case "possible":
+      return {
+        certainty,
+        shapeKind: "unknown",
+        shapeLabel: "unknown",
+      };
+    default:
+      certainty satisfies never;
+      return null;
+  }
+}
+
 export function deriveSelectorCertaintyProfile(
   matchedSelectorCount: number,
   certainty: EdgeCertainty | undefined,
@@ -133,6 +224,76 @@ export function deriveSelectorCertaintyProfile(
         shapeKind: "boundedFinite",
         shapeLabel: `bounded selector set (${matchedSelectorCount})`,
       };
+    case "possible":
+      return {
+        certainty,
+        shapeKind: "unknown",
+        shapeLabel: "unknown",
+      };
+    default:
+      certainty satisfies never;
+      return null;
+  }
+}
+
+export function deriveSelectorCertaintyProfileV2(
+  matchedSelectorCount: number,
+  certainty: EdgeCertainty | undefined,
+  value: AbstractClassValue | undefined,
+): SelectorCertaintyProfileV2 | null {
+  if (!certainty) return null;
+
+  switch (certainty) {
+    case "exact":
+      return {
+        certainty,
+        shapeKind: "exact",
+        shapeLabel: "exact",
+      };
+    case "inferred":
+      switch (value?.kind) {
+        case "prefix":
+          return {
+            certainty,
+            shapeKind: "constrained",
+            selectorConstraintKind: "prefix",
+            shapeLabel: `constrained prefix selector set (${matchedSelectorCount})`,
+          };
+        case "suffix":
+          return {
+            certainty,
+            shapeKind: "constrained",
+            selectorConstraintKind: "suffix",
+            shapeLabel: `constrained suffix selector set (${matchedSelectorCount})`,
+          };
+        case "prefixSuffix":
+          return {
+            certainty,
+            shapeKind: "constrained",
+            selectorConstraintKind: "prefixSuffix",
+            shapeLabel: `constrained edge selector set (${matchedSelectorCount})`,
+          };
+        case "charInclusion":
+        case "composite":
+          return {
+            certainty,
+            shapeKind: "unknown",
+            shapeLabel: "unknown",
+          };
+        case "finiteSet":
+        case "exact":
+        case "bottom":
+        case "top":
+        case undefined:
+          return {
+            certainty,
+            shapeKind: "boundedFinite",
+            shapeLabel: `bounded selector set (${matchedSelectorCount})`,
+          };
+        default:
+          value satisfies never;
+          return null;
+      }
     case "possible":
       return {
         certainty,

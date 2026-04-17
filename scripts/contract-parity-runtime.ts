@@ -7,6 +7,7 @@ import {
 } from "../server/engine-host-node/src/checker-host/workspace-check-support";
 import { runWorkspaceCheckCommand } from "../server/engine-host-node/src/checker-host";
 import { buildCheckerEngineParitySnapshotV1 } from "../server/engine-host-node/src/engine-parity-v1";
+import { buildCheckerEngineParitySnapshotV2 } from "../server/engine-host-node/src/engine-parity-v2";
 import type { ContractParityEntry } from "./contract-parity-corpus";
 
 export async function buildContractParitySnapshot(entry: ContractParityEntry) {
@@ -34,6 +35,22 @@ export async function buildContractParitySnapshot(entry: ContractParityEntry) {
     workspace: entry.workspace,
     filters: entry.filters,
   });
+
+  if (entry.contractVersion === "2") {
+    return buildCheckerEngineParitySnapshotV2({
+      workspaceRoot: entry.workspace.workspaceRoot,
+      classnameTransform: entry.workspace.classnameTransform ?? "asIs",
+      pathAlias: entry.workspace.pathAlias ?? {},
+      sourceDocuments,
+      styleFiles,
+      analysisCache: analysisHost.analysisCache,
+      styleDocumentForPath: styleHost.styleDocumentForPath,
+      typeResolver: analysisHost.typeResolver,
+      semanticReferenceIndex: analysisHost.semanticReferenceIndex,
+      styleDependencyGraph: styleHost.styleDependencyGraph,
+      checkerReport: command.checkerReport,
+    });
+  }
 
   return buildCheckerEngineParitySnapshotV1({
     workspaceRoot: entry.workspace.workspaceRoot,

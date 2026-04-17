@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   deriveValueCertaintyProfile,
+  deriveValueCertaintyProfileV2,
   deriveReferenceExpansion,
   deriveSelectorProjectionCertainty,
+  deriveSelectorCertaintyProfileV2,
 } from "../../../server/engine-core-ts/src/core/semantic/certainty";
 
 describe("semantic/certainty", () => {
@@ -47,6 +49,41 @@ describe("semantic/certainty", () => {
       certainty: "possible",
       shapeKind: "unknown",
       shapeLabel: "unknown",
+    });
+  });
+
+  it("derives bundle-1 V2 certainty profiles with constrained sub-kinds", () => {
+    expect(deriveValueCertaintyProfileV2({ kind: "suffix", suffix: "-chip" }, "inferred")).toEqual({
+      certainty: "inferred",
+      shapeKind: "constrained",
+      valueConstraintKind: "suffix",
+      shapeLabel: "constrained suffix `-chip`",
+    });
+
+    expect(
+      deriveValueCertaintyProfileV2(
+        { kind: "prefixSuffix", prefix: "btn-", suffix: "-chip", minLength: 9 },
+        "inferred",
+      ),
+    ).toEqual({
+      certainty: "inferred",
+      shapeKind: "constrained",
+      valueConstraintKind: "prefixSuffix",
+      shapeLabel: "constrained prefix `btn-` + suffix `-chip`",
+    });
+
+    expect(
+      deriveSelectorCertaintyProfileV2(2, "inferred", {
+        kind: "prefixSuffix",
+        prefix: "btn-",
+        suffix: "-chip",
+        minLength: 9,
+      }),
+    ).toEqual({
+      certainty: "inferred",
+      shapeKind: "constrained",
+      selectorConstraintKind: "prefixSuffix",
+      shapeLabel: "constrained edge selector set (2)",
     });
   });
 

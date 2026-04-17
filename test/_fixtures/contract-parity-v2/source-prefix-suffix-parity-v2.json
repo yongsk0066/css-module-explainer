@@ -1,0 +1,322 @@
+{
+  "input": {
+    "sources": [
+      {
+        "bindingGraph": {
+          "declarations": [
+            {
+              "id": "decl:0",
+              "kind": "import",
+              "name": "classNames"
+            },
+            {
+              "id": "decl:1",
+              "kind": "import",
+              "name": "styles"
+            },
+            {
+              "id": "decl:2",
+              "kind": "localVar",
+              "name": "cx"
+            },
+            {
+              "id": "decl:3",
+              "kind": "localVar",
+              "name": "SourcePrefixSuffixParity"
+            },
+            {
+              "id": "decl:4",
+              "kind": "parameter",
+              "name": "variant"
+            },
+            {
+              "id": "decl:5",
+              "kind": "localVar",
+              "name": "className"
+            }
+          ],
+          "resolutions": [
+            {
+              "declarationId": "decl:5",
+              "expressionId": "class-expr:0"
+            }
+          ]
+        },
+        "document": {
+          "classExpressions": [
+            {
+              "id": "class-expr:0",
+              "kind": "symbolRef",
+              "origin": "cxCall",
+              "pathSegments": [],
+              "range": {
+                "end": {
+                  "character": 37,
+                  "line": 7
+                },
+                "start": {
+                  "character": 28,
+                  "line": 7
+                }
+              },
+              "rawReference": "className",
+              "rootBindingDeclId": "decl:5",
+              "rootName": "className",
+              "scssModulePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixParity.module.scss"
+            }
+          ],
+          "filePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixParity.tsx",
+          "kind": "source",
+          "language": "typescriptreact",
+          "styleImports": [
+            {
+              "bindingDeclId": "decl:1",
+              "id": "style-import:0",
+              "kind": "styleImport",
+              "localName": "styles",
+              "resolved": {
+                "absolutePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixParity.module.scss",
+                "kind": "resolved"
+              }
+            }
+          ],
+          "utilityBindings": [
+            {
+              "bindingDeclId": "decl:2",
+              "classNamesImportName": "classNames",
+              "id": "utility-binding:cx:0",
+              "kind": "classnamesBind",
+              "localName": "cx",
+              "scssModulePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixParity.module.scss",
+              "stylesLocalName": "styles"
+            }
+          ]
+        },
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixParity.tsx"
+      }
+    ],
+    "styles": [
+      {
+        "document": {
+          "animationNameRefs": [],
+          "filePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixParity.module.scss",
+          "keyframes": [],
+          "kind": "style",
+          "selectors": [
+            {
+              "canonicalName": "btn-idle-chip",
+              "composes": [],
+              "declarations": "color: teal",
+              "fullSelector": ".btn-idle-chip",
+              "id": "selector:btn-idle-chip:0:1",
+              "kind": "selector",
+              "name": "btn-idle-chip",
+              "nestedSafety": "flat",
+              "range": {
+                "end": {
+                  "character": 14,
+                  "line": 0
+                },
+                "start": {
+                  "character": 1,
+                  "line": 0
+                }
+              },
+              "ruleRange": {
+                "end": {
+                  "character": 0,
+                  "line": 2
+                },
+                "start": {
+                  "character": 0,
+                  "line": 0
+                }
+              },
+              "viewKind": "canonical"
+            },
+            {
+              "canonicalName": "btn-busy-chip",
+              "composes": [],
+              "declarations": "color: orange",
+              "fullSelector": ".btn-busy-chip",
+              "id": "selector:btn-busy-chip:4:1",
+              "kind": "selector",
+              "name": "btn-busy-chip",
+              "nestedSafety": "flat",
+              "range": {
+                "end": {
+                  "character": 14,
+                  "line": 4
+                },
+                "start": {
+                  "character": 1,
+                  "line": 4
+                }
+              },
+              "ruleRange": {
+                "end": {
+                  "character": 0,
+                  "line": 6
+                },
+                "start": {
+                  "character": 0,
+                  "line": 4
+                }
+              },
+              "viewKind": "canonical"
+            },
+            {
+              "canonicalName": "btn-error-chip",
+              "composes": [],
+              "declarations": "color: crimson",
+              "fullSelector": ".btn-error-chip",
+              "id": "selector:btn-error-chip:8:1",
+              "kind": "selector",
+              "name": "btn-error-chip",
+              "nestedSafety": "flat",
+              "range": {
+                "end": {
+                  "character": 15,
+                  "line": 8
+                },
+                "start": {
+                  "character": 1,
+                  "line": 8
+                }
+              },
+              "ruleRange": {
+                "end": {
+                  "character": 0,
+                  "line": 10
+                },
+                "start": {
+                  "character": 0,
+                  "line": 8
+                }
+              },
+              "viewKind": "canonical"
+            }
+          ],
+          "valueDecls": [],
+          "valueImports": [],
+          "valueRefs": []
+        },
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixParity.module.scss"
+      }
+    ],
+    "typeFacts": [
+      {
+        "expressionId": "class-expr:0",
+        "facts": {
+          "kind": "unknown"
+        },
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixParity.tsx"
+      }
+    ],
+    "version": "2",
+    "workspace": {
+      "classnameTransform": "asIs",
+      "root": "<workspace>",
+      "settingsKey": "transform:asIs;alias:"
+    }
+  },
+  "output": {
+    "checkerReport": {
+      "findings": [],
+      "summary": {
+        "hints": 0,
+        "total": 0,
+        "warnings": 0
+      },
+      "version": "1"
+    },
+    "queryResults": [
+      {
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixParity.module.scss",
+        "kind": "selector-usage",
+        "payload": {
+          "canonicalName": "btn-busy-chip",
+          "directReferenceCount": 0,
+          "editableDirectReferenceCount": 0,
+          "exactReferenceCount": 1,
+          "hasAnyReferences": true,
+          "hasExpandedReferences": true,
+          "hasStyleDependencyReferences": false,
+          "inferredOrBetterReferenceCount": 1,
+          "totalReferences": 1
+        },
+        "queryId": "btn-busy-chip"
+      },
+      {
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixParity.module.scss",
+        "kind": "selector-usage",
+        "payload": {
+          "canonicalName": "btn-error-chip",
+          "directReferenceCount": 0,
+          "editableDirectReferenceCount": 0,
+          "exactReferenceCount": 1,
+          "hasAnyReferences": true,
+          "hasExpandedReferences": true,
+          "hasStyleDependencyReferences": false,
+          "inferredOrBetterReferenceCount": 1,
+          "totalReferences": 1
+        },
+        "queryId": "btn-error-chip"
+      },
+      {
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixParity.module.scss",
+        "kind": "selector-usage",
+        "payload": {
+          "canonicalName": "btn-idle-chip",
+          "directReferenceCount": 0,
+          "editableDirectReferenceCount": 0,
+          "exactReferenceCount": 1,
+          "hasAnyReferences": true,
+          "hasExpandedReferences": true,
+          "hasStyleDependencyReferences": false,
+          "inferredOrBetterReferenceCount": 1,
+          "totalReferences": 1
+        },
+        "queryId": "btn-idle-chip"
+      },
+      {
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixParity.tsx",
+        "kind": "expression-semantics",
+        "payload": {
+          "candidateNames": ["btn-idle-chip", "btn-busy-chip", "btn-error-chip"],
+          "expressionId": "class-expr:0",
+          "expressionKind": "symbolRef",
+          "finiteValues": null,
+          "reason": "flowLiteral",
+          "selectorCertainty": "exact",
+          "selectorCertaintyShapeLabel": "exact",
+          "selectorNames": ["btn-idle-chip", "btn-busy-chip", "btn-error-chip"],
+          "styleFilePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixParity.module.scss",
+          "valueCertainty": "inferred",
+          "valueCertaintyReason": "known prefix and suffix were preserved across concatenation",
+          "valueDomainKind": "top",
+          "valueDomainReason": "known prefix and suffix were preserved across concatenation"
+        },
+        "queryId": "class-expr:0"
+      },
+      {
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixParity.tsx",
+        "kind": "source-expression-resolution",
+        "payload": {
+          "expressionId": "class-expr:0",
+          "finiteValues": null,
+          "reason": "flowLiteral",
+          "selectorCertainty": "exact",
+          "selectorCertaintyShapeLabel": "exact",
+          "selectorNames": ["btn-idle-chip", "btn-busy-chip", "btn-error-chip"],
+          "styleFilePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixParity.module.scss",
+          "valueCertainty": "inferred",
+          "valueCertaintyReason": "known prefix and suffix were preserved across concatenation"
+        },
+        "queryId": "class-expr:0"
+      }
+    ],
+    "rewritePlans": [],
+    "version": "2"
+  }
+}

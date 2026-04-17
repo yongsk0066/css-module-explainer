@@ -5,6 +5,7 @@ import type {
 
 export interface ContractParityEntry {
   readonly label: string;
+  readonly contractVersion?: "1" | "2";
   readonly workspace: WorkspaceCheckOptions;
   readonly filters: WorkspaceCheckCommandFilters;
 }

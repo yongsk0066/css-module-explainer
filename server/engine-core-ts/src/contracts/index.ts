@@ -29,3 +29,19 @@ export {
   createTypeFactTableEntryV1,
   normalizeResolvedTypeToTypeFactsV1,
 } from "./engine-v1-builders";
+export {
+  ENGINE_CONTRACT_VERSION_V2,
+  type EngineInputV2,
+  type EngineOutputV2,
+  type StringConstraintKindV2,
+  type StringTypeFactKindV2,
+  type StringTypeFactsV2,
+  type TypeFactTableEntryV2,
+  type TypeFactTableV2,
+} from "./engine-v2";
+export {
+  createTypeFactTableEntryV2,
+  downcastFactsV2ToV1,
+  upcastFactsV1ToV2,
+  upcastTypeFactTableEntryV1ToV2,
+} from "./engine-v2-builders";
