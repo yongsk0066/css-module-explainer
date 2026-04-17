@@ -43,6 +43,9 @@ export interface ExplainExpressionResult {
   readonly analysisV2: {
     readonly valueDomainKind: ValueDomainKindV2;
     readonly valueConstraintKind?: StringConstraintKindV2;
+    readonly valueCharMust?: string;
+    readonly valueCharMay?: string;
+    readonly valueMayIncludeOtherChars?: boolean;
     readonly valueCertaintyShapeKind?: ValueCertaintyShapeKindV2;
     readonly valueCertaintyConstraintKind?: StringConstraintKindV2;
     readonly selectorCertaintyShapeKind?: SelectorCertaintyShapeKindV2;
@@ -124,6 +127,9 @@ export function explainExpressionAtLocation(
     analysisV2: {
       valueDomainKind: valueDomain.kind,
       ...(valueDomain.constraintKind ? { valueConstraintKind: valueDomain.constraintKind } : {}),
+      ...(valueDomain.charMust ? { valueCharMust: valueDomain.charMust } : {}),
+      ...(valueDomain.charMay ? { valueCharMay: valueDomain.charMay } : {}),
+      ...(valueDomain.mayIncludeOtherChars ? { valueMayIncludeOtherChars: true } : {}),
       ...(valueCertaintyProfile
         ? { valueCertaintyShapeKind: valueCertaintyProfile.shapeKind }
         : {}),

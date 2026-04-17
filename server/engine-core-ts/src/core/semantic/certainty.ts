@@ -10,8 +10,8 @@ export type ValueCertaintyShapeKind = "exact" | "boundedFinite" | "constrainedPr
 export type SelectorCertaintyShapeKind = "exact" | "boundedFinite" | "constrained" | "unknown";
 export type ValueCertaintyShapeKindV2 = "exact" | "boundedFinite" | "constrained" | "unknown";
 export type SelectorCertaintyShapeKindV2 = "exact" | "boundedFinite" | "constrained" | "unknown";
-export type ValueConstraintKindV2 = "prefix" | "suffix" | "prefixSuffix";
-export type SelectorConstraintKindV2 = "prefix" | "suffix" | "prefixSuffix";
+export type ValueConstraintKindV2 = "prefix" | "suffix" | "prefixSuffix" | "charInclusion";
+export type SelectorConstraintKindV2 = "prefix" | "suffix" | "prefixSuffix" | "charInclusion";
 
 export interface ValueCertaintyProfile {
   readonly certainty: EdgeCertainty;
@@ -160,6 +160,13 @@ export function deriveValueCertaintyProfileV2(
             valueConstraintKind: "prefixSuffix",
             shapeLabel: `constrained prefix \`${value.prefix}\` + suffix \`${value.suffix}\``,
           };
+        case "charInclusion":
+          return {
+            certainty,
+            shapeKind: "constrained",
+            valueConstraintKind: "charInclusion",
+            shapeLabel: `constrained character inclusion (${value.mustChars || "none"})`,
+          };
         case "exact":
           return {
             certainty,
@@ -167,7 +174,6 @@ export function deriveValueCertaintyProfileV2(
             shapeLabel: "exact",
           };
         case "bottom":
-        case "charInclusion":
         case "composite":
         case "top":
           return {
@@ -274,6 +280,12 @@ export function deriveSelectorCertaintyProfileV2(
             shapeLabel: `constrained edge selector set (${matchedSelectorCount})`,
           };
         case "charInclusion":
+          return {
+            certainty,
+            shapeKind: "constrained",
+            selectorConstraintKind: "charInclusion",
+            shapeLabel: `constrained character selector set (${matchedSelectorCount})`,
+          };
         case "composite":
           return {
             certainty,

@@ -85,6 +85,37 @@ describe("semantic/certainty", () => {
       selectorConstraintKind: "prefixSuffix",
       shapeLabel: "constrained edge selector set (2)",
     });
+
+    expect(
+      deriveValueCertaintyProfileV2(
+        {
+          kind: "charInclusion",
+          mustChars: "aest",
+          mayChars: "EFNOSTaeghinorstuvwx",
+          provenance: "finiteSetWideningChars",
+        },
+        "inferred",
+      ),
+    ).toEqual({
+      certainty: "inferred",
+      shapeKind: "constrained",
+      valueConstraintKind: "charInclusion",
+      shapeLabel: "constrained character inclusion (aest)",
+    });
+
+    expect(
+      deriveSelectorCertaintyProfileV2(3, "inferred", {
+        kind: "charInclusion",
+        mustChars: "aest",
+        mayChars: "EFNOSTaeghinorstuvwx",
+        provenance: "finiteSetWideningChars",
+      }),
+    ).toEqual({
+      certainty: "inferred",
+      shapeKind: "constrained",
+      selectorConstraintKind: "charInclusion",
+      shapeLabel: "constrained character selector set (3)",
+    });
   });
 
   it("keeps dynamic expressions expanded even when their selector certainty is exact", () => {

@@ -149,6 +149,9 @@ function expressionSemanticsResultV2(
       finiteValues: semantics.finiteValues,
       valueDomainKind: valueDomain.kind,
       ...(valueDomain.constraintKind ? { valueConstraintKind: valueDomain.constraintKind } : {}),
+      ...(valueDomain.charMust ? { valueCharMust: valueDomain.charMust } : {}),
+      ...(valueDomain.charMay ? { valueCharMay: valueDomain.charMay } : {}),
+      ...(valueDomain.mayIncludeOtherChars ? { valueMayIncludeOtherChars: true } : {}),
       ...(valueDomainReason ? { valueDomainReason } : {}),
       selectorCertainty: semantics.selectorCertainty,
       ...(selectorCertaintyProfile
@@ -168,6 +171,9 @@ function expressionSemanticsResultV2(
       ...(valueCertaintyProfile?.valueConstraintKind
         ? { valueCertaintyConstraintKind: valueCertaintyProfile.valueConstraintKind }
         : {}),
+      ...(valueDomain.charMust ? { valueCharMust: valueDomain.charMust } : {}),
+      ...(valueDomain.charMay ? { valueCharMay: valueDomain.charMay } : {}),
+      ...(valueDomain.mayIncludeOtherChars ? { valueMayIncludeOtherChars: true } : {}),
       ...(valueCertaintyProfile
         ? { valueCertaintyShapeLabel: valueCertaintyProfile.shapeLabel }
         : {}),
@@ -186,6 +192,7 @@ function sourceExpressionResolutionResultV2(
     resolution.abstractValue,
     resolution.valueCertainty,
   );
+  const valueDomain = classifyValueDomainV2(resolution.abstractValue);
   const selectorCertaintyProfile = deriveSelectorCertaintyProfileV2(
     resolution.selectors.length,
     resolution.selectorCertainty,
@@ -228,6 +235,9 @@ function sourceExpressionResolutionResultV2(
       ...(valueCertaintyProfile?.valueConstraintKind
         ? { valueCertaintyConstraintKind: valueCertaintyProfile.valueConstraintKind }
         : {}),
+      ...(valueDomain.charMust ? { valueCharMust: valueDomain.charMust } : {}),
+      ...(valueDomain.charMay ? { valueCharMay: valueDomain.charMay } : {}),
+      ...(valueDomain.mayIncludeOtherChars ? { valueMayIncludeOtherChars: true } : {}),
       ...(valueCertaintyProfile
         ? { valueCertaintyShapeLabel: valueCertaintyProfile.shapeLabel }
         : {}),

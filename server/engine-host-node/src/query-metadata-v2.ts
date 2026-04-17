@@ -6,6 +6,9 @@ export function classifyValueDomainV2(
 ): {
   readonly kind: ValueDomainKindV2;
   readonly constraintKind?: StringConstraintKindV2;
+  readonly charMust?: string;
+  readonly charMay?: string;
+  readonly mayIncludeOtherChars?: boolean;
 } {
   if (!abstractValue) return { kind: "none" };
 
@@ -23,6 +26,13 @@ export function classifyValueDomainV2(
     case "prefixSuffix":
       return { kind: "constrained", constraintKind: "prefixSuffix" };
     case "charInclusion":
+      return {
+        kind: "constrained",
+        constraintKind: "charInclusion",
+        charMust: abstractValue.mustChars,
+        charMay: abstractValue.mayChars,
+        ...(abstractValue.mayIncludeOtherChars ? { mayIncludeOtherChars: true } : {}),
+      };
     case "composite":
     case "top":
       return { kind: "top" };

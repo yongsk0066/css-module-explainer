@@ -121,6 +121,9 @@ function formatExplainResult(
     readonly analysisV2: {
       readonly valueDomainKind: string;
       readonly valueConstraintKind?: string;
+      readonly valueCharMust?: string;
+      readonly valueCharMay?: string;
+      readonly valueMayIncludeOtherChars?: boolean;
       readonly valueCertaintyShapeKind?: string;
       readonly valueCertaintyConstraintKind?: string;
       readonly selectorCertaintyShapeKind?: string;
@@ -191,6 +194,15 @@ function formatExplainResult(
   lines.push(`V2 value domain kind: ${result.analysisV2.valueDomainKind}`);
   if (result.analysisV2.valueConstraintKind) {
     lines.push(`V2 value constraint kind: ${result.analysisV2.valueConstraintKind}`);
+  }
+  if (result.analysisV2.valueCharMust) {
+    lines.push(`V2 value char must: ${result.analysisV2.valueCharMust}`);
+  }
+  if (result.analysisV2.valueCharMay) {
+    lines.push(`V2 value char may: ${result.analysisV2.valueCharMay}`);
+  }
+  if (result.analysisV2.valueMayIncludeOtherChars) {
+    lines.push("V2 value may include other chars: true");
   }
   if (result.analysisV2.valueCertaintyShapeKind) {
     lines.push(`V2 value certainty shape kind: ${result.analysisV2.valueCertaintyShapeKind}`);

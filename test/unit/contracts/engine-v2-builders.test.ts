@@ -31,5 +31,14 @@ describe("engine-v2 builders", () => {
         minLen: 9,
       }),
     ).toEqual({ kind: "prefix", prefix: "btn-" });
+
+    expect(
+      downcastFactsV2ToV1({
+        kind: "constrained",
+        constraintKind: "charInclusion",
+        charMust: "aest",
+        charMay: "EFNOSTaeghinorstuvwx",
+      }),
+    ).toEqual({ kind: "top" });
   });
 });

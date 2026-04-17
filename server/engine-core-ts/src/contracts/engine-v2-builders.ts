@@ -40,6 +40,7 @@ export function downcastFactsV2ToV1(facts: StringTypeFactsV2): StringTypeFactsV1
           return facts.prefix ? { kind: "prefix", prefix: facts.prefix } : { kind: "top" };
         case "prefixSuffix":
           return facts.prefix ? { kind: "prefix", prefix: facts.prefix } : { kind: "top" };
+        case "charInclusion":
         case "suffix":
         case undefined:
           return { kind: "top" };
