@@ -6,6 +6,14 @@ import type { SourceExpressionKind } from "../hir/source-types";
 
 export type EdgeCertainty = "exact" | "inferred" | "possible";
 
+export type ValueCertaintyShapeKind = "exact" | "boundedFinite" | "constrainedPrefix" | "unknown";
+
+export interface ValueCertaintyProfile {
+  readonly certainty: EdgeCertainty;
+  readonly shapeKind: ValueCertaintyShapeKind;
+  readonly shapeLabel: string;
+}
+
 export function rankCertainty(certainty: EdgeCertainty): number {
   switch (certainty) {
     case "exact":
@@ -22,6 +30,62 @@ export function rankCertainty(certainty: EdgeCertainty): number {
 
 export function isAtLeastInferred(certainty: EdgeCertainty): boolean {
   return rankCertainty(certainty) >= rankCertainty("inferred");
+}
+
+export function deriveValueCertaintyProfile(
+  value: AbstractClassValue | undefined,
+  certainty: EdgeCertainty | undefined,
+): ValueCertaintyProfile | null {
+  if (!value || !certainty) return null;
+
+  switch (certainty) {
+    case "exact":
+      return {
+        certainty,
+        shapeKind: "exact",
+        shapeLabel: "exact",
+      };
+    case "inferred":
+      switch (value.kind) {
+        case "finiteSet":
+          return {
+            certainty,
+            shapeKind: "boundedFinite",
+            shapeLabel: `bounded finite (${value.values.length})`,
+          };
+        case "prefix":
+          return {
+            certainty,
+            shapeKind: "constrainedPrefix",
+            shapeLabel: `constrained prefix \`${value.prefix}\``,
+          };
+        case "exact":
+          return {
+            certainty,
+            shapeKind: "exact",
+            shapeLabel: "exact",
+          };
+        case "bottom":
+        case "top":
+          return {
+            certainty,
+            shapeKind: "unknown",
+            shapeLabel: "unknown",
+          };
+        default:
+          value satisfies never;
+          return null;
+      }
+    case "possible":
+      return {
+        certainty,
+        shapeKind: "unknown",
+        shapeLabel: "unknown",
+      };
+    default:
+      certainty satisfies never;
+      return null;
+  }
 }
 
 export function deriveSelectorProjectionCertainty(

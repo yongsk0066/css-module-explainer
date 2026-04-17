@@ -180,6 +180,9 @@ function renderDynamicExplanation(
     if (explanation.valueCertainty) {
       lines.push(`_Value certainty: ${explanation.valueCertainty}._`);
     }
+    if (explanation.valueCertaintyShapeLabel) {
+      lines.push(`_Value certainty shape: ${explanation.valueCertaintyShapeLabel}._`);
+    }
     if (explanation.valueCertaintyReasonLabel) {
       lines.push(`_Value certainty reason: ${explanation.valueCertaintyReasonLabel}._`);
     }
@@ -199,6 +202,9 @@ function renderDynamicExplanation(
     }
     if (explanation.valueCertaintyReasonLabel) {
       lines.push(`_Value certainty reason: ${explanation.valueCertaintyReasonLabel}._`);
+    }
+    if (explanation.valueCertaintyShapeLabel) {
+      lines.push(`_Value certainty shape: ${explanation.valueCertaintyShapeLabel}._`);
     }
     if (explanation.valueDomainLabel) {
       lines.push(`_Value domain: ${explanation.valueDomainLabel}._`);

@@ -153,6 +153,7 @@ describe("renderHover", () => {
         valueDomainLabel: "finite set (2)",
         valueDomainReasonLabel: "finite candidates widened to a shared prefix",
         valueCertainty: "exact",
+        valueCertaintyShapeLabel: "exact",
         selectorCertainty: "inferred",
         reasonLabel: "TypeScript string-literal union analysis",
       },
@@ -162,6 +163,7 @@ describe("renderHover", () => {
       "Value domain reason: finite candidates widened to a shared prefix.",
     );
     expect(markdown).toContain("Value certainty: exact.");
+    expect(markdown).toContain("Value certainty shape: exact.");
     expect(markdown).toContain("Selector certainty: inferred.");
   });
 
@@ -176,11 +178,13 @@ describe("renderHover", () => {
         subject: "size",
         candidates: ["active", "indicator"],
         valueCertainty: "inferred",
+        valueCertaintyShapeLabel: "bounded finite (2)",
         valueCertaintyReasonLabel: "TypeScript exposed multiple string-literal candidates",
         selectorCertainty: "inferred",
         reasonLabel: "TypeScript string-literal union analysis",
       },
     });
+    expect(markdown).toContain("Value certainty shape: bounded finite (2).");
     expect(markdown).toContain(
       "Value certainty reason: TypeScript exposed multiple string-literal candidates.",
     );

@@ -1,6 +1,6 @@
 import type { ClassExpressionHIR } from "../hir/source-types";
 import type { FlowResolution } from "../flow/lattice";
-import type { EdgeCertainty } from "../semantic/certainty";
+import { deriveValueCertaintyProfile, type EdgeCertainty } from "../semantic/certainty";
 import type { ExpressionSemanticsSummary } from "./read-expression-semantics";
 import type { InvalidClassReferenceFinding } from "./find-invalid-class-references";
 
@@ -13,6 +13,7 @@ export interface DynamicExpressionExplanation {
   readonly valueDomainLabel?: string;
   readonly valueDomainReasonLabel?: string;
   readonly valueCertainty?: EdgeCertainty;
+  readonly valueCertaintyShapeLabel?: string;
   readonly valueCertaintyReasonLabel?: string;
   readonly selectorCertainty?: EdgeCertainty;
   readonly reasonLabel?: string;
@@ -27,6 +28,10 @@ export function buildDynamicExpressionExplanation(
       if (!semantics.abstractValue || !semantics.reason) return null;
       const valueDomainLabel = describeAbstractValue(semantics.abstractValue);
       const valueDomainReasonLabel = describeAbstractValueReason(semantics.abstractValue);
+      const valueCertaintyProfile = deriveValueCertaintyProfile(
+        semantics.abstractValue,
+        semantics.valueCertainty,
+      );
       const valueCertaintyReasonLabel = describeValueCertaintyReason(
         semantics.abstractValue,
         semantics.valueCertainty,
@@ -40,6 +45,9 @@ export function buildDynamicExpressionExplanation(
         ...(valueDomainLabel ? { valueDomainLabel } : {}),
         ...(valueDomainReasonLabel ? { valueDomainReasonLabel } : {}),
         ...(semantics.valueCertainty ? { valueCertainty: semantics.valueCertainty } : {}),
+        ...(valueCertaintyProfile
+          ? { valueCertaintyShapeLabel: valueCertaintyProfile.shapeLabel }
+          : {}),
         ...(valueCertaintyReasonLabel ? { valueCertaintyReasonLabel } : {}),
         ...(semantics.selectorCertainty ? { selectorCertainty: semantics.selectorCertainty } : {}),
         ...(reasonLabel ? { reasonLabel } : {}),
