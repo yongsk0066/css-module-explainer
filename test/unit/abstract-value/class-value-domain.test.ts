@@ -3,6 +3,7 @@ import {
   BOTTOM_CLASS_VALUE,
   MAX_FINITE_CLASS_VALUES,
   TOP_CLASS_VALUE,
+  type AbstractClassValue,
   concatenateClassValues,
   concatenateWithUnknownRight,
   enumerateFiniteClassValues,
@@ -13,6 +14,98 @@ import {
 } from "../../../server/engine-core-ts/src/core/abstract-value/class-value-domain";
 
 describe("class-value-domain", () => {
+  it("uses the expected concatenation table for core domain combinations", () => {
+    const cases: ReadonlyArray<{
+      name: string;
+      left: AbstractClassValue;
+      right: AbstractClassValue;
+      expected: AbstractClassValue;
+    }> = [
+      {
+        name: "bottom + exact => bottom",
+        left: BOTTOM_CLASS_VALUE,
+        right: exactClassValue("x"),
+        expected: BOTTOM_CLASS_VALUE,
+      },
+      {
+        name: "exact + bottom => bottom",
+        left: exactClassValue("x"),
+        right: BOTTOM_CLASS_VALUE,
+        expected: BOTTOM_CLASS_VALUE,
+      },
+      {
+        name: "top + exact => top",
+        left: TOP_CLASS_VALUE,
+        right: exactClassValue("x"),
+        expected: TOP_CLASS_VALUE,
+      },
+      {
+        name: "exact + top => top",
+        left: exactClassValue("x"),
+        right: TOP_CLASS_VALUE,
+        expected: TOP_CLASS_VALUE,
+      },
+      {
+        name: "exact + exact => exact",
+        left: exactClassValue("btn-"),
+        right: exactClassValue("lg"),
+        expected: exactClassValue("btn-lg"),
+      },
+      {
+        name: "exact + finiteSet => finiteSet",
+        left: exactClassValue("btn-"),
+        right: finiteSetClassValue(["sm", "lg"]),
+        expected: finiteSetClassValue(["btn-sm", "btn-lg"]),
+      },
+      {
+        name: "exact + prefix => prefix(left + right)",
+        left: exactClassValue("btn-"),
+        right: prefixClassValue("state-"),
+        expected: prefixClassValue("btn-state-"),
+      },
+      {
+        name: "finiteSet + exact => finiteSet",
+        left: finiteSetClassValue(["btn-sm", "btn-lg"]),
+        right: exactClassValue("--active"),
+        expected: finiteSetClassValue(["btn-sm--active", "btn-lg--active"]),
+      },
+      {
+        name: "finiteSet + finiteSet => cartesian finiteSet",
+        left: finiteSetClassValue(["btn-", "card-"]),
+        right: finiteSetClassValue(["sm", "lg"]),
+        expected: finiteSetClassValue(["btn-sm", "btn-lg", "card-sm", "card-lg"]),
+      },
+      {
+        name: "finiteSet + prefix stays top for now",
+        left: finiteSetClassValue(["btn-", "card-"]),
+        right: prefixClassValue("state-"),
+        expected: TOP_CLASS_VALUE,
+      },
+      {
+        name: "prefix + exact preserves left prefix",
+        left: prefixClassValue("btn-"),
+        right: exactClassValue("active"),
+        expected: prefixClassValue("btn-"),
+      },
+      {
+        name: "prefix + finiteSet preserves left prefix",
+        left: prefixClassValue("btn-"),
+        right: finiteSetClassValue(["sm", "lg"]),
+        expected: prefixClassValue("btn-"),
+      },
+      {
+        name: "prefix + prefix preserves left prefix",
+        left: prefixClassValue("btn-"),
+        right: prefixClassValue("state-"),
+        expected: prefixClassValue("btn-"),
+      },
+    ];
+
+    for (const { name, left, right, expected } of cases) {
+      expect(concatenateClassValues(left, right), name).toEqual(expected);
+    }
+  });
+
   it("canonicalizes singleton finite sets to exact values", () => {
     expect(finiteSetClassValue(["button"])).toEqual(exactClassValue("button"));
   });
@@ -92,6 +185,18 @@ describe("class-value-domain", () => {
       kind: "finiteSet",
       values: ["btn-lg", "btn-sm"],
     });
+  });
+
+  it("preserves a known left prefix under concatenation with more precise right values", () => {
+    expect(concatenateClassValues(prefixClassValue("btn-"), exactClassValue("primary"))).toEqual(
+      prefixClassValue("btn-"),
+    );
+    expect(
+      concatenateClassValues(prefixClassValue("btn-"), finiteSetClassValue(["sm", "lg"])),
+    ).toEqual(prefixClassValue("btn-"));
+    expect(concatenateClassValues(prefixClassValue("btn-"), prefixClassValue("variant-"))).toEqual(
+      prefixClassValue("btn-"),
+    );
   });
 
   it("derives prefixes from known left concatenation with unknown suffixes", () => {

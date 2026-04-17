@@ -62,6 +62,18 @@ export function concatenateClassValues(
   if (left.kind === "bottom" || right.kind === "bottom") return BOTTOM_CLASS_VALUE;
   if (left.kind === "top" || right.kind === "top") return TOP_CLASS_VALUE;
 
+  if (left.kind === "prefix") {
+    switch (right.kind) {
+      case "exact":
+      case "finiteSet":
+      case "prefix":
+        return left;
+      default:
+        right satisfies never;
+        return TOP_CLASS_VALUE;
+    }
+  }
+
   if (left.kind === "exact") {
     switch (right.kind) {
       case "exact":
@@ -80,8 +92,6 @@ export function concatenateClassValues(
     switch (left.kind) {
       case "finiteSet":
         return finiteSetClassValue(left.values.map((value) => value + right.value));
-      case "prefix":
-        return TOP_CLASS_VALUE;
       default:
         left satisfies never;
         return TOP_CLASS_VALUE;

@@ -69,7 +69,12 @@ Required invariant:
 
 - `exact + exact` -> `exact`
 - `exact + finiteSet` -> `finiteSet`
+- `exact + prefix` -> `prefix(left + prefix)`
+- `finiteSet + exact` -> `finiteSet`
 - `exact + unknownRight` -> `prefix(left)`
+- `prefix + exact` -> `prefix(left)`
+- `prefix + finiteSet` -> `prefix(left)`
+- `prefix + prefix` -> `prefix(left)`
 - incompatible non-finite concatenation widens to `top`
 
 ### Type Union Lift
