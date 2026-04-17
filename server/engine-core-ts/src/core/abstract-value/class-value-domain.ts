@@ -72,7 +72,7 @@ export interface CompositeClassValue {
   readonly mustChars: string;
   readonly mayChars: string;
   readonly mayIncludeOtherChars?: true;
-  readonly provenance?: "finiteSetWideningComposite" | "compositeJoin";
+  readonly provenance?: "finiteSetWideningComposite" | "compositeJoin" | "compositeConcat";
 }
 
 export interface TopClassValue {
@@ -183,7 +183,8 @@ export function compositeClassValue(input: {
 }): AbstractClassValue {
   const normalizedPrefix = input.prefix ?? "";
   const normalizedSuffix = input.suffix ?? "";
-  const normalizedMustChars = normalizeCharSet(input.mustChars);
+  const edgeChars = charSetForString(normalizedPrefix + normalizedSuffix);
+  const normalizedMustChars = normalizeCharSet(input.mustChars + edgeChars);
   const normalizedMayChars = normalizeCharSet(input.mayChars + normalizedMustChars);
   const mayIncludeOtherChars = Boolean(input.mayIncludeOtherChars);
   const hasCharInfo =
@@ -237,6 +238,34 @@ export function concatenateClassValues(
       case "finiteSet":
       case "charInclusion":
         return concatenateCharInclusions(left, toCharInclusion(right));
+      case "prefix":
+        return concatenateCharInclusions(
+          left,
+          charInclusionClassValue(
+            "",
+            charSetForString(right.prefix),
+            "charInclusionConcat",
+            true,
+          ) as CharInclusionClassValue,
+        );
+      case "suffix":
+        return compositeClassValue({
+          suffix: right.suffix,
+          minLength: right.suffix.length,
+          mustChars: unionCharSets(left.mustChars, charSetForString(right.suffix)),
+          mayChars: unionCharSets(left.mayChars, charSetForString(right.suffix)),
+          ...(left.mayIncludeOtherChars ? { mayIncludeOtherChars: true } : {}),
+          provenance: "compositeConcat",
+        });
+      case "prefixSuffix":
+        return compositeClassValue({
+          suffix: right.suffix,
+          minLength: right.minLength,
+          mustChars: unionCharSets(left.mustChars, charSetForString(right.prefix + right.suffix)),
+          mayChars: unionCharSets(left.mayChars, charSetForString(right.prefix + right.suffix)),
+          mayIncludeOtherChars: true,
+          provenance: "compositeConcat",
+        });
       default:
         return TOP_CLASS_VALUE;
     }
@@ -247,6 +276,34 @@ export function concatenateClassValues(
       case "exact":
       case "finiteSet":
         return concatenateCharInclusions(toCharInclusion(left), right);
+      case "prefix":
+        return compositeClassValue({
+          prefix: left.prefix,
+          minLength: left.prefix.length,
+          mustChars: unionCharSets(charSetForString(left.prefix), right.mustChars),
+          mayChars: unionCharSets(charSetForString(left.prefix), right.mayChars),
+          mayIncludeOtherChars: true,
+          provenance: "compositeConcat",
+        });
+      case "suffix":
+        return concatenateCharInclusions(
+          charInclusionClassValue(
+            "",
+            charSetForString(left.suffix),
+            "charInclusionConcat",
+            true,
+          ) as CharInclusionClassValue,
+          right,
+        );
+      case "prefixSuffix":
+        return compositeClassValue({
+          prefix: left.prefix,
+          minLength: left.minLength,
+          mustChars: unionCharSets(charSetForString(left.prefix + left.suffix), right.mustChars),
+          mayChars: unionCharSets(charSetForString(left.prefix + left.suffix), right.mayChars),
+          mayIncludeOtherChars: true,
+          provenance: "compositeConcat",
+        });
       default:
         return TOP_CLASS_VALUE;
     }

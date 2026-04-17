@@ -443,6 +443,8 @@ function describeCompositeReason(provenance: CompositeProvenance): string | null
       return "finite candidates widened to shared edge and character constraints";
     case "compositeJoin":
       return "branched values merged to shared multi-axis string constraints";
+    case "compositeConcat":
+      return "concatenation preserved edge and character constraints together";
     case undefined:
       return null;
     default:

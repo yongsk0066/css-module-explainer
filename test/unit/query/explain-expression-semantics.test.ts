@@ -81,6 +81,18 @@ describe("describeAbstractValue", () => {
         provenance: "finiteSetWideningComposite",
       }),
     ).toBe("finite candidates widened to shared edge and character constraints");
+
+    expect(
+      describeAbstractValueReason({
+        kind: "composite",
+        suffix: "-chip",
+        minLength: 5,
+        mustChars: "-chipst",
+        mayChars: "-chipst",
+        mayIncludeOtherChars: true,
+        provenance: "compositeConcat",
+      }),
+    ).toBe("concatenation preserved edge and character constraints together");
   });
 
   it("explains inferred and possible certainty from domain provenance", () => {

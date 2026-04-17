@@ -123,6 +123,19 @@ describe("class-value-domain", () => {
         expected: prefixSuffixClassValue("btn-", "-active", 11, "concatKnownEdges"),
       },
       {
+        name: "prefix + char inclusion becomes a composite product",
+        left: prefixClassValue("btn-"),
+        right: charInclusionClassValue("s", "st"),
+        expected: compositeClassValue({
+          prefix: "btn-",
+          minLength: 4,
+          mustChars: "-bnst",
+          mayChars: "-bnst",
+          mayIncludeOtherChars: true,
+          provenance: "compositeConcat",
+        }),
+      },
+      {
         name: "suffix + exact keeps the final exact suffix",
         left: suffixClassValue("-active"),
         right: exactClassValue("--busy"),
@@ -145,6 +158,44 @@ describe("class-value-domain", () => {
         left: prefixSuffixClassValue("btn-", "-chip", 9),
         right: exactClassValue("--active"),
         expected: prefixSuffixClassValue("btn-", "-chip--active", 17, "concatKnownEdges"),
+      },
+      {
+        name: "char inclusion + suffix becomes a trailing composite product",
+        left: charInclusionClassValue("s", "st"),
+        right: suffixClassValue("-active"),
+        expected: compositeClassValue({
+          suffix: "-active",
+          minLength: 7,
+          mustChars: "-aceistv",
+          mayChars: "-aceistv",
+          provenance: "compositeConcat",
+        }),
+      },
+      {
+        name: "prefix-suffix + char inclusion preserves the leading edge with chars",
+        left: prefixSuffixClassValue("btn-", "-chip", 9),
+        right: charInclusionClassValue("s", "st"),
+        expected: compositeClassValue({
+          prefix: "btn-",
+          minLength: 9,
+          mustChars: "-bchinpst",
+          mayChars: "-bchinpst",
+          mayIncludeOtherChars: true,
+          provenance: "compositeConcat",
+        }),
+      },
+      {
+        name: "char inclusion + prefix-suffix preserves the trailing edge with chars",
+        left: charInclusionClassValue("s", "st"),
+        right: prefixSuffixClassValue("btn-", "-chip", 9),
+        expected: compositeClassValue({
+          suffix: "-chip",
+          minLength: 9,
+          mustChars: "-bchinpst",
+          mayChars: "-bchinpst",
+          mayIncludeOtherChars: true,
+          provenance: "compositeConcat",
+        }),
       },
     ];
 

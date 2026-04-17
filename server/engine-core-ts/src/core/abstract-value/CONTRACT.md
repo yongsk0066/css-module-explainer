@@ -109,8 +109,12 @@ Required invariant:
 - `prefix + finiteSet` -> `prefix(left)` unless the finite values keep a meaningful shared class suffix, in which case `prefixSuffix(left, lcs(vs))`
 - `prefix + prefix` -> `prefix(left)`
 - `prefix + suffix` -> `prefixSuffix(left, right)`
+- `prefix + charInclusion` -> `composite(prefix, char constraints)` with unknown trailing characters still allowed
 - `suffix + exact` -> `suffix(right)`
 - `suffix + finiteSet(vs)` -> `suffix(lcs(vs))` when the finite right values keep a meaningful shared class suffix, otherwise `top`
+- `charInclusion + suffix` -> `composite(suffix, char constraints)` when the trailing edge remains informative
+- `prefixSuffix + charInclusion` -> `composite(prefix, char constraints)` when only the leading edge survives concatenation
+- `charInclusion + prefixSuffix` -> `composite(suffix, char constraints)` when only the trailing edge survives concatenation
 - `prefixSuffix + exact` -> `prefixSuffix(prefix, suffix + exact)`
 - incompatible non-finite concatenation widens to `top`
 
