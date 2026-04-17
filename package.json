@@ -41,6 +41,7 @@
     "typecheck": "tsc -b",
     "test": "vitest run",
     "check:workspace": "tsx ./scripts/check-workspace.ts",
+    "explain:expression": "tsx ./scripts/explain-expression.ts",
     "check:semantic-smoke": "tsx ./scripts/check-semantic-smoke.ts",
     "check:release-batch": "tsx ./scripts/check-release-batch.ts",
     "check:contract-parity-smoke": "tsx ./scripts/check-contract-parity-smoke.ts",

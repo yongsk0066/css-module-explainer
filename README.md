@@ -212,6 +212,7 @@ pnpm check:workspace -- --list-bundles
 pnpm check:workspace -- . --include-bundle source-missing --summary
 pnpm check:workspace -- . --preset changed-style --changed-file src/Button.module.scss --compact
 pnpm check:workspace -- . --format json --fail-on none
+pnpm explain:expression -- src/App.tsx:12:24
 ```
 
 Current checker policy:

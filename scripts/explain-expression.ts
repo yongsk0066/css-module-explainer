@@ -1,0 +1,202 @@
+import path from "node:path";
+import { explainExpressionAtLocation } from "../server/engine-host-node/src/explain-expression";
+
+interface ParsedArgs {
+  readonly workspaceRoot: string;
+  readonly filePath: string;
+  readonly line: number;
+  readonly character: number;
+  readonly json: boolean;
+}
+
+void (async () => {
+  const parsed = parseArgs(process.argv.slice(2), process.cwd());
+  if ("error" in parsed) {
+    process.stderr.write(`${parsed.error}\n`);
+    process.stderr.write(buildHelpText());
+    process.exitCode = 2;
+    return;
+  }
+  if ("helpText" in parsed) {
+    process.stdout.write(parsed.helpText);
+    return;
+  }
+
+  const result = explainExpressionAtLocation(parsed);
+  if (!result) {
+    process.stderr.write("No explainable source class expression found at the given location.\n");
+    process.exitCode = 1;
+    return;
+  }
+
+  if (parsed.json) {
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    return;
+  }
+
+  process.stdout.write(formatExplainResult(result, parsed.workspaceRoot));
+})();
+
+function parseArgs(
+  argv: readonly string[],
+  cwd: string,
+): ParsedArgs | { readonly error: string } | { readonly helpText: string } {
+  let workspaceRoot = cwd;
+  let locationArg: string | null = null;
+  let json = false;
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index]!;
+    if (arg === "--") continue;
+    if (arg === "--help" || arg === "-h") return { helpText: buildHelpText() };
+    if (arg === "--json") {
+      json = true;
+      continue;
+    }
+    if (arg === "--root") {
+      const value = argv[index + 1];
+      if (!value) return { error: "Missing value for --root" };
+      workspaceRoot = path.resolve(cwd, value);
+      index += 1;
+      continue;
+    }
+    if (!locationArg) {
+      locationArg = arg;
+      continue;
+    }
+    return { error: `Unexpected argument: ${arg}` };
+  }
+
+  if (!locationArg) return { helpText: buildHelpText() };
+  const location = parseLocationArg(locationArg, workspaceRoot);
+  if ("error" in location) return location;
+
+  return {
+    workspaceRoot,
+    filePath: location.filePath,
+    line: location.line,
+    character: location.character,
+    json,
+  };
+}
+
+function parseLocationArg(
+  value: string,
+  workspaceRoot: string,
+):
+  | { readonly filePath: string; readonly line: number; readonly character: number }
+  | { readonly error: string } {
+  const lastColon = value.lastIndexOf(":");
+  if (lastColon < 0) return { error: "Expected <file>:<line>:<column>" };
+  const secondLastColon = value.lastIndexOf(":", lastColon - 1);
+  if (secondLastColon < 0) return { error: "Expected <file>:<line>:<column>" };
+
+  const filePart = value.slice(0, secondLastColon);
+  const linePart = value.slice(secondLastColon + 1, lastColon);
+  const characterPart = value.slice(lastColon + 1);
+  const line = Number.parseInt(linePart, 10);
+  const character = Number.parseInt(characterPart, 10);
+
+  if (!filePart) return { error: "Expected <file>:<line>:<column>" };
+  if (!Number.isInteger(line) || line < 1) return { error: "Line must be a positive integer." };
+  if (!Number.isInteger(character) || character < 1) {
+    return { error: "Column must be a positive integer." };
+  }
+
+  return {
+    filePath: path.resolve(workspaceRoot, filePart),
+    line: line - 1,
+    character: character - 1,
+  };
+}
+
+function formatExplainResult(
+  result: {
+    readonly filePath: string;
+    readonly line: number;
+    readonly character: number;
+    readonly expressionKind: string;
+    readonly styleFilePath: string;
+    readonly selectorNames: readonly string[];
+    readonly dynamicExplanation: {
+      readonly kind: string;
+      readonly subject: string;
+      readonly candidates: readonly string[];
+      readonly valueDomainLabel?: string;
+      readonly valueDomainReasonLabel?: string;
+      readonly valueCertainty?: string;
+      readonly valueCertaintyShapeLabel?: string;
+      readonly valueCertaintyReasonLabel?: string;
+      readonly selectorCertainty?: string;
+      readonly selectorCertaintyShapeLabel?: string;
+      readonly selectorCertaintyReasonLabel?: string;
+      readonly reasonLabel?: string;
+    } | null;
+  },
+  workspaceRoot: string,
+): string {
+  const lines = [
+    `File: ${relativeOrAbsolute(result.filePath, workspaceRoot)}:${result.line + 1}:${result.character + 1}`,
+    `Expression kind: ${result.expressionKind}`,
+    `Style module: ${relativeOrAbsolute(result.styleFilePath, workspaceRoot)}`,
+    `Matched selectors: ${result.selectorNames.length > 0 ? result.selectorNames.join(", ") : "(none)"}`,
+  ];
+
+  if (result.dynamicExplanation) {
+    lines.push(`Reference subject: ${result.dynamicExplanation.subject}`);
+    if (result.dynamicExplanation.reasonLabel) {
+      lines.push(`Resolution reason: ${result.dynamicExplanation.reasonLabel}`);
+    }
+    if (result.dynamicExplanation.candidates.length > 0) {
+      lines.push(`Candidates: ${result.dynamicExplanation.candidates.join(", ")}`);
+    }
+    if (result.dynamicExplanation.valueDomainLabel) {
+      lines.push(`Value domain: ${result.dynamicExplanation.valueDomainLabel}`);
+    }
+    if (result.dynamicExplanation.valueDomainReasonLabel) {
+      lines.push(`Value domain reason: ${result.dynamicExplanation.valueDomainReasonLabel}`);
+    }
+    if (result.dynamicExplanation.valueCertainty) {
+      lines.push(`Value certainty: ${result.dynamicExplanation.valueCertainty}`);
+    }
+    if (result.dynamicExplanation.valueCertaintyShapeLabel) {
+      lines.push(`Value certainty shape: ${result.dynamicExplanation.valueCertaintyShapeLabel}`);
+    }
+    if (result.dynamicExplanation.valueCertaintyReasonLabel) {
+      lines.push(`Value certainty reason: ${result.dynamicExplanation.valueCertaintyReasonLabel}`);
+    }
+    if (result.dynamicExplanation.selectorCertainty) {
+      lines.push(`Selector certainty: ${result.dynamicExplanation.selectorCertainty}`);
+    }
+    if (result.dynamicExplanation.selectorCertaintyShapeLabel) {
+      lines.push(
+        `Selector certainty shape: ${result.dynamicExplanation.selectorCertaintyShapeLabel}`,
+      );
+    }
+    if (result.dynamicExplanation.selectorCertaintyReasonLabel) {
+      lines.push(
+        `Selector certainty reason: ${result.dynamicExplanation.selectorCertaintyReasonLabel}`,
+      );
+    }
+  }
+
+  return `${lines.join("\n")}\n`;
+}
+
+function relativeOrAbsolute(filePath: string, workspaceRoot: string): string {
+  const relativePath = path.relative(workspaceRoot, filePath);
+  if (!relativePath || relativePath.startsWith("..")) return filePath;
+  return relativePath;
+}
+
+function buildHelpText(): string {
+  return [
+    "Usage: pnpm explain:expression -- <file>:<line>:<column> [options]",
+    "",
+    "Options:",
+    "  --root <path>   Workspace root (defaults to cwd)",
+    "  --json          Emit JSON instead of text",
+    "  --help, -h      Show this help text",
+    "",
+  ].join("\n");
+}
