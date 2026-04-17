@@ -289,12 +289,17 @@
           "finiteValues": null,
           "reason": "flowLiteral",
           "selectorCertainty": "exact",
+          "selectorCertaintyShapeKind": "exact",
           "selectorCertaintyShapeLabel": "exact",
           "selectorNames": ["btn-idle-chip", "btn-busy-chip", "btn-error-chip"],
           "styleFilePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixParity.module.scss",
           "valueCertainty": "inferred",
+          "valueCertaintyConstraintKind": "prefixSuffix",
           "valueCertaintyReason": "known prefix and suffix were preserved across concatenation",
-          "valueDomainKind": "top",
+          "valueCertaintyShapeKind": "constrained",
+          "valueCertaintyShapeLabel": "constrained prefix `btn-` + suffix `-chip`",
+          "valueConstraintKind": "prefixSuffix",
+          "valueDomainKind": "constrained",
           "valueDomainReason": "known prefix and suffix were preserved across concatenation"
         },
         "queryId": "class-expr:0"
@@ -307,11 +312,15 @@
           "finiteValues": null,
           "reason": "flowLiteral",
           "selectorCertainty": "exact",
+          "selectorCertaintyShapeKind": "exact",
           "selectorCertaintyShapeLabel": "exact",
           "selectorNames": ["btn-idle-chip", "btn-busy-chip", "btn-error-chip"],
           "styleFilePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixParity.module.scss",
           "valueCertainty": "inferred",
-          "valueCertaintyReason": "known prefix and suffix were preserved across concatenation"
+          "valueCertaintyConstraintKind": "prefixSuffix",
+          "valueCertaintyReason": "known prefix and suffix were preserved across concatenation",
+          "valueCertaintyShapeKind": "constrained",
+          "valueCertaintyShapeLabel": "constrained prefix `btn-` + suffix `-chip`"
         },
         "queryId": "class-expr:0"
       }

@@ -237,6 +237,7 @@
           "finiteValues": null,
           "selectorCertainty": "possible",
           "selectorCertaintyReason": "no selector could be proven for this value",
+          "selectorCertaintyShapeKind": "unknown",
           "selectorCertaintyShapeLabel": "unknown",
           "selectorNames": [],
           "styleFilePath": "<workspace>/test/_fixtures/contract-parity/TypeFactParity.module.scss",
@@ -252,6 +253,7 @@
           "finiteValues": null,
           "selectorCertainty": "possible",
           "selectorCertaintyReason": "no selector could be proven for this value",
+          "selectorCertaintyShapeKind": "unknown",
           "selectorCertaintyShapeLabel": "unknown",
           "selectorNames": [],
           "styleFilePath": "<workspace>/test/_fixtures/contract-parity/TypeFactParity.module.scss"

@@ -20,7 +20,7 @@ afterEach(() => {
 });
 
 describe("buildCheckerEngineParitySnapshotV2", () => {
-  it("assembles a v2 parity snapshot while reusing v1 query output", async () => {
+  it("assembles a v2 parity snapshot with constrained query metadata", async () => {
     const workspaceRoot = makeWorkspace({
       "src/App.tsx": [
         "import classNames from 'classnames/bind';",
@@ -82,6 +82,87 @@ describe("buildCheckerEngineParitySnapshotV2", () => {
         expect.objectContaining({
           kind: "expression-semantics",
           filePath: path.join(workspaceRoot, "src/App.tsx"),
+          payload: expect.objectContaining({
+            valueDomainKind: "exact",
+            valueCertaintyShapeKind: "exact",
+          }),
+        }),
+      ]),
+    );
+  });
+
+  it("emits bundle-1 constrained query payloads for prefix-suffix flow", async () => {
+    const workspaceRoot = makeWorkspace({
+      "src/App.tsx": [
+        'import classNames from "classnames/bind";',
+        'import styles from "./Button.module.scss";',
+        "",
+        "const cx = classNames.bind(styles);",
+        "",
+        "export function App(variant: string) {",
+        '  const className = "btn-" + variant + "-chip";',
+        "  return <div className={cx(className)} />;",
+        "}",
+        "",
+      ].join("\n"),
+      "src/Button.module.scss": [
+        ".btn-idle-chip {}",
+        ".btn-busy-chip {}",
+        ".btn-error-chip {}",
+      ].join("\n"),
+    });
+
+    const { sourceFiles, styleFiles } = await resolveWorkspaceCheckFiles({ workspaceRoot });
+    const styleHost = createWorkspaceStyleHost({
+      styleFiles,
+      classnameTransform: "asIs",
+    });
+    styleHost.preloadStyleDocuments();
+    const analysisHost = createWorkspaceAnalysisHost({
+      workspaceRoot,
+      classnameTransform: "asIs",
+      pathAlias: {},
+      styleDocumentForPath: styleHost.styleDocumentForPath,
+    });
+    const sourceDocuments = collectSourceDocuments(sourceFiles, analysisHost.analysisCache);
+    const command = await runWorkspaceCheckCommand({
+      workspace: { workspaceRoot },
+      filters: {
+        preset: "ci",
+        category: "all",
+        severity: "all",
+        includeBundles: ["ci-default"],
+        includeCodes: [],
+        excludeCodes: [],
+      },
+    });
+
+    const snapshot = buildCheckerEngineParitySnapshotV2({
+      workspaceRoot,
+      classnameTransform: "asIs",
+      pathAlias: {},
+      sourceDocuments,
+      styleFiles,
+      analysisCache: analysisHost.analysisCache,
+      styleDocumentForPath: styleHost.styleDocumentForPath,
+      typeResolver: analysisHost.typeResolver,
+      checkerReport: command.checkerReport,
+      semanticReferenceIndex: analysisHost.semanticReferenceIndex,
+      styleDependencyGraph: styleHost.styleDependencyGraph,
+    });
+
+    expect(snapshot.output.queryResults).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "expression-semantics",
+          payload: expect.objectContaining({
+            valueDomainKind: "constrained",
+            valueConstraintKind: "prefixSuffix",
+            valueCertaintyShapeKind: "constrained",
+            valueCertaintyConstraintKind: "prefixSuffix",
+            selectorCertaintyShapeKind: "exact",
+            selectorNames: ["btn-idle-chip", "btn-busy-chip", "btn-error-chip"],
+          }),
         }),
       ]),
     );

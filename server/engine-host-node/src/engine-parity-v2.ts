@@ -4,7 +4,7 @@ import type {
   EngineOutputV2,
 } from "../../engine-core-ts/src/contracts";
 import { buildEngineInputV2, type BuildEngineInputV2Options } from "./engine-input-v2";
-import { buildSelectedQueryResultsV1 } from "./engine-query-v1";
+import { buildSelectedQueryResultsV2 } from "./engine-query-v2";
 import { buildEngineOutputV2 } from "./engine-output-v2";
 import type { WorkspaceSemanticWorkspaceReferenceIndex } from "../../engine-core-ts/src/core/semantic/workspace-reference-index";
 import type { WorkspaceStyleDependencyGraph } from "../../engine-core-ts/src/core/semantic/style-dependency-graph";
@@ -36,7 +36,7 @@ export function buildCheckerEngineParitySnapshotV2(
     input: buildEngineInputV2(options),
     output: buildEngineOutputV2({
       checkerReport: options.checkerReport,
-      queryResults: buildSelectedQueryResultsV1({
+      queryResults: buildSelectedQueryResultsV2({
         workspaceRoot: options.workspaceRoot,
         sourceDocuments: options.sourceDocuments,
         styleFiles: options.styleFiles,
