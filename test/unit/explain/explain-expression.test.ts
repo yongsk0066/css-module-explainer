@@ -40,6 +40,11 @@ describe("explainExpressionAtLocation", () => {
         expressionKind: "symbolRef",
         styleFilePath: path.join(workspaceRoot, "src/Button.module.scss"),
         selectorNames: ["small"],
+        analysisV2: expect.objectContaining({
+          valueDomainKind: "finiteSet",
+          valueCertaintyShapeKind: "boundedFinite",
+          selectorCertaintyShapeKind: "boundedFinite",
+        }),
         dynamicExplanation: expect.objectContaining({
           subject: "size",
           valueCertainty: "inferred",
@@ -47,6 +52,46 @@ describe("explainExpressionAtLocation", () => {
           valueCertaintyReasonLabel: "analysis preserved multiple finite candidate values",
           selectorCertainty: "inferred",
           selectorCertaintyShapeLabel: "bounded selector set (1)",
+        }),
+      }),
+    );
+  });
+
+  it("surfaces bundle-1 constrained metadata for prefix-suffix expressions", () => {
+    const workspaceRoot = makeWorkspace({
+      "src/App.tsx": [
+        'import classNames from "classnames/bind";',
+        'import styles from "./Button.module.scss";',
+        "const cx = classNames.bind(styles);",
+        "export function App(variant: string) {",
+        '  const className = "btn-" + variant + "-chip";',
+        "  return <div className={cx(className)} />;",
+        "}",
+        "",
+      ].join("\n"),
+      "src/Button.module.scss": [
+        ".btn-idle-chip {}",
+        ".btn-busy-chip {}",
+        ".btn-error-chip {}",
+      ].join("\n"),
+    });
+
+    const result = explainExpressionAtLocation({
+      workspaceRoot,
+      filePath: path.join(workspaceRoot, "src/App.tsx"),
+      line: 5,
+      character: 28,
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        selectorNames: ["btn-idle-chip", "btn-busy-chip", "btn-error-chip"],
+        analysisV2: expect.objectContaining({
+          valueDomainKind: "constrained",
+          valueConstraintKind: "prefixSuffix",
+          valueCertaintyShapeKind: "constrained",
+          valueCertaintyConstraintKind: "prefixSuffix",
+          selectorCertaintyShapeKind: "exact",
         }),
       }),
     );

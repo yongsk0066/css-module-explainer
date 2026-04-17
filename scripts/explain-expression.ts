@@ -118,6 +118,14 @@ function formatExplainResult(
     readonly expressionKind: string;
     readonly styleFilePath: string;
     readonly selectorNames: readonly string[];
+    readonly analysisV2: {
+      readonly valueDomainKind: string;
+      readonly valueConstraintKind?: string;
+      readonly valueCertaintyShapeKind?: string;
+      readonly valueCertaintyConstraintKind?: string;
+      readonly selectorCertaintyShapeKind?: string;
+      readonly selectorConstraintKind?: string;
+    };
     readonly dynamicExplanation: {
       readonly kind: string;
       readonly subject: string;
@@ -178,6 +186,25 @@ function formatExplainResult(
         `Selector certainty reason: ${result.dynamicExplanation.selectorCertaintyReasonLabel}`,
       );
     }
+  }
+
+  lines.push(`V2 value domain kind: ${result.analysisV2.valueDomainKind}`);
+  if (result.analysisV2.valueConstraintKind) {
+    lines.push(`V2 value constraint kind: ${result.analysisV2.valueConstraintKind}`);
+  }
+  if (result.analysisV2.valueCertaintyShapeKind) {
+    lines.push(`V2 value certainty shape kind: ${result.analysisV2.valueCertaintyShapeKind}`);
+  }
+  if (result.analysisV2.valueCertaintyConstraintKind) {
+    lines.push(
+      `V2 value certainty constraint kind: ${result.analysisV2.valueCertaintyConstraintKind}`,
+    );
+  }
+  if (result.analysisV2.selectorCertaintyShapeKind) {
+    lines.push(`V2 selector certainty shape kind: ${result.analysisV2.selectorCertaintyShapeKind}`);
+  }
+  if (result.analysisV2.selectorConstraintKind) {
+    lines.push(`V2 selector constraint kind: ${result.analysisV2.selectorConstraintKind}`);
   }
 
   return `${lines.join("\n")}\n`;

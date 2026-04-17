@@ -1,15 +1,27 @@
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
+import type {
+  SelectorCertaintyShapeKindV2,
+  StringConstraintKindV2,
+  ValueCertaintyShapeKindV2,
+  ValueDomainKindV2,
+} from "../../engine-core-ts/src/contracts";
 import type { DynamicHoverExplanation } from "../../engine-core-ts/src/core/query";
 import {
   readSourceExpressionContextAtCursor,
+  readSourceExpressionResolution,
   resolveRefDetails,
 } from "../../engine-core-ts/src/core/query";
+import {
+  deriveSelectorCertaintyProfileV2,
+  deriveValueCertaintyProfileV2,
+} from "../../engine-core-ts/src/core/semantic/certainty";
 import type { ClassnameTransformMode } from "../../engine-core-ts/src/core/scss/classname-transform";
 import {
   createWorkspaceAnalysisHost,
   createWorkspaceStyleHost,
 } from "./checker-host/workspace-check-support";
+import { classifyValueDomainV2 } from "./query-metadata-v2";
 
 export interface ExplainExpressionOptions {
   readonly workspaceRoot: string;
@@ -28,6 +40,14 @@ export interface ExplainExpressionResult {
   readonly styleFilePath: string;
   readonly selectorNames: readonly string[];
   readonly dynamicExplanation: DynamicHoverExplanation | null;
+  readonly analysisV2: {
+    readonly valueDomainKind: ValueDomainKindV2;
+    readonly valueConstraintKind?: StringConstraintKindV2;
+    readonly valueCertaintyShapeKind?: ValueCertaintyShapeKindV2;
+    readonly valueCertaintyConstraintKind?: StringConstraintKindV2;
+    readonly selectorCertaintyShapeKind?: SelectorCertaintyShapeKindV2;
+    readonly selectorConstraintKind?: StringConstraintKindV2;
+  };
 }
 
 export function explainExpressionAtLocation(
@@ -67,6 +87,31 @@ export function explainExpressionAtLocation(
     filePath: options.filePath,
     workspaceRoot: options.workspaceRoot,
   });
+  const resolution = readSourceExpressionResolution(
+    {
+      expression: ctx.expression,
+      sourceFile: ctx.entry.sourceFile,
+      styleDocument: ctx.styleDocument,
+    },
+    {
+      styleDocumentForPath: styleHost.styleDocumentForPath,
+      typeResolver: analysisHost.typeResolver,
+      filePath: options.filePath,
+      workspaceRoot: options.workspaceRoot,
+      sourceBinder: ctx.entry.sourceBinder,
+      sourceBindingGraph: ctx.entry.sourceBindingGraph,
+    },
+  );
+  const valueDomain = classifyValueDomainV2(resolution.abstractValue);
+  const valueCertaintyProfile = deriveValueCertaintyProfileV2(
+    resolution.abstractValue,
+    resolution.valueCertainty,
+  );
+  const selectorCertaintyProfile = deriveSelectorCertaintyProfileV2(
+    resolution.selectors.length,
+    resolution.selectorCertainty,
+    resolution.abstractValue,
+  );
 
   return {
     filePath: options.filePath,
@@ -76,5 +121,21 @@ export function explainExpressionAtLocation(
     styleFilePath: ctx.expression.scssModulePath,
     selectorNames: resolved.selectors.map((selector) => selector.name),
     dynamicExplanation: resolved.dynamicExplanation,
+    analysisV2: {
+      valueDomainKind: valueDomain.kind,
+      ...(valueDomain.constraintKind ? { valueConstraintKind: valueDomain.constraintKind } : {}),
+      ...(valueCertaintyProfile
+        ? { valueCertaintyShapeKind: valueCertaintyProfile.shapeKind }
+        : {}),
+      ...(valueCertaintyProfile?.valueConstraintKind
+        ? { valueCertaintyConstraintKind: valueCertaintyProfile.valueConstraintKind }
+        : {}),
+      ...(selectorCertaintyProfile
+        ? { selectorCertaintyShapeKind: selectorCertaintyProfile.shapeKind }
+        : {}),
+      ...(selectorCertaintyProfile?.selectorConstraintKind
+        ? { selectorConstraintKind: selectorCertaintyProfile.selectorConstraintKind }
+        : {}),
+    },
   };
 }
