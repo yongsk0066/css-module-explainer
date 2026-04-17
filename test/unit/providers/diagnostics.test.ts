@@ -291,6 +291,7 @@ describe("computeDiagnostics", () => {
     expect(result[0]!.message).toContain(
       "Analysis reason: TypeScript exposed multiple string-literal candidates.",
     );
+    expect(result[0]!.message).toContain("Analysis shape: bounded finite (3).");
   });
 
   it("warns on a variable call when local flow resolves a missing value", () => {
@@ -351,6 +352,7 @@ const a = cx(size);
     expect(result[0]!.message).toContain(
       "Analysis reason: analysis preserved multiple finite candidate values.",
     );
+    expect(result[0]!.message).toContain("Analysis shape: bounded finite (2).");
   });
 
   it("skips variable calls with an unresolvable type (ignoreUnresolvableUnions)", () => {

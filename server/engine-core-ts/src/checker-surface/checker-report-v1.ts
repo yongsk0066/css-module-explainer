@@ -6,6 +6,7 @@ import {
   type CheckerReportV1,
 } from "../contracts";
 import { formatCheckerFinding } from "./format-checker-finding";
+import { buildInvalidClassAnalysisMetadata } from "../core/query";
 
 export function buildCheckerReportV1(
   findings: readonly WorkspaceCheckerFinding[],
@@ -14,16 +15,26 @@ export function buildCheckerReportV1(
 ): CheckerReportV1 {
   return {
     version: CHECKER_REPORT_VERSION_V1,
-    findings: findings.map(
-      ({ filePath, finding }): CheckerFindingRecordV1 => ({
+    findings: findings.map(({ filePath, finding }): CheckerFindingRecordV1 => {
+      const analysisMetadata =
+        finding.code === "missing-resolved-class-values" ||
+        finding.code === "missing-resolved-class-domain"
+          ? buildInvalidClassAnalysisMetadata(
+              finding.abstractValue,
+              finding.valueCertainty,
+              finding.reason,
+            )
+          : {};
+      return {
         filePath,
         category: finding.category,
         code: finding.code,
         severity: finding.severity,
         range: finding.range,
         message: formatCheckerFinding(finding, workspaceRoot),
-      }),
-    ),
+        ...analysisMetadata,
+      };
+    }),
     summary,
   };
 }

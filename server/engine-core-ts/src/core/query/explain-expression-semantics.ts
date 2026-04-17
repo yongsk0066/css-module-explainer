@@ -19,6 +19,11 @@ export interface DynamicExpressionExplanation {
   readonly reasonLabel?: string;
 }
 
+export interface InvalidClassAnalysisMetadata {
+  readonly analysisReason?: string;
+  readonly valueCertaintyShapeLabel?: string;
+}
+
 export function buildDynamicExpressionExplanation(
   expression: ClassExpressionHIR,
   semantics: ExpressionSemanticsSummary,
@@ -128,13 +133,38 @@ function withAnalysisReason(
     { kind: "missingResolvedClassValues" | "missingResolvedClassDomain" }
   >,
 ): string {
+  const metadata = buildInvalidClassAnalysisMetadata(
+    finding.abstractValue,
+    finding.valueCertainty,
+    finding.reason,
+  );
+  const parts = [message];
+  if (metadata.analysisReason) {
+    parts.push(`Analysis reason: ${metadata.analysisReason}.`);
+  }
+  if (metadata.valueCertaintyShapeLabel) {
+    parts.push(`Analysis shape: ${metadata.valueCertaintyShapeLabel}.`);
+  }
+  return parts.join(" ");
+}
+
+export function buildInvalidClassAnalysisMetadata(
+  abstractValue: FlowResolution["abstractValue"] | undefined,
+  valueCertainty: EdgeCertainty | undefined,
+  reason: FlowResolution["reason"] | undefined,
+): InvalidClassAnalysisMetadata {
   const reasons = [
-    describeValueCertaintyReason(finding.abstractValue, finding.valueCertainty, finding.reason),
-    describeAbstractValueReason(finding.abstractValue),
-  ].filter((reason): reason is string => Boolean(reason));
+    describeValueCertaintyReason(abstractValue, valueCertainty, reason),
+    describeAbstractValueReason(abstractValue),
+  ].filter((candidate): candidate is string => Boolean(candidate));
   const uniqueReasons = Array.from(new Set(reasons));
-  if (uniqueReasons.length === 0) return message;
-  return `${message} Analysis reason: ${uniqueReasons.join("; ")}.`;
+  const valueCertaintyProfile = deriveValueCertaintyProfile(abstractValue, valueCertainty);
+  return {
+    ...(uniqueReasons.length > 0 ? { analysisReason: uniqueReasons.join("; ") } : {}),
+    ...(valueCertaintyProfile
+      ? { valueCertaintyShapeLabel: valueCertaintyProfile.shapeLabel }
+      : {}),
+  };
 }
 
 export function describeAbstractValue(

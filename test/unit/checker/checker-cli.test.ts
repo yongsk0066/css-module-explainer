@@ -313,6 +313,40 @@ describe("runCheckerCli", () => {
     );
   });
 
+  it("emits analysis metadata in json findings for dynamic source misses", async () => {
+    const workspaceRoot = makeWorkspace({
+      "src/App.tsx": [
+        "import classNames from 'classnames/bind';",
+        "import styles from './Button.module.scss';",
+        "const cx = classNames.bind(styles);",
+        "const size: 'small' | 'large' = Math.random() > 0.5 ? 'small' : 'large';",
+        "const bad = cx(size);",
+        "",
+      ].join("\n"),
+      "src/Button.module.scss": ".small {}",
+    });
+    const stdout: string[] = [];
+
+    const exitCode = await runCheckerCli([workspaceRoot, "--format", "json", "--fail-on", "none"], {
+      stdout: (message) => stdout.push(message),
+      stderr: () => {},
+      cwd: () => workspaceRoot,
+    });
+
+    expect(exitCode).toBe(0);
+    const payload = JSON.parse(stdout.join(""));
+    expect(payload.findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          category: "source",
+          code: "missing-resolved-class-values",
+          analysisReason: "analysis preserved multiple finite candidate values",
+          valueCertaintyShapeLabel: "bounded finite (2)",
+        }),
+      ]),
+    );
+  });
+
   it("uses compact output and style bundles for changed-style preset", async () => {
     const workspaceRoot = makeWorkspace({
       "src/Button.module.scss": ".button {}\n.unused {}",

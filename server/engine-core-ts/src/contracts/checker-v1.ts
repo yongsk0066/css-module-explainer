@@ -10,6 +10,8 @@ export interface CheckerFindingRecordV1 {
   readonly severity: CheckerFinding["severity"];
   readonly range: Range;
   readonly message: string;
+  readonly analysisReason?: string;
+  readonly valueCertaintyShapeLabel?: string;
 }
 
 export interface CheckerReportSummaryV1 {

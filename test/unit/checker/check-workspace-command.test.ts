@@ -64,6 +64,44 @@ describe("runWorkspaceCheckCommand", () => {
       ]),
     );
   });
+
+  it("includes analysis metadata for dynamic source findings in checker reports", async () => {
+    const workspaceRoot = makeWorkspace({
+      "src/App.tsx": [
+        "import classNames from 'classnames/bind';",
+        "import styles from './Button.module.scss';",
+        "const cx = classNames.bind(styles);",
+        "const size: 'small' | 'large' = Math.random() > 0.5 ? 'small' : 'large';",
+        "const bad = cx(size);",
+        "",
+      ].join("\n"),
+      "src/Button.module.scss": ".small {}",
+    });
+
+    const result = await runWorkspaceCheckCommand({
+      workspace: { workspaceRoot },
+      filters: {
+        preset: null,
+        category: "all",
+        severity: "all",
+        includeBundles: [],
+        includeCodes: [],
+        excludeCodes: [],
+      },
+    });
+
+    expect(result.checkerReport.findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          filePath: path.join(workspaceRoot, "src/App.tsx"),
+          category: "source",
+          code: "missing-resolved-class-values",
+          analysisReason: "analysis preserved multiple finite candidate values",
+          valueCertaintyShapeLabel: "bounded finite (2)",
+        }),
+      ]),
+    );
+  });
 });
 
 function makeWorkspace(files: Record<string, string>): string {

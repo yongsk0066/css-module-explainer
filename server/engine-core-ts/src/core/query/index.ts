@@ -1,8 +1,10 @@
 export type { SourceExpressionCursor, SourceExpressionQueryDeps } from "./contracts";
 export {
+  buildInvalidClassAnalysisMetadata,
   buildDynamicExpressionExplanation,
   messageForInvalidClassFinding,
   type DynamicExpressionExplanation,
+  type InvalidClassAnalysisMetadata,
 } from "./explain-expression-semantics";
 export {
   findAnimationNameRefAtCursor,

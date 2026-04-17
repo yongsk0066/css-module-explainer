@@ -101,6 +101,7 @@ export function Button(enabled: boolean) {
     expect(diagnostics[0]!.message).toContain(
       "Analysis reason: analysis preserved multiple finite candidate values.",
     );
+    expect(diagnostics[0]!.message).toContain("Analysis shape: bounded finite (2).");
   });
 
   it("publishes a missing-module diagnostic with create-file data", async () => {
