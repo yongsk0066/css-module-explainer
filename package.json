@@ -43,6 +43,7 @@
     "check:workspace": "tsx ./scripts/check-workspace.ts",
     "explain:expression": "tsx ./scripts/explain-expression.ts",
     "check:semantic-smoke": "tsx ./scripts/check-semantic-smoke.ts",
+    "check:real-project-corpus": "tsx ./scripts/check-real-project-corpus.ts",
     "check:release-batch": "tsx ./scripts/check-release-batch.ts",
     "check:contract-parity-smoke": "tsx ./scripts/check-contract-parity-smoke.ts",
     "check:contract-parity-golden": "tsx ./scripts/check-contract-parity-golden.ts",

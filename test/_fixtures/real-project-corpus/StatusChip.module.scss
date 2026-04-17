@@ -1,0 +1,35 @@
+@value successTone, warningTone, dangerTone from "./StatusChipTokens.module.scss";
+
+@keyframes shimmer {
+  from {
+    opacity: 0.85;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.chip {
+  border-radius: 999px;
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px 10px;
+
+  &.compact {
+    padding: 2px 8px;
+  }
+}
+
+.success {
+  animation-name: shimmer;
+  color: successTone;
+}
+
+.warning {
+  color: warningTone;
+}
+
+.danger {
+  color: dangerTone;
+}

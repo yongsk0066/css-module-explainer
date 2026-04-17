@@ -1,0 +1,13 @@
+.card {
+  composes: surface from "./MarketingCardBase.module.scss";
+  display: grid;
+  gap: 12px;
+}
+
+.featured {
+  box-shadow: 0 0 0 2px royalblue;
+}
+
+.body {
+  display: grid;
+}

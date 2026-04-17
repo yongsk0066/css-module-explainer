@@ -1,0 +1,40 @@
+.button {
+  border: 0;
+  border-radius: 999px;
+}
+
+.btn-primary {
+  background: royalblue;
+}
+
+.btn-secondary {
+  background: slategray;
+}
+
+.btn-danger {
+  background: crimson;
+}
+
+.btn-success {
+  background: seagreen;
+}
+
+.btn-warning {
+  background: goldenrod;
+}
+
+.btn-info {
+  background: dodgerblue;
+}
+
+.btn-muted {
+  background: darkgray;
+}
+
+.btn-ghost {
+  background: transparent;
+}
+
+.btn-outline {
+  border: 1px solid currentcolor;
+}

@@ -229,6 +229,7 @@ Current checker policy:
   - `changed-source` => `source-missing`
 - `changed-style` and `changed-source` presets use compact text output by default
 - `pnpm check:semantic-smoke` is the canonical repo-local smoke command
+- `pnpm check:real-project-corpus` runs a clean multi-file corpus that mimics common product patterns (`variants`, `@value` + `@keyframes`, `composes`, `.module.less`)
 - semantic smoke cases are versioned in `scripts/semantic-smoke-corpus.ts` and should be updated when new semantic surfaces become release-relevant
 - `pnpm check:release-batch` is the canonical release-facing batch checker pass
 - the release batch corpus is versioned in `scripts/release-batch-corpus.ts`; it stays intentionally clean even if `examples/` contains negative recovery fixtures
