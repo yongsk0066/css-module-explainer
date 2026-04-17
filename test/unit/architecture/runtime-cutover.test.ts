@@ -4,11 +4,16 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const ROOT = join(fileURLToPath(new URL("../../..", import.meta.url)));
-const SERVER_SRC = join(ROOT, "server/src");
+const RUNTIME_SOURCE_ROOTS = [
+  join(ROOT, "server/engine-host-node/src"),
+  join(ROOT, "server/adapter-vscode/src"),
+] as const;
 
 describe("runtime cutover", () => {
   it("does not keep old semantic-graph-first helpers in runtime", () => {
-    const files = listFiles(SERVER_SRC).filter((file) => file.endsWith(".ts"));
+    const files = RUNTIME_SOURCE_ROOTS.flatMap((dir) => listFiles(dir)).filter((file) =>
+      file.endsWith(".ts"),
+    );
     const forbidden = [
       "/core/semantic/graph-builder",
       "/core/semantic/reference-index",
