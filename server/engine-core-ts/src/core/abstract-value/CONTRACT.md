@@ -25,13 +25,14 @@ Current exposure status:
 - V2 Bundle 1 external contract
   - `suffix`
   - `prefixSuffix`
-  - exposed through:
-    - `TypeFactTableV2`
-    - `EngineOutputV2.queryResults`
-    - `pnpm explain:expression -- --json`
-- not yet externally exposed in V2
-  - `charInclusion`
-  - `composite`
+- V2 Bundle 2 external contract
+- `charInclusion`
+- V2 Bundle 3 external contract
+- `composite`
+- exposed through:
+  - `TypeFactTableV2`
+  - `EngineOutputV2.queryResults`
+  - `pnpm explain:expression -- --json`
 
 Important rule:
 
@@ -71,10 +72,10 @@ The runtime uses these abstract values:
   - denotes some non-empty set of strings whose members all start with `p` and end with `s`
   - `minLength` tracks the shortest known concrete string length for this constrained shape
   - V2 Bundle 1 may expose this as `constrained + constraintKind: "prefixSuffix"`
-- `charInclusion(must, may)` _(internal-only pre-Bundle 2)_
+- `charInclusion(must, may)`
   - denotes some non-empty set of strings whose members contain every character in `must`
   - when `mayIncludeOtherChars` is false, members may only use characters from `may`
-- `composite(prefix?, suffix?, must, may)` _(internal-only pre-Bundle 3)_
+- `composite(prefix?, suffix?, must, may)`
   - denotes a reduced product of edge constraints and character inclusion constraints
   - absent axes mean "no information on that axis"
 - `top`

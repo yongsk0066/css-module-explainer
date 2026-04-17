@@ -73,4 +73,28 @@ export const CONTRACT_PARITY_CORPUS_V2: readonly ContractParityEntry[] = [
       excludeCodes: [],
     },
   },
+  {
+    label: "source-composite-parity-v2",
+    contractVersion: "2",
+    workspace: {
+      workspaceRoot,
+      sourceFilePaths: [
+        path.join(workspaceRoot, "test/_fixtures/contract-parity/SourceCompositeParity.tsx"),
+      ],
+      styleFilePaths: [
+        path.join(
+          workspaceRoot,
+          "test/_fixtures/contract-parity/SourceCompositeParity.module.scss",
+        ),
+      ],
+    },
+    filters: {
+      preset: "changed-source",
+      category: "source",
+      severity: "all",
+      includeBundles: ["source-missing"],
+      includeCodes: [],
+      excludeCodes: [],
+    },
+  },
 ] as const;

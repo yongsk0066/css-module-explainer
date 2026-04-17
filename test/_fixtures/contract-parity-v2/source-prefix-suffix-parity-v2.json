@@ -300,7 +300,10 @@
           "valueCertaintyShapeLabel": "constrained prefix `btn-` + suffix `-chip`",
           "valueConstraintKind": "prefixSuffix",
           "valueDomainKind": "constrained",
-          "valueDomainReason": "known prefix and suffix were preserved across concatenation"
+          "valueDomainReason": "known prefix and suffix were preserved across concatenation",
+          "valueMinLen": 9,
+          "valuePrefix": "btn-",
+          "valueSuffix": "-chip"
         },
         "queryId": "class-expr:0"
       },
@@ -320,7 +323,10 @@
           "valueCertaintyConstraintKind": "prefixSuffix",
           "valueCertaintyReason": "known prefix and suffix were preserved across concatenation",
           "valueCertaintyShapeKind": "constrained",
-          "valueCertaintyShapeLabel": "constrained prefix `btn-` + suffix `-chip`"
+          "valueCertaintyShapeLabel": "constrained prefix `btn-` + suffix `-chip`",
+          "valueMinLen": 9,
+          "valuePrefix": "btn-",
+          "valueSuffix": "-chip"
         },
         "queryId": "class-expr:0"
       }

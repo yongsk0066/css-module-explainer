@@ -116,6 +116,41 @@ describe("semantic/certainty", () => {
       selectorConstraintKind: "charInclusion",
       shapeLabel: "constrained character selector set (3)",
     });
+
+    expect(
+      deriveValueCertaintyProfileV2(
+        {
+          kind: "composite",
+          prefix: "btn-",
+          minLength: 8,
+          mustChars: "-bnt",
+          mayChars: "-abcdefghilmnoprstuwy",
+          provenance: "finiteSetWideningComposite",
+        },
+        "inferred",
+      ),
+    ).toEqual({
+      certainty: "inferred",
+      shapeKind: "constrained",
+      valueConstraintKind: "composite",
+      shapeLabel: "constrained composite",
+    });
+
+    expect(
+      deriveSelectorCertaintyProfileV2(4, "inferred", {
+        kind: "composite",
+        prefix: "btn-",
+        minLength: 8,
+        mustChars: "-bnt",
+        mayChars: "-abcdefghilmnoprstuwy",
+        provenance: "finiteSetWideningComposite",
+      }),
+    ).toEqual({
+      certainty: "inferred",
+      shapeKind: "constrained",
+      selectorConstraintKind: "composite",
+      shapeLabel: "constrained composite selector set (4)",
+    });
   });
 
   it("keeps dynamic expressions expanded even when their selector certainty is exact", () => {

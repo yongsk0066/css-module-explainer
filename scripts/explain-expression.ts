@@ -121,6 +121,10 @@ function formatExplainResult(
     readonly analysisV2: {
       readonly valueDomainKind: string;
       readonly valueConstraintKind?: string;
+      readonly valuePrefix?: string;
+      readonly valueSuffix?: string;
+      readonly valueMinLen?: number;
+      readonly valueMaxLen?: number;
       readonly valueCharMust?: string;
       readonly valueCharMay?: string;
       readonly valueMayIncludeOtherChars?: boolean;
@@ -194,6 +198,18 @@ function formatExplainResult(
   lines.push(`V2 value domain kind: ${result.analysisV2.valueDomainKind}`);
   if (result.analysisV2.valueConstraintKind) {
     lines.push(`V2 value constraint kind: ${result.analysisV2.valueConstraintKind}`);
+  }
+  if (result.analysisV2.valuePrefix) {
+    lines.push(`V2 value prefix: ${result.analysisV2.valuePrefix}`);
+  }
+  if (result.analysisV2.valueSuffix) {
+    lines.push(`V2 value suffix: ${result.analysisV2.valueSuffix}`);
+  }
+  if (result.analysisV2.valueMinLen !== undefined) {
+    lines.push(`V2 value min length: ${result.analysisV2.valueMinLen}`);
+  }
+  if (result.analysisV2.valueMaxLen !== undefined) {
+    lines.push(`V2 value max length: ${result.analysisV2.valueMaxLen}`);
   }
   if (result.analysisV2.valueCharMust) {
     lines.push(`V2 value char must: ${result.analysisV2.valueCharMust}`);

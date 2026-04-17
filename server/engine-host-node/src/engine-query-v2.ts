@@ -149,6 +149,10 @@ function expressionSemanticsResultV2(
       finiteValues: semantics.finiteValues,
       valueDomainKind: valueDomain.kind,
       ...(valueDomain.constraintKind ? { valueConstraintKind: valueDomain.constraintKind } : {}),
+      ...(valueDomain.prefix ? { valuePrefix: valueDomain.prefix } : {}),
+      ...(valueDomain.suffix ? { valueSuffix: valueDomain.suffix } : {}),
+      ...(valueDomain.minLen !== undefined ? { valueMinLen: valueDomain.minLen } : {}),
+      ...(valueDomain.maxLen !== undefined ? { valueMaxLen: valueDomain.maxLen } : {}),
       ...(valueDomain.charMust ? { valueCharMust: valueDomain.charMust } : {}),
       ...(valueDomain.charMay ? { valueCharMay: valueDomain.charMay } : {}),
       ...(valueDomain.mayIncludeOtherChars ? { valueMayIncludeOtherChars: true } : {}),
@@ -171,9 +175,6 @@ function expressionSemanticsResultV2(
       ...(valueCertaintyProfile?.valueConstraintKind
         ? { valueCertaintyConstraintKind: valueCertaintyProfile.valueConstraintKind }
         : {}),
-      ...(valueDomain.charMust ? { valueCharMust: valueDomain.charMust } : {}),
-      ...(valueDomain.charMay ? { valueCharMay: valueDomain.charMay } : {}),
-      ...(valueDomain.mayIncludeOtherChars ? { valueMayIncludeOtherChars: true } : {}),
       ...(valueCertaintyProfile
         ? { valueCertaintyShapeLabel: valueCertaintyProfile.shapeLabel }
         : {}),
@@ -235,6 +236,10 @@ function sourceExpressionResolutionResultV2(
       ...(valueCertaintyProfile?.valueConstraintKind
         ? { valueCertaintyConstraintKind: valueCertaintyProfile.valueConstraintKind }
         : {}),
+      ...(valueDomain.prefix ? { valuePrefix: valueDomain.prefix } : {}),
+      ...(valueDomain.suffix ? { valueSuffix: valueDomain.suffix } : {}),
+      ...(valueDomain.minLen !== undefined ? { valueMinLen: valueDomain.minLen } : {}),
+      ...(valueDomain.maxLen !== undefined ? { valueMaxLen: valueDomain.maxLen } : {}),
       ...(valueDomain.charMust ? { valueCharMust: valueDomain.charMust } : {}),
       ...(valueDomain.charMay ? { valueCharMay: valueDomain.charMay } : {}),
       ...(valueDomain.mayIncludeOtherChars ? { valueMayIncludeOtherChars: true } : {}),

@@ -1,0 +1,661 @@
+{
+  "input": {
+    "sources": [
+      {
+        "bindingGraph": {
+          "declarations": [
+            {
+              "id": "decl:0",
+              "kind": "import",
+              "name": "classNames"
+            },
+            {
+              "id": "decl:1",
+              "kind": "import",
+              "name": "styles"
+            },
+            {
+              "id": "decl:2",
+              "kind": "localVar",
+              "name": "cx"
+            },
+            {
+              "id": "decl:3",
+              "kind": "localVar",
+              "name": "resolveVariant"
+            },
+            {
+              "id": "decl:4",
+              "kind": "parameter",
+              "name": "value"
+            },
+            {
+              "id": "decl:5",
+              "kind": "localVar",
+              "name": "SourceCompositeParity"
+            },
+            {
+              "id": "decl:6",
+              "kind": "parameter",
+              "name": "value"
+            },
+            {
+              "id": "decl:7",
+              "kind": "localVar",
+              "name": "variant"
+            }
+          ],
+          "resolutions": [
+            {
+              "declarationId": "decl:7",
+              "expressionId": "class-expr:0"
+            }
+          ]
+        },
+        "document": {
+          "classExpressions": [
+            {
+              "id": "class-expr:0",
+              "kind": "symbolRef",
+              "origin": "cxCall",
+              "pathSegments": [],
+              "range": {
+                "end": {
+                  "character": 35,
+                  "line": 30
+                },
+                "start": {
+                  "character": 28,
+                  "line": 30
+                }
+              },
+              "rawReference": "variant",
+              "rootBindingDeclId": "decl:7",
+              "rootName": "variant",
+              "scssModulePath": "<workspace>/test/_fixtures/contract-parity/SourceCompositeParity.module.scss"
+            }
+          ],
+          "filePath": "<workspace>/test/_fixtures/contract-parity/SourceCompositeParity.tsx",
+          "kind": "source",
+          "language": "typescriptreact",
+          "styleImports": [
+            {
+              "bindingDeclId": "decl:1",
+              "id": "style-import:0",
+              "kind": "styleImport",
+              "localName": "styles",
+              "resolved": {
+                "absolutePath": "<workspace>/test/_fixtures/contract-parity/SourceCompositeParity.module.scss",
+                "kind": "resolved"
+              }
+            }
+          ],
+          "utilityBindings": [
+            {
+              "bindingDeclId": "decl:2",
+              "classNamesImportName": "classNames",
+              "id": "utility-binding:cx:0",
+              "kind": "classnamesBind",
+              "localName": "cx",
+              "scssModulePath": "<workspace>/test/_fixtures/contract-parity/SourceCompositeParity.module.scss",
+              "stylesLocalName": "styles"
+            }
+          ]
+        },
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourceCompositeParity.tsx"
+      }
+    ],
+    "styles": [
+      {
+        "document": {
+          "animationNameRefs": [],
+          "filePath": "<workspace>/test/_fixtures/contract-parity/SourceCompositeParity.module.scss",
+          "keyframes": [],
+          "kind": "style",
+          "selectors": [
+            {
+              "canonicalName": "btn-primary",
+              "composes": [],
+              "declarations": "color: teal",
+              "fullSelector": ".btn-primary",
+              "id": "selector:btn-primary:0:1",
+              "kind": "selector",
+              "name": "btn-primary",
+              "nestedSafety": "flat",
+              "range": {
+                "end": {
+                  "character": 12,
+                  "line": 0
+                },
+                "start": {
+                  "character": 1,
+                  "line": 0
+                }
+              },
+              "ruleRange": {
+                "end": {
+                  "character": 0,
+                  "line": 2
+                },
+                "start": {
+                  "character": 0,
+                  "line": 0
+                }
+              },
+              "viewKind": "canonical"
+            },
+            {
+              "canonicalName": "btn-secondary",
+              "composes": [],
+              "declarations": "color: orange",
+              "fullSelector": ".btn-secondary",
+              "id": "selector:btn-secondary:4:1",
+              "kind": "selector",
+              "name": "btn-secondary",
+              "nestedSafety": "flat",
+              "range": {
+                "end": {
+                  "character": 14,
+                  "line": 4
+                },
+                "start": {
+                  "character": 1,
+                  "line": 4
+                }
+              },
+              "ruleRange": {
+                "end": {
+                  "character": 0,
+                  "line": 6
+                },
+                "start": {
+                  "character": 0,
+                  "line": 4
+                }
+              },
+              "viewKind": "canonical"
+            },
+            {
+              "canonicalName": "btn-danger",
+              "composes": [],
+              "declarations": "color: crimson",
+              "fullSelector": ".btn-danger",
+              "id": "selector:btn-danger:8:1",
+              "kind": "selector",
+              "name": "btn-danger",
+              "nestedSafety": "flat",
+              "range": {
+                "end": {
+                  "character": 11,
+                  "line": 8
+                },
+                "start": {
+                  "character": 1,
+                  "line": 8
+                }
+              },
+              "ruleRange": {
+                "end": {
+                  "character": 0,
+                  "line": 10
+                },
+                "start": {
+                  "character": 0,
+                  "line": 8
+                }
+              },
+              "viewKind": "canonical"
+            },
+            {
+              "canonicalName": "btn-success",
+              "composes": [],
+              "declarations": "color: green",
+              "fullSelector": ".btn-success",
+              "id": "selector:btn-success:12:1",
+              "kind": "selector",
+              "name": "btn-success",
+              "nestedSafety": "flat",
+              "range": {
+                "end": {
+                  "character": 12,
+                  "line": 12
+                },
+                "start": {
+                  "character": 1,
+                  "line": 12
+                }
+              },
+              "ruleRange": {
+                "end": {
+                  "character": 0,
+                  "line": 14
+                },
+                "start": {
+                  "character": 0,
+                  "line": 12
+                }
+              },
+              "viewKind": "canonical"
+            },
+            {
+              "canonicalName": "btn-warning",
+              "composes": [],
+              "declarations": "color: gold",
+              "fullSelector": ".btn-warning",
+              "id": "selector:btn-warning:16:1",
+              "kind": "selector",
+              "name": "btn-warning",
+              "nestedSafety": "flat",
+              "range": {
+                "end": {
+                  "character": 12,
+                  "line": 16
+                },
+                "start": {
+                  "character": 1,
+                  "line": 16
+                }
+              },
+              "ruleRange": {
+                "end": {
+                  "character": 0,
+                  "line": 18
+                },
+                "start": {
+                  "character": 0,
+                  "line": 16
+                }
+              },
+              "viewKind": "canonical"
+            },
+            {
+              "canonicalName": "btn-info",
+              "composes": [],
+              "declarations": "color: dodgerblue",
+              "fullSelector": ".btn-info",
+              "id": "selector:btn-info:20:1",
+              "kind": "selector",
+              "name": "btn-info",
+              "nestedSafety": "flat",
+              "range": {
+                "end": {
+                  "character": 9,
+                  "line": 20
+                },
+                "start": {
+                  "character": 1,
+                  "line": 20
+                }
+              },
+              "ruleRange": {
+                "end": {
+                  "character": 0,
+                  "line": 22
+                },
+                "start": {
+                  "character": 0,
+                  "line": 20
+                }
+              },
+              "viewKind": "canonical"
+            },
+            {
+              "canonicalName": "btn-muted",
+              "composes": [],
+              "declarations": "color: gray",
+              "fullSelector": ".btn-muted",
+              "id": "selector:btn-muted:24:1",
+              "kind": "selector",
+              "name": "btn-muted",
+              "nestedSafety": "flat",
+              "range": {
+                "end": {
+                  "character": 10,
+                  "line": 24
+                },
+                "start": {
+                  "character": 1,
+                  "line": 24
+                }
+              },
+              "ruleRange": {
+                "end": {
+                  "character": 0,
+                  "line": 26
+                },
+                "start": {
+                  "character": 0,
+                  "line": 24
+                }
+              },
+              "viewKind": "canonical"
+            },
+            {
+              "canonicalName": "btn-ghost",
+              "composes": [],
+              "declarations": "color: pink",
+              "fullSelector": ".btn-ghost",
+              "id": "selector:btn-ghost:28:1",
+              "kind": "selector",
+              "name": "btn-ghost",
+              "nestedSafety": "flat",
+              "range": {
+                "end": {
+                  "character": 10,
+                  "line": 28
+                },
+                "start": {
+                  "character": 1,
+                  "line": 28
+                }
+              },
+              "ruleRange": {
+                "end": {
+                  "character": 0,
+                  "line": 30
+                },
+                "start": {
+                  "character": 0,
+                  "line": 28
+                }
+              },
+              "viewKind": "canonical"
+            },
+            {
+              "canonicalName": "btn-outline",
+              "composes": [],
+              "declarations": "color: slateblue",
+              "fullSelector": ".btn-outline",
+              "id": "selector:btn-outline:32:1",
+              "kind": "selector",
+              "name": "btn-outline",
+              "nestedSafety": "flat",
+              "range": {
+                "end": {
+                  "character": 12,
+                  "line": 32
+                },
+                "start": {
+                  "character": 1,
+                  "line": 32
+                }
+              },
+              "ruleRange": {
+                "end": {
+                  "character": 0,
+                  "line": 34
+                },
+                "start": {
+                  "character": 0,
+                  "line": 32
+                }
+              },
+              "viewKind": "canonical"
+            }
+          ],
+          "valueDecls": [],
+          "valueImports": [],
+          "valueRefs": []
+        },
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourceCompositeParity.module.scss"
+      }
+    ],
+    "typeFacts": [
+      {
+        "expressionId": "class-expr:0",
+        "facts": {
+          "kind": "unknown"
+        },
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourceCompositeParity.tsx"
+      }
+    ],
+    "version": "2",
+    "workspace": {
+      "classnameTransform": "asIs",
+      "root": "<workspace>",
+      "settingsKey": "transform:asIs;alias:"
+    }
+  },
+  "output": {
+    "checkerReport": {
+      "findings": [],
+      "summary": {
+        "hints": 0,
+        "total": 0,
+        "warnings": 0
+      },
+      "version": "1"
+    },
+    "queryResults": [
+      {
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourceCompositeParity.module.scss",
+        "kind": "selector-usage",
+        "payload": {
+          "canonicalName": "btn-danger",
+          "directReferenceCount": 0,
+          "editableDirectReferenceCount": 0,
+          "exactReferenceCount": 1,
+          "hasAnyReferences": true,
+          "hasExpandedReferences": true,
+          "hasStyleDependencyReferences": false,
+          "inferredOrBetterReferenceCount": 1,
+          "totalReferences": 1
+        },
+        "queryId": "btn-danger"
+      },
+      {
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourceCompositeParity.module.scss",
+        "kind": "selector-usage",
+        "payload": {
+          "canonicalName": "btn-ghost",
+          "directReferenceCount": 0,
+          "editableDirectReferenceCount": 0,
+          "exactReferenceCount": 1,
+          "hasAnyReferences": true,
+          "hasExpandedReferences": true,
+          "hasStyleDependencyReferences": false,
+          "inferredOrBetterReferenceCount": 1,
+          "totalReferences": 1
+        },
+        "queryId": "btn-ghost"
+      },
+      {
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourceCompositeParity.module.scss",
+        "kind": "selector-usage",
+        "payload": {
+          "canonicalName": "btn-info",
+          "directReferenceCount": 0,
+          "editableDirectReferenceCount": 0,
+          "exactReferenceCount": 1,
+          "hasAnyReferences": true,
+          "hasExpandedReferences": true,
+          "hasStyleDependencyReferences": false,
+          "inferredOrBetterReferenceCount": 1,
+          "totalReferences": 1
+        },
+        "queryId": "btn-info"
+      },
+      {
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourceCompositeParity.module.scss",
+        "kind": "selector-usage",
+        "payload": {
+          "canonicalName": "btn-muted",
+          "directReferenceCount": 0,
+          "editableDirectReferenceCount": 0,
+          "exactReferenceCount": 1,
+          "hasAnyReferences": true,
+          "hasExpandedReferences": true,
+          "hasStyleDependencyReferences": false,
+          "inferredOrBetterReferenceCount": 1,
+          "totalReferences": 1
+        },
+        "queryId": "btn-muted"
+      },
+      {
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourceCompositeParity.module.scss",
+        "kind": "selector-usage",
+        "payload": {
+          "canonicalName": "btn-outline",
+          "directReferenceCount": 0,
+          "editableDirectReferenceCount": 0,
+          "exactReferenceCount": 1,
+          "hasAnyReferences": true,
+          "hasExpandedReferences": true,
+          "hasStyleDependencyReferences": false,
+          "inferredOrBetterReferenceCount": 1,
+          "totalReferences": 1
+        },
+        "queryId": "btn-outline"
+      },
+      {
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourceCompositeParity.module.scss",
+        "kind": "selector-usage",
+        "payload": {
+          "canonicalName": "btn-primary",
+          "directReferenceCount": 0,
+          "editableDirectReferenceCount": 0,
+          "exactReferenceCount": 1,
+          "hasAnyReferences": true,
+          "hasExpandedReferences": true,
+          "hasStyleDependencyReferences": false,
+          "inferredOrBetterReferenceCount": 1,
+          "totalReferences": 1
+        },
+        "queryId": "btn-primary"
+      },
+      {
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourceCompositeParity.module.scss",
+        "kind": "selector-usage",
+        "payload": {
+          "canonicalName": "btn-secondary",
+          "directReferenceCount": 0,
+          "editableDirectReferenceCount": 0,
+          "exactReferenceCount": 1,
+          "hasAnyReferences": true,
+          "hasExpandedReferences": true,
+          "hasStyleDependencyReferences": false,
+          "inferredOrBetterReferenceCount": 1,
+          "totalReferences": 1
+        },
+        "queryId": "btn-secondary"
+      },
+      {
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourceCompositeParity.module.scss",
+        "kind": "selector-usage",
+        "payload": {
+          "canonicalName": "btn-success",
+          "directReferenceCount": 0,
+          "editableDirectReferenceCount": 0,
+          "exactReferenceCount": 1,
+          "hasAnyReferences": true,
+          "hasExpandedReferences": true,
+          "hasStyleDependencyReferences": false,
+          "inferredOrBetterReferenceCount": 1,
+          "totalReferences": 1
+        },
+        "queryId": "btn-success"
+      },
+      {
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourceCompositeParity.module.scss",
+        "kind": "selector-usage",
+        "payload": {
+          "canonicalName": "btn-warning",
+          "directReferenceCount": 0,
+          "editableDirectReferenceCount": 0,
+          "exactReferenceCount": 1,
+          "hasAnyReferences": true,
+          "hasExpandedReferences": true,
+          "hasStyleDependencyReferences": false,
+          "inferredOrBetterReferenceCount": 1,
+          "totalReferences": 1
+        },
+        "queryId": "btn-warning"
+      },
+      {
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourceCompositeParity.tsx",
+        "kind": "expression-semantics",
+        "payload": {
+          "candidateNames": [
+            "btn-primary",
+            "btn-secondary",
+            "btn-danger",
+            "btn-success",
+            "btn-warning",
+            "btn-info",
+            "btn-muted",
+            "btn-ghost",
+            "btn-outline"
+          ],
+          "expressionId": "class-expr:0",
+          "expressionKind": "symbolRef",
+          "finiteValues": null,
+          "reason": "flowBranch",
+          "selectorCertainty": "exact",
+          "selectorCertaintyShapeKind": "exact",
+          "selectorCertaintyShapeLabel": "exact",
+          "selectorNames": [
+            "btn-primary",
+            "btn-secondary",
+            "btn-danger",
+            "btn-success",
+            "btn-warning",
+            "btn-info",
+            "btn-muted",
+            "btn-ghost",
+            "btn-outline"
+          ],
+          "styleFilePath": "<workspace>/test/_fixtures/contract-parity/SourceCompositeParity.module.scss",
+          "valueCertainty": "inferred",
+          "valueCertaintyConstraintKind": "composite",
+          "valueCertaintyReason": "finite candidates widened to shared edge and character constraints",
+          "valueCertaintyShapeKind": "constrained",
+          "valueCertaintyShapeLabel": "constrained composite",
+          "valueCharMay": "-abcdefghilmnoprstuwy",
+          "valueCharMust": "-bnt",
+          "valueConstraintKind": "composite",
+          "valueDomainKind": "constrained",
+          "valueDomainReason": "finite candidates widened to shared edge and character constraints",
+          "valueMinLen": 8,
+          "valuePrefix": "btn-"
+        },
+        "queryId": "class-expr:0"
+      },
+      {
+        "filePath": "<workspace>/test/_fixtures/contract-parity/SourceCompositeParity.tsx",
+        "kind": "source-expression-resolution",
+        "payload": {
+          "expressionId": "class-expr:0",
+          "finiteValues": null,
+          "reason": "flowBranch",
+          "selectorCertainty": "exact",
+          "selectorCertaintyShapeKind": "exact",
+          "selectorCertaintyShapeLabel": "exact",
+          "selectorNames": [
+            "btn-primary",
+            "btn-secondary",
+            "btn-danger",
+            "btn-success",
+            "btn-warning",
+            "btn-info",
+            "btn-muted",
+            "btn-ghost",
+            "btn-outline"
+          ],
+          "styleFilePath": "<workspace>/test/_fixtures/contract-parity/SourceCompositeParity.module.scss",
+          "valueCertainty": "inferred",
+          "valueCertaintyConstraintKind": "composite",
+          "valueCertaintyReason": "finite candidates widened to shared edge and character constraints",
+          "valueCertaintyShapeKind": "constrained",
+          "valueCertaintyShapeLabel": "constrained composite",
+          "valueCharMay": "-abcdefghilmnoprstuwy",
+          "valueCharMust": "-bnt",
+          "valueMinLen": 8,
+          "valuePrefix": "btn-"
+        },
+        "queryId": "class-expr:0"
+      }
+    ],
+    "rewritePlans": [],
+    "version": "2"
+  }
+}

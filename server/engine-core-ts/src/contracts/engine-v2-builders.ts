@@ -53,6 +53,7 @@ export function downcastFactsV2ToV1(facts: StringTypeFactsV2): StringTypeFactsV1
           return facts.prefix ? { kind: "prefix", prefix: facts.prefix } : { kind: "top" };
         case "charInclusion":
         case "suffix":
+        case "composite":
         case undefined:
           return { kind: "top" };
         default:
@@ -125,35 +126,12 @@ function externalizeAbstractClassValueToTypeFactsV2(value: AbstractClassValue): 
         ...(value.provenance ? { provenance: value.provenance } : {}),
       };
     case "composite":
-      if (value.prefix && value.suffix) {
-        return {
-          kind: "constrained",
-          constraintKind: "prefixSuffix",
-          prefix: value.prefix,
-          suffix: value.suffix,
-          ...(value.minLength ? { minLen: value.minLength } : {}),
-          ...(value.provenance ? { provenance: value.provenance } : {}),
-        };
-      }
-      if (value.prefix) {
-        return {
-          kind: "constrained",
-          constraintKind: "prefix",
-          prefix: value.prefix,
-          ...(value.provenance ? { provenance: value.provenance } : {}),
-        };
-      }
-      if (value.suffix) {
-        return {
-          kind: "constrained",
-          constraintKind: "suffix",
-          suffix: value.suffix,
-          ...(value.provenance ? { provenance: value.provenance } : {}),
-        };
-      }
       return {
         kind: "constrained",
-        constraintKind: "charInclusion",
+        constraintKind: "composite",
+        ...(value.prefix ? { prefix: value.prefix } : {}),
+        ...(value.suffix ? { suffix: value.suffix } : {}),
+        ...(value.minLength !== undefined ? { minLen: value.minLength } : {}),
         charMust: value.mustChars,
         charMay: value.mayChars,
         ...(value.mayIncludeOtherChars ? { mayIncludeOtherChars: true } : {}),

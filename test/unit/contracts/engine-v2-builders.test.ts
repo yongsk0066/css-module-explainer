@@ -67,4 +67,31 @@ describe("engine-v2 builders", () => {
       provenance: "finiteSetWideningChars",
     });
   });
+
+  it("normalizes large unions with shared edges into bundle-3 composite facts", () => {
+    expect(
+      normalizeResolvedTypeToTypeFactsV2({
+        kind: "union",
+        values: [
+          "btn-primary",
+          "btn-secondary",
+          "btn-danger",
+          "btn-success",
+          "btn-warning",
+          "btn-info",
+          "btn-muted",
+          "btn-ghost",
+          "btn-outline",
+        ],
+      }),
+    ).toEqual({
+      kind: "constrained",
+      constraintKind: "composite",
+      prefix: "btn-",
+      minLen: 8,
+      charMust: "-bnt",
+      charMay: "-abcdefghilmnoprstuwy",
+      provenance: "finiteSetWideningComposite",
+    });
+  });
 });

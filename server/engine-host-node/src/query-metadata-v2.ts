@@ -6,6 +6,10 @@ export function classifyValueDomainV2(
 ): {
   readonly kind: ValueDomainKindV2;
   readonly constraintKind?: StringConstraintKindV2;
+  readonly prefix?: string;
+  readonly suffix?: string;
+  readonly minLen?: number;
+  readonly maxLen?: number;
   readonly charMust?: string;
   readonly charMay?: string;
   readonly mayIncludeOtherChars?: boolean;
@@ -20,11 +24,17 @@ export function classifyValueDomainV2(
     case "finiteSet":
       return { kind: "finiteSet" };
     case "prefix":
-      return { kind: "constrained", constraintKind: "prefix" };
+      return { kind: "constrained", constraintKind: "prefix", prefix: abstractValue.prefix };
     case "suffix":
-      return { kind: "constrained", constraintKind: "suffix" };
+      return { kind: "constrained", constraintKind: "suffix", suffix: abstractValue.suffix };
     case "prefixSuffix":
-      return { kind: "constrained", constraintKind: "prefixSuffix" };
+      return {
+        kind: "constrained",
+        constraintKind: "prefixSuffix",
+        prefix: abstractValue.prefix,
+        suffix: abstractValue.suffix,
+        minLen: abstractValue.minLength,
+      };
     case "charInclusion":
       return {
         kind: "constrained",
@@ -34,6 +44,16 @@ export function classifyValueDomainV2(
         ...(abstractValue.mayIncludeOtherChars ? { mayIncludeOtherChars: true } : {}),
       };
     case "composite":
+      return {
+        kind: "constrained",
+        constraintKind: "composite",
+        ...(abstractValue.prefix ? { prefix: abstractValue.prefix } : {}),
+        ...(abstractValue.suffix ? { suffix: abstractValue.suffix } : {}),
+        ...(abstractValue.minLength !== undefined ? { minLen: abstractValue.minLength } : {}),
+        charMust: abstractValue.mustChars,
+        charMay: abstractValue.mayChars,
+        ...(abstractValue.mayIncludeOtherChars ? { mayIncludeOtherChars: true } : {}),
+      };
     case "top":
       return { kind: "top" };
     default:

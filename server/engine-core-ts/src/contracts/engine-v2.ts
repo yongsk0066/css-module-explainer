@@ -6,7 +6,12 @@ export const ENGINE_CONTRACT_VERSION_V2 = "2" as const;
 
 export type StringTypeFactKindV2 = "unknown" | "exact" | "finiteSet" | "constrained" | "top";
 
-export type StringConstraintKindV2 = "prefix" | "suffix" | "prefixSuffix" | "charInclusion";
+export type StringConstraintKindV2 =
+  | "prefix"
+  | "suffix"
+  | "prefixSuffix"
+  | "charInclusion"
+  | "composite";
 
 export interface StringTypeFactsV2 {
   readonly kind: StringTypeFactKindV2;
@@ -59,6 +64,10 @@ export interface ExpressionSemanticsQueryResultV2 {
     readonly finiteValues: readonly string[] | null;
     readonly valueDomainKind: ValueDomainKindV2;
     readonly valueConstraintKind?: StringConstraintKindV2;
+    readonly valuePrefix?: string;
+    readonly valueSuffix?: string;
+    readonly valueMinLen?: number;
+    readonly valueMaxLen?: number;
     readonly valueCharMust?: string;
     readonly valueCharMay?: string;
     readonly valueMayIncludeOtherChars?: boolean;
@@ -94,6 +103,10 @@ export interface SourceExpressionResolutionQueryResultV2 {
     readonly valueCertainty?: string;
     readonly valueCertaintyShapeKind?: ValueCertaintyShapeKindV2;
     readonly valueCertaintyConstraintKind?: StringConstraintKindV2;
+    readonly valuePrefix?: string;
+    readonly valueSuffix?: string;
+    readonly valueMinLen?: number;
+    readonly valueMaxLen?: number;
     readonly valueCharMust?: string;
     readonly valueCharMay?: string;
     readonly valueMayIncludeOtherChars?: boolean;

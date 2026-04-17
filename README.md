@@ -233,11 +233,13 @@ Current checker policy:
 - `pnpm check:release-batch` is the canonical release-facing batch checker pass
 - the release batch corpus is versioned in `scripts/release-batch-corpus.ts`; it stays intentionally clean even if `examples/` contains negative recovery fixtures
 - `pnpm check:contract-parity-v2-smoke` and `pnpm check:contract-parity-v2-golden` validate V2 parity fixtures alongside the frozen V1 corpus
-- V2 Bundle 1 is externally exposed today for `suffix` and `prefixSuffix`
+- V2 exposes constrained bundle metadata today for:
+  - Bundle 1: `suffix`, `prefixSuffix`
+  - Bundle 2: `charInclusion`
+  - Bundle 3: `composite`
   - `TypeFactTableV2`
   - `EngineOutputV2.queryResults`
   - `pnpm explain:expression --json`
-- `charInclusion` and `composite` are still internal-only and remain downcast in V2 outputs
 - explicit CLI flags override preset defaults
 
 Test layout:

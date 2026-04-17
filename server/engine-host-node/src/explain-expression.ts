@@ -43,6 +43,10 @@ export interface ExplainExpressionResult {
   readonly analysisV2: {
     readonly valueDomainKind: ValueDomainKindV2;
     readonly valueConstraintKind?: StringConstraintKindV2;
+    readonly valuePrefix?: string;
+    readonly valueSuffix?: string;
+    readonly valueMinLen?: number;
+    readonly valueMaxLen?: number;
     readonly valueCharMust?: string;
     readonly valueCharMay?: string;
     readonly valueMayIncludeOtherChars?: boolean;
@@ -127,6 +131,10 @@ export function explainExpressionAtLocation(
     analysisV2: {
       valueDomainKind: valueDomain.kind,
       ...(valueDomain.constraintKind ? { valueConstraintKind: valueDomain.constraintKind } : {}),
+      ...(valueDomain.prefix ? { valuePrefix: valueDomain.prefix } : {}),
+      ...(valueDomain.suffix ? { valueSuffix: valueDomain.suffix } : {}),
+      ...(valueDomain.minLen !== undefined ? { valueMinLen: valueDomain.minLen } : {}),
+      ...(valueDomain.maxLen !== undefined ? { valueMaxLen: valueDomain.maxLen } : {}),
       ...(valueDomain.charMust ? { valueCharMust: valueDomain.charMust } : {}),
       ...(valueDomain.charMay ? { valueCharMay: valueDomain.charMay } : {}),
       ...(valueDomain.mayIncludeOtherChars ? { valueMayIncludeOtherChars: true } : {}),

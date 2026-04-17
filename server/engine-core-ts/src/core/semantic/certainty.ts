@@ -10,8 +10,18 @@ export type ValueCertaintyShapeKind = "exact" | "boundedFinite" | "constrainedPr
 export type SelectorCertaintyShapeKind = "exact" | "boundedFinite" | "constrained" | "unknown";
 export type ValueCertaintyShapeKindV2 = "exact" | "boundedFinite" | "constrained" | "unknown";
 export type SelectorCertaintyShapeKindV2 = "exact" | "boundedFinite" | "constrained" | "unknown";
-export type ValueConstraintKindV2 = "prefix" | "suffix" | "prefixSuffix" | "charInclusion";
-export type SelectorConstraintKindV2 = "prefix" | "suffix" | "prefixSuffix" | "charInclusion";
+export type ValueConstraintKindV2 =
+  | "prefix"
+  | "suffix"
+  | "prefixSuffix"
+  | "charInclusion"
+  | "composite";
+export type SelectorConstraintKindV2 =
+  | "prefix"
+  | "suffix"
+  | "prefixSuffix"
+  | "charInclusion"
+  | "composite";
 
 export interface ValueCertaintyProfile {
   readonly certainty: EdgeCertainty;
@@ -167,6 +177,13 @@ export function deriveValueCertaintyProfileV2(
             valueConstraintKind: "charInclusion",
             shapeLabel: `constrained character inclusion (${value.mustChars || "none"})`,
           };
+        case "composite":
+          return {
+            certainty,
+            shapeKind: "constrained",
+            valueConstraintKind: "composite",
+            shapeLabel: "constrained composite",
+          };
         case "exact":
           return {
             certainty,
@@ -174,7 +191,6 @@ export function deriveValueCertaintyProfileV2(
             shapeLabel: "exact",
           };
         case "bottom":
-        case "composite":
         case "top":
           return {
             certainty,
@@ -289,8 +305,9 @@ export function deriveSelectorCertaintyProfileV2(
         case "composite":
           return {
             certainty,
-            shapeKind: "unknown",
-            shapeLabel: "unknown",
+            shapeKind: "constrained",
+            selectorConstraintKind: "composite",
+            shapeLabel: `constrained composite selector set (${matchedSelectorCount})`,
           };
         case "finiteSet":
         case "exact":

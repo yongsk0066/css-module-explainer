@@ -146,6 +146,58 @@ describe("explainExpressionAtLocation", () => {
     );
   });
 
+  it("surfaces bundle-3 composite metadata", () => {
+    const workspaceRoot = makeWorkspace({
+      "src/App.tsx": [
+        'import classNames from "classnames/bind";',
+        'import styles from "./Button.module.scss";',
+        "const cx = classNames.bind(styles);",
+        "function resolveVariant(value: number) {",
+        "  switch (value) {",
+        '    case 1: return "btn-primary";',
+        '    case 2: return "btn-secondary";',
+        '    case 3: return "btn-danger";',
+        '    case 4: return "btn-success";',
+        '    case 5: return "btn-warning";',
+        '    case 6: return "btn-info";',
+        '    case 7: return "btn-muted";',
+        '    case 8: return "btn-ghost";',
+        '    default: return "btn-outline";',
+        "  }",
+        "}",
+        "export function App(value: number) {",
+        "  const variant = resolveVariant(value);",
+        "  return <div className={cx(variant)} />;",
+        "}",
+        "",
+      ].join("\n"),
+      "src/Button.module.scss": ".btn-primary {}",
+    });
+
+    const result = explainExpressionAtLocation({
+      workspaceRoot,
+      filePath: path.join(workspaceRoot, "src/App.tsx"),
+      line: 18,
+      character: 28,
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        analysisV2: expect.objectContaining({
+          valueDomainKind: "constrained",
+          valueConstraintKind: "composite",
+          valuePrefix: "btn-",
+          valueMinLen: 8,
+          valueCharMust: "-bnt",
+          valueCharMay: "-abcdefghilmnoprstuwy",
+          valueCertaintyShapeKind: "constrained",
+          valueCertaintyConstraintKind: "composite",
+          selectorCertaintyShapeKind: "exact",
+        }),
+      }),
+    );
+  });
+
   it("returns null when the cursor does not hit an explainable class expression", () => {
     const workspaceRoot = makeWorkspace({
       "src/App.tsx": [
