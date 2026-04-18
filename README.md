@@ -256,6 +256,49 @@ Test layout:
 | Protocol  | `test/protocol/`  | Full LSP roundtrips through the in-process harness   |
 | Benchmark | `test/benchmark/` | Provider microbenchmarks                             |
 
+### ESLint plugin
+
+The first ESLint consumer lives at `packages/eslint-plugin`.
+
+Current scope:
+
+- source-side rules only
+- `missing-module`
+- `invalid-class-reference`
+- aggregate `source-check`
+
+Flat config example:
+
+```js
+import cssModuleExplainer from "eslint-plugin-css-module-explainer";
+
+export default [
+  {
+    files: ["**/*.{js,jsx,ts,tsx}"],
+    plugins: {
+      "css-module-explainer": cssModuleExplainer,
+    },
+    rules: {
+      "css-module-explainer/missing-module": "error",
+      "css-module-explainer/invalid-class-reference": "error",
+    },
+  },
+];
+```
+
+If you want one aggregate rule instead, use:
+
+```js
+"css-module-explainer/source-check": "error"
+```
+
+Supported rule options today:
+
+- `workspaceRoot`
+- `classnameTransform`
+- `pathAlias`
+- `includeMissingModule` (`source-check` / `missing-module`)
+
 ## Examples
 
 `examples/` contains scenario-based manual QA fixtures for the extension
