@@ -32,7 +32,8 @@ for (const fixtureTsconfig of fixtureTsconfigs) {
 process.exit(exitCode);
 
 function readVariant(): BackendTypecheckVariant {
-  const value = process.env.CME_TYPECHECK_VARIANT ?? "typescript-current";
+  const value =
+    process.env.CME_TYPECHECK_VARIANT ?? process.env.CME_TYPE_FACT_BACKEND ?? "typescript-current";
   if (value === "typescript-current" || value === "tsgo-preview") {
     return value;
   }

@@ -16,6 +16,7 @@ export const RUST_GATE_EVIDENCE_VARIANTS: readonly RustGateEvidenceVariant[] = [
   {
     label: "tsgo-preview",
     env: {
+      CME_TYPE_FACT_BACKEND: "tsgo-preview",
       CME_TYPECHECK_VARIANT: "tsgo-preview",
     },
   },

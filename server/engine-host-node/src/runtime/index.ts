@@ -55,6 +55,7 @@ export {
 } from "./workspace-runtime-manager";
 export {
   createRuntimeTypeResolver,
+  resolveRuntimeTypeBackend,
   createStyleDocumentLookup,
   createWorkspaceRuntimeIO,
   defaultReadStyleFile,

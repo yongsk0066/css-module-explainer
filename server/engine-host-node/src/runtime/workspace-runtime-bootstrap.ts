@@ -1,22 +1,19 @@
 import { readFileSync } from "node:fs";
-import type ts from "typescript";
 import type { StyleDocumentHIR } from "../../../engine-core-ts/src/core/hir/style-types";
 import type { FileTask } from "../../../engine-core-ts/src/core/indexing/indexer-worker";
 import { findLangForPath } from "../../../engine-core-ts/src/core/scss/lang-registry";
 import type { StyleIndexCache } from "../../../engine-core-ts/src/core/scss/scss-index";
 import type { WorkspaceStyleDependencyGraph } from "../../../engine-core-ts/src/core/semantic";
-import { createDefaultProgram } from "../../../engine-core-ts/src/core/ts/default-program";
-import {
-  WorkspaceTypeResolver,
-  type TypeResolver,
-} from "../../../engine-core-ts/src/core/ts/type-resolver";
+import type { TypeResolver } from "../../../engine-core-ts/src/core/ts/type-resolver";
 import type { ResourceSettings } from "../../../engine-core-ts/src/settings";
+import {
+  selectTypeResolver,
+  type SelectTypeResolverOptions,
+  type TypeFactBackendKind,
+} from "../type-backend";
 import type { WorkspaceRuntimeIO } from "./workspace-runtime";
 
-export interface RuntimeTypeResolverOptions {
-  readonly typeResolver?: TypeResolver;
-  readonly createProgram?: (workspaceRoot: string) => ts.Program;
-}
+export interface RuntimeTypeResolverOptions extends SelectTypeResolverOptions {}
 
 export interface StyleDocumentLookupArgs {
   readonly styleIndexCache: StyleIndexCache;
@@ -33,12 +30,13 @@ export interface WorkspaceRuntimeIOOptions {
 }
 
 export function createRuntimeTypeResolver(options: RuntimeTypeResolverOptions): TypeResolver {
-  return (
-    options.typeResolver ??
-    new WorkspaceTypeResolver({
-      createProgram: options.createProgram ?? createDefaultProgram,
-    })
-  );
+  return selectTypeResolver(options).typeResolver;
+}
+
+export function resolveRuntimeTypeBackend(
+  options: RuntimeTypeResolverOptions,
+): TypeFactBackendKind {
+  return selectTypeResolver(options).backend;
 }
 
 export function createStyleDocumentLookup(

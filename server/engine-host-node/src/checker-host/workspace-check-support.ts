@@ -21,9 +21,9 @@ import { DocumentAnalysisCache } from "../../../engine-core-ts/src/core/indexing
 import { collectSemanticReferenceContribution } from "../../../engine-core-ts/src/core/semantic/reference-collector";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../engine-core-ts/src/core/semantic/workspace-reference-index";
 import { WorkspaceStyleDependencyGraph } from "../../../engine-core-ts/src/core/semantic/style-dependency-graph";
-import { createDefaultProgram } from "../../../engine-core-ts/src/core/ts/default-program";
 import { SourceFileCache } from "../../../engine-core-ts/src/core/ts/source-file-cache";
-import { WorkspaceTypeResolver } from "../../../engine-core-ts/src/core/ts/type-resolver";
+import { type TypeResolver } from "../../../engine-core-ts/src/core/ts/type-resolver";
+import { selectTypeResolver, type TypeFactBackendKind } from "../type-backend";
 
 const SOURCE_GLOB = "**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs}";
 const DEFAULT_IGNORES = ["**/node_modules/**", "**/dist/**", "**/.git/**"] as const;
@@ -42,7 +42,8 @@ export interface WorkspaceStyleHost {
 export interface WorkspaceAnalysisHost {
   readonly analysisCache: DocumentAnalysisCache;
   readonly semanticReferenceIndex: WorkspaceSemanticWorkspaceReferenceIndex;
-  readonly typeResolver: WorkspaceTypeResolver;
+  readonly typeResolver: TypeResolver;
+  readonly typeBackend: TypeFactBackendKind;
 }
 
 export interface SourceDocumentSnapshot {
@@ -122,6 +123,8 @@ export function createWorkspaceAnalysisHost(params: {
   readonly classnameTransform: ClassnameTransformMode;
   readonly pathAlias: Readonly<Record<string, string>>;
   readonly styleDocumentForPath: (filePath: string) => StyleDocumentHIR | null;
+  readonly typeBackend?: TypeFactBackendKind;
+  readonly env?: NodeJS.ProcessEnv;
 }): WorkspaceAnalysisHost {
   const aliasResolver = new AliasResolver(
     params.workspaceRoot,
@@ -130,7 +133,11 @@ export function createWorkspaceAnalysisHost(params: {
   );
   const sourceFileCache = new SourceFileCache({ max: 500 });
   const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
-  const typeResolver = new WorkspaceTypeResolver({ createProgram: createDefaultProgram });
+  const typeResolverSelection = selectTypeResolver({
+    ...(params.typeBackend ? { typeBackend: params.typeBackend } : {}),
+    ...(params.env ? { env: params.env } : {}),
+  });
+  const typeResolver = typeResolverSelection.typeResolver;
 
   const analysisCache = new DocumentAnalysisCache({
     sourceFileCache,
@@ -161,6 +168,7 @@ export function createWorkspaceAnalysisHost(params: {
     analysisCache,
     semanticReferenceIndex,
     typeResolver,
+    typeBackend: typeResolverSelection.backend,
   };
 }
 
