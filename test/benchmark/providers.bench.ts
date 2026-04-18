@@ -3,11 +3,11 @@ import { SourceFileCache } from "../../server/engine-core-ts/src/core/ts/source-
 import { DocumentAnalysisCache } from "../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
 import { parseClassExpressions } from "../../server/engine-core-ts/src/core/cx/class-ref-parser";
 import { scanCxImports } from "../../server/engine-core-ts/src/core/cx/binding-detector";
-import type { ProviderDeps } from "../../server/adapter-vscode/src/providers/cursor-dispatch";
-import { handleDefinition } from "../../server/adapter-vscode/src/providers/definition";
-import { handleHover } from "../../server/adapter-vscode/src/providers/hover";
-import { handleCompletion } from "../../server/adapter-vscode/src/providers/completion";
-import { computeDiagnostics } from "../../server/adapter-vscode/src/providers/diagnostics";
+import type { ProviderDeps } from "../../server/lsp-server/src/providers/cursor-dispatch";
+import { handleDefinition } from "../../server/lsp-server/src/providers/definition";
+import { handleHover } from "../../server/lsp-server/src/providers/hover";
+import { handleCompletion } from "../../server/lsp-server/src/providers/completion";
+import { computeDiagnostics } from "../../server/lsp-server/src/providers/diagnostics";
 import { EMPTY_ALIAS_RESOLVER, info, makeBaseDeps } from "../_fixtures/test-helpers";
 
 const BUTTON_TSX = `

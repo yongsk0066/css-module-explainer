@@ -10,8 +10,8 @@ import { NullSemanticWorkspaceReferenceIndex } from "../../../server/engine-core
 import {
   NOOP_LOG_ERROR,
   type ProviderDeps,
-} from "../../../server/adapter-vscode/src/providers/cursor-dispatch";
-import { computeDiagnostics } from "../../../server/adapter-vscode/src/providers/diagnostics";
+} from "../../../server/lsp-server/src/providers/cursor-dispatch";
+import { computeDiagnostics } from "../../../server/lsp-server/src/providers/diagnostics";
 import { DEFAULT_SETTINGS } from "../../../server/engine-core-ts/src/settings";
 import type { TypeResolver } from "../../../server/engine-core-ts/src/core/ts/type-resolver";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";

@@ -79,7 +79,7 @@ export { createDefaultProgram } from "../../engine-core-ts/src/core/ts/default-p
  *
  * Responsibilities are split:
  *   - THIS file: DI assembly (buildBundle) + lifecycle (init/initialized)
- *   - adapter-vscode/handler-registration.ts: LSP request routing + diagnostics scheduler
+ *   - lsp-server/handler-registration.ts: LSP request routing + diagnostics scheduler
  */
 export function createServer(options: CreateServerOptions): CreatedServer {
   const connection =

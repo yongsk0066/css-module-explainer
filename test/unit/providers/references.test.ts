@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/engine-core-ts/src/core/semantic/workspace-reference-index";
 import { WorkspaceStyleDependencyGraph } from "../../../server/engine-core-ts/src/core/semantic/style-dependency-graph";
-import type { ProviderDeps } from "../../../server/adapter-vscode/src/providers/cursor-dispatch";
+import type { ProviderDeps } from "../../../server/lsp-server/src/providers/cursor-dispatch";
 import {
   findSelectorAtCursor,
   handleReferences,
-} from "../../../server/adapter-vscode/src/providers/references";
+} from "../../../server/lsp-server/src/providers/references";
 import { infoAtLine, makeBaseDeps, semanticSiteAt } from "../../_fixtures/test-helpers";
 import {
   buildStyleDocumentFromSelectorMap,

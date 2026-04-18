@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildServerCapabilities,
   resolveClientRuntimeCapabilities,
-} from "../../server/adapter-vscode/src/server-capabilities";
+} from "../../server/lsp-server/src/server-capabilities";
 
 describe("server capabilities", () => {
   it("builds the stable LSP capability surface", () => {

@@ -4,8 +4,8 @@ import { CompletionItemKind } from "vscode-languageserver-protocol/node";
 import type { CxBinding } from "../../../server/engine-core-ts/src/core/cx/cx-types";
 import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
-import type { ProviderDeps } from "../../../server/adapter-vscode/src/providers/cursor-dispatch";
-import { handleCompletion } from "../../../server/adapter-vscode/src/providers/completion";
+import type { ProviderDeps } from "../../../server/lsp-server/src/providers/cursor-dispatch";
+import { handleCompletion } from "../../../server/lsp-server/src/providers/completion";
 import { detectClassUtilImports } from "../../../server/engine-core-ts/src/core/cx/binding-detector";
 import { EMPTY_ALIAS_RESOLVER, info, makeBaseDeps } from "../../_fixtures/test-helpers";
 

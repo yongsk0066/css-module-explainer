@@ -24,7 +24,7 @@
 
 ### Changed
 
-- **Internal server structure is now split by role** — the monolithic server tree is divided into `engine-core-ts`, `engine-host-node`, `adapter-vscode`, and `checker-cli` subprojects, matching the runtime, core, adapter, and batch-consumer boundaries.
+- **Internal server structure is now split by role** — the monolithic server tree is divided into `engine-core-ts`, `engine-host-node`, `lsp-server`, and `checker-cli` subprojects, matching the runtime, core, transport, and batch-consumer boundaries.
 - **Release operations include contract validation** — release verification now includes contract parity smoke/golden checks and the release batch corpus in addition to the semantic smoke pass.
 - **Current roadmap ranges are consolidated in one release** — this release rolls up the feature-closure, internal split, and contract-freeze work that landed across the 3.3/3.4/3.5/3.6 roadmap waves.
 

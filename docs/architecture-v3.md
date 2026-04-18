@@ -232,7 +232,7 @@ Rewrite entrypoints:
 
 Provider entrypoints:
 
-- `server/adapter-vscode/src/providers/*`
+- `server/lsp-server/src/providers/*`
 
 Responsibilities are split like this:
 
@@ -314,7 +314,7 @@ Current split:
 - workspace registry
   - file-to-workspace ownership and routing
 
-`server/adapter-vscode/src/composition-root.ts` is the top-level assembly point. Its job is
+`server/lsp-server/src/composition-root.ts` is the top-level assembly point. Its job is
 orchestration, not feature logic.
 
 Benefits:
@@ -338,7 +338,7 @@ The flow is:
 3. compute an invalidation plan
 4. apply the plan from handler/runtime wiring
 
-`server/adapter-vscode/src/handler-registration.ts` applies plans. It should not own semantic
+`server/lsp-server/src/handler-registration.ts` applies plans. It should not own semantic
 diffing rules itself.
 
 Benefits:

@@ -3,7 +3,7 @@ import { DiagnosticSeverity, DiagnosticTag } from "vscode-languageserver-protoco
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/engine-core-ts/src/core/semantic/workspace-reference-index";
 import { WorkspaceStyleDependencyGraph } from "../../../server/engine-core-ts/src/core/semantic/style-dependency-graph";
 import { parseStyleDocument } from "../../../server/engine-core-ts/src/core/scss/scss-parser";
-import { computeScssUnusedDiagnostics } from "../../../server/adapter-vscode/src/providers/scss-diagnostics";
+import { computeScssUnusedDiagnostics } from "../../../server/lsp-server/src/providers/scss-diagnostics";
 import { infoAtLine as info, semanticSiteAt } from "../../_fixtures/test-helpers";
 import {
   buildStyleDocumentFromSelectorMap,

@@ -6,12 +6,12 @@ const REPO_ROOT = process.cwd();
 const CORE_ROOT = path.join(REPO_ROOT, "server/engine-core-ts/src/core");
 const ENGINE_HOST_ROOT = path.join(REPO_ROOT, "server/engine-host-node/src");
 const RUNTIME_ROOT = path.join(REPO_ROOT, "server/engine-host-node/src/runtime");
-const PROVIDERS_ROOT = path.join(REPO_ROOT, "server/adapter-vscode/src/providers");
+const PROVIDERS_ROOT = path.join(REPO_ROOT, "server/lsp-server/src/providers");
 const CHECKER_HOST_ROOT = path.join(REPO_ROOT, "server/engine-host-node/src/checker-host");
 const CHECKER_CLI_ROOT = path.join(REPO_ROOT, "server/checker-cli/src");
 const CHECKER_SURFACE_ROOT = path.join(REPO_ROOT, "server/engine-core-ts/src/checker-surface");
-const COMPOSITION_ROOT = path.join(REPO_ROOT, "server/adapter-vscode/src/composition-root.ts");
-const HANDLER_ROOT = path.join(REPO_ROOT, "server/adapter-vscode/src/handler-registration.ts");
+const COMPOSITION_ROOT = path.join(REPO_ROOT, "server/lsp-server/src/composition-root.ts");
+const HANDLER_ROOT = path.join(REPO_ROOT, "server/lsp-server/src/handler-registration.ts");
 
 describe("package-ready boundaries", () => {
   it("core modules do not depend on provider or runtime modules", () => {
@@ -35,7 +35,7 @@ describe("package-ready boundaries", () => {
     for (const filePath of walkTsFiles(ENGINE_HOST_ROOT)) {
       const source = readFileSync(filePath, "utf8");
       expect(source, relativePath(filePath)).not.toMatch(/src\/providers\//);
-      expect(source, relativePath(filePath)).not.toMatch(/adapter-vscode\//);
+      expect(source, relativePath(filePath)).not.toMatch(/lsp-server\//);
       expect(source, relativePath(filePath)).not.toMatch(/vscode-languageserver/);
     }
   });

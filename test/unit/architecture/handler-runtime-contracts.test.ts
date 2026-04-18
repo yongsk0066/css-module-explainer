@@ -3,7 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 const REPO_ROOT = process.cwd();
-const HANDLER = path.join(REPO_ROOT, "server/adapter-vscode/src/handler-registration.ts");
+const HANDLER = path.join(REPO_ROOT, "server/lsp-server/src/handler-registration.ts");
 
 describe("handler/runtime contracts", () => {
   it("keeps watched-file classification in runtime helpers", () => {

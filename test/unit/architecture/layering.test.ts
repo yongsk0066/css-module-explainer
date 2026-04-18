@@ -3,7 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 const REPO_ROOT = process.cwd();
-const PROVIDERS_ROOT = path.join(REPO_ROOT, "server/adapter-vscode/src/providers");
+const PROVIDERS_ROOT = path.join(REPO_ROOT, "server/lsp-server/src/providers");
 const QUERY_ROOT = path.join(REPO_ROOT, "server/engine-core-ts/src/core/query");
 
 describe("architecture layering invariants", () => {

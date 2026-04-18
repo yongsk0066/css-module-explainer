@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const ROOT = join(fileURLToPath(new URL("../../..", import.meta.url)));
-const PROVIDERS_SRC = join(ROOT, "server/adapter-vscode/src/providers");
+const PROVIDERS_SRC = join(ROOT, "server/lsp-server/src/providers");
 
 describe("provider contracts", () => {
   it("does not import disallowed core internals directly from provider implementation files", () => {

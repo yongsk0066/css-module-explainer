@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 const ROOT = join(fileURLToPath(new URL("../../..", import.meta.url)));
 const RUNTIME_SOURCE_ROOTS = [
   join(ROOT, "server/engine-host-node/src"),
-  join(ROOT, "server/adapter-vscode/src"),
+  join(ROOT, "server/lsp-server/src"),
 ] as const;
 
 describe("runtime cutover", () => {

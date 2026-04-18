@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ProviderDeps } from "../../../server/adapter-vscode/src/providers/cursor-dispatch";
-import { wrapHandler } from "../../../server/adapter-vscode/src/providers/_wrap-handler";
+import type { ProviderDeps } from "../../../server/lsp-server/src/providers/cursor-dispatch";
+import { wrapHandler } from "../../../server/lsp-server/src/providers/_wrap-handler";
 import { makeBaseDeps } from "../../_fixtures/test-helpers";
 
 describe("wrapHandler", () => {

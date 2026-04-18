@@ -5,8 +5,8 @@ import {
   type CodeActionParams,
   type Diagnostic,
 } from "vscode-languageserver-protocol/node";
-import type { ProviderDeps } from "../../../server/adapter-vscode/src/providers/cursor-dispatch";
-import { handleCodeAction } from "../../../server/adapter-vscode/src/providers/code-actions";
+import type { ProviderDeps } from "../../../server/lsp-server/src/providers/cursor-dispatch";
+import { handleCodeAction } from "../../../server/lsp-server/src/providers/code-actions";
 import { makeBaseDeps } from "../../_fixtures/test-helpers";
 
 function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {

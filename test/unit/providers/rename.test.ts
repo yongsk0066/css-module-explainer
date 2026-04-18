@@ -6,12 +6,9 @@ import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/engine
 import type {
   CursorParams,
   ProviderDeps,
-} from "../../../server/adapter-vscode/src/providers/cursor-dispatch";
-import {
-  handlePrepareRename,
-  handleRename,
-} from "../../../server/adapter-vscode/src/providers/rename";
-import { findSelectorAtCursor } from "../../../server/adapter-vscode/src/providers/references";
+} from "../../../server/lsp-server/src/providers/cursor-dispatch";
+import { handlePrepareRename, handleRename } from "../../../server/lsp-server/src/providers/rename";
+import { findSelectorAtCursor } from "../../../server/lsp-server/src/providers/references";
 import { DEFAULT_SETTINGS } from "../../../server/engine-core-ts/src/settings";
 import type { Settings } from "../../../server/engine-core-ts/src/settings";
 import {

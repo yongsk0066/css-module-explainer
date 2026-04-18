@@ -2,10 +2,7 @@ import { PassThrough } from "node:stream";
 import { describe, expect, it } from "vitest";
 import ts from "typescript";
 import { StreamMessageReader, StreamMessageWriter } from "vscode-jsonrpc/node";
-import {
-  createDefaultProgram,
-  createServer,
-} from "../../server/adapter-vscode/src/composition-root";
+import { createDefaultProgram, createServer } from "../../server/lsp-server/src/composition-root";
 import type { FileTask } from "../../server/engine-core-ts/src/core/indexing/indexer-worker";
 
 describe("createDefaultProgram", () => {

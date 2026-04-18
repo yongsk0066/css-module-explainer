@@ -8,7 +8,7 @@ import { WorkspaceStyleDependencyGraph } from "../../server/engine-core-ts/src/c
 import {
   NOOP_LOG_ERROR,
   type ProviderDeps,
-} from "../../server/adapter-vscode/src/providers/cursor-dispatch";
+} from "../../server/lsp-server/src/providers/cursor-dispatch";
 import { DEFAULT_SETTINGS } from "../../server/engine-core-ts/src/settings";
 import { AliasResolver } from "../../server/engine-core-ts/src/core/cx/alias-resolver";
 import { FakeTypeResolver } from "./fake-type-resolver";

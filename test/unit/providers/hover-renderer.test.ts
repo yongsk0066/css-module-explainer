@@ -6,7 +6,7 @@ import type { SelectorStyleDependencySummary } from "../../../server/engine-core
 import {
   renderHover,
   renderSelectorHover,
-} from "../../../server/adapter-vscode/src/providers/hover-renderer";
+} from "../../../server/lsp-server/src/providers/hover-renderer";
 
 const SCSS_PATH = "/fake/ws/src/Button.module.scss";
 

@@ -57,7 +57,7 @@ import ts from "typescript";
 import {
   createServer,
   type CreateServerOptions,
-} from "../../../server/adapter-vscode/src/composition-root";
+} from "../../../server/lsp-server/src/composition-root";
 import type { FileTask } from "../../../server/engine-core-ts/src/core/indexing/indexer-worker";
 
 const LEGACY_WORKSPACE_URI = "file:///fake/workspace";
