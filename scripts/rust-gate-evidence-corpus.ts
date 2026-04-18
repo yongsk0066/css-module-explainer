@@ -26,12 +26,12 @@ export const RUST_GATE_EVIDENCE_CORPUS: readonly RustGateEvidenceEntry[] = [
   {
     label: "release-batch",
     argv: ["check:release-batch"],
-    variants: ["typescript-current"],
+    variants: ["typescript-current", "tsgo-preview"],
   },
   {
     label: "real-project-corpus",
     argv: ["check:real-project-corpus"],
-    variants: ["typescript-current"],
+    variants: ["typescript-current", "tsgo-preview"],
   },
   {
     label: "lsp-server-smoke",

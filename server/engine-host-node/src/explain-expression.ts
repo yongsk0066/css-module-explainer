@@ -17,6 +17,7 @@ import {
   deriveValueCertaintyProfileV2,
 } from "../../engine-core-ts/src/core/semantic/certainty";
 import type { ClassnameTransformMode } from "../../engine-core-ts/src/core/scss/classname-transform";
+import type { TypeFactBackendKind } from "./type-backend";
 import {
   createWorkspaceAnalysisHost,
   createWorkspaceStyleHost,
@@ -30,6 +31,8 @@ export interface ExplainExpressionOptions {
   readonly character: number;
   readonly classnameTransform?: ClassnameTransformMode;
   readonly pathAlias?: Readonly<Record<string, string>>;
+  readonly typeBackend?: TypeFactBackendKind;
+  readonly env?: NodeJS.ProcessEnv;
 }
 
 export interface ExplainExpressionResult {
@@ -69,6 +72,8 @@ export function explainExpressionAtLocation(
     classnameTransform: options.classnameTransform ?? "asIs",
     pathAlias: options.pathAlias ?? {},
     styleDocumentForPath: styleHost.styleDocumentForPath,
+    ...(options.typeBackend ? { typeBackend: options.typeBackend } : {}),
+    env: options.env ?? process.env,
   });
   const content = readFileSync(options.filePath, "utf8");
   const documentUri = pathToFileURL(options.filePath).href;

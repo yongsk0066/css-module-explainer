@@ -6,6 +6,7 @@ import type {
 } from "../../../engine-core-ts/src/core/checker/contracts";
 import type { CheckerReportSummaryV1 } from "../../../engine-core-ts/src/contracts";
 import type { ClassnameTransformMode } from "../../../engine-core-ts/src/core/scss/classname-transform";
+import type { TypeFactBackendKind } from "../type-backend";
 import {
   collectSourceDocuments,
   createWorkspaceAnalysisHost,
@@ -17,6 +18,8 @@ export interface WorkspaceCheckOptions {
   readonly workspaceRoot: string;
   readonly classnameTransform?: ClassnameTransformMode;
   readonly pathAlias?: Readonly<Record<string, string>>;
+  readonly typeBackend?: TypeFactBackendKind;
+  readonly env?: NodeJS.ProcessEnv;
   readonly includeMissingModule?: boolean;
   readonly includeUnusedSelectors?: boolean;
   readonly includeComposesResolution?: boolean;
@@ -54,6 +57,8 @@ export async function checkWorkspace(
     classnameTransform,
     pathAlias,
     styleDocumentForPath: styleHost.styleDocumentForPath,
+    ...(options.typeBackend ? { typeBackend: options.typeBackend } : {}),
+    env: options.env ?? process.env,
   });
   const sourceDocuments = collectSourceDocuments(sourceFiles, analysisHost.analysisCache);
 
