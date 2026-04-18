@@ -245,6 +245,7 @@ Current checker policy:
 - `pnpm check:backend-typecheck-smoke` now runs a small multi-case corpus (`template-literals`, `path-alias`, `flow-relations`) for both `typescript-current` and `tsgo-preview`
   - `CME_TYPE_FACT_BACKEND=tsgo-preview` now activates a host-side preview probe before delegating symbol resolution to the current TS resolver
 - `CME_TYPE_FACT_BACKEND=tsgo-preview pnpm check:release-batch` and `pnpm check:real-project-corpus` now exercise the checker path through the same host-side preview probe
+- `pnpm check:type-fact-backend-parity` compares `EngineInputV1/V2.typeFacts` across `typescript-current` and `tsgo-preview` on the backend smoke corpus
 - `pnpm check:real-project-corpus` runs a clean multi-file corpus that mimics common product patterns (`variants`, `@value` + `@keyframes`, `composes`, `.module.less`)
 - semantic smoke cases are versioned in `scripts/semantic-smoke-corpus.ts` and should be updated when new semantic surfaces become release-relevant
 - `pnpm check:release-batch` is the canonical release-facing batch checker pass

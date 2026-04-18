@@ -11,11 +11,13 @@ import type { DocumentAnalysisCache } from "../../engine-core-ts/src/core/indexi
 import type { StyleDocumentHIR } from "../../engine-core-ts/src/core/hir/style-types";
 import type { ClassnameTransformMode } from "../../engine-core-ts/src/core/scss/classname-transform";
 import type { TypeResolver } from "../../engine-core-ts/src/core/ts/type-resolver";
+import type ts from "typescript";
 import {
   workspaceSettingsKey,
   type SourceDocumentSnapshot,
 } from "./checker-host/workspace-check-support";
-import { collectTypeFactTableV1 } from "./type-fact-table-v1";
+import { selectTypeFactCollector } from "./type-fact-collector";
+import type { TypeFactBackendKind } from "./type-backend";
 
 export interface BuildEngineInputV1Options {
   readonly workspaceRoot: string;
@@ -25,7 +27,10 @@ export interface BuildEngineInputV1Options {
   readonly styleFiles: readonly string[];
   readonly analysisCache: DocumentAnalysisCache;
   readonly styleDocumentForPath: (filePath: string) => StyleDocumentHIR | null;
-  readonly typeResolver: TypeResolver;
+  readonly typeResolver?: TypeResolver;
+  readonly typeBackend?: TypeFactBackendKind;
+  readonly createProgram?: (workspaceRoot: string) => ts.Program;
+  readonly env?: NodeJS.ProcessEnv;
 }
 
 export function buildEngineInputV1(options: BuildEngineInputV1Options): EngineInputV1 {
@@ -50,9 +55,14 @@ export function buildEngineInputV1(options: BuildEngineInputV1Options): EngineIn
     return document ? [{ filePath, document }] : [];
   });
 
-  const typeFacts = collectTypeFactTableV1({
+  const typeFactCollector = selectTypeFactCollector({
+    ...(options.typeResolver ? { typeResolver: options.typeResolver } : {}),
+    ...(options.typeBackend ? { typeBackend: options.typeBackend } : {}),
+    ...(options.createProgram ? { createProgram: options.createProgram } : {}),
+    ...(options.env ? { env: options.env } : {}),
+  });
+  const typeFacts = typeFactCollector.collectV1({
     workspaceRoot: options.workspaceRoot,
-    typeResolver: options.typeResolver,
     sourceEntries,
   });
 
