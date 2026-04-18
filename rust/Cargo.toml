@@ -1,0 +1,3 @@
+[workspace]
+members = ["crates/engine-shadow-runner"]
+resolver = "2"

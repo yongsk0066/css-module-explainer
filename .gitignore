@@ -6,6 +6,8 @@ node_modules/
 dist/
 *.vsix
 *.tsbuildinfo
+target/
+rust/target/
 
 # Test output
 coverage/
