@@ -58,4 +58,9 @@ export const RUST_GATE_EVIDENCE_CORPUS: readonly RustGateEvidenceEntry[] = [
     argv: ["check:backend-typecheck-smoke"],
     variants: ["typescript-current", "tsgo-preview"],
   },
+  {
+    label: "type-fact-backend-parity",
+    argv: ["check:type-fact-backend-parity"],
+    variants: ["typescript-current"],
+  },
 ] as const;

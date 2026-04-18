@@ -1,0 +1,7 @@
+{
+  "name": "type-fact-backend-parity-path-alias",
+  "type": "module",
+  "imports": {
+    "#tokens/*": "./src/tokens/*.ts"
+  }
+}

@@ -8,57 +8,29 @@ import { buildEngineInputV1 } from "../server/engine-host-node/src/engine-input-
 import { buildEngineInputV2 } from "../server/engine-host-node/src/engine-input-v2";
 import { stableJsonStringify } from "./contract-parity-runtime";
 
-const workspaceRoot = process.cwd();
+const repoRoot = process.cwd();
 const parityFixtures = [
   {
-    fixture: "type-fact-parity",
+    fixture: "literal-union",
+    workspaceRoot: path.join(repoRoot, "test/_fixtures/type-fact-backend-parity/literal-union"),
     sourceFilePaths: [
-      path.join(workspaceRoot, "test/_fixtures/contract-parity/TypeFactParity.tsx"),
-    ],
-    styleFilePaths: [
-      path.join(workspaceRoot, "test/_fixtures/contract-parity/TypeFactParity.module.scss"),
-    ],
-  },
-  {
-    fixture: "source-flow-parity",
-    sourceFilePaths: [
-      path.join(workspaceRoot, "test/_fixtures/contract-parity/SourceFlowParity.tsx"),
-    ],
-    styleFilePaths: [
-      path.join(workspaceRoot, "test/_fixtures/contract-parity/SourceFlowParity.module.scss"),
-    ],
-  },
-  {
-    fixture: "source-prefix-suffix-parity",
-    sourceFilePaths: [
-      path.join(workspaceRoot, "test/_fixtures/contract-parity/SourcePrefixSuffixParity.tsx"),
+      path.join(repoRoot, "test/_fixtures/type-fact-backend-parity/literal-union/src/App.ts"),
     ],
     styleFilePaths: [
       path.join(
-        workspaceRoot,
-        "test/_fixtures/contract-parity/SourcePrefixSuffixParity.module.scss",
+        repoRoot,
+        "test/_fixtures/type-fact-backend-parity/literal-union/src/App.module.scss",
       ),
     ],
   },
   {
-    fixture: "source-char-inclusion-parity",
+    fixture: "path-alias",
+    workspaceRoot: path.join(repoRoot, "test/_fixtures/type-fact-backend-parity/path-alias"),
     sourceFilePaths: [
-      path.join(workspaceRoot, "test/_fixtures/contract-parity/SourceCharInclusionParity.tsx"),
+      path.join(repoRoot, "test/_fixtures/type-fact-backend-parity/path-alias/src/App.ts"),
     ],
     styleFilePaths: [
-      path.join(
-        workspaceRoot,
-        "test/_fixtures/contract-parity/SourceCharInclusionParity.module.scss",
-      ),
-    ],
-  },
-  {
-    fixture: "source-composite-parity",
-    sourceFilePaths: [
-      path.join(workspaceRoot, "test/_fixtures/contract-parity/SourceCompositeParity.tsx"),
-    ],
-    styleFilePaths: [
-      path.join(workspaceRoot, "test/_fixtures/contract-parity/SourceCompositeParity.module.scss"),
+      path.join(repoRoot, "test/_fixtures/type-fact-backend-parity/path-alias/src/App.module.scss"),
     ],
   },
 ] as const;
@@ -104,6 +76,7 @@ void (async () => {
 async function buildTypeFactSnapshot(
   fixture: {
     readonly fixture: string;
+    readonly workspaceRoot: string;
     readonly sourceFilePaths: readonly string[];
     readonly styleFilePaths: readonly string[];
   },
@@ -115,7 +88,7 @@ async function buildTypeFactSnapshot(
     classnameTransform: "asIs",
   });
   const analysisHost = createWorkspaceAnalysisHost({
-    workspaceRoot,
+    workspaceRoot: fixture.workspaceRoot,
     classnameTransform: "asIs",
     pathAlias: {},
     styleDocumentForPath: styleHost.styleDocumentForPath,
@@ -132,7 +105,7 @@ async function buildTypeFactSnapshot(
 
   return {
     v1: buildEngineInputV1({
-      workspaceRoot,
+      workspaceRoot: fixture.workspaceRoot,
       classnameTransform: "asIs",
       pathAlias: {},
       sourceDocuments,
@@ -146,7 +119,7 @@ async function buildTypeFactSnapshot(
       },
     }),
     v2: buildEngineInputV2({
-      workspaceRoot,
+      workspaceRoot: fixture.workspaceRoot,
       classnameTransform: "asIs",
       pathAlias: {},
       sourceDocuments,

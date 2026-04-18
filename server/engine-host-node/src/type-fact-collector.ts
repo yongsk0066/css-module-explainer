@@ -11,8 +11,16 @@ import {
   type SelectTypeResolverOptions,
   type TypeFactBackendKind,
 } from "./type-backend";
+import {
+  collectTypeFactTableV1WithTsgoPreview,
+  collectTypeFactTableV2WithTsgoPreview,
+  type RunTsgoPreviewTypeFactWorker,
+} from "./tsgo-preview-type-fact-collector";
 
-export interface SelectTypeFactCollectorOptions extends SelectTypeResolverOptions {}
+export interface SelectTypeFactCollectorOptions extends SelectTypeResolverOptions {
+  readonly findPreviewConfigFile?: (workspaceRoot: string) => string | null;
+  readonly runPreviewTypeFactWorker?: RunTsgoPreviewTypeFactWorker;
+}
 
 export interface TypeFactCollectorSelection {
   readonly backend: TypeFactBackendKind;
@@ -35,11 +43,33 @@ export function selectTypeFactCollector(
     backend: resolverSelection.backend,
     typeResolver: resolverSelection.typeResolver,
     collectV1(collectOptions) {
+      if (resolverSelection.backend === "tsgo-preview") {
+        return collectTypeFactTableV1WithTsgoPreview({
+          ...withTypeResolver(collectOptions, resolverSelection.typeResolver),
+          ...(options.findPreviewConfigFile
+            ? { findConfigFile: options.findPreviewConfigFile }
+            : {}),
+          ...(options.runPreviewTypeFactWorker
+            ? { runWorker: options.runPreviewTypeFactWorker }
+            : {}),
+        });
+      }
       return collectTypeFactTableV1(
         withTypeResolver(collectOptions, resolverSelection.typeResolver),
       );
     },
     collectV2(collectOptions) {
+      if (resolverSelection.backend === "tsgo-preview") {
+        return collectTypeFactTableV2WithTsgoPreview({
+          ...withTypeResolver(collectOptions, resolverSelection.typeResolver),
+          ...(options.findPreviewConfigFile
+            ? { findConfigFile: options.findPreviewConfigFile }
+            : {}),
+          ...(options.runPreviewTypeFactWorker
+            ? { runWorker: options.runPreviewTypeFactWorker }
+            : {}),
+        });
+      }
       return collectTypeFactTableV2(
         withTypeResolver(collectOptions, resolverSelection.typeResolver),
       );
