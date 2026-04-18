@@ -1,6 +1,7 @@
 const sourceCheckRule = require("./lib/source-check.cjs");
 const missingModuleRule = require("./lib/missing-module.cjs");
 const invalidClassReferenceRule = require("./lib/invalid-class-reference.cjs");
+const noUnknownDynamicClassRule = require("./lib/no-unknown-dynamic-class.cjs");
 
 const plugin = {
   meta: {
@@ -10,6 +11,7 @@ const plugin = {
   rules: {
     "missing-module": missingModuleRule,
     "invalid-class-reference": invalidClassReferenceRule,
+    "no-unknown-dynamic-class": noUnknownDynamicClassRule,
     "source-check": sourceCheckRule,
   },
 };
