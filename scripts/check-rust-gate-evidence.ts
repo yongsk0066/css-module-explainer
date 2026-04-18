@@ -27,7 +27,9 @@ const selectedVariants = resolveVariants(selectedVariantLabels);
 const results: RustGateEvidenceResult[] = [];
 
 for (const variant of selectedVariants) {
-  for (const entry of RUST_GATE_EVIDENCE_CORPUS) {
+  for (const entry of RUST_GATE_EVIDENCE_CORPUS.filter((candidate) =>
+    candidate.variants ? candidate.variants.includes(variant.label) : true,
+  )) {
     const durationsMs: number[] = [];
     let exitCode = 0;
 

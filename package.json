@@ -42,6 +42,7 @@
     "test": "vitest run",
     "check:eslint-plugin-smoke": "tsx ./scripts/check-eslint-plugin-smoke.ts",
     "check:stylelint-plugin-smoke": "node ./scripts/check-stylelint-plugin-smoke.mjs",
+    "check:backend-typecheck-smoke": "tsx ./scripts/check-backend-typecheck-smoke.ts",
     "check:workspace": "tsx ./scripts/check-workspace.ts",
     "explain:expression": "tsx ./scripts/explain-expression.ts",
     "check:semantic-smoke": "tsx ./scripts/check-semantic-smoke.ts",

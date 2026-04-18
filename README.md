@@ -241,6 +241,7 @@ Current checker policy:
   - current baseline variant: `typescript-current`
   - future variants can be selected with `--variant <label>`
   - repeated runs can be summarized with `--repeat <n>`
+  - current comparison slot: `tsgo-preview` on `check:backend-typecheck-smoke`
 - `pnpm check:real-project-corpus` runs a clean multi-file corpus that mimics common product patterns (`variants`, `@value` + `@keyframes`, `composes`, `.module.less`)
 - semantic smoke cases are versioned in `scripts/semantic-smoke-corpus.ts` and should be updated when new semantic surfaces become release-relevant
 - `pnpm check:release-batch` is the canonical release-facing batch checker pass

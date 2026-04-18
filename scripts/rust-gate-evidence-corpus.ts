@@ -1,6 +1,7 @@
 export interface RustGateEvidenceEntry {
   readonly label: string;
   readonly argv: readonly string[];
+  readonly variants?: readonly string[];
 }
 
 export interface RustGateEvidenceVariant {
@@ -12,31 +13,48 @@ export const RUST_GATE_EVIDENCE_VARIANTS: readonly RustGateEvidenceVariant[] = [
   {
     label: "typescript-current",
   },
+  {
+    label: "tsgo-preview",
+    env: {
+      CME_TYPECHECK_VARIANT: "tsgo-preview",
+    },
+  },
 ] as const;
 
 export const RUST_GATE_EVIDENCE_CORPUS: readonly RustGateEvidenceEntry[] = [
   {
     label: "release-batch",
     argv: ["check:release-batch"],
+    variants: ["typescript-current"],
   },
   {
     label: "real-project-corpus",
     argv: ["check:real-project-corpus"],
+    variants: ["typescript-current"],
   },
   {
     label: "lsp-server-smoke",
     argv: ["check:lsp-server-smoke"],
+    variants: ["typescript-current"],
   },
   {
     label: "eslint-plugin-smoke",
     argv: ["check:eslint-plugin-smoke"],
+    variants: ["typescript-current"],
   },
   {
     label: "stylelint-plugin-smoke",
     argv: ["check:stylelint-plugin-smoke"],
+    variants: ["typescript-current"],
   },
   {
     label: "contract-parity-v2-smoke",
     argv: ["check:contract-parity-v2-smoke"],
+    variants: ["typescript-current"],
+  },
+  {
+    label: "backend-typecheck-smoke",
+    argv: ["check:backend-typecheck-smoke"],
+    variants: ["typescript-current", "tsgo-preview"],
   },
 ] as const;

@@ -21,4 +21,13 @@ describe("rust gate evidence corpus", () => {
     const labels = RUST_GATE_EVIDENCE_VARIANTS.map((variant) => variant.label);
     expect(new Set(labels).size).toBe(labels.length);
   });
+
+  it("references only declared variants", () => {
+    const labels = new Set(RUST_GATE_EVIDENCE_VARIANTS.map((variant) => variant.label));
+    for (const entry of RUST_GATE_EVIDENCE_CORPUS) {
+      for (const variant of entry.variants ?? []) {
+        expect(labels.has(variant)).toBe(true);
+      }
+    }
+  });
 });
