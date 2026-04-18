@@ -1,0 +1,15 @@
+{
+  "name": "eslint-plugin-css-module-explainer",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./index.cjs",
+  "exports": {
+    ".": "./index.cjs"
+  },
+  "dependencies": {
+    "fast-glob": "^3.3.3"
+  },
+  "peerDependencies": {
+    "eslint": "^9.0.0"
+  }
+}
