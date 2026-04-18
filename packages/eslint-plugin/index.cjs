@@ -1,4 +1,6 @@
 const sourceCheckRule = require("./lib/source-check.cjs");
+const missingModuleRule = require("./lib/missing-module.cjs");
+const invalidClassReferenceRule = require("./lib/invalid-class-reference.cjs");
 
 const plugin = {
   meta: {
@@ -6,6 +8,8 @@ const plugin = {
     version: "0.0.1",
   },
   rules: {
+    "missing-module": missingModuleRule,
+    "invalid-class-reference": invalidClassReferenceRule,
     "source-check": sourceCheckRule,
   },
 };
@@ -17,7 +21,8 @@ plugin.configs = {
         "css-module-explainer": plugin,
       },
       rules: {
-        "css-module-explainer/source-check": "error",
+        "css-module-explainer/missing-module": "error",
+        "css-module-explainer/invalid-class-reference": "error",
       },
     },
   ],
