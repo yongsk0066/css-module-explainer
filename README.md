@@ -194,6 +194,7 @@ pnpm install
 pnpm check
 pnpm check:semantic-smoke
 pnpm check:lsp-server-smoke
+pnpm check:rust-gate-evidence
 pnpm check:eslint-plugin-smoke
 pnpm check:stylelint-plugin-smoke
 pnpm check:release-batch
@@ -236,6 +237,7 @@ Current checker policy:
 - `pnpm check:eslint-plugin-smoke` runs the first ESLint consumer against a JSX fixture and asserts that source-side semantic findings are reported as ESLint diagnostics
   - current first-cut rules: `missing-module`, `invalid-class-reference`, plus aggregate `source-check`
 - `pnpm check:stylelint-plugin-smoke` runs the first Stylelint consumer against a CSS Modules fixture and asserts that unused selectors are reported as Stylelint diagnostics
+- `pnpm check:rust-gate-evidence` records wall-clock timings for the current second/third-consumer proof set so Rust gate discussions use measured repo-local workloads instead of guesses
 - `pnpm check:real-project-corpus` runs a clean multi-file corpus that mimics common product patterns (`variants`, `@value` + `@keyframes`, `composes`, `.module.less`)
 - semantic smoke cases are versioned in `scripts/semantic-smoke-corpus.ts` and should be updated when new semantic surfaces become release-relevant
 - `pnpm check:release-batch` is the canonical release-facing batch checker pass

@@ -46,6 +46,7 @@
     "explain:expression": "tsx ./scripts/explain-expression.ts",
     "check:semantic-smoke": "tsx ./scripts/check-semantic-smoke.ts",
     "check:lsp-server-smoke": "tsx ./scripts/check-lsp-server-smoke.ts",
+    "check:rust-gate-evidence": "tsx ./scripts/check-rust-gate-evidence.ts",
     "check:real-project-corpus": "tsx ./scripts/check-real-project-corpus.ts",
     "check:release-batch": "tsx ./scripts/check-release-batch.ts",
     "check:contract-parity-smoke": "tsx ./scripts/check-contract-parity-smoke.ts",
