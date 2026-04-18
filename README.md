@@ -299,6 +299,13 @@ Supported rule options today:
 - `pathAlias`
 - `includeMissingModule` (`source-check` / `missing-module`)
 
+### External clients
+
+Minimal setup docs for the generic `lsp-server`:
+
+- [docs/clients/neovim.md](./docs/clients/neovim.md)
+- [docs/clients/zed.md](./docs/clients/zed.md)
+
 ## Examples
 
 `examples/` contains scenario-based manual QA fixtures for the extension
