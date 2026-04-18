@@ -32,13 +32,8 @@ async function assertInvalidClassReferenceRule(): Promise<void> {
             ecmaFeatures: { jsx: true },
           },
         },
-        plugins: {
-          "css-module-explainer": plugin,
-        },
-        rules: {
-          "css-module-explainer/invalid-class-reference": "error",
-        },
       },
+      ...plugin.configs.recommended,
     ],
   });
 
@@ -110,13 +105,8 @@ async function assertMissingModuleRule(): Promise<void> {
             ecmaFeatures: { jsx: true },
           },
         },
-        plugins: {
-          "css-module-explainer": plugin,
-        },
-        rules: {
-          "css-module-explainer/missing-module": "error",
-        },
       },
+      ...plugin.configs.recommended,
     ],
   });
 

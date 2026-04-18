@@ -11,7 +11,7 @@ async function main() {
     files: [STYLE_FILE_PATH],
     configBasedir: REPO_ROOT,
     config: {
-      plugins: [PLUGIN_NAME],
+      extends: [`${PLUGIN_NAME}/recommended`],
       rules: {
         "css-module-explainer/unused-selector": [
           true,

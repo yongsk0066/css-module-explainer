@@ -6,7 +6,15 @@ Current rule:
 
 - `css-module-explainer/unused-selector`
 
-Example:
+Recommended config:
+
+```js
+export default {
+  extends: ["stylelint-plugin-css-module-explainer/recommended"],
+};
+```
+
+Direct rule config:
 
 ```js
 export default {

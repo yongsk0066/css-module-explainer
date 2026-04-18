@@ -4,7 +4,8 @@
   "private": true,
   "main": "./index.cjs",
   "exports": {
-    ".": "./index.cjs"
+    ".": "./index.cjs",
+    "./recommended": "./recommended.cjs"
   },
   "peerDependencies": {
     "stylelint": "^17.0.0"
