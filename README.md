@@ -193,6 +193,7 @@ Common commands:
 pnpm install
 pnpm check
 pnpm check:semantic-smoke
+pnpm check:lsp-server-smoke
 pnpm check:release-batch
 pnpm check:contract-parity-v2-smoke
 pnpm check:contract-parity-v2-golden
@@ -229,6 +230,7 @@ Current checker policy:
   - `changed-source` => `source-missing`
 - `changed-style` and `changed-source` presets use compact text output by default
 - `pnpm check:semantic-smoke` is the canonical repo-local smoke command
+- `pnpm check:lsp-server-smoke` spawns the built `lsp-server` over stdio and verifies hover/definition through a generic protocol client
 - `pnpm check:real-project-corpus` runs a clean multi-file corpus that mimics common product patterns (`variants`, `@value` + `@keyframes`, `composes`, `.module.less`)
 - semantic smoke cases are versioned in `scripts/semantic-smoke-corpus.ts` and should be updated when new semantic surfaces become release-relevant
 - `pnpm check:release-batch` is the canonical release-facing batch checker pass
