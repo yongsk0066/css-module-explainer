@@ -3,6 +3,17 @@ export interface RustGateEvidenceEntry {
   readonly argv: readonly string[];
 }
 
+export interface RustGateEvidenceVariant {
+  readonly label: string;
+  readonly env?: Readonly<Record<string, string>>;
+}
+
+export const RUST_GATE_EVIDENCE_VARIANTS: readonly RustGateEvidenceVariant[] = [
+  {
+    label: "typescript-current",
+  },
+] as const;
+
 export const RUST_GATE_EVIDENCE_CORPUS: readonly RustGateEvidenceEntry[] = [
   {
     label: "release-batch",
