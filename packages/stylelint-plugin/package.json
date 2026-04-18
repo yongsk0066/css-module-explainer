@@ -3,6 +3,9 @@
   "version": "0.0.1",
   "private": true,
   "main": "./index.cjs",
+  "exports": {
+    ".": "./index.cjs"
+  },
   "peerDependencies": {
     "stylelint": "^17.0.0"
   }

@@ -3,7 +3,7 @@ import { ESLint } from "eslint";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const plugin = require("../packages/eslint-plugin");
+const plugin = require("eslint-plugin-css-module-explainer");
 
 const REPO_ROOT = process.cwd();
 const WORKSPACE_ROOT = path.join(REPO_ROOT, "test/_fixtures/eslint-plugin-smoke");

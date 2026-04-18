@@ -32,6 +32,9 @@ importers:
       eslint:
         specifier: ^9.39.1
         version: 9.39.4
+      eslint-plugin-css-module-explainer:
+        specifier: workspace:*
+        version: link:packages/eslint-plugin
       fast-glob:
         specifier: ^3.3.3
         version: 3.3.3
@@ -50,6 +53,9 @@ importers:
       stylelint:
         specifier: ^17.8.0
         version: 17.8.0(typescript@6.0.2)
+      stylelint-plugin-css-module-explainer:
+        specifier: workspace:*
+        version: link:packages/stylelint-plugin
       tsx:
         specifier: ^4.21.0
         version: 4.21.0
@@ -111,6 +117,21 @@ importers:
       vite-plus:
         specifier: ^0.1.16
         version: 0.1.16(@types/node@25.6.0)(esbuild@0.27.7)(less@4.6.4)(sass@1.99.0)(tsx@4.21.0)(typescript@6.0.2)(vite@8.0.8(@types/node@25.6.0)(esbuild@0.27.7)(less@4.6.4)(sass@1.99.0)(tsx@4.21.0))
+
+  packages/eslint-plugin:
+    dependencies:
+      eslint:
+        specifier: ^9.0.0
+        version: 9.39.4
+      fast-glob:
+        specifier: ^3.3.3
+        version: 3.3.3
+
+  packages/stylelint-plugin:
+    dependencies:
+      stylelint:
+        specifier: ^17.0.0
+        version: 17.8.0(typescript@6.0.2)
 
   server:
     dependencies:
