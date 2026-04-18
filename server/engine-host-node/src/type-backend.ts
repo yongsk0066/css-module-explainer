@@ -4,6 +4,7 @@ import {
   WorkspaceTypeResolver,
   type TypeResolver,
 } from "../../engine-core-ts/src/core/ts/type-resolver";
+import { TsgoPreviewTypeResolver } from "./tsgo-preview-type-resolver";
 
 export type TypeFactBackendKind = "typescript-current" | "tsgo-preview";
 
@@ -39,11 +40,21 @@ export function selectTypeResolver(options: SelectTypeResolverOptions): TypeReso
     };
   }
 
+  if (backend === "tsgo-preview") {
+    const previewOptions = options.createProgram
+      ? { createProgram: options.createProgram }
+      : undefined;
+    return {
+      backend,
+      // First cut: run a real tsgo preview probe at the host boundary, then
+      // delegate fine-grained symbol resolution to the current TS resolver
+      // until a dedicated preview-backed resolver exists.
+      typeResolver: new TsgoPreviewTypeResolver(previewOptions),
+    };
+  }
+
   return {
     backend,
-    // `tsgo-preview` is selected at the host boundary first. Until the preview
-    // adapter exists, the host still delegates to the current TS resolver while
-    // preserving the backend choice for orchestration and evidence plumbing.
     typeResolver: new WorkspaceTypeResolver({
       createProgram: options.createProgram ?? createDefaultProgram,
     }),
