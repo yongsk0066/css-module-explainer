@@ -1,21 +1,35 @@
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import fg from "fast-glob";
 
 type BackendTypecheckVariant = "typescript-current" | "tsgo-preview";
 
 const variant = readVariant();
-const fixtureTsconfig = path.resolve(
-  process.cwd(),
-  "test/_fixtures/backend-typecheck-smoke/tsconfig.json",
-);
+const fixtureRoot = path.resolve(process.cwd(), "test/_fixtures/backend-typecheck-smoke");
+const fixtureTsconfigs = fg
+  .sync("*/tsconfig.json", {
+    cwd: fixtureRoot,
+    absolute: true,
+    onlyFiles: true,
+  })
+  .toSorted();
 
-const child = spawnSync("pnpm", commandForVariant(variant, fixtureTsconfig), {
-  cwd: process.cwd(),
-  stdio: "inherit",
-  env: process.env,
-});
+let exitCode = 0;
 
-process.exit(child.status ?? 1);
+for (const fixtureTsconfig of fixtureTsconfigs) {
+  const label = path.basename(path.dirname(fixtureTsconfig));
+  process.stdout.write(`== backend-typecheck-smoke:${label} (${variant}) ==\n`);
+  const child = spawnSync("pnpm", commandForVariant(variant, fixtureTsconfig), {
+    cwd: process.cwd(),
+    stdio: "inherit",
+    env: process.env,
+  });
+  if ((child.status ?? 1) !== 0) {
+    exitCode = child.status ?? 1;
+  }
+}
+
+process.exit(exitCode);
 
 function readVariant(): BackendTypecheckVariant {
   const value = process.env.CME_TYPECHECK_VARIANT ?? "typescript-current";

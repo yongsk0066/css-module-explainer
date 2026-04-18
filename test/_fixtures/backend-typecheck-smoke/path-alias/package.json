@@ -1,0 +1,7 @@
+{
+  "name": "backend-typecheck-path-alias-smoke",
+  "type": "module",
+  "imports": {
+    "#tokens/*": "./src/tokens/*.ts"
+  }
+}
