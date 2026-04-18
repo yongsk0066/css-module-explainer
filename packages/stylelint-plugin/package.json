@@ -1,0 +1,9 @@
+{
+  "name": "stylelint-plugin-css-module-explainer",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./index.cjs",
+  "peerDependencies": {
+    "stylelint": "^17.0.0"
+  }
+}

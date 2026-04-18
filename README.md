@@ -195,6 +195,7 @@ pnpm check
 pnpm check:semantic-smoke
 pnpm check:lsp-server-smoke
 pnpm check:eslint-plugin-smoke
+pnpm check:stylelint-plugin-smoke
 pnpm check:release-batch
 pnpm check:contract-parity-v2-smoke
 pnpm check:contract-parity-v2-golden
@@ -234,6 +235,7 @@ Current checker policy:
 - `pnpm check:lsp-server-smoke` spawns the built `lsp-server` over stdio and verifies hover/definition through a generic protocol client
 - `pnpm check:eslint-plugin-smoke` runs the first ESLint consumer against a JSX fixture and asserts that source-side semantic findings are reported as ESLint diagnostics
   - current first-cut rules: `missing-module`, `invalid-class-reference`, plus aggregate `source-check`
+- `pnpm check:stylelint-plugin-smoke` runs the first Stylelint consumer against a CSS Modules fixture and asserts that unused selectors are reported as Stylelint diagnostics
 - `pnpm check:real-project-corpus` runs a clean multi-file corpus that mimics common product patterns (`variants`, `@value` + `@keyframes`, `composes`, `.module.less`)
 - semantic smoke cases are versioned in `scripts/semantic-smoke-corpus.ts` and should be updated when new semantic surfaces become release-relevant
 - `pnpm check:release-batch` is the canonical release-facing batch checker pass
@@ -299,6 +301,17 @@ Supported rule options today:
 - `classnameTransform`
 - `pathAlias`
 - `includeMissingModule` (`source-check` / `missing-module`)
+
+### Stylelint plugin
+
+The first Stylelint consumer lives at `packages/stylelint-plugin`.
+
+Current scope:
+
+- style-side rules only
+  - `unused-selector`
+
+See [packages/stylelint-plugin/README.md](./packages/stylelint-plugin/README.md) for usage.
 
 ### External clients
 
