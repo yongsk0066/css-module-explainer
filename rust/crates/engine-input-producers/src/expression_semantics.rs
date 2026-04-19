@@ -5,7 +5,8 @@ use crate::{
     ExpressionSemanticsFragmentV0, ExpressionSemanticsFragmentsV0,
     ExpressionSemanticsMatchFragmentV0, ExpressionSemanticsMatchFragmentsV0,
     ExpressionSemanticsQueryFragmentV0, ExpressionSemanticsQueryFragmentsV0,
-    finite_values_for_facts, map_expression_value_domain_kind, resolve_selector_names,
+    finite_values_for_facts, map_expression_value_domain_kind, map_selector_certainty_shape_kind,
+    map_value_certainty_shape_kind, resolve_selector_names,
 };
 
 pub fn summarize_expression_semantics_candidates_input(
@@ -39,6 +40,9 @@ pub fn summarize_expression_semantics_candidates_input(
         let candidate_names = finite_values
             .clone()
             .unwrap_or_else(|| selector_names.clone());
+        let selector_certainty_shape_kind =
+            map_selector_certainty_shape_kind(&entry.facts, selector_names.len());
+        let value_certainty_shape_kind = map_value_certainty_shape_kind(&entry.facts);
 
         candidates.push(ExpressionSemanticsCandidateV0 {
             query_id: entry.expression_id.clone(),
@@ -49,6 +53,10 @@ pub fn summarize_expression_semantics_candidates_input(
             candidate_names,
             finite_values,
             value_domain_kind: map_expression_value_domain_kind(&entry.facts),
+            selector_certainty_shape_kind,
+            value_certainty_shape_kind,
+            selector_constraint_kind: entry.facts.constraint_kind.clone(),
+            value_certainty_constraint_kind: entry.facts.constraint_kind.clone(),
             value_constraint_kind: entry.facts.constraint_kind.clone(),
             value_prefix: entry.facts.prefix.clone(),
             value_suffix: entry.facts.suffix.clone(),
@@ -277,6 +285,16 @@ mod tests {
         assert_eq!(first.selector_names, vec!["btn-active".to_string()]);
         assert_eq!(first.candidate_names, vec!["btn-active".to_string()]);
         assert_eq!(first.value_domain_kind, "constrained");
+        assert_eq!(first.selector_certainty_shape_kind, "exact");
+        assert_eq!(first.value_certainty_shape_kind, "constrained");
+        assert_eq!(
+            first.selector_constraint_kind.as_deref(),
+            Some("prefixSuffix")
+        );
+        assert_eq!(
+            first.value_certainty_constraint_kind.as_deref(),
+            Some("prefixSuffix")
+        );
         assert_eq!(first.value_constraint_kind.as_deref(), Some("prefixSuffix"));
         assert_eq!(first.value_prefix.as_deref(), Some("btn-"));
         assert_eq!(first.value_suffix.as_deref(), Some("-active"));
@@ -290,5 +308,7 @@ mod tests {
             Some(vec!["card-header".to_string(), "card-body".to_string()])
         );
         assert_eq!(second.value_domain_kind, "finiteSet");
+        assert_eq!(second.selector_certainty_shape_kind, "exact");
+        assert_eq!(second.value_certainty_shape_kind, "boundedFinite");
     }
 }

@@ -261,6 +261,10 @@ export interface ExpressionSemanticsCandidateV0 {
   readonly candidateNames: readonly string[];
   readonly finiteValues?: readonly string[];
   readonly valueDomainKind: string;
+  readonly selectorCertaintyShapeKind: string;
+  readonly valueCertaintyShapeKind: string;
+  readonly selectorConstraintKind?: string;
+  readonly valueCertaintyConstraintKind?: string;
   readonly valueConstraintKind?: string;
   readonly valuePrefix?: string;
   readonly valueSuffix?: string;
@@ -1039,6 +1043,14 @@ export function deriveTsExpressionSemanticsCandidates(
         candidate.finiteValues = query.payload.finiteValues;
       }
       candidate.valueDomainKind = query.payload.valueDomainKind;
+      candidate.selectorCertaintyShapeKind = query.payload.selectorCertaintyShapeKind ?? "unknown";
+      candidate.valueCertaintyShapeKind = query.payload.valueCertaintyShapeKind ?? "unknown";
+      if (query.payload.selectorConstraintKind) {
+        candidate.selectorConstraintKind = query.payload.selectorConstraintKind;
+      }
+      if (query.payload.valueCertaintyConstraintKind) {
+        candidate.valueCertaintyConstraintKind = query.payload.valueCertaintyConstraintKind;
+      }
       if (query.payload.valueConstraintKind) {
         candidate.valueConstraintKind = query.payload.valueConstraintKind;
       }

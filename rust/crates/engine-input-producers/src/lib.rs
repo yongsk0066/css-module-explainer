@@ -391,6 +391,12 @@ pub struct ExpressionSemanticsCandidateV0 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub finite_values: Option<Vec<String>>,
     pub value_domain_kind: String,
+    pub selector_certainty_shape_kind: String,
+    pub value_certainty_shape_kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub selector_constraint_kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_certainty_constraint_kind: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_constraint_kind: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -519,6 +525,22 @@ pub(crate) fn map_value_certainty_shape_kind(facts: &StringTypeFactsV2) -> Strin
         "exact" => "exact".to_string(),
         "finiteSet" => "boundedFinite".to_string(),
         "constrained" => "constrained".to_string(),
+        _ => "unknown".to_string(),
+    }
+}
+
+pub(crate) fn map_selector_certainty_shape_kind(
+    facts: &StringTypeFactsV2,
+    matched_selector_count: usize,
+) -> String {
+    if matched_selector_count == 0 {
+        return "unknown".to_string();
+    }
+
+    match facts.kind.as_str() {
+        "unknown" | "top" => "unknown".to_string(),
+        "constrained" => "exact".to_string(),
+        "exact" | "finiteSet" => "exact".to_string(),
         _ => "unknown".to_string(),
     }
 }
