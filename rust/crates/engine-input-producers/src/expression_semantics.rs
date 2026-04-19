@@ -52,52 +52,13 @@ pub fn summarize_expression_semantics_fragments_input(
 #[cfg(test)]
 mod tests {
     use super::summarize_expression_semantics_fragments_input;
-    use crate::{
-        ClassExpressionInputV2, EngineInputV2, SourceAnalysisInputV2, SourceDocumentV2,
-        StringTypeFactsV2, StyleAnalysisInputV2, StyleDocumentV2, TypeFactEntryV2,
-    };
-
-    fn sample_input() -> EngineInputV2 {
-        EngineInputV2 {
-            version: "2".to_string(),
-            sources: vec![SourceAnalysisInputV2 {
-                document: SourceDocumentV2 {
-                    class_expressions: vec![ClassExpressionInputV2 {
-                        id: "expr-1".to_string(),
-                        kind: "symbolRef".to_string(),
-                        scss_module_path: "/tmp/App.module.scss".to_string(),
-                        root_binding_decl_id: Some("decl-1".to_string()),
-                        access_path: None,
-                    }],
-                },
-            }],
-            styles: vec![StyleAnalysisInputV2 {
-                document: StyleDocumentV2 { selectors: vec![] },
-            }],
-            type_facts: vec![TypeFactEntryV2 {
-                file_path: "/tmp/App.tsx".to_string(),
-                expression_id: "expr-1".to_string(),
-                facts: StringTypeFactsV2 {
-                    kind: "constrained".to_string(),
-                    constraint_kind: Some("prefixSuffix".to_string()),
-                    values: None,
-                    prefix: Some("btn-".to_string()),
-                    suffix: Some("-active".to_string()),
-                    min_len: Some(10),
-                    max_len: None,
-                    char_must: None,
-                    char_may: None,
-                    may_include_other_chars: None,
-                },
-            }],
-        }
-    }
+    use crate::test_support::sample_input;
 
     #[test]
     fn builds_expression_semantics_fragment_from_type_fact() {
         let summary = summarize_expression_semantics_fragments_input(&sample_input());
 
-        assert_eq!(summary.fragments.len(), 1);
+        assert_eq!(summary.fragments.len(), 2);
         let fragment = &summary.fragments[0];
         assert_eq!(fragment.query_id, "expr-1");
         assert_eq!(fragment.expression_id, "expr-1");
@@ -111,5 +72,9 @@ mod tests {
         assert_eq!(fragment.value_prefix.as_deref(), Some("btn-"));
         assert_eq!(fragment.value_suffix.as_deref(), Some("-active"));
         assert_eq!(fragment.value_min_len, Some(10));
+
+        let second = &summary.fragments[1];
+        assert_eq!(second.query_id, "expr-2");
+        assert_eq!(second.value_domain_kind, "finiteSet");
     }
 }

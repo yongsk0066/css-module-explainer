@@ -94,69 +94,46 @@ mod tests {
     use super::{
         summarize_source_resolution_fragments_input, summarize_source_resolution_plan_input,
     };
-    use crate::{
-        ClassExpressionInputV2, EngineInputV2, SourceAnalysisInputV2, SourceDocumentV2,
-        StringTypeFactsV2, StyleAnalysisInputV2, StyleDocumentV2, TypeFactEntryV2,
-    };
-
-    fn sample_input() -> EngineInputV2 {
-        EngineInputV2 {
-            version: "2".to_string(),
-            sources: vec![SourceAnalysisInputV2 {
-                document: SourceDocumentV2 {
-                    class_expressions: vec![ClassExpressionInputV2 {
-                        id: "expr-2".to_string(),
-                        kind: "styleAccess".to_string(),
-                        scss_module_path: "/tmp/Card.module.scss".to_string(),
-                        root_binding_decl_id: None,
-                        access_path: Some(vec!["card".to_string(), "header".to_string()]),
-                    }],
-                },
-            }],
-            styles: vec![StyleAnalysisInputV2 {
-                document: StyleDocumentV2 { selectors: vec![] },
-            }],
-            type_facts: vec![TypeFactEntryV2 {
-                file_path: "/tmp/Card.tsx".to_string(),
-                expression_id: "expr-2".to_string(),
-                facts: StringTypeFactsV2 {
-                    kind: "finiteSet".to_string(),
-                    constraint_kind: None,
-                    values: Some(vec!["card-header".to_string(), "card-body".to_string()]),
-                    prefix: None,
-                    suffix: None,
-                    min_len: None,
-                    max_len: None,
-                    char_must: None,
-                    char_may: None,
-                    may_include_other_chars: None,
-                },
-            }],
-        }
-    }
+    use crate::test_support::sample_input;
 
     #[test]
     fn builds_source_resolution_fragment_from_type_fact() {
         let summary = summarize_source_resolution_fragments_input(&sample_input());
 
-        assert_eq!(summary.fragments.len(), 1);
-        let fragment = &summary.fragments[0];
-        assert_eq!(fragment.query_id, "expr-2");
-        assert_eq!(fragment.expression_id, "expr-2");
-        assert_eq!(fragment.style_file_path, "/tmp/Card.module.scss");
-        assert_eq!(fragment.value_certainty_shape_kind, "boundedFinite");
-        assert!(fragment.value_certainty_constraint_kind.is_none());
+        assert_eq!(summary.fragments.len(), 2);
+        let first = &summary.fragments[0];
+        assert_eq!(first.query_id, "expr-1");
+        assert_eq!(first.style_file_path, "/tmp/App.module.scss");
+        assert_eq!(first.value_certainty_shape_kind, "constrained");
+        assert_eq!(
+            first.value_certainty_constraint_kind.as_deref(),
+            Some("prefixSuffix")
+        );
+
+        let second = &summary.fragments[1];
+        assert_eq!(second.query_id, "expr-2");
+        assert_eq!(second.expression_id, "expr-2");
+        assert_eq!(second.style_file_path, "/tmp/Card.module.scss");
+        assert_eq!(second.value_certainty_shape_kind, "boundedFinite");
+        assert!(second.value_certainty_constraint_kind.is_none());
     }
 
     #[test]
     fn builds_source_resolution_plan_from_input() {
         let summary = summarize_source_resolution_plan_input(&sample_input());
 
-        assert_eq!(summary.planned_expression_ids, vec!["expr-2".to_string()]);
+        assert_eq!(
+            summary.planned_expression_ids,
+            vec!["expr-1".to_string(), "expr-2".to_string()]
+        );
         assert_eq!(
             summary.distinct_style_file_paths,
-            vec!["/tmp/Card.module.scss".to_string()]
+            vec![
+                "/tmp/App.module.scss".to_string(),
+                "/tmp/Card.module.scss".to_string()
+            ]
         );
+        assert_eq!(summary.symbol_ref_with_binding_count, 1);
         assert_eq!(summary.style_access_count, 1);
         assert_eq!(summary.style_access_path_depth_sum, 2);
     }

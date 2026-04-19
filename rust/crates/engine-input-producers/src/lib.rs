@@ -7,6 +7,8 @@ mod expression_semantics;
 mod query_plan;
 mod selector_usage;
 mod source_resolution;
+#[cfg(test)]
+mod test_support;
 mod type_facts;
 
 pub use expression_domain::summarize_expression_domain_plan_input;

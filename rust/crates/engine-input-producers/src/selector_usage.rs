@@ -45,3 +45,26 @@ pub fn summarize_selector_usage_plan_input(input: &EngineInputV2) -> SelectorUsa
         total_composes_refs,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::summarize_selector_usage_plan_input;
+    use crate::test_support::sample_input;
+
+    #[test]
+    fn summarizes_selector_usage_universe() {
+        let summary = summarize_selector_usage_plan_input(&sample_input());
+
+        assert_eq!(
+            summary.canonical_selector_names,
+            vec!["btn-active".to_string(), "card-header".to_string()]
+        );
+        assert_eq!(summary.view_kind_counts.get("canonical"), Some(&2));
+        assert_eq!(summary.view_kind_counts.get("nested"), Some(&1));
+        assert_eq!(summary.nested_safety_counts.get("safe"), Some(&1));
+        assert_eq!(summary.nested_safety_counts.get("unsafe"), Some(&1));
+        assert_eq!(summary.nested_safety_counts.get("unknown"), Some(&1));
+        assert_eq!(summary.composed_selector_count, 2);
+        assert_eq!(summary.total_composes_refs, 3);
+    }
+}

@@ -25,3 +25,28 @@ pub fn summarize_query_plan_input(input: &EngineInputV2) -> QueryPlanSummaryV0 {
         selector_usage_ids,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::summarize_query_plan_input;
+    use crate::test_support::sample_input;
+
+    #[test]
+    fn summarizes_expected_query_plan() {
+        let summary = summarize_query_plan_input(&sample_input());
+
+        assert_eq!(
+            summary.expression_semantics_ids,
+            vec!["expr-1".to_string(), "expr-2".to_string()]
+        );
+        assert_eq!(
+            summary.source_expression_resolution_ids,
+            vec!["expr-1".to_string(), "expr-2".to_string()]
+        );
+        assert_eq!(
+            summary.selector_usage_ids,
+            vec!["btn-active".to_string(), "card-header".to_string()]
+        );
+        assert_eq!(summary.total_query_count, 6);
+    }
+}

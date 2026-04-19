@@ -54,3 +54,26 @@ pub fn summarize_expression_domain_plan_input(
         finite_value_count,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::summarize_expression_domain_plan_input;
+    use crate::test_support::sample_input;
+
+    #[test]
+    fn summarizes_expression_domain_counts() {
+        let summary = summarize_expression_domain_plan_input(&sample_input());
+
+        assert_eq!(
+            summary.planned_expression_ids,
+            vec!["expr-1".to_string(), "expr-2".to_string()]
+        );
+        assert_eq!(summary.value_domain_kinds.get("constrained"), Some(&1));
+        assert_eq!(summary.value_domain_kinds.get("finiteSet"), Some(&1));
+        assert_eq!(summary.value_constraint_kinds.get("prefixSuffix"), Some(&1));
+        assert_eq!(summary.constraint_detail_counts.prefix_count, 1);
+        assert_eq!(summary.constraint_detail_counts.suffix_count, 1);
+        assert_eq!(summary.constraint_detail_counts.min_len_count, 1);
+        assert_eq!(summary.finite_value_count, 2);
+    }
+}

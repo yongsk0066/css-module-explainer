@@ -34,3 +34,21 @@ pub fn summarize_type_fact_input(input: &EngineInputV2) -> TypeFactInputSummaryV
         finite_value_count,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::summarize_type_fact_input;
+    use crate::test_support::sample_input;
+
+    #[test]
+    fn summarizes_type_fact_counts() {
+        let summary = summarize_type_fact_input(&sample_input());
+
+        assert_eq!(summary.type_fact_count, 2);
+        assert_eq!(summary.distinct_fact_files, 2);
+        assert_eq!(summary.by_kind.get("constrained"), Some(&1));
+        assert_eq!(summary.by_kind.get("finiteSet"), Some(&1));
+        assert_eq!(summary.constrained_kinds.get("prefixSuffix"), Some(&1));
+        assert_eq!(summary.finite_value_count, 2);
+    }
+}
