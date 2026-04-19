@@ -93,6 +93,17 @@ export interface SelectorUsagePlanSummaryV0 {
   readonly totalComposesRefs: number;
 }
 
+export interface SourceResolutionPlanSummaryV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly plannedExpressionIds: readonly string[];
+  readonly expressionKindCounts: Readonly<Record<string, number>>;
+  readonly distinctStyleFilePaths: readonly string[];
+  readonly symbolRefWithBindingCount: number;
+  readonly styleAccessCount: number;
+  readonly styleAccessPathDepthSum: number;
+}
+
 export async function runShadow(snapshot: unknown): Promise<ShadowSummaryV0> {
   return runShadowJson<ShadowSummaryV0>([], snapshot);
 }
@@ -117,6 +128,12 @@ export async function runShadowSelectorUsagePlanInput(
   input: EngineInputV2,
 ): Promise<SelectorUsagePlanSummaryV0> {
   return runShadowJson<SelectorUsagePlanSummaryV0>(["input-selector-usage-plan"], input);
+}
+
+export async function runShadowSourceResolutionPlanInput(
+  input: EngineInputV2,
+): Promise<SourceResolutionPlanSummaryV0> {
+  return runShadowJson<SourceResolutionPlanSummaryV0>(["input-source-resolution-plan"], input);
 }
 
 function runShadowJson<T>(args: string[], payload: unknown): Promise<T> {
@@ -468,6 +485,43 @@ export function deriveTsSelectorUsagePlanSummary(
   };
 }
 
+export function deriveTsSourceResolutionPlanSummary(
+  snapshot: EngineParitySnapshotV2,
+): SourceResolutionPlanSummaryV0 {
+  const plannedExpressionIds: string[] = [];
+  const expressionKindCounts: Record<string, number> = {};
+  const distinctStyleFilePaths = new Set<string>();
+  let symbolRefWithBindingCount = 0;
+  let styleAccessCount = 0;
+  let styleAccessPathDepthSum = 0;
+
+  for (const source of snapshot.input.sources) {
+    for (const expression of source.document.classExpressions) {
+      plannedExpressionIds.push(expression.id);
+      increment(expressionKindCounts, expression.kind);
+      distinctStyleFilePaths.add(expression.scssModulePath);
+      if (expression.kind === "symbolRef" && expression.rootBindingDeclId) {
+        symbolRefWithBindingCount += 1;
+      }
+      if (expression.kind === "styleAccess") {
+        styleAccessCount += 1;
+        styleAccessPathDepthSum += expression.accessPath.length;
+      }
+    }
+  }
+
+  return {
+    schemaVersion: "0",
+    inputVersion: snapshot.input.version,
+    plannedExpressionIds,
+    expressionKindCounts,
+    distinctStyleFilePaths: [...distinctStyleFilePaths].toSorted((a, b) => a.localeCompare(b)),
+    symbolRefWithBindingCount,
+    styleAccessCount,
+    styleAccessPathDepthSum,
+  };
+}
+
 export function assertShadowSummaryMatch(
   label: string,
   actual: ShadowSummaryV0,
@@ -768,6 +822,46 @@ export function assertSelectorUsagePlanSummaryMatch(
     "nestedSafetyCounts",
     actual.nestedSafetyCounts,
     expected.nestedSafetyCounts,
+  );
+}
+
+export function assertSourceResolutionPlanSummaryMatch(
+  label: string,
+  actual: SourceResolutionPlanSummaryV0,
+  expected: SourceResolutionPlanSummaryV0,
+): void {
+  assertEqualField(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
+  assertEqualField(label, "inputVersion", actual.inputVersion, expected.inputVersion);
+  assertEqualField(
+    label,
+    "symbolRefWithBindingCount",
+    actual.symbolRefWithBindingCount,
+    expected.symbolRefWithBindingCount,
+  );
+  assertEqualField(label, "styleAccessCount", actual.styleAccessCount, expected.styleAccessCount);
+  assertEqualField(
+    label,
+    "styleAccessPathDepthSum",
+    actual.styleAccessPathDepthSum,
+    expected.styleAccessPathDepthSum,
+  );
+  assertArrayEqual(
+    label,
+    "plannedExpressionIds",
+    actual.plannedExpressionIds,
+    expected.plannedExpressionIds,
+  );
+  assertArrayEqual(
+    label,
+    "distinctStyleFilePaths",
+    actual.distinctStyleFilePaths,
+    expected.distinctStyleFilePaths,
+  );
+  assertRecordEqual(
+    label,
+    "expressionKindCounts",
+    actual.expressionKindCounts,
+    expected.expressionKindCounts,
   );
 }
 

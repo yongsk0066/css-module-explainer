@@ -29,7 +29,17 @@ struct SourceAnalysisInputV2 {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct SourceDocumentV2 {
-    class_expressions: Vec<serde_json::Value>,
+    class_expressions: Vec<ClassExpressionInputV2>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ClassExpressionInputV2 {
+    id: String,
+    kind: String,
+    scss_module_path: String,
+    root_binding_decl_id: Option<String>,
+    access_path: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -214,6 +224,19 @@ struct SelectorUsagePlanSummaryV0 {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct SourceResolutionPlanSummaryV0 {
+    schema_version: &'static str,
+    input_version: String,
+    planned_expression_ids: Vec<String>,
+    expression_kind_counts: BTreeMap<String, usize>,
+    distinct_style_file_paths: Vec<String>,
+    symbol_ref_with_binding_count: usize,
+    style_access_count: usize,
+    style_access_path_depth_sum: usize,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct ShadowSummaryV0 {
     schema_version: &'static str,
     input_version: String,
@@ -309,6 +332,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let summary = summarize_selector_usage_plan_input(&input);
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
+        Some("input-source-resolution-plan") => {
+            let input: EngineInputV2 = serde_json::from_str(&stdin)?;
+            let summary = summarize_source_resolution_plan_input(&input);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
         Some(other) => {
             return Err(format!("unsupported engine-shadow-runner mode: {other}").into());
         }
@@ -355,8 +383,7 @@ fn summarize_query_plan_input(input: &EngineInputV2) -> QueryPlanSummaryV0 {
         .sources
         .iter()
         .flat_map(|source| source.document.class_expressions.iter())
-        .filter_map(|expression| expression.get("id").and_then(|id| id.as_str()))
-        .map(str::to_string)
+        .map(|expression| expression.id.clone())
         .collect();
     let selector_usage_ids: Vec<String> = input
         .styles
@@ -469,6 +496,45 @@ fn summarize_selector_usage_plan_input(input: &EngineInputV2) -> SelectorUsagePl
     }
 }
 
+fn summarize_source_resolution_plan_input(input: &EngineInputV2) -> SourceResolutionPlanSummaryV0 {
+    let mut planned_expression_ids = Vec::new();
+    let mut expression_kind_counts = BTreeMap::new();
+    let mut distinct_style_file_paths = BTreeSet::new();
+    let mut symbol_ref_with_binding_count = 0usize;
+    let mut style_access_count = 0usize;
+    let mut style_access_path_depth_sum = 0usize;
+
+    for source in &input.sources {
+        for expression in &source.document.class_expressions {
+            planned_expression_ids.push(expression.id.clone());
+            distinct_style_file_paths.insert(expression.scss_module_path.clone());
+            *expression_kind_counts
+                .entry(expression.kind.clone())
+                .or_insert(0) += 1;
+
+            if expression.kind == "symbolRef" && expression.root_binding_decl_id.is_some() {
+                symbol_ref_with_binding_count += 1;
+            }
+
+            if expression.kind == "styleAccess" {
+                style_access_count += 1;
+                style_access_path_depth_sum += expression.access_path.as_ref().map_or(0, Vec::len);
+            }
+        }
+    }
+
+    SourceResolutionPlanSummaryV0 {
+        schema_version: "0",
+        input_version: input.version.clone(),
+        planned_expression_ids,
+        expression_kind_counts,
+        distinct_style_file_paths: distinct_style_file_paths.into_iter().collect(),
+        symbol_ref_with_binding_count,
+        style_access_count,
+        style_access_path_depth_sum,
+    }
+}
+
 fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
     let mut query_kind_counts = BTreeMap::new();
     let mut expression_value_domain_kinds = BTreeMap::new();
@@ -496,8 +562,7 @@ fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
         .sources
         .iter()
         .flat_map(|source| source.document.class_expressions.iter())
-        .filter_map(|expression| expression.get("id").and_then(|id| id.as_str()))
-        .map(|id| id.to_string())
+        .map(|expression| expression.id.clone())
         .collect();
     let expected_selector_usage_ids: std::collections::BTreeSet<String> = input
         .styles

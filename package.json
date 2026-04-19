@@ -49,6 +49,7 @@
     "check:rust-query-plan-compare": "tsx ./scripts/check-rust-query-plan-compare.ts",
     "check:rust-expression-domain-compare": "tsx ./scripts/check-rust-expression-domain-compare.ts",
     "check:rust-selector-usage-plan-compare": "tsx ./scripts/check-rust-selector-usage-plan-compare.ts",
+    "check:rust-source-resolution-plan-compare": "tsx ./scripts/check-rust-source-resolution-plan-compare.ts",
     "check:rust-shadow-smoke": "tsx ./scripts/check-rust-shadow-smoke.ts",
     "check:rust-shadow-compare": "tsx ./scripts/check-rust-shadow-compare.ts",
     "check:workspace": "tsx ./scripts/check-workspace.ts",
