@@ -185,6 +185,8 @@ export interface SourceResolutionCandidateV0 {
   readonly styleFilePath: string;
   readonly selectorNames: readonly string[];
   readonly finiteValues?: readonly string[];
+  readonly selectorCertaintyShapeKind: string;
+  readonly selectorConstraintKind?: string;
   readonly valueCertaintyShapeKind: string;
   readonly valueCertaintyConstraintKind?: string;
   readonly valuePrefix?: string;
@@ -1173,6 +1175,10 @@ export function deriveTsSourceResolutionCandidates(
       };
       if (query.payload.finiteValues) {
         candidate.finiteValues = query.payload.finiteValues;
+      }
+      candidate.selectorCertaintyShapeKind = query.payload.selectorCertaintyShapeKind ?? "unknown";
+      if (query.payload.selectorConstraintKind) {
+        candidate.selectorConstraintKind = query.payload.selectorConstraintKind;
       }
       candidate.valueCertaintyShapeKind = query.payload.valueCertaintyShapeKind ?? "unknown";
       if (query.payload.valueCertaintyConstraintKind) {

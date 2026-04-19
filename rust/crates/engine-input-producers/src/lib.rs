@@ -281,7 +281,10 @@ pub struct SourceResolutionCandidateV0 {
     pub selector_names: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub finite_values: Option<Vec<String>>,
+    pub selector_certainty_shape_kind: String,
     pub value_certainty_shape_kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub selector_constraint_kind: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_certainty_constraint_kind: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
