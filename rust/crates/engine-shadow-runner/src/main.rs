@@ -154,6 +154,13 @@ struct StringTypeFactsV2 {
     kind: String,
     constraint_kind: Option<String>,
     values: Option<Vec<String>>,
+    prefix: Option<String>,
+    suffix: Option<String>,
+    min_len: Option<usize>,
+    max_len: Option<usize>,
+    char_must: Option<String>,
+    char_may: Option<String>,
+    may_include_other_chars: Option<bool>,
 }
 
 #[derive(Debug, Serialize)]
@@ -177,6 +184,18 @@ struct QueryPlanSummaryV0 {
     source_expression_resolution_ids: Vec<String>,
     selector_usage_ids: Vec<String>,
     total_query_count: usize,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ExpressionDomainPlanSummaryV0 {
+    schema_version: &'static str,
+    input_version: String,
+    planned_expression_ids: Vec<String>,
+    value_domain_kinds: BTreeMap<String, usize>,
+    value_constraint_kinds: BTreeMap<String, usize>,
+    constraint_detail_counts: ConstraintDetailCounts,
+    finite_value_count: usize,
 }
 
 #[derive(Debug, Serialize)]
@@ -266,6 +285,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let summary = summarize_query_plan_input(&input);
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
+        Some("input-expression-domains") => {
+            let input: EngineInputV2 = serde_json::from_str(&stdin)?;
+            let summary = summarize_expression_domain_plan_input(&input);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
         Some(other) => {
             return Err(format!("unsupported engine-shadow-runner mode: {other}").into());
         }
@@ -331,6 +355,54 @@ fn summarize_query_plan_input(input: &EngineInputV2) -> QueryPlanSummaryV0 {
         expression_semantics_ids: expression_ids.clone(),
         source_expression_resolution_ids: expression_ids,
         selector_usage_ids,
+    }
+}
+
+fn summarize_expression_domain_plan_input(input: &EngineInputV2) -> ExpressionDomainPlanSummaryV0 {
+    let mut planned_expression_ids = Vec::new();
+    let mut value_domain_kinds = BTreeMap::new();
+    let mut value_constraint_kinds = BTreeMap::new();
+    let mut constraint_detail_counts = ConstraintDetailCounts::default();
+    let mut finite_value_count = 0usize;
+
+    for entry in &input.type_facts {
+        planned_expression_ids.push(entry.expression_id.clone());
+        *value_domain_kinds
+            .entry(entry.facts.kind.clone())
+            .or_insert(0) += 1;
+
+        if let Some(values) = &entry.facts.values {
+            finite_value_count += values.len();
+        }
+
+        if let Some(constraint_kind) = &entry.facts.constraint_kind {
+            *value_constraint_kinds
+                .entry(constraint_kind.clone())
+                .or_insert(0) += 1;
+        }
+
+        collect_constraint_detail_counts(
+            &mut constraint_detail_counts,
+            ConstraintDetailInput {
+                prefix: entry.facts.prefix.as_ref(),
+                suffix: entry.facts.suffix.as_ref(),
+                min_len: entry.facts.min_len,
+                max_len: entry.facts.max_len,
+                char_must: entry.facts.char_must.as_ref(),
+                char_may: entry.facts.char_may.as_ref(),
+                may_include_other_chars: entry.facts.may_include_other_chars,
+            },
+        );
+    }
+
+    ExpressionDomainPlanSummaryV0 {
+        schema_version: "0",
+        input_version: input.version.clone(),
+        planned_expression_ids,
+        value_domain_kinds,
+        value_constraint_kinds,
+        constraint_detail_counts,
+        finite_value_count,
     }
 }
 

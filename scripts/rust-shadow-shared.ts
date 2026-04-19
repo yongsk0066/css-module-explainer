@@ -73,6 +73,16 @@ export interface QueryPlanSummaryV0 {
   readonly totalQueryCount: number;
 }
 
+export interface ExpressionDomainPlanSummaryV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly plannedExpressionIds: readonly string[];
+  readonly valueDomainKinds: Readonly<Record<string, number>>;
+  readonly valueConstraintKinds: Readonly<Record<string, number>>;
+  readonly constraintDetailCounts: ConstraintDetailCounts;
+  readonly finiteValueCount: number;
+}
+
 export async function runShadow(snapshot: unknown): Promise<ShadowSummaryV0> {
   return runShadowJson<ShadowSummaryV0>([], snapshot);
 }
@@ -85,6 +95,12 @@ export async function runShadowTypeFactInput(
 
 export async function runShadowQueryPlanInput(input: EngineInputV2): Promise<QueryPlanSummaryV0> {
   return runShadowJson<QueryPlanSummaryV0>(["input-query-plan"], input);
+}
+
+export async function runShadowExpressionDomainInput(
+  input: EngineInputV2,
+): Promise<ExpressionDomainPlanSummaryV0> {
+  return runShadowJson<ExpressionDomainPlanSummaryV0>(["input-expression-domains"], input);
 }
 
 function runShadowJson<T>(args: string[], payload: unknown): Promise<T> {
@@ -361,6 +377,47 @@ export function deriveTsQueryPlanSummary(snapshot: EngineParitySnapshotV2): Quer
   };
 }
 
+export function deriveTsExpressionDomainPlanSummary(
+  snapshot: EngineParitySnapshotV2,
+): ExpressionDomainPlanSummaryV0 {
+  const valueDomainKinds: Record<string, number> = {};
+  const valueConstraintKinds: Record<string, number> = {};
+  const constraintDetailCounts = createConstraintDetailCounts();
+  const plannedExpressionIds: string[] = [];
+  let finiteValueCount = 0;
+
+  for (const entry of snapshot.input.typeFacts) {
+    plannedExpressionIds.push(entry.expressionId);
+    increment(valueDomainKinds, entry.facts.kind);
+    if (entry.facts.kind === "finiteSet") {
+      finiteValueCount += entry.facts.values.length;
+    }
+    if (entry.facts.kind === "constrained") {
+      increment(valueConstraintKinds, entry.facts.constraintKind);
+    }
+    collectConstraintDetailCounts(
+      constraintDetailCounts,
+      entry.facts.prefix,
+      entry.facts.suffix,
+      entry.facts.minLen,
+      entry.facts.maxLen,
+      entry.facts.charMust,
+      entry.facts.charMay,
+      entry.facts.mayIncludeOtherChars === true,
+    );
+  }
+
+  return {
+    schemaVersion: "0",
+    inputVersion: snapshot.input.version,
+    plannedExpressionIds,
+    valueDomainKinds,
+    valueConstraintKinds,
+    constraintDetailCounts,
+    finiteValueCount,
+  };
+}
+
 export function assertShadowSummaryMatch(
   label: string,
   actual: ShadowSummaryV0,
@@ -599,6 +656,35 @@ export function assertQueryPlanSummaryMatch(
     expected.sourceExpressionResolutionIds,
   );
   assertArrayEqual(label, "selectorUsageIds", actual.selectorUsageIds, expected.selectorUsageIds);
+}
+
+export function assertExpressionDomainPlanSummaryMatch(
+  label: string,
+  actual: ExpressionDomainPlanSummaryV0,
+  expected: ExpressionDomainPlanSummaryV0,
+): void {
+  assertEqualField(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
+  assertEqualField(label, "inputVersion", actual.inputVersion, expected.inputVersion);
+  assertEqualField(label, "finiteValueCount", actual.finiteValueCount, expected.finiteValueCount);
+  assertArrayEqual(
+    label,
+    "plannedExpressionIds",
+    actual.plannedExpressionIds,
+    expected.plannedExpressionIds,
+  );
+  assertRecordEqual(label, "valueDomainKinds", actual.valueDomainKinds, expected.valueDomainKinds);
+  assertRecordEqual(
+    label,
+    "valueConstraintKinds",
+    actual.valueConstraintKinds,
+    expected.valueConstraintKinds,
+  );
+  assertConstraintDetailEqual(
+    label,
+    "constraintDetailCounts",
+    actual.constraintDetailCounts,
+    expected.constraintDetailCounts,
+  );
 }
 
 function assertEqualField<T>(label: string, field: string, actual: T, expected: T) {
