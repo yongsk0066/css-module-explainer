@@ -1,4 +1,5 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
+use std::env;
 use std::io::{self, Read};
 
 use serde::{Deserialize, Serialize};
@@ -157,6 +158,18 @@ struct StringTypeFactsV2 {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct TypeFactInputSummaryV0 {
+    schema_version: &'static str,
+    input_version: String,
+    type_fact_count: usize,
+    distinct_fact_files: usize,
+    by_kind: BTreeMap<String, usize>,
+    constrained_kinds: BTreeMap<String, usize>,
+    finite_value_count: usize,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct ShadowSummaryV0 {
     schema_version: &'static str,
     input_version: String,
@@ -222,18 +235,63 @@ struct ConstraintDetailCounts {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mode = env::args().nth(1);
     let mut stdin = String::new();
     io::stdin().read_to_string(&mut stdin)?;
 
-    let payload: ShadowPayloadV0 = serde_json::from_str(&stdin)?;
-    let summary = summarize(payload);
-    serde_json::to_writer_pretty(io::stdout(), &summary)?;
+    match mode.as_deref() {
+        None => {
+            let payload: ShadowPayloadV0 = serde_json::from_str(&stdin)?;
+            let summary = summarize(payload);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
+        Some("input-type-facts") => {
+            let input: EngineInputV2 = serde_json::from_str(&stdin)?;
+            let summary = summarize_type_fact_input(&input);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
+        Some(other) => {
+            return Err(format!("unsupported engine-shadow-runner mode: {other}").into());
+        }
+    }
+
     Ok(())
 }
 
-fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
+fn summarize_type_fact_input(input: &EngineInputV2) -> TypeFactInputSummaryV0 {
     let mut by_kind = BTreeMap::new();
     let mut constrained_kinds = BTreeMap::new();
+    let mut files = BTreeSet::new();
+    let mut finite_value_count = 0usize;
+
+    for entry in &input.type_facts {
+        let _ = &entry.expression_id;
+        files.insert(entry.file_path.clone());
+        *by_kind.entry(entry.facts.kind.clone()).or_insert(0) += 1;
+
+        if let Some(values) = &entry.facts.values {
+            finite_value_count += values.len();
+        }
+
+        if let Some(constraint_kind) = &entry.facts.constraint_kind {
+            *constrained_kinds
+                .entry(constraint_kind.clone())
+                .or_insert(0) += 1;
+        }
+    }
+
+    TypeFactInputSummaryV0 {
+        schema_version: "0",
+        input_version: input.version.clone(),
+        type_fact_count: input.type_facts.len(),
+        distinct_fact_files: files.len(),
+        by_kind,
+        constrained_kinds,
+        finite_value_count,
+    }
+}
+
+fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
     let mut query_kind_counts = BTreeMap::new();
     let mut expression_value_domain_kinds = BTreeMap::new();
     let mut expression_value_constraint_kinds = BTreeMap::new();
@@ -244,8 +302,6 @@ fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
     let mut resolution_constraint_detail_counts = ConstraintDetailCounts::default();
     let mut resolution_value_certainty_shapes = BTreeMap::new();
     let mut resolution_selector_certainty_shapes = BTreeMap::new();
-    let mut files = std::collections::BTreeSet::new();
-    let mut finite_value_count = 0usize;
     let mut selector_usage_referenced_count = 0usize;
     let mut selector_usage_unreferenced_count = 0usize;
     let mut selector_usage_total_references = 0usize;
@@ -257,6 +313,7 @@ fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
     let mut selector_usage_style_dependency_count = 0usize;
     let input = payload.input;
     let output = payload.output;
+    let type_fact_summary = summarize_type_fact_input(&input);
     let expected_expression_ids: std::collections::BTreeSet<String> = input
         .sources
         .iter()
@@ -296,22 +353,6 @@ fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
     let expected_total_query_count = expected_expression_semantics_count
         + expected_source_expression_resolution_count
         + expected_selector_usage_count;
-
-    for entry in &input.type_facts {
-        let _ = &entry.expression_id;
-        files.insert(entry.file_path.clone());
-        *by_kind.entry(entry.facts.kind.clone()).or_insert(0) += 1;
-
-        if let Some(values) = &entry.facts.values {
-            finite_value_count += values.len();
-        }
-
-        if let Some(constraint_kind) = &entry.facts.constraint_kind {
-            *constrained_kinds
-                .entry(constraint_kind.clone())
-                .or_insert(0) += 1;
-        }
-    }
 
     for query in &output.query_results {
         match query {
@@ -454,14 +495,14 @@ fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
 
     ShadowSummaryV0 {
         schema_version: "0",
-        input_version: input.version,
+        input_version: type_fact_summary.input_version,
         source_count: input.sources.len(),
         style_count: input.styles.len(),
-        type_fact_count: input.type_facts.len(),
-        distinct_fact_files: files.len(),
-        by_kind,
-        constrained_kinds,
-        finite_value_count,
+        type_fact_count: type_fact_summary.type_fact_count,
+        distinct_fact_files: type_fact_summary.distinct_fact_files,
+        by_kind: type_fact_summary.by_kind,
+        constrained_kinds: type_fact_summary.constrained_kinds,
+        finite_value_count: type_fact_summary.finite_value_count,
         query_result_count: output.query_results.len(),
         query_kind_counts,
         expression_value_domain_kinds,

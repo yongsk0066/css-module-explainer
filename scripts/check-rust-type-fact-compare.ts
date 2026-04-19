@@ -1,6 +1,10 @@
 import { CONTRACT_PARITY_CORPUS_V2 } from "./contract-parity-corpus-v2";
 import { buildContractParitySnapshot } from "./contract-parity-runtime";
-import { deriveTsShadowSummary, runShadow, type ShadowSummaryV0 } from "./rust-shadow-shared";
+import {
+  deriveTsTypeFactInputSummary,
+  runShadowTypeFactInput,
+  type TypeFactInputSummaryV0,
+} from "./rust-shadow-shared";
 
 void (async () => {
   for (const entry of CONTRACT_PARITY_CORPUS_V2) {
@@ -8,9 +12,9 @@ void (async () => {
 
     // oxlint-disable-next-line eslint/no-await-in-loop
     const snapshot = await buildContractParitySnapshot(entry);
-    const expected = deriveTsShadowSummary(snapshot);
+    const expected = deriveTsTypeFactInputSummary(snapshot);
     // oxlint-disable-next-line eslint/no-await-in-loop
-    const actual = await runShadow(snapshot);
+    const actual = await runShadowTypeFactInput(snapshot.input);
 
     assertTypeFactSummaryMatch(entry.label, actual, expected);
 
@@ -22,8 +26,8 @@ void (async () => {
 
 function assertTypeFactSummaryMatch(
   label: string,
-  actual: ShadowSummaryV0,
-  expected: ShadowSummaryV0,
+  actual: TypeFactInputSummaryV0,
+  expected: TypeFactInputSummaryV0,
 ) {
   assertEqual(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
   assertEqual(label, "inputVersion", actual.inputVersion, expected.inputVersion);

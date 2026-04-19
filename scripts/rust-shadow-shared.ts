@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
 import type { EngineParitySnapshotV2 } from "../server/engine-host-node/src/engine-parity-v2";
-import type { QueryResultV2 } from "../server/engine-core-ts/src/contracts";
+import type { EngineInputV2, QueryResultV2 } from "../server/engine-core-ts/src/contracts";
 
 const REPO_ROOT = process.cwd();
 const RUST_MANIFEST = path.join(REPO_ROOT, "rust/Cargo.toml");
@@ -54,11 +54,40 @@ export interface ShadowSummaryV0 {
   readonly checkerTotalFindings: number;
 }
 
+export interface TypeFactInputSummaryV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly typeFactCount: number;
+  readonly distinctFactFiles: number;
+  readonly byKind: Readonly<Record<string, number>>;
+  readonly constrainedKinds: Readonly<Record<string, number>>;
+  readonly finiteValueCount: number;
+}
+
 export async function runShadow(snapshot: unknown): Promise<ShadowSummaryV0> {
+  return runShadowJson<ShadowSummaryV0>([], snapshot);
+}
+
+export async function runShadowTypeFactInput(
+  input: EngineInputV2,
+): Promise<TypeFactInputSummaryV0> {
+  return runShadowJson<TypeFactInputSummaryV0>(["input-type-facts"], input);
+}
+
+function runShadowJson<T>(args: string[], payload: unknown): Promise<T> {
   return new Promise((resolve, reject) => {
     const child = spawn(
       "cargo",
-      ["run", "--manifest-path", RUST_MANIFEST, "-p", "engine-shadow-runner", "--quiet"],
+      [
+        "run",
+        "--manifest-path",
+        RUST_MANIFEST,
+        "-p",
+        "engine-shadow-runner",
+        "--quiet",
+        "--",
+        ...args,
+      ],
       {
         cwd: REPO_ROOT,
         stdio: ["pipe", "pipe", "pipe"],
@@ -85,13 +114,13 @@ export async function runShadow(snapshot: unknown): Promise<ShadowSummaryV0> {
       }
 
       try {
-        resolve(JSON.parse(stdout.join("")) as ShadowSummaryV0);
+        resolve(JSON.parse(stdout.join("")) as T);
       } catch (error) {
         reject(error);
       }
     });
 
-    child.stdin.end(JSON.stringify(snapshot));
+    child.stdin.end(JSON.stringify(payload));
   });
 }
 
@@ -263,6 +292,39 @@ export function deriveTsShadowSummary(snapshot: EngineParitySnapshotV2): ShadowS
     checkerWarningCount: snapshot.output.checkerReport.summary.warnings,
     checkerHintCount: snapshot.output.checkerReport.summary.hints,
     checkerTotalFindings: snapshot.output.checkerReport.summary.total,
+  };
+}
+
+export function deriveTsTypeFactInputSummary(
+  snapshot: EngineParitySnapshotV2,
+): TypeFactInputSummaryV0 {
+  const byKind: Record<string, number> = {};
+  const constrainedKinds: Record<string, number> = {};
+  const distinctFactFiles = new Set<string>();
+  let finiteValueCount = 0;
+
+  for (const entry of snapshot.input.typeFacts) {
+    distinctFactFiles.add(entry.filePath);
+    byKind[entry.facts.kind] = (byKind[entry.facts.kind] ?? 0) + 1;
+
+    if (entry.facts.kind === "finiteSet") {
+      finiteValueCount += entry.facts.values.length;
+    }
+
+    if (entry.facts.kind === "constrained") {
+      constrainedKinds[entry.facts.constraintKind] =
+        (constrainedKinds[entry.facts.constraintKind] ?? 0) + 1;
+    }
+  }
+
+  return {
+    schemaVersion: "0",
+    inputVersion: snapshot.input.version,
+    typeFactCount: snapshot.input.typeFacts.length,
+    distinctFactFiles: distinctFactFiles.size,
+    byKind,
+    constrainedKinds,
+    finiteValueCount,
   };
 }
 
