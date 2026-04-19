@@ -1,9 +1,50 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     EngineInputV2, SourceResolutionFragmentV0, SourceResolutionFragmentsV0,
-    map_value_certainty_shape_kind,
+    SourceResolutionPlanSummaryV0, map_value_certainty_shape_kind,
 };
+
+pub fn summarize_source_resolution_plan_input(
+    input: &EngineInputV2,
+) -> SourceResolutionPlanSummaryV0 {
+    let mut planned_expression_ids = Vec::new();
+    let mut expression_kind_counts = BTreeMap::new();
+    let mut distinct_style_file_paths = BTreeSet::new();
+    let mut symbol_ref_with_binding_count = 0usize;
+    let mut style_access_count = 0usize;
+    let mut style_access_path_depth_sum = 0usize;
+
+    for source in &input.sources {
+        for expression in &source.document.class_expressions {
+            planned_expression_ids.push(expression.id.clone());
+            distinct_style_file_paths.insert(expression.scss_module_path.clone());
+            *expression_kind_counts
+                .entry(expression.kind.clone())
+                .or_insert(0) += 1;
+
+            if expression.kind == "symbolRef" && expression.root_binding_decl_id.is_some() {
+                symbol_ref_with_binding_count += 1;
+            }
+
+            if expression.kind == "styleAccess" {
+                style_access_count += 1;
+                style_access_path_depth_sum += expression.access_path.as_ref().map_or(0, Vec::len);
+            }
+        }
+    }
+
+    SourceResolutionPlanSummaryV0 {
+        schema_version: "0",
+        input_version: input.version.clone(),
+        planned_expression_ids,
+        expression_kind_counts,
+        distinct_style_file_paths: distinct_style_file_paths.into_iter().collect(),
+        symbol_ref_with_binding_count,
+        style_access_count,
+        style_access_path_depth_sum,
+    }
+}
 
 pub fn summarize_source_resolution_fragments_input(
     input: &EngineInputV2,
@@ -50,7 +91,9 @@ pub fn summarize_source_resolution_fragments_input(
 
 #[cfg(test)]
 mod tests {
-    use super::summarize_source_resolution_fragments_input;
+    use super::{
+        summarize_source_resolution_fragments_input, summarize_source_resolution_plan_input,
+    };
     use crate::{
         ClassExpressionInputV2, EngineInputV2, SourceAnalysisInputV2, SourceDocumentV2,
         StringTypeFactsV2, StyleAnalysisInputV2, StyleDocumentV2, TypeFactEntryV2,
@@ -103,5 +146,18 @@ mod tests {
         assert_eq!(fragment.style_file_path, "/tmp/Card.module.scss");
         assert_eq!(fragment.value_certainty_shape_kind, "boundedFinite");
         assert!(fragment.value_certainty_constraint_kind.is_none());
+    }
+
+    #[test]
+    fn builds_source_resolution_plan_from_input() {
+        let summary = summarize_source_resolution_plan_input(&sample_input());
+
+        assert_eq!(summary.planned_expression_ids, vec!["expr-2".to_string()]);
+        assert_eq!(
+            summary.distinct_style_file_paths,
+            vec!["/tmp/Card.module.scss".to_string()]
+        );
+        assert_eq!(summary.style_access_count, 1);
+        assert_eq!(summary.style_access_path_depth_sum, 2);
     }
 }

@@ -1,12 +1,21 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
+mod expression_domain;
 mod expression_semantics;
+mod query_plan;
+mod selector_usage;
 mod source_resolution;
+mod type_facts;
 
+pub use expression_domain::summarize_expression_domain_plan_input;
 pub use expression_semantics::summarize_expression_semantics_fragments_input;
+pub use query_plan::summarize_query_plan_input;
+pub use selector_usage::summarize_selector_usage_plan_input;
 pub use source_resolution::summarize_source_resolution_fragments_input;
+pub use source_resolution::summarize_source_resolution_plan_input;
+pub use type_facts::summarize_type_fact_input;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -224,200 +233,6 @@ pub struct ConstraintDetailCounts {
     pub char_may_count: usize,
     pub char_may_len_sum: usize,
     pub may_include_other_chars_count: usize,
-}
-
-pub fn summarize_type_fact_input(input: &EngineInputV2) -> TypeFactInputSummaryV0 {
-    let mut by_kind = BTreeMap::new();
-    let mut constrained_kinds = BTreeMap::new();
-    let mut files = BTreeSet::new();
-    let mut finite_value_count = 0usize;
-
-    for entry in &input.type_facts {
-        let _ = &entry.expression_id;
-        files.insert(entry.file_path.clone());
-        *by_kind.entry(entry.facts.kind.clone()).or_insert(0) += 1;
-
-        if let Some(values) = &entry.facts.values {
-            finite_value_count += values.len();
-        }
-
-        if let Some(constraint_kind) = &entry.facts.constraint_kind {
-            *constrained_kinds
-                .entry(constraint_kind.clone())
-                .or_insert(0) += 1;
-        }
-    }
-
-    TypeFactInputSummaryV0 {
-        schema_version: "0",
-        input_version: input.version.clone(),
-        type_fact_count: input.type_facts.len(),
-        distinct_fact_files: files.len(),
-        by_kind,
-        constrained_kinds,
-        finite_value_count,
-    }
-}
-
-pub fn summarize_query_plan_input(input: &EngineInputV2) -> QueryPlanSummaryV0 {
-    let expression_ids: Vec<String> = input
-        .sources
-        .iter()
-        .flat_map(|source| source.document.class_expressions.iter())
-        .map(|expression| expression.id.clone())
-        .collect();
-    let selector_usage_ids: Vec<String> = input
-        .styles
-        .iter()
-        .flat_map(|style| style.document.selectors.iter())
-        .filter(|selector| selector.view_kind == "canonical")
-        .filter_map(|selector| selector.canonical_name.as_ref())
-        .cloned()
-        .collect();
-
-    QueryPlanSummaryV0 {
-        schema_version: "0",
-        input_version: input.version.clone(),
-        total_query_count: expression_ids.len() * 2 + selector_usage_ids.len(),
-        expression_semantics_ids: expression_ids.clone(),
-        source_expression_resolution_ids: expression_ids,
-        selector_usage_ids,
-    }
-}
-
-pub fn summarize_expression_domain_plan_input(
-    input: &EngineInputV2,
-) -> ExpressionDomainPlanSummaryV0 {
-    let mut planned_expression_ids = Vec::new();
-    let mut value_domain_kinds = BTreeMap::new();
-    let mut value_constraint_kinds = BTreeMap::new();
-    let mut constraint_detail_counts = ConstraintDetailCounts::default();
-    let mut finite_value_count = 0usize;
-
-    for entry in &input.type_facts {
-        planned_expression_ids.push(entry.expression_id.clone());
-        *value_domain_kinds
-            .entry(entry.facts.kind.clone())
-            .or_insert(0) += 1;
-
-        if let Some(values) = &entry.facts.values {
-            finite_value_count += values.len();
-        }
-
-        if let Some(constraint_kind) = &entry.facts.constraint_kind {
-            *value_constraint_kinds
-                .entry(constraint_kind.clone())
-                .or_insert(0) += 1;
-        }
-
-        collect_constraint_detail_counts(
-            &mut constraint_detail_counts,
-            ConstraintDetailInput {
-                prefix: entry.facts.prefix.as_ref(),
-                suffix: entry.facts.suffix.as_ref(),
-                min_len: entry.facts.min_len,
-                max_len: entry.facts.max_len,
-                char_must: entry.facts.char_must.as_ref(),
-                char_may: entry.facts.char_may.as_ref(),
-                may_include_other_chars: entry.facts.may_include_other_chars,
-            },
-        );
-    }
-
-    ExpressionDomainPlanSummaryV0 {
-        schema_version: "0",
-        input_version: input.version.clone(),
-        planned_expression_ids,
-        value_domain_kinds,
-        value_constraint_kinds,
-        constraint_detail_counts,
-        finite_value_count,
-    }
-}
-
-pub fn summarize_selector_usage_plan_input(input: &EngineInputV2) -> SelectorUsagePlanSummaryV0 {
-    let mut canonical_selector_names = Vec::new();
-    let mut view_kind_counts = BTreeMap::new();
-    let mut nested_safety_counts = BTreeMap::new();
-    let mut composed_selector_count = 0usize;
-    let mut total_composes_refs = 0usize;
-
-    for style in &input.styles {
-        for selector in &style.document.selectors {
-            *view_kind_counts
-                .entry(selector.view_kind.clone())
-                .or_insert(0) += 1;
-
-            if let Some(nested_safety) = &selector.nested_safety {
-                *nested_safety_counts
-                    .entry(nested_safety.clone())
-                    .or_insert(0) += 1;
-            }
-
-            let composes_len = selector.composes.as_ref().map_or(0, Vec::len);
-            if composes_len > 0 {
-                composed_selector_count += 1;
-                total_composes_refs += composes_len;
-            }
-
-            if selector.view_kind == "canonical"
-                && let Some(canonical_name) = &selector.canonical_name
-            {
-                canonical_selector_names.push(canonical_name.clone());
-            }
-        }
-    }
-
-    SelectorUsagePlanSummaryV0 {
-        schema_version: "0",
-        input_version: input.version.clone(),
-        canonical_selector_names,
-        view_kind_counts,
-        nested_safety_counts,
-        composed_selector_count,
-        total_composes_refs,
-    }
-}
-
-pub fn summarize_source_resolution_plan_input(
-    input: &EngineInputV2,
-) -> SourceResolutionPlanSummaryV0 {
-    let mut planned_expression_ids = Vec::new();
-    let mut expression_kind_counts = BTreeMap::new();
-    let mut distinct_style_file_paths = BTreeSet::new();
-    let mut symbol_ref_with_binding_count = 0usize;
-    let mut style_access_count = 0usize;
-    let mut style_access_path_depth_sum = 0usize;
-
-    for source in &input.sources {
-        for expression in &source.document.class_expressions {
-            planned_expression_ids.push(expression.id.clone());
-            distinct_style_file_paths.insert(expression.scss_module_path.clone());
-            *expression_kind_counts
-                .entry(expression.kind.clone())
-                .or_insert(0) += 1;
-
-            if expression.kind == "symbolRef" && expression.root_binding_decl_id.is_some() {
-                symbol_ref_with_binding_count += 1;
-            }
-
-            if expression.kind == "styleAccess" {
-                style_access_count += 1;
-                style_access_path_depth_sum += expression.access_path.as_ref().map_or(0, Vec::len);
-            }
-        }
-    }
-
-    SourceResolutionPlanSummaryV0 {
-        schema_version: "0",
-        input_version: input.version.clone(),
-        planned_expression_ids,
-        expression_kind_counts,
-        distinct_style_file_paths: distinct_style_file_paths.into_iter().collect(),
-        symbol_ref_with_binding_count,
-        style_access_count,
-        style_access_path_depth_sum,
-    }
 }
 
 fn collect_constraint_detail_counts(
