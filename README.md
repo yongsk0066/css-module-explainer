@@ -252,6 +252,7 @@ Current checker policy:
   - canonical-producer signals: `pnpm check:rust-expression-domain-canonical-producer`, `pnpm check:rust-expression-semantics-canonical-producer`, `pnpm check:rust-source-resolution-canonical-producer`
   - consolidated source-side lane: `pnpm check:rust-source-side-canonical-candidate`, `pnpm check:rust-source-side-evaluator-candidates`, `pnpm check:rust-source-side-canonical-producer`
   - consolidated semantic lane: `pnpm check:rust-semantic-canonical-candidate`, `pnpm check:rust-semantic-evaluator-candidates`, `pnpm check:rust-semantic-canonical-producer`
+  - aggregated producer-boundary checks: `pnpm check:rust-source-side-lane`, `pnpm check:rust-semantic-lane`, `pnpm check:rust-producer-boundary`
   - full snapshot parity: `pnpm check:rust-shadow-compare`
 - Current `3.9.0` framing is a consolidated semantic lane:
   - `expression-semantics` and `source-resolution` still carry family-level canonical-producer signals and a shared top-level source-side lane
