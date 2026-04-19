@@ -126,6 +126,27 @@ export interface ExpressionSemanticsFragmentsV0 {
   readonly fragments: readonly ExpressionSemanticsFragmentV0[];
 }
 
+export interface SourceResolutionFragmentV0 {
+  readonly queryId: string;
+  readonly expressionId: string;
+  readonly styleFilePath: string;
+  readonly valueCertaintyShapeKind: string;
+  readonly valueCertaintyConstraintKind?: string;
+  readonly valuePrefix?: string;
+  readonly valueSuffix?: string;
+  readonly valueMinLen?: number;
+  readonly valueMaxLen?: number;
+  readonly valueCharMust?: string;
+  readonly valueCharMay?: string;
+  readonly valueMayIncludeOtherChars?: boolean;
+}
+
+export interface SourceResolutionFragmentsV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly fragments: readonly SourceResolutionFragmentV0[];
+}
+
 export async function runShadow(snapshot: unknown): Promise<ShadowSummaryV0> {
   return runShadowJson<ShadowSummaryV0>([], snapshot);
 }
@@ -165,6 +186,12 @@ export async function runShadowExpressionSemanticsFragmentsInput(
     ["input-expression-semantics-fragments"],
     input,
   );
+}
+
+export async function runShadowSourceResolutionFragmentsInput(
+  input: EngineInputV2,
+): Promise<SourceResolutionFragmentsV0> {
+  return runShadowJson<SourceResolutionFragmentsV0>(["input-source-resolution-fragments"], input);
 }
 
 function runShadowJson<T>(args: string[], payload: unknown): Promise<T> {
@@ -601,6 +628,53 @@ export function deriveTsExpressionSemanticsFragments(
   };
 }
 
+export function deriveTsSourceResolutionFragments(
+  snapshot: EngineParitySnapshotV2,
+): SourceResolutionFragmentsV0 {
+  const fragments = snapshot.output.queryResults
+    .filter((query) => query.kind === "source-expression-resolution")
+    .map((query) => {
+      const fragment: SourceResolutionFragmentV0 = {
+        queryId: query.queryId,
+        expressionId: query.payload.expressionId,
+        styleFilePath: query.payload.styleFilePath ?? "",
+        valueCertaintyShapeKind: query.payload.valueCertaintyShapeKind ?? "unknown",
+      };
+      if (query.payload.valueCertaintyConstraintKind) {
+        fragment.valueCertaintyConstraintKind = query.payload.valueCertaintyConstraintKind;
+      }
+      if (query.payload.valuePrefix) {
+        fragment.valuePrefix = query.payload.valuePrefix;
+      }
+      if (query.payload.valueSuffix) {
+        fragment.valueSuffix = query.payload.valueSuffix;
+      }
+      if (query.payload.valueMinLen !== undefined) {
+        fragment.valueMinLen = query.payload.valueMinLen;
+      }
+      if (query.payload.valueMaxLen !== undefined) {
+        fragment.valueMaxLen = query.payload.valueMaxLen;
+      }
+      if (query.payload.valueCharMust) {
+        fragment.valueCharMust = query.payload.valueCharMust;
+      }
+      if (query.payload.valueCharMay) {
+        fragment.valueCharMay = query.payload.valueCharMay;
+      }
+      if (query.payload.valueMayIncludeOtherChars) {
+        fragment.valueMayIncludeOtherChars = true;
+      }
+      return fragment;
+    })
+    .toSorted((a, b) => a.queryId.localeCompare(b.queryId));
+
+  return {
+    schemaVersion: "0",
+    inputVersion: snapshot.input.version,
+    fragments,
+  };
+}
+
 export function assertShadowSummaryMatch(
   label: string,
   actual: ShadowSummaryV0,
@@ -956,6 +1030,22 @@ export function assertExpressionSemanticsFragmentsMatch(
   if (actualJson !== expectedJson) {
     throw new Error(
       `${label}: expressionSemanticsFragments mismatch\nexpected: ${expectedJson}\nreceived: ${actualJson}`,
+    );
+  }
+}
+
+export function assertSourceResolutionFragmentsMatch(
+  label: string,
+  actual: SourceResolutionFragmentsV0,
+  expected: SourceResolutionFragmentsV0,
+): void {
+  assertEqualField(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
+  assertEqualField(label, "inputVersion", actual.inputVersion, expected.inputVersion);
+  const actualJson = JSON.stringify(actual.fragments);
+  const expectedJson = JSON.stringify(expected.fragments);
+  if (actualJson !== expectedJson) {
+    throw new Error(
+      `${label}: sourceResolutionFragments mismatch\nexpected: ${expectedJson}\nreceived: ${actualJson}`,
     );
   }
 }
