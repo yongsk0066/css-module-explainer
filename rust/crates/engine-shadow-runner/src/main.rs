@@ -18,7 +18,7 @@ use engine_input_producers::{
     summarize_source_resolution_evaluator_candidates_input,
     summarize_source_resolution_fragments_input, summarize_source_resolution_match_fragments_input,
     summarize_source_resolution_plan_input, summarize_source_resolution_query_fragments_input,
-    summarize_type_fact_input,
+    summarize_source_side_canonical_producer_signal_input, summarize_type_fact_input,
 };
 use serde::{Deserialize, Serialize};
 
@@ -242,6 +242,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some("input-expression-semantics-canonical-producer") => {
             let input: EngineInputV2 = serde_json::from_str(&stdin)?;
             let summary = summarize_expression_semantics_canonical_producer_signal_input(&input);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
+        Some("input-source-side-canonical-producer") => {
+            let input: EngineInputV2 = serde_json::from_str(&stdin)?;
+            let summary = summarize_source_side_canonical_producer_signal_input(&input);
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
         Some("input-expression-semantics-query-fragments") => {

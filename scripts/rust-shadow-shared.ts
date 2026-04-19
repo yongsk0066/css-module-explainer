@@ -259,6 +259,13 @@ export interface SourceResolutionCanonicalProducerSignalV0 {
   readonly evaluatorCandidates: SourceResolutionEvaluatorCandidatesV0;
 }
 
+export interface SourceSideCanonicalProducerSignalV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly expressionSemantics: ExpressionSemanticsCanonicalProducerSignalV0;
+  readonly sourceResolution: SourceResolutionCanonicalProducerSignalV0;
+}
+
 export interface ExpressionSemanticsFragmentV0 {
   readonly queryId: string;
   readonly expressionId: string;
@@ -581,6 +588,15 @@ export async function runShadowExpressionSemanticsCanonicalProducerInput(
 ): Promise<ExpressionSemanticsCanonicalProducerSignalV0> {
   return runShadowJson<ExpressionSemanticsCanonicalProducerSignalV0>(
     ["input-expression-semantics-canonical-producer"],
+    input,
+  );
+}
+
+export async function runShadowSourceSideCanonicalProducerInput(
+  input: EngineInputV2,
+): Promise<SourceSideCanonicalProducerSignalV0> {
+  return runShadowJson<SourceSideCanonicalProducerSignalV0>(
+    ["input-source-side-canonical-producer"],
     input,
   );
 }
@@ -1548,6 +1564,17 @@ export function deriveTsSourceResolutionCanonicalProducerSignal(
   };
 }
 
+export function deriveTsSourceSideCanonicalProducerSignal(
+  snapshot: EngineParitySnapshotV2,
+): SourceSideCanonicalProducerSignalV0 {
+  return {
+    schemaVersion: "0",
+    inputVersion: snapshot.input.version,
+    expressionSemantics: deriveTsExpressionSemanticsCanonicalProducerSignal(snapshot),
+    sourceResolution: deriveTsSourceResolutionCanonicalProducerSignal(snapshot),
+  };
+}
+
 export function assertShadowSummaryMatch(
   label: string,
   actual: ShadowSummaryV0,
@@ -2214,6 +2241,25 @@ export function assertSourceResolutionCanonicalProducerSignalMatch(
     `${label}:evaluatorCandidates`,
     actual.evaluatorCandidates,
     expected.evaluatorCandidates,
+  );
+}
+
+export function assertSourceSideCanonicalProducerSignalMatch(
+  label: string,
+  actual: SourceSideCanonicalProducerSignalV0,
+  expected: SourceSideCanonicalProducerSignalV0,
+): void {
+  assertEqualField(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
+  assertEqualField(label, "inputVersion", actual.inputVersion, expected.inputVersion);
+  assertExpressionSemanticsCanonicalProducerSignalMatch(
+    `${label}:expressionSemantics`,
+    actual.expressionSemantics,
+    expected.expressionSemantics,
+  );
+  assertSourceResolutionCanonicalProducerSignalMatch(
+    `${label}:sourceResolution`,
+    actual.sourceResolution,
+    expected.sourceResolution,
   );
 }
 

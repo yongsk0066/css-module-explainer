@@ -7,6 +7,7 @@ mod expression_semantics;
 mod query_plan;
 mod selector_usage;
 mod source_resolution;
+mod source_side;
 #[cfg(test)]
 mod test_support;
 mod type_facts;
@@ -32,6 +33,7 @@ pub use source_resolution::summarize_source_resolution_fragments_input;
 pub use source_resolution::summarize_source_resolution_match_fragments_input;
 pub use source_resolution::summarize_source_resolution_plan_input;
 pub use source_resolution::summarize_source_resolution_query_fragments_input;
+pub use source_side::summarize_source_side_canonical_producer_signal_input;
 pub use type_facts::summarize_type_fact_input;
 
 #[derive(Debug, Deserialize)]
@@ -392,6 +394,15 @@ pub struct SourceResolutionCanonicalProducerSignalV0 {
     pub input_version: String,
     pub canonical_bundle: SourceResolutionCanonicalCandidateBundleV0,
     pub evaluator_candidates: SourceResolutionEvaluatorCandidatesV0,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceSideCanonicalProducerSignalV0 {
+    pub schema_version: &'static str,
+    pub input_version: String,
+    pub expression_semantics: ExpressionSemanticsCanonicalProducerSignalV0,
+    pub source_resolution: SourceResolutionCanonicalProducerSignalV0,
 }
 
 #[derive(Debug, Serialize, Clone)]
