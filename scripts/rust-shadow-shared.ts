@@ -40,6 +40,14 @@ export interface ShadowSummaryV0 {
   readonly expectedSourceExpressionResolutionCount: number;
   readonly expectedSelectorUsageCount: number;
   readonly expectedTotalQueryCount: number;
+  readonly matchedExpressionQueryPairs: number;
+  readonly missingExpressionSemanticsCount: number;
+  readonly missingSourceExpressionResolutionCount: number;
+  readonly unexpectedExpressionSemanticsCount: number;
+  readonly unexpectedSourceExpressionResolutionCount: number;
+  readonly matchedSelectorUsageCount: number;
+  readonly missingSelectorUsageCount: number;
+  readonly unexpectedSelectorUsageCount: number;
   readonly rewritePlanCount: number;
   readonly checkerWarningCount: number;
   readonly checkerHintCount: number;
@@ -114,15 +122,28 @@ export function deriveTsShadowSummary(snapshot: EngineParitySnapshotV2): ShadowS
   let expectedExpressionSemanticsCount = 0;
   let expectedSourceExpressionResolutionCount = 0;
   let expectedSelectorUsageCount = 0;
+  const expectedExpressionIds = new Set<string>();
+  const expectedSelectorUsageIds = new Set<string>();
+  const expressionSemanticsIds = new Set<string>();
+  const resolutionIds = new Set<string>();
+  const selectorUsageIds = new Set<string>();
 
   for (const source of snapshot.input.sources) {
     expectedExpressionSemanticsCount += source.document.classExpressions.length;
+    for (const expression of source.document.classExpressions) {
+      expectedExpressionIds.add(expression.id);
+    }
   }
   expectedSourceExpressionResolutionCount = expectedExpressionSemanticsCount;
   for (const style of snapshot.input.styles) {
     expectedSelectorUsageCount += style.document.selectors.filter(
       (selector) => selector.viewKind === "canonical",
     ).length;
+    for (const selector of style.document.selectors) {
+      if (selector.viewKind === "canonical") {
+        expectedSelectorUsageIds.add(selector.canonicalName);
+      }
+    }
   }
 
   for (const entry of snapshot.input.typeFacts) {
@@ -152,6 +173,9 @@ export function deriveTsShadowSummary(snapshot: EngineParitySnapshotV2): ShadowS
       resolutionConstraintDetailCounts,
       resolutionValueCertaintyShapes,
       resolutionSelectorCertaintyShapes,
+      expressionSemanticsIds,
+      resolutionIds,
+      selectorUsageIds,
       (payload) => {
         selectorUsageTotalReferences += payload.totalReferences;
         selectorUsageDirectReferences += payload.directReferenceCount;
@@ -211,6 +235,30 @@ export function deriveTsShadowSummary(snapshot: EngineParitySnapshotV2): ShadowS
       expectedExpressionSemanticsCount +
       expectedSourceExpressionResolutionCount +
       expectedSelectorUsageCount,
+    matchedExpressionQueryPairs: [...expectedExpressionIds].filter(
+      (id) => expressionSemanticsIds.has(id) && resolutionIds.has(id),
+    ).length,
+    missingExpressionSemanticsCount: [...expectedExpressionIds].filter(
+      (id) => !expressionSemanticsIds.has(id),
+    ).length,
+    missingSourceExpressionResolutionCount: [...expectedExpressionIds].filter(
+      (id) => !resolutionIds.has(id),
+    ).length,
+    unexpectedExpressionSemanticsCount: [...expressionSemanticsIds].filter(
+      (id) => !expectedExpressionIds.has(id),
+    ).length,
+    unexpectedSourceExpressionResolutionCount: [...resolutionIds].filter(
+      (id) => !expectedExpressionIds.has(id),
+    ).length,
+    matchedSelectorUsageCount: [...expectedSelectorUsageIds].filter((id) =>
+      selectorUsageIds.has(id),
+    ).length,
+    missingSelectorUsageCount: [...expectedSelectorUsageIds].filter(
+      (id) => !selectorUsageIds.has(id),
+    ).length,
+    unexpectedSelectorUsageCount: [...selectorUsageIds].filter(
+      (id) => !expectedSelectorUsageIds.has(id),
+    ).length,
     rewritePlanCount: snapshot.output.rewritePlans.length,
     checkerWarningCount: snapshot.output.checkerReport.summary.warnings,
     checkerHintCount: snapshot.output.checkerReport.summary.hints,
@@ -313,6 +361,54 @@ export function assertShadowSummaryMatch(
     "expectedTotalQueryCount",
     actual.expectedTotalQueryCount,
     expected.expectedTotalQueryCount,
+  );
+  assertEqualField(
+    label,
+    "matchedExpressionQueryPairs",
+    actual.matchedExpressionQueryPairs,
+    expected.matchedExpressionQueryPairs,
+  );
+  assertEqualField(
+    label,
+    "missingExpressionSemanticsCount",
+    actual.missingExpressionSemanticsCount,
+    expected.missingExpressionSemanticsCount,
+  );
+  assertEqualField(
+    label,
+    "missingSourceExpressionResolutionCount",
+    actual.missingSourceExpressionResolutionCount,
+    expected.missingSourceExpressionResolutionCount,
+  );
+  assertEqualField(
+    label,
+    "unexpectedExpressionSemanticsCount",
+    actual.unexpectedExpressionSemanticsCount,
+    expected.unexpectedExpressionSemanticsCount,
+  );
+  assertEqualField(
+    label,
+    "unexpectedSourceExpressionResolutionCount",
+    actual.unexpectedSourceExpressionResolutionCount,
+    expected.unexpectedSourceExpressionResolutionCount,
+  );
+  assertEqualField(
+    label,
+    "matchedSelectorUsageCount",
+    actual.matchedSelectorUsageCount,
+    expected.matchedSelectorUsageCount,
+  );
+  assertEqualField(
+    label,
+    "missingSelectorUsageCount",
+    actual.missingSelectorUsageCount,
+    expected.missingSelectorUsageCount,
+  );
+  assertEqualField(
+    label,
+    "unexpectedSelectorUsageCount",
+    actual.unexpectedSelectorUsageCount,
+    expected.unexpectedSelectorUsageCount,
   );
   assertEqualField(label, "rewritePlanCount", actual.rewritePlanCount, expected.rewritePlanCount);
   assertEqualField(
@@ -425,10 +521,14 @@ function collectQueryPayloadSummary(
   resolutionConstraintDetailCounts: ConstraintDetailCounts,
   resolutionValueCertaintyShapes: Record<string, number>,
   resolutionSelectorCertaintyShapes: Record<string, number>,
+  expressionSemanticsIds: Set<string>,
+  resolutionIds: Set<string>,
+  selectorUsageIds: Set<string>,
   onSelectorUsage: (payload: SelectorUsagePayloadSummary) => void,
 ) {
   switch (query.kind) {
     case "expression-semantics":
+      expressionSemanticsIds.add(query.queryId);
       increment(expressionValueDomainKinds, query.payload.valueDomainKind);
       if (query.payload.valueConstraintKind) {
         increment(expressionValueConstraintKinds, query.payload.valueConstraintKind);
@@ -451,6 +551,7 @@ function collectQueryPayloadSummary(
       }
       break;
     case "source-expression-resolution":
+      resolutionIds.add(query.queryId);
       if (query.payload.valueCertaintyConstraintKind) {
         increment(resolutionValueConstraintKinds, query.payload.valueCertaintyConstraintKind);
       }
@@ -472,6 +573,7 @@ function collectQueryPayloadSummary(
       }
       break;
     case "selector-usage":
+      selectorUsageIds.add(query.queryId);
       onSelectorUsage(query.payload);
       break;
   }

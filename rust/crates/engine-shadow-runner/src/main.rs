@@ -47,6 +47,7 @@ struct StyleDocumentV2 {
 #[serde(rename_all = "camelCase")]
 struct StyleSelectorV2 {
     view_kind: String,
+    canonical_name: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -62,14 +63,20 @@ struct EngineOutputV2 {
 enum QueryResultV2 {
     #[serde(rename = "expression-semantics")]
     ExpressionSemantics {
+        #[serde(rename = "queryId")]
+        query_id: String,
         payload: ExpressionSemanticsPayloadV2,
     },
     #[serde(rename = "source-expression-resolution")]
     SourceExpressionResolution {
+        #[serde(rename = "queryId")]
+        query_id: String,
         payload: SourceExpressionResolutionPayloadV2,
     },
     #[serde(rename = "selector-usage")]
     SelectorUsage {
+        #[serde(rename = "queryId")]
+        query_id: String,
         payload: SelectorUsagePayloadV2,
     },
 }
@@ -184,6 +191,14 @@ struct ShadowSummaryV0 {
     expected_source_expression_resolution_count: usize,
     expected_selector_usage_count: usize,
     expected_total_query_count: usize,
+    matched_expression_query_pairs: usize,
+    missing_expression_semantics_count: usize,
+    missing_source_expression_resolution_count: usize,
+    unexpected_expression_semantics_count: usize,
+    unexpected_source_expression_resolution_count: usize,
+    matched_selector_usage_count: usize,
+    missing_selector_usage_count: usize,
+    unexpected_selector_usage_count: usize,
     rewrite_plan_count: usize,
     checker_warning_count: usize,
     checker_hint_count: usize,
@@ -242,6 +257,24 @@ fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
     let mut selector_usage_style_dependency_count = 0usize;
     let input = payload.input;
     let output = payload.output;
+    let expected_expression_ids: std::collections::BTreeSet<String> = input
+        .sources
+        .iter()
+        .flat_map(|source| source.document.class_expressions.iter())
+        .filter_map(|expression| expression.get("id").and_then(|id| id.as_str()))
+        .map(|id| id.to_string())
+        .collect();
+    let expected_selector_usage_ids: std::collections::BTreeSet<String> = input
+        .styles
+        .iter()
+        .flat_map(|style| style.document.selectors.iter())
+        .filter(|selector| selector.view_kind == "canonical")
+        .filter_map(|selector| selector.canonical_name.as_ref())
+        .map(|name| name.to_string())
+        .collect();
+    let mut expression_semantics_ids = std::collections::BTreeSet::new();
+    let mut resolution_ids = std::collections::BTreeSet::new();
+    let mut selector_usage_ids = std::collections::BTreeSet::new();
     let expected_expression_semantics_count: usize = input
         .sources
         .iter()
@@ -280,10 +313,11 @@ fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
 
     for query in &output.query_results {
         match query {
-            QueryResultV2::ExpressionSemantics { payload } => {
+            QueryResultV2::ExpressionSemantics { query_id, payload } => {
                 *query_kind_counts
                     .entry("expression-semantics".to_string())
                     .or_insert(0) += 1;
+                expression_semantics_ids.insert(query_id.clone());
                 *expression_value_domain_kinds
                     .entry(payload.value_domain_kind.clone())
                     .or_insert(0) += 1;
@@ -316,10 +350,11 @@ fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
                         .or_insert(0) += 1;
                 }
             }
-            QueryResultV2::SourceExpressionResolution { payload } => {
+            QueryResultV2::SourceExpressionResolution { query_id, payload } => {
                 *query_kind_counts
                     .entry("source-expression-resolution".to_string())
                     .or_insert(0) += 1;
+                resolution_ids.insert(query_id.clone());
 
                 if let Some(constraint_kind) = &payload.value_certainty_constraint_kind {
                     *resolution_value_constraint_kinds
@@ -349,10 +384,11 @@ fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
                         .or_insert(0) += 1;
                 }
             }
-            QueryResultV2::SelectorUsage { payload } => {
+            QueryResultV2::SelectorUsage { query_id, payload } => {
                 *query_kind_counts
                     .entry("selector-usage".to_string())
                     .or_insert(0) += 1;
+                selector_usage_ids.insert(query_id.clone());
 
                 selector_usage_total_references += payload.total_references;
                 selector_usage_direct_references += payload.direct_reference_count;
@@ -375,6 +411,39 @@ fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
             }
         }
     }
+
+    let matched_expression_query_pairs = expected_expression_ids
+        .iter()
+        .filter(|id| expression_semantics_ids.contains(*id) && resolution_ids.contains(*id))
+        .count();
+    let missing_expression_semantics_count = expected_expression_ids
+        .iter()
+        .filter(|id| !expression_semantics_ids.contains(*id))
+        .count();
+    let missing_source_expression_resolution_count = expected_expression_ids
+        .iter()
+        .filter(|id| !resolution_ids.contains(*id))
+        .count();
+    let unexpected_expression_semantics_count = expression_semantics_ids
+        .iter()
+        .filter(|id| !expected_expression_ids.contains(*id))
+        .count();
+    let unexpected_source_expression_resolution_count = resolution_ids
+        .iter()
+        .filter(|id| !expected_expression_ids.contains(*id))
+        .count();
+    let matched_selector_usage_count = expected_selector_usage_ids
+        .iter()
+        .filter(|id| selector_usage_ids.contains(*id))
+        .count();
+    let missing_selector_usage_count = expected_selector_usage_ids
+        .iter()
+        .filter(|id| !selector_usage_ids.contains(*id))
+        .count();
+    let unexpected_selector_usage_count = selector_usage_ids
+        .iter()
+        .filter(|id| !expected_selector_usage_ids.contains(*id))
+        .count();
 
     ShadowSummaryV0 {
         schema_version: "0",
@@ -410,6 +479,14 @@ fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
         expected_source_expression_resolution_count,
         expected_selector_usage_count,
         expected_total_query_count,
+        matched_expression_query_pairs,
+        missing_expression_semantics_count,
+        missing_source_expression_resolution_count,
+        unexpected_expression_semantics_count,
+        unexpected_source_expression_resolution_count,
+        matched_selector_usage_count,
+        missing_selector_usage_count,
+        unexpected_selector_usage_count,
         rewrite_plan_count: output.rewrite_plans.len(),
         checker_warning_count: output.checker_report.summary.warnings,
         checker_hint_count: output.checker_report.summary.hints,
