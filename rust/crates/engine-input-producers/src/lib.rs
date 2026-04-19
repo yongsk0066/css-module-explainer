@@ -2,6 +2,12 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 
+mod expression_semantics;
+mod source_resolution;
+
+pub use expression_semantics::summarize_expression_semantics_fragments_input;
+pub use source_resolution::summarize_source_resolution_fragments_input;
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EngineInputV2 {
@@ -414,93 +420,6 @@ pub fn summarize_source_resolution_plan_input(
     }
 }
 
-pub fn summarize_expression_semantics_fragments_input(
-    input: &EngineInputV2,
-) -> ExpressionSemanticsFragmentsV0 {
-    let mut expression_index = BTreeMap::new();
-
-    for source in &input.sources {
-        for expression in &source.document.class_expressions {
-            expression_index.insert(expression.id.clone(), expression);
-        }
-    }
-
-    let mut fragments = Vec::new();
-
-    for entry in &input.type_facts {
-        let Some(expression) = expression_index.get(&entry.expression_id) else {
-            continue;
-        };
-
-        fragments.push(ExpressionSemanticsFragmentV0 {
-            query_id: entry.expression_id.clone(),
-            expression_id: entry.expression_id.clone(),
-            expression_kind: expression.kind.clone(),
-            style_file_path: expression.scss_module_path.clone(),
-            value_domain_kind: map_expression_value_domain_kind(&entry.facts),
-            value_constraint_kind: entry.facts.constraint_kind.clone(),
-            value_prefix: entry.facts.prefix.clone(),
-            value_suffix: entry.facts.suffix.clone(),
-            value_min_len: entry.facts.min_len,
-            value_max_len: entry.facts.max_len,
-            value_char_must: entry.facts.char_must.clone(),
-            value_char_may: entry.facts.char_may.clone(),
-            value_may_include_other_chars: entry.facts.may_include_other_chars,
-        });
-    }
-
-    fragments.sort_by(|a, b| a.query_id.cmp(&b.query_id));
-
-    ExpressionSemanticsFragmentsV0 {
-        schema_version: "0",
-        input_version: input.version.clone(),
-        fragments,
-    }
-}
-
-pub fn summarize_source_resolution_fragments_input(
-    input: &EngineInputV2,
-) -> SourceResolutionFragmentsV0 {
-    let mut expression_index = BTreeMap::new();
-
-    for source in &input.sources {
-        for expression in &source.document.class_expressions {
-            expression_index.insert(expression.id.clone(), expression);
-        }
-    }
-
-    let mut fragments = Vec::new();
-
-    for entry in &input.type_facts {
-        let Some(expression) = expression_index.get(&entry.expression_id) else {
-            continue;
-        };
-
-        fragments.push(SourceResolutionFragmentV0 {
-            query_id: entry.expression_id.clone(),
-            expression_id: entry.expression_id.clone(),
-            style_file_path: expression.scss_module_path.clone(),
-            value_certainty_shape_kind: map_value_certainty_shape_kind(&entry.facts),
-            value_certainty_constraint_kind: entry.facts.constraint_kind.clone(),
-            value_prefix: entry.facts.prefix.clone(),
-            value_suffix: entry.facts.suffix.clone(),
-            value_min_len: entry.facts.min_len,
-            value_max_len: entry.facts.max_len,
-            value_char_must: entry.facts.char_must.clone(),
-            value_char_may: entry.facts.char_may.clone(),
-            value_may_include_other_chars: entry.facts.may_include_other_chars,
-        });
-    }
-
-    fragments.sort_by(|a, b| a.query_id.cmp(&b.query_id));
-
-    SourceResolutionFragmentsV0 {
-        schema_version: "0",
-        input_version: input.version.clone(),
-        fragments,
-    }
-}
-
 fn collect_constraint_detail_counts(
     counts: &mut ConstraintDetailCounts,
     details: ConstraintDetailInput<'_>,
@@ -532,24 +451,24 @@ fn collect_constraint_detail_counts(
     }
 }
 
-struct ConstraintDetailInput<'a> {
-    prefix: Option<&'a String>,
-    suffix: Option<&'a String>,
-    min_len: Option<usize>,
-    max_len: Option<usize>,
-    char_must: Option<&'a String>,
-    char_may: Option<&'a String>,
-    may_include_other_chars: Option<bool>,
+pub(crate) struct ConstraintDetailInput<'a> {
+    pub(crate) prefix: Option<&'a String>,
+    pub(crate) suffix: Option<&'a String>,
+    pub(crate) min_len: Option<usize>,
+    pub(crate) max_len: Option<usize>,
+    pub(crate) char_must: Option<&'a String>,
+    pub(crate) char_may: Option<&'a String>,
+    pub(crate) may_include_other_chars: Option<bool>,
 }
 
-fn map_expression_value_domain_kind(facts: &StringTypeFactsV2) -> String {
+pub(crate) fn map_expression_value_domain_kind(facts: &StringTypeFactsV2) -> String {
     match facts.kind.as_str() {
         "unknown" => "none".to_string(),
         other => other.to_string(),
     }
 }
 
-fn map_value_certainty_shape_kind(facts: &StringTypeFactsV2) -> String {
+pub(crate) fn map_value_certainty_shape_kind(facts: &StringTypeFactsV2) -> String {
     match facts.kind.as_str() {
         "exact" => "exact".to_string(),
         "finiteSet" => "boundedFinite".to_string(),
