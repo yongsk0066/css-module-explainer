@@ -104,6 +104,41 @@ export interface ExpressionDomainFragmentsV0 {
   readonly fragments: readonly ExpressionDomainFragmentV0[];
 }
 
+export interface ExpressionDomainCandidateV0 {
+  readonly expressionId: string;
+  readonly filePath: string;
+  readonly valueDomainKind: string;
+  readonly valueConstraintKind?: string;
+  readonly valuePrefix?: string;
+  readonly valueSuffix?: string;
+  readonly valueMinLen?: number;
+  readonly valueMaxLen?: number;
+  readonly valueCharMust?: string;
+  readonly valueCharMay?: string;
+  readonly valueMayIncludeOtherChars?: boolean;
+  readonly finiteValueCount: number;
+}
+
+export interface ExpressionDomainCandidatesV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly candidates: readonly ExpressionDomainCandidateV0[];
+}
+
+export interface ExpressionDomainCanonicalCandidateBundleV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly planSummary: ExpressionDomainPlanSummaryV0;
+  readonly fragments: readonly ExpressionDomainFragmentV0[];
+  readonly candidates: readonly ExpressionDomainCandidateV0[];
+}
+
+export interface ExpressionDomainCanonicalProducerSignalV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly canonicalBundle: ExpressionDomainCanonicalCandidateBundleV0;
+}
+
 export interface SelectorUsagePlanSummaryV0 {
   readonly schemaVersion: string;
   readonly inputVersion: string;
@@ -449,6 +484,30 @@ export async function runShadowExpressionDomainFragmentsInput(
   input: EngineInputV2,
 ): Promise<ExpressionDomainFragmentsV0> {
   return runShadowJson<ExpressionDomainFragmentsV0>(["input-expression-domain-fragments"], input);
+}
+
+export async function runShadowExpressionDomainCandidatesInput(
+  input: EngineInputV2,
+): Promise<ExpressionDomainCandidatesV0> {
+  return runShadowJson<ExpressionDomainCandidatesV0>(["input-expression-domain-candidates"], input);
+}
+
+export async function runShadowExpressionDomainCanonicalCandidateInput(
+  input: EngineInputV2,
+): Promise<ExpressionDomainCanonicalCandidateBundleV0> {
+  return runShadowJson<ExpressionDomainCanonicalCandidateBundleV0>(
+    ["input-expression-domain-canonical-candidate"],
+    input,
+  );
+}
+
+export async function runShadowExpressionDomainCanonicalProducerInput(
+  input: EngineInputV2,
+): Promise<ExpressionDomainCanonicalProducerSignalV0> {
+  return runShadowJson<ExpressionDomainCanonicalProducerSignalV0>(
+    ["input-expression-domain-canonical-producer"],
+    input,
+  );
 }
 
 export async function runShadowSelectorUsagePlanInput(
@@ -965,6 +1024,72 @@ export function deriveTsExpressionDomainFragments(
     schemaVersion: "0",
     inputVersion: snapshot.input.version,
     fragments,
+  };
+}
+
+export function deriveTsExpressionDomainCandidates(
+  snapshot: EngineParitySnapshotV2,
+): ExpressionDomainCandidatesV0 {
+  const candidates = deriveTsExpressionDomainFragments(snapshot).fragments.map((fragment) => {
+    const candidate: ExpressionDomainCandidateV0 = {
+      expressionId: fragment.expressionId,
+      filePath: fragment.filePath,
+      valueDomainKind: fragment.valueDomainKind,
+      finiteValueCount: fragment.finiteValueCount,
+    };
+    if (fragment.valueConstraintKind) {
+      candidate.valueConstraintKind = fragment.valueConstraintKind;
+    }
+    if (fragment.valuePrefix) {
+      candidate.valuePrefix = fragment.valuePrefix;
+    }
+    if (fragment.valueSuffix) {
+      candidate.valueSuffix = fragment.valueSuffix;
+    }
+    if (fragment.valueMinLen !== undefined) {
+      candidate.valueMinLen = fragment.valueMinLen;
+    }
+    if (fragment.valueMaxLen !== undefined) {
+      candidate.valueMaxLen = fragment.valueMaxLen;
+    }
+    if (fragment.valueCharMust) {
+      candidate.valueCharMust = fragment.valueCharMust;
+    }
+    if (fragment.valueCharMay) {
+      candidate.valueCharMay = fragment.valueCharMay;
+    }
+    if (fragment.valueMayIncludeOtherChars) {
+      candidate.valueMayIncludeOtherChars = true;
+    }
+    return candidate;
+  });
+
+  return {
+    schemaVersion: "0",
+    inputVersion: snapshot.input.version,
+    candidates,
+  };
+}
+
+export function deriveTsExpressionDomainCanonicalCandidateBundle(
+  snapshot: EngineParitySnapshotV2,
+): ExpressionDomainCanonicalCandidateBundleV0 {
+  return {
+    schemaVersion: "0",
+    inputVersion: snapshot.input.version,
+    planSummary: deriveTsExpressionDomainPlanSummary(snapshot),
+    fragments: deriveTsExpressionDomainFragments(snapshot).fragments,
+    candidates: deriveTsExpressionDomainCandidates(snapshot).candidates,
+  };
+}
+
+export function deriveTsExpressionDomainCanonicalProducerSignal(
+  snapshot: EngineParitySnapshotV2,
+): ExpressionDomainCanonicalProducerSignalV0 {
+  return {
+    schemaVersion: "0",
+    inputVersion: snapshot.input.version,
+    canonicalBundle: deriveTsExpressionDomainCanonicalCandidateBundle(snapshot),
   };
 }
 
@@ -1858,6 +1983,60 @@ export function assertExpressionDomainFragmentsMatch(
       `${label}: expressionDomainFragments mismatch\nexpected: ${expectedJson}\nreceived: ${actualJson}`,
     );
   }
+}
+
+export function assertExpressionDomainCandidatesMatch(
+  label: string,
+  actual: ExpressionDomainCandidatesV0,
+  expected: ExpressionDomainCandidatesV0,
+): void {
+  assertEqualField(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
+  assertEqualField(label, "inputVersion", actual.inputVersion, expected.inputVersion);
+  const actualJson = JSON.stringify(actual.candidates);
+  const expectedJson = JSON.stringify(expected.candidates);
+  if (actualJson !== expectedJson) {
+    throw new Error(
+      `${label}: expressionDomainCandidates mismatch\nexpected: ${expectedJson}\nreceived: ${actualJson}`,
+    );
+  }
+}
+
+export function assertExpressionDomainCanonicalCandidateBundleMatch(
+  label: string,
+  actual: ExpressionDomainCanonicalCandidateBundleV0,
+  expected: ExpressionDomainCanonicalCandidateBundleV0,
+): void {
+  assertEqualField(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
+  assertEqualField(label, "inputVersion", actual.inputVersion, expected.inputVersion);
+  assertExpressionDomainPlanSummaryMatch(
+    `${label}:planSummary`,
+    actual.planSummary,
+    expected.planSummary,
+  );
+  if (JSON.stringify(actual.fragments) !== JSON.stringify(expected.fragments)) {
+    throw new Error(
+      `${label}: expressionDomainCanonicalCandidate fragments mismatch\nactual=${JSON.stringify(actual.fragments, null, 2)}\nexpected=${JSON.stringify(expected.fragments, null, 2)}`,
+    );
+  }
+  if (JSON.stringify(actual.candidates) !== JSON.stringify(expected.candidates)) {
+    throw new Error(
+      `${label}: expressionDomainCanonicalCandidate candidates mismatch\nactual=${JSON.stringify(actual.candidates, null, 2)}\nexpected=${JSON.stringify(expected.candidates, null, 2)}`,
+    );
+  }
+}
+
+export function assertExpressionDomainCanonicalProducerSignalMatch(
+  label: string,
+  actual: ExpressionDomainCanonicalProducerSignalV0,
+  expected: ExpressionDomainCanonicalProducerSignalV0,
+): void {
+  assertEqualField(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
+  assertEqualField(label, "inputVersion", actual.inputVersion, expected.inputVersion);
+  assertExpressionDomainCanonicalCandidateBundleMatch(
+    `${label}:canonicalBundle`,
+    actual.canonicalBundle,
+    expected.canonicalBundle,
+  );
 }
 
 export function assertSelectorUsagePlanSummaryMatch(

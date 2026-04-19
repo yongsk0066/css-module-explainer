@@ -12,6 +12,9 @@ mod source_side;
 mod test_support;
 mod type_facts;
 
+pub use expression_domain::summarize_expression_domain_candidates_input;
+pub use expression_domain::summarize_expression_domain_canonical_candidate_bundle_input;
+pub use expression_domain::summarize_expression_domain_canonical_producer_signal_input;
 pub use expression_domain::summarize_expression_domain_fragments_input;
 pub use expression_domain::summarize_expression_domain_plan_input;
 pub use expression_semantics::summarize_expression_semantics_candidates_input;
@@ -136,7 +139,7 @@ pub struct QueryPlanSummaryV0 {
     total_query_count: usize,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ExpressionDomainPlanSummaryV0 {
     schema_version: &'static str,
@@ -148,7 +151,7 @@ pub struct ExpressionDomainPlanSummaryV0 {
     finite_value_count: usize,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ExpressionDomainFragmentV0 {
     pub expression_id: String,
@@ -179,6 +182,57 @@ pub struct ExpressionDomainFragmentsV0 {
     pub schema_version: &'static str,
     pub input_version: String,
     pub fragments: Vec<ExpressionDomainFragmentV0>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ExpressionDomainCandidateV0 {
+    pub expression_id: String,
+    pub file_path: String,
+    pub value_domain_kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_constraint_kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_prefix: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_suffix: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_min_len: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_max_len: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_char_must: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_char_may: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_may_include_other_chars: Option<bool>,
+    pub finite_value_count: usize,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExpressionDomainCandidatesV0 {
+    pub schema_version: &'static str,
+    pub input_version: String,
+    pub candidates: Vec<ExpressionDomainCandidateV0>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExpressionDomainCanonicalCandidateBundleV0 {
+    pub schema_version: &'static str,
+    pub input_version: String,
+    pub plan_summary: ExpressionDomainPlanSummaryV0,
+    pub fragments: Vec<ExpressionDomainFragmentV0>,
+    pub candidates: Vec<ExpressionDomainCandidateV0>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExpressionDomainCanonicalProducerSignalV0 {
+    pub schema_version: &'static str,
+    pub input_version: String,
+    pub canonical_bundle: ExpressionDomainCanonicalCandidateBundleV0,
 }
 
 #[derive(Debug, Serialize)]
@@ -635,7 +689,7 @@ pub struct SourceResolutionFragmentsV0 {
     fragments: Vec<SourceResolutionFragmentV0>,
 }
 
-#[derive(Debug, Serialize, Default)]
+#[derive(Debug, Serialize, Default, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ConstraintDetailCounts {
     pub prefix_count: usize,

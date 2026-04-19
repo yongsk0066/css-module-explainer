@@ -79,6 +79,21 @@ export const RUST_GATE_EVIDENCE_CORPUS: readonly RustGateEvidenceEntry[] = [
     variants: ["typescript-current"],
   },
   {
+    label: "rust-expression-domain-candidates",
+    argv: ["check:rust-expression-domain-candidates"],
+    variants: ["typescript-current"],
+  },
+  {
+    label: "rust-expression-domain-canonical-candidate",
+    argv: ["check:rust-expression-domain-canonical-candidate"],
+    variants: ["typescript-current"],
+  },
+  {
+    label: "rust-expression-domain-canonical-producer",
+    argv: ["check:rust-expression-domain-canonical-producer"],
+    variants: ["typescript-current"],
+  },
+  {
     label: "rust-expression-semantics-fragments",
     argv: ["check:rust-expression-semantics-fragments"],
     variants: ["typescript-current"],

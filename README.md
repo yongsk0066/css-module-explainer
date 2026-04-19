@@ -242,17 +242,19 @@ Current checker policy:
 - `pnpm check:type-fact-backend-parity` compares canonical `EngineInputV2.typeFacts` across `typescript-current` and `tsgo-preview` on the backend smoke corpus
 - Rust shadow validation now covers:
   - input summaries: `pnpm check:rust-type-fact-compare`, `pnpm check:rust-query-plan-compare`, `pnpm check:rust-expression-domain-compare`
+  - input-only candidates: `pnpm check:rust-expression-domain-candidates`
   - query skeletons: `pnpm check:rust-*-query-fragments`
   - match fragments: `pnpm check:rust-expression-semantics-match-fragments`, `pnpm check:rust-source-resolution-match-fragments`
   - output-like candidates: `pnpm check:rust-expression-semantics-candidates`, `pnpm check:rust-source-resolution-candidates`
   - evaluator candidates: `pnpm check:rust-expression-semantics-evaluator-candidates`, `pnpm check:rust-source-resolution-evaluator-candidates`
-  - canonical-candidate bundles: `pnpm check:rust-expression-semantics-canonical-candidate`, `pnpm check:rust-source-resolution-canonical-candidate`
-  - canonical-producer signals: `pnpm check:rust-expression-semantics-canonical-producer`, `pnpm check:rust-source-resolution-canonical-producer`
+  - canonical-candidate bundles: `pnpm check:rust-expression-domain-canonical-candidate`, `pnpm check:rust-expression-semantics-canonical-candidate`, `pnpm check:rust-source-resolution-canonical-candidate`
+  - canonical-producer signals: `pnpm check:rust-expression-domain-canonical-producer`, `pnpm check:rust-expression-semantics-canonical-producer`, `pnpm check:rust-source-resolution-canonical-producer`
   - consolidated source-side canonical signal: `pnpm check:rust-source-side-canonical-producer`
   - full snapshot parity: `pnpm check:rust-shadow-compare`
 - Current `3.7.0` framing is source-side first:
   - `expression-semantics` and `source-resolution` now carry canonical-producer signals on the Rust shadow path
-  - `expression-domain` and `selector-usage` remain shadow validation families, not release-gating canonical candidates
+  - `expression-domain` now carries input-only canonical artifacts on the Rust shadow path
+  - `selector-usage` remains a shadow validation family, not a release-gating canonical candidate
 - `pnpm check:real-project-corpus` runs a clean multi-file corpus that mimics common product patterns (`variants`, `@value` + `@keyframes`, `composes`, `.module.less`)
 - semantic smoke cases are versioned in `scripts/semantic-smoke-corpus.ts` and should be updated when new semantic surfaces become release-relevant
 - `pnpm check:release-batch` is the canonical release-facing batch checker pass

@@ -3,8 +3,11 @@ use std::env;
 use std::io::{self, Read};
 
 use engine_input_producers::{
-    ConstraintDetailCounts, EngineInputV2, summarize_expression_domain_fragments_input,
-    summarize_expression_domain_plan_input, summarize_expression_semantics_candidates_input,
+    ConstraintDetailCounts, EngineInputV2, summarize_expression_domain_candidates_input,
+    summarize_expression_domain_canonical_candidate_bundle_input,
+    summarize_expression_domain_canonical_producer_signal_input,
+    summarize_expression_domain_fragments_input, summarize_expression_domain_plan_input,
+    summarize_expression_semantics_candidates_input,
     summarize_expression_semantics_canonical_candidate_bundle_input,
     summarize_expression_semantics_canonical_producer_signal_input,
     summarize_expression_semantics_evaluator_candidates_input,
@@ -197,6 +200,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some("input-expression-domain-fragments") => {
             let input: EngineInputV2 = serde_json::from_str(&stdin)?;
             let summary = summarize_expression_domain_fragments_input(&input);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
+        Some("input-expression-domain-candidates") => {
+            let input: EngineInputV2 = serde_json::from_str(&stdin)?;
+            let summary = summarize_expression_domain_candidates_input(&input);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
+        Some("input-expression-domain-canonical-candidate") => {
+            let input: EngineInputV2 = serde_json::from_str(&stdin)?;
+            let summary = summarize_expression_domain_canonical_candidate_bundle_input(&input);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
+        Some("input-expression-domain-canonical-producer") => {
+            let input: EngineInputV2 = serde_json::from_str(&stdin)?;
+            let summary = summarize_expression_domain_canonical_producer_signal_input(&input);
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
         Some("input-selector-usage-plan") => {
