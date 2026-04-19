@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use crate::{
     EngineInputV2, SelectorUsageFragmentV0, SelectorUsageFragmentsV0, SelectorUsagePlanSummaryV0,
+    SelectorUsageQueryFragmentV0, SelectorUsageQueryFragmentsV0,
 };
 
 pub fn summarize_selector_usage_plan_input(input: &EngineInputV2) -> SelectorUsagePlanSummaryV0 {
@@ -70,9 +71,43 @@ pub fn summarize_selector_usage_fragments_input(input: &EngineInputV2) -> Select
     }
 }
 
+pub fn summarize_selector_usage_query_fragments_input(
+    input: &EngineInputV2,
+) -> SelectorUsageQueryFragmentsV0 {
+    let mut fragments = Vec::new();
+
+    for style in &input.styles {
+        for selector in &style.document.selectors {
+            if selector.view_kind != "canonical" {
+                continue;
+            }
+            let Some(canonical_name) = &selector.canonical_name else {
+                continue;
+            };
+            fragments.push(SelectorUsageQueryFragmentV0 {
+                query_id: canonical_name.clone(),
+                canonical_name: canonical_name.clone(),
+                nested_safety: selector.nested_safety.clone(),
+                composes_count: selector.composes.as_ref().map_or(0, Vec::len),
+            });
+        }
+    }
+
+    fragments.sort_by(|a, b| a.query_id.cmp(&b.query_id));
+
+    SelectorUsageQueryFragmentsV0 {
+        schema_version: "0",
+        input_version: input.version.clone(),
+        fragments,
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{summarize_selector_usage_fragments_input, summarize_selector_usage_plan_input};
+    use super::{
+        summarize_selector_usage_fragments_input, summarize_selector_usage_plan_input,
+        summarize_selector_usage_query_fragments_input,
+    };
     use crate::test_support::sample_input;
 
     #[test]
@@ -114,5 +149,24 @@ mod tests {
             Some("unknown")
         );
         assert_eq!(summary.fragments[2].composes_count, 2);
+    }
+
+    #[test]
+    fn summarizes_selector_usage_query_fragments() {
+        let summary = summarize_selector_usage_query_fragments_input(&sample_input());
+
+        assert_eq!(summary.fragments.len(), 2);
+        assert_eq!(summary.fragments[0].query_id, "btn-active");
+        assert_eq!(summary.fragments[0].canonical_name, "btn-active");
+        assert_eq!(summary.fragments[0].nested_safety.as_deref(), Some("safe"));
+        assert_eq!(summary.fragments[0].composes_count, 1);
+
+        assert_eq!(summary.fragments[1].query_id, "card-header");
+        assert_eq!(summary.fragments[1].canonical_name, "card-header");
+        assert_eq!(
+            summary.fragments[1].nested_safety.as_deref(),
+            Some("unsafe")
+        );
+        assert_eq!(summary.fragments[1].composes_count, 0);
     }
 }

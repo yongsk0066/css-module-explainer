@@ -17,6 +17,7 @@ pub use expression_semantics::summarize_expression_semantics_fragments_input;
 pub use query_plan::summarize_query_plan_input;
 pub use selector_usage::summarize_selector_usage_fragments_input;
 pub use selector_usage::summarize_selector_usage_plan_input;
+pub use selector_usage::summarize_selector_usage_query_fragments_input;
 pub use source_resolution::summarize_source_resolution_fragments_input;
 pub use source_resolution::summarize_source_resolution_plan_input;
 pub use type_facts::summarize_type_fact_input;
@@ -194,6 +195,24 @@ pub struct SelectorUsageFragmentsV0 {
     pub schema_version: &'static str,
     pub input_version: String,
     pub fragments: Vec<SelectorUsageFragmentV0>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SelectorUsageQueryFragmentV0 {
+    pub query_id: String,
+    pub canonical_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nested_safety: Option<String>,
+    pub composes_count: usize,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SelectorUsageQueryFragmentsV0 {
+    pub schema_version: &'static str,
+    pub input_version: String,
+    pub fragments: Vec<SelectorUsageQueryFragmentV0>,
 }
 
 #[derive(Debug, Serialize)]

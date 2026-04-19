@@ -128,6 +128,19 @@ export interface SelectorUsageFragmentsV0 {
   readonly fragments: readonly SelectorUsageFragmentV0[];
 }
 
+export interface SelectorUsageQueryFragmentV0 {
+  readonly queryId: string;
+  readonly canonicalName: string;
+  readonly nestedSafety?: string;
+  readonly composesCount: number;
+}
+
+export interface SelectorUsageQueryFragmentsV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly fragments: readonly SelectorUsageQueryFragmentV0[];
+}
+
 export interface SourceResolutionPlanSummaryV0 {
   readonly schemaVersion: string;
   readonly inputVersion: string;
@@ -218,6 +231,15 @@ export async function runShadowSelectorUsageFragmentsInput(
   input: EngineInputV2,
 ): Promise<SelectorUsageFragmentsV0> {
   return runShadowJson<SelectorUsageFragmentsV0>(["input-selector-usage-fragments"], input);
+}
+
+export async function runShadowSelectorUsageQueryFragmentsInput(
+  input: EngineInputV2,
+): Promise<SelectorUsageQueryFragmentsV0> {
+  return runShadowJson<SelectorUsageQueryFragmentsV0>(
+    ["input-selector-usage-query-fragments"],
+    input,
+  );
 }
 
 export async function runShadowSourceResolutionPlanInput(
@@ -659,6 +681,35 @@ export function deriveTsSelectorUsageFragments(
     schemaVersion: "0",
     inputVersion: snapshot.input.version,
     fragments,
+  };
+}
+
+export function deriveTsSelectorUsageQueryFragments(
+  snapshot: EngineParitySnapshotV2,
+): SelectorUsageQueryFragmentsV0 {
+  const fragments: SelectorUsageQueryFragmentV0[] = [];
+
+  for (const style of snapshot.input.styles) {
+    for (const selector of style.document.selectors) {
+      if (selector.viewKind !== "canonical") {
+        continue;
+      }
+      const fragment: SelectorUsageQueryFragmentV0 = {
+        queryId: selector.canonicalName,
+        canonicalName: selector.canonicalName,
+      };
+      if (selector.nestedSafety) {
+        fragment.nestedSafety = selector.nestedSafety;
+      }
+      fragment.composesCount = selector.composes.length;
+      fragments.push(fragment);
+    }
+  }
+
+  return {
+    schemaVersion: "0",
+    inputVersion: snapshot.input.version,
+    fragments: fragments.toSorted((a, b) => a.queryId.localeCompare(b.queryId)),
   };
 }
 
@@ -1125,6 +1176,22 @@ export function assertSelectorUsageFragmentsMatch(
   if (actualJson !== expectedJson) {
     throw new Error(
       `${label}: selectorUsageFragments mismatch\nexpected: ${expectedJson}\nreceived: ${actualJson}`,
+    );
+  }
+}
+
+export function assertSelectorUsageQueryFragmentsMatch(
+  label: string,
+  actual: SelectorUsageQueryFragmentsV0,
+  expected: SelectorUsageQueryFragmentsV0,
+): void {
+  assertEqualField(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
+  assertEqualField(label, "inputVersion", actual.inputVersion, expected.inputVersion);
+  const actualJson = JSON.stringify(actual.fragments);
+  const expectedJson = JSON.stringify(expected.fragments);
+  if (actualJson !== expectedJson) {
+    throw new Error(
+      `${label}: selectorUsageQueryFragments mismatch\nexpected: ${expectedJson}\nreceived: ${actualJson}`,
     );
   }
 }
