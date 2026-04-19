@@ -104,6 +104,11 @@ export const RUST_GATE_EVIDENCE_CORPUS: readonly RustGateEvidenceEntry[] = [
     variants: ["typescript-current"],
   },
   {
+    label: "rust-expression-semantics-evaluator-candidates",
+    argv: ["check:rust-expression-semantics-evaluator-candidates"],
+    variants: ["typescript-current"],
+  },
+  {
     label: "rust-source-resolution-fragments",
     argv: ["check:rust-source-resolution-fragments"],
     variants: ["typescript-current"],

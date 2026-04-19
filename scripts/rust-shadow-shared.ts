@@ -300,6 +300,45 @@ export interface ExpressionSemanticsCanonicalCandidateBundleV0 {
   readonly candidates: readonly ExpressionSemanticsCandidateV0[];
 }
 
+export interface ExpressionSemanticsEvaluatorCandidatePayloadV0 {
+  readonly expressionId: string;
+  readonly expressionKind: string;
+  readonly styleFilePath: string;
+  readonly selectorNames: readonly string[];
+  readonly candidateNames: readonly string[];
+  readonly finiteValues?: readonly string[];
+  readonly valueDomainKind: string;
+  readonly selectorCertainty: string;
+  readonly valueCertainty?: string;
+  readonly selectorCertaintyShapeKind: string;
+  readonly selectorCertaintyShapeLabel: string;
+  readonly valueCertaintyShapeKind: string;
+  readonly valueCertaintyShapeLabel: string;
+  readonly selectorConstraintKind?: string;
+  readonly valueCertaintyConstraintKind?: string;
+  readonly valueConstraintKind?: string;
+  readonly valuePrefix?: string;
+  readonly valueSuffix?: string;
+  readonly valueMinLen?: number;
+  readonly valueMaxLen?: number;
+  readonly valueCharMust?: string;
+  readonly valueCharMay?: string;
+  readonly valueMayIncludeOtherChars?: boolean;
+}
+
+export interface ExpressionSemanticsEvaluatorCandidateV0 {
+  readonly kind: "expression-semantics";
+  readonly filePath: string;
+  readonly queryId: string;
+  readonly payload: ExpressionSemanticsEvaluatorCandidatePayloadV0;
+}
+
+export interface ExpressionSemanticsEvaluatorCandidatesV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly results: readonly ExpressionSemanticsEvaluatorCandidateV0[];
+}
+
 export interface SourceResolutionFragmentV0 {
   readonly queryId: string;
   readonly expressionId: string;
@@ -439,6 +478,15 @@ export async function runShadowExpressionSemanticsCanonicalCandidateInput(
 ): Promise<ExpressionSemanticsCanonicalCandidateBundleV0> {
   return runShadowJson<ExpressionSemanticsCanonicalCandidateBundleV0>(
     ["input-expression-semantics-canonical-candidate"],
+    input,
+  );
+}
+
+export async function runShadowExpressionSemanticsEvaluatorCandidatesInput(
+  input: EngineInputV2,
+): Promise<ExpressionSemanticsEvaluatorCandidatesV0> {
+  return runShadowJson<ExpressionSemanticsEvaluatorCandidatesV0>(
+    ["input-expression-semantics-evaluator-candidates"],
     input,
   );
 }
@@ -1134,6 +1182,60 @@ export function deriveTsExpressionSemanticsCanonicalCandidateBundle(
   };
 }
 
+export function deriveTsExpressionSemanticsEvaluatorCandidates(
+  snapshot: EngineParitySnapshotV2,
+): ExpressionSemanticsEvaluatorCandidatesV0 {
+  const results = snapshot.output.queryResults
+    .filter((query) => query.kind === "expression-semantics")
+    .map((query) => ({
+      kind: "expression-semantics" as const,
+      filePath: query.filePath,
+      queryId: query.queryId,
+      payload: {
+        expressionId: query.payload.expressionId,
+        expressionKind: query.payload.expressionKind,
+        styleFilePath: query.payload.styleFilePath ?? "",
+        selectorNames: query.payload.selectorNames,
+        candidateNames: query.payload.candidateNames,
+        ...(query.payload.finiteValues ? { finiteValues: query.payload.finiteValues } : {}),
+        valueDomainKind: query.payload.valueDomainKind,
+        selectorCertainty: query.payload.selectorCertainty,
+        ...(query.payload.valueCertainty ? { valueCertainty: query.payload.valueCertainty } : {}),
+        selectorCertaintyShapeKind: query.payload.selectorCertaintyShapeKind ?? "unknown",
+        selectorCertaintyShapeLabel: query.payload.selectorCertaintyShapeLabel ?? "unknown",
+        valueCertaintyShapeKind: query.payload.valueCertaintyShapeKind ?? "unknown",
+        valueCertaintyShapeLabel: query.payload.valueCertaintyShapeLabel ?? "unknown",
+        ...(query.payload.selectorConstraintKind
+          ? { selectorConstraintKind: query.payload.selectorConstraintKind }
+          : {}),
+        ...(query.payload.valueCertaintyConstraintKind
+          ? { valueCertaintyConstraintKind: query.payload.valueCertaintyConstraintKind }
+          : {}),
+        ...(query.payload.valueConstraintKind
+          ? { valueConstraintKind: query.payload.valueConstraintKind }
+          : {}),
+        ...(query.payload.valuePrefix ? { valuePrefix: query.payload.valuePrefix } : {}),
+        ...(query.payload.valueSuffix ? { valueSuffix: query.payload.valueSuffix } : {}),
+        ...(query.payload.valueMinLen !== undefined
+          ? { valueMinLen: query.payload.valueMinLen }
+          : {}),
+        ...(query.payload.valueMaxLen !== undefined
+          ? { valueMaxLen: query.payload.valueMaxLen }
+          : {}),
+        ...(query.payload.valueCharMust ? { valueCharMust: query.payload.valueCharMust } : {}),
+        ...(query.payload.valueCharMay ? { valueCharMay: query.payload.valueCharMay } : {}),
+        ...(query.payload.valueMayIncludeOtherChars ? { valueMayIncludeOtherChars: true } : {}),
+      },
+    }))
+    .toSorted((a, b) => a.queryId.localeCompare(b.queryId));
+
+  return {
+    schemaVersion: "0",
+    inputVersion: snapshot.input.version,
+    results,
+  };
+}
+
 export function deriveTsSourceResolutionFragments(
   snapshot: EngineParitySnapshotV2,
 ): SourceResolutionFragmentsV0 {
@@ -1771,6 +1873,20 @@ export function assertExpressionSemanticsCanonicalCandidateBundleMatch(
   if (JSON.stringify(actual.candidates) !== JSON.stringify(expected.candidates)) {
     throw new Error(
       `${label}: expression semantics canonical candidate candidates mismatch\nactual=${JSON.stringify(actual.candidates, null, 2)}\nexpected=${JSON.stringify(expected.candidates, null, 2)}`,
+    );
+  }
+}
+
+export function assertExpressionSemanticsEvaluatorCandidatesMatch(
+  label: string,
+  actual: ExpressionSemanticsEvaluatorCandidatesV0,
+  expected: ExpressionSemanticsEvaluatorCandidatesV0,
+): void {
+  assertEqualField(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
+  assertEqualField(label, "inputVersion", actual.inputVersion, expected.inputVersion);
+  if (JSON.stringify(actual.results) !== JSON.stringify(expected.results)) {
+    throw new Error(
+      `${label}: expression semantics evaluator candidates mismatch\nactual=${JSON.stringify(actual.results, null, 2)}\nexpected=${JSON.stringify(expected.results, null, 2)}`,
     );
   }
 }

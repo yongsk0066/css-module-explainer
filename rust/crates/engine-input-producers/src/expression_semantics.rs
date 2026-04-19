@@ -2,13 +2,15 @@ use std::collections::BTreeMap;
 
 use crate::{
     EngineInputV2, ExpressionSemanticsCandidateV0, ExpressionSemanticsCandidatesV0,
-    ExpressionSemanticsCanonicalCandidateBundleV0, ExpressionSemanticsFragmentV0,
-    ExpressionSemanticsFragmentsV0, ExpressionSemanticsMatchFragmentV0,
-    ExpressionSemanticsMatchFragmentsV0, ExpressionSemanticsQueryFragmentV0,
-    ExpressionSemanticsQueryFragmentsV0, canonical_selector_count, finite_values_for_facts,
-    map_expression_value_domain_kind, map_selector_certainty, map_selector_certainty_shape_kind,
-    map_selector_certainty_shape_label, map_value_certainty, map_value_certainty_shape_kind,
-    map_value_certainty_shape_label, resolve_selector_names,
+    ExpressionSemanticsCanonicalCandidateBundleV0, ExpressionSemanticsEvaluatorCandidatePayloadV0,
+    ExpressionSemanticsEvaluatorCandidateV0, ExpressionSemanticsEvaluatorCandidatesV0,
+    ExpressionSemanticsFragmentV0, ExpressionSemanticsFragmentsV0,
+    ExpressionSemanticsMatchFragmentV0, ExpressionSemanticsMatchFragmentsV0,
+    ExpressionSemanticsQueryFragmentV0, ExpressionSemanticsQueryFragmentsV0,
+    canonical_selector_count, finite_values_for_facts, map_expression_value_domain_kind,
+    map_selector_certainty, map_selector_certainty_shape_kind, map_selector_certainty_shape_label,
+    map_value_certainty, map_value_certainty_shape_kind, map_value_certainty_shape_label,
+    resolve_selector_names,
 };
 
 struct ExpressionSemanticsInputRows {
@@ -16,6 +18,7 @@ struct ExpressionSemanticsInputRows {
     fragments: Vec<ExpressionSemanticsFragmentV0>,
     match_fragments: Vec<ExpressionSemanticsMatchFragmentV0>,
     candidates: Vec<ExpressionSemanticsCandidateV0>,
+    evaluator_candidates: Vec<ExpressionSemanticsEvaluatorCandidateV0>,
 }
 
 fn collect_expression_semantics_input_rows(input: &EngineInputV2) -> ExpressionSemanticsInputRows {
@@ -42,6 +45,7 @@ fn collect_expression_semantics_input_rows(input: &EngineInputV2) -> ExpressionS
     let mut fragments = Vec::new();
     let mut match_fragments = Vec::new();
     let mut candidates = Vec::new();
+    let mut evaluator_candidates = Vec::new();
 
     for entry in &input.type_facts {
         let Some(expression) = expression_index.get(&entry.expression_id) else {
@@ -100,7 +104,7 @@ fn collect_expression_semantics_input_rows(input: &EngineInputV2) -> ExpressionS
             finite_values: finite_values.clone(),
         });
 
-        candidates.push(ExpressionSemanticsCandidateV0 {
+        let candidate = ExpressionSemanticsCandidateV0 {
             query_id: entry.expression_id.clone(),
             expression_id: entry.expression_id.clone(),
             expression_kind: expression.kind.clone(),
@@ -125,6 +129,39 @@ fn collect_expression_semantics_input_rows(input: &EngineInputV2) -> ExpressionS
             value_char_must: entry.facts.char_must.clone(),
             value_char_may: entry.facts.char_may.clone(),
             value_may_include_other_chars: entry.facts.may_include_other_chars,
+        };
+
+        candidates.push(candidate.clone());
+
+        evaluator_candidates.push(ExpressionSemanticsEvaluatorCandidateV0 {
+            kind: "expression-semantics",
+            file_path: entry.file_path.clone(),
+            query_id: entry.expression_id.clone(),
+            payload: ExpressionSemanticsEvaluatorCandidatePayloadV0 {
+                expression_id: entry.expression_id.clone(),
+                expression_kind: candidate.expression_kind.clone(),
+                style_file_path: candidate.style_file_path.clone(),
+                selector_names: candidate.selector_names.clone(),
+                candidate_names: candidate.candidate_names.clone(),
+                finite_values: candidate.finite_values.clone(),
+                value_domain_kind: candidate.value_domain_kind.clone(),
+                selector_certainty: candidate.selector_certainty.clone(),
+                value_certainty: candidate.value_certainty.clone(),
+                selector_certainty_shape_kind: candidate.selector_certainty_shape_kind.clone(),
+                selector_certainty_shape_label: candidate.selector_certainty_shape_label.clone(),
+                value_certainty_shape_kind: candidate.value_certainty_shape_kind.clone(),
+                value_certainty_shape_label: candidate.value_certainty_shape_label.clone(),
+                selector_constraint_kind: candidate.selector_constraint_kind.clone(),
+                value_certainty_constraint_kind: candidate.value_certainty_constraint_kind.clone(),
+                value_constraint_kind: candidate.value_constraint_kind.clone(),
+                value_prefix: candidate.value_prefix.clone(),
+                value_suffix: candidate.value_suffix.clone(),
+                value_min_len: candidate.value_min_len,
+                value_max_len: candidate.value_max_len,
+                value_char_must: candidate.value_char_must.clone(),
+                value_char_may: candidate.value_char_may.clone(),
+                value_may_include_other_chars: candidate.value_may_include_other_chars,
+            },
         });
     }
 
@@ -132,12 +169,14 @@ fn collect_expression_semantics_input_rows(input: &EngineInputV2) -> ExpressionS
     fragments.sort_by(|a, b| a.query_id.cmp(&b.query_id));
     match_fragments.sort_by(|a, b| a.query_id.cmp(&b.query_id));
     candidates.sort_by(|a, b| a.query_id.cmp(&b.query_id));
+    evaluator_candidates.sort_by(|a, b| a.query_id.cmp(&b.query_id));
 
     ExpressionSemanticsInputRows {
         query_fragments,
         fragments,
         match_fragments,
         candidates,
+        evaluator_candidates,
     }
 }
 
@@ -165,6 +204,18 @@ pub fn summarize_expression_semantics_candidates_input(
         schema_version: "0",
         input_version: input.version.clone(),
         candidates: rows.candidates,
+    }
+}
+
+pub fn summarize_expression_semantics_evaluator_candidates_input(
+    input: &EngineInputV2,
+) -> ExpressionSemanticsEvaluatorCandidatesV0 {
+    let rows = collect_expression_semantics_input_rows(input);
+
+    ExpressionSemanticsEvaluatorCandidatesV0 {
+        schema_version: "0",
+        input_version: input.version.clone(),
+        results: rows.evaluator_candidates,
     }
 }
 
@@ -209,6 +260,7 @@ mod tests {
     use super::{
         summarize_expression_semantics_candidates_input,
         summarize_expression_semantics_canonical_candidate_bundle_input,
+        summarize_expression_semantics_evaluator_candidates_input,
         summarize_expression_semantics_fragments_input,
         summarize_expression_semantics_match_fragments_input,
         summarize_expression_semantics_query_fragments_input,
@@ -349,5 +401,22 @@ mod tests {
         assert_eq!(bundle.candidates.len(), 2);
         assert_eq!(bundle.query_fragments[0].query_id, "expr-1");
         assert_eq!(bundle.candidates[0].query_id, "expr-1");
+    }
+
+    #[test]
+    fn builds_expression_semantics_evaluator_candidates() {
+        let summary = summarize_expression_semantics_evaluator_candidates_input(&sample_input());
+
+        assert_eq!(summary.results.len(), 2);
+        let first = &summary.results[0];
+        assert_eq!(first.kind, "expression-semantics");
+        assert_eq!(first.file_path, "/tmp/App.tsx");
+        assert_eq!(first.query_id, "expr-1");
+        assert_eq!(first.payload.expression_kind, "symbolRef");
+        assert_eq!(first.payload.value_domain_kind, "constrained");
+        assert_eq!(
+            first.payload.value_constraint_kind.as_deref(),
+            Some("prefixSuffix")
+        );
     }
 }
