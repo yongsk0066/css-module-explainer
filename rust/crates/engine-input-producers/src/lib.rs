@@ -281,6 +281,9 @@ pub struct SourceResolutionCandidateV0 {
     pub selector_names: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub finite_values: Option<Vec<String>>,
+    pub selector_certainty: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_certainty: Option<String>,
     pub selector_certainty_shape_kind: String,
     pub value_certainty_shape_kind: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -394,6 +397,9 @@ pub struct ExpressionSemanticsCandidateV0 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub finite_values: Option<Vec<String>>,
     pub value_domain_kind: String,
+    pub selector_certainty: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_certainty: Option<String>,
     pub selector_certainty_shape_kind: String,
     pub value_certainty_shape_kind: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -523,6 +529,15 @@ pub(crate) fn map_expression_value_domain_kind(facts: &StringTypeFactsV2) -> Str
     }
 }
 
+pub(crate) fn map_value_certainty(facts: &StringTypeFactsV2) -> Option<String> {
+    match facts.kind.as_str() {
+        "exact" => Some("exact".to_string()),
+        "finiteSet" | "constrained" => Some("inferred".to_string()),
+        "unknown" | "top" => Some("possible".to_string()),
+        _ => None,
+    }
+}
+
 pub(crate) fn map_value_certainty_shape_kind(facts: &StringTypeFactsV2) -> String {
     match facts.kind.as_str() {
         "exact" => "exact".to_string(),
@@ -545,6 +560,52 @@ pub(crate) fn map_selector_certainty_shape_kind(
         "constrained" => "exact".to_string(),
         "exact" | "finiteSet" => "exact".to_string(),
         _ => "unknown".to_string(),
+    }
+}
+
+pub(crate) fn map_selector_certainty(
+    facts: &StringTypeFactsV2,
+    matched_selector_count: usize,
+    selector_universe_count: usize,
+) -> String {
+    match facts.kind.as_str() {
+        "unknown" => "possible".to_string(),
+        "exact" => {
+            if matched_selector_count == 1 {
+                "exact".to_string()
+            } else {
+                "possible".to_string()
+            }
+        }
+        "finiteSet" => {
+            let finite_value_count = facts
+                .values
+                .as_ref()
+                .map(|values| {
+                    values
+                        .iter()
+                        .collect::<std::collections::BTreeSet<_>>()
+                        .len()
+                })
+                .unwrap_or(0);
+            if finite_value_count == 0 {
+                "possible".to_string()
+            } else if matched_selector_count == finite_value_count {
+                "exact".to_string()
+            } else {
+                "inferred".to_string()
+            }
+        }
+        "constrained" | "top" => {
+            if matched_selector_count == 0 {
+                "possible".to_string()
+            } else if matched_selector_count == selector_universe_count {
+                "exact".to_string()
+            } else {
+                "inferred".to_string()
+            }
+        }
+        _ => "possible".to_string(),
     }
 }
 
@@ -696,6 +757,10 @@ fn canonical_selector_names(style: &StyleAnalysisInputV2) -> Vec<String> {
         }
     }
     names
+}
+
+pub(crate) fn canonical_selector_count(style: &StyleAnalysisInputV2) -> usize {
+    canonical_selector_names(style).len()
 }
 
 fn canonical_name_for_selector(

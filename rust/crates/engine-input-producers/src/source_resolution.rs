@@ -4,8 +4,9 @@ use crate::{
     EngineInputV2, SourceResolutionCandidateV0, SourceResolutionCandidatesV0,
     SourceResolutionFragmentV0, SourceResolutionFragmentsV0, SourceResolutionMatchFragmentV0,
     SourceResolutionMatchFragmentsV0, SourceResolutionPlanSummaryV0,
-    SourceResolutionQueryFragmentV0, SourceResolutionQueryFragmentsV0, finite_values_for_facts,
-    map_selector_certainty_shape_kind, map_value_certainty_shape_kind, resolve_selector_names,
+    SourceResolutionQueryFragmentV0, SourceResolutionQueryFragmentsV0, canonical_selector_count,
+    finite_values_for_facts, map_selector_certainty, map_selector_certainty_shape_kind,
+    map_value_certainty, map_value_certainty_shape_kind, resolve_selector_names,
 };
 
 pub fn summarize_source_resolution_candidates_input(
@@ -34,6 +35,11 @@ pub fn summarize_source_resolution_candidates_input(
             continue;
         };
         let selector_names = resolve_selector_names(style, &entry.facts);
+        let selector_certainty = map_selector_certainty(
+            &entry.facts,
+            selector_names.len(),
+            canonical_selector_count(style),
+        );
         let selector_certainty_shape_kind =
             map_selector_certainty_shape_kind(&entry.facts, selector_names.len());
 
@@ -43,6 +49,8 @@ pub fn summarize_source_resolution_candidates_input(
             style_file_path: expression.scss_module_path.clone(),
             selector_names,
             finite_values: finite_values_for_facts(&entry.facts),
+            selector_certainty,
+            value_certainty: map_value_certainty(&entry.facts),
             selector_certainty_shape_kind,
             value_certainty_shape_kind: map_value_certainty_shape_kind(&entry.facts),
             selector_constraint_kind: entry.facts.constraint_kind.clone(),
@@ -319,8 +327,13 @@ mod tests {
         assert_eq!(first.expression_id, "expr-1");
         assert_eq!(first.style_file_path, "/tmp/App.module.scss");
         assert_eq!(first.selector_names, vec!["btn-active".to_string()]);
+        assert_eq!(first.selector_certainty, "inferred");
         assert_eq!(first.selector_certainty_shape_kind, "exact");
-        assert_eq!(first.selector_constraint_kind.as_deref(), Some("prefixSuffix"));
+        assert_eq!(
+            first.selector_constraint_kind.as_deref(),
+            Some("prefixSuffix")
+        );
+        assert_eq!(first.value_certainty.as_deref(), Some("inferred"));
         assert_eq!(first.value_certainty_shape_kind, "constrained");
         assert_eq!(
             first.value_certainty_constraint_kind.as_deref(),
@@ -330,7 +343,9 @@ mod tests {
         let second = &summary.candidates[1];
         assert_eq!(second.query_id, "expr-2");
         assert_eq!(second.selector_names, vec!["card-header".to_string()]);
+        assert_eq!(second.selector_certainty, "inferred");
         assert_eq!(second.selector_certainty_shape_kind, "exact");
+        assert_eq!(second.value_certainty.as_deref(), Some("inferred"));
         assert_eq!(second.value_certainty_shape_kind, "boundedFinite");
         assert_eq!(
             second.finite_values,

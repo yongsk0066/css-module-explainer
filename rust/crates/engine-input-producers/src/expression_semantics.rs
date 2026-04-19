@@ -5,7 +5,8 @@ use crate::{
     ExpressionSemanticsFragmentV0, ExpressionSemanticsFragmentsV0,
     ExpressionSemanticsMatchFragmentV0, ExpressionSemanticsMatchFragmentsV0,
     ExpressionSemanticsQueryFragmentV0, ExpressionSemanticsQueryFragmentsV0,
-    finite_values_for_facts, map_expression_value_domain_kind, map_selector_certainty_shape_kind,
+    canonical_selector_count, finite_values_for_facts, map_expression_value_domain_kind,
+    map_selector_certainty, map_selector_certainty_shape_kind, map_value_certainty,
     map_value_certainty_shape_kind, resolve_selector_names,
 };
 
@@ -40,6 +41,12 @@ pub fn summarize_expression_semantics_candidates_input(
         let candidate_names = finite_values
             .clone()
             .unwrap_or_else(|| selector_names.clone());
+        let selector_certainty = map_selector_certainty(
+            &entry.facts,
+            selector_names.len(),
+            canonical_selector_count(style),
+        );
+        let value_certainty = map_value_certainty(&entry.facts);
         let selector_certainty_shape_kind =
             map_selector_certainty_shape_kind(&entry.facts, selector_names.len());
         let value_certainty_shape_kind = map_value_certainty_shape_kind(&entry.facts);
@@ -53,6 +60,8 @@ pub fn summarize_expression_semantics_candidates_input(
             candidate_names,
             finite_values,
             value_domain_kind: map_expression_value_domain_kind(&entry.facts),
+            selector_certainty,
+            value_certainty,
             selector_certainty_shape_kind,
             value_certainty_shape_kind,
             selector_constraint_kind: entry.facts.constraint_kind.clone(),
@@ -285,6 +294,8 @@ mod tests {
         assert_eq!(first.selector_names, vec!["btn-active".to_string()]);
         assert_eq!(first.candidate_names, vec!["btn-active".to_string()]);
         assert_eq!(first.value_domain_kind, "constrained");
+        assert_eq!(first.selector_certainty, "inferred");
+        assert_eq!(first.value_certainty.as_deref(), Some("inferred"));
         assert_eq!(first.selector_certainty_shape_kind, "exact");
         assert_eq!(first.value_certainty_shape_kind, "constrained");
         assert_eq!(
@@ -308,6 +319,8 @@ mod tests {
             Some(vec!["card-header".to_string(), "card-body".to_string()])
         );
         assert_eq!(second.value_domain_kind, "finiteSet");
+        assert_eq!(second.selector_certainty, "inferred");
+        assert_eq!(second.value_certainty.as_deref(), Some("inferred"));
         assert_eq!(second.selector_certainty_shape_kind, "exact");
         assert_eq!(second.value_certainty_shape_kind, "boundedFinite");
     }

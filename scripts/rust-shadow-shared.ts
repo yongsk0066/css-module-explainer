@@ -185,6 +185,8 @@ export interface SourceResolutionCandidateV0 {
   readonly styleFilePath: string;
   readonly selectorNames: readonly string[];
   readonly finiteValues?: readonly string[];
+  readonly selectorCertainty: string;
+  readonly valueCertainty?: string;
   readonly selectorCertaintyShapeKind: string;
   readonly selectorConstraintKind?: string;
   readonly valueCertaintyShapeKind: string;
@@ -263,6 +265,8 @@ export interface ExpressionSemanticsCandidateV0 {
   readonly candidateNames: readonly string[];
   readonly finiteValues?: readonly string[];
   readonly valueDomainKind: string;
+  readonly selectorCertainty: string;
+  readonly valueCertainty?: string;
   readonly selectorCertaintyShapeKind: string;
   readonly valueCertaintyShapeKind: string;
   readonly selectorConstraintKind?: string;
@@ -1045,6 +1049,10 @@ export function deriveTsExpressionSemanticsCandidates(
         candidate.finiteValues = query.payload.finiteValues;
       }
       candidate.valueDomainKind = query.payload.valueDomainKind;
+      candidate.selectorCertainty = query.payload.selectorCertainty;
+      if (query.payload.valueCertainty) {
+        candidate.valueCertainty = query.payload.valueCertainty;
+      }
       candidate.selectorCertaintyShapeKind = query.payload.selectorCertaintyShapeKind ?? "unknown";
       candidate.valueCertaintyShapeKind = query.payload.valueCertaintyShapeKind ?? "unknown";
       if (query.payload.selectorConstraintKind) {
@@ -1175,6 +1183,10 @@ export function deriveTsSourceResolutionCandidates(
       };
       if (query.payload.finiteValues) {
         candidate.finiteValues = query.payload.finiteValues;
+      }
+      candidate.selectorCertainty = query.payload.selectorCertainty;
+      if (query.payload.valueCertainty) {
+        candidate.valueCertainty = query.payload.valueCertainty;
       }
       candidate.selectorCertaintyShapeKind = query.payload.selectorCertaintyShapeKind ?? "unknown";
       if (query.payload.selectorConstraintKind) {
