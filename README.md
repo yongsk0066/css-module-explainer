@@ -255,6 +255,7 @@ Current checker policy:
   - `expression-semantics` and `source-resolution` now carry canonical-producer signals on the Rust shadow path
   - `expression-domain` now carries input-only canonical artifacts on the Rust shadow path
   - `selector-usage` remains a shadow validation family, not a release-gating canonical candidate
+  - current `EngineInputV2` does not preserve enough reference-level evidence to reproduce `selector-usage` semantics as an input-only canonical producer
 - `pnpm check:real-project-corpus` runs a clean multi-file corpus that mimics common product patterns (`variants`, `@value` + `@keyframes`, `composes`, `.module.less`)
 - semantic smoke cases are versioned in `scripts/semantic-smoke-corpus.ts` and should be updated when new semantic surfaces become release-relevant
 - `pnpm check:release-batch` is the canonical release-facing batch checker pass
