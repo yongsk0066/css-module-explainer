@@ -83,6 +83,16 @@ export interface ExpressionDomainPlanSummaryV0 {
   readonly finiteValueCount: number;
 }
 
+export interface SelectorUsagePlanSummaryV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly canonicalSelectorNames: readonly string[];
+  readonly viewKindCounts: Readonly<Record<string, number>>;
+  readonly nestedSafetyCounts: Readonly<Record<string, number>>;
+  readonly composedSelectorCount: number;
+  readonly totalComposesRefs: number;
+}
+
 export async function runShadow(snapshot: unknown): Promise<ShadowSummaryV0> {
   return runShadowJson<ShadowSummaryV0>([], snapshot);
 }
@@ -101,6 +111,12 @@ export async function runShadowExpressionDomainInput(
   input: EngineInputV2,
 ): Promise<ExpressionDomainPlanSummaryV0> {
   return runShadowJson<ExpressionDomainPlanSummaryV0>(["input-expression-domains"], input);
+}
+
+export async function runShadowSelectorUsagePlanInput(
+  input: EngineInputV2,
+): Promise<SelectorUsagePlanSummaryV0> {
+  return runShadowJson<SelectorUsagePlanSummaryV0>(["input-selector-usage-plan"], input);
 }
 
 function runShadowJson<T>(args: string[], payload: unknown): Promise<T> {
@@ -418,6 +434,40 @@ export function deriveTsExpressionDomainPlanSummary(
   };
 }
 
+export function deriveTsSelectorUsagePlanSummary(
+  snapshot: EngineParitySnapshotV2,
+): SelectorUsagePlanSummaryV0 {
+  const canonicalSelectorNames: string[] = [];
+  const viewKindCounts: Record<string, number> = {};
+  const nestedSafetyCounts: Record<string, number> = {};
+  let composedSelectorCount = 0;
+  let totalComposesRefs = 0;
+
+  for (const style of snapshot.input.styles) {
+    for (const selector of style.document.selectors) {
+      increment(viewKindCounts, selector.viewKind);
+      increment(nestedSafetyCounts, selector.nestedSafety);
+      if (selector.composes.length > 0) {
+        composedSelectorCount += 1;
+        totalComposesRefs += selector.composes.length;
+      }
+      if (selector.viewKind === "canonical") {
+        canonicalSelectorNames.push(selector.canonicalName);
+      }
+    }
+  }
+
+  return {
+    schemaVersion: "0",
+    inputVersion: snapshot.input.version,
+    canonicalSelectorNames,
+    viewKindCounts,
+    nestedSafetyCounts,
+    composedSelectorCount,
+    totalComposesRefs,
+  };
+}
+
 export function assertShadowSummaryMatch(
   label: string,
   actual: ShadowSummaryV0,
@@ -684,6 +734,40 @@ export function assertExpressionDomainPlanSummaryMatch(
     "constraintDetailCounts",
     actual.constraintDetailCounts,
     expected.constraintDetailCounts,
+  );
+}
+
+export function assertSelectorUsagePlanSummaryMatch(
+  label: string,
+  actual: SelectorUsagePlanSummaryV0,
+  expected: SelectorUsagePlanSummaryV0,
+): void {
+  assertEqualField(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
+  assertEqualField(label, "inputVersion", actual.inputVersion, expected.inputVersion);
+  assertEqualField(
+    label,
+    "composedSelectorCount",
+    actual.composedSelectorCount,
+    expected.composedSelectorCount,
+  );
+  assertEqualField(
+    label,
+    "totalComposesRefs",
+    actual.totalComposesRefs,
+    expected.totalComposesRefs,
+  );
+  assertArrayEqual(
+    label,
+    "canonicalSelectorNames",
+    actual.canonicalSelectorNames,
+    expected.canonicalSelectorNames,
+  );
+  assertRecordEqual(label, "viewKindCounts", actual.viewKindCounts, expected.viewKindCounts);
+  assertRecordEqual(
+    label,
+    "nestedSafetyCounts",
+    actual.nestedSafetyCounts,
+    expected.nestedSafetyCounts,
   );
 }
 
