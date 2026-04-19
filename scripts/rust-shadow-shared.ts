@@ -93,6 +93,20 @@ export interface SelectorUsagePlanSummaryV0 {
   readonly totalComposesRefs: number;
 }
 
+export interface SelectorUsageFragmentV0 {
+  readonly ordinal: number;
+  readonly viewKind: string;
+  readonly canonicalName?: string;
+  readonly nestedSafety?: string;
+  readonly composesCount: number;
+}
+
+export interface SelectorUsageFragmentsV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly fragments: readonly SelectorUsageFragmentV0[];
+}
+
 export interface SourceResolutionPlanSummaryV0 {
   readonly schemaVersion: string;
   readonly inputVersion: string;
@@ -171,6 +185,12 @@ export async function runShadowSelectorUsagePlanInput(
   input: EngineInputV2,
 ): Promise<SelectorUsagePlanSummaryV0> {
   return runShadowJson<SelectorUsagePlanSummaryV0>(["input-selector-usage-plan"], input);
+}
+
+export async function runShadowSelectorUsageFragmentsInput(
+  input: EngineInputV2,
+): Promise<SelectorUsageFragmentsV0> {
+  return runShadowJson<SelectorUsageFragmentsV0>(["input-selector-usage-fragments"], input);
 }
 
 export async function runShadowSourceResolutionPlanInput(
@@ -540,6 +560,32 @@ export function deriveTsSelectorUsagePlanSummary(
     nestedSafetyCounts,
     composedSelectorCount,
     totalComposesRefs,
+  };
+}
+
+export function deriveTsSelectorUsageFragments(
+  snapshot: EngineParitySnapshotV2,
+): SelectorUsageFragmentsV0 {
+  const fragments: SelectorUsageFragmentV0[] = [];
+
+  for (const style of snapshot.input.styles) {
+    for (const [ordinal, selector] of style.document.selectors.entries()) {
+      const fragment: SelectorUsageFragmentV0 = { ordinal, viewKind: selector.viewKind };
+      if (selector.canonicalName) {
+        fragment.canonicalName = selector.canonicalName;
+      }
+      if (selector.nestedSafety) {
+        fragment.nestedSafety = selector.nestedSafety;
+      }
+      fragment.composesCount = selector.composes.length;
+      fragments.push(fragment);
+    }
+  }
+
+  return {
+    schemaVersion: "0",
+    inputVersion: snapshot.input.version,
+    fragments,
   };
 }
 
@@ -976,6 +1022,22 @@ export function assertSelectorUsagePlanSummaryMatch(
     actual.nestedSafetyCounts,
     expected.nestedSafetyCounts,
   );
+}
+
+export function assertSelectorUsageFragmentsMatch(
+  label: string,
+  actual: SelectorUsageFragmentsV0,
+  expected: SelectorUsageFragmentsV0,
+): void {
+  assertEqualField(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
+  assertEqualField(label, "inputVersion", actual.inputVersion, expected.inputVersion);
+  const actualJson = JSON.stringify(actual.fragments);
+  const expectedJson = JSON.stringify(expected.fragments);
+  if (actualJson !== expectedJson) {
+    throw new Error(
+      `${label}: selectorUsageFragments mismatch\nexpected: ${expectedJson}\nreceived: ${actualJson}`,
+    );
+  }
 }
 
 export function assertSourceResolutionPlanSummaryMatch(

@@ -51,6 +51,7 @@
     "check:rust-expression-semantics-fragments": "tsx ./scripts/check-rust-expression-semantics-fragments.ts",
     "check:rust-source-resolution-fragments": "tsx ./scripts/check-rust-source-resolution-fragments.ts",
     "check:rust-selector-usage-plan-compare": "tsx ./scripts/check-rust-selector-usage-plan-compare.ts",
+    "check:rust-selector-usage-fragments": "tsx ./scripts/check-rust-selector-usage-fragments.ts",
     "check:rust-source-resolution-plan-compare": "tsx ./scripts/check-rust-source-resolution-plan-compare.ts",
     "check:rust-shadow-smoke": "tsx ./scripts/check-rust-shadow-smoke.ts",
     "check:rust-shadow-compare": "tsx ./scripts/check-rust-shadow-compare.ts",

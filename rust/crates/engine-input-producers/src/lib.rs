@@ -14,6 +14,7 @@ mod type_facts;
 pub use expression_domain::summarize_expression_domain_plan_input;
 pub use expression_semantics::summarize_expression_semantics_fragments_input;
 pub use query_plan::summarize_query_plan_input;
+pub use selector_usage::summarize_selector_usage_fragments_input;
 pub use selector_usage::summarize_selector_usage_plan_input;
 pub use source_resolution::summarize_source_resolution_fragments_input;
 pub use source_resolution::summarize_source_resolution_plan_input;
@@ -139,6 +140,26 @@ pub struct SelectorUsagePlanSummaryV0 {
     nested_safety_counts: BTreeMap<String, usize>,
     composed_selector_count: usize,
     total_composes_refs: usize,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SelectorUsageFragmentV0 {
+    pub ordinal: usize,
+    pub view_kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub canonical_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nested_safety: Option<String>,
+    pub composes_count: usize,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SelectorUsageFragmentsV0 {
+    pub schema_version: &'static str,
+    pub input_version: String,
+    pub fragments: Vec<SelectorUsageFragmentV0>,
 }
 
 #[derive(Debug, Serialize)]
