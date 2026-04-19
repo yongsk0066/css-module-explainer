@@ -14,6 +14,7 @@ mod type_facts;
 pub use expression_domain::summarize_expression_domain_fragments_input;
 pub use expression_domain::summarize_expression_domain_plan_input;
 pub use expression_semantics::summarize_expression_semantics_fragments_input;
+pub use expression_semantics::summarize_expression_semantics_match_fragments_input;
 pub use expression_semantics::summarize_expression_semantics_query_fragments_input;
 pub use query_plan::summarize_query_plan_input;
 pub use selector_usage::summarize_selector_usage_fragments_input;
@@ -58,6 +59,7 @@ pub struct ClassExpressionInputV2 {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StyleAnalysisInputV2 {
+    pub file_path: String,
     pub document: StyleDocumentV2,
 }
 
@@ -70,6 +72,7 @@ pub struct StyleDocumentV2 {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StyleSelectorV2 {
+    pub name: String,
     pub view_kind: String,
     pub canonical_name: Option<String>,
     pub nested_safety: Option<String>,
@@ -296,6 +299,26 @@ pub struct ExpressionSemanticsQueryFragmentsV0 {
     pub schema_version: &'static str,
     pub input_version: String,
     pub fragments: Vec<ExpressionSemanticsQueryFragmentV0>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExpressionSemanticsMatchFragmentV0 {
+    pub query_id: String,
+    pub expression_id: String,
+    pub style_file_path: String,
+    pub selector_names: Vec<String>,
+    pub candidate_names: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub finite_values: Option<Vec<String>>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExpressionSemanticsMatchFragmentsV0 {
+    pub schema_version: &'static str,
+    pub input_version: String,
+    pub fragments: Vec<ExpressionSemanticsMatchFragmentV0>,
 }
 
 #[derive(Debug, Serialize)]

@@ -28,30 +28,41 @@ pub fn sample_input() -> EngineInputV2 {
                 ],
             },
         }],
-        styles: vec![StyleAnalysisInputV2 {
-            document: StyleDocumentV2 {
-                selectors: vec![
-                    StyleSelectorV2 {
+        styles: vec![
+            StyleAnalysisInputV2 {
+                file_path: "/tmp/App.module.scss".to_string(),
+                document: StyleDocumentV2 {
+                    selectors: vec![StyleSelectorV2 {
+                        name: "btn-active".to_string(),
                         view_kind: "canonical".to_string(),
                         canonical_name: Some("btn-active".to_string()),
                         nested_safety: Some("safe".to_string()),
                         composes: Some(vec![Value::Null]),
-                    },
-                    StyleSelectorV2 {
-                        view_kind: "canonical".to_string(),
-                        canonical_name: Some("card-header".to_string()),
-                        nested_safety: Some("unsafe".to_string()),
-                        composes: None,
-                    },
-                    StyleSelectorV2 {
-                        view_kind: "nested".to_string(),
-                        canonical_name: None,
-                        nested_safety: Some("unknown".to_string()),
-                        composes: Some(vec![Value::Null, Value::Null]),
-                    },
-                ],
+                    }],
+                },
             },
-        }],
+            StyleAnalysisInputV2 {
+                file_path: "/tmp/Card.module.scss".to_string(),
+                document: StyleDocumentV2 {
+                    selectors: vec![
+                        StyleSelectorV2 {
+                            name: "card-header".to_string(),
+                            view_kind: "canonical".to_string(),
+                            canonical_name: Some("card-header".to_string()),
+                            nested_safety: Some("unsafe".to_string()),
+                            composes: None,
+                        },
+                        StyleSelectorV2 {
+                            name: "card-header:hover".to_string(),
+                            view_kind: "nested".to_string(),
+                            canonical_name: Some("card-header".to_string()),
+                            nested_safety: Some("unknown".to_string()),
+                            composes: Some(vec![Value::Null, Value::Null]),
+                        },
+                    ],
+                },
+            },
+        ],
         type_facts: vec![
             TypeFactEntryV2 {
                 file_path: "/tmp/App.tsx".to_string(),

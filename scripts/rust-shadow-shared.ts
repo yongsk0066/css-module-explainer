@@ -200,6 +200,21 @@ export interface ExpressionSemanticsQueryFragmentsV0 {
   readonly fragments: readonly ExpressionSemanticsQueryFragmentV0[];
 }
 
+export interface ExpressionSemanticsMatchFragmentV0 {
+  readonly queryId: string;
+  readonly expressionId: string;
+  readonly styleFilePath: string;
+  readonly selectorNames: readonly string[];
+  readonly candidateNames: readonly string[];
+  readonly finiteValues?: readonly string[];
+}
+
+export interface ExpressionSemanticsMatchFragmentsV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly fragments: readonly ExpressionSemanticsMatchFragmentV0[];
+}
+
 export interface SourceResolutionFragmentV0 {
   readonly queryId: string;
   readonly expressionId: string;
@@ -297,6 +312,15 @@ export async function runShadowExpressionSemanticsQueryFragmentsInput(
 ): Promise<ExpressionSemanticsQueryFragmentsV0> {
   return runShadowJson<ExpressionSemanticsQueryFragmentsV0>(
     ["input-expression-semantics-query-fragments"],
+    input,
+  );
+}
+
+export async function runShadowExpressionSemanticsMatchFragmentsInput(
+  input: EngineInputV2,
+): Promise<ExpressionSemanticsMatchFragmentsV0> {
+  return runShadowJson<ExpressionSemanticsMatchFragmentsV0>(
+    ["input-expression-semantics-match-fragments"],
     input,
   );
 }
@@ -884,6 +908,33 @@ export function deriveTsExpressionSemanticsQueryFragments(
   };
 }
 
+export function deriveTsExpressionSemanticsMatchFragments(
+  snapshot: EngineParitySnapshotV2,
+): ExpressionSemanticsMatchFragmentsV0 {
+  const fragments = snapshot.output.queryResults
+    .filter((query) => query.kind === "expression-semantics")
+    .map((query) => {
+      const fragment: ExpressionSemanticsMatchFragmentV0 = {
+        queryId: query.queryId,
+        expressionId: query.payload.expressionId,
+        styleFilePath: query.payload.styleFilePath ?? "",
+        selectorNames: query.payload.selectorNames,
+        candidateNames: query.payload.candidateNames,
+      };
+      if (query.payload.finiteValues) {
+        fragment.finiteValues = query.payload.finiteValues;
+      }
+      return fragment;
+    })
+    .toSorted((a, b) => a.queryId.localeCompare(b.queryId));
+
+  return {
+    schemaVersion: "0",
+    inputVersion: snapshot.input.version,
+    fragments,
+  };
+}
+
 export function deriveTsSourceResolutionFragments(
   snapshot: EngineParitySnapshotV2,
 ): SourceResolutionFragmentsV0 {
@@ -1366,6 +1417,22 @@ export function assertExpressionSemanticsQueryFragmentsMatch(
   if (actualJson !== expectedJson) {
     throw new Error(
       `${label}: expressionSemanticsQueryFragments mismatch\nexpected: ${expectedJson}\nreceived: ${actualJson}`,
+    );
+  }
+}
+
+export function assertExpressionSemanticsMatchFragmentsMatch(
+  label: string,
+  actual: ExpressionSemanticsMatchFragmentsV0,
+  expected: ExpressionSemanticsMatchFragmentsV0,
+): void {
+  assertEqualField(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
+  assertEqualField(label, "inputVersion", actual.inputVersion, expected.inputVersion);
+  const actualJson = JSON.stringify(actual.fragments);
+  const expectedJson = JSON.stringify(expected.fragments);
+  if (actualJson !== expectedJson) {
+    throw new Error(
+      `${label}: expressionSemanticsMatchFragments mismatch\nexpected: ${expectedJson}\nreceived: ${actualJson}`,
     );
   }
 }

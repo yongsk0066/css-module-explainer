@@ -2,8 +2,9 @@ use std::collections::BTreeMap;
 
 use crate::{
     EngineInputV2, ExpressionSemanticsFragmentV0, ExpressionSemanticsFragmentsV0,
-    ExpressionSemanticsQueryFragmentV0, ExpressionSemanticsQueryFragmentsV0,
-    map_expression_value_domain_kind,
+    ExpressionSemanticsMatchFragmentV0, ExpressionSemanticsMatchFragmentsV0,
+    ExpressionSemanticsQueryFragmentV0, ExpressionSemanticsQueryFragmentsV0, StringTypeFactsV2,
+    StyleAnalysisInputV2, StyleSelectorV2, map_expression_value_domain_kind,
 };
 
 pub fn summarize_expression_semantics_fragments_input(
@@ -75,10 +76,231 @@ pub fn summarize_expression_semantics_query_fragments_input(
     }
 }
 
+pub fn summarize_expression_semantics_match_fragments_input(
+    input: &EngineInputV2,
+) -> ExpressionSemanticsMatchFragmentsV0 {
+    let mut expression_index = BTreeMap::new();
+    let mut style_index = BTreeMap::new();
+
+    for source in &input.sources {
+        for expression in &source.document.class_expressions {
+            expression_index.insert(expression.id.clone(), expression);
+        }
+    }
+
+    for style in &input.styles {
+        style_index.insert(style.file_path.clone(), style);
+    }
+
+    let mut fragments = Vec::new();
+
+    for entry in &input.type_facts {
+        let Some(expression) = expression_index.get(&entry.expression_id) else {
+            continue;
+        };
+        let Some(style) = style_index.get(&expression.scss_module_path) else {
+            continue;
+        };
+
+        let selector_names = resolve_selector_names(style, &entry.facts);
+        let finite_values = finite_values_for_facts(&entry.facts);
+        let candidate_names = finite_values
+            .clone()
+            .unwrap_or_else(|| selector_names.clone());
+
+        fragments.push(ExpressionSemanticsMatchFragmentV0 {
+            query_id: entry.expression_id.clone(),
+            expression_id: entry.expression_id.clone(),
+            style_file_path: expression.scss_module_path.clone(),
+            selector_names,
+            candidate_names,
+            finite_values,
+        });
+    }
+
+    fragments.sort_by(|a, b| a.query_id.cmp(&b.query_id));
+
+    ExpressionSemanticsMatchFragmentsV0 {
+        schema_version: "0",
+        input_version: input.version.clone(),
+        fragments,
+    }
+}
+
+fn finite_values_for_facts(facts: &StringTypeFactsV2) -> Option<Vec<String>> {
+    match facts.kind.as_str() {
+        "exact" | "finiteSet" => facts.values.clone(),
+        _ => None,
+    }
+}
+
+fn resolve_selector_names(style: &StyleAnalysisInputV2, facts: &StringTypeFactsV2) -> Vec<String> {
+    match facts.kind.as_str() {
+        "unknown" => Vec::new(),
+        "top" => canonical_selector_names(style),
+        "exact" | "finiteSet" => {
+            let mut names = Vec::new();
+            for value in facts.values.as_ref().into_iter().flatten() {
+                push_canonical_match(style, value, &mut names);
+            }
+            names
+        }
+        "constrained" => resolve_constrained_selector_names(style, facts),
+        _ => Vec::new(),
+    }
+}
+
+fn resolve_constrained_selector_names(
+    style: &StyleAnalysisInputV2,
+    facts: &StringTypeFactsV2,
+) -> Vec<String> {
+    let mut names = Vec::new();
+
+    for selector in &style.document.selectors {
+        if !matches_selector_constraints(selector, facts) {
+            continue;
+        }
+        let canonical_name = canonical_name_for_selector(style, selector);
+        if let Some(canonical_name) = canonical_name
+            && !names.contains(&canonical_name)
+        {
+            names.push(canonical_name);
+        }
+    }
+
+    names
+}
+
+fn matches_selector_constraints(selector: &StyleSelectorV2, facts: &StringTypeFactsV2) -> bool {
+    match facts.constraint_kind.as_deref() {
+        Some("prefix") => facts
+            .prefix
+            .as_ref()
+            .is_some_and(|prefix| selector.name.starts_with(prefix)),
+        Some("suffix") => facts
+            .suffix
+            .as_ref()
+            .is_some_and(|suffix| selector.name.ends_with(suffix)),
+        Some("prefixSuffix") => {
+            let prefix_ok = facts
+                .prefix
+                .as_ref()
+                .is_none_or(|prefix| selector.name.starts_with(prefix));
+            let suffix_ok = facts
+                .suffix
+                .as_ref()
+                .is_none_or(|suffix| selector.name.ends_with(suffix));
+            let min_len_ok = facts
+                .min_len
+                .is_none_or(|min_len| selector.name.len() >= min_len);
+            let max_len_ok = facts
+                .max_len
+                .is_none_or(|max_len| selector.name.len() <= max_len);
+            prefix_ok && suffix_ok && min_len_ok && max_len_ok
+        }
+        Some("charInclusion") => matches_char_constraints(
+            &selector.name,
+            facts.char_must.as_deref().unwrap_or(""),
+            facts.char_may.as_deref().unwrap_or(""),
+            facts.may_include_other_chars.unwrap_or(false),
+        ),
+        Some("composite") => {
+            let prefix_ok = facts
+                .prefix
+                .as_ref()
+                .is_none_or(|prefix| selector.name.starts_with(prefix));
+            let suffix_ok = facts
+                .suffix
+                .as_ref()
+                .is_none_or(|suffix| selector.name.ends_with(suffix));
+            let min_len_ok = facts
+                .min_len
+                .is_none_or(|min_len| selector.name.len() >= min_len);
+            let max_len_ok = facts
+                .max_len
+                .is_none_or(|max_len| selector.name.len() <= max_len);
+            prefix_ok
+                && suffix_ok
+                && min_len_ok
+                && max_len_ok
+                && matches_char_constraints(
+                    &selector.name,
+                    facts.char_must.as_deref().unwrap_or(""),
+                    facts.char_may.as_deref().unwrap_or(""),
+                    facts.may_include_other_chars.unwrap_or(false),
+                )
+        }
+        _ => false,
+    }
+}
+
+fn matches_char_constraints(
+    value: &str,
+    must_chars: &str,
+    may_chars: &str,
+    may_include_other_chars: bool,
+) -> bool {
+    let value_chars: std::collections::BTreeSet<char> = value.chars().collect();
+    let must_set: std::collections::BTreeSet<char> = must_chars.chars().collect();
+    let may_set: std::collections::BTreeSet<char> = may_chars.chars().collect();
+
+    if must_set.iter().any(|char| !value_chars.contains(char)) {
+        return false;
+    }
+    if !may_include_other_chars && value_chars.iter().any(|char| !may_set.contains(char)) {
+        return false;
+    }
+    true
+}
+
+fn push_canonical_match(style: &StyleAnalysisInputV2, view_name: &str, names: &mut Vec<String>) {
+    if let Some(canonical_name) = canonical_name_for_view_name(style, view_name)
+        && !names.contains(&canonical_name)
+    {
+        names.push(canonical_name);
+    }
+}
+
+fn canonical_selector_names(style: &StyleAnalysisInputV2) -> Vec<String> {
+    let mut names = Vec::new();
+    for selector in &style.document.selectors {
+        if selector.view_kind == "canonical"
+            && let Some(canonical_name) = selector.canonical_name.clone()
+            && !names.contains(&canonical_name)
+        {
+            names.push(canonical_name);
+        }
+    }
+    names
+}
+
+fn canonical_name_for_selector(
+    style: &StyleAnalysisInputV2,
+    selector: &StyleSelectorV2,
+) -> Option<String> {
+    canonical_name_for_view_name(style, &selector.name)
+}
+
+fn canonical_name_for_view_name(style: &StyleAnalysisInputV2, view_name: &str) -> Option<String> {
+    let matched = style
+        .document
+        .selectors
+        .iter()
+        .find(|selector| selector.name == view_name)?;
+    let canonical = style.document.selectors.iter().find(|selector| {
+        selector.view_kind == "canonical" && selector.canonical_name == matched.canonical_name
+    });
+    canonical
+        .and_then(|selector| selector.canonical_name.clone())
+        .or_else(|| matched.canonical_name.clone())
+        .or_else(|| Some(matched.name.clone()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         summarize_expression_semantics_fragments_input,
+        summarize_expression_semantics_match_fragments_input,
         summarize_expression_semantics_query_fragments_input,
     };
     use crate::test_support::sample_input;
@@ -122,5 +344,31 @@ mod tests {
         assert_eq!(second.query_id, "expr-2");
         assert_eq!(second.expression_kind, "styleAccess");
         assert_eq!(second.style_file_path, "/tmp/Card.module.scss");
+    }
+
+    #[test]
+    fn builds_expression_semantics_match_fragments_from_input() {
+        let summary = summarize_expression_semantics_match_fragments_input(&sample_input());
+
+        assert_eq!(summary.fragments.len(), 2);
+        let first = &summary.fragments[0];
+        assert_eq!(first.query_id, "expr-1");
+        assert_eq!(first.expression_id, "expr-1");
+        assert_eq!(first.style_file_path, "/tmp/App.module.scss");
+        assert_eq!(first.selector_names, vec!["btn-active".to_string()]);
+        assert_eq!(first.candidate_names, vec!["btn-active".to_string()]);
+        assert!(first.finite_values.is_none());
+
+        let second = &summary.fragments[1];
+        assert_eq!(second.query_id, "expr-2");
+        assert_eq!(second.selector_names, vec!["card-header".to_string()]);
+        assert_eq!(
+            second.candidate_names,
+            vec!["card-header".to_string(), "card-body".to_string()]
+        );
+        assert_eq!(
+            second.finite_values,
+            Some(vec!["card-header".to_string(), "card-body".to_string()])
+        );
     }
 }
