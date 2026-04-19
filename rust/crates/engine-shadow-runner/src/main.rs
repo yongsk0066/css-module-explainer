@@ -79,6 +79,13 @@ enum QueryResultV2 {
 struct ExpressionSemanticsPayloadV2 {
     value_domain_kind: String,
     value_constraint_kind: Option<String>,
+    value_prefix: Option<String>,
+    value_suffix: Option<String>,
+    value_min_len: Option<usize>,
+    value_max_len: Option<usize>,
+    value_char_must: Option<String>,
+    value_char_may: Option<String>,
+    value_may_include_other_chars: Option<bool>,
     value_certainty_shape_kind: Option<String>,
     selector_certainty_shape_kind: Option<String>,
 }
@@ -88,6 +95,13 @@ struct ExpressionSemanticsPayloadV2 {
 struct SourceExpressionResolutionPayloadV2 {
     value_certainty_shape_kind: Option<String>,
     value_certainty_constraint_kind: Option<String>,
+    value_prefix: Option<String>,
+    value_suffix: Option<String>,
+    value_min_len: Option<usize>,
+    value_max_len: Option<usize>,
+    value_char_must: Option<String>,
+    value_char_may: Option<String>,
+    value_may_include_other_chars: Option<bool>,
     selector_certainty_shape_kind: Option<String>,
 }
 
@@ -150,9 +164,11 @@ struct ShadowSummaryV0 {
     query_kind_counts: BTreeMap<String, usize>,
     expression_value_domain_kinds: BTreeMap<String, usize>,
     expression_value_constraint_kinds: BTreeMap<String, usize>,
+    expression_constraint_detail_counts: ConstraintDetailCounts,
     expression_value_certainty_shapes: BTreeMap<String, usize>,
     expression_selector_certainty_shapes: BTreeMap<String, usize>,
     resolution_value_constraint_kinds: BTreeMap<String, usize>,
+    resolution_constraint_detail_counts: ConstraintDetailCounts,
     resolution_value_certainty_shapes: BTreeMap<String, usize>,
     resolution_selector_certainty_shapes: BTreeMap<String, usize>,
     selector_usage_referenced_count: usize,
@@ -174,6 +190,22 @@ struct ShadowSummaryV0 {
     checker_total_findings: usize,
 }
 
+#[derive(Debug, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct ConstraintDetailCounts {
+    prefix_count: usize,
+    suffix_count: usize,
+    min_len_count: usize,
+    min_len_sum: usize,
+    max_len_count: usize,
+    max_len_sum: usize,
+    char_must_count: usize,
+    char_must_len_sum: usize,
+    char_may_count: usize,
+    char_may_len_sum: usize,
+    may_include_other_chars_count: usize,
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut stdin = String::new();
     io::stdin().read_to_string(&mut stdin)?;
@@ -190,9 +222,11 @@ fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
     let mut query_kind_counts = BTreeMap::new();
     let mut expression_value_domain_kinds = BTreeMap::new();
     let mut expression_value_constraint_kinds = BTreeMap::new();
+    let mut expression_constraint_detail_counts = ConstraintDetailCounts::default();
     let mut expression_value_certainty_shapes = BTreeMap::new();
     let mut expression_selector_certainty_shapes = BTreeMap::new();
     let mut resolution_value_constraint_kinds = BTreeMap::new();
+    let mut resolution_constraint_detail_counts = ConstraintDetailCounts::default();
     let mut resolution_value_certainty_shapes = BTreeMap::new();
     let mut resolution_selector_certainty_shapes = BTreeMap::new();
     let mut files = std::collections::BTreeSet::new();
@@ -259,6 +293,16 @@ fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
                         .entry(constraint_kind.clone())
                         .or_insert(0) += 1;
                 }
+                collect_constraint_detail_counts(
+                    &mut expression_constraint_detail_counts,
+                    payload.value_prefix.as_ref(),
+                    payload.value_suffix.as_ref(),
+                    payload.value_min_len,
+                    payload.value_max_len,
+                    payload.value_char_must.as_ref(),
+                    payload.value_char_may.as_ref(),
+                    payload.value_may_include_other_chars,
+                );
 
                 if let Some(shape_kind) = &payload.value_certainty_shape_kind {
                     *expression_value_certainty_shapes
@@ -282,6 +326,16 @@ fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
                         .entry(constraint_kind.clone())
                         .or_insert(0) += 1;
                 }
+                collect_constraint_detail_counts(
+                    &mut resolution_constraint_detail_counts,
+                    payload.value_prefix.as_ref(),
+                    payload.value_suffix.as_ref(),
+                    payload.value_min_len,
+                    payload.value_max_len,
+                    payload.value_char_must.as_ref(),
+                    payload.value_char_may.as_ref(),
+                    payload.value_may_include_other_chars,
+                );
 
                 if let Some(shape_kind) = &payload.value_certainty_shape_kind {
                     *resolution_value_certainty_shapes
@@ -336,9 +390,11 @@ fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
         query_kind_counts,
         expression_value_domain_kinds,
         expression_value_constraint_kinds,
+        expression_constraint_detail_counts,
         expression_value_certainty_shapes,
         expression_selector_certainty_shapes,
         resolution_value_constraint_kinds,
+        resolution_constraint_detail_counts,
         resolution_value_certainty_shapes,
         resolution_selector_certainty_shapes,
         selector_usage_referenced_count,
@@ -358,5 +414,42 @@ fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
         checker_warning_count: output.checker_report.summary.warnings,
         checker_hint_count: output.checker_report.summary.hints,
         checker_total_findings: output.checker_report.summary.total,
+    }
+}
+
+fn collect_constraint_detail_counts(
+    counts: &mut ConstraintDetailCounts,
+    prefix: Option<&String>,
+    suffix: Option<&String>,
+    min_len: Option<usize>,
+    max_len: Option<usize>,
+    char_must: Option<&String>,
+    char_may: Option<&String>,
+    may_include_other_chars: Option<bool>,
+) {
+    if prefix.is_some() {
+        counts.prefix_count += 1;
+    }
+    if suffix.is_some() {
+        counts.suffix_count += 1;
+    }
+    if let Some(value) = min_len {
+        counts.min_len_count += 1;
+        counts.min_len_sum += value;
+    }
+    if let Some(value) = max_len {
+        counts.max_len_count += 1;
+        counts.max_len_sum += value;
+    }
+    if let Some(value) = char_must {
+        counts.char_must_count += 1;
+        counts.char_must_len_sum += value.len();
+    }
+    if let Some(value) = char_may {
+        counts.char_may_count += 1;
+        counts.char_may_len_sum += value.len();
+    }
+    if may_include_other_chars == Some(true) {
+        counts.may_include_other_chars_count += 1;
     }
 }

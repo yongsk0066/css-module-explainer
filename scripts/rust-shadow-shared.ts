@@ -20,9 +20,11 @@ export interface ShadowSummaryV0 {
   readonly queryKindCounts: Readonly<Record<string, number>>;
   readonly expressionValueDomainKinds: Readonly<Record<string, number>>;
   readonly expressionValueConstraintKinds: Readonly<Record<string, number>>;
+  readonly expressionConstraintDetailCounts: ConstraintDetailCounts;
   readonly expressionValueCertaintyShapes: Readonly<Record<string, number>>;
   readonly expressionSelectorCertaintyShapes: Readonly<Record<string, number>>;
   readonly resolutionValueConstraintKinds: Readonly<Record<string, number>>;
+  readonly resolutionConstraintDetailCounts: ConstraintDetailCounts;
   readonly resolutionValueCertaintyShapes: Readonly<Record<string, number>>;
   readonly resolutionSelectorCertaintyShapes: Readonly<Record<string, number>>;
   readonly selectorUsageReferencedCount: number;
@@ -91,9 +93,11 @@ export function deriveTsShadowSummary(snapshot: EngineParitySnapshotV2): ShadowS
   const queryKindCounts: Record<string, number> = {};
   const expressionValueDomainKinds: Record<string, number> = {};
   const expressionValueConstraintKinds: Record<string, number> = {};
+  const expressionConstraintDetailCounts = createConstraintDetailCounts();
   const expressionValueCertaintyShapes: Record<string, number> = {};
   const expressionSelectorCertaintyShapes: Record<string, number> = {};
   const resolutionValueConstraintKinds: Record<string, number> = {};
+  const resolutionConstraintDetailCounts = createConstraintDetailCounts();
   const resolutionValueCertaintyShapes: Record<string, number> = {};
   const resolutionSelectorCertaintyShapes: Record<string, number> = {};
   const distinctFactFiles = new Set<string>();
@@ -141,9 +145,11 @@ export function deriveTsShadowSummary(snapshot: EngineParitySnapshotV2): ShadowS
       query,
       expressionValueDomainKinds,
       expressionValueConstraintKinds,
+      expressionConstraintDetailCounts,
       expressionValueCertaintyShapes,
       expressionSelectorCertaintyShapes,
       resolutionValueConstraintKinds,
+      resolutionConstraintDetailCounts,
       resolutionValueCertaintyShapes,
       resolutionSelectorCertaintyShapes,
       (payload) => {
@@ -182,9 +188,11 @@ export function deriveTsShadowSummary(snapshot: EngineParitySnapshotV2): ShadowS
     queryKindCounts,
     expressionValueDomainKinds,
     expressionValueConstraintKinds,
+    expressionConstraintDetailCounts,
     expressionValueCertaintyShapes,
     expressionSelectorCertaintyShapes,
     resolutionValueConstraintKinds,
+    resolutionConstraintDetailCounts,
     resolutionValueCertaintyShapes,
     resolutionSelectorCertaintyShapes,
     selectorUsageReferencedCount,
@@ -335,6 +343,12 @@ export function assertShadowSummaryMatch(
     actual.expressionValueConstraintKinds,
     expected.expressionValueConstraintKinds,
   );
+  assertConstraintDetailEqual(
+    label,
+    "expressionConstraintDetailCounts",
+    actual.expressionConstraintDetailCounts,
+    expected.expressionConstraintDetailCounts,
+  );
   assertRecordEqual(
     label,
     "expressionValueCertaintyShapes",
@@ -352,6 +366,12 @@ export function assertShadowSummaryMatch(
     "resolutionValueConstraintKinds",
     actual.resolutionValueConstraintKinds,
     expected.resolutionValueConstraintKinds,
+  );
+  assertConstraintDetailEqual(
+    label,
+    "resolutionConstraintDetailCounts",
+    actual.resolutionConstraintDetailCounts,
+    expected.resolutionConstraintDetailCounts,
   );
   assertRecordEqual(
     label,
@@ -398,9 +418,11 @@ function collectQueryPayloadSummary(
   query: QueryResultV2,
   expressionValueDomainKinds: Record<string, number>,
   expressionValueConstraintKinds: Record<string, number>,
+  expressionConstraintDetailCounts: ConstraintDetailCounts,
   expressionValueCertaintyShapes: Record<string, number>,
   expressionSelectorCertaintyShapes: Record<string, number>,
   resolutionValueConstraintKinds: Record<string, number>,
+  resolutionConstraintDetailCounts: ConstraintDetailCounts,
   resolutionValueCertaintyShapes: Record<string, number>,
   resolutionSelectorCertaintyShapes: Record<string, number>,
   onSelectorUsage: (payload: SelectorUsagePayloadSummary) => void,
@@ -411,6 +433,16 @@ function collectQueryPayloadSummary(
       if (query.payload.valueConstraintKind) {
         increment(expressionValueConstraintKinds, query.payload.valueConstraintKind);
       }
+      collectConstraintDetailCounts(
+        expressionConstraintDetailCounts,
+        query.payload.valuePrefix,
+        query.payload.valueSuffix,
+        query.payload.valueMinLen,
+        query.payload.valueMaxLen,
+        query.payload.valueCharMust,
+        query.payload.valueCharMay,
+        query.payload.valueMayIncludeOtherChars === true,
+      );
       if (query.payload.valueCertaintyShapeKind) {
         increment(expressionValueCertaintyShapes, query.payload.valueCertaintyShapeKind);
       }
@@ -422,6 +454,16 @@ function collectQueryPayloadSummary(
       if (query.payload.valueCertaintyConstraintKind) {
         increment(resolutionValueConstraintKinds, query.payload.valueCertaintyConstraintKind);
       }
+      collectConstraintDetailCounts(
+        resolutionConstraintDetailCounts,
+        query.payload.valuePrefix,
+        query.payload.valueSuffix,
+        query.payload.valueMinLen,
+        query.payload.valueMaxLen,
+        query.payload.valueCharMust,
+        query.payload.valueCharMay,
+        query.payload.valueMayIncludeOtherChars === true,
+      );
       if (query.payload.valueCertaintyShapeKind) {
         increment(resolutionValueCertaintyShapes, query.payload.valueCertaintyShapeKind);
       }
@@ -448,4 +490,82 @@ interface SelectorUsagePayloadSummary {
   readonly hasExpandedReferences: boolean;
   readonly hasStyleDependencyReferences: boolean;
   readonly hasAnyReferences: boolean;
+}
+
+interface ConstraintDetailCounts {
+  prefixCount: number;
+  suffixCount: number;
+  minLenCount: number;
+  minLenSum: number;
+  maxLenCount: number;
+  maxLenSum: number;
+  charMustCount: number;
+  charMustLenSum: number;
+  charMayCount: number;
+  charMayLenSum: number;
+  mayIncludeOtherCharsCount: number;
+}
+
+function createConstraintDetailCounts(): ConstraintDetailCounts {
+  return {
+    prefixCount: 0,
+    suffixCount: 0,
+    minLenCount: 0,
+    minLenSum: 0,
+    maxLenCount: 0,
+    maxLenSum: 0,
+    charMustCount: 0,
+    charMustLenSum: 0,
+    charMayCount: 0,
+    charMayLenSum: 0,
+    mayIncludeOtherCharsCount: 0,
+  };
+}
+
+function collectConstraintDetailCounts(
+  counts: ConstraintDetailCounts,
+  prefix: string | undefined,
+  suffix: string | undefined,
+  minLen: number | undefined,
+  maxLen: number | undefined,
+  charMust: string | undefined,
+  charMay: string | undefined,
+  mayIncludeOtherChars: boolean,
+) {
+  if (prefix !== undefined) counts.prefixCount += 1;
+  if (suffix !== undefined) counts.suffixCount += 1;
+  if (minLen !== undefined) {
+    counts.minLenCount += 1;
+    counts.minLenSum += minLen;
+  }
+  if (maxLen !== undefined) {
+    counts.maxLenCount += 1;
+    counts.maxLenSum += maxLen;
+  }
+  if (charMust !== undefined) {
+    counts.charMustCount += 1;
+    counts.charMustLenSum += charMust.length;
+  }
+  if (charMay !== undefined) {
+    counts.charMayCount += 1;
+    counts.charMayLenSum += charMay.length;
+  }
+  if (mayIncludeOtherChars) {
+    counts.mayIncludeOtherCharsCount += 1;
+  }
+}
+
+function assertConstraintDetailEqual(
+  label: string,
+  field: string,
+  actual: ConstraintDetailCounts,
+  expected: ConstraintDetailCounts,
+) {
+  const actualJson = JSON.stringify(actual);
+  const expectedJson = JSON.stringify(expected);
+  if (actualJson !== expectedJson) {
+    throw new Error(
+      `${label}: ${field} mismatch\nexpected: ${expectedJson}\nreceived: ${actualJson}`,
+    );
+  }
 }
