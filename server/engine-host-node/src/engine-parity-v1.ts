@@ -3,9 +3,10 @@ import type {
   EngineInputV1,
   EngineOutputV1,
 } from "../../engine-core-ts/src/contracts";
+import { downcastEngineOutputV2ToV1 } from "../../engine-core-ts/src/contracts";
 import { buildEngineInputV1, type BuildEngineInputV1Options } from "./engine-input-v1";
-import { buildSelectedQueryResultsV1 } from "./engine-query-v1";
-import { buildEngineOutputV1 } from "./engine-output-v1";
+import { buildSelectedQueryResultsV2 } from "./engine-query-v2";
+import { buildEngineOutputV2 } from "./engine-output-v2";
 import type { WorkspaceSemanticWorkspaceReferenceIndex } from "../../engine-core-ts/src/core/semantic/workspace-reference-index";
 import type { WorkspaceStyleDependencyGraph } from "../../engine-core-ts/src/core/semantic/style-dependency-graph";
 import type { StyleDocumentHIR } from "../../engine-core-ts/src/core/hir/style-types";
@@ -32,20 +33,22 @@ export interface BuildCheckerEngineParitySnapshotV1Options extends BuildEngineIn
 export function buildCheckerEngineParitySnapshotV1(
   options: BuildCheckerEngineParitySnapshotV1Options,
 ): EngineParitySnapshotV1 {
+  const outputV2 = buildEngineOutputV2({
+    checkerReport: options.checkerReport,
+    queryResults: buildSelectedQueryResultsV2({
+      workspaceRoot: options.workspaceRoot,
+      sourceDocuments: options.sourceDocuments,
+      styleFiles: options.styleFiles,
+      analysisCache: options.analysisCache,
+      styleDocumentForPath: options.styleDocumentForPath,
+      typeResolver: options.typeResolver,
+      semanticReferenceIndex: options.semanticReferenceIndex,
+      styleDependencyGraph: options.styleDependencyGraph,
+    }),
+  });
+
   return {
     input: buildEngineInputV1(options),
-    output: buildEngineOutputV1({
-      checkerReport: options.checkerReport,
-      queryResults: buildSelectedQueryResultsV1({
-        workspaceRoot: options.workspaceRoot,
-        sourceDocuments: options.sourceDocuments,
-        styleFiles: options.styleFiles,
-        analysisCache: options.analysisCache,
-        styleDocumentForPath: options.styleDocumentForPath,
-        typeResolver: options.typeResolver,
-        semanticReferenceIndex: options.semanticReferenceIndex,
-        styleDependencyGraph: options.styleDependencyGraph,
-      }),
-    }),
+    output: downcastEngineOutputV2ToV1(outputV2),
   };
 }

@@ -49,7 +49,9 @@ export {
 } from "./engine-v2";
 export {
   createTypeFactTableEntryV2,
+  downcastEngineOutputV2ToV1,
   downcastFactsV2ToV1,
+  downcastQueryResultV2ToV1,
   normalizeResolvedTypeToTypeFactsV2,
   upcastFactsV1ToV2,
   upcastTypeFactTableEntryV1ToV2,
