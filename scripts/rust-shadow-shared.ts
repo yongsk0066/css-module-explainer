@@ -179,6 +179,29 @@ export interface SourceResolutionMatchFragmentsV0 {
   readonly fragments: readonly SourceResolutionMatchFragmentV0[];
 }
 
+export interface SourceResolutionCandidateV0 {
+  readonly queryId: string;
+  readonly expressionId: string;
+  readonly styleFilePath: string;
+  readonly selectorNames: readonly string[];
+  readonly finiteValues?: readonly string[];
+  readonly valueCertaintyShapeKind: string;
+  readonly valueCertaintyConstraintKind?: string;
+  readonly valuePrefix?: string;
+  readonly valueSuffix?: string;
+  readonly valueMinLen?: number;
+  readonly valueMaxLen?: number;
+  readonly valueCharMust?: string;
+  readonly valueCharMay?: string;
+  readonly valueMayIncludeOtherChars?: boolean;
+}
+
+export interface SourceResolutionCandidatesV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly candidates: readonly SourceResolutionCandidateV0[];
+}
+
 export interface ExpressionSemanticsFragmentV0 {
   readonly queryId: string;
   readonly expressionId: string;
@@ -344,6 +367,12 @@ export async function runShadowSourceResolutionMatchFragmentsInput(
     ["input-source-resolution-match-fragments"],
     input,
   );
+}
+
+export async function runShadowSourceResolutionCandidatesInput(
+  input: EngineInputV2,
+): Promise<SourceResolutionCandidatesV0> {
+  return runShadowJson<SourceResolutionCandidatesV0>(["input-source-resolution-candidates"], input);
 }
 
 export async function runShadowExpressionSemanticsFragmentsInput(
@@ -1118,6 +1147,57 @@ export function deriveTsSourceResolutionMatchFragments(
   };
 }
 
+export function deriveTsSourceResolutionCandidates(
+  snapshot: EngineParitySnapshotV2,
+): SourceResolutionCandidatesV0 {
+  const candidates = snapshot.output.queryResults
+    .filter((query) => query.kind === "source-expression-resolution")
+    .map((query) => {
+      const candidate: SourceResolutionCandidateV0 = {
+        queryId: query.queryId,
+        expressionId: query.payload.expressionId,
+        styleFilePath: query.payload.styleFilePath ?? "",
+        selectorNames: query.payload.selectorNames,
+      };
+      if (query.payload.finiteValues) {
+        candidate.finiteValues = query.payload.finiteValues;
+      }
+      candidate.valueCertaintyShapeKind = query.payload.valueCertaintyShapeKind ?? "unknown";
+      if (query.payload.valueCertaintyConstraintKind) {
+        candidate.valueCertaintyConstraintKind = query.payload.valueCertaintyConstraintKind;
+      }
+      if (query.payload.valuePrefix) {
+        candidate.valuePrefix = query.payload.valuePrefix;
+      }
+      if (query.payload.valueSuffix) {
+        candidate.valueSuffix = query.payload.valueSuffix;
+      }
+      if (query.payload.valueMinLen !== undefined) {
+        candidate.valueMinLen = query.payload.valueMinLen;
+      }
+      if (query.payload.valueMaxLen !== undefined) {
+        candidate.valueMaxLen = query.payload.valueMaxLen;
+      }
+      if (query.payload.valueCharMust) {
+        candidate.valueCharMust = query.payload.valueCharMust;
+      }
+      if (query.payload.valueCharMay) {
+        candidate.valueCharMay = query.payload.valueCharMay;
+      }
+      if (query.payload.valueMayIncludeOtherChars) {
+        candidate.valueMayIncludeOtherChars = true;
+      }
+      return candidate;
+    })
+    .toSorted((a, b) => a.queryId.localeCompare(b.queryId));
+
+  return {
+    schemaVersion: "0",
+    inputVersion: snapshot.input.version,
+    candidates,
+  };
+}
+
 export function assertShadowSummaryMatch(
   label: string,
   actual: ShadowSummaryV0,
@@ -1629,6 +1709,28 @@ export function assertSourceResolutionMatchFragmentsMatch(
   if (JSON.stringify(actual.fragments) !== JSON.stringify(expected.fragments)) {
     throw new Error(
       `${label}: source resolution match fragments mismatch\nactual=${JSON.stringify(actual.fragments, null, 2)}\nexpected=${JSON.stringify(expected.fragments, null, 2)}`,
+    );
+  }
+}
+
+export function assertSourceResolutionCandidatesMatch(
+  label: string,
+  actual: SourceResolutionCandidatesV0,
+  expected: SourceResolutionCandidatesV0,
+): void {
+  if (actual.schemaVersion !== expected.schemaVersion) {
+    throw new Error(
+      `${label}: source resolution candidates schema mismatch: ${actual.schemaVersion} !== ${expected.schemaVersion}`,
+    );
+  }
+  if (actual.inputVersion !== expected.inputVersion) {
+    throw new Error(
+      `${label}: source resolution candidates input version mismatch: ${actual.inputVersion} !== ${expected.inputVersion}`,
+    );
+  }
+  if (JSON.stringify(actual.candidates) !== JSON.stringify(expected.candidates)) {
+    throw new Error(
+      `${label}: source resolution candidates mismatch\nactual=${JSON.stringify(actual.candidates, null, 2)}\nexpected=${JSON.stringify(expected.candidates, null, 2)}`,
     );
   }
 }

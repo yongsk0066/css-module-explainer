@@ -1,12 +1,65 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
-    EngineInputV2, SourceResolutionFragmentV0, SourceResolutionFragmentsV0,
-    SourceResolutionMatchFragmentV0, SourceResolutionMatchFragmentsV0,
-    SourceResolutionPlanSummaryV0, SourceResolutionQueryFragmentV0,
-    SourceResolutionQueryFragmentsV0, finite_values_for_facts, map_value_certainty_shape_kind,
-    resolve_selector_names,
+    EngineInputV2, SourceResolutionCandidateV0, SourceResolutionCandidatesV0,
+    SourceResolutionFragmentV0, SourceResolutionFragmentsV0, SourceResolutionMatchFragmentV0,
+    SourceResolutionMatchFragmentsV0, SourceResolutionPlanSummaryV0,
+    SourceResolutionQueryFragmentV0, SourceResolutionQueryFragmentsV0, finite_values_for_facts,
+    map_value_certainty_shape_kind, resolve_selector_names,
 };
+
+pub fn summarize_source_resolution_candidates_input(
+    input: &EngineInputV2,
+) -> SourceResolutionCandidatesV0 {
+    let mut expression_index = BTreeMap::new();
+    let mut style_index = BTreeMap::new();
+
+    for source in &input.sources {
+        for expression in &source.document.class_expressions {
+            expression_index.insert(expression.id.clone(), expression);
+        }
+    }
+
+    for style in &input.styles {
+        style_index.insert(style.file_path.clone(), style);
+    }
+
+    let mut candidates = Vec::new();
+
+    for entry in &input.type_facts {
+        let Some(expression) = expression_index.get(&entry.expression_id) else {
+            continue;
+        };
+        let Some(style) = style_index.get(&expression.scss_module_path) else {
+            continue;
+        };
+
+        candidates.push(SourceResolutionCandidateV0 {
+            query_id: entry.expression_id.clone(),
+            expression_id: entry.expression_id.clone(),
+            style_file_path: expression.scss_module_path.clone(),
+            selector_names: resolve_selector_names(style, &entry.facts),
+            finite_values: finite_values_for_facts(&entry.facts),
+            value_certainty_shape_kind: map_value_certainty_shape_kind(&entry.facts),
+            value_certainty_constraint_kind: entry.facts.constraint_kind.clone(),
+            value_prefix: entry.facts.prefix.clone(),
+            value_suffix: entry.facts.suffix.clone(),
+            value_min_len: entry.facts.min_len,
+            value_max_len: entry.facts.max_len,
+            value_char_must: entry.facts.char_must.clone(),
+            value_char_may: entry.facts.char_may.clone(),
+            value_may_include_other_chars: entry.facts.may_include_other_chars,
+        });
+    }
+
+    candidates.sort_by(|a, b| a.query_id.cmp(&b.query_id));
+
+    SourceResolutionCandidatesV0 {
+        schema_version: "0",
+        input_version: input.version.clone(),
+        candidates,
+    }
+}
 
 pub fn summarize_source_resolution_plan_input(
     input: &EngineInputV2,
@@ -164,7 +217,7 @@ pub fn summarize_source_resolution_match_fragments_input(
 #[cfg(test)]
 mod tests {
     use super::{
-        summarize_source_resolution_fragments_input,
+        summarize_source_resolution_candidates_input, summarize_source_resolution_fragments_input,
         summarize_source_resolution_match_fragments_input, summarize_source_resolution_plan_input,
         summarize_source_resolution_query_fragments_input,
     };
@@ -245,6 +298,32 @@ mod tests {
         assert_eq!(second.query_id, "expr-2");
         assert_eq!(second.style_file_path, "/tmp/Card.module.scss");
         assert_eq!(second.selector_names, vec!["card-header".to_string()]);
+        assert_eq!(
+            second.finite_values,
+            Some(vec!["card-header".to_string(), "card-body".to_string()])
+        );
+    }
+
+    #[test]
+    fn builds_source_resolution_candidates_from_input() {
+        let summary = summarize_source_resolution_candidates_input(&sample_input());
+
+        assert_eq!(summary.candidates.len(), 2);
+        let first = &summary.candidates[0];
+        assert_eq!(first.query_id, "expr-1");
+        assert_eq!(first.expression_id, "expr-1");
+        assert_eq!(first.style_file_path, "/tmp/App.module.scss");
+        assert_eq!(first.selector_names, vec!["btn-active".to_string()]);
+        assert_eq!(first.value_certainty_shape_kind, "constrained");
+        assert_eq!(
+            first.value_certainty_constraint_kind.as_deref(),
+            Some("prefixSuffix")
+        );
+
+        let second = &summary.candidates[1];
+        assert_eq!(second.query_id, "expr-2");
+        assert_eq!(second.selector_names, vec!["card-header".to_string()]);
+        assert_eq!(second.value_certainty_shape_kind, "boundedFinite");
         assert_eq!(
             second.finite_values,
             Some(vec!["card-header".to_string(), "card-body".to_string()])

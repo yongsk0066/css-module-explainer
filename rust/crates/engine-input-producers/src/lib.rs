@@ -21,6 +21,7 @@ pub use query_plan::summarize_query_plan_input;
 pub use selector_usage::summarize_selector_usage_fragments_input;
 pub use selector_usage::summarize_selector_usage_plan_input;
 pub use selector_usage::summarize_selector_usage_query_fragments_input;
+pub use source_resolution::summarize_source_resolution_candidates_input;
 pub use source_resolution::summarize_source_resolution_fragments_input;
 pub use source_resolution::summarize_source_resolution_match_fragments_input;
 pub use source_resolution::summarize_source_resolution_plan_input;
@@ -269,6 +270,42 @@ pub struct SourceResolutionMatchFragmentsV0 {
     pub schema_version: &'static str,
     pub input_version: String,
     pub fragments: Vec<SourceResolutionMatchFragmentV0>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceResolutionCandidateV0 {
+    pub query_id: String,
+    pub expression_id: String,
+    pub style_file_path: String,
+    pub selector_names: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub finite_values: Option<Vec<String>>,
+    pub value_certainty_shape_kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_certainty_constraint_kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_prefix: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_suffix: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_min_len: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_max_len: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_char_must: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_char_may: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_may_include_other_chars: Option<bool>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceResolutionCandidatesV0 {
+    pub schema_version: &'static str,
+    pub input_version: String,
+    pub candidates: Vec<SourceResolutionCandidateV0>,
 }
 
 #[derive(Debug, Serialize)]

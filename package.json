@@ -54,6 +54,7 @@
     "check:rust-expression-semantics-query-fragments": "tsx ./scripts/check-rust-expression-semantics-query-fragments.ts",
     "check:rust-expression-semantics-match-fragments": "tsx ./scripts/check-rust-expression-semantics-match-fragments.ts",
     "check:rust-source-resolution-match-fragments": "tsx ./scripts/check-rust-source-resolution-match-fragments.ts",
+    "check:rust-source-resolution-candidates": "tsx ./scripts/check-rust-source-resolution-candidates.ts",
     "check:rust-source-resolution-fragments": "tsx ./scripts/check-rust-source-resolution-fragments.ts",
     "check:rust-source-resolution-query-fragments": "tsx ./scripts/check-rust-source-resolution-query-fragments.ts",
     "check:rust-selector-usage-plan-compare": "tsx ./scripts/check-rust-selector-usage-plan-compare.ts",
