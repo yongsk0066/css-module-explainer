@@ -1,6 +1,6 @@
 import type { TypeFactTableV2 } from "../../engine-core-ts/src/contracts";
 import { createTypeFactTableEntryV2 } from "../../engine-core-ts/src/contracts";
-import type { CollectTypeFactTableV1Options } from "./type-fact-table-v1";
+import type { CollectTypeFactTableV1Options } from "./historical/type-fact-table-v1";
 
 export function collectTypeFactTableV2(options: CollectTypeFactTableV1Options): TypeFactTableV2 {
   return options.sourceEntries

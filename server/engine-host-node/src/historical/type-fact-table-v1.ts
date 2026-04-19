@@ -1,8 +1,8 @@
-import type { AnalysisEntry } from "../../engine-core-ts/src/core/indexing/document-analysis-cache";
-import type { TypeResolver } from "../../engine-core-ts/src/core/ts/type-resolver";
-import type { TypeFactTableEntryV1, TypeFactTableV1 } from "../../engine-core-ts/src/contracts";
-import { createTypeFactTableEntryV1 } from "../../engine-core-ts/src/contracts";
-import type { SourceDocumentSnapshot } from "./checker-host/workspace-check-support";
+import type { AnalysisEntry } from "../../../engine-core-ts/src/core/indexing/document-analysis-cache";
+import type { TypeResolver } from "../../../engine-core-ts/src/core/ts/type-resolver";
+import type { TypeFactTableEntryV1, TypeFactTableV1 } from "../../../engine-core-ts/src/contracts";
+import { createTypeFactTableEntryV1 } from "../../../engine-core-ts/src/contracts";
+import type { SourceDocumentSnapshot } from "../checker-host/workspace-check-support";
 
 export interface TypeFactSourceEntry {
   readonly document: SourceDocumentSnapshot;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { TypeResolver } from "../../../server/engine-core-ts/src/core/ts/type-resolver";
 import { selectTypeFactCollector } from "../../../server/engine-host-node/src/type-fact-collector";
-import type { TypeFactSourceEntry } from "../../../server/engine-host-node/src/type-fact-table-v1";
+import type { TypeFactSourceEntry } from "../../../server/engine-host-node/src/historical/type-fact-table-v1";
 import {
   makeSourceDocumentHIR,
   makeSymbolRefClassExpression,

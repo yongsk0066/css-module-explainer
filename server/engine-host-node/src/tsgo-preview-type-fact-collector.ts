@@ -8,7 +8,10 @@ import {
   type TypeFactTableV1,
   type TypeFactTableV2,
 } from "../../engine-core-ts/src/contracts";
-import { collectTypeFactTableV1, type CollectTypeFactTableV1Options } from "./type-fact-table-v1";
+import {
+  collectTypeFactTableV1,
+  type CollectTypeFactTableV1Options,
+} from "./historical/type-fact-table-v1";
 import { collectTypeFactTableV2 } from "./type-fact-table-v2";
 
 const UNRESOLVABLE: ResolvedType = { kind: "unresolvable", values: [] };

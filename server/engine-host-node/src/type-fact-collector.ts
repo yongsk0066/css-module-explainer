@@ -4,7 +4,10 @@ import {
   type TypeFactTableV1,
   type TypeFactTableV2,
 } from "../../engine-core-ts/src/contracts";
-import { type CollectTypeFactTableV1Options, type TypeFactSourceEntry } from "./type-fact-table-v1";
+import {
+  type CollectTypeFactTableV1Options,
+  type TypeFactSourceEntry,
+} from "./historical/type-fact-table-v1";
 import { collectTypeFactTableV2 } from "./type-fact-table-v2";
 import {
   selectTypeResolver,

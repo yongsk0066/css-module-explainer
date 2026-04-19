@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SourceDocumentSnapshot } from "../../../server/engine-host-node/src/checker-host/workspace-check-support";
-import { collectTypeFactTableV1 } from "../../../server/engine-host-node/src/type-fact-table-v1";
+import { collectTypeFactTableV1 } from "../../../server/engine-host-node/src/historical/type-fact-table-v1";
 import type { AnalysisEntry } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
 import type { TypeResolver } from "../../../server/engine-core-ts/src/core/ts/type-resolver";
 import {
