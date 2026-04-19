@@ -14,6 +14,7 @@ mod type_facts;
 pub use expression_domain::summarize_expression_domain_fragments_input;
 pub use expression_domain::summarize_expression_domain_plan_input;
 pub use expression_semantics::summarize_expression_semantics_candidates_input;
+pub use expression_semantics::summarize_expression_semantics_canonical_candidate_bundle_input;
 pub use expression_semantics::summarize_expression_semantics_fragments_input;
 pub use expression_semantics::summarize_expression_semantics_match_fragments_input;
 pub use expression_semantics::summarize_expression_semantics_query_fragments_input;
@@ -433,6 +434,17 @@ pub struct ExpressionSemanticsCandidateV0 {
 pub struct ExpressionSemanticsCandidatesV0 {
     pub schema_version: &'static str,
     pub input_version: String,
+    pub candidates: Vec<ExpressionSemanticsCandidateV0>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExpressionSemanticsCanonicalCandidateBundleV0 {
+    pub schema_version: &'static str,
+    pub input_version: String,
+    pub query_fragments: Vec<ExpressionSemanticsQueryFragmentV0>,
+    pub fragments: Vec<ExpressionSemanticsFragmentV0>,
+    pub match_fragments: Vec<ExpressionSemanticsMatchFragmentV0>,
     pub candidates: Vec<ExpressionSemanticsCandidateV0>,
 }
 

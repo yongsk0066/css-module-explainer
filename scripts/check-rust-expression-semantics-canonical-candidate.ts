@@ -2,18 +2,9 @@ import path from "node:path";
 import { buildContractParitySnapshot } from "./contract-parity-runtime";
 import type { ContractParityEntry } from "./contract-parity-corpus-v1";
 import {
-  assertExpressionSemanticsCandidatesMatch,
-  assertExpressionSemanticsFragmentsMatch,
-  assertExpressionSemanticsMatchFragmentsMatch,
-  assertExpressionSemanticsQueryFragmentsMatch,
-  deriveTsExpressionSemanticsCandidates,
-  deriveTsExpressionSemanticsFragments,
-  deriveTsExpressionSemanticsMatchFragments,
-  deriveTsExpressionSemanticsQueryFragments,
-  runShadowExpressionSemanticsCandidatesInput,
-  runShadowExpressionSemanticsFragmentsInput,
-  runShadowExpressionSemanticsMatchFragmentsInput,
-  runShadowExpressionSemanticsQueryFragmentsInput,
+  assertExpressionSemanticsCanonicalCandidateBundleMatch,
+  deriveTsExpressionSemanticsCanonicalCandidateBundle,
+  runShadowExpressionSemanticsCanonicalCandidateInput,
 } from "./rust-shadow-shared";
 
 const workspaceRoot = process.cwd();
@@ -105,33 +96,19 @@ void (async () => {
 
     // oxlint-disable-next-line eslint/no-await-in-loop
     const snapshot = await buildContractParitySnapshot(entry);
+    const expected = deriveTsExpressionSemanticsCanonicalCandidateBundle(snapshot);
+    // oxlint-disable-next-line eslint/no-await-in-loop
+    const actual = await runShadowExpressionSemanticsCanonicalCandidateInput(snapshot.input);
 
-    const expectedQuery = deriveTsExpressionSemanticsQueryFragments(snapshot);
-    const expectedFragments = deriveTsExpressionSemanticsFragments(snapshot);
-    const expectedMatches = deriveTsExpressionSemanticsMatchFragments(snapshot);
-    const expectedCandidates = deriveTsExpressionSemanticsCandidates(snapshot);
-
-    // oxlint-disable-next-line eslint/no-await-in-loop
-    const actualQuery = await runShadowExpressionSemanticsQueryFragmentsInput(snapshot.input);
-    // oxlint-disable-next-line eslint/no-await-in-loop
-    const actualFragments = await runShadowExpressionSemanticsFragmentsInput(snapshot.input);
-    // oxlint-disable-next-line eslint/no-await-in-loop
-    const actualMatches = await runShadowExpressionSemanticsMatchFragmentsInput(snapshot.input);
-    // oxlint-disable-next-line eslint/no-await-in-loop
-    const actualCandidates = await runShadowExpressionSemanticsCandidatesInput(snapshot.input);
-
-    assertExpressionSemanticsQueryFragmentsMatch(entry.label, actualQuery, expectedQuery);
-    assertExpressionSemanticsFragmentsMatch(entry.label, actualFragments, expectedFragments);
-    assertExpressionSemanticsMatchFragmentsMatch(entry.label, actualMatches, expectedMatches);
-    assertExpressionSemanticsCandidatesMatch(entry.label, actualCandidates, expectedCandidates);
+    assertExpressionSemanticsCanonicalCandidateBundleMatch(entry.label, actual, expected);
 
     process.stdout.write(
       [
         "validated expression semantics canonical-candidate bundle:",
-        `queries=${actualQuery.fragments.length}`,
-        `fragments=${actualFragments.fragments.length}`,
-        `matches=${actualMatches.fragments.length}`,
-        `candidates=${actualCandidates.candidates.length}`,
+        `queries=${actual.queryFragments.length}`,
+        `fragments=${actual.fragments.length}`,
+        `matches=${actual.matchFragments.length}`,
+        `candidates=${actual.candidates.length}`,
       ].join(" "),
     );
     process.stdout.write("\n\n");

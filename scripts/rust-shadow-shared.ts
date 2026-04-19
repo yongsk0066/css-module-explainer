@@ -291,6 +291,15 @@ export interface ExpressionSemanticsCandidatesV0 {
   readonly candidates: readonly ExpressionSemanticsCandidateV0[];
 }
 
+export interface ExpressionSemanticsCanonicalCandidateBundleV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly queryFragments: readonly ExpressionSemanticsQueryFragmentV0[];
+  readonly fragments: readonly ExpressionSemanticsFragmentV0[];
+  readonly matchFragments: readonly ExpressionSemanticsMatchFragmentV0[];
+  readonly candidates: readonly ExpressionSemanticsCandidateV0[];
+}
+
 export interface SourceResolutionFragmentV0 {
   readonly queryId: string;
   readonly expressionId: string;
@@ -421,6 +430,15 @@ export async function runShadowExpressionSemanticsCandidatesInput(
 ): Promise<ExpressionSemanticsCandidatesV0> {
   return runShadowJson<ExpressionSemanticsCandidatesV0>(
     ["input-expression-semantics-candidates"],
+    input,
+  );
+}
+
+export async function runShadowExpressionSemanticsCanonicalCandidateInput(
+  input: EngineInputV2,
+): Promise<ExpressionSemanticsCanonicalCandidateBundleV0> {
+  return runShadowJson<ExpressionSemanticsCanonicalCandidateBundleV0>(
+    ["input-expression-semantics-canonical-candidate"],
     input,
   );
 }
@@ -1103,6 +1121,19 @@ export function deriveTsExpressionSemanticsCandidates(
   };
 }
 
+export function deriveTsExpressionSemanticsCanonicalCandidateBundle(
+  snapshot: EngineParitySnapshotV2,
+): ExpressionSemanticsCanonicalCandidateBundleV0 {
+  return {
+    schemaVersion: "0",
+    inputVersion: snapshot.input.version,
+    queryFragments: deriveTsExpressionSemanticsQueryFragments(snapshot).fragments,
+    fragments: deriveTsExpressionSemanticsFragments(snapshot).fragments,
+    matchFragments: deriveTsExpressionSemanticsMatchFragments(snapshot).fragments,
+    candidates: deriveTsExpressionSemanticsCandidates(snapshot).candidates,
+  };
+}
+
 export function deriveTsSourceResolutionFragments(
   snapshot: EngineParitySnapshotV2,
 ): SourceResolutionFragmentsV0 {
@@ -1711,6 +1742,35 @@ export function assertExpressionSemanticsCandidatesMatch(
   if (JSON.stringify(actual.candidates) !== JSON.stringify(expected.candidates)) {
     throw new Error(
       `${label}: expression semantics candidates mismatch\nactual=${JSON.stringify(actual.candidates, null, 2)}\nexpected=${JSON.stringify(expected.candidates, null, 2)}`,
+    );
+  }
+}
+
+export function assertExpressionSemanticsCanonicalCandidateBundleMatch(
+  label: string,
+  actual: ExpressionSemanticsCanonicalCandidateBundleV0,
+  expected: ExpressionSemanticsCanonicalCandidateBundleV0,
+): void {
+  assertEqualField(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
+  assertEqualField(label, "inputVersion", actual.inputVersion, expected.inputVersion);
+  if (JSON.stringify(actual.queryFragments) !== JSON.stringify(expected.queryFragments)) {
+    throw new Error(
+      `${label}: expression semantics canonical candidate queryFragments mismatch\nactual=${JSON.stringify(actual.queryFragments, null, 2)}\nexpected=${JSON.stringify(expected.queryFragments, null, 2)}`,
+    );
+  }
+  if (JSON.stringify(actual.fragments) !== JSON.stringify(expected.fragments)) {
+    throw new Error(
+      `${label}: expression semantics canonical candidate fragments mismatch\nactual=${JSON.stringify(actual.fragments, null, 2)}\nexpected=${JSON.stringify(expected.fragments, null, 2)}`,
+    );
+  }
+  if (JSON.stringify(actual.matchFragments) !== JSON.stringify(expected.matchFragments)) {
+    throw new Error(
+      `${label}: expression semantics canonical candidate matchFragments mismatch\nactual=${JSON.stringify(actual.matchFragments, null, 2)}\nexpected=${JSON.stringify(expected.matchFragments, null, 2)}`,
+    );
+  }
+  if (JSON.stringify(actual.candidates) !== JSON.stringify(expected.candidates)) {
+    throw new Error(
+      `${label}: expression semantics canonical candidate candidates mismatch\nactual=${JSON.stringify(actual.candidates, null, 2)}\nexpected=${JSON.stringify(expected.candidates, null, 2)}`,
     );
   }
 }

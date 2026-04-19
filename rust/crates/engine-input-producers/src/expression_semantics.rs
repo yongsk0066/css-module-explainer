@@ -2,24 +2,36 @@ use std::collections::BTreeMap;
 
 use crate::{
     EngineInputV2, ExpressionSemanticsCandidateV0, ExpressionSemanticsCandidatesV0,
-    ExpressionSemanticsFragmentV0, ExpressionSemanticsFragmentsV0,
-    ExpressionSemanticsMatchFragmentV0, ExpressionSemanticsMatchFragmentsV0,
-    ExpressionSemanticsQueryFragmentV0, ExpressionSemanticsQueryFragmentsV0,
-    canonical_selector_count, finite_values_for_facts, map_expression_value_domain_kind,
-    map_selector_certainty, map_selector_certainty_shape_kind, map_selector_certainty_shape_label,
-    map_value_certainty, map_value_certainty_shape_kind, map_value_certainty_shape_label,
-    resolve_selector_names,
+    ExpressionSemanticsCanonicalCandidateBundleV0, ExpressionSemanticsFragmentV0,
+    ExpressionSemanticsFragmentsV0, ExpressionSemanticsMatchFragmentV0,
+    ExpressionSemanticsMatchFragmentsV0, ExpressionSemanticsQueryFragmentV0,
+    ExpressionSemanticsQueryFragmentsV0, canonical_selector_count, finite_values_for_facts,
+    map_expression_value_domain_kind, map_selector_certainty, map_selector_certainty_shape_kind,
+    map_selector_certainty_shape_label, map_value_certainty, map_value_certainty_shape_kind,
+    map_value_certainty_shape_label, resolve_selector_names,
 };
 
-pub fn summarize_expression_semantics_candidates_input(
-    input: &EngineInputV2,
-) -> ExpressionSemanticsCandidatesV0 {
+struct ExpressionSemanticsInputRows {
+    query_fragments: Vec<ExpressionSemanticsQueryFragmentV0>,
+    fragments: Vec<ExpressionSemanticsFragmentV0>,
+    match_fragments: Vec<ExpressionSemanticsMatchFragmentV0>,
+    candidates: Vec<ExpressionSemanticsCandidateV0>,
+}
+
+fn collect_expression_semantics_input_rows(input: &EngineInputV2) -> ExpressionSemanticsInputRows {
     let mut expression_index = BTreeMap::new();
     let mut style_index = BTreeMap::new();
+    let mut query_fragments = Vec::new();
 
     for source in &input.sources {
         for expression in &source.document.class_expressions {
             expression_index.insert(expression.id.clone(), expression);
+            query_fragments.push(ExpressionSemanticsQueryFragmentV0 {
+                query_id: expression.id.clone(),
+                expression_id: expression.id.clone(),
+                expression_kind: expression.kind.clone(),
+                style_file_path: expression.scss_module_path.clone(),
+            });
         }
     }
 
@@ -27,6 +39,8 @@ pub fn summarize_expression_semantics_candidates_input(
         style_index.insert(style.file_path.clone(), style);
     }
 
+    let mut fragments = Vec::new();
+    let mut match_fragments = Vec::new();
     let mut candidates = Vec::new();
 
     for entry in &input.type_facts {
@@ -61,6 +75,31 @@ pub fn summarize_expression_semantics_candidates_input(
         let value_certainty_shape_kind = map_value_certainty_shape_kind(&entry.facts);
         let value_certainty_shape_label = map_value_certainty_shape_label(&entry.facts);
 
+        fragments.push(ExpressionSemanticsFragmentV0 {
+            query_id: entry.expression_id.clone(),
+            expression_id: entry.expression_id.clone(),
+            expression_kind: expression.kind.clone(),
+            style_file_path: expression.scss_module_path.clone(),
+            value_domain_kind: map_expression_value_domain_kind(&entry.facts),
+            value_constraint_kind: entry.facts.constraint_kind.clone(),
+            value_prefix: entry.facts.prefix.clone(),
+            value_suffix: entry.facts.suffix.clone(),
+            value_min_len: entry.facts.min_len,
+            value_max_len: entry.facts.max_len,
+            value_char_must: entry.facts.char_must.clone(),
+            value_char_may: entry.facts.char_may.clone(),
+            value_may_include_other_chars: entry.facts.may_include_other_chars,
+        });
+
+        match_fragments.push(ExpressionSemanticsMatchFragmentV0 {
+            query_id: entry.expression_id.clone(),
+            expression_id: entry.expression_id.clone(),
+            style_file_path: expression.scss_module_path.clone(),
+            selector_names: selector_names.clone(),
+            candidate_names: candidate_names.clone(),
+            finite_values: finite_values.clone(),
+        });
+
         candidates.push(ExpressionSemanticsCandidateV0 {
             query_id: entry.expression_id.clone(),
             expression_id: entry.expression_id.clone(),
@@ -89,138 +128,87 @@ pub fn summarize_expression_semantics_candidates_input(
         });
     }
 
+    query_fragments.sort_by(|a, b| a.query_id.cmp(&b.query_id));
+    fragments.sort_by(|a, b| a.query_id.cmp(&b.query_id));
+    match_fragments.sort_by(|a, b| a.query_id.cmp(&b.query_id));
     candidates.sort_by(|a, b| a.query_id.cmp(&b.query_id));
+
+    ExpressionSemanticsInputRows {
+        query_fragments,
+        fragments,
+        match_fragments,
+        candidates,
+    }
+}
+
+pub fn summarize_expression_semantics_canonical_candidate_bundle_input(
+    input: &EngineInputV2,
+) -> ExpressionSemanticsCanonicalCandidateBundleV0 {
+    let rows = collect_expression_semantics_input_rows(input);
+
+    ExpressionSemanticsCanonicalCandidateBundleV0 {
+        schema_version: "0",
+        input_version: input.version.clone(),
+        query_fragments: rows.query_fragments,
+        fragments: rows.fragments,
+        match_fragments: rows.match_fragments,
+        candidates: rows.candidates,
+    }
+}
+
+pub fn summarize_expression_semantics_candidates_input(
+    input: &EngineInputV2,
+) -> ExpressionSemanticsCandidatesV0 {
+    let rows = collect_expression_semantics_input_rows(input);
 
     ExpressionSemanticsCandidatesV0 {
         schema_version: "0",
         input_version: input.version.clone(),
-        candidates,
+        candidates: rows.candidates,
     }
 }
 
 pub fn summarize_expression_semantics_fragments_input(
     input: &EngineInputV2,
 ) -> ExpressionSemanticsFragmentsV0 {
-    let mut expression_index = BTreeMap::new();
-
-    for source in &input.sources {
-        for expression in &source.document.class_expressions {
-            expression_index.insert(expression.id.clone(), expression);
-        }
-    }
-
-    let mut fragments = Vec::new();
-
-    for entry in &input.type_facts {
-        let Some(expression) = expression_index.get(&entry.expression_id) else {
-            continue;
-        };
-
-        fragments.push(ExpressionSemanticsFragmentV0 {
-            query_id: entry.expression_id.clone(),
-            expression_id: entry.expression_id.clone(),
-            expression_kind: expression.kind.clone(),
-            style_file_path: expression.scss_module_path.clone(),
-            value_domain_kind: map_expression_value_domain_kind(&entry.facts),
-            value_constraint_kind: entry.facts.constraint_kind.clone(),
-            value_prefix: entry.facts.prefix.clone(),
-            value_suffix: entry.facts.suffix.clone(),
-            value_min_len: entry.facts.min_len,
-            value_max_len: entry.facts.max_len,
-            value_char_must: entry.facts.char_must.clone(),
-            value_char_may: entry.facts.char_may.clone(),
-            value_may_include_other_chars: entry.facts.may_include_other_chars,
-        });
-    }
-
-    fragments.sort_by(|a, b| a.query_id.cmp(&b.query_id));
+    let rows = collect_expression_semantics_input_rows(input);
 
     ExpressionSemanticsFragmentsV0 {
         schema_version: "0",
         input_version: input.version.clone(),
-        fragments,
+        fragments: rows.fragments,
     }
 }
 
 pub fn summarize_expression_semantics_query_fragments_input(
     input: &EngineInputV2,
 ) -> ExpressionSemanticsQueryFragmentsV0 {
-    let mut fragments = Vec::new();
-
-    for source in &input.sources {
-        for expression in &source.document.class_expressions {
-            fragments.push(ExpressionSemanticsQueryFragmentV0 {
-                query_id: expression.id.clone(),
-                expression_id: expression.id.clone(),
-                expression_kind: expression.kind.clone(),
-                style_file_path: expression.scss_module_path.clone(),
-            });
-        }
-    }
-
-    fragments.sort_by(|a, b| a.query_id.cmp(&b.query_id));
+    let rows = collect_expression_semantics_input_rows(input);
 
     ExpressionSemanticsQueryFragmentsV0 {
         schema_version: "0",
         input_version: input.version.clone(),
-        fragments,
+        fragments: rows.query_fragments,
     }
 }
 
 pub fn summarize_expression_semantics_match_fragments_input(
     input: &EngineInputV2,
 ) -> ExpressionSemanticsMatchFragmentsV0 {
-    let mut expression_index = BTreeMap::new();
-    let mut style_index = BTreeMap::new();
-
-    for source in &input.sources {
-        for expression in &source.document.class_expressions {
-            expression_index.insert(expression.id.clone(), expression);
-        }
-    }
-
-    for style in &input.styles {
-        style_index.insert(style.file_path.clone(), style);
-    }
-
-    let mut fragments = Vec::new();
-
-    for entry in &input.type_facts {
-        let Some(expression) = expression_index.get(&entry.expression_id) else {
-            continue;
-        };
-        let Some(style) = style_index.get(&expression.scss_module_path) else {
-            continue;
-        };
-
-        let selector_names = resolve_selector_names(style, &entry.facts);
-        let finite_values = finite_values_for_facts(&entry.facts);
-        let candidate_names = finite_values
-            .clone()
-            .unwrap_or_else(|| selector_names.clone());
-
-        fragments.push(ExpressionSemanticsMatchFragmentV0 {
-            query_id: entry.expression_id.clone(),
-            expression_id: entry.expression_id.clone(),
-            style_file_path: expression.scss_module_path.clone(),
-            selector_names,
-            candidate_names,
-            finite_values,
-        });
-    }
-
-    fragments.sort_by(|a, b| a.query_id.cmp(&b.query_id));
+    let rows = collect_expression_semantics_input_rows(input);
 
     ExpressionSemanticsMatchFragmentsV0 {
         schema_version: "0",
         input_version: input.version.clone(),
-        fragments,
+        fragments: rows.match_fragments,
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::{
         summarize_expression_semantics_candidates_input,
+        summarize_expression_semantics_canonical_candidate_bundle_input,
         summarize_expression_semantics_fragments_input,
         summarize_expression_semantics_match_fragments_input,
         summarize_expression_semantics_query_fragments_input,
@@ -348,5 +336,18 @@ mod tests {
         );
         assert_eq!(second.value_certainty_shape_kind, "boundedFinite");
         assert_eq!(second.value_certainty_shape_label, "bounded finite (2)");
+    }
+
+    #[test]
+    fn builds_expression_semantics_canonical_candidate_bundle() {
+        let bundle =
+            summarize_expression_semantics_canonical_candidate_bundle_input(&sample_input());
+
+        assert_eq!(bundle.query_fragments.len(), 2);
+        assert_eq!(bundle.fragments.len(), 2);
+        assert_eq!(bundle.match_fragments.len(), 2);
+        assert_eq!(bundle.candidates.len(), 2);
+        assert_eq!(bundle.query_fragments[0].query_id, "expr-1");
+        assert_eq!(bundle.candidates[0].query_id, "expr-1");
     }
 }
