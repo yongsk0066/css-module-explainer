@@ -2,15 +2,15 @@ use std::collections::BTreeMap;
 
 use crate::{
     EngineInputV2, ExpressionSemanticsCandidateV0, ExpressionSemanticsCandidatesV0,
-    ExpressionSemanticsCanonicalCandidateBundleV0, ExpressionSemanticsEvaluatorCandidatePayloadV0,
-    ExpressionSemanticsEvaluatorCandidateV0, ExpressionSemanticsEvaluatorCandidatesV0,
-    ExpressionSemanticsFragmentV0, ExpressionSemanticsFragmentsV0,
-    ExpressionSemanticsMatchFragmentV0, ExpressionSemanticsMatchFragmentsV0,
-    ExpressionSemanticsQueryFragmentV0, ExpressionSemanticsQueryFragmentsV0,
-    canonical_selector_count, finite_values_for_facts, map_expression_value_domain_kind,
-    map_selector_certainty, map_selector_certainty_shape_kind, map_selector_certainty_shape_label,
-    map_value_certainty, map_value_certainty_shape_kind, map_value_certainty_shape_label,
-    resolve_selector_names,
+    ExpressionSemanticsCanonicalCandidateBundleV0, ExpressionSemanticsCanonicalProducerSignalV0,
+    ExpressionSemanticsEvaluatorCandidatePayloadV0, ExpressionSemanticsEvaluatorCandidateV0,
+    ExpressionSemanticsEvaluatorCandidatesV0, ExpressionSemanticsFragmentV0,
+    ExpressionSemanticsFragmentsV0, ExpressionSemanticsMatchFragmentV0,
+    ExpressionSemanticsMatchFragmentsV0, ExpressionSemanticsQueryFragmentV0,
+    ExpressionSemanticsQueryFragmentsV0, canonical_selector_count, finite_values_for_facts,
+    map_expression_value_domain_kind, map_selector_certainty, map_selector_certainty_shape_kind,
+    map_selector_certainty_shape_label, map_value_certainty, map_value_certainty_shape_kind,
+    map_value_certainty_shape_label, resolve_selector_names,
 };
 
 struct ExpressionSemanticsInputRows {
@@ -219,6 +219,31 @@ pub fn summarize_expression_semantics_evaluator_candidates_input(
     }
 }
 
+pub fn summarize_expression_semantics_canonical_producer_signal_input(
+    input: &EngineInputV2,
+) -> ExpressionSemanticsCanonicalProducerSignalV0 {
+    let rows = collect_expression_semantics_input_rows(input);
+    let input_version = input.version.clone();
+
+    ExpressionSemanticsCanonicalProducerSignalV0 {
+        schema_version: "0",
+        input_version: input_version.clone(),
+        canonical_bundle: ExpressionSemanticsCanonicalCandidateBundleV0 {
+            schema_version: "0",
+            input_version: input_version.clone(),
+            query_fragments: rows.query_fragments.clone(),
+            fragments: rows.fragments.clone(),
+            match_fragments: rows.match_fragments.clone(),
+            candidates: rows.candidates.clone(),
+        },
+        evaluator_candidates: ExpressionSemanticsEvaluatorCandidatesV0 {
+            schema_version: "0",
+            input_version,
+            results: rows.evaluator_candidates,
+        },
+    }
+}
+
 pub fn summarize_expression_semantics_fragments_input(
     input: &EngineInputV2,
 ) -> ExpressionSemanticsFragmentsV0 {
@@ -260,6 +285,7 @@ mod tests {
     use super::{
         summarize_expression_semantics_candidates_input,
         summarize_expression_semantics_canonical_candidate_bundle_input,
+        summarize_expression_semantics_canonical_producer_signal_input,
         summarize_expression_semantics_evaluator_candidates_input,
         summarize_expression_semantics_fragments_input,
         summarize_expression_semantics_match_fragments_input,
@@ -418,5 +444,15 @@ mod tests {
             first.payload.value_constraint_kind.as_deref(),
             Some("prefixSuffix")
         );
+    }
+
+    #[test]
+    fn builds_expression_semantics_canonical_producer_signal() {
+        let summary =
+            summarize_expression_semantics_canonical_producer_signal_input(&sample_input());
+
+        assert_eq!(summary.canonical_bundle.candidates.len(), 2);
+        assert_eq!(summary.evaluator_candidates.results.len(), 2);
+        assert_eq!(summary.evaluator_candidates.results[0].query_id, "expr-1");
     }
 }

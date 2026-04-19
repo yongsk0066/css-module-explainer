@@ -15,6 +15,7 @@ pub use expression_domain::summarize_expression_domain_fragments_input;
 pub use expression_domain::summarize_expression_domain_plan_input;
 pub use expression_semantics::summarize_expression_semantics_candidates_input;
 pub use expression_semantics::summarize_expression_semantics_canonical_candidate_bundle_input;
+pub use expression_semantics::summarize_expression_semantics_canonical_producer_signal_input;
 pub use expression_semantics::summarize_expression_semantics_evaluator_candidates_input;
 pub use expression_semantics::summarize_expression_semantics_fragments_input;
 pub use expression_semantics::summarize_expression_semantics_match_fragments_input;
@@ -318,7 +319,7 @@ pub struct SourceResolutionCandidatesV0 {
     pub candidates: Vec<SourceResolutionCandidateV0>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ExpressionSemanticsFragmentV0 {
     query_id: String,
@@ -352,7 +353,7 @@ pub struct ExpressionSemanticsFragmentsV0 {
     fragments: Vec<ExpressionSemanticsFragmentV0>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ExpressionSemanticsQueryFragmentV0 {
     pub query_id: String,
@@ -369,7 +370,7 @@ pub struct ExpressionSemanticsQueryFragmentsV0 {
     pub fragments: Vec<ExpressionSemanticsQueryFragmentV0>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ExpressionSemanticsMatchFragmentV0 {
     pub query_id: String,
@@ -504,6 +505,15 @@ pub struct ExpressionSemanticsEvaluatorCandidatesV0 {
     pub schema_version: &'static str,
     pub input_version: String,
     pub results: Vec<ExpressionSemanticsEvaluatorCandidateV0>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExpressionSemanticsCanonicalProducerSignalV0 {
+    pub schema_version: &'static str,
+    pub input_version: String,
+    pub canonical_bundle: ExpressionSemanticsCanonicalCandidateBundleV0,
+    pub evaluator_candidates: ExpressionSemanticsEvaluatorCandidatesV0,
 }
 
 #[derive(Debug, Serialize)]

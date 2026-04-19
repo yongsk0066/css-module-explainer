@@ -339,6 +339,13 @@ export interface ExpressionSemanticsEvaluatorCandidatesV0 {
   readonly results: readonly ExpressionSemanticsEvaluatorCandidateV0[];
 }
 
+export interface ExpressionSemanticsCanonicalProducerSignalV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly canonicalBundle: ExpressionSemanticsCanonicalCandidateBundleV0;
+  readonly evaluatorCandidates: ExpressionSemanticsEvaluatorCandidatesV0;
+}
+
 export interface SourceResolutionFragmentV0 {
   readonly queryId: string;
   readonly expressionId: string;
@@ -487,6 +494,15 @@ export async function runShadowExpressionSemanticsEvaluatorCandidatesInput(
 ): Promise<ExpressionSemanticsEvaluatorCandidatesV0> {
   return runShadowJson<ExpressionSemanticsEvaluatorCandidatesV0>(
     ["input-expression-semantics-evaluator-candidates"],
+    input,
+  );
+}
+
+export async function runShadowExpressionSemanticsCanonicalProducerInput(
+  input: EngineInputV2,
+): Promise<ExpressionSemanticsCanonicalProducerSignalV0> {
+  return runShadowJson<ExpressionSemanticsCanonicalProducerSignalV0>(
+    ["input-expression-semantics-canonical-producer"],
     input,
   );
 }
@@ -1236,6 +1252,17 @@ export function deriveTsExpressionSemanticsEvaluatorCandidates(
   };
 }
 
+export function deriveTsExpressionSemanticsCanonicalProducerSignal(
+  snapshot: EngineParitySnapshotV2,
+): ExpressionSemanticsCanonicalProducerSignalV0 {
+  return {
+    schemaVersion: "0",
+    inputVersion: snapshot.input.version,
+    canonicalBundle: deriveTsExpressionSemanticsCanonicalCandidateBundle(snapshot),
+    evaluatorCandidates: deriveTsExpressionSemanticsEvaluatorCandidates(snapshot),
+  };
+}
+
 export function deriveTsSourceResolutionFragments(
   snapshot: EngineParitySnapshotV2,
 ): SourceResolutionFragmentsV0 {
@@ -1889,6 +1916,25 @@ export function assertExpressionSemanticsEvaluatorCandidatesMatch(
       `${label}: expression semantics evaluator candidates mismatch\nactual=${JSON.stringify(actual.results, null, 2)}\nexpected=${JSON.stringify(expected.results, null, 2)}`,
     );
   }
+}
+
+export function assertExpressionSemanticsCanonicalProducerSignalMatch(
+  label: string,
+  actual: ExpressionSemanticsCanonicalProducerSignalV0,
+  expected: ExpressionSemanticsCanonicalProducerSignalV0,
+): void {
+  assertEqualField(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
+  assertEqualField(label, "inputVersion", actual.inputVersion, expected.inputVersion);
+  assertExpressionSemanticsCanonicalCandidateBundleMatch(
+    `${label}:canonicalBundle`,
+    actual.canonicalBundle,
+    expected.canonicalBundle,
+  );
+  assertExpressionSemanticsEvaluatorCandidatesMatch(
+    `${label}:evaluatorCandidates`,
+    actual.evaluatorCandidates,
+    expected.evaluatorCandidates,
+  );
 }
 
 export function assertSourceResolutionFragmentsMatch(
