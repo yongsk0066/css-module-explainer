@@ -307,7 +307,9 @@ fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
         }
 
         if let Some(constraint_kind) = &entry.facts.constraint_kind {
-            *constrained_kinds.entry(constraint_kind.clone()).or_insert(0) += 1;
+            *constrained_kinds
+                .entry(constraint_kind.clone())
+                .or_insert(0) += 1;
         }
     }
 
@@ -392,7 +394,8 @@ fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
 
                 selector_usage_total_references += payload.total_references;
                 selector_usage_direct_references += payload.direct_reference_count;
-                selector_usage_editable_direct_references += payload.editable_direct_reference_count;
+                selector_usage_editable_direct_references +=
+                    payload.editable_direct_reference_count;
                 selector_usage_exact_references += payload.exact_reference_count;
                 selector_usage_inferred_or_better_references +=
                     payload.inferred_or_better_reference_count;
