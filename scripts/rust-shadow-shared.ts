@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
 import type { EngineParitySnapshotV2 } from "../server/engine-host-node/src/engine-parity-v2";
+import type { QueryResultV2 } from "../server/engine-core-ts/src/contracts";
 
 const REPO_ROOT = process.cwd();
 const RUST_MANIFEST = path.join(REPO_ROOT, "rust/Cargo.toml");
@@ -17,6 +18,15 @@ export interface ShadowSummaryV0 {
   readonly finiteValueCount: number;
   readonly queryResultCount: number;
   readonly queryKindCounts: Readonly<Record<string, number>>;
+  readonly expressionValueDomainKinds: Readonly<Record<string, number>>;
+  readonly expressionValueConstraintKinds: Readonly<Record<string, number>>;
+  readonly expressionValueCertaintyShapes: Readonly<Record<string, number>>;
+  readonly expressionSelectorCertaintyShapes: Readonly<Record<string, number>>;
+  readonly resolutionValueConstraintKinds: Readonly<Record<string, number>>;
+  readonly resolutionValueCertaintyShapes: Readonly<Record<string, number>>;
+  readonly resolutionSelectorCertaintyShapes: Readonly<Record<string, number>>;
+  readonly selectorUsageReferencedCount: number;
+  readonly selectorUsageUnreferencedCount: number;
   readonly rewritePlanCount: number;
   readonly checkerWarningCount: number;
   readonly checkerHintCount: number;
@@ -68,8 +78,17 @@ export function deriveTsShadowSummary(snapshot: EngineParitySnapshotV2): ShadowS
   const byKind: Record<string, number> = {};
   const constrainedKinds: Record<string, number> = {};
   const queryKindCounts: Record<string, number> = {};
+  const expressionValueDomainKinds: Record<string, number> = {};
+  const expressionValueConstraintKinds: Record<string, number> = {};
+  const expressionValueCertaintyShapes: Record<string, number> = {};
+  const expressionSelectorCertaintyShapes: Record<string, number> = {};
+  const resolutionValueConstraintKinds: Record<string, number> = {};
+  const resolutionValueCertaintyShapes: Record<string, number> = {};
+  const resolutionSelectorCertaintyShapes: Record<string, number> = {};
   const distinctFactFiles = new Set<string>();
   let finiteValueCount = 0;
+  let selectorUsageReferencedCount = 0;
+  let selectorUsageUnreferencedCount = 0;
 
   for (const entry of snapshot.input.typeFacts) {
     distinctFactFiles.add(entry.filePath);
@@ -87,6 +106,23 @@ export function deriveTsShadowSummary(snapshot: EngineParitySnapshotV2): ShadowS
 
   for (const query of snapshot.output.queryResults) {
     queryKindCounts[query.kind] = (queryKindCounts[query.kind] ?? 0) + 1;
+    collectQueryPayloadSummary(
+      query,
+      expressionValueDomainKinds,
+      expressionValueConstraintKinds,
+      expressionValueCertaintyShapes,
+      expressionSelectorCertaintyShapes,
+      resolutionValueConstraintKinds,
+      resolutionValueCertaintyShapes,
+      resolutionSelectorCertaintyShapes,
+      (used) => {
+        if (used) {
+          selectorUsageReferencedCount += 1;
+        } else {
+          selectorUsageUnreferencedCount += 1;
+        }
+      },
+    );
   }
 
   return {
@@ -101,6 +137,15 @@ export function deriveTsShadowSummary(snapshot: EngineParitySnapshotV2): ShadowS
     finiteValueCount,
     queryResultCount: snapshot.output.queryResults.length,
     queryKindCounts,
+    expressionValueDomainKinds,
+    expressionValueConstraintKinds,
+    expressionValueCertaintyShapes,
+    expressionSelectorCertaintyShapes,
+    resolutionValueConstraintKinds,
+    resolutionValueCertaintyShapes,
+    resolutionSelectorCertaintyShapes,
+    selectorUsageReferencedCount,
+    selectorUsageUnreferencedCount,
     rewritePlanCount: snapshot.output.rewritePlans.length,
     checkerWarningCount: snapshot.output.checkerReport.summary.warnings,
     checkerHintCount: snapshot.output.checkerReport.summary.hints,
@@ -126,6 +171,18 @@ export function assertShadowSummaryMatch(
   );
   assertEqualField(label, "finiteValueCount", actual.finiteValueCount, expected.finiteValueCount);
   assertEqualField(label, "queryResultCount", actual.queryResultCount, expected.queryResultCount);
+  assertEqualField(
+    label,
+    "selectorUsageReferencedCount",
+    actual.selectorUsageReferencedCount,
+    expected.selectorUsageReferencedCount,
+  );
+  assertEqualField(
+    label,
+    "selectorUsageUnreferencedCount",
+    actual.selectorUsageUnreferencedCount,
+    expected.selectorUsageUnreferencedCount,
+  );
   assertEqualField(label, "rewritePlanCount", actual.rewritePlanCount, expected.rewritePlanCount);
   assertEqualField(
     label,
@@ -143,6 +200,48 @@ export function assertShadowSummaryMatch(
   assertRecordEqual(label, "byKind", actual.byKind, expected.byKind);
   assertRecordEqual(label, "constrainedKinds", actual.constrainedKinds, expected.constrainedKinds);
   assertRecordEqual(label, "queryKindCounts", actual.queryKindCounts, expected.queryKindCounts);
+  assertRecordEqual(
+    label,
+    "expressionValueDomainKinds",
+    actual.expressionValueDomainKinds,
+    expected.expressionValueDomainKinds,
+  );
+  assertRecordEqual(
+    label,
+    "expressionValueConstraintKinds",
+    actual.expressionValueConstraintKinds,
+    expected.expressionValueConstraintKinds,
+  );
+  assertRecordEqual(
+    label,
+    "expressionValueCertaintyShapes",
+    actual.expressionValueCertaintyShapes,
+    expected.expressionValueCertaintyShapes,
+  );
+  assertRecordEqual(
+    label,
+    "expressionSelectorCertaintyShapes",
+    actual.expressionSelectorCertaintyShapes,
+    expected.expressionSelectorCertaintyShapes,
+  );
+  assertRecordEqual(
+    label,
+    "resolutionValueConstraintKinds",
+    actual.resolutionValueConstraintKinds,
+    expected.resolutionValueConstraintKinds,
+  );
+  assertRecordEqual(
+    label,
+    "resolutionValueCertaintyShapes",
+    actual.resolutionValueCertaintyShapes,
+    expected.resolutionValueCertaintyShapes,
+  );
+  assertRecordEqual(
+    label,
+    "resolutionSelectorCertaintyShapes",
+    actual.resolutionSelectorCertaintyShapes,
+    expected.resolutionSelectorCertaintyShapes,
+  );
 }
 
 function assertEqualField<T>(label: string, field: string, actual: T, expected: T) {
@@ -170,4 +269,49 @@ function assertRecordEqual(
 
 function sortRecord(record: Readonly<Record<string, number>>): Record<string, number> {
   return Object.fromEntries(Object.entries(record).toSorted(([a], [b]) => a.localeCompare(b)));
+}
+
+function collectQueryPayloadSummary(
+  query: QueryResultV2,
+  expressionValueDomainKinds: Record<string, number>,
+  expressionValueConstraintKinds: Record<string, number>,
+  expressionValueCertaintyShapes: Record<string, number>,
+  expressionSelectorCertaintyShapes: Record<string, number>,
+  resolutionValueConstraintKinds: Record<string, number>,
+  resolutionValueCertaintyShapes: Record<string, number>,
+  resolutionSelectorCertaintyShapes: Record<string, number>,
+  onSelectorUsage: (used: boolean) => void,
+) {
+  switch (query.kind) {
+    case "expression-semantics":
+      increment(expressionValueDomainKinds, query.payload.valueDomainKind);
+      if (query.payload.valueConstraintKind) {
+        increment(expressionValueConstraintKinds, query.payload.valueConstraintKind);
+      }
+      if (query.payload.valueCertaintyShapeKind) {
+        increment(expressionValueCertaintyShapes, query.payload.valueCertaintyShapeKind);
+      }
+      if (query.payload.selectorCertaintyShapeKind) {
+        increment(expressionSelectorCertaintyShapes, query.payload.selectorCertaintyShapeKind);
+      }
+      break;
+    case "source-expression-resolution":
+      if (query.payload.valueCertaintyConstraintKind) {
+        increment(resolutionValueConstraintKinds, query.payload.valueCertaintyConstraintKind);
+      }
+      if (query.payload.valueCertaintyShapeKind) {
+        increment(resolutionValueCertaintyShapes, query.payload.valueCertaintyShapeKind);
+      }
+      if (query.payload.selectorCertaintyShapeKind) {
+        increment(resolutionSelectorCertaintyShapes, query.payload.selectorCertaintyShapeKind);
+      }
+      break;
+    case "selector-usage":
+      onSelectorUsage(query.payload.hasAnyReferences);
+      break;
+  }
+}
+
+function increment(record: Record<string, number>, key: string) {
+  record[key] = (record[key] ?? 0) + 1;
 }
