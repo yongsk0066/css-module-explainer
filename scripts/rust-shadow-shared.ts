@@ -27,6 +27,13 @@ export interface ShadowSummaryV0 {
   readonly resolutionSelectorCertaintyShapes: Readonly<Record<string, number>>;
   readonly selectorUsageReferencedCount: number;
   readonly selectorUsageUnreferencedCount: number;
+  readonly selectorUsageTotalReferences: number;
+  readonly selectorUsageDirectReferences: number;
+  readonly selectorUsageEditableDirectReferences: number;
+  readonly selectorUsageExactReferences: number;
+  readonly selectorUsageInferredOrBetterReferences: number;
+  readonly selectorUsageExpandedCount: number;
+  readonly selectorUsageStyleDependencyCount: number;
   readonly expectedExpressionSemanticsCount: number;
   readonly expectedSourceExpressionResolutionCount: number;
   readonly expectedSelectorUsageCount: number;
@@ -93,6 +100,13 @@ export function deriveTsShadowSummary(snapshot: EngineParitySnapshotV2): ShadowS
   let finiteValueCount = 0;
   let selectorUsageReferencedCount = 0;
   let selectorUsageUnreferencedCount = 0;
+  let selectorUsageTotalReferences = 0;
+  let selectorUsageDirectReferences = 0;
+  let selectorUsageEditableDirectReferences = 0;
+  let selectorUsageExactReferences = 0;
+  let selectorUsageInferredOrBetterReferences = 0;
+  let selectorUsageExpandedCount = 0;
+  let selectorUsageStyleDependencyCount = 0;
   let expectedExpressionSemanticsCount = 0;
   let expectedSourceExpressionResolutionCount = 0;
   let expectedSelectorUsageCount = 0;
@@ -132,7 +146,19 @@ export function deriveTsShadowSummary(snapshot: EngineParitySnapshotV2): ShadowS
       resolutionValueConstraintKinds,
       resolutionValueCertaintyShapes,
       resolutionSelectorCertaintyShapes,
-      (used) => {
+      (payload) => {
+        selectorUsageTotalReferences += payload.totalReferences;
+        selectorUsageDirectReferences += payload.directReferenceCount;
+        selectorUsageEditableDirectReferences += payload.editableDirectReferenceCount;
+        selectorUsageExactReferences += payload.exactReferenceCount;
+        selectorUsageInferredOrBetterReferences += payload.inferredOrBetterReferenceCount;
+        if (payload.hasExpandedReferences) {
+          selectorUsageExpandedCount += 1;
+        }
+        if (payload.hasStyleDependencyReferences) {
+          selectorUsageStyleDependencyCount += 1;
+        }
+        const used = payload.hasAnyReferences;
         if (used) {
           selectorUsageReferencedCount += 1;
         } else {
@@ -163,6 +189,13 @@ export function deriveTsShadowSummary(snapshot: EngineParitySnapshotV2): ShadowS
     resolutionSelectorCertaintyShapes,
     selectorUsageReferencedCount,
     selectorUsageUnreferencedCount,
+    selectorUsageTotalReferences,
+    selectorUsageDirectReferences,
+    selectorUsageEditableDirectReferences,
+    selectorUsageExactReferences,
+    selectorUsageInferredOrBetterReferences,
+    selectorUsageExpandedCount,
+    selectorUsageStyleDependencyCount,
     expectedExpressionSemanticsCount,
     expectedSourceExpressionResolutionCount,
     expectedSelectorUsageCount,
@@ -206,6 +239,48 @@ export function assertShadowSummaryMatch(
     "selectorUsageUnreferencedCount",
     actual.selectorUsageUnreferencedCount,
     expected.selectorUsageUnreferencedCount,
+  );
+  assertEqualField(
+    label,
+    "selectorUsageTotalReferences",
+    actual.selectorUsageTotalReferences,
+    expected.selectorUsageTotalReferences,
+  );
+  assertEqualField(
+    label,
+    "selectorUsageDirectReferences",
+    actual.selectorUsageDirectReferences,
+    expected.selectorUsageDirectReferences,
+  );
+  assertEqualField(
+    label,
+    "selectorUsageEditableDirectReferences",
+    actual.selectorUsageEditableDirectReferences,
+    expected.selectorUsageEditableDirectReferences,
+  );
+  assertEqualField(
+    label,
+    "selectorUsageExactReferences",
+    actual.selectorUsageExactReferences,
+    expected.selectorUsageExactReferences,
+  );
+  assertEqualField(
+    label,
+    "selectorUsageInferredOrBetterReferences",
+    actual.selectorUsageInferredOrBetterReferences,
+    expected.selectorUsageInferredOrBetterReferences,
+  );
+  assertEqualField(
+    label,
+    "selectorUsageExpandedCount",
+    actual.selectorUsageExpandedCount,
+    expected.selectorUsageExpandedCount,
+  );
+  assertEqualField(
+    label,
+    "selectorUsageStyleDependencyCount",
+    actual.selectorUsageStyleDependencyCount,
+    expected.selectorUsageStyleDependencyCount,
   );
   assertEqualField(
     label,
@@ -328,7 +403,7 @@ function collectQueryPayloadSummary(
   resolutionValueConstraintKinds: Record<string, number>,
   resolutionValueCertaintyShapes: Record<string, number>,
   resolutionSelectorCertaintyShapes: Record<string, number>,
-  onSelectorUsage: (used: boolean) => void,
+  onSelectorUsage: (payload: SelectorUsagePayloadSummary) => void,
 ) {
   switch (query.kind) {
     case "expression-semantics":
@@ -355,11 +430,22 @@ function collectQueryPayloadSummary(
       }
       break;
     case "selector-usage":
-      onSelectorUsage(query.payload.hasAnyReferences);
+      onSelectorUsage(query.payload);
       break;
   }
 }
 
 function increment(record: Record<string, number>, key: string) {
   record[key] = (record[key] ?? 0) + 1;
+}
+
+interface SelectorUsagePayloadSummary {
+  readonly totalReferences: number;
+  readonly directReferenceCount: number;
+  readonly editableDirectReferenceCount: number;
+  readonly exactReferenceCount: number;
+  readonly inferredOrBetterReferenceCount: number;
+  readonly hasExpandedReferences: boolean;
+  readonly hasStyleDependencyReferences: boolean;
+  readonly hasAnyReferences: boolean;
 }

@@ -94,6 +94,13 @@ struct SourceExpressionResolutionPayloadV2 {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct SelectorUsagePayloadV2 {
+    total_references: usize,
+    direct_reference_count: usize,
+    editable_direct_reference_count: usize,
+    exact_reference_count: usize,
+    inferred_or_better_reference_count: usize,
+    has_expanded_references: bool,
+    has_style_dependency_references: bool,
     has_any_references: bool,
 }
 
@@ -150,6 +157,13 @@ struct ShadowSummaryV0 {
     resolution_selector_certainty_shapes: BTreeMap<String, usize>,
     selector_usage_referenced_count: usize,
     selector_usage_unreferenced_count: usize,
+    selector_usage_total_references: usize,
+    selector_usage_direct_references: usize,
+    selector_usage_editable_direct_references: usize,
+    selector_usage_exact_references: usize,
+    selector_usage_inferred_or_better_references: usize,
+    selector_usage_expanded_count: usize,
+    selector_usage_style_dependency_count: usize,
     expected_expression_semantics_count: usize,
     expected_source_expression_resolution_count: usize,
     expected_selector_usage_count: usize,
@@ -185,6 +199,13 @@ fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
     let mut finite_value_count = 0usize;
     let mut selector_usage_referenced_count = 0usize;
     let mut selector_usage_unreferenced_count = 0usize;
+    let mut selector_usage_total_references = 0usize;
+    let mut selector_usage_direct_references = 0usize;
+    let mut selector_usage_editable_direct_references = 0usize;
+    let mut selector_usage_exact_references = 0usize;
+    let mut selector_usage_inferred_or_better_references = 0usize;
+    let mut selector_usage_expanded_count = 0usize;
+    let mut selector_usage_style_dependency_count = 0usize;
     let input = payload.input;
     let output = payload.output;
     let expected_expression_semantics_count: usize = input
@@ -279,6 +300,19 @@ fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
                     .entry("selector-usage".to_string())
                     .or_insert(0) += 1;
 
+                selector_usage_total_references += payload.total_references;
+                selector_usage_direct_references += payload.direct_reference_count;
+                selector_usage_editable_direct_references += payload.editable_direct_reference_count;
+                selector_usage_exact_references += payload.exact_reference_count;
+                selector_usage_inferred_or_better_references +=
+                    payload.inferred_or_better_reference_count;
+
+                if payload.has_expanded_references {
+                    selector_usage_expanded_count += 1;
+                }
+                if payload.has_style_dependency_references {
+                    selector_usage_style_dependency_count += 1;
+                }
                 if payload.has_any_references {
                     selector_usage_referenced_count += 1;
                 } else {
@@ -309,6 +343,13 @@ fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
         resolution_selector_certainty_shapes,
         selector_usage_referenced_count,
         selector_usage_unreferenced_count,
+        selector_usage_total_references,
+        selector_usage_direct_references,
+        selector_usage_editable_direct_references,
+        selector_usage_exact_references,
+        selector_usage_inferred_or_better_references,
+        selector_usage_expanded_count,
+        selector_usage_style_dependency_count,
         expected_expression_semantics_count,
         expected_source_expression_resolution_count,
         expected_selector_usage_count,
