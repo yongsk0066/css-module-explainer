@@ -68,8 +68,8 @@ pnpm release:verify
 pnpm test:extension-host
 pnpm check:semantic-smoke
 pnpm check:release-batch
-pnpm check:contract-parity-smoke
-pnpm check:contract-parity-golden
+pnpm check:contract-parity-v2-smoke
+pnpm check:contract-parity-v2-golden
 pnpm --dir examples exec tsc -p tsconfig.json --noEmit
 pnpm --dir examples build
 pnpm exec vsce package --no-dependencies
@@ -90,11 +90,18 @@ The smoke corpus is defined in `scripts/semantic-smoke-corpus.ts`. Treat that
 file as the release-facing semantic fixture list. Update it when a new semantic
 surface becomes release-relevant.
 
-`pnpm check:contract-parity-smoke` verifies that the frozen engine contracts can
-still be assembled across the parity corpus.
+`pnpm check:contract-parity-v2-smoke` verifies that the canonical engine
+contracts can still be assembled across the parity corpus.
 
-`pnpm check:contract-parity-golden` verifies the normalized `EngineInputV1` /
-`EngineOutputV1` golden fixtures under `test/_fixtures/contract-parity/`.
+`pnpm check:contract-parity-v2-golden` verifies the normalized
+`EngineInputV2` / `EngineOutputV2` golden fixtures under
+`test/_fixtures/contract-parity-v2/`.
+
+Frozen V1 baseline commands remain available for historical validation only:
+
+- `pnpm check:contract-parity-v1-smoke`
+- `pnpm check:contract-parity-v1-golden`
+- `pnpm update:contract-parity-v1-golden`
 
 `pnpm check:release-batch` is the release-facing batch checker gate. It runs the
 current `ci` preset against the curated clean corpus in

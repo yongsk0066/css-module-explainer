@@ -250,7 +250,11 @@ Current checker policy:
 - semantic smoke cases are versioned in `scripts/semantic-smoke-corpus.ts` and should be updated when new semantic surfaces become release-relevant
 - `pnpm check:release-batch` is the canonical release-facing batch checker pass
 - the release batch corpus is versioned in `scripts/release-batch-corpus.ts`; it stays intentionally clean even if `examples/` contains negative recovery fixtures
-- `pnpm check:contract-parity-v2-smoke` and `pnpm check:contract-parity-v2-golden` validate V2 parity fixtures alongside the frozen V1 corpus
+- `pnpm check:contract-parity-v2-smoke` and `pnpm check:contract-parity-v2-golden` are the canonical parity gates
+- frozen V1 baseline commands remain available as historical references:
+  - `pnpm check:contract-parity-v1-smoke`
+  - `pnpm check:contract-parity-v1-golden`
+  - `pnpm update:contract-parity-v1-golden`
 - V2 exposes constrained bundle metadata today for:
   - Bundle 1: `suffix`, `prefixSuffix`
   - Bundle 2: `charInclusion`
