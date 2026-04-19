@@ -27,6 +27,10 @@ export interface ShadowSummaryV0 {
   readonly resolutionSelectorCertaintyShapes: Readonly<Record<string, number>>;
   readonly selectorUsageReferencedCount: number;
   readonly selectorUsageUnreferencedCount: number;
+  readonly expectedExpressionSemanticsCount: number;
+  readonly expectedSourceExpressionResolutionCount: number;
+  readonly expectedSelectorUsageCount: number;
+  readonly expectedTotalQueryCount: number;
   readonly rewritePlanCount: number;
   readonly checkerWarningCount: number;
   readonly checkerHintCount: number;
@@ -89,6 +93,19 @@ export function deriveTsShadowSummary(snapshot: EngineParitySnapshotV2): ShadowS
   let finiteValueCount = 0;
   let selectorUsageReferencedCount = 0;
   let selectorUsageUnreferencedCount = 0;
+  let expectedExpressionSemanticsCount = 0;
+  let expectedSourceExpressionResolutionCount = 0;
+  let expectedSelectorUsageCount = 0;
+
+  for (const source of snapshot.input.sources) {
+    expectedExpressionSemanticsCount += source.document.classExpressions.length;
+  }
+  expectedSourceExpressionResolutionCount = expectedExpressionSemanticsCount;
+  for (const style of snapshot.input.styles) {
+    expectedSelectorUsageCount += style.document.selectors.filter(
+      (selector) => selector.viewKind === "canonical",
+    ).length;
+  }
 
   for (const entry of snapshot.input.typeFacts) {
     distinctFactFiles.add(entry.filePath);
@@ -146,6 +163,13 @@ export function deriveTsShadowSummary(snapshot: EngineParitySnapshotV2): ShadowS
     resolutionSelectorCertaintyShapes,
     selectorUsageReferencedCount,
     selectorUsageUnreferencedCount,
+    expectedExpressionSemanticsCount,
+    expectedSourceExpressionResolutionCount,
+    expectedSelectorUsageCount,
+    expectedTotalQueryCount:
+      expectedExpressionSemanticsCount +
+      expectedSourceExpressionResolutionCount +
+      expectedSelectorUsageCount,
     rewritePlanCount: snapshot.output.rewritePlans.length,
     checkerWarningCount: snapshot.output.checkerReport.summary.warnings,
     checkerHintCount: snapshot.output.checkerReport.summary.hints,
@@ -182,6 +206,30 @@ export function assertShadowSummaryMatch(
     "selectorUsageUnreferencedCount",
     actual.selectorUsageUnreferencedCount,
     expected.selectorUsageUnreferencedCount,
+  );
+  assertEqualField(
+    label,
+    "expectedExpressionSemanticsCount",
+    actual.expectedExpressionSemanticsCount,
+    expected.expectedExpressionSemanticsCount,
+  );
+  assertEqualField(
+    label,
+    "expectedSourceExpressionResolutionCount",
+    actual.expectedSourceExpressionResolutionCount,
+    expected.expectedSourceExpressionResolutionCount,
+  );
+  assertEqualField(
+    label,
+    "expectedSelectorUsageCount",
+    actual.expectedSelectorUsageCount,
+    expected.expectedSelectorUsageCount,
+  );
+  assertEqualField(
+    label,
+    "expectedTotalQueryCount",
+    actual.expectedTotalQueryCount,
+    expected.expectedTotalQueryCount,
   );
   assertEqualField(label, "rewritePlanCount", actual.rewritePlanCount, expected.rewritePlanCount);
   assertEqualField(

@@ -14,9 +14,39 @@ struct ShadowPayloadV0 {
 #[serde(rename_all = "camelCase")]
 struct EngineInputV2 {
     version: String,
-    sources: Vec<serde_json::Value>,
-    styles: Vec<serde_json::Value>,
+    sources: Vec<SourceAnalysisInputV2>,
+    styles: Vec<StyleAnalysisInputV2>,
     type_facts: Vec<TypeFactEntryV2>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SourceAnalysisInputV2 {
+    document: SourceDocumentV2,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SourceDocumentV2 {
+    class_expressions: Vec<serde_json::Value>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StyleAnalysisInputV2 {
+    document: StyleDocumentV2,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StyleDocumentV2 {
+    selectors: Vec<StyleSelectorV2>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StyleSelectorV2 {
+    view_kind: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -120,6 +150,10 @@ struct ShadowSummaryV0 {
     resolution_selector_certainty_shapes: BTreeMap<String, usize>,
     selector_usage_referenced_count: usize,
     selector_usage_unreferenced_count: usize,
+    expected_expression_semantics_count: usize,
+    expected_source_expression_resolution_count: usize,
+    expected_selector_usage_count: usize,
+    expected_total_query_count: usize,
     rewrite_plan_count: usize,
     checker_warning_count: usize,
     checker_hint_count: usize,
@@ -153,6 +187,27 @@ fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
     let mut selector_usage_unreferenced_count = 0usize;
     let input = payload.input;
     let output = payload.output;
+    let expected_expression_semantics_count: usize = input
+        .sources
+        .iter()
+        .map(|source| source.document.class_expressions.len())
+        .sum();
+    let expected_source_expression_resolution_count = expected_expression_semantics_count;
+    let expected_selector_usage_count: usize = input
+        .styles
+        .iter()
+        .map(|style| {
+            style
+                .document
+                .selectors
+                .iter()
+                .filter(|selector| selector.view_kind == "canonical")
+                .count()
+        })
+        .sum();
+    let expected_total_query_count = expected_expression_semantics_count
+        + expected_source_expression_resolution_count
+        + expected_selector_usage_count;
 
     for entry in &input.type_facts {
         let _ = &entry.expression_id;
@@ -254,6 +309,10 @@ fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
         resolution_selector_certainty_shapes,
         selector_usage_referenced_count,
         selector_usage_unreferenced_count,
+        expected_expression_semantics_count,
+        expected_source_expression_resolution_count,
+        expected_selector_usage_count,
+        expected_total_query_count,
         rewrite_plan_count: output.rewrite_plans.len(),
         checker_warning_count: output.checker_report.summary.warnings,
         checker_hint_count: output.checker_report.summary.hints,
