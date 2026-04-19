@@ -4,16 +4,18 @@ import { assertShadowSummaryMatch, deriveTsShadowSummary, runShadow } from "./ru
 
 void (async () => {
   for (const entry of CONTRACT_PARITY_CORPUS_V2) {
-    process.stdout.write(`== rust-shadow:${entry.label} ==\n`);
+    process.stdout.write(`== rust-shadow-compare:${entry.label} ==\n`);
+
     // oxlint-disable-next-line eslint/no-await-in-loop
     const snapshot = await buildContractParitySnapshot(entry);
-    // oxlint-disable-next-line eslint/no-await-in-loop
-    const summary = await runShadow(snapshot);
     const expected = deriveTsShadowSummary(snapshot);
-    assertShadowSummaryMatch(entry.label, summary, expected);
+    // oxlint-disable-next-line eslint/no-await-in-loop
+    const actual = await runShadow(snapshot);
+
+    assertShadowSummaryMatch(entry.label, actual, expected);
 
     process.stdout.write(
-      `sources=${summary.sourceCount} styles=${summary.styleCount} typeFacts=${summary.typeFactCount} queries=${summary.queryResultCount} findings=${summary.checkerTotalFindings} kinds=${JSON.stringify(summary.byKind)} queryKinds=${JSON.stringify(summary.queryKindCounts)}\n\n`,
+      `matched summary fields: sources=${actual.sourceCount} styles=${actual.styleCount} typeFacts=${actual.typeFactCount} queries=${actual.queryResultCount} findings=${actual.checkerTotalFindings}\n\n`,
     );
   }
 })();
