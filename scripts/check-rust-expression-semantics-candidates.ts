@@ -64,6 +64,30 @@ const TYPE_FACT_BACKED_EXPRESSION_CORPUS: readonly ContractParityEntry[] = [
       excludeCodes: [],
     },
   },
+  {
+    label: "composite-expression-semantics-candidates",
+    contractVersion: "2",
+    workspace: {
+      workspaceRoot: path.join(workspaceRoot, "test/_fixtures/type-fact-backend-parity/composite"),
+      sourceFilePaths: [
+        path.join(workspaceRoot, "test/_fixtures/type-fact-backend-parity/composite/src/App.ts"),
+      ],
+      styleFilePaths: [
+        path.join(
+          workspaceRoot,
+          "test/_fixtures/type-fact-backend-parity/composite/src/App.module.scss",
+        ),
+      ],
+    },
+    filters: {
+      preset: "changed-source",
+      category: "source",
+      severity: "all",
+      includeBundles: ["source-missing"],
+      includeCodes: [],
+      excludeCodes: [],
+    },
+  },
 ] as const;
 
 void (async () => {

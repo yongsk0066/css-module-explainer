@@ -603,15 +603,17 @@ pub(crate) fn map_value_certainty_shape_label(facts: &StringTypeFactsV2) -> Stri
 pub(crate) fn map_selector_certainty_shape_kind(
     facts: &StringTypeFactsV2,
     matched_selector_count: usize,
+    selector_universe_count: usize,
 ) -> String {
-    if matched_selector_count == 0 {
-        return "unknown".to_string();
-    }
-
-    match facts.kind.as_str() {
-        "unknown" | "top" => "unknown".to_string(),
-        "constrained" => "exact".to_string(),
-        "exact" | "finiteSet" => "exact".to_string(),
+    match map_selector_certainty(facts, matched_selector_count, selector_universe_count).as_str() {
+        "exact" => "exact".to_string(),
+        "possible" => "unknown".to_string(),
+        "inferred" => match facts.constraint_kind.as_deref() {
+            Some("prefix" | "suffix" | "prefixSuffix" | "charInclusion" | "composite") => {
+                "constrained".to_string()
+            }
+            _ => "boundedFinite".to_string(),
+        },
         _ => "unknown".to_string(),
     }
 }

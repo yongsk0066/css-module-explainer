@@ -46,8 +46,11 @@ pub fn summarize_source_resolution_candidates_input(
             selector_names.len(),
             canonical_selector_count(style),
         );
-        let selector_certainty_shape_kind =
-            map_selector_certainty_shape_kind(&entry.facts, selector_names.len());
+        let selector_certainty_shape_kind = map_selector_certainty_shape_kind(
+            &entry.facts,
+            selector_names.len(),
+            canonical_selector_count(style),
+        );
 
         candidates.push(SourceResolutionCandidateV0 {
             query_id: entry.expression_id.clone(),

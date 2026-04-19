@@ -1198,11 +1198,11 @@ export function deriveTsSourceResolutionCandidates(
       candidate.selectorCertaintyShapeKind = query.payload.selectorCertaintyShapeKind ?? "unknown";
       candidate.selectorCertaintyShapeLabel =
         query.payload.selectorCertaintyShapeLabel ?? "unknown";
+      candidate.valueCertaintyShapeKind = query.payload.valueCertaintyShapeKind ?? "unknown";
+      candidate.valueCertaintyShapeLabel = query.payload.valueCertaintyShapeLabel ?? "unknown";
       if (query.payload.selectorConstraintKind) {
         candidate.selectorConstraintKind = query.payload.selectorConstraintKind;
       }
-      candidate.valueCertaintyShapeKind = query.payload.valueCertaintyShapeKind ?? "unknown";
-      candidate.valueCertaintyShapeLabel = query.payload.valueCertaintyShapeLabel ?? "unknown";
       if (query.payload.valueCertaintyConstraintKind) {
         candidate.valueCertaintyConstraintKind = query.payload.valueCertaintyConstraintKind;
       }
