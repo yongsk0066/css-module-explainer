@@ -1,10 +1,10 @@
 import type { TypeResolver } from "../../engine-core-ts/src/core/ts/type-resolver";
-import type { TypeFactTableV1, TypeFactTableV2 } from "../../engine-core-ts/src/contracts";
 import {
-  collectTypeFactTableV1,
-  type CollectTypeFactTableV1Options,
-  type TypeFactSourceEntry,
-} from "./type-fact-table-v1";
+  downcastFactsV2ToV1,
+  type TypeFactTableV1,
+  type TypeFactTableV2,
+} from "../../engine-core-ts/src/contracts";
+import { type CollectTypeFactTableV1Options, type TypeFactSourceEntry } from "./type-fact-table-v1";
 import { collectTypeFactTableV2 } from "./type-fact-table-v2";
 import {
   selectTypeResolver,
@@ -12,7 +12,6 @@ import {
   type TypeFactBackendKind,
 } from "./type-backend";
 import {
-  collectTypeFactTableV1WithTsgoPreview,
   collectTypeFactTableV2WithTsgoPreview,
   type RunTsgoPreviewTypeFactWorker,
 } from "./tsgo-preview-type-fact-collector";
@@ -38,42 +37,30 @@ export function selectTypeFactCollector(
   options: SelectTypeFactCollectorOptions,
 ): TypeFactCollectorSelection {
   const resolverSelection = selectTypeResolver(options);
+  const collectV2 = (collectOptions: CollectTypeFactCollectorOptions): TypeFactTableV2 => {
+    if (resolverSelection.backend === "tsgo-preview") {
+      return collectTypeFactTableV2WithTsgoPreview({
+        ...withTypeResolver(collectOptions, resolverSelection.typeResolver),
+        ...(options.findPreviewConfigFile ? { findConfigFile: options.findPreviewConfigFile } : {}),
+        ...(options.runPreviewTypeFactWorker
+          ? { runWorker: options.runPreviewTypeFactWorker }
+          : {}),
+      });
+    }
+    return collectTypeFactTableV2(withTypeResolver(collectOptions, resolverSelection.typeResolver));
+  };
 
   return {
     backend: resolverSelection.backend,
     typeResolver: resolverSelection.typeResolver,
     collectV1(collectOptions) {
-      if (resolverSelection.backend === "tsgo-preview") {
-        return collectTypeFactTableV1WithTsgoPreview({
-          ...withTypeResolver(collectOptions, resolverSelection.typeResolver),
-          ...(options.findPreviewConfigFile
-            ? { findConfigFile: options.findPreviewConfigFile }
-            : {}),
-          ...(options.runPreviewTypeFactWorker
-            ? { runWorker: options.runPreviewTypeFactWorker }
-            : {}),
-        });
-      }
-      return collectTypeFactTableV1(
-        withTypeResolver(collectOptions, resolverSelection.typeResolver),
-      );
+      return collectV2(collectOptions).map((entry) => ({
+        filePath: entry.filePath,
+        expressionId: entry.expressionId,
+        facts: downcastFactsV2ToV1(entry.facts),
+      }));
     },
-    collectV2(collectOptions) {
-      if (resolverSelection.backend === "tsgo-preview") {
-        return collectTypeFactTableV2WithTsgoPreview({
-          ...withTypeResolver(collectOptions, resolverSelection.typeResolver),
-          ...(options.findPreviewConfigFile
-            ? { findConfigFile: options.findPreviewConfigFile }
-            : {}),
-          ...(options.runPreviewTypeFactWorker
-            ? { runWorker: options.runPreviewTypeFactWorker }
-            : {}),
-        });
-      }
-      return collectTypeFactTableV2(
-        withTypeResolver(collectOptions, resolverSelection.typeResolver),
-      );
-    },
+    collectV2,
   };
 }
 
