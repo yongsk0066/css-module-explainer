@@ -343,6 +343,27 @@ export interface SourceSideCanonicalProducerSignalV0 {
   readonly evaluatorCandidates: SourceSideEvaluatorCandidatesV0;
 }
 
+export interface SemanticCanonicalCandidateBundleV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly sourceSide: SourceSideCanonicalCandidateBundleV0;
+  readonly expressionDomain: ExpressionDomainCanonicalCandidateBundleV0;
+}
+
+export interface SemanticEvaluatorCandidatesV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly sourceSide: SourceSideEvaluatorCandidatesV0;
+  readonly expressionDomain: ExpressionDomainEvaluatorCandidatesV0;
+}
+
+export interface SemanticCanonicalProducerSignalV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly canonicalBundle: SemanticCanonicalCandidateBundleV0;
+  readonly evaluatorCandidates: SemanticEvaluatorCandidatesV0;
+}
+
 export interface ExpressionSemanticsFragmentV0 {
   readonly queryId: string;
   readonly expressionId: string;
@@ -725,6 +746,33 @@ export async function runShadowSourceSideEvaluatorCandidatesInput(
 ): Promise<SourceSideEvaluatorCandidatesV0> {
   return runShadowJson<SourceSideEvaluatorCandidatesV0>(
     ["input-source-side-evaluator-candidates"],
+    input,
+  );
+}
+
+export async function runShadowSemanticCanonicalCandidateInput(
+  input: EngineInputV2,
+): Promise<SemanticCanonicalCandidateBundleV0> {
+  return runShadowJson<SemanticCanonicalCandidateBundleV0>(
+    ["input-semantic-canonical-candidate"],
+    input,
+  );
+}
+
+export async function runShadowSemanticEvaluatorCandidatesInput(
+  input: EngineInputV2,
+): Promise<SemanticEvaluatorCandidatesV0> {
+  return runShadowJson<SemanticEvaluatorCandidatesV0>(
+    ["input-semantic-evaluator-candidates"],
+    input,
+  );
+}
+
+export async function runShadowSemanticCanonicalProducerInput(
+  input: EngineInputV2,
+): Promise<SemanticCanonicalProducerSignalV0> {
+  return runShadowJson<SemanticCanonicalProducerSignalV0>(
+    ["input-semantic-canonical-producer"],
     input,
   );
 }
@@ -1830,6 +1878,39 @@ export function deriveTsSourceSideCanonicalProducerSignal(
   };
 }
 
+export function deriveTsSemanticCanonicalCandidateBundle(
+  snapshot: EngineParitySnapshotV2,
+): SemanticCanonicalCandidateBundleV0 {
+  return {
+    schemaVersion: "0",
+    inputVersion: snapshot.input.version,
+    sourceSide: deriveTsSourceSideCanonicalCandidateBundle(snapshot),
+    expressionDomain: deriveTsExpressionDomainCanonicalCandidateBundle(snapshot),
+  };
+}
+
+export function deriveTsSemanticEvaluatorCandidates(
+  snapshot: EngineParitySnapshotV2,
+): SemanticEvaluatorCandidatesV0 {
+  return {
+    schemaVersion: "0",
+    inputVersion: snapshot.input.version,
+    sourceSide: deriveTsSourceSideEvaluatorCandidates(snapshot),
+    expressionDomain: deriveTsExpressionDomainEvaluatorCandidates(snapshot),
+  };
+}
+
+export function deriveTsSemanticCanonicalProducerSignal(
+  snapshot: EngineParitySnapshotV2,
+): SemanticCanonicalProducerSignalV0 {
+  return {
+    schemaVersion: "0",
+    inputVersion: snapshot.input.version,
+    canonicalBundle: deriveTsSemanticCanonicalCandidateBundle(snapshot),
+    evaluatorCandidates: deriveTsSemanticEvaluatorCandidates(snapshot),
+  };
+}
+
 export function assertShadowSummaryMatch(
   label: string,
   actual: ShadowSummaryV0,
@@ -2106,8 +2187,8 @@ export function assertExpressionDomainFragmentsMatch(
 ): void {
   assertEqualField(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
   assertEqualField(label, "inputVersion", actual.inputVersion, expected.inputVersion);
-  const actualJson = JSON.stringify(actual.fragments);
-  const expectedJson = JSON.stringify(expected.fragments);
+  const actualJson = stableJson(actual.fragments);
+  const expectedJson = stableJson(expected.fragments);
   if (actualJson !== expectedJson) {
     throw new Error(
       `${label}: expressionDomainFragments mismatch\nexpected: ${expectedJson}\nreceived: ${actualJson}`,
@@ -2122,8 +2203,8 @@ export function assertExpressionDomainCandidatesMatch(
 ): void {
   assertEqualField(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
   assertEqualField(label, "inputVersion", actual.inputVersion, expected.inputVersion);
-  const actualJson = JSON.stringify(actual.candidates);
-  const expectedJson = JSON.stringify(expected.candidates);
+  const actualJson = stableJson(actual.candidates);
+  const expectedJson = stableJson(expected.candidates);
   if (actualJson !== expectedJson) {
     throw new Error(
       `${label}: expressionDomainCandidates mismatch\nexpected: ${expectedJson}\nreceived: ${actualJson}`,
@@ -2143,14 +2224,14 @@ export function assertExpressionDomainCanonicalCandidateBundleMatch(
     actual.planSummary,
     expected.planSummary,
   );
-  if (JSON.stringify(actual.fragments) !== JSON.stringify(expected.fragments)) {
+  if (stableJson(actual.fragments) !== stableJson(expected.fragments)) {
     throw new Error(
-      `${label}: expressionDomainCanonicalCandidate fragments mismatch\nactual=${JSON.stringify(actual.fragments, null, 2)}\nexpected=${JSON.stringify(expected.fragments, null, 2)}`,
+      `${label}: expressionDomainCanonicalCandidate fragments mismatch\nactual=${stableJson(actual.fragments)}\nexpected=${stableJson(expected.fragments)}`,
     );
   }
-  if (JSON.stringify(actual.candidates) !== JSON.stringify(expected.candidates)) {
+  if (stableJson(actual.candidates) !== stableJson(expected.candidates)) {
     throw new Error(
-      `${label}: expressionDomainCanonicalCandidate candidates mismatch\nactual=${JSON.stringify(actual.candidates, null, 2)}\nexpected=${JSON.stringify(expected.candidates, null, 2)}`,
+      `${label}: expressionDomainCanonicalCandidate candidates mismatch\nactual=${stableJson(actual.candidates)}\nexpected=${stableJson(expected.candidates)}`,
     );
   }
 }
@@ -2167,9 +2248,9 @@ export function assertExpressionDomainCanonicalProducerSignalMatch(
     actual.canonicalBundle,
     expected.canonicalBundle,
   );
-  if (JSON.stringify(actual.evaluatorCandidates) !== JSON.stringify(expected.evaluatorCandidates)) {
+  if (stableJson(actual.evaluatorCandidates) !== stableJson(expected.evaluatorCandidates)) {
     throw new Error(
-      `${label}: expressionDomainEvaluatorCandidates mismatch\nactual=${JSON.stringify(actual.evaluatorCandidates, null, 2)}\nexpected=${JSON.stringify(expected.evaluatorCandidates, null, 2)}`,
+      `${label}: expressionDomainEvaluatorCandidates mismatch\nactual=${stableJson(actual.evaluatorCandidates)}\nexpected=${stableJson(expected.evaluatorCandidates)}`,
     );
   }
 }
@@ -2615,6 +2696,63 @@ export function assertSourceSideCanonicalProducerSignalMatch(
   );
 }
 
+export function assertSemanticCanonicalCandidateBundleMatch(
+  label: string,
+  actual: SemanticCanonicalCandidateBundleV0,
+  expected: SemanticCanonicalCandidateBundleV0,
+): void {
+  assertEqualField(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
+  assertEqualField(label, "inputVersion", actual.inputVersion, expected.inputVersion);
+  assertSourceSideCanonicalCandidateBundleMatch(
+    `${label}:sourceSide`,
+    actual.sourceSide,
+    expected.sourceSide,
+  );
+  assertExpressionDomainCanonicalCandidateBundleMatch(
+    `${label}:expressionDomain`,
+    actual.expressionDomain,
+    expected.expressionDomain,
+  );
+}
+
+export function assertSemanticEvaluatorCandidatesMatch(
+  label: string,
+  actual: SemanticEvaluatorCandidatesV0,
+  expected: SemanticEvaluatorCandidatesV0,
+): void {
+  assertEqualField(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
+  assertEqualField(label, "inputVersion", actual.inputVersion, expected.inputVersion);
+  assertSourceSideEvaluatorCandidatesMatch(
+    `${label}:sourceSide`,
+    actual.sourceSide,
+    expected.sourceSide,
+  );
+  if (stableJson(actual.expressionDomain) !== stableJson(expected.expressionDomain)) {
+    throw new Error(
+      `${label}: semanticExpressionDomainEvaluatorCandidates mismatch\nactual=${stableJson(actual.expressionDomain)}\nexpected=${stableJson(expected.expressionDomain)}`,
+    );
+  }
+}
+
+export function assertSemanticCanonicalProducerSignalMatch(
+  label: string,
+  actual: SemanticCanonicalProducerSignalV0,
+  expected: SemanticCanonicalProducerSignalV0,
+): void {
+  assertEqualField(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
+  assertEqualField(label, "inputVersion", actual.inputVersion, expected.inputVersion);
+  assertSemanticCanonicalCandidateBundleMatch(
+    `${label}:canonicalBundle`,
+    actual.canonicalBundle,
+    expected.canonicalBundle,
+  );
+  assertSemanticEvaluatorCandidatesMatch(
+    `${label}:evaluatorCandidates`,
+    actual.evaluatorCandidates,
+    expected.evaluatorCandidates,
+  );
+}
+
 function assertEqualField<T>(label: string, field: string, actual: T, expected: T) {
   if (actual !== expected) {
     throw new Error(
@@ -2655,6 +2793,24 @@ function assertRecordEqual(
 
 function sortRecord(record: Readonly<Record<string, number>>): Record<string, number> {
   return Object.fromEntries(Object.entries(record).toSorted(([a], [b]) => a.localeCompare(b)));
+}
+
+function stableJson(value: unknown): string {
+  return JSON.stringify(sortJsonValue(value));
+}
+
+function sortJsonValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(sortJsonValue);
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .toSorted(([a], [b]) => a.localeCompare(b))
+        .map(([key, child]) => [key, sortJsonValue(child)]),
+    );
+  }
+  return value;
 }
 
 function collectQueryPayloadSummary(

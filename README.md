@@ -251,10 +251,12 @@ Current checker policy:
   - canonical-candidate bundles: `pnpm check:rust-expression-domain-canonical-candidate`, `pnpm check:rust-expression-semantics-canonical-candidate`, `pnpm check:rust-source-resolution-canonical-candidate`
   - canonical-producer signals: `pnpm check:rust-expression-domain-canonical-producer`, `pnpm check:rust-expression-semantics-canonical-producer`, `pnpm check:rust-source-resolution-canonical-producer`
   - consolidated source-side lane: `pnpm check:rust-source-side-canonical-candidate`, `pnpm check:rust-source-side-evaluator-candidates`, `pnpm check:rust-source-side-canonical-producer`
+  - consolidated semantic lane: `pnpm check:rust-semantic-canonical-candidate`, `pnpm check:rust-semantic-evaluator-candidates`, `pnpm check:rust-semantic-canonical-producer`
   - full snapshot parity: `pnpm check:rust-shadow-compare`
 - Current `3.8.0` framing is a consolidated source-side lane:
   - `expression-semantics` and `source-resolution` now carry family-level canonical-producer signals and a shared top-level source-side lane
   - `expression-domain` now carries input-only canonical artifacts plus type-fact-backed evaluator-candidate coverage on the Rust shadow path
+  - a top-level `semantic` lane now consolidates `source-side + expression-domain` into one canonical-candidate / evaluator-candidate / canonical-producer path
   - `selector-usage` remains a shadow validation family, not a release-gating canonical candidate
   - current `EngineInputV2` does not preserve enough reference-level evidence to reproduce `selector-usage` semantics as an input-only canonical producer
 - `pnpm check:real-project-corpus` runs a clean multi-file corpus that mimics common product patterns (`variants`, `@value` + `@keyframes`, `composes`, `.module.less`)

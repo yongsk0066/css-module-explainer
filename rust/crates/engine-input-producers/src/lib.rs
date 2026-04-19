@@ -6,6 +6,7 @@ mod expression_domain;
 mod expression_semantics;
 mod query_plan;
 mod selector_usage;
+mod semantic;
 mod source_resolution;
 mod source_side;
 #[cfg(test)]
@@ -29,6 +30,9 @@ pub use query_plan::summarize_query_plan_input;
 pub use selector_usage::summarize_selector_usage_fragments_input;
 pub use selector_usage::summarize_selector_usage_plan_input;
 pub use selector_usage::summarize_selector_usage_query_fragments_input;
+pub use semantic::summarize_semantic_canonical_candidate_bundle_input;
+pub use semantic::summarize_semantic_canonical_producer_signal_input;
+pub use semantic::summarize_semantic_evaluator_candidates_input;
 pub use source_resolution::summarize_source_resolution_candidates_input;
 pub use source_resolution::summarize_source_resolution_canonical_candidate_bundle_input;
 pub use source_resolution::summarize_source_resolution_canonical_producer_signal_input;
@@ -520,6 +524,33 @@ pub struct SourceSideCanonicalProducerSignalV0 {
     pub input_version: String,
     pub canonical_bundle: SourceSideCanonicalCandidateBundleV0,
     pub evaluator_candidates: SourceSideEvaluatorCandidatesV0,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SemanticCanonicalCandidateBundleV0 {
+    pub schema_version: &'static str,
+    pub input_version: String,
+    pub source_side: SourceSideCanonicalCandidateBundleV0,
+    pub expression_domain: ExpressionDomainCanonicalCandidateBundleV0,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SemanticEvaluatorCandidatesV0 {
+    pub schema_version: &'static str,
+    pub input_version: String,
+    pub source_side: SourceSideEvaluatorCandidatesV0,
+    pub expression_domain: ExpressionDomainEvaluatorCandidatesV0,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SemanticCanonicalProducerSignalV0 {
+    pub schema_version: &'static str,
+    pub input_version: String,
+    pub canonical_bundle: SemanticCanonicalCandidateBundleV0,
+    pub evaluator_candidates: SemanticEvaluatorCandidatesV0,
 }
 
 #[derive(Debug, Serialize, Clone)]

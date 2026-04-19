@@ -149,6 +149,21 @@ export const RUST_GATE_EVIDENCE_CORPUS: readonly RustGateEvidenceEntry[] = [
     variants: ["typescript-current"],
   },
   {
+    label: "rust-semantic-canonical-candidate",
+    argv: ["check:rust-semantic-canonical-candidate"],
+    variants: ["typescript-current"],
+  },
+  {
+    label: "rust-semantic-evaluator-candidates",
+    argv: ["check:rust-semantic-evaluator-candidates"],
+    variants: ["typescript-current"],
+  },
+  {
+    label: "rust-semantic-canonical-producer",
+    argv: ["check:rust-semantic-canonical-producer"],
+    variants: ["typescript-current"],
+  },
+  {
     label: "rust-source-resolution-fragments",
     argv: ["check:rust-source-resolution-fragments"],
     variants: ["typescript-current"],
