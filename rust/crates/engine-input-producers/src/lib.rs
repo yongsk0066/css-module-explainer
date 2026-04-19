@@ -285,7 +285,9 @@ pub struct SourceResolutionCandidateV0 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_certainty: Option<String>,
     pub selector_certainty_shape_kind: String,
+    pub selector_certainty_shape_label: String,
     pub value_certainty_shape_kind: String,
+    pub value_certainty_shape_label: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selector_constraint_kind: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -401,7 +403,9 @@ pub struct ExpressionSemanticsCandidateV0 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_certainty: Option<String>,
     pub selector_certainty_shape_kind: String,
+    pub selector_certainty_shape_label: String,
     pub value_certainty_shape_kind: String,
+    pub value_certainty_shape_label: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selector_constraint_kind: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -547,6 +551,55 @@ pub(crate) fn map_value_certainty_shape_kind(facts: &StringTypeFactsV2) -> Strin
     }
 }
 
+pub(crate) fn map_value_certainty_shape_label(facts: &StringTypeFactsV2) -> String {
+    match map_value_certainty(facts).as_deref() {
+        Some("exact") => "exact".to_string(),
+        Some("possible") | None => "unknown".to_string(),
+        Some("inferred") => match facts.kind.as_str() {
+            "finiteSet" => {
+                let finite_value_count = facts
+                    .values
+                    .as_ref()
+                    .map(|values| {
+                        values
+                            .iter()
+                            .collect::<std::collections::BTreeSet<_>>()
+                            .len()
+                    })
+                    .unwrap_or(0);
+                format!("bounded finite ({finite_value_count})")
+            }
+            "constrained" => match facts.constraint_kind.as_deref() {
+                Some("prefix") => {
+                    format!(
+                        "constrained prefix `{}`",
+                        facts.prefix.as_deref().unwrap_or("")
+                    )
+                }
+                Some("suffix") => {
+                    format!(
+                        "constrained suffix `{}`",
+                        facts.suffix.as_deref().unwrap_or("")
+                    )
+                }
+                Some("prefixSuffix") => format!(
+                    "constrained prefix `{}` + suffix `{}`",
+                    facts.prefix.as_deref().unwrap_or(""),
+                    facts.suffix.as_deref().unwrap_or("")
+                ),
+                Some("charInclusion") => format!(
+                    "constrained character inclusion ({})",
+                    facts.char_must.as_deref().unwrap_or("none")
+                ),
+                Some("composite") => "constrained composite".to_string(),
+                _ => "unknown".to_string(),
+            },
+            _ => "unknown".to_string(),
+        },
+        _ => "unknown".to_string(),
+    }
+}
+
 pub(crate) fn map_selector_certainty_shape_kind(
     facts: &StringTypeFactsV2,
     matched_selector_count: usize,
@@ -559,6 +612,36 @@ pub(crate) fn map_selector_certainty_shape_kind(
         "unknown" | "top" => "unknown".to_string(),
         "constrained" => "exact".to_string(),
         "exact" | "finiteSet" => "exact".to_string(),
+        _ => "unknown".to_string(),
+    }
+}
+
+pub(crate) fn map_selector_certainty_shape_label(
+    facts: &StringTypeFactsV2,
+    matched_selector_count: usize,
+    selector_universe_count: usize,
+) -> String {
+    match map_selector_certainty(facts, matched_selector_count, selector_universe_count).as_str() {
+        "exact" => "exact".to_string(),
+        "possible" => "unknown".to_string(),
+        "inferred" => match facts.constraint_kind.as_deref() {
+            Some("prefix") => {
+                format!("constrained prefix selector set ({matched_selector_count})")
+            }
+            Some("suffix") => {
+                format!("constrained suffix selector set ({matched_selector_count})")
+            }
+            Some("prefixSuffix") => {
+                format!("constrained edge selector set ({matched_selector_count})")
+            }
+            Some("charInclusion") => {
+                format!("constrained character selector set ({matched_selector_count})")
+            }
+            Some("composite") => {
+                format!("constrained composite selector set ({matched_selector_count})")
+            }
+            _ => format!("bounded selector set ({matched_selector_count})"),
+        },
         _ => "unknown".to_string(),
     }
 }

@@ -6,7 +6,8 @@ use crate::{
     SourceResolutionMatchFragmentsV0, SourceResolutionPlanSummaryV0,
     SourceResolutionQueryFragmentV0, SourceResolutionQueryFragmentsV0, canonical_selector_count,
     finite_values_for_facts, map_selector_certainty, map_selector_certainty_shape_kind,
-    map_value_certainty, map_value_certainty_shape_kind, resolve_selector_names,
+    map_selector_certainty_shape_label, map_value_certainty, map_value_certainty_shape_kind,
+    map_value_certainty_shape_label, resolve_selector_names,
 };
 
 pub fn summarize_source_resolution_candidates_input(
@@ -40,6 +41,11 @@ pub fn summarize_source_resolution_candidates_input(
             selector_names.len(),
             canonical_selector_count(style),
         );
+        let selector_certainty_shape_label = map_selector_certainty_shape_label(
+            &entry.facts,
+            selector_names.len(),
+            canonical_selector_count(style),
+        );
         let selector_certainty_shape_kind =
             map_selector_certainty_shape_kind(&entry.facts, selector_names.len());
 
@@ -52,7 +58,9 @@ pub fn summarize_source_resolution_candidates_input(
             selector_certainty,
             value_certainty: map_value_certainty(&entry.facts),
             selector_certainty_shape_kind,
+            selector_certainty_shape_label,
             value_certainty_shape_kind: map_value_certainty_shape_kind(&entry.facts),
+            value_certainty_shape_label: map_value_certainty_shape_label(&entry.facts),
             selector_constraint_kind: entry.facts.constraint_kind.clone(),
             value_certainty_constraint_kind: entry.facts.constraint_kind.clone(),
             value_prefix: entry.facts.prefix.clone(),
@@ -330,11 +338,19 @@ mod tests {
         assert_eq!(first.selector_certainty, "inferred");
         assert_eq!(first.selector_certainty_shape_kind, "exact");
         assert_eq!(
+            first.selector_certainty_shape_label,
+            "constrained edge selector set (1)"
+        );
+        assert_eq!(
             first.selector_constraint_kind.as_deref(),
             Some("prefixSuffix")
         );
         assert_eq!(first.value_certainty.as_deref(), Some("inferred"));
         assert_eq!(first.value_certainty_shape_kind, "constrained");
+        assert_eq!(
+            first.value_certainty_shape_label,
+            "constrained prefix `btn-` + suffix `-active`"
+        );
         assert_eq!(
             first.value_certainty_constraint_kind.as_deref(),
             Some("prefixSuffix")
@@ -345,8 +361,13 @@ mod tests {
         assert_eq!(second.selector_names, vec!["card-header".to_string()]);
         assert_eq!(second.selector_certainty, "inferred");
         assert_eq!(second.selector_certainty_shape_kind, "exact");
+        assert_eq!(
+            second.selector_certainty_shape_label,
+            "bounded selector set (1)"
+        );
         assert_eq!(second.value_certainty.as_deref(), Some("inferred"));
         assert_eq!(second.value_certainty_shape_kind, "boundedFinite");
+        assert_eq!(second.value_certainty_shape_label, "bounded finite (2)");
         assert_eq!(
             second.finite_values,
             Some(vec!["card-header".to_string(), "card-body".to_string()])

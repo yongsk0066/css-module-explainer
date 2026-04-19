@@ -188,8 +188,10 @@ export interface SourceResolutionCandidateV0 {
   readonly selectorCertainty: string;
   readonly valueCertainty?: string;
   readonly selectorCertaintyShapeKind: string;
+  readonly selectorCertaintyShapeLabel: string;
   readonly selectorConstraintKind?: string;
   readonly valueCertaintyShapeKind: string;
+  readonly valueCertaintyShapeLabel: string;
   readonly valueCertaintyConstraintKind?: string;
   readonly valuePrefix?: string;
   readonly valueSuffix?: string;
@@ -268,7 +270,9 @@ export interface ExpressionSemanticsCandidateV0 {
   readonly selectorCertainty: string;
   readonly valueCertainty?: string;
   readonly selectorCertaintyShapeKind: string;
+  readonly selectorCertaintyShapeLabel: string;
   readonly valueCertaintyShapeKind: string;
+  readonly valueCertaintyShapeLabel: string;
   readonly selectorConstraintKind?: string;
   readonly valueCertaintyConstraintKind?: string;
   readonly valueConstraintKind?: string;
@@ -1054,7 +1058,10 @@ export function deriveTsExpressionSemanticsCandidates(
         candidate.valueCertainty = query.payload.valueCertainty;
       }
       candidate.selectorCertaintyShapeKind = query.payload.selectorCertaintyShapeKind ?? "unknown";
+      candidate.selectorCertaintyShapeLabel =
+        query.payload.selectorCertaintyShapeLabel ?? "unknown";
       candidate.valueCertaintyShapeKind = query.payload.valueCertaintyShapeKind ?? "unknown";
+      candidate.valueCertaintyShapeLabel = query.payload.valueCertaintyShapeLabel ?? "unknown";
       if (query.payload.selectorConstraintKind) {
         candidate.selectorConstraintKind = query.payload.selectorConstraintKind;
       }
@@ -1189,10 +1196,13 @@ export function deriveTsSourceResolutionCandidates(
         candidate.valueCertainty = query.payload.valueCertainty;
       }
       candidate.selectorCertaintyShapeKind = query.payload.selectorCertaintyShapeKind ?? "unknown";
+      candidate.selectorCertaintyShapeLabel =
+        query.payload.selectorCertaintyShapeLabel ?? "unknown";
       if (query.payload.selectorConstraintKind) {
         candidate.selectorConstraintKind = query.payload.selectorConstraintKind;
       }
       candidate.valueCertaintyShapeKind = query.payload.valueCertaintyShapeKind ?? "unknown";
+      candidate.valueCertaintyShapeLabel = query.payload.valueCertaintyShapeLabel ?? "unknown";
       if (query.payload.valueCertaintyConstraintKind) {
         candidate.valueCertaintyConstraintKind = query.payload.valueCertaintyConstraintKind;
       }

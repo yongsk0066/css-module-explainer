@@ -6,8 +6,9 @@ use crate::{
     ExpressionSemanticsMatchFragmentV0, ExpressionSemanticsMatchFragmentsV0,
     ExpressionSemanticsQueryFragmentV0, ExpressionSemanticsQueryFragmentsV0,
     canonical_selector_count, finite_values_for_facts, map_expression_value_domain_kind,
-    map_selector_certainty, map_selector_certainty_shape_kind, map_value_certainty,
-    map_value_certainty_shape_kind, resolve_selector_names,
+    map_selector_certainty, map_selector_certainty_shape_kind, map_selector_certainty_shape_label,
+    map_value_certainty, map_value_certainty_shape_kind, map_value_certainty_shape_label,
+    resolve_selector_names,
 };
 
 pub fn summarize_expression_semantics_candidates_input(
@@ -47,9 +48,15 @@ pub fn summarize_expression_semantics_candidates_input(
             canonical_selector_count(style),
         );
         let value_certainty = map_value_certainty(&entry.facts);
+        let selector_certainty_shape_label = map_selector_certainty_shape_label(
+            &entry.facts,
+            selector_names.len(),
+            canonical_selector_count(style),
+        );
         let selector_certainty_shape_kind =
             map_selector_certainty_shape_kind(&entry.facts, selector_names.len());
         let value_certainty_shape_kind = map_value_certainty_shape_kind(&entry.facts);
+        let value_certainty_shape_label = map_value_certainty_shape_label(&entry.facts);
 
         candidates.push(ExpressionSemanticsCandidateV0 {
             query_id: entry.expression_id.clone(),
@@ -63,7 +70,9 @@ pub fn summarize_expression_semantics_candidates_input(
             selector_certainty,
             value_certainty,
             selector_certainty_shape_kind,
+            selector_certainty_shape_label,
             value_certainty_shape_kind,
+            value_certainty_shape_label,
             selector_constraint_kind: entry.facts.constraint_kind.clone(),
             value_certainty_constraint_kind: entry.facts.constraint_kind.clone(),
             value_constraint_kind: entry.facts.constraint_kind.clone(),
@@ -297,7 +306,15 @@ mod tests {
         assert_eq!(first.selector_certainty, "inferred");
         assert_eq!(first.value_certainty.as_deref(), Some("inferred"));
         assert_eq!(first.selector_certainty_shape_kind, "exact");
+        assert_eq!(
+            first.selector_certainty_shape_label,
+            "constrained edge selector set (1)"
+        );
         assert_eq!(first.value_certainty_shape_kind, "constrained");
+        assert_eq!(
+            first.value_certainty_shape_label,
+            "constrained prefix `btn-` + suffix `-active`"
+        );
         assert_eq!(
             first.selector_constraint_kind.as_deref(),
             Some("prefixSuffix")
@@ -322,6 +339,11 @@ mod tests {
         assert_eq!(second.selector_certainty, "inferred");
         assert_eq!(second.value_certainty.as_deref(), Some("inferred"));
         assert_eq!(second.selector_certainty_shape_kind, "exact");
+        assert_eq!(
+            second.selector_certainty_shape_label,
+            "bounded selector set (1)"
+        );
         assert_eq!(second.value_certainty_shape_kind, "boundedFinite");
+        assert_eq!(second.value_certainty_shape_label, "bounded finite (2)");
     }
 }
