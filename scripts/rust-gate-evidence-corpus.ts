@@ -54,6 +54,11 @@ export const RUST_GATE_EVIDENCE_CORPUS: readonly RustGateEvidenceEntry[] = [
     variants: ["typescript-current"],
   },
   {
+    label: "rust-shadow-smoke",
+    argv: ["check:rust-shadow-smoke"],
+    variants: ["typescript-current"],
+  },
+  {
     label: "backend-typecheck-smoke",
     argv: ["check:backend-typecheck-smoke"],
     variants: ["typescript-current", "tsgo-preview"],

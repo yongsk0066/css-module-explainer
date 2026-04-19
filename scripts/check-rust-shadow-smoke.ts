@@ -12,7 +12,7 @@ void (async () => {
     // oxlint-disable-next-line eslint/no-await-in-loop
     const snapshot = await buildContractParitySnapshot(entry);
     // oxlint-disable-next-line eslint/no-await-in-loop
-    const summary = await runShadow(snapshot.input);
+    const summary = await runShadow(snapshot);
 
     if (summary.inputVersion !== "2") {
       throw new Error(`Unexpected inputVersion for ${entry.label}: ${summary.inputVersion}`);
@@ -26,9 +26,24 @@ void (async () => {
     if (summary.typeFactCount !== snapshot.input.typeFacts.length) {
       throw new Error(`Type fact count mismatch for ${entry.label}`);
     }
+    if (summary.queryResultCount !== snapshot.output.queryResults.length) {
+      throw new Error(`Query result count mismatch for ${entry.label}`);
+    }
+    if (summary.rewritePlanCount !== snapshot.output.rewritePlans.length) {
+      throw new Error(`Rewrite plan count mismatch for ${entry.label}`);
+    }
+    if (summary.checkerTotalFindings !== snapshot.output.checkerReport.summary.total) {
+      throw new Error(`Checker total mismatch for ${entry.label}`);
+    }
+    if (summary.checkerWarningCount !== snapshot.output.checkerReport.summary.warnings) {
+      throw new Error(`Checker warning mismatch for ${entry.label}`);
+    }
+    if (summary.checkerHintCount !== snapshot.output.checkerReport.summary.hints) {
+      throw new Error(`Checker hint mismatch for ${entry.label}`);
+    }
 
     process.stdout.write(
-      `sources=${summary.sourceCount} styles=${summary.styleCount} typeFacts=${summary.typeFactCount} kinds=${JSON.stringify(summary.byKind)}\n\n`,
+      `sources=${summary.sourceCount} styles=${summary.styleCount} typeFacts=${summary.typeFactCount} queries=${summary.queryResultCount} findings=${summary.checkerTotalFindings} kinds=${JSON.stringify(summary.byKind)} queryKinds=${JSON.stringify(summary.queryKindCounts)}\n\n`,
     );
   }
 })();
@@ -43,9 +58,15 @@ interface ShadowSummaryV0 {
   readonly byKind: Readonly<Record<string, number>>;
   readonly constrainedKinds: Readonly<Record<string, number>>;
   readonly finiteValueCount: number;
+  readonly queryResultCount: number;
+  readonly queryKindCounts: Readonly<Record<string, number>>;
+  readonly rewritePlanCount: number;
+  readonly checkerWarningCount: number;
+  readonly checkerHintCount: number;
+  readonly checkerTotalFindings: number;
 }
 
-function runShadow(input: unknown): Promise<ShadowSummaryV0> {
+function runShadow(snapshot: unknown): Promise<ShadowSummaryV0> {
   return new Promise((resolve, reject) => {
     const child = spawn(
       "cargo",
@@ -82,6 +103,6 @@ function runShadow(input: unknown): Promise<ShadowSummaryV0> {
       }
     });
 
-    child.stdin.end(JSON.stringify(input));
+    child.stdin.end(JSON.stringify(snapshot));
   });
 }
