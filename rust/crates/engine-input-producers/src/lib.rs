@@ -20,6 +20,7 @@ pub use selector_usage::summarize_selector_usage_plan_input;
 pub use selector_usage::summarize_selector_usage_query_fragments_input;
 pub use source_resolution::summarize_source_resolution_fragments_input;
 pub use source_resolution::summarize_source_resolution_plan_input;
+pub use source_resolution::summarize_source_resolution_query_fragments_input;
 pub use type_facts::summarize_type_fact_input;
 
 #[derive(Debug, Deserialize)]
@@ -226,6 +227,23 @@ pub struct SourceResolutionPlanSummaryV0 {
     symbol_ref_with_binding_count: usize,
     style_access_count: usize,
     style_access_path_depth_sum: usize,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceResolutionQueryFragmentV0 {
+    pub query_id: String,
+    pub expression_id: String,
+    pub expression_kind: String,
+    pub style_file_path: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceResolutionQueryFragmentsV0 {
+    pub schema_version: &'static str,
+    pub input_version: String,
+    pub fragments: Vec<SourceResolutionQueryFragmentV0>,
 }
 
 #[derive(Debug, Serialize)]

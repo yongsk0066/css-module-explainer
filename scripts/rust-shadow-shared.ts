@@ -152,6 +152,19 @@ export interface SourceResolutionPlanSummaryV0 {
   readonly styleAccessPathDepthSum: number;
 }
 
+export interface SourceResolutionQueryFragmentV0 {
+  readonly queryId: string;
+  readonly expressionId: string;
+  readonly expressionKind: string;
+  readonly styleFilePath: string;
+}
+
+export interface SourceResolutionQueryFragmentsV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly fragments: readonly SourceResolutionQueryFragmentV0[];
+}
+
 export interface ExpressionSemanticsFragmentV0 {
   readonly queryId: string;
   readonly expressionId: string;
@@ -246,6 +259,15 @@ export async function runShadowSourceResolutionPlanInput(
   input: EngineInputV2,
 ): Promise<SourceResolutionPlanSummaryV0> {
   return runShadowJson<SourceResolutionPlanSummaryV0>(["input-source-resolution-plan"], input);
+}
+
+export async function runShadowSourceResolutionQueryFragmentsInput(
+  input: EngineInputV2,
+): Promise<SourceResolutionQueryFragmentsV0> {
+  return runShadowJson<SourceResolutionQueryFragmentsV0>(
+    ["input-source-resolution-query-fragments"],
+    input,
+  );
 }
 
 export async function runShadowExpressionSemanticsFragmentsInput(
@@ -750,6 +772,27 @@ export function deriveTsSourceResolutionPlanSummary(
   };
 }
 
+export function deriveTsSourceResolutionQueryFragments(
+  snapshot: EngineParitySnapshotV2,
+): SourceResolutionQueryFragmentsV0 {
+  const fragments = snapshot.input.sources
+    .flatMap((source) =>
+      source.document.classExpressions.map((expression) => ({
+        queryId: expression.id,
+        expressionId: expression.id,
+        expressionKind: expression.kind,
+        styleFilePath: expression.scssModulePath,
+      })),
+    )
+    .toSorted((a, b) => a.queryId.localeCompare(b.queryId));
+
+  return {
+    schemaVersion: "0",
+    inputVersion: snapshot.input.version,
+    fragments,
+  };
+}
+
 export function deriveTsExpressionSemanticsFragments(
   snapshot: EngineParitySnapshotV2,
 ): ExpressionSemanticsFragmentsV0 {
@@ -1234,6 +1277,22 @@ export function assertSourceResolutionPlanSummaryMatch(
     actual.expressionKindCounts,
     expected.expressionKindCounts,
   );
+}
+
+export function assertSourceResolutionQueryFragmentsMatch(
+  label: string,
+  actual: SourceResolutionQueryFragmentsV0,
+  expected: SourceResolutionQueryFragmentsV0,
+): void {
+  assertEqualField(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
+  assertEqualField(label, "inputVersion", actual.inputVersion, expected.inputVersion);
+  const actualJson = JSON.stringify(actual.fragments);
+  const expectedJson = JSON.stringify(expected.fragments);
+  if (actualJson !== expectedJson) {
+    throw new Error(
+      `${label}: sourceResolutionQueryFragments mismatch\nexpected: ${expectedJson}\nreceived: ${actualJson}`,
+    );
+  }
 }
 
 export function assertExpressionSemanticsFragmentsMatch(

@@ -2,7 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     EngineInputV2, SourceResolutionFragmentV0, SourceResolutionFragmentsV0,
-    SourceResolutionPlanSummaryV0, map_value_certainty_shape_kind,
+    SourceResolutionPlanSummaryV0, SourceResolutionQueryFragmentV0,
+    SourceResolutionQueryFragmentsV0, map_value_certainty_shape_kind,
 };
 
 pub fn summarize_source_resolution_plan_input(
@@ -89,10 +90,36 @@ pub fn summarize_source_resolution_fragments_input(
     }
 }
 
+pub fn summarize_source_resolution_query_fragments_input(
+    input: &EngineInputV2,
+) -> SourceResolutionQueryFragmentsV0 {
+    let mut fragments = Vec::new();
+
+    for source in &input.sources {
+        for expression in &source.document.class_expressions {
+            fragments.push(SourceResolutionQueryFragmentV0 {
+                query_id: expression.id.clone(),
+                expression_id: expression.id.clone(),
+                expression_kind: expression.kind.clone(),
+                style_file_path: expression.scss_module_path.clone(),
+            });
+        }
+    }
+
+    fragments.sort_by(|a, b| a.query_id.cmp(&b.query_id));
+
+    SourceResolutionQueryFragmentsV0 {
+        schema_version: "0",
+        input_version: input.version.clone(),
+        fragments,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         summarize_source_resolution_fragments_input, summarize_source_resolution_plan_input,
+        summarize_source_resolution_query_fragments_input,
     };
     use crate::test_support::sample_input;
 
@@ -136,5 +163,22 @@ mod tests {
         assert_eq!(summary.symbol_ref_with_binding_count, 1);
         assert_eq!(summary.style_access_count, 1);
         assert_eq!(summary.style_access_path_depth_sum, 2);
+    }
+
+    #[test]
+    fn builds_source_resolution_query_fragments_from_input() {
+        let summary = summarize_source_resolution_query_fragments_input(&sample_input());
+
+        assert_eq!(summary.fragments.len(), 2);
+        let first = &summary.fragments[0];
+        assert_eq!(first.query_id, "expr-1");
+        assert_eq!(first.expression_id, "expr-1");
+        assert_eq!(first.expression_kind, "symbolRef");
+        assert_eq!(first.style_file_path, "/tmp/App.module.scss");
+
+        let second = &summary.fragments[1];
+        assert_eq!(second.query_id, "expr-2");
+        assert_eq!(second.expression_kind, "styleAccess");
+        assert_eq!(second.style_file_path, "/tmp/Card.module.scss");
     }
 }
