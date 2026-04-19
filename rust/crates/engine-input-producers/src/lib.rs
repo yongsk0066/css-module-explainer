@@ -14,6 +14,7 @@ mod type_facts;
 pub use expression_domain::summarize_expression_domain_fragments_input;
 pub use expression_domain::summarize_expression_domain_plan_input;
 pub use expression_semantics::summarize_expression_semantics_fragments_input;
+pub use expression_semantics::summarize_expression_semantics_query_fragments_input;
 pub use query_plan::summarize_query_plan_input;
 pub use selector_usage::summarize_selector_usage_fragments_input;
 pub use selector_usage::summarize_selector_usage_plan_input;
@@ -278,6 +279,23 @@ pub struct ExpressionSemanticsFragmentsV0 {
     schema_version: &'static str,
     input_version: String,
     fragments: Vec<ExpressionSemanticsFragmentV0>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExpressionSemanticsQueryFragmentV0 {
+    pub query_id: String,
+    pub expression_id: String,
+    pub expression_kind: String,
+    pub style_file_path: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExpressionSemanticsQueryFragmentsV0 {
+    pub schema_version: &'static str,
+    pub input_version: String,
+    pub fragments: Vec<ExpressionSemanticsQueryFragmentV0>,
 }
 
 #[derive(Debug, Serialize)]

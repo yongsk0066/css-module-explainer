@@ -187,6 +187,19 @@ export interface ExpressionSemanticsFragmentsV0 {
   readonly fragments: readonly ExpressionSemanticsFragmentV0[];
 }
 
+export interface ExpressionSemanticsQueryFragmentV0 {
+  readonly queryId: string;
+  readonly expressionId: string;
+  readonly expressionKind: string;
+  readonly styleFilePath: string;
+}
+
+export interface ExpressionSemanticsQueryFragmentsV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly fragments: readonly ExpressionSemanticsQueryFragmentV0[];
+}
+
 export interface SourceResolutionFragmentV0 {
   readonly queryId: string;
   readonly expressionId: string;
@@ -275,6 +288,15 @@ export async function runShadowExpressionSemanticsFragmentsInput(
 ): Promise<ExpressionSemanticsFragmentsV0> {
   return runShadowJson<ExpressionSemanticsFragmentsV0>(
     ["input-expression-semantics-fragments"],
+    input,
+  );
+}
+
+export async function runShadowExpressionSemanticsQueryFragmentsInput(
+  input: EngineInputV2,
+): Promise<ExpressionSemanticsQueryFragmentsV0> {
+  return runShadowJson<ExpressionSemanticsQueryFragmentsV0>(
+    ["input-expression-semantics-query-fragments"],
     input,
   );
 }
@@ -841,6 +863,27 @@ export function deriveTsExpressionSemanticsFragments(
   };
 }
 
+export function deriveTsExpressionSemanticsQueryFragments(
+  snapshot: EngineParitySnapshotV2,
+): ExpressionSemanticsQueryFragmentsV0 {
+  const fragments = snapshot.input.sources
+    .flatMap((source) =>
+      source.document.classExpressions.map((expression) => ({
+        queryId: expression.id,
+        expressionId: expression.id,
+        expressionKind: expression.kind,
+        styleFilePath: expression.scssModulePath,
+      })),
+    )
+    .toSorted((a, b) => a.queryId.localeCompare(b.queryId));
+
+  return {
+    schemaVersion: "0",
+    inputVersion: snapshot.input.version,
+    fragments,
+  };
+}
+
 export function deriveTsSourceResolutionFragments(
   snapshot: EngineParitySnapshotV2,
 ): SourceResolutionFragmentsV0 {
@@ -1307,6 +1350,22 @@ export function assertExpressionSemanticsFragmentsMatch(
   if (actualJson !== expectedJson) {
     throw new Error(
       `${label}: expressionSemanticsFragments mismatch\nexpected: ${expectedJson}\nreceived: ${actualJson}`,
+    );
+  }
+}
+
+export function assertExpressionSemanticsQueryFragmentsMatch(
+  label: string,
+  actual: ExpressionSemanticsQueryFragmentsV0,
+  expected: ExpressionSemanticsQueryFragmentsV0,
+): void {
+  assertEqualField(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
+  assertEqualField(label, "inputVersion", actual.inputVersion, expected.inputVersion);
+  const actualJson = JSON.stringify(actual.fragments);
+  const expectedJson = JSON.stringify(expected.fragments);
+  if (actualJson !== expectedJson) {
+    throw new Error(
+      `${label}: expressionSemanticsQueryFragments mismatch\nexpected: ${expectedJson}\nreceived: ${actualJson}`,
     );
   }
 }
