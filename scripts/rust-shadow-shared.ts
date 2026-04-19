@@ -104,6 +104,28 @@ export interface SourceResolutionPlanSummaryV0 {
   readonly styleAccessPathDepthSum: number;
 }
 
+export interface ExpressionSemanticsFragmentV0 {
+  readonly queryId: string;
+  readonly expressionId: string;
+  readonly expressionKind: string;
+  readonly styleFilePath: string;
+  readonly valueDomainKind: string;
+  readonly valueConstraintKind?: string;
+  readonly valuePrefix?: string;
+  readonly valueSuffix?: string;
+  readonly valueMinLen?: number;
+  readonly valueMaxLen?: number;
+  readonly valueCharMust?: string;
+  readonly valueCharMay?: string;
+  readonly valueMayIncludeOtherChars?: boolean;
+}
+
+export interface ExpressionSemanticsFragmentsV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly fragments: readonly ExpressionSemanticsFragmentV0[];
+}
+
 export async function runShadow(snapshot: unknown): Promise<ShadowSummaryV0> {
   return runShadowJson<ShadowSummaryV0>([], snapshot);
 }
@@ -134,6 +156,15 @@ export async function runShadowSourceResolutionPlanInput(
   input: EngineInputV2,
 ): Promise<SourceResolutionPlanSummaryV0> {
   return runShadowJson<SourceResolutionPlanSummaryV0>(["input-source-resolution-plan"], input);
+}
+
+export async function runShadowExpressionSemanticsFragmentsInput(
+  input: EngineInputV2,
+): Promise<ExpressionSemanticsFragmentsV0> {
+  return runShadowJson<ExpressionSemanticsFragmentsV0>(
+    ["input-expression-semantics-fragments"],
+    input,
+  );
 }
 
 function runShadowJson<T>(args: string[], payload: unknown): Promise<T> {
@@ -522,6 +553,54 @@ export function deriveTsSourceResolutionPlanSummary(
   };
 }
 
+export function deriveTsExpressionSemanticsFragments(
+  snapshot: EngineParitySnapshotV2,
+): ExpressionSemanticsFragmentsV0 {
+  const fragments = snapshot.output.queryResults
+    .filter((query) => query.kind === "expression-semantics")
+    .map((query) => {
+      const fragment: ExpressionSemanticsFragmentV0 = {
+        queryId: query.queryId,
+        expressionId: query.payload.expressionId,
+        expressionKind: query.payload.expressionKind,
+        styleFilePath: query.payload.styleFilePath ?? "",
+        valueDomainKind: query.payload.valueDomainKind,
+      };
+      if (query.payload.valueConstraintKind) {
+        fragment.valueConstraintKind = query.payload.valueConstraintKind;
+      }
+      if (query.payload.valuePrefix) {
+        fragment.valuePrefix = query.payload.valuePrefix;
+      }
+      if (query.payload.valueSuffix) {
+        fragment.valueSuffix = query.payload.valueSuffix;
+      }
+      if (query.payload.valueMinLen !== undefined) {
+        fragment.valueMinLen = query.payload.valueMinLen;
+      }
+      if (query.payload.valueMaxLen !== undefined) {
+        fragment.valueMaxLen = query.payload.valueMaxLen;
+      }
+      if (query.payload.valueCharMust) {
+        fragment.valueCharMust = query.payload.valueCharMust;
+      }
+      if (query.payload.valueCharMay) {
+        fragment.valueCharMay = query.payload.valueCharMay;
+      }
+      if (query.payload.valueMayIncludeOtherChars) {
+        fragment.valueMayIncludeOtherChars = true;
+      }
+      return fragment;
+    })
+    .toSorted((a, b) => a.queryId.localeCompare(b.queryId));
+
+  return {
+    schemaVersion: "0",
+    inputVersion: snapshot.input.version,
+    fragments,
+  };
+}
+
 export function assertShadowSummaryMatch(
   label: string,
   actual: ShadowSummaryV0,
@@ -863,6 +942,22 @@ export function assertSourceResolutionPlanSummaryMatch(
     actual.expressionKindCounts,
     expected.expressionKindCounts,
   );
+}
+
+export function assertExpressionSemanticsFragmentsMatch(
+  label: string,
+  actual: ExpressionSemanticsFragmentsV0,
+  expected: ExpressionSemanticsFragmentsV0,
+): void {
+  assertEqualField(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
+  assertEqualField(label, "inputVersion", actual.inputVersion, expected.inputVersion);
+  const actualJson = JSON.stringify(actual.fragments);
+  const expectedJson = JSON.stringify(expected.fragments);
+  if (actualJson !== expectedJson) {
+    throw new Error(
+      `${label}: expressionSemanticsFragments mismatch\nexpected: ${expectedJson}\nreceived: ${actualJson}`,
+    );
+  }
 }
 
 function assertEqualField<T>(label: string, field: string, actual: T, expected: T) {

@@ -74,6 +74,11 @@ export const RUST_GATE_EVIDENCE_CORPUS: readonly RustGateEvidenceEntry[] = [
     variants: ["typescript-current"],
   },
   {
+    label: "rust-expression-semantics-fragments",
+    argv: ["check:rust-expression-semantics-fragments"],
+    variants: ["typescript-current"],
+  },
+  {
     label: "rust-selector-usage-plan-compare",
     argv: ["check:rust-selector-usage-plan-compare"],
     variants: ["typescript-current"],
