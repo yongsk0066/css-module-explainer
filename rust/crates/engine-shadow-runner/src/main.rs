@@ -331,13 +331,15 @@ fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
                 }
                 collect_constraint_detail_counts(
                     &mut expression_constraint_detail_counts,
-                    payload.value_prefix.as_ref(),
-                    payload.value_suffix.as_ref(),
-                    payload.value_min_len,
-                    payload.value_max_len,
-                    payload.value_char_must.as_ref(),
-                    payload.value_char_may.as_ref(),
-                    payload.value_may_include_other_chars,
+                    ConstraintDetailInput {
+                        prefix: payload.value_prefix.as_ref(),
+                        suffix: payload.value_suffix.as_ref(),
+                        min_len: payload.value_min_len,
+                        max_len: payload.value_max_len,
+                        char_must: payload.value_char_must.as_ref(),
+                        char_may: payload.value_char_may.as_ref(),
+                        may_include_other_chars: payload.value_may_include_other_chars,
+                    },
                 );
 
                 if let Some(shape_kind) = &payload.value_certainty_shape_kind {
@@ -365,13 +367,15 @@ fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
                 }
                 collect_constraint_detail_counts(
                     &mut resolution_constraint_detail_counts,
-                    payload.value_prefix.as_ref(),
-                    payload.value_suffix.as_ref(),
-                    payload.value_min_len,
-                    payload.value_max_len,
-                    payload.value_char_must.as_ref(),
-                    payload.value_char_may.as_ref(),
-                    payload.value_may_include_other_chars,
+                    ConstraintDetailInput {
+                        prefix: payload.value_prefix.as_ref(),
+                        suffix: payload.value_suffix.as_ref(),
+                        min_len: payload.value_min_len,
+                        max_len: payload.value_max_len,
+                        char_must: payload.value_char_must.as_ref(),
+                        char_may: payload.value_char_may.as_ref(),
+                        may_include_other_chars: payload.value_may_include_other_chars,
+                    },
                 );
 
                 if let Some(shape_kind) = &payload.value_certainty_shape_kind {
@@ -499,37 +503,41 @@ fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
 
 fn collect_constraint_detail_counts(
     counts: &mut ConstraintDetailCounts,
-    prefix: Option<&String>,
-    suffix: Option<&String>,
-    min_len: Option<usize>,
-    max_len: Option<usize>,
-    char_must: Option<&String>,
-    char_may: Option<&String>,
-    may_include_other_chars: Option<bool>,
+    details: ConstraintDetailInput<'_>,
 ) {
-    if prefix.is_some() {
+    if details.prefix.is_some() {
         counts.prefix_count += 1;
     }
-    if suffix.is_some() {
+    if details.suffix.is_some() {
         counts.suffix_count += 1;
     }
-    if let Some(value) = min_len {
+    if let Some(value) = details.min_len {
         counts.min_len_count += 1;
         counts.min_len_sum += value;
     }
-    if let Some(value) = max_len {
+    if let Some(value) = details.max_len {
         counts.max_len_count += 1;
         counts.max_len_sum += value;
     }
-    if let Some(value) = char_must {
+    if let Some(value) = details.char_must {
         counts.char_must_count += 1;
         counts.char_must_len_sum += value.len();
     }
-    if let Some(value) = char_may {
+    if let Some(value) = details.char_may {
         counts.char_may_count += 1;
         counts.char_may_len_sum += value.len();
     }
-    if may_include_other_chars == Some(true) {
+    if details.may_include_other_chars == Some(true) {
         counts.may_include_other_chars_count += 1;
     }
+}
+
+struct ConstraintDetailInput<'a> {
+    prefix: Option<&'a String>,
+    suffix: Option<&'a String>,
+    min_len: Option<usize>,
+    max_len: Option<usize>,
+    char_must: Option<&'a String>,
+    char_may: Option<&'a String>,
+    may_include_other_chars: Option<bool>,
 }

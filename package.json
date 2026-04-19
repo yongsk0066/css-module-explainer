@@ -44,6 +44,7 @@
     "check:stylelint-plugin-smoke": "node ./scripts/check-stylelint-plugin-smoke.mjs",
     "check:backend-typecheck-smoke": "tsx ./scripts/check-backend-typecheck-smoke.ts",
     "check:type-fact-backend-parity": "tsx ./scripts/check-type-fact-backend-parity.ts",
+    "check:rust-workspace": "cargo fmt --manifest-path rust/Cargo.toml --all --check && cargo check --manifest-path rust/Cargo.toml && cargo clippy --manifest-path rust/Cargo.toml --all-targets --all-features -- -D warnings",
     "check:rust-type-fact-compare": "tsx ./scripts/check-rust-type-fact-compare.ts",
     "check:rust-shadow-smoke": "tsx ./scripts/check-rust-shadow-smoke.ts",
     "check:rust-shadow-compare": "tsx ./scripts/check-rust-shadow-compare.ts",
