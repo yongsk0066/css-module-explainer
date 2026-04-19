@@ -10,7 +10,7 @@ import { buildCheckerEngineParitySnapshotV1 } from "../server/engine-host-node/s
 import { buildCheckerEngineParitySnapshotV2 } from "../server/engine-host-node/src/engine-parity-v2";
 import type { ContractParityEntry } from "./contract-parity-corpus";
 
-export async function buildContractParitySnapshot(entry: ContractParityEntry) {
+async function prepareContractParityContext(entry: ContractParityEntry) {
   const { sourceFiles, styleFiles } = await resolveWorkspaceCheckFiles({
     workspaceRoot: entry.workspace.workspaceRoot,
     ...(entry.workspace.sourceFilePaths
@@ -36,23 +36,7 @@ export async function buildContractParitySnapshot(entry: ContractParityEntry) {
     filters: entry.filters,
   });
 
-  if (entry.contractVersion === "2") {
-    return buildCheckerEngineParitySnapshotV2({
-      workspaceRoot: entry.workspace.workspaceRoot,
-      classnameTransform: entry.workspace.classnameTransform ?? "asIs",
-      pathAlias: entry.workspace.pathAlias ?? {},
-      sourceDocuments,
-      styleFiles,
-      analysisCache: analysisHost.analysisCache,
-      styleDocumentForPath: styleHost.styleDocumentForPath,
-      typeResolver: analysisHost.typeResolver,
-      semanticReferenceIndex: analysisHost.semanticReferenceIndex,
-      styleDependencyGraph: styleHost.styleDependencyGraph,
-      checkerReport: command.checkerReport,
-    });
-  }
-
-  return buildCheckerEngineParitySnapshotV1({
+  return {
     workspaceRoot: entry.workspace.workspaceRoot,
     classnameTransform: entry.workspace.classnameTransform ?? "asIs",
     pathAlias: entry.workspace.pathAlias ?? {},
@@ -64,7 +48,45 @@ export async function buildContractParitySnapshot(entry: ContractParityEntry) {
     semanticReferenceIndex: analysisHost.semanticReferenceIndex,
     styleDependencyGraph: styleHost.styleDependencyGraph,
     checkerReport: command.checkerReport,
+  };
+}
+
+export async function buildContractParitySnapshotV1(entry: ContractParityEntry) {
+  const context = await prepareContractParityContext(entry);
+  return buildCheckerEngineParitySnapshotV1({
+    workspaceRoot: context.workspaceRoot,
+    classnameTransform: context.classnameTransform,
+    pathAlias: context.pathAlias,
+    sourceDocuments: context.sourceDocuments,
+    styleFiles: context.styleFiles,
+    analysisCache: context.analysisCache,
+    styleDocumentForPath: context.styleDocumentForPath,
+    typeResolver: context.typeResolver,
+    semanticReferenceIndex: context.semanticReferenceIndex,
+    styleDependencyGraph: context.styleDependencyGraph,
+    checkerReport: context.checkerReport,
   });
+}
+
+export async function buildContractParitySnapshotV2(entry: ContractParityEntry) {
+  const context = await prepareContractParityContext(entry);
+  return buildCheckerEngineParitySnapshotV2({
+    workspaceRoot: context.workspaceRoot,
+    classnameTransform: context.classnameTransform,
+    pathAlias: context.pathAlias,
+    sourceDocuments: context.sourceDocuments,
+    styleFiles: context.styleFiles,
+    analysisCache: context.analysisCache,
+    styleDocumentForPath: context.styleDocumentForPath,
+    typeResolver: context.typeResolver,
+    semanticReferenceIndex: context.semanticReferenceIndex,
+    styleDependencyGraph: context.styleDependencyGraph,
+    checkerReport: context.checkerReport,
+  });
+}
+
+export async function buildContractParitySnapshot(entry: ContractParityEntry) {
+  return buildContractParitySnapshotV2(entry);
 }
 
 export function normalizeContractParitySnapshot<T>(value: T, workspaceRoot: string): T {

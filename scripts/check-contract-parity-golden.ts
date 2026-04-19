@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { CONTRACT_PARITY_GOLDEN_CORPUS } from "./contract-parity-golden-corpus";
 import {
-  buildContractParitySnapshot,
+  buildContractParitySnapshotV1,
   normalizeContractParitySnapshot,
   stableJsonStringify,
 } from "./contract-parity-runtime";
@@ -15,7 +15,7 @@ void (async () => {
   for (const entry of CONTRACT_PARITY_GOLDEN_CORPUS) {
     const fixturePath = path.join(fixturesRoot, `${entry.label}.json`);
     // oxlint-disable-next-line eslint/no-await-in-loop
-    const snapshot = await buildContractParitySnapshot(entry);
+    const snapshot = await buildContractParitySnapshotV1(entry);
     const normalized = normalizeContractParitySnapshot(snapshot, entry.workspace.workspaceRoot);
     const actual = stableJsonStringify(normalized);
     const expected = stableJsonStringify(JSON.parse(readFileSync(fixturePath, "utf8")) as unknown);

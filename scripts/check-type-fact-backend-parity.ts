@@ -4,7 +4,6 @@ import {
   createWorkspaceAnalysisHost,
   createWorkspaceStyleHost,
 } from "../server/engine-host-node/src/checker-host/workspace-check-support";
-import { buildEngineInputV1 } from "../server/engine-host-node/src/engine-input-v1";
 import { buildEngineInputV2 } from "../server/engine-host-node/src/engine-input-v2";
 import { stableJsonStringify } from "./contract-parity-runtime";
 
@@ -42,17 +41,13 @@ void (async () => {
       const preview = await buildTypeFactSnapshot(entry, "tsgo-preview");
       return {
         fixture: entry.fixture,
-        v1Matches:
-          stableJsonStringify(baseline.v1.typeFacts) === stableJsonStringify(preview.v1.typeFacts),
         v2Matches:
-          stableJsonStringify(baseline.v2.typeFacts) === stableJsonStringify(preview.v2.typeFacts),
+          stableJsonStringify(baseline.typeFacts) === stableJsonStringify(preview.typeFacts),
         baseline: {
-          v1TypeFacts: baseline.v1.typeFacts,
-          v2TypeFacts: baseline.v2.typeFacts,
+          v2TypeFacts: baseline.typeFacts,
         },
         preview: {
-          v1TypeFacts: preview.v1.typeFacts,
-          v2TypeFacts: preview.v2.typeFacts,
+          v2TypeFacts: preview.typeFacts,
         },
       };
     }),
@@ -61,7 +56,7 @@ void (async () => {
   process.stdout.write(
     `${JSON.stringify(
       {
-        schemaVersion: "1",
+        schemaVersion: "2",
         tool: "css-module-explainer/type-fact-backend-parity",
         results,
       },
@@ -70,7 +65,7 @@ void (async () => {
     )}\n`,
   );
 
-  process.exitCode = results.every((result) => result.v1Matches && result.v2Matches) ? 0 : 1;
+  process.exitCode = results.every((result) => result.v2Matches) ? 0 : 1;
 })();
 
 async function buildTypeFactSnapshot(
@@ -103,34 +98,18 @@ async function buildTypeFactSnapshot(
     analysisHost.analysisCache,
   );
 
-  return {
-    v1: buildEngineInputV1({
-      workspaceRoot: fixture.workspaceRoot,
-      classnameTransform: "asIs",
-      pathAlias: {},
-      sourceDocuments,
-      styleFiles,
-      analysisCache: analysisHost.analysisCache,
-      styleDocumentForPath: styleHost.styleDocumentForPath,
-      typeBackend,
-      env: {
-        ...process.env,
-        CME_TYPE_FACT_BACKEND: typeBackend,
-      },
-    }),
-    v2: buildEngineInputV2({
-      workspaceRoot: fixture.workspaceRoot,
-      classnameTransform: "asIs",
-      pathAlias: {},
-      sourceDocuments,
-      styleFiles,
-      analysisCache: analysisHost.analysisCache,
-      styleDocumentForPath: styleHost.styleDocumentForPath,
-      typeBackend,
-      env: {
-        ...process.env,
-        CME_TYPE_FACT_BACKEND: typeBackend,
-      },
-    }),
-  };
+  return buildEngineInputV2({
+    workspaceRoot: fixture.workspaceRoot,
+    classnameTransform: "asIs",
+    pathAlias: {},
+    sourceDocuments,
+    styleFiles,
+    analysisCache: analysisHost.analysisCache,
+    styleDocumentForPath: styleHost.styleDocumentForPath,
+    typeBackend,
+    env: {
+      ...process.env,
+      CME_TYPE_FACT_BACKEND: typeBackend,
+    },
+  });
 }
