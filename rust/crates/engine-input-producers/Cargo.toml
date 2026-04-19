@@ -1,5 +1,5 @@
 [package]
-name = "engine-shadow-runner"
+name = "engine-input-producers"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -9,6 +9,5 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
-engine-input-producers = { path = "../engine-input-producers" }
 serde.workspace = true
 serde_json.workspace = true

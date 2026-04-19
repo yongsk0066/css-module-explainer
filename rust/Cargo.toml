@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/engine-shadow-runner"]
+members = ["crates/engine-input-producers", "crates/engine-shadow-runner"]
 resolver = "2"
 
 [workspace.package]

@@ -3,9 +3,18 @@
 version = 4
 
 [[package]]
+name = "engine-input-producers"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "engine-shadow-runner"
 version = "0.1.0"
 dependencies = [
+ "engine-input-producers",
  "serde",
  "serde_json",
 ]
