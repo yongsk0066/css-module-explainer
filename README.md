@@ -251,8 +251,8 @@ Current checker policy:
   - canonical-producer signals: `pnpm check:rust-expression-domain-canonical-producer`, `pnpm check:rust-expression-semantics-canonical-producer`, `pnpm check:rust-source-resolution-canonical-producer`
   - consolidated source-side lane: `pnpm check:rust-source-side-canonical-candidate`, `pnpm check:rust-source-side-evaluator-candidates`, `pnpm check:rust-source-side-canonical-producer`
   - full snapshot parity: `pnpm check:rust-shadow-compare`
-- Current `3.7.0` framing is source-side first:
-  - `expression-semantics` and `source-resolution` now carry canonical-producer signals on the Rust shadow path
+- Current `3.8.0` framing is a consolidated source-side lane:
+  - `expression-semantics` and `source-resolution` now carry family-level canonical-producer signals and a shared top-level source-side lane
   - `expression-domain` now carries input-only canonical artifacts on the Rust shadow path
   - `selector-usage` remains a shadow validation family, not a release-gating canonical candidate
   - current `EngineInputV2` does not preserve enough reference-level evidence to reproduce `selector-usage` semantics as an input-only canonical producer

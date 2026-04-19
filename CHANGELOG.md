@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.8.0] — 2026-04-20
+
+### Added
+
+- **Consolidated source-side Rust lane** — the Rust shadow path now exposes top-level source-side canonical-candidate bundles, evaluator candidates, and canonical-producer signals in addition to the existing family-level `expression-semantics` and `source-resolution` artifacts.
+- **Expanded source-side compare commands** — `pnpm check:rust-source-side-canonical-candidate`, `pnpm check:rust-source-side-evaluator-candidates`, and `pnpm check:rust-source-side-canonical-producer` now validate the consolidated source-side lane directly against the TypeScript parity oracle.
+
+### Changed
+
+- **`3.8.0` is now framed as a consolidated source-side Rust milestone** — the source-side lane is no longer expressed only as per-family signals. It now has explicit top-level canonical and evaluator artifact layers, while `expression-domain` remains input-only and `selector-usage` remains shadow-only.
+- **Rust producer-crate coverage is clean again under the new lane boundary** — `engine-input-producers` tests were realigned to the current certainty and selector-fragment mappings so the source-side lane lands on a green producer-crate baseline.
+
 ## [3.7.0] — 2026-04-20
 
 ### Added
