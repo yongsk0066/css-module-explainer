@@ -83,6 +83,27 @@ export interface ExpressionDomainPlanSummaryV0 {
   readonly finiteValueCount: number;
 }
 
+export interface ExpressionDomainFragmentV0 {
+  readonly expressionId: string;
+  readonly filePath: string;
+  readonly valueDomainKind: string;
+  readonly valueConstraintKind?: string;
+  readonly valuePrefix?: string;
+  readonly valueSuffix?: string;
+  readonly valueMinLen?: number;
+  readonly valueMaxLen?: number;
+  readonly valueCharMust?: string;
+  readonly valueCharMay?: string;
+  readonly valueMayIncludeOtherChars?: boolean;
+  readonly finiteValueCount: number;
+}
+
+export interface ExpressionDomainFragmentsV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly fragments: readonly ExpressionDomainFragmentV0[];
+}
+
 export interface SelectorUsagePlanSummaryV0 {
   readonly schemaVersion: string;
   readonly inputVersion: string;
@@ -179,6 +200,12 @@ export async function runShadowExpressionDomainInput(
   input: EngineInputV2,
 ): Promise<ExpressionDomainPlanSummaryV0> {
   return runShadowJson<ExpressionDomainPlanSummaryV0>(["input-expression-domains"], input);
+}
+
+export async function runShadowExpressionDomainFragmentsInput(
+  input: EngineInputV2,
+): Promise<ExpressionDomainFragmentsV0> {
+  return runShadowJson<ExpressionDomainFragmentsV0>(["input-expression-domain-fragments"], input);
 }
 
 export async function runShadowSelectorUsagePlanInput(
@@ -526,6 +553,52 @@ export function deriveTsExpressionDomainPlanSummary(
     valueConstraintKinds,
     constraintDetailCounts,
     finiteValueCount,
+  };
+}
+
+export function deriveTsExpressionDomainFragments(
+  snapshot: EngineParitySnapshotV2,
+): ExpressionDomainFragmentsV0 {
+  const fragments = snapshot.input.typeFacts
+    .map((entry) => {
+      const fragment: ExpressionDomainFragmentV0 = {
+        expressionId: entry.expressionId,
+        filePath: entry.filePath,
+        valueDomainKind: entry.facts.kind,
+        finiteValueCount: entry.facts.values?.length ?? 0,
+      };
+      if (entry.facts.constraintKind) {
+        fragment.valueConstraintKind = entry.facts.constraintKind;
+      }
+      if (entry.facts.prefix) {
+        fragment.valuePrefix = entry.facts.prefix;
+      }
+      if (entry.facts.suffix) {
+        fragment.valueSuffix = entry.facts.suffix;
+      }
+      if (entry.facts.minLen !== undefined) {
+        fragment.valueMinLen = entry.facts.minLen;
+      }
+      if (entry.facts.maxLen !== undefined) {
+        fragment.valueMaxLen = entry.facts.maxLen;
+      }
+      if (entry.facts.charMust) {
+        fragment.valueCharMust = entry.facts.charMust;
+      }
+      if (entry.facts.charMay) {
+        fragment.valueCharMay = entry.facts.charMay;
+      }
+      if (entry.facts.mayIncludeOtherChars) {
+        fragment.valueMayIncludeOtherChars = true;
+      }
+      return fragment;
+    })
+    .toSorted((a, b) => a.expressionId.localeCompare(b.expressionId));
+
+  return {
+    schemaVersion: "0",
+    inputVersion: snapshot.input.version,
+    fragments,
   };
 }
 
@@ -988,6 +1061,22 @@ export function assertExpressionDomainPlanSummaryMatch(
     actual.constraintDetailCounts,
     expected.constraintDetailCounts,
   );
+}
+
+export function assertExpressionDomainFragmentsMatch(
+  label: string,
+  actual: ExpressionDomainFragmentsV0,
+  expected: ExpressionDomainFragmentsV0,
+): void {
+  assertEqualField(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
+  assertEqualField(label, "inputVersion", actual.inputVersion, expected.inputVersion);
+  const actualJson = JSON.stringify(actual.fragments);
+  const expectedJson = JSON.stringify(expected.fragments);
+  if (actualJson !== expectedJson) {
+    throw new Error(
+      `${label}: expressionDomainFragments mismatch\nexpected: ${expectedJson}\nreceived: ${actualJson}`,
+    );
+  }
 }
 
 export function assertSelectorUsagePlanSummaryMatch(

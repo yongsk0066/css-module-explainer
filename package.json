@@ -48,6 +48,7 @@
     "check:rust-type-fact-compare": "tsx ./scripts/check-rust-type-fact-compare.ts",
     "check:rust-query-plan-compare": "tsx ./scripts/check-rust-query-plan-compare.ts",
     "check:rust-expression-domain-compare": "tsx ./scripts/check-rust-expression-domain-compare.ts",
+    "check:rust-expression-domain-fragments": "tsx ./scripts/check-rust-expression-domain-fragments.ts",
     "check:rust-expression-semantics-fragments": "tsx ./scripts/check-rust-expression-semantics-fragments.ts",
     "check:rust-source-resolution-fragments": "tsx ./scripts/check-rust-source-resolution-fragments.ts",
     "check:rust-selector-usage-plan-compare": "tsx ./scripts/check-rust-selector-usage-plan-compare.ts",
