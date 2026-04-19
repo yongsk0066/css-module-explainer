@@ -294,11 +294,25 @@ export interface SourceResolutionCanonicalProducerSignalV0 {
   readonly evaluatorCandidates: SourceResolutionEvaluatorCandidatesV0;
 }
 
+export interface SourceSideCanonicalCandidateBundleV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly expressionSemantics: ExpressionSemanticsCanonicalCandidateBundleV0;
+  readonly sourceResolution: SourceResolutionCanonicalCandidateBundleV0;
+}
+
+export interface SourceSideEvaluatorCandidatesV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly expressionSemantics: ExpressionSemanticsEvaluatorCandidatesV0;
+  readonly sourceResolution: SourceResolutionEvaluatorCandidatesV0;
+}
+
 export interface SourceSideCanonicalProducerSignalV0 {
   readonly schemaVersion: string;
   readonly inputVersion: string;
-  readonly expressionSemantics: ExpressionSemanticsCanonicalProducerSignalV0;
-  readonly sourceResolution: SourceResolutionCanonicalProducerSignalV0;
+  readonly canonicalBundle: SourceSideCanonicalCandidateBundleV0;
+  readonly evaluatorCandidates: SourceSideEvaluatorCandidatesV0;
 }
 
 export interface ExpressionSemanticsFragmentV0 {
@@ -656,6 +670,24 @@ export async function runShadowSourceSideCanonicalProducerInput(
 ): Promise<SourceSideCanonicalProducerSignalV0> {
   return runShadowJson<SourceSideCanonicalProducerSignalV0>(
     ["input-source-side-canonical-producer"],
+    input,
+  );
+}
+
+export async function runShadowSourceSideCanonicalCandidateInput(
+  input: EngineInputV2,
+): Promise<SourceSideCanonicalCandidateBundleV0> {
+  return runShadowJson<SourceSideCanonicalCandidateBundleV0>(
+    ["input-source-side-canonical-candidate"],
+    input,
+  );
+}
+
+export async function runShadowSourceSideEvaluatorCandidatesInput(
+  input: EngineInputV2,
+): Promise<SourceSideEvaluatorCandidatesV0> {
+  return runShadowJson<SourceSideEvaluatorCandidatesV0>(
+    ["input-source-side-evaluator-candidates"],
     input,
   );
 }
@@ -1689,14 +1721,36 @@ export function deriveTsSourceResolutionCanonicalProducerSignal(
   };
 }
 
+export function deriveTsSourceSideCanonicalCandidateBundle(
+  snapshot: EngineParitySnapshotV2,
+): SourceSideCanonicalCandidateBundleV0 {
+  return {
+    schemaVersion: "0",
+    inputVersion: snapshot.input.version,
+    expressionSemantics: deriveTsExpressionSemanticsCanonicalCandidateBundle(snapshot),
+    sourceResolution: deriveTsSourceResolutionCanonicalCandidateBundle(snapshot),
+  };
+}
+
+export function deriveTsSourceSideEvaluatorCandidates(
+  snapshot: EngineParitySnapshotV2,
+): SourceSideEvaluatorCandidatesV0 {
+  return {
+    schemaVersion: "0",
+    inputVersion: snapshot.input.version,
+    expressionSemantics: deriveTsExpressionSemanticsEvaluatorCandidates(snapshot),
+    sourceResolution: deriveTsSourceResolutionEvaluatorCandidates(snapshot),
+  };
+}
+
 export function deriveTsSourceSideCanonicalProducerSignal(
   snapshot: EngineParitySnapshotV2,
 ): SourceSideCanonicalProducerSignalV0 {
   return {
     schemaVersion: "0",
     inputVersion: snapshot.input.version,
-    expressionSemantics: deriveTsExpressionSemanticsCanonicalProducerSignal(snapshot),
-    sourceResolution: deriveTsSourceResolutionCanonicalProducerSignal(snapshot),
+    canonicalBundle: deriveTsSourceSideCanonicalCandidateBundle(snapshot),
+    evaluatorCandidates: deriveTsSourceSideEvaluatorCandidates(snapshot),
   };
 }
 
@@ -2423,6 +2477,44 @@ export function assertSourceResolutionCanonicalProducerSignalMatch(
   );
 }
 
+export function assertSourceSideCanonicalCandidateBundleMatch(
+  label: string,
+  actual: SourceSideCanonicalCandidateBundleV0,
+  expected: SourceSideCanonicalCandidateBundleV0,
+): void {
+  assertEqualField(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
+  assertEqualField(label, "inputVersion", actual.inputVersion, expected.inputVersion);
+  assertExpressionSemanticsCanonicalCandidateBundleMatch(
+    `${label}:expressionSemantics`,
+    actual.expressionSemantics,
+    expected.expressionSemantics,
+  );
+  assertSourceResolutionCanonicalCandidateBundleMatch(
+    `${label}:sourceResolution`,
+    actual.sourceResolution,
+    expected.sourceResolution,
+  );
+}
+
+export function assertSourceSideEvaluatorCandidatesMatch(
+  label: string,
+  actual: SourceSideEvaluatorCandidatesV0,
+  expected: SourceSideEvaluatorCandidatesV0,
+): void {
+  assertEqualField(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
+  assertEqualField(label, "inputVersion", actual.inputVersion, expected.inputVersion);
+  assertExpressionSemanticsEvaluatorCandidatesMatch(
+    `${label}:expressionSemantics`,
+    actual.expressionSemantics,
+    expected.expressionSemantics,
+  );
+  assertSourceResolutionEvaluatorCandidatesMatch(
+    `${label}:sourceResolution`,
+    actual.sourceResolution,
+    expected.sourceResolution,
+  );
+}
+
 export function assertSourceSideCanonicalProducerSignalMatch(
   label: string,
   actual: SourceSideCanonicalProducerSignalV0,
@@ -2430,15 +2522,15 @@ export function assertSourceSideCanonicalProducerSignalMatch(
 ): void {
   assertEqualField(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
   assertEqualField(label, "inputVersion", actual.inputVersion, expected.inputVersion);
-  assertExpressionSemanticsCanonicalProducerSignalMatch(
-    `${label}:expressionSemantics`,
-    actual.expressionSemantics,
-    expected.expressionSemantics,
+  assertSourceSideCanonicalCandidateBundleMatch(
+    `${label}:canonicalBundle`,
+    actual.canonicalBundle,
+    expected.canonicalBundle,
   );
-  assertSourceResolutionCanonicalProducerSignalMatch(
-    `${label}:sourceResolution`,
-    actual.sourceResolution,
-    expected.sourceResolution,
+  assertSourceSideEvaluatorCandidatesMatch(
+    `${label}:evaluatorCandidates`,
+    actual.evaluatorCandidates,
+    expected.evaluatorCandidates,
   );
 }
 

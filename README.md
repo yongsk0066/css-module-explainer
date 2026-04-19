@@ -249,7 +249,7 @@ Current checker policy:
   - evaluator candidates: `pnpm check:rust-expression-semantics-evaluator-candidates`, `pnpm check:rust-source-resolution-evaluator-candidates`
   - canonical-candidate bundles: `pnpm check:rust-expression-domain-canonical-candidate`, `pnpm check:rust-expression-semantics-canonical-candidate`, `pnpm check:rust-source-resolution-canonical-candidate`
   - canonical-producer signals: `pnpm check:rust-expression-domain-canonical-producer`, `pnpm check:rust-expression-semantics-canonical-producer`, `pnpm check:rust-source-resolution-canonical-producer`
-  - consolidated source-side canonical signal: `pnpm check:rust-source-side-canonical-producer`
+  - consolidated source-side lane: `pnpm check:rust-source-side-canonical-candidate`, `pnpm check:rust-source-side-evaluator-candidates`, `pnpm check:rust-source-side-canonical-producer`
   - full snapshot parity: `pnpm check:rust-shadow-compare`
 - Current `3.7.0` framing is source-side first:
   - `expression-semantics` and `source-resolution` now carry canonical-producer signals on the Rust shadow path

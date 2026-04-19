@@ -36,7 +36,9 @@ pub use source_resolution::summarize_source_resolution_fragments_input;
 pub use source_resolution::summarize_source_resolution_match_fragments_input;
 pub use source_resolution::summarize_source_resolution_plan_input;
 pub use source_resolution::summarize_source_resolution_query_fragments_input;
+pub use source_side::summarize_source_side_canonical_candidate_bundle_input;
 pub use source_side::summarize_source_side_canonical_producer_signal_input;
+pub use source_side::summarize_source_side_evaluator_candidates_input;
 pub use type_facts::summarize_type_fact_input;
 
 #[derive(Debug, Deserialize)]
@@ -452,11 +454,29 @@ pub struct SourceResolutionCanonicalProducerSignalV0 {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SourceSideCanonicalCandidateBundleV0 {
+    pub schema_version: &'static str,
+    pub input_version: String,
+    pub expression_semantics: ExpressionSemanticsCanonicalCandidateBundleV0,
+    pub source_resolution: SourceResolutionCanonicalCandidateBundleV0,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceSideEvaluatorCandidatesV0 {
+    pub schema_version: &'static str,
+    pub input_version: String,
+    pub expression_semantics: ExpressionSemanticsEvaluatorCandidatesV0,
+    pub source_resolution: SourceResolutionEvaluatorCandidatesV0,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SourceSideCanonicalProducerSignalV0 {
     pub schema_version: &'static str,
     pub input_version: String,
-    pub expression_semantics: ExpressionSemanticsCanonicalProducerSignalV0,
-    pub source_resolution: SourceResolutionCanonicalProducerSignalV0,
+    pub canonical_bundle: SourceSideCanonicalCandidateBundleV0,
+    pub evaluator_candidates: SourceSideEvaluatorCandidatesV0,
 }
 
 #[derive(Debug, Serialize, Clone)]

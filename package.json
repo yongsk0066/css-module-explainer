@@ -59,6 +59,8 @@
     "check:rust-expression-semantics-canonical-candidate": "tsx ./scripts/check-rust-expression-semantics-canonical-candidate.ts",
     "check:rust-expression-semantics-evaluator-candidates": "tsx ./scripts/check-rust-expression-semantics-evaluator-candidates.ts",
     "check:rust-expression-semantics-canonical-producer": "tsx ./scripts/check-rust-expression-semantics-canonical-producer.ts",
+    "check:rust-source-side-canonical-candidate": "tsx ./scripts/check-rust-source-side-canonical-candidate.ts",
+    "check:rust-source-side-evaluator-candidates": "tsx ./scripts/check-rust-source-side-evaluator-candidates.ts",
     "check:rust-source-side-canonical-producer": "tsx ./scripts/check-rust-source-side-canonical-producer.ts",
     "check:rust-source-resolution-match-fragments": "tsx ./scripts/check-rust-source-resolution-match-fragments.ts",
     "check:rust-source-resolution-candidates": "tsx ./scripts/check-rust-source-resolution-candidates.ts",

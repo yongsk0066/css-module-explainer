@@ -2,16 +2,16 @@ import path from "node:path";
 import { buildContractParitySnapshot } from "./contract-parity-runtime";
 import type { ContractParityEntry } from "./contract-parity-corpus-v1";
 import {
-  assertSourceSideCanonicalProducerSignalMatch,
-  deriveTsSourceSideCanonicalProducerSignal,
-  runShadowSourceSideCanonicalProducerInput,
+  assertSourceSideCanonicalCandidateBundleMatch,
+  deriveTsSourceSideCanonicalCandidateBundle,
+  runShadowSourceSideCanonicalCandidateInput,
 } from "./rust-shadow-shared";
 
 const workspaceRoot = process.cwd();
 
-const SOURCE_SIDE_CANONICAL_PRODUCER_CORPUS: readonly ContractParityEntry[] = [
+const SOURCE_SIDE_CANONICAL_CANDIDATE_CORPUS: readonly ContractParityEntry[] = [
   {
-    label: "literal-union-source-side-canonical-producer",
+    label: "literal-union-source-side-canonical-candidate",
     contractVersion: "2",
     workspace: {
       workspaceRoot: path.join(
@@ -41,7 +41,7 @@ const SOURCE_SIDE_CANONICAL_PRODUCER_CORPUS: readonly ContractParityEntry[] = [
     },
   },
   {
-    label: "path-alias-source-side-canonical-producer",
+    label: "path-alias-source-side-canonical-candidate",
     contractVersion: "2",
     workspace: {
       workspaceRoot: path.join(workspaceRoot, "test/_fixtures/type-fact-backend-parity/path-alias"),
@@ -65,7 +65,7 @@ const SOURCE_SIDE_CANONICAL_PRODUCER_CORPUS: readonly ContractParityEntry[] = [
     },
   },
   {
-    label: "composite-source-side-canonical-producer",
+    label: "composite-source-side-canonical-candidate",
     contractVersion: "2",
     workspace: {
       workspaceRoot: path.join(workspaceRoot, "test/_fixtures/type-fact-backend-parity/composite"),
@@ -91,24 +91,22 @@ const SOURCE_SIDE_CANONICAL_PRODUCER_CORPUS: readonly ContractParityEntry[] = [
 ] as const;
 
 void (async () => {
-  for (const entry of SOURCE_SIDE_CANONICAL_PRODUCER_CORPUS) {
-    process.stdout.write(`== rust-source-side-canonical-producer:${entry.label} ==\n`);
+  for (const entry of SOURCE_SIDE_CANONICAL_CANDIDATE_CORPUS) {
+    process.stdout.write(`== rust-source-side-canonical-candidate:${entry.label} ==\n`);
 
     // oxlint-disable-next-line eslint/no-await-in-loop
     const snapshot = await buildContractParitySnapshot(entry);
-    const expected = deriveTsSourceSideCanonicalProducerSignal(snapshot);
+    const expected = deriveTsSourceSideCanonicalCandidateBundle(snapshot);
     // oxlint-disable-next-line eslint/no-await-in-loop
-    const actual = await runShadowSourceSideCanonicalProducerInput(snapshot.input);
+    const actual = await runShadowSourceSideCanonicalCandidateInput(snapshot.input);
 
-    assertSourceSideCanonicalProducerSignalMatch(entry.label, actual, expected);
+    assertSourceSideCanonicalCandidateBundleMatch(entry.label, actual, expected);
 
     process.stdout.write(
       [
-        "validated source-side canonical-producer signal:",
-        `expressionCandidates=${actual.canonicalBundle.expressionSemantics.candidates.length}`,
-        `expressionEvaluator=${actual.evaluatorCandidates.expressionSemantics.results.length}`,
-        `resolutionCandidates=${actual.canonicalBundle.sourceResolution.candidates.length}`,
-        `resolutionEvaluator=${actual.evaluatorCandidates.sourceResolution.results.length}`,
+        "validated source-side canonical-candidate bundle:",
+        `expressionCandidates=${actual.expressionSemantics.candidates.length}`,
+        `resolutionCandidates=${actual.sourceResolution.candidates.length}`,
       ].join(" "),
     );
     process.stdout.write("\n\n");
