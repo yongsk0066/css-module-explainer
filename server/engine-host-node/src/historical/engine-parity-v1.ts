@@ -2,17 +2,17 @@ import type {
   CheckerReportV1,
   EngineInputV1,
   EngineOutputV1,
-} from "../../engine-core-ts/src/contracts";
-import { downcastEngineOutputV2ToV1 } from "../../engine-core-ts/src/contracts";
+} from "../../../engine-core-ts/src/contracts";
+import { downcastEngineOutputV2ToV1 } from "../../../engine-core-ts/src/contracts";
 import { buildEngineInputV1, type BuildEngineInputV1Options } from "./engine-input-v1";
-import { buildSelectedQueryResultsV2 } from "./engine-query-v2";
-import { buildEngineOutputV2 } from "./engine-output-v2";
-import type { WorkspaceSemanticWorkspaceReferenceIndex } from "../../engine-core-ts/src/core/semantic/workspace-reference-index";
-import type { WorkspaceStyleDependencyGraph } from "../../engine-core-ts/src/core/semantic/style-dependency-graph";
-import type { StyleDocumentHIR } from "../../engine-core-ts/src/core/hir/style-types";
-import type { DocumentAnalysisCache } from "../../engine-core-ts/src/core/indexing/document-analysis-cache";
-import type { TypeResolver } from "../../engine-core-ts/src/core/ts/type-resolver";
-import type { SourceDocumentSnapshot } from "./checker-host/workspace-check-support";
+import { buildSelectedQueryResultsV2 } from "../engine-query-v2";
+import { buildEngineOutputV2 } from "../engine-output-v2";
+import type { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../engine-core-ts/src/core/semantic/workspace-reference-index";
+import type { WorkspaceStyleDependencyGraph } from "../../../engine-core-ts/src/core/semantic/style-dependency-graph";
+import type { StyleDocumentHIR } from "../../../engine-core-ts/src/core/hir/style-types";
+import type { DocumentAnalysisCache } from "../../../engine-core-ts/src/core/indexing/document-analysis-cache";
+import type { TypeResolver } from "../../../engine-core-ts/src/core/ts/type-resolver";
+import type { SourceDocumentSnapshot } from "../checker-host/workspace-check-support";
 
 export interface EngineParitySnapshotV1 {
   readonly input: EngineInputV1;

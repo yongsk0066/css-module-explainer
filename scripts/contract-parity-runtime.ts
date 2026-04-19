@@ -6,7 +6,7 @@ import {
   resolveWorkspaceCheckFiles,
 } from "../server/engine-host-node/src/checker-host/workspace-check-support";
 import { runWorkspaceCheckCommand } from "../server/engine-host-node/src/checker-host";
-import { buildCheckerEngineParitySnapshotV1 } from "../server/engine-host-node/src/engine-parity-v1";
+import { buildCheckerEngineParitySnapshotV1 } from "../server/engine-host-node/src/historical/engine-parity-v1";
 import { buildCheckerEngineParitySnapshotV2 } from "../server/engine-host-node/src/engine-parity-v2";
 import type { ContractParityEntry } from "./contract-parity-corpus";
 

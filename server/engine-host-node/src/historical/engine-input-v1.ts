@@ -2,22 +2,22 @@ import type {
   EngineInputV1,
   SourceAnalysisInputV1,
   StyleAnalysisInputV1,
-} from "../../engine-core-ts/src/contracts";
+} from "../../../engine-core-ts/src/contracts";
 import {
   ENGINE_CONTRACT_VERSION_V1,
   buildSourceBindingGraphSnapshotV1,
-} from "../../engine-core-ts/src/contracts";
-import type { DocumentAnalysisCache } from "../../engine-core-ts/src/core/indexing/document-analysis-cache";
-import type { StyleDocumentHIR } from "../../engine-core-ts/src/core/hir/style-types";
-import type { ClassnameTransformMode } from "../../engine-core-ts/src/core/scss/classname-transform";
-import type { TypeResolver } from "../../engine-core-ts/src/core/ts/type-resolver";
+} from "../../../engine-core-ts/src/contracts";
+import type { DocumentAnalysisCache } from "../../../engine-core-ts/src/core/indexing/document-analysis-cache";
+import type { StyleDocumentHIR } from "../../../engine-core-ts/src/core/hir/style-types";
+import type { ClassnameTransformMode } from "../../../engine-core-ts/src/core/scss/classname-transform";
+import type { TypeResolver } from "../../../engine-core-ts/src/core/ts/type-resolver";
 import type ts from "typescript";
 import {
   workspaceSettingsKey,
   type SourceDocumentSnapshot,
-} from "./checker-host/workspace-check-support";
-import { selectTypeFactCollector } from "./type-fact-collector";
-import type { TypeFactBackendKind } from "./type-backend";
+} from "../checker-host/workspace-check-support";
+import { selectTypeFactCollector } from "../type-fact-collector";
+import type { TypeFactBackendKind } from "../type-backend";
 
 export interface BuildEngineInputV1Options {
   readonly workspaceRoot: string;

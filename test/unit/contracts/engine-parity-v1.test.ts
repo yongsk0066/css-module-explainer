@@ -2,7 +2,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { buildCheckerEngineParitySnapshotV1 } from "../../../server/engine-host-node/src/engine-parity-v1";
+import { buildCheckerEngineParitySnapshotV1 } from "../../../server/engine-host-node/src/historical/engine-parity-v1";
 import { runWorkspaceCheckCommand } from "../../../server/engine-host-node/src/checker-host";
 import {
   collectSourceDocuments,
