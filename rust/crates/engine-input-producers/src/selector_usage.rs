@@ -141,9 +141,12 @@ mod tests {
         assert_eq!(summary.fragments[0].nested_safety.as_deref(), Some("safe"));
         assert_eq!(summary.fragments[0].composes_count, 1);
 
-        assert_eq!(summary.fragments[2].ordinal, 2);
+        assert_eq!(summary.fragments[2].ordinal, 1);
         assert_eq!(summary.fragments[2].view_kind, "nested");
-        assert!(summary.fragments[2].canonical_name.is_none());
+        assert_eq!(
+            summary.fragments[2].canonical_name.as_deref(),
+            Some("card-header")
+        );
         assert_eq!(
             summary.fragments[2].nested_safety.as_deref(),
             Some("unknown")
