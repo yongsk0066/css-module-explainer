@@ -64,6 +64,15 @@ export interface TypeFactInputSummaryV0 {
   readonly finiteValueCount: number;
 }
 
+export interface QueryPlanSummaryV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly expressionSemanticsIds: readonly string[];
+  readonly sourceExpressionResolutionIds: readonly string[];
+  readonly selectorUsageIds: readonly string[];
+  readonly totalQueryCount: number;
+}
+
 export async function runShadow(snapshot: unknown): Promise<ShadowSummaryV0> {
   return runShadowJson<ShadowSummaryV0>([], snapshot);
 }
@@ -72,6 +81,10 @@ export async function runShadowTypeFactInput(
   input: EngineInputV2,
 ): Promise<TypeFactInputSummaryV0> {
   return runShadowJson<TypeFactInputSummaryV0>(["input-type-facts"], input);
+}
+
+export async function runShadowQueryPlanInput(input: EngineInputV2): Promise<QueryPlanSummaryV0> {
+  return runShadowJson<QueryPlanSummaryV0>(["input-query-plan"], input);
 }
 
 function runShadowJson<T>(args: string[], payload: unknown): Promise<T> {
@@ -328,6 +341,26 @@ export function deriveTsTypeFactInputSummary(
   };
 }
 
+export function deriveTsQueryPlanSummary(snapshot: EngineParitySnapshotV2): QueryPlanSummaryV0 {
+  const expressionIds = snapshot.input.sources.flatMap((source) =>
+    source.document.classExpressions.map((expression) => expression.id),
+  );
+  const selectorUsageIds = snapshot.input.styles.flatMap((style) =>
+    style.document.selectors
+      .filter((selector) => selector.viewKind === "canonical")
+      .map((selector) => selector.canonicalName),
+  );
+
+  return {
+    schemaVersion: "0",
+    inputVersion: snapshot.input.version,
+    expressionSemanticsIds: expressionIds,
+    sourceExpressionResolutionIds: expressionIds,
+    selectorUsageIds,
+    totalQueryCount: expressionIds.length * 2 + selectorUsageIds.length,
+  };
+}
+
 export function assertShadowSummaryMatch(
   label: string,
   actual: ShadowSummaryV0,
@@ -545,10 +578,48 @@ export function assertShadowSummaryMatch(
   );
 }
 
+export function assertQueryPlanSummaryMatch(
+  label: string,
+  actual: QueryPlanSummaryV0,
+  expected: QueryPlanSummaryV0,
+): void {
+  assertEqualField(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
+  assertEqualField(label, "inputVersion", actual.inputVersion, expected.inputVersion);
+  assertEqualField(label, "totalQueryCount", actual.totalQueryCount, expected.totalQueryCount);
+  assertArrayEqual(
+    label,
+    "expressionSemanticsIds",
+    actual.expressionSemanticsIds,
+    expected.expressionSemanticsIds,
+  );
+  assertArrayEqual(
+    label,
+    "sourceExpressionResolutionIds",
+    actual.sourceExpressionResolutionIds,
+    expected.sourceExpressionResolutionIds,
+  );
+  assertArrayEqual(label, "selectorUsageIds", actual.selectorUsageIds, expected.selectorUsageIds);
+}
+
 function assertEqualField<T>(label: string, field: string, actual: T, expected: T) {
   if (actual !== expected) {
     throw new Error(
       `${label}: ${field} mismatch\nexpected: ${JSON.stringify(expected)}\nreceived: ${JSON.stringify(actual)}`,
+    );
+  }
+}
+
+function assertArrayEqual(
+  label: string,
+  field: string,
+  actual: readonly string[],
+  expected: readonly string[],
+) {
+  const actualJson = JSON.stringify(actual);
+  const expectedJson = JSON.stringify(expected);
+  if (actualJson !== expectedJson) {
+    throw new Error(
+      `${label}: ${field} mismatch\nexpected: ${expectedJson}\nreceived: ${actualJson}`,
     );
   }
 }

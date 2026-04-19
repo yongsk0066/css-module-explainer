@@ -64,6 +64,11 @@ export const RUST_GATE_EVIDENCE_CORPUS: readonly RustGateEvidenceEntry[] = [
     variants: ["typescript-current"],
   },
   {
+    label: "rust-query-plan-compare",
+    argv: ["check:rust-query-plan-compare"],
+    variants: ["typescript-current"],
+  },
+  {
     label: "rust-shadow-compare",
     argv: ["check:rust-shadow-compare"],
     variants: ["typescript-current"],

@@ -170,6 +170,17 @@ struct TypeFactInputSummaryV0 {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct QueryPlanSummaryV0 {
+    schema_version: &'static str,
+    input_version: String,
+    expression_semantics_ids: Vec<String>,
+    source_expression_resolution_ids: Vec<String>,
+    selector_usage_ids: Vec<String>,
+    total_query_count: usize,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct ShadowSummaryV0 {
     schema_version: &'static str,
     input_version: String,
@@ -250,6 +261,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let summary = summarize_type_fact_input(&input);
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
+        Some("input-query-plan") => {
+            let input: EngineInputV2 = serde_json::from_str(&stdin)?;
+            let summary = summarize_query_plan_input(&input);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
         Some(other) => {
             return Err(format!("unsupported engine-shadow-runner mode: {other}").into());
         }
@@ -288,6 +304,33 @@ fn summarize_type_fact_input(input: &EngineInputV2) -> TypeFactInputSummaryV0 {
         by_kind,
         constrained_kinds,
         finite_value_count,
+    }
+}
+
+fn summarize_query_plan_input(input: &EngineInputV2) -> QueryPlanSummaryV0 {
+    let expression_ids: Vec<String> = input
+        .sources
+        .iter()
+        .flat_map(|source| source.document.class_expressions.iter())
+        .filter_map(|expression| expression.get("id").and_then(|id| id.as_str()))
+        .map(str::to_string)
+        .collect();
+    let selector_usage_ids: Vec<String> = input
+        .styles
+        .iter()
+        .flat_map(|style| style.document.selectors.iter())
+        .filter(|selector| selector.view_kind == "canonical")
+        .filter_map(|selector| selector.canonical_name.as_ref())
+        .cloned()
+        .collect();
+
+    QueryPlanSummaryV0 {
+        schema_version: "0",
+        input_version: input.version.clone(),
+        total_query_count: expression_ids.len() * 2 + selector_usage_ids.len(),
+        expression_semantics_ids: expression_ids.clone(),
+        source_expression_resolution_ids: expression_ids,
+        selector_usage_ids,
     }
 }
 
