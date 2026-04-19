@@ -21,6 +21,7 @@ Allowed:
 - `3.3.0`
 - `3.4.0`
 - `3.5.0`
+- `3.6.0`
 
 Do not use:
 
@@ -96,6 +97,10 @@ contracts can still be assembled across the parity corpus.
 `pnpm check:contract-parity-v2-golden` verifies the normalized
 `EngineInputV2` / `EngineOutputV2` golden fixtures under
 `test/_fixtures/contract-parity-v2/`.
+
+`V2` is the canonical live contract surface for release validation. Historical
+`V1` parity commands remain available only to validate the frozen compatibility
+view derived from `V2`.
 
 Frozen V1 baseline commands remain available for historical validation only:
 

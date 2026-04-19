@@ -17,6 +17,9 @@ The runtime distinguishes between:
 
 Current exposure status:
 
+- `V2` is the canonical external contract surface
+- `V1` remains available only as a historical compatibility view derived from `V2`
+
 - V1 external contract
   - `exact`
   - `finiteSet`
@@ -26,9 +29,9 @@ Current exposure status:
   - `suffix`
   - `prefixSuffix`
 - V2 Bundle 2 external contract
-- `charInclusion`
+  - `charInclusion`
 - V2 Bundle 3 external contract
-- `composite`
+  - `composite`
 - exposed through:
   - `TypeFactTableV2`
   - `EngineOutputV2.queryResults`

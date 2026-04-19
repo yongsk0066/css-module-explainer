@@ -38,6 +38,7 @@ examples/
 scripts/
 RELEASING.md
 pnpm-workspace.yaml
+rust/
 
 # Build artifacts we don't need
 **/*.tsbuildinfo

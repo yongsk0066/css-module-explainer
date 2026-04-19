@@ -148,22 +148,11 @@ source/style text
 Current structure:
 
 ```text
-server/src/
-├── core/
-│   ├── hir/             # source/style document facts
-│   ├── binder/          # source-side scopes and binding graph
-│   ├── abstract-value/  # class-value domain and selector projection
-│   ├── query/           # provider-facing semantic summaries
-│   ├── rewrite/         # rename and rewrite planning
-│   ├── semantic/        # workspace references, dependencies, composes graph
-│   ├── scss/            # style parsing
-│   ├── cx/              # source-side AST walkers
-│   ├── ts/              # TypeScript integration
-│   └── indexing/        # analysis cache and background indexing
-├── runtime/             # workspace routing, snapshots, invalidation
-├── providers/           # LSP adapters
-├── composition-root.ts  # top-level assembly
-└── server.ts
+server/
+├── engine-core-ts/      # semantic core, contracts, checker core, abstract value
+├── engine-host-node/    # workspace/runtime hosting, batch checker host, parity assembly
+├── lsp-server/          # generic LSP transport, providers, handler wiring
+└── checker-cli/         # batch checker CLI surface
 ```
 
 At a high level:
@@ -177,6 +166,11 @@ At a high level:
 
 The important constraint is that providers do not recompute semantic meaning on
 their own. They read the shared pipeline.
+
+Contract status:
+
+- `V2` is the canonical live contract surface.
+- `V1` remains available only as a historical compatibility view derived from `V2`.
 
 For a fuller design explanation, see [docs/architecture-v3.md](./docs/architecture-v3.md).
 
@@ -246,6 +240,10 @@ Current checker policy:
   - `CME_TYPE_FACT_BACKEND=tsgo-preview` now activates a host-side preview probe before delegating symbol resolution to the current TS resolver
 - `CME_TYPE_FACT_BACKEND=tsgo-preview pnpm check:release-batch` and `pnpm check:real-project-corpus` now exercise the checker path through the same host-side preview probe
 - `pnpm check:type-fact-backend-parity` compares canonical `EngineInputV2.typeFacts` across `typescript-current` and `tsgo-preview` on the backend smoke corpus
+- `pnpm check:rust-type-fact-compare`, `pnpm check:rust-query-plan-compare`, and `pnpm check:rust-shadow-compare` are the current Rust shadow validation commands
+  - `rust-type-fact-compare` checks input-only type-fact production summaries
+  - `rust-query-plan-compare` checks input-derived query plan construction
+  - `rust-shadow-compare` checks summary/invariant parity against canonical V2 snapshots
 - `pnpm check:real-project-corpus` runs a clean multi-file corpus that mimics common product patterns (`variants`, `@value` + `@keyframes`, `composes`, `.module.less`)
 - semantic smoke cases are versioned in `scripts/semantic-smoke-corpus.ts` and should be updated when new semantic surfaces become release-relevant
 - `pnpm check:release-batch` is the canonical release-facing batch checker pass

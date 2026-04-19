@@ -161,6 +161,10 @@ The current domain includes:
 - `exact`
 - `finiteSet`
 - `prefix`
+- `suffix`
+- `prefixSuffix`
+- `charInclusion`
+- `composite`
 - `top`
 - `bottom`
 

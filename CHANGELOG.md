@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.6.0] — 2026-04-19
+
+### Added
+
+- **Rust shadow validation now checks query-plan construction** — the internal Rust shadow runner now compares canonical V2 type-fact input, input-derived query plans, and parity summaries against the TypeScript engine to guard the Phase IV transition with explicit compare commands.
+- **Rust workspace Stage 0 baseline** — the repository now includes a pinned Rust toolchain, shared workspace lint/format settings, and a `pnpm check:rust-workspace` gate so shadow-engine work lands behind stable repo-local validation from the start.
+
+### Changed
+
+- **V2 is now the canonical contract** — live parity helpers, type-fact assembly, and query/output assembly now run through the V2 path first, while V1 remains only as a historical compatibility view derived from V2.
+- **V1 parity and host builders are now explicitly historical** — V1 parity scripts, host builders, and type-fact tables now live under historical naming and namespaces, making the active contract surface unambiguous in both code and release operations.
+- **Release narrative now matches the actual migration state** — this release closes the V1 sunset waves and records the current Rust shadow validation baseline without overstating Rust as an independent semantic producer yet.
+
 ## [3.5.0] — 2026-04-18
 
 ### Added
