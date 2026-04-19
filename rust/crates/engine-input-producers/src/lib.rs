@@ -13,6 +13,7 @@ mod type_facts;
 
 pub use expression_domain::summarize_expression_domain_fragments_input;
 pub use expression_domain::summarize_expression_domain_plan_input;
+pub use expression_semantics::summarize_expression_semantics_candidates_input;
 pub use expression_semantics::summarize_expression_semantics_fragments_input;
 pub use expression_semantics::summarize_expression_semantics_match_fragments_input;
 pub use expression_semantics::summarize_expression_semantics_query_fragments_input;
@@ -339,6 +340,44 @@ pub struct ExpressionSemanticsMatchFragmentsV0 {
     pub schema_version: &'static str,
     pub input_version: String,
     pub fragments: Vec<ExpressionSemanticsMatchFragmentV0>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExpressionSemanticsCandidateV0 {
+    pub query_id: String,
+    pub expression_id: String,
+    pub expression_kind: String,
+    pub style_file_path: String,
+    pub selector_names: Vec<String>,
+    pub candidate_names: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub finite_values: Option<Vec<String>>,
+    pub value_domain_kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_constraint_kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_prefix: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_suffix: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_min_len: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_max_len: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_char_must: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_char_may: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_may_include_other_chars: Option<bool>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExpressionSemanticsCandidatesV0 {
+    pub schema_version: &'static str,
+    pub input_version: String,
+    pub candidates: Vec<ExpressionSemanticsCandidateV0>,
 }
 
 #[derive(Debug, Serialize)]

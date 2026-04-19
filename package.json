@@ -49,6 +49,7 @@
     "check:rust-query-plan-compare": "tsx ./scripts/check-rust-query-plan-compare.ts",
     "check:rust-expression-domain-compare": "tsx ./scripts/check-rust-expression-domain-compare.ts",
     "check:rust-expression-domain-fragments": "tsx ./scripts/check-rust-expression-domain-fragments.ts",
+    "check:rust-expression-semantics-candidates": "tsx ./scripts/check-rust-expression-semantics-candidates.ts",
     "check:rust-expression-semantics-fragments": "tsx ./scripts/check-rust-expression-semantics-fragments.ts",
     "check:rust-expression-semantics-query-fragments": "tsx ./scripts/check-rust-expression-semantics-query-fragments.ts",
     "check:rust-expression-semantics-match-fragments": "tsx ./scripts/check-rust-expression-semantics-match-fragments.ts",

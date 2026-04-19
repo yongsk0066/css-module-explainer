@@ -229,6 +229,31 @@ export interface ExpressionSemanticsMatchFragmentsV0 {
   readonly fragments: readonly ExpressionSemanticsMatchFragmentV0[];
 }
 
+export interface ExpressionSemanticsCandidateV0 {
+  readonly queryId: string;
+  readonly expressionId: string;
+  readonly expressionKind: string;
+  readonly styleFilePath: string;
+  readonly selectorNames: readonly string[];
+  readonly candidateNames: readonly string[];
+  readonly finiteValues?: readonly string[];
+  readonly valueDomainKind: string;
+  readonly valueConstraintKind?: string;
+  readonly valuePrefix?: string;
+  readonly valueSuffix?: string;
+  readonly valueMinLen?: number;
+  readonly valueMaxLen?: number;
+  readonly valueCharMust?: string;
+  readonly valueCharMay?: string;
+  readonly valueMayIncludeOtherChars?: boolean;
+}
+
+export interface ExpressionSemanticsCandidatesV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly candidates: readonly ExpressionSemanticsCandidateV0[];
+}
+
 export interface SourceResolutionFragmentV0 {
   readonly queryId: string;
   readonly expressionId: string;
@@ -344,6 +369,15 @@ export async function runShadowExpressionSemanticsMatchFragmentsInput(
 ): Promise<ExpressionSemanticsMatchFragmentsV0> {
   return runShadowJson<ExpressionSemanticsMatchFragmentsV0>(
     ["input-expression-semantics-match-fragments"],
+    input,
+  );
+}
+
+export async function runShadowExpressionSemanticsCandidatesInput(
+  input: EngineInputV2,
+): Promise<ExpressionSemanticsCandidatesV0> {
+  return runShadowJson<ExpressionSemanticsCandidatesV0>(
+    ["input-expression-semantics-candidates"],
     input,
   );
 }
@@ -958,6 +992,59 @@ export function deriveTsExpressionSemanticsMatchFragments(
   };
 }
 
+export function deriveTsExpressionSemanticsCandidates(
+  snapshot: EngineParitySnapshotV2,
+): ExpressionSemanticsCandidatesV0 {
+  const candidates = snapshot.output.queryResults
+    .filter((query) => query.kind === "expression-semantics")
+    .map((query) => {
+      const candidate: ExpressionSemanticsCandidateV0 = {
+        queryId: query.queryId,
+        expressionId: query.payload.expressionId,
+        expressionKind: query.payload.expressionKind,
+        styleFilePath: query.payload.styleFilePath ?? "",
+        selectorNames: query.payload.selectorNames,
+        candidateNames: query.payload.candidateNames,
+      };
+      if (query.payload.finiteValues) {
+        candidate.finiteValues = query.payload.finiteValues;
+      }
+      candidate.valueDomainKind = query.payload.valueDomainKind;
+      if (query.payload.valueConstraintKind) {
+        candidate.valueConstraintKind = query.payload.valueConstraintKind;
+      }
+      if (query.payload.valuePrefix) {
+        candidate.valuePrefix = query.payload.valuePrefix;
+      }
+      if (query.payload.valueSuffix) {
+        candidate.valueSuffix = query.payload.valueSuffix;
+      }
+      if (query.payload.valueMinLen !== undefined) {
+        candidate.valueMinLen = query.payload.valueMinLen;
+      }
+      if (query.payload.valueMaxLen !== undefined) {
+        candidate.valueMaxLen = query.payload.valueMaxLen;
+      }
+      if (query.payload.valueCharMust) {
+        candidate.valueCharMust = query.payload.valueCharMust;
+      }
+      if (query.payload.valueCharMay) {
+        candidate.valueCharMay = query.payload.valueCharMay;
+      }
+      if (query.payload.valueMayIncludeOtherChars) {
+        candidate.valueMayIncludeOtherChars = true;
+      }
+      return candidate;
+    })
+    .toSorted((a, b) => a.queryId.localeCompare(b.queryId));
+
+  return {
+    schemaVersion: "0",
+    inputVersion: snapshot.input.version,
+    candidates,
+  };
+}
+
 export function deriveTsSourceResolutionFragments(
   snapshot: EngineParitySnapshotV2,
 ): SourceResolutionFragmentsV0 {
@@ -1482,6 +1569,28 @@ export function assertExpressionSemanticsMatchFragmentsMatch(
   if (actualJson !== expectedJson) {
     throw new Error(
       `${label}: expressionSemanticsMatchFragments mismatch\nexpected: ${expectedJson}\nreceived: ${actualJson}`,
+    );
+  }
+}
+
+export function assertExpressionSemanticsCandidatesMatch(
+  label: string,
+  actual: ExpressionSemanticsCandidatesV0,
+  expected: ExpressionSemanticsCandidatesV0,
+): void {
+  if (actual.schemaVersion !== expected.schemaVersion) {
+    throw new Error(
+      `${label}: expression semantics candidates schema mismatch: ${actual.schemaVersion} !== ${expected.schemaVersion}`,
+    );
+  }
+  if (actual.inputVersion !== expected.inputVersion) {
+    throw new Error(
+      `${label}: expression semantics candidates input version mismatch: ${actual.inputVersion} !== ${expected.inputVersion}`,
+    );
+  }
+  if (JSON.stringify(actual.candidates) !== JSON.stringify(expected.candidates)) {
+    throw new Error(
+      `${label}: expression semantics candidates mismatch\nactual=${JSON.stringify(actual.candidates, null, 2)}\nexpected=${JSON.stringify(expected.candidates, null, 2)}`,
     );
   }
 }
