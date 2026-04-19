@@ -59,6 +59,11 @@ export const RUST_GATE_EVIDENCE_CORPUS: readonly RustGateEvidenceEntry[] = [
     variants: ["typescript-current"],
   },
   {
+    label: "rust-type-fact-compare",
+    argv: ["check:rust-type-fact-compare"],
+    variants: ["typescript-current"],
+  },
+  {
     label: "rust-shadow-compare",
     argv: ["check:rust-shadow-compare"],
     variants: ["typescript-current"],
