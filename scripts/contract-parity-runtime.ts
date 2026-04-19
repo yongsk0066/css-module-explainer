@@ -8,7 +8,7 @@ import {
 import { runWorkspaceCheckCommand } from "../server/engine-host-node/src/checker-host";
 import { buildCheckerEngineParitySnapshotV1 } from "../server/engine-host-node/src/historical/engine-parity-v1";
 import { buildCheckerEngineParitySnapshotV2 } from "../server/engine-host-node/src/engine-parity-v2";
-import type { ContractParityEntry } from "./contract-parity-corpus";
+import type { ContractParityEntry } from "./contract-parity-corpus-v1";
 
 async function prepareContractParityContext(entry: ContractParityEntry) {
   const { sourceFiles, styleFiles } = await resolveWorkspaceCheckFiles({

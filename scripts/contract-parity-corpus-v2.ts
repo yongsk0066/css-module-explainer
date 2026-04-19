@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { ContractParityEntry } from "./contract-parity-corpus";
+import type { ContractParityEntry } from "./contract-parity-corpus-v1";
 
 const workspaceRoot = process.cwd();
 

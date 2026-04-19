@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { CONTRACT_PARITY_GOLDEN_CORPUS } from "./contract-parity-golden-corpus";
+import { CONTRACT_PARITY_GOLDEN_CORPUS } from "./contract-parity-golden-corpus-v1";
 import {
   buildContractParitySnapshotV1,
   normalizeContractParitySnapshot,

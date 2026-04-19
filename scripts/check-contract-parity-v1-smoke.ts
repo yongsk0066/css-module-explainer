@@ -1,4 +1,4 @@
-import { CONTRACT_PARITY_CORPUS } from "./contract-parity-corpus";
+import { CONTRACT_PARITY_CORPUS } from "./contract-parity-corpus-v1";
 import { buildContractParitySnapshotV1 } from "./contract-parity-runtime";
 
 void (async () => {
