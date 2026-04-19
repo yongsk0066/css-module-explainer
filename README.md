@@ -240,10 +240,12 @@ Current checker policy:
   - `CME_TYPE_FACT_BACKEND=tsgo-preview` now activates a host-side preview probe before delegating symbol resolution to the current TS resolver
 - `CME_TYPE_FACT_BACKEND=tsgo-preview pnpm check:release-batch` and `pnpm check:real-project-corpus` now exercise the checker path through the same host-side preview probe
 - `pnpm check:type-fact-backend-parity` compares canonical `EngineInputV2.typeFacts` across `typescript-current` and `tsgo-preview` on the backend smoke corpus
-- `pnpm check:rust-type-fact-compare`, `pnpm check:rust-query-plan-compare`, and `pnpm check:rust-shadow-compare` are the current Rust shadow validation commands
-  - `rust-type-fact-compare` checks input-only type-fact production summaries
-  - `rust-query-plan-compare` checks input-derived query plan construction
-  - `rust-shadow-compare` checks summary/invariant parity against canonical V2 snapshots
+- Rust shadow validation now has four layers:
+  - input summaries: `pnpm check:rust-type-fact-compare`, `pnpm check:rust-query-plan-compare`, `pnpm check:rust-expression-domain-compare`
+  - query skeletons: `pnpm check:rust-*-query-fragments`
+  - match fragments: `pnpm check:rust-expression-semantics-match-fragments`, `pnpm check:rust-source-resolution-match-fragments`
+  - output-like candidates: `pnpm check:rust-expression-semantics-candidates`, `pnpm check:rust-source-resolution-candidates`
+  - full snapshot parity: `pnpm check:rust-shadow-compare`
 - `pnpm check:real-project-corpus` runs a clean multi-file corpus that mimics common product patterns (`variants`, `@value` + `@keyframes`, `composes`, `.module.less`)
 - semantic smoke cases are versioned in `scripts/semantic-smoke-corpus.ts` and should be updated when new semantic surfaces become release-relevant
 - `pnpm check:release-batch` is the canonical release-facing batch checker pass
