@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.9.0] — 2026-04-20
+
+### Added
+
+- **Consolidated semantic Rust lane** — the Rust shadow path now exposes top-level semantic canonical-candidate bundles, evaluator candidates, and canonical-producer signals that unify the existing `source-side` lane with `expression-domain`.
+- **Expanded semantic compare commands** — `pnpm check:rust-semantic-canonical-candidate`, `pnpm check:rust-semantic-evaluator-candidates`, and `pnpm check:rust-semantic-canonical-producer` now validate that top-level semantic lane directly against the TypeScript parity oracle.
+
+### Changed
+
+- **`3.9.0` is now framed as a consolidated semantic Rust milestone** — the release narrative moves one level above the source-side lane. `expression-semantics`, `source-resolution`, and `expression-domain` now participate in a single semantic lane, while `selector-usage` remains shadow-only.
+- **Expression-domain evaluator coverage is now explicit and bounded** — `expression-domain` keeps its input-driven canonical artifacts, but evaluator-candidate checks are now called out as type-fact-backed coverage rather than a full-corpus semantic guarantee.
+
 ## [3.8.0] — 2026-04-20
 
 ### Added
