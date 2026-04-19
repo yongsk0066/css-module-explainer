@@ -165,6 +165,20 @@ export interface SourceResolutionQueryFragmentsV0 {
   readonly fragments: readonly SourceResolutionQueryFragmentV0[];
 }
 
+export interface SourceResolutionMatchFragmentV0 {
+  readonly queryId: string;
+  readonly expressionId: string;
+  readonly styleFilePath: string;
+  readonly selectorNames: readonly string[];
+  readonly finiteValues?: readonly string[];
+}
+
+export interface SourceResolutionMatchFragmentsV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly fragments: readonly SourceResolutionMatchFragmentV0[];
+}
+
 export interface ExpressionSemanticsFragmentV0 {
   readonly queryId: string;
   readonly expressionId: string;
@@ -294,6 +308,15 @@ export async function runShadowSourceResolutionQueryFragmentsInput(
 ): Promise<SourceResolutionQueryFragmentsV0> {
   return runShadowJson<SourceResolutionQueryFragmentsV0>(
     ["input-source-resolution-query-fragments"],
+    input,
+  );
+}
+
+export async function runShadowSourceResolutionMatchFragmentsInput(
+  input: EngineInputV2,
+): Promise<SourceResolutionMatchFragmentsV0> {
+  return runShadowJson<SourceResolutionMatchFragmentsV0>(
+    ["input-source-resolution-match-fragments"],
     input,
   );
 }
@@ -982,6 +1005,32 @@ export function deriveTsSourceResolutionFragments(
   };
 }
 
+export function deriveTsSourceResolutionMatchFragments(
+  snapshot: EngineParitySnapshotV2,
+): SourceResolutionMatchFragmentsV0 {
+  const fragments = snapshot.output.queryResults
+    .filter((query) => query.kind === "source-expression-resolution")
+    .map((query) => {
+      const fragment: SourceResolutionMatchFragmentV0 = {
+        queryId: query.queryId,
+        expressionId: query.payload.expressionId,
+        styleFilePath: query.payload.styleFilePath ?? "",
+        selectorNames: query.payload.selectorNames,
+      };
+      if (query.payload.finiteValues) {
+        fragment.finiteValues = query.payload.finiteValues;
+      }
+      return fragment;
+    })
+    .toSorted((a, b) => a.queryId.localeCompare(b.queryId));
+
+  return {
+    schemaVersion: "0",
+    inputVersion: snapshot.input.version,
+    fragments,
+  };
+}
+
 export function assertShadowSummaryMatch(
   label: string,
   actual: ShadowSummaryV0,
@@ -1449,6 +1498,28 @@ export function assertSourceResolutionFragmentsMatch(
   if (actualJson !== expectedJson) {
     throw new Error(
       `${label}: sourceResolutionFragments mismatch\nexpected: ${expectedJson}\nreceived: ${actualJson}`,
+    );
+  }
+}
+
+export function assertSourceResolutionMatchFragmentsMatch(
+  label: string,
+  actual: SourceResolutionMatchFragmentsV0,
+  expected: SourceResolutionMatchFragmentsV0,
+): void {
+  if (actual.schemaVersion !== expected.schemaVersion) {
+    throw new Error(
+      `${label}: source resolution match fragment schema mismatch: ${actual.schemaVersion} !== ${expected.schemaVersion}`,
+    );
+  }
+  if (actual.inputVersion !== expected.inputVersion) {
+    throw new Error(
+      `${label}: source resolution match fragment input version mismatch: ${actual.inputVersion} !== ${expected.inputVersion}`,
+    );
+  }
+  if (JSON.stringify(actual.fragments) !== JSON.stringify(expected.fragments)) {
+    throw new Error(
+      `${label}: source resolution match fragments mismatch\nactual=${JSON.stringify(actual.fragments, null, 2)}\nexpected=${JSON.stringify(expected.fragments, null, 2)}`,
     );
   }
 }

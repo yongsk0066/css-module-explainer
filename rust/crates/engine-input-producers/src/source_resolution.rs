@@ -2,8 +2,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     EngineInputV2, SourceResolutionFragmentV0, SourceResolutionFragmentsV0,
+    SourceResolutionMatchFragmentV0, SourceResolutionMatchFragmentsV0,
     SourceResolutionPlanSummaryV0, SourceResolutionQueryFragmentV0,
-    SourceResolutionQueryFragmentsV0, map_value_certainty_shape_kind,
+    SourceResolutionQueryFragmentsV0, finite_values_for_facts, map_value_certainty_shape_kind,
+    resolve_selector_names,
 };
 
 pub fn summarize_source_resolution_plan_input(
@@ -115,10 +117,55 @@ pub fn summarize_source_resolution_query_fragments_input(
     }
 }
 
+pub fn summarize_source_resolution_match_fragments_input(
+    input: &EngineInputV2,
+) -> SourceResolutionMatchFragmentsV0 {
+    let mut expression_index = BTreeMap::new();
+    let mut style_index = BTreeMap::new();
+
+    for source in &input.sources {
+        for expression in &source.document.class_expressions {
+            expression_index.insert(expression.id.clone(), expression);
+        }
+    }
+
+    for style in &input.styles {
+        style_index.insert(style.file_path.clone(), style);
+    }
+
+    let mut fragments = Vec::new();
+
+    for entry in &input.type_facts {
+        let Some(expression) = expression_index.get(&entry.expression_id) else {
+            continue;
+        };
+        let Some(style) = style_index.get(&expression.scss_module_path) else {
+            continue;
+        };
+
+        fragments.push(SourceResolutionMatchFragmentV0 {
+            query_id: entry.expression_id.clone(),
+            expression_id: entry.expression_id.clone(),
+            style_file_path: expression.scss_module_path.clone(),
+            selector_names: resolve_selector_names(style, &entry.facts),
+            finite_values: finite_values_for_facts(&entry.facts),
+        });
+    }
+
+    fragments.sort_by(|a, b| a.query_id.cmp(&b.query_id));
+
+    SourceResolutionMatchFragmentsV0 {
+        schema_version: "0",
+        input_version: input.version.clone(),
+        fragments,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        summarize_source_resolution_fragments_input, summarize_source_resolution_plan_input,
+        summarize_source_resolution_fragments_input,
+        summarize_source_resolution_match_fragments_input, summarize_source_resolution_plan_input,
         summarize_source_resolution_query_fragments_input,
     };
     use crate::test_support::sample_input;
@@ -180,5 +227,27 @@ mod tests {
         assert_eq!(second.query_id, "expr-2");
         assert_eq!(second.expression_kind, "styleAccess");
         assert_eq!(second.style_file_path, "/tmp/Card.module.scss");
+    }
+
+    #[test]
+    fn builds_source_resolution_match_fragments_from_input() {
+        let summary = summarize_source_resolution_match_fragments_input(&sample_input());
+
+        assert_eq!(summary.fragments.len(), 2);
+        let first = &summary.fragments[0];
+        assert_eq!(first.query_id, "expr-1");
+        assert_eq!(first.expression_id, "expr-1");
+        assert_eq!(first.style_file_path, "/tmp/App.module.scss");
+        assert_eq!(first.selector_names, vec!["btn-active".to_string()]);
+        assert!(first.finite_values.is_none());
+
+        let second = &summary.fragments[1];
+        assert_eq!(second.query_id, "expr-2");
+        assert_eq!(second.style_file_path, "/tmp/Card.module.scss");
+        assert_eq!(second.selector_names, vec!["card-header".to_string()]);
+        assert_eq!(
+            second.finite_values,
+            Some(vec!["card-header".to_string(), "card-body".to_string()])
+        );
     }
 }

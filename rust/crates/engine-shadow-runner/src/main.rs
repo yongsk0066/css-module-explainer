@@ -9,8 +9,8 @@ use engine_input_producers::{
     summarize_expression_semantics_query_fragments_input, summarize_query_plan_input,
     summarize_selector_usage_fragments_input, summarize_selector_usage_plan_input,
     summarize_selector_usage_query_fragments_input, summarize_source_resolution_fragments_input,
-    summarize_source_resolution_plan_input, summarize_source_resolution_query_fragments_input,
-    summarize_type_fact_input,
+    summarize_source_resolution_match_fragments_input, summarize_source_resolution_plan_input,
+    summarize_source_resolution_query_fragments_input, summarize_type_fact_input,
 };
 use serde::{Deserialize, Serialize};
 
@@ -229,6 +229,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some("input-source-resolution-fragments") => {
             let input: EngineInputV2 = serde_json::from_str(&stdin)?;
             let summary = summarize_source_resolution_fragments_input(&input);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
+        Some("input-source-resolution-match-fragments") => {
+            let input: EngineInputV2 = serde_json::from_str(&stdin)?;
+            let summary = summarize_source_resolution_match_fragments_input(&input);
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
         Some("input-source-resolution-query-fragments") => {
