@@ -25,6 +25,9 @@ pub use selector_usage::summarize_selector_usage_fragments_input;
 pub use selector_usage::summarize_selector_usage_plan_input;
 pub use selector_usage::summarize_selector_usage_query_fragments_input;
 pub use source_resolution::summarize_source_resolution_candidates_input;
+pub use source_resolution::summarize_source_resolution_canonical_candidate_bundle_input;
+pub use source_resolution::summarize_source_resolution_canonical_producer_signal_input;
+pub use source_resolution::summarize_source_resolution_evaluator_candidates_input;
 pub use source_resolution::summarize_source_resolution_fragments_input;
 pub use source_resolution::summarize_source_resolution_match_fragments_input;
 pub use source_resolution::summarize_source_resolution_plan_input;
@@ -239,7 +242,7 @@ pub struct SourceResolutionPlanSummaryV0 {
     style_access_path_depth_sum: usize,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SourceResolutionQueryFragmentV0 {
     pub query_id: String,
@@ -256,7 +259,7 @@ pub struct SourceResolutionQueryFragmentsV0 {
     pub fragments: Vec<SourceResolutionQueryFragmentV0>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SourceResolutionMatchFragmentV0 {
     pub query_id: String,
@@ -275,7 +278,7 @@ pub struct SourceResolutionMatchFragmentsV0 {
     pub fragments: Vec<SourceResolutionMatchFragmentV0>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SourceResolutionCandidateV0 {
     pub query_id: String,
@@ -317,6 +320,78 @@ pub struct SourceResolutionCandidatesV0 {
     pub schema_version: &'static str,
     pub input_version: String,
     pub candidates: Vec<SourceResolutionCandidateV0>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceResolutionCanonicalCandidateBundleV0 {
+    pub schema_version: &'static str,
+    pub input_version: String,
+    pub query_fragments: Vec<SourceResolutionQueryFragmentV0>,
+    pub fragments: Vec<SourceResolutionFragmentV0>,
+    pub match_fragments: Vec<SourceResolutionMatchFragmentV0>,
+    pub candidates: Vec<SourceResolutionCandidateV0>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceResolutionEvaluatorCandidatePayloadV0 {
+    pub expression_id: String,
+    pub style_file_path: String,
+    pub selector_names: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub finite_values: Option<Vec<String>>,
+    pub selector_certainty: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_certainty: Option<String>,
+    pub selector_certainty_shape_kind: String,
+    pub selector_certainty_shape_label: String,
+    pub value_certainty_shape_kind: String,
+    pub value_certainty_shape_label: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub selector_constraint_kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_certainty_constraint_kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_prefix: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_suffix: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_min_len: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_max_len: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_char_must: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_char_may: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_may_include_other_chars: Option<bool>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceResolutionEvaluatorCandidateV0 {
+    pub kind: &'static str,
+    pub file_path: String,
+    pub query_id: String,
+    pub payload: SourceResolutionEvaluatorCandidatePayloadV0,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceResolutionEvaluatorCandidatesV0 {
+    pub schema_version: &'static str,
+    pub input_version: String,
+    pub results: Vec<SourceResolutionEvaluatorCandidateV0>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceResolutionCanonicalProducerSignalV0 {
+    pub schema_version: &'static str,
+    pub input_version: String,
+    pub canonical_bundle: SourceResolutionCanonicalCandidateBundleV0,
+    pub evaluator_candidates: SourceResolutionEvaluatorCandidatesV0,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -516,7 +591,7 @@ pub struct ExpressionSemanticsCanonicalProducerSignalV0 {
     pub evaluator_candidates: ExpressionSemanticsEvaluatorCandidatesV0,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SourceResolutionFragmentV0 {
     query_id: String,

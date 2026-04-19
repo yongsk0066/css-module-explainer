@@ -208,6 +208,57 @@ export interface SourceResolutionCandidatesV0 {
   readonly candidates: readonly SourceResolutionCandidateV0[];
 }
 
+export interface SourceResolutionCanonicalCandidateBundleV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly queryFragments: readonly SourceResolutionQueryFragmentV0[];
+  readonly fragments: readonly SourceResolutionFragmentV0[];
+  readonly matchFragments: readonly SourceResolutionMatchFragmentV0[];
+  readonly candidates: readonly SourceResolutionCandidateV0[];
+}
+
+export interface SourceResolutionEvaluatorCandidatePayloadV0 {
+  readonly expressionId: string;
+  readonly styleFilePath: string;
+  readonly selectorNames: readonly string[];
+  readonly finiteValues?: readonly string[];
+  readonly selectorCertainty: string;
+  readonly valueCertainty?: string;
+  readonly selectorCertaintyShapeKind: string;
+  readonly selectorCertaintyShapeLabel: string;
+  readonly valueCertaintyShapeKind: string;
+  readonly valueCertaintyShapeLabel: string;
+  readonly selectorConstraintKind?: string;
+  readonly valueCertaintyConstraintKind?: string;
+  readonly valuePrefix?: string;
+  readonly valueSuffix?: string;
+  readonly valueMinLen?: number;
+  readonly valueMaxLen?: number;
+  readonly valueCharMust?: string;
+  readonly valueCharMay?: string;
+  readonly valueMayIncludeOtherChars?: boolean;
+}
+
+export interface SourceResolutionEvaluatorCandidateV0 {
+  readonly kind: "source-expression-resolution";
+  readonly filePath: string;
+  readonly queryId: string;
+  readonly payload: SourceResolutionEvaluatorCandidatePayloadV0;
+}
+
+export interface SourceResolutionEvaluatorCandidatesV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly results: readonly SourceResolutionEvaluatorCandidateV0[];
+}
+
+export interface SourceResolutionCanonicalProducerSignalV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly canonicalBundle: SourceResolutionCanonicalCandidateBundleV0;
+  readonly evaluatorCandidates: SourceResolutionEvaluatorCandidatesV0;
+}
+
 export interface ExpressionSemanticsFragmentV0 {
   readonly queryId: string;
   readonly expressionId: string;
@@ -442,6 +493,33 @@ export async function runShadowSourceResolutionCandidatesInput(
   input: EngineInputV2,
 ): Promise<SourceResolutionCandidatesV0> {
   return runShadowJson<SourceResolutionCandidatesV0>(["input-source-resolution-candidates"], input);
+}
+
+export async function runShadowSourceResolutionEvaluatorCandidatesInput(
+  input: EngineInputV2,
+): Promise<SourceResolutionEvaluatorCandidatesV0> {
+  return runShadowJson<SourceResolutionEvaluatorCandidatesV0>(
+    ["input-source-resolution-evaluator-candidates"],
+    input,
+  );
+}
+
+export async function runShadowSourceResolutionCanonicalCandidateInput(
+  input: EngineInputV2,
+): Promise<SourceResolutionCanonicalCandidateBundleV0> {
+  return runShadowJson<SourceResolutionCanonicalCandidateBundleV0>(
+    ["input-source-resolution-canonical-candidate"],
+    input,
+  );
+}
+
+export async function runShadowSourceResolutionCanonicalProducerInput(
+  input: EngineInputV2,
+): Promise<SourceResolutionCanonicalProducerSignalV0> {
+  return runShadowJson<SourceResolutionCanonicalProducerSignalV0>(
+    ["input-source-resolution-canonical-producer"],
+    input,
+  );
 }
 
 export async function runShadowExpressionSemanticsFragmentsInput(
@@ -1398,6 +1476,78 @@ export function deriveTsSourceResolutionCandidates(
   };
 }
 
+export function deriveTsSourceResolutionEvaluatorCandidates(
+  snapshot: EngineParitySnapshotV2,
+): SourceResolutionEvaluatorCandidatesV0 {
+  const results = snapshot.output.queryResults
+    .filter((query) => query.kind === "source-expression-resolution")
+    .map((query) => ({
+      kind: "source-expression-resolution" as const,
+      filePath: query.filePath,
+      queryId: query.queryId,
+      payload: {
+        expressionId: query.payload.expressionId,
+        styleFilePath: query.payload.styleFilePath ?? "",
+        selectorNames: query.payload.selectorNames,
+        ...(query.payload.finiteValues ? { finiteValues: query.payload.finiteValues } : {}),
+        selectorCertainty: query.payload.selectorCertainty,
+        ...(query.payload.valueCertainty ? { valueCertainty: query.payload.valueCertainty } : {}),
+        selectorCertaintyShapeKind: query.payload.selectorCertaintyShapeKind ?? "unknown",
+        selectorCertaintyShapeLabel: query.payload.selectorCertaintyShapeLabel ?? "unknown",
+        valueCertaintyShapeKind: query.payload.valueCertaintyShapeKind ?? "unknown",
+        valueCertaintyShapeLabel: query.payload.valueCertaintyShapeLabel ?? "unknown",
+        ...(query.payload.selectorConstraintKind
+          ? { selectorConstraintKind: query.payload.selectorConstraintKind }
+          : {}),
+        ...(query.payload.valueCertaintyConstraintKind
+          ? { valueCertaintyConstraintKind: query.payload.valueCertaintyConstraintKind }
+          : {}),
+        ...(query.payload.valuePrefix ? { valuePrefix: query.payload.valuePrefix } : {}),
+        ...(query.payload.valueSuffix ? { valueSuffix: query.payload.valueSuffix } : {}),
+        ...(query.payload.valueMinLen !== undefined
+          ? { valueMinLen: query.payload.valueMinLen }
+          : {}),
+        ...(query.payload.valueMaxLen !== undefined
+          ? { valueMaxLen: query.payload.valueMaxLen }
+          : {}),
+        ...(query.payload.valueCharMust ? { valueCharMust: query.payload.valueCharMust } : {}),
+        ...(query.payload.valueCharMay ? { valueCharMay: query.payload.valueCharMay } : {}),
+        ...(query.payload.valueMayIncludeOtherChars ? { valueMayIncludeOtherChars: true } : {}),
+      },
+    }))
+    .toSorted((a, b) => a.queryId.localeCompare(b.queryId));
+
+  return {
+    schemaVersion: "0",
+    inputVersion: snapshot.input.version,
+    results,
+  };
+}
+
+export function deriveTsSourceResolutionCanonicalCandidateBundle(
+  snapshot: EngineParitySnapshotV2,
+): SourceResolutionCanonicalCandidateBundleV0 {
+  return {
+    schemaVersion: "0",
+    inputVersion: snapshot.input.version,
+    queryFragments: deriveTsSourceResolutionQueryFragments(snapshot).fragments,
+    fragments: deriveTsSourceResolutionFragments(snapshot).fragments,
+    matchFragments: deriveTsSourceResolutionMatchFragments(snapshot).fragments,
+    candidates: deriveTsSourceResolutionCandidates(snapshot).candidates,
+  };
+}
+
+export function deriveTsSourceResolutionCanonicalProducerSignal(
+  snapshot: EngineParitySnapshotV2,
+): SourceResolutionCanonicalProducerSignalV0 {
+  return {
+    schemaVersion: "0",
+    inputVersion: snapshot.input.version,
+    canonicalBundle: deriveTsSourceResolutionCanonicalCandidateBundle(snapshot),
+    evaluatorCandidates: deriveTsSourceResolutionEvaluatorCandidates(snapshot),
+  };
+}
+
 export function assertShadowSummaryMatch(
   label: string,
   actual: ShadowSummaryV0,
@@ -1995,6 +2145,76 @@ export function assertSourceResolutionCandidatesMatch(
       `${label}: source resolution candidates mismatch\nactual=${JSON.stringify(actual.candidates, null, 2)}\nexpected=${JSON.stringify(expected.candidates, null, 2)}`,
     );
   }
+}
+
+export function assertSourceResolutionEvaluatorCandidatesMatch(
+  label: string,
+  actual: SourceResolutionEvaluatorCandidatesV0,
+  expected: SourceResolutionEvaluatorCandidatesV0,
+): void {
+  if (actual.schemaVersion !== expected.schemaVersion) {
+    throw new Error(
+      `${label}: source resolution evaluator candidates schema mismatch: ${actual.schemaVersion} !== ${expected.schemaVersion}`,
+    );
+  }
+  if (actual.inputVersion !== expected.inputVersion) {
+    throw new Error(
+      `${label}: source resolution evaluator candidates input version mismatch: ${actual.inputVersion} !== ${expected.inputVersion}`,
+    );
+  }
+  if (JSON.stringify(actual.results) !== JSON.stringify(expected.results)) {
+    throw new Error(
+      `${label}: source resolution evaluator candidates mismatch\nactual=${JSON.stringify(actual.results, null, 2)}\nexpected=${JSON.stringify(expected.results, null, 2)}`,
+    );
+  }
+}
+
+export function assertSourceResolutionCanonicalCandidateBundleMatch(
+  label: string,
+  actual: SourceResolutionCanonicalCandidateBundleV0,
+  expected: SourceResolutionCanonicalCandidateBundleV0,
+): void {
+  assertEqualField(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
+  assertEqualField(label, "inputVersion", actual.inputVersion, expected.inputVersion);
+  if (JSON.stringify(actual.queryFragments) !== JSON.stringify(expected.queryFragments)) {
+    throw new Error(
+      `${label}: source resolution canonical candidate queryFragments mismatch\nactual=${JSON.stringify(actual.queryFragments, null, 2)}\nexpected=${JSON.stringify(expected.queryFragments, null, 2)}`,
+    );
+  }
+  if (JSON.stringify(actual.fragments) !== JSON.stringify(expected.fragments)) {
+    throw new Error(
+      `${label}: source resolution canonical candidate fragments mismatch\nactual=${JSON.stringify(actual.fragments, null, 2)}\nexpected=${JSON.stringify(expected.fragments, null, 2)}`,
+    );
+  }
+  if (JSON.stringify(actual.matchFragments) !== JSON.stringify(expected.matchFragments)) {
+    throw new Error(
+      `${label}: source resolution canonical candidate matchFragments mismatch\nactual=${JSON.stringify(actual.matchFragments, null, 2)}\nexpected=${JSON.stringify(expected.matchFragments, null, 2)}`,
+    );
+  }
+  if (JSON.stringify(actual.candidates) !== JSON.stringify(expected.candidates)) {
+    throw new Error(
+      `${label}: source resolution canonical candidate candidates mismatch\nactual=${JSON.stringify(actual.candidates, null, 2)}\nexpected=${JSON.stringify(expected.candidates, null, 2)}`,
+    );
+  }
+}
+
+export function assertSourceResolutionCanonicalProducerSignalMatch(
+  label: string,
+  actual: SourceResolutionCanonicalProducerSignalV0,
+  expected: SourceResolutionCanonicalProducerSignalV0,
+): void {
+  assertEqualField(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
+  assertEqualField(label, "inputVersion", actual.inputVersion, expected.inputVersion);
+  assertSourceResolutionCanonicalCandidateBundleMatch(
+    `${label}:canonicalBundle`,
+    actual.canonicalBundle,
+    expected.canonicalBundle,
+  );
+  assertSourceResolutionEvaluatorCandidatesMatch(
+    `${label}:evaluatorCandidates`,
+    actual.evaluatorCandidates,
+    expected.evaluatorCandidates,
+  );
 }
 
 function assertEqualField<T>(label: string, field: string, actual: T, expected: T) {

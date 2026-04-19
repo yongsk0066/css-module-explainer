@@ -124,8 +124,23 @@ export const RUST_GATE_EVIDENCE_CORPUS: readonly RustGateEvidenceEntry[] = [
     variants: ["typescript-current"],
   },
   {
+    label: "rust-source-resolution-evaluator-candidates",
+    argv: ["check:rust-source-resolution-evaluator-candidates"],
+    variants: ["typescript-current"],
+  },
+  {
     label: "rust-source-resolution-match-fragments",
     argv: ["check:rust-source-resolution-match-fragments"],
+    variants: ["typescript-current"],
+  },
+  {
+    label: "rust-source-resolution-canonical-candidate",
+    argv: ["check:rust-source-resolution-canonical-candidate"],
+    variants: ["typescript-current"],
+  },
+  {
+    label: "rust-source-resolution-canonical-producer",
+    argv: ["check:rust-source-resolution-canonical-producer"],
     variants: ["typescript-current"],
   },
   {

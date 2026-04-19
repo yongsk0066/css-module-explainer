@@ -245,9 +245,12 @@ Current checker policy:
   - query skeletons: `pnpm check:rust-*-query-fragments`
   - match fragments: `pnpm check:rust-expression-semantics-match-fragments`, `pnpm check:rust-source-resolution-match-fragments`
   - output-like candidates: `pnpm check:rust-expression-semantics-candidates`, `pnpm check:rust-source-resolution-candidates`
+  - source-resolution evaluator candidates: `pnpm check:rust-source-resolution-evaluator-candidates`
   - canonical-candidate bundle: `pnpm check:rust-expression-semantics-canonical-candidate`
+  - source-resolution canonical bundle: `pnpm check:rust-source-resolution-canonical-candidate`
   - evaluator candidates: `pnpm check:rust-expression-semantics-evaluator-candidates`
   - canonical-producer signal: `pnpm check:rust-expression-semantics-canonical-producer`
+  - source-resolution canonical-producer signal: `pnpm check:rust-source-resolution-canonical-producer`
   - full snapshot parity: `pnpm check:rust-shadow-compare`
 - `pnpm check:real-project-corpus` runs a clean multi-file corpus that mimics common product patterns (`variants`, `@value` + `@keyframes`, `composes`, `.module.less`)
 - semantic smoke cases are versioned in `scripts/semantic-smoke-corpus.ts` and should be updated when new semantic surfaces become release-relevant
