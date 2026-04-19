@@ -243,6 +243,7 @@ Current checker policy:
 - Rust shadow validation now covers:
   - input summaries: `pnpm check:rust-type-fact-compare`, `pnpm check:rust-query-plan-compare`, `pnpm check:rust-expression-domain-compare`
   - input-only candidates: `pnpm check:rust-expression-domain-candidates`
+  - expression-domain evaluator candidates: `pnpm check:rust-expression-domain-evaluator-candidates`
   - query skeletons: `pnpm check:rust-*-query-fragments`
   - match fragments: `pnpm check:rust-expression-semantics-match-fragments`, `pnpm check:rust-source-resolution-match-fragments`
   - output-like candidates: `pnpm check:rust-expression-semantics-candidates`, `pnpm check:rust-source-resolution-candidates`
@@ -253,7 +254,7 @@ Current checker policy:
   - full snapshot parity: `pnpm check:rust-shadow-compare`
 - Current `3.8.0` framing is a consolidated source-side lane:
   - `expression-semantics` and `source-resolution` now carry family-level canonical-producer signals and a shared top-level source-side lane
-  - `expression-domain` now carries input-only canonical artifacts on the Rust shadow path
+  - `expression-domain` now carries input-only canonical artifacts plus type-fact-backed evaluator-candidate coverage on the Rust shadow path
   - `selector-usage` remains a shadow validation family, not a release-gating canonical candidate
   - current `EngineInputV2` does not preserve enough reference-level evidence to reproduce `selector-usage` semantics as an input-only canonical producer
 - `pnpm check:real-project-corpus` runs a clean multi-file corpus that mimics common product patterns (`variants`, `@value` + `@keyframes`, `composes`, `.module.less`)

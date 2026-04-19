@@ -2,9 +2,8 @@ import path from "node:path";
 import { buildContractParitySnapshot } from "./contract-parity-runtime";
 import type { ContractParityEntry } from "./contract-parity-corpus-v1";
 import {
-  assertExpressionDomainCanonicalProducerSignalMatch,
-  deriveTsExpressionDomainCanonicalProducerSignal,
-  runShadowExpressionDomainCanonicalProducerInput,
+  deriveTsExpressionDomainEvaluatorCandidates,
+  runShadowExpressionDomainEvaluatorCandidatesInput,
 } from "./rust-shadow-shared";
 
 const workspaceRoot = process.cwd();
@@ -68,25 +67,26 @@ const TYPE_FACT_BACKED_EXPRESSION_DOMAIN_CORPUS: readonly ContractParityEntry[] 
 
 void (async () => {
   for (const entry of TYPE_FACT_BACKED_EXPRESSION_DOMAIN_CORPUS) {
-    process.stdout.write(`== rust-expression-domain-canonical-producer:${entry.label} ==\n`);
+    process.stdout.write(`== rust-expression-domain-evaluator-candidates:${entry.label} ==\n`);
 
     // oxlint-disable-next-line eslint/no-await-in-loop
     const snapshot = await buildContractParitySnapshot(entry);
-    const expected = deriveTsExpressionDomainCanonicalProducerSignal(snapshot);
+    const expected = deriveTsExpressionDomainEvaluatorCandidates(snapshot);
     // oxlint-disable-next-line eslint/no-await-in-loop
-    const actual = await runShadowExpressionDomainCanonicalProducerInput(snapshot.input);
+    const actual = await runShadowExpressionDomainEvaluatorCandidatesInput(snapshot.input);
 
-    assertExpressionDomainCanonicalProducerSignalMatch(entry.label, actual, expected);
+    if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+      throw new Error(
+        [
+          `${entry.label}: expression-domain evaluator candidates mismatch`,
+          `actual=${JSON.stringify(actual, null, 2)}`,
+          `expected=${JSON.stringify(expected, null, 2)}`,
+        ].join("\n"),
+      );
+    }
 
     process.stdout.write(
-      [
-        "validated expression domain canonical-producer signal:",
-        `planned=${actual.canonicalBundle.planSummary.plannedExpressionIds.length}`,
-        `fragments=${actual.canonicalBundle.fragments.length}`,
-        `candidates=${actual.canonicalBundle.candidates.length}`,
-        `evaluator=${actual.evaluatorCandidates.results.length}`,
-      ].join(" "),
+      `matched expression domain evaluator candidates: ${actual.results.length}\n\n`,
     );
-    process.stdout.write("\n\n");
   }
 })();

@@ -3,14 +3,17 @@ use std::collections::BTreeMap;
 use crate::{
     ConstraintDetailCounts, ConstraintDetailInput, EngineInputV2, ExpressionDomainCandidateV0,
     ExpressionDomainCandidatesV0, ExpressionDomainCanonicalCandidateBundleV0,
-    ExpressionDomainCanonicalProducerSignalV0, ExpressionDomainFragmentV0,
-    ExpressionDomainFragmentsV0, ExpressionDomainPlanSummaryV0, collect_constraint_detail_counts,
+    ExpressionDomainCanonicalProducerSignalV0, ExpressionDomainEvaluatorCandidatePayloadV0,
+    ExpressionDomainEvaluatorCandidateV0, ExpressionDomainEvaluatorCandidatesV0,
+    ExpressionDomainFragmentV0, ExpressionDomainFragmentsV0, ExpressionDomainPlanSummaryV0,
+    collect_constraint_detail_counts, map_expression_value_domain_kind,
 };
 
 struct ExpressionDomainInputRows {
     plan_summary: ExpressionDomainPlanSummaryV0,
     fragments: Vec<ExpressionDomainFragmentV0>,
     candidates: Vec<ExpressionDomainCandidateV0>,
+    evaluator_candidates: Vec<ExpressionDomainEvaluatorCandidateV0>,
 }
 
 fn collect_expression_domain_input_rows(input: &EngineInputV2) -> ExpressionDomainInputRows {
@@ -21,6 +24,7 @@ fn collect_expression_domain_input_rows(input: &EngineInputV2) -> ExpressionDoma
     let mut finite_value_count = 0usize;
     let mut fragments = Vec::new();
     let mut candidates = Vec::new();
+    let mut evaluator_candidates = Vec::new();
 
     for entry in &input.type_facts {
         planned_expression_ids.push(entry.expression_id.clone());
@@ -80,10 +84,30 @@ fn collect_expression_domain_input_rows(input: &EngineInputV2) -> ExpressionDoma
             value_may_include_other_chars: fragment.value_may_include_other_chars,
             finite_value_count: fragment.finite_value_count,
         });
+
+        evaluator_candidates.push(ExpressionDomainEvaluatorCandidateV0 {
+            kind: "expression-domain",
+            file_path: entry.file_path.clone(),
+            query_id: entry.expression_id.clone(),
+            payload: ExpressionDomainEvaluatorCandidatePayloadV0 {
+                expression_id: entry.expression_id.clone(),
+                value_domain_kind: map_expression_value_domain_kind(&entry.facts),
+                value_constraint_kind: entry.facts.constraint_kind.clone(),
+                value_prefix: entry.facts.prefix.clone(),
+                value_suffix: entry.facts.suffix.clone(),
+                value_min_len: entry.facts.min_len,
+                value_max_len: entry.facts.max_len,
+                value_char_must: entry.facts.char_must.clone(),
+                value_char_may: entry.facts.char_may.clone(),
+                value_may_include_other_chars: entry.facts.may_include_other_chars,
+                finite_value_count: entry.facts.values.as_ref().map_or(0, Vec::len),
+            },
+        });
     }
 
     fragments.sort_by(|a, b| a.expression_id.cmp(&b.expression_id));
     candidates.sort_by(|a, b| a.expression_id.cmp(&b.expression_id));
+    evaluator_candidates.sort_by(|a, b| a.query_id.cmp(&b.query_id));
 
     ExpressionDomainInputRows {
         plan_summary: ExpressionDomainPlanSummaryV0 {
@@ -97,6 +121,7 @@ fn collect_expression_domain_input_rows(input: &EngineInputV2) -> ExpressionDoma
         },
         fragments,
         candidates,
+        evaluator_candidates,
     }
 }
 
@@ -144,6 +169,18 @@ pub fn summarize_expression_domain_canonical_candidate_bundle_input(
     }
 }
 
+pub fn summarize_expression_domain_evaluator_candidates_input(
+    input: &EngineInputV2,
+) -> ExpressionDomainEvaluatorCandidatesV0 {
+    let rows = collect_expression_domain_input_rows(input);
+
+    ExpressionDomainEvaluatorCandidatesV0 {
+        schema_version: "0",
+        input_version: input.version.clone(),
+        results: rows.evaluator_candidates,
+    }
+}
+
 pub fn summarize_expression_domain_canonical_producer_signal_input(
     input: &EngineInputV2,
 ) -> ExpressionDomainCanonicalProducerSignalV0 {
@@ -155,10 +192,15 @@ pub fn summarize_expression_domain_canonical_producer_signal_input(
         input_version: input_version.clone(),
         canonical_bundle: ExpressionDomainCanonicalCandidateBundleV0 {
             schema_version: "0",
-            input_version,
+            input_version: input_version.clone(),
             plan_summary: rows.plan_summary,
             fragments: rows.fragments,
             candidates: rows.candidates,
+        },
+        evaluator_candidates: ExpressionDomainEvaluatorCandidatesV0 {
+            schema_version: "0",
+            input_version,
+            results: rows.evaluator_candidates,
         },
     }
 }
@@ -169,6 +211,7 @@ mod tests {
         summarize_expression_domain_candidates_input,
         summarize_expression_domain_canonical_candidate_bundle_input,
         summarize_expression_domain_canonical_producer_signal_input,
+        summarize_expression_domain_evaluator_candidates_input,
         summarize_expression_domain_fragments_input, summarize_expression_domain_plan_input,
     };
     use crate::test_support::sample_input;
@@ -236,6 +279,23 @@ mod tests {
     }
 
     #[test]
+    fn summarizes_expression_domain_evaluator_candidates() {
+        let summary = summarize_expression_domain_evaluator_candidates_input(&sample_input());
+
+        assert_eq!(summary.schema_version, "0");
+        assert_eq!(summary.input_version, "2");
+        assert_eq!(summary.results.len(), 2);
+        assert_eq!(summary.results[0].kind, "expression-domain");
+        assert_eq!(summary.results[0].query_id, "expr-1");
+        assert_eq!(summary.results[0].payload.value_domain_kind, "constrained");
+        assert_eq!(
+            summary.results[0].payload.value_constraint_kind.as_deref(),
+            Some("prefixSuffix")
+        );
+        assert_eq!(summary.results[1].payload.finite_value_count, 2);
+    }
+
+    #[test]
     fn summarizes_expression_domain_canonical_producer_signal() {
         let summary = summarize_expression_domain_canonical_producer_signal_input(&sample_input());
 
@@ -251,5 +311,6 @@ mod tests {
         );
         assert_eq!(summary.canonical_bundle.fragments.len(), 2);
         assert_eq!(summary.canonical_bundle.candidates.len(), 2);
+        assert_eq!(summary.evaluator_candidates.results.len(), 2);
     }
 }

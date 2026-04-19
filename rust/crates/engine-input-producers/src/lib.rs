@@ -15,6 +15,7 @@ mod type_facts;
 pub use expression_domain::summarize_expression_domain_candidates_input;
 pub use expression_domain::summarize_expression_domain_canonical_candidate_bundle_input;
 pub use expression_domain::summarize_expression_domain_canonical_producer_signal_input;
+pub use expression_domain::summarize_expression_domain_evaluator_candidates_input;
 pub use expression_domain::summarize_expression_domain_fragments_input;
 pub use expression_domain::summarize_expression_domain_plan_input;
 pub use expression_semantics::summarize_expression_semantics_candidates_input;
@@ -231,10 +232,52 @@ pub struct ExpressionDomainCanonicalCandidateBundleV0 {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ExpressionDomainEvaluatorCandidatePayloadV0 {
+    pub expression_id: String,
+    pub value_domain_kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_constraint_kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_prefix: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_suffix: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_min_len: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_max_len: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_char_must: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_char_may: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_may_include_other_chars: Option<bool>,
+    pub finite_value_count: usize,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExpressionDomainEvaluatorCandidateV0 {
+    pub kind: &'static str,
+    pub file_path: String,
+    pub query_id: String,
+    pub payload: ExpressionDomainEvaluatorCandidatePayloadV0,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExpressionDomainEvaluatorCandidatesV0 {
+    pub schema_version: &'static str,
+    pub input_version: String,
+    pub results: Vec<ExpressionDomainEvaluatorCandidateV0>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ExpressionDomainCanonicalProducerSignalV0 {
     pub schema_version: &'static str,
     pub input_version: String,
     pub canonical_bundle: ExpressionDomainCanonicalCandidateBundleV0,
+    pub evaluator_candidates: ExpressionDomainEvaluatorCandidatesV0,
 }
 
 #[derive(Debug, Serialize)]

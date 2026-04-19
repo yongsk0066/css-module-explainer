@@ -133,10 +133,38 @@ export interface ExpressionDomainCanonicalCandidateBundleV0 {
   readonly candidates: readonly ExpressionDomainCandidateV0[];
 }
 
+export interface ExpressionDomainEvaluatorCandidatePayloadV0 {
+  readonly expressionId: string;
+  readonly valueDomainKind: string;
+  readonly valueConstraintKind?: string;
+  readonly valuePrefix?: string;
+  readonly valueSuffix?: string;
+  readonly valueMinLen?: number;
+  readonly valueMaxLen?: number;
+  readonly valueCharMust?: string;
+  readonly valueCharMay?: string;
+  readonly valueMayIncludeOtherChars?: boolean;
+  readonly finiteValueCount: number;
+}
+
+export interface ExpressionDomainEvaluatorCandidateV0 {
+  readonly kind: string;
+  readonly filePath: string;
+  readonly queryId: string;
+  readonly payload: ExpressionDomainEvaluatorCandidatePayloadV0;
+}
+
+export interface ExpressionDomainEvaluatorCandidatesV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly results: readonly ExpressionDomainEvaluatorCandidateV0[];
+}
+
 export interface ExpressionDomainCanonicalProducerSignalV0 {
   readonly schemaVersion: string;
   readonly inputVersion: string;
   readonly canonicalBundle: ExpressionDomainCanonicalCandidateBundleV0;
+  readonly evaluatorCandidates: ExpressionDomainEvaluatorCandidatesV0;
 }
 
 export interface SelectorUsagePlanSummaryV0 {
@@ -511,6 +539,15 @@ export async function runShadowExpressionDomainCanonicalCandidateInput(
 ): Promise<ExpressionDomainCanonicalCandidateBundleV0> {
   return runShadowJson<ExpressionDomainCanonicalCandidateBundleV0>(
     ["input-expression-domain-canonical-candidate"],
+    input,
+  );
+}
+
+export async function runShadowExpressionDomainEvaluatorCandidatesInput(
+  input: EngineInputV2,
+): Promise<ExpressionDomainEvaluatorCandidatesV0> {
+  return runShadowJson<ExpressionDomainEvaluatorCandidatesV0>(
+    ["input-expression-domain-evaluator-candidates"],
     input,
   );
 }
@@ -1115,6 +1152,44 @@ export function deriveTsExpressionDomainCanonicalCandidateBundle(
   };
 }
 
+export function deriveTsExpressionDomainEvaluatorCandidates(
+  snapshot: EngineParitySnapshotV2,
+): ExpressionDomainEvaluatorCandidatesV0 {
+  const results = snapshot.output.queryResults
+    .filter((query) => query.kind === "expression-semantics")
+    .map((query) => ({
+      kind: "expression-domain" as const,
+      filePath: query.filePath,
+      queryId: query.queryId,
+      payload: {
+        expressionId: query.payload.expressionId,
+        valueDomainKind: query.payload.valueDomainKind,
+        ...(query.payload.valueConstraintKind
+          ? { valueConstraintKind: query.payload.valueConstraintKind }
+          : {}),
+        ...(query.payload.valuePrefix ? { valuePrefix: query.payload.valuePrefix } : {}),
+        ...(query.payload.valueSuffix ? { valueSuffix: query.payload.valueSuffix } : {}),
+        ...(query.payload.valueMinLen !== undefined
+          ? { valueMinLen: query.payload.valueMinLen }
+          : {}),
+        ...(query.payload.valueMaxLen !== undefined
+          ? { valueMaxLen: query.payload.valueMaxLen }
+          : {}),
+        ...(query.payload.valueCharMust ? { valueCharMust: query.payload.valueCharMust } : {}),
+        ...(query.payload.valueCharMay ? { valueCharMay: query.payload.valueCharMay } : {}),
+        ...(query.payload.valueMayIncludeOtherChars ? { valueMayIncludeOtherChars: true } : {}),
+        finiteValueCount: query.payload.finiteValues?.length ?? 0,
+      },
+    }))
+    .toSorted((a, b) => a.queryId.localeCompare(b.queryId));
+
+  return {
+    schemaVersion: "0",
+    inputVersion: snapshot.input.version,
+    results,
+  };
+}
+
 export function deriveTsExpressionDomainCanonicalProducerSignal(
   snapshot: EngineParitySnapshotV2,
 ): ExpressionDomainCanonicalProducerSignalV0 {
@@ -1122,6 +1197,7 @@ export function deriveTsExpressionDomainCanonicalProducerSignal(
     schemaVersion: "0",
     inputVersion: snapshot.input.version,
     canonicalBundle: deriveTsExpressionDomainCanonicalCandidateBundle(snapshot),
+    evaluatorCandidates: deriveTsExpressionDomainEvaluatorCandidates(snapshot),
   };
 }
 
@@ -2091,6 +2167,11 @@ export function assertExpressionDomainCanonicalProducerSignalMatch(
     actual.canonicalBundle,
     expected.canonicalBundle,
   );
+  if (JSON.stringify(actual.evaluatorCandidates) !== JSON.stringify(expected.evaluatorCandidates)) {
+    throw new Error(
+      `${label}: expressionDomainEvaluatorCandidates mismatch\nactual=${JSON.stringify(actual.evaluatorCandidates, null, 2)}\nexpected=${JSON.stringify(expected.evaluatorCandidates, null, 2)}`,
+    );
+  }
 }
 
 export function assertSelectorUsagePlanSummaryMatch(
