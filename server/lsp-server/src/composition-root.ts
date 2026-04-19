@@ -17,7 +17,7 @@ import type { WorkspaceRegistry } from "../../engine-host-node/src/workspace/wor
 import { defaultReadStyleFile } from "../../engine-host-node/src/runtime";
 
 const SERVER_NAME = "css-module-explainer";
-const SERVER_VERSION = "3.6.0";
+const SERVER_VERSION = "3.7.0";
 
 /**
  * Transport-agnostic shared options consumed by every

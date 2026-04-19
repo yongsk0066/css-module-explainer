@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.7.0] — 2026-04-20
+
+### Added
+
+- **Source-side canonical producer signals on the Rust shadow path** — `expression-semantics` and `source-resolution` now expose Rust-side evaluator-candidate bundles, canonical-candidate bundles, canonical-producer signals, and a consolidated source-side canonical-producer compare command for direct regression checks against the TypeScript oracle.
+
+### Changed
+
+- **`3.7.0` is now framed explicitly as a source-side-first Rust milestone** — the release narrative no longer waits for uniform all-family coverage. Source-side query families carry canonical-producer signals, while `expression-domain` and `selector-usage` remain shadow-validation families.
+- **Release verification now includes Rust workspace and gate-evidence validation** — `pnpm release:verify` now runs the Rust workspace gate and the canonical `typescript-current` rust gate-evidence pass alongside the existing TypeScript build/test checks.
+
 ## [3.6.0] — 2026-04-19
 
 ### Added

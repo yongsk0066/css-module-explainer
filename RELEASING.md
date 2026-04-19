@@ -22,6 +22,7 @@ Allowed:
 - `3.4.0`
 - `3.5.0`
 - `3.6.0`
+- `3.7.0`
 
 Do not use:
 
@@ -67,6 +68,8 @@ Before a release:
 pnpm install
 pnpm release:verify
 pnpm test:extension-host
+pnpm check:rust-workspace
+pnpm check:rust-gate-evidence -- --variant typescript-current --repeat 1 --json
 pnpm check:semantic-smoke
 pnpm check:release-batch
 pnpm check:contract-parity-v2-smoke
@@ -80,8 +83,10 @@ pnpm exec vsce package --no-dependencies
 
 1. sync `SERVER_VERSION`
 2. run `pnpm check`
-3. run `pnpm test`
-4. run `pnpm build`
+3. run `pnpm check:rust-workspace`
+4. run `pnpm check:rust-gate-evidence -- --variant typescript-current --repeat 1 --json`
+5. run `pnpm test`
+6. run `pnpm build`
 
 `pnpm check:semantic-smoke` is the canonical semantic smoke pass. It is not the
 release gate yet. It gives one repeatable workspace/checker sanity check before

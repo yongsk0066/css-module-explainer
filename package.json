@@ -1,7 +1,7 @@
 {
   "name": "css-module-explainer",
   "displayName": "CSS Module Explainer",
-  "version": "3.6.0",
+  "version": "3.7.0",
   "private": true,
   "description": "Go to Definition, Hover, Autocomplete, Diagnostics, Quick Fixes, and Find References for classnames/bind cx() patterns with CSS Modules.",
   "categories": [
@@ -100,7 +100,7 @@
     "test:coverage": "vitest run --coverage",
     "package": "pnpm build && vsce package --no-dependencies",
     "version-packages": "changeset version && ./scripts/release.sh",
-    "release:verify": "./scripts/release.sh && pnpm check && pnpm test && pnpm build",
+    "release:verify": "./scripts/release.sh && pnpm check && pnpm check:rust-workspace && pnpm check:rust-gate-evidence -- --variant typescript-current --repeat 1 --json && pnpm test && pnpm build",
     "release:publish": "./scripts/publish-extension.sh"
   },
   "devDependencies": {
