@@ -112,7 +112,9 @@ const CORPUS = [
 
 function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0 {
   const document = parseStyleDocument(source, filePath);
-  const selectorsWithComposes = document.selectors.filter((selector) => selector.composes.length > 0);
+  const selectorsWithComposes = document.selectors.filter(
+    (selector) => selector.composes.length > 0,
+  );
   const localComposesSelectors = selectorsWithComposes.filter((selector) =>
     selector.composes.some((ref) => ref.from === undefined && ref.fromGlobal !== true),
   );
@@ -138,12 +140,8 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
       .filter((selector) => selector.nestedSafety === "bemSuffixSafe")
       .map((selector) => selector.name)
       .toSorted(),
-    selectorsWithComposesNames: selectorsWithComposes
-      .map((selector) => selector.name)
-      .toSorted(),
-    localComposesSelectorNames: localComposesSelectors
-      .map((selector) => selector.name)
-      .toSorted(),
+    selectorsWithComposesNames: selectorsWithComposes.map((selector) => selector.name).toSorted(),
+    localComposesSelectorNames: localComposesSelectors.map((selector) => selector.name).toSorted(),
     importedComposesSelectorNames: importedComposesSelectors
       .map((selector) => selector.name)
       .toSorted(),
@@ -152,7 +150,9 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
       .toSorted(),
     composesImportSources: selectorsWithComposes
       .flatMap((selector) =>
-        selector.composes.map((ref) => ref.from).filter((from): from is string => from !== undefined),
+        selector.composes
+          .map((ref) => ref.from)
+          .filter((from): from is string => from !== undefined),
       )
       .toSorted(),
     keyframesNames: [...document.keyframes].map((entry) => entry.name).toSorted(),
