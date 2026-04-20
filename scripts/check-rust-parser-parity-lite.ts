@@ -79,9 +79,24 @@ const CORPUS = [
     source: `:global(.foo) { color: red; }`,
   },
   {
+    label: "scss-local-function",
+    filePath: "/f.module.scss",
+    source: `:local(.foo) { color: red; }`,
+  },
+  {
     label: "scss-pseudo-function-not",
     filePath: "/f.module.scss",
     source: `.btn:not(.disabled) { color: red; }`,
+  },
+  {
+    label: "scss-wrapper-mixed",
+    filePath: "/f.module.scss",
+    source: `@media (min-width: 1px) { @value brand: red; @keyframes fade { from { opacity: 0; } } .btn:hover { color: brand; } }`,
+  },
+  {
+    label: "scss-supports-layer",
+    filePath: "/f.module.scss",
+    source: `@supports (display: grid) { @layer ui { .grid > .item { display: grid; } } }`,
   },
   {
     label: "less-variable",

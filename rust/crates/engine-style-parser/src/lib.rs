@@ -300,6 +300,8 @@ fn resolve_rule_selector_names(
         let resolved = extract_group_selector_names(group, parent_selector_names);
         if !resolved.is_empty() {
             names.extend(resolved);
+        } else if let Some(local_names) = extract_local_function_selector_names(&group.raw) {
+            names.extend(local_names);
         } else if let Some(name) = extract_simple_selector_name(&group.raw) {
             names.push(name);
         }
@@ -343,6 +345,33 @@ fn extract_group_selector_names(
             if names.is_empty() { Vec::new() } else { names }
         }
     }
+}
+
+fn extract_local_function_selector_names(raw: &str) -> Option<Vec<String>> {
+    let trimmed = raw.trim();
+    let inner = trimmed
+        .strip_prefix(":local(")
+        .and_then(|rest| rest.strip_suffix(')'))?;
+    let mut names = Vec::new();
+    let chars: Vec<char> = inner.chars().collect();
+    let mut index = 0usize;
+
+    while index < chars.len() {
+        if chars[index] == '.' {
+            index += 1;
+            let start = index;
+            while index < chars.len() && is_selector_ident_continue(chars[index]) {
+                index += 1;
+            }
+            if start < index {
+                names.push(chars[start..index].iter().collect());
+                continue;
+            }
+        }
+        index += 1;
+    }
+
+    (!names.is_empty()).then_some(names)
 }
 
 fn parse_selector_groups(prelude: &str) -> Vec<SelectorGroup> {
@@ -1220,5 +1249,13 @@ mod tests {
         let sheet = parse_stylesheet(StyleLanguage::Scss, source);
         let summary = super::summarize_parity_lite(&sheet);
         assert_eq!(summary.selector_names, vec!["btn"]);
+    }
+
+    #[test]
+    fn parity_summary_keeps_local_function_class() {
+        let source = ":local(.foo) { color: red; }";
+        let sheet = parse_stylesheet(StyleLanguage::Scss, source);
+        let summary = super::summarize_parity_lite(&sheet);
+        assert_eq!(summary.selector_names, vec!["foo"]);
     }
 }
