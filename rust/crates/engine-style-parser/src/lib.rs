@@ -168,6 +168,31 @@ pub struct ParserParityLiteSummaryV0 {
     pub keyframes_names: Vec<String>,
     pub value_decl_names: Vec<String>,
     pub diagnostic_count: usize,
+    pub rule_count: usize,
+    pub declaration_count: usize,
+    pub at_rule_kind_counts: AtRuleKindCountsV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct AtRuleKindCountsV0 {
+    pub media: usize,
+    pub supports: usize,
+    pub layer: usize,
+    pub keyframes: usize,
+    pub value: usize,
+    pub at_root: usize,
+    pub generic: usize,
+}
+
+#[derive(Debug, Default)]
+struct ParityLiteAcc {
+    selector_names: Vec<String>,
+    keyframes_names: Vec<String>,
+    value_decl_names: Vec<String>,
+    rule_count: usize,
+    declaration_count: usize,
+    at_rule_kind_counts: AtRuleKindCountsV0,
 }
 
 pub fn parse_style_module(path: &str, source: &str) -> Option<Stylesheet> {
@@ -188,21 +213,14 @@ pub fn parse_stylesheet(language: StyleLanguage, source: &str) -> Stylesheet {
 }
 
 pub fn summarize_parity_lite(sheet: &Stylesheet) -> ParserParityLiteSummaryV0 {
-    let mut selector_names = Vec::new();
-    let mut keyframes_names = Vec::new();
-    let mut value_decl_names = Vec::new();
-    collect_parity_names(
-        &sheet.nodes,
-        &mut selector_names,
-        &mut keyframes_names,
-        &mut value_decl_names,
-    );
-    selector_names.sort();
-    selector_names.dedup();
-    keyframes_names.sort();
-    keyframes_names.dedup();
-    value_decl_names.sort();
-    value_decl_names.dedup();
+    let mut acc = ParityLiteAcc::default();
+    collect_parity_names(&sheet.nodes, &mut acc);
+    acc.selector_names.sort();
+    acc.selector_names.dedup();
+    acc.keyframes_names.sort();
+    acc.keyframes_names.dedup();
+    acc.value_decl_names.sort();
+    acc.value_decl_names.dedup();
 
     ParserParityLiteSummaryV0 {
         schema_version: "0",
@@ -211,70 +229,73 @@ pub fn summarize_parity_lite(sheet: &Stylesheet) -> ParserParityLiteSummaryV0 {
             StyleLanguage::Scss => "scss",
             StyleLanguage::Less => "less",
         },
-        selector_names,
-        keyframes_names,
-        value_decl_names,
+        selector_names: acc.selector_names,
+        keyframes_names: acc.keyframes_names,
+        value_decl_names: acc.value_decl_names,
         diagnostic_count: sheet.diagnostics.len(),
+        rule_count: acc.rule_count,
+        declaration_count: acc.declaration_count,
+        at_rule_kind_counts: acc.at_rule_kind_counts,
     }
 }
 
-fn collect_parity_names(
-    nodes: &[SyntaxNode],
-    selector_names: &mut Vec<String>,
-    keyframes_names: &mut Vec<String>,
-    value_decl_names: &mut Vec<String>,
-) {
-    collect_parity_names_with_parent(
-        nodes,
-        selector_names,
-        keyframes_names,
-        value_decl_names,
-        &[],
-    );
+fn collect_parity_names(nodes: &[SyntaxNode], acc: &mut ParityLiteAcc) {
+    collect_parity_names_with_parent(nodes, acc, &[]);
 }
 
 fn collect_parity_names_with_parent(
     nodes: &[SyntaxNode],
-    selector_names: &mut Vec<String>,
-    keyframes_names: &mut Vec<String>,
-    value_decl_names: &mut Vec<String>,
+    acc: &mut ParityLiteAcc,
     parent_selector_names: &[String],
 ) {
     for node in nodes {
         let mut next_parent_names = parent_selector_names.to_vec();
         match &node.payload {
             Some(SyntaxNodePayload::Rule(rule)) => {
+                acc.rule_count += 1;
                 let resolved = resolve_rule_selector_names(rule, parent_selector_names);
                 if !resolved.is_empty() {
-                    selector_names.extend(resolved.iter().cloned());
+                    acc.selector_names.extend(resolved.iter().cloned());
                     next_parent_names = resolved;
                 }
             }
-            Some(SyntaxNodePayload::AtRule(at_rule)) => match at_rule.kind {
-                AtRuleKind::Keyframes => {
-                    if !at_rule.params.is_empty() {
-                        keyframes_names.push(at_rule.params.clone());
-                    }
-                }
-                AtRuleKind::Value => {
-                    if let Some((name, _)) = at_rule.params.split_once(':') {
-                        let trimmed = name.trim();
-                        if !trimmed.is_empty() {
-                            value_decl_names.push(trimmed.to_string());
+            Some(SyntaxNodePayload::AtRule(at_rule)) => {
+                increment_at_rule_kind_count(&mut acc.at_rule_kind_counts, at_rule.kind);
+                match at_rule.kind {
+                    AtRuleKind::Keyframes => {
+                        if !at_rule.params.is_empty() {
+                            acc.keyframes_names.push(at_rule.params.clone());
                         }
                     }
+                    AtRuleKind::Value => {
+                        if let Some((name, _)) = at_rule.params.split_once(':') {
+                            let trimmed = name.trim();
+                            if !trimmed.is_empty() {
+                                acc.value_decl_names.push(trimmed.to_string());
+                            }
+                        }
+                    }
+                    _ => {}
                 }
-                _ => {}
-            },
+            }
+            Some(SyntaxNodePayload::Declaration(_)) => {
+                acc.declaration_count += 1;
+            }
             _ => {}
         }
-        collect_parity_names_with_parent(
-            &node.children,
-            selector_names,
-            keyframes_names,
-            value_decl_names,
-            &next_parent_names,
-        );
+        collect_parity_names_with_parent(&node.children, acc, &next_parent_names);
+    }
+}
+
+fn increment_at_rule_kind_count(counts: &mut AtRuleKindCountsV0, kind: AtRuleKind) {
+    match kind {
+        AtRuleKind::Media => counts.media += 1,
+        AtRuleKind::Supports => counts.supports += 1,
+        AtRuleKind::Layer => counts.layer += 1,
+        AtRuleKind::Keyframes => counts.keyframes += 1,
+        AtRuleKind::Value => counts.value += 1,
+        AtRuleKind::AtRoot => counts.at_root += 1,
+        AtRuleKind::Generic => counts.generic += 1,
     }
 }
 

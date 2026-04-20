@@ -1,7 +1,10 @@
 import { spawn } from "node:child_process";
 import { strict as assert } from "node:assert";
 
+import type { AtRule, ChildNode, Comment, Root, Rule } from "postcss";
+import { parse as postcssParse } from "postcss";
 import { parseStyleDocument } from "../server/engine-core-ts/src/core/scss/scss-parser";
+import { findLangForPath, getRuntimeSyntax } from "../server/engine-core-ts/src/core/scss/lang-registry";
 
 interface ParserParityLiteSummaryV0 {
   readonly schemaVersion: "0";
@@ -10,6 +13,17 @@ interface ParserParityLiteSummaryV0 {
   readonly keyframesNames: readonly string[];
   readonly valueDeclNames: readonly string[];
   readonly diagnosticCount: number;
+  readonly ruleCount: number;
+  readonly declarationCount: number;
+  readonly atRuleKindCounts: {
+    readonly media: number;
+    readonly supports: number;
+    readonly layer: number;
+    readonly keyframes: number;
+    readonly value: number;
+    readonly atRoot: number;
+    readonly generic: number;
+  };
 }
 
 const CORPUS = [
@@ -112,6 +126,7 @@ const CORPUS = [
 
 function deriveTsSummary(filePath: string, source: string): ParserParityLiteSummaryV0 {
   const document = parseStyleDocument(source, filePath);
+  const structural = deriveTsStructuralSummary(filePath, source);
   return {
     schemaVersion: "0",
     language: filePath.endsWith(".module.less")
@@ -123,7 +138,85 @@ function deriveTsSummary(filePath: string, source: string): ParserParityLiteSumm
     keyframesNames: [...document.keyframes].map((entry) => entry.name).sort(),
     valueDeclNames: [...document.valueDecls].map((entry) => entry.name).sort(),
     diagnosticCount: 0,
+    ruleCount: structural.ruleCount,
+    declarationCount: structural.declarationCount,
+    atRuleKindCounts: structural.atRuleKindCounts,
   };
+}
+
+function deriveTsStructuralSummary(filePath: string, source: string) {
+  const lang = findLangForPath(filePath);
+  const syntax = lang ? getRuntimeSyntax(lang) : null;
+  const parse = typeof syntax?.parse === "function" ? syntax.parse.bind(syntax) : postcssParse;
+  const root = parse(source, { from: filePath }) as Root;
+  const summary = {
+    ruleCount: 0,
+    declarationCount: 0,
+    atRuleKindCounts: {
+      media: 0,
+      supports: 0,
+      layer: 0,
+      keyframes: 0,
+      value: 0,
+      atRoot: 0,
+      generic: 0,
+    },
+  };
+
+  walkStructuralNodes(root.nodes ?? [], summary);
+  return summary;
+}
+
+function walkStructuralNodes(
+  nodes: readonly ChildNode[],
+  summary: ReturnType<typeof deriveTsStructuralSummary>,
+): void {
+  for (const node of nodes) {
+    if (node.type === "rule") {
+      summary.ruleCount += 1;
+      walkStructuralNodes((node as Rule).nodes ?? [], summary);
+      continue;
+    }
+    if (node.type === "atrule") {
+      incrementTsAtRuleKindCount(summary.atRuleKindCounts, classifyTsAtRuleKind(node as AtRule));
+      walkStructuralNodes((node as AtRule).nodes ?? [], summary);
+      continue;
+    }
+    if (node.type === "decl") {
+      summary.declarationCount += 1;
+      continue;
+    }
+    if (node.type === "comment") {
+      void (node as Comment);
+    }
+  }
+}
+
+function classifyTsAtRuleKind(node: AtRule): keyof ParserParityLiteSummaryV0["atRuleKindCounts"] {
+  switch (node.name) {
+    case "media":
+      return "media";
+    case "supports":
+      return "supports";
+    case "layer":
+      return "layer";
+    case "keyframes":
+    case "-webkit-keyframes":
+      return "keyframes";
+    case "value":
+      return "value";
+    case "at-root":
+      return "atRoot";
+    default:
+      return "generic";
+  }
+}
+
+function incrementTsAtRuleKindCount(
+  counts: ParserParityLiteSummaryV0["atRuleKindCounts"],
+  kind: keyof ParserParityLiteSummaryV0["atRuleKindCounts"],
+) {
+  counts[kind] += 1;
 }
 
 async function runRustSummary(filePath: string, source: string): Promise<ParserParityLiteSummaryV0> {
