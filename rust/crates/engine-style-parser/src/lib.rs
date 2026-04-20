@@ -389,7 +389,22 @@ fn parse_selector_segments(raw: &str) -> Vec<SelectorSegment> {
 
     while index < chars.len() {
         match chars[index] {
-            c if c.is_whitespace() => index += 1,
+            c if c.is_whitespace() => {
+                let start = index;
+                while index < chars.len() && chars[index].is_whitespace() {
+                    index += 1;
+                }
+                let next = chars.get(index).copied();
+                let has_prev = segments.last().is_some();
+                let prev_is_combinator =
+                    matches!(segments.last(), Some(SelectorSegment::Combinator(_)));
+                let next_starts_selector = next.is_some_and(|ch| {
+                    matches!(ch, '.' | '&' | ':' | '#' | '*' | '[') || ch.is_ascii_alphabetic()
+                });
+                if start > 0 && has_prev && !prev_is_combinator && next_starts_selector {
+                    segments.push(SelectorSegment::Combinator(" ".to_string()));
+                }
+            }
             '.' => {
                 index += 1;
                 let start = index;
@@ -430,6 +445,32 @@ fn parse_selector_segments(raw: &str) -> Vec<SelectorSegment> {
                 segments.push(SelectorSegment::Pseudo(
                     chars[start..index].iter().collect(),
                 ));
+                if index < chars.len() && chars[index] == '(' {
+                    let mut depth = 1usize;
+                    index += 1;
+                    while index < chars.len() && depth > 0 {
+                        match chars[index] {
+                            '(' => depth += 1,
+                            ')' => depth = depth.saturating_sub(1),
+                            '\'' | '"' => {
+                                let quote = chars[index];
+                                index += 1;
+                                while index < chars.len() {
+                                    if chars[index] == '\\' {
+                                        index += 2;
+                                        continue;
+                                    }
+                                    if chars[index] == quote {
+                                        break;
+                                    }
+                                    index += 1;
+                                }
+                            }
+                            _ => {}
+                        }
+                        index += 1;
+                    }
+                }
             }
             '>' | '+' | '~' => {
                 segments.push(SelectorSegment::Combinator(chars[index].to_string()));
@@ -1144,6 +1185,38 @@ mod tests {
     #[test]
     fn parity_summary_collects_nested_layer_rule_selectors() {
         let source = "@layer ui { .btn:hover { color: red; } }";
+        let sheet = parse_stylesheet(StyleLanguage::Scss, source);
+        let summary = super::summarize_parity_lite(&sheet);
+        assert_eq!(summary.selector_names, vec!["btn"]);
+    }
+
+    #[test]
+    fn parity_summary_prefers_rightmost_class_after_descendant_combinator() {
+        let source = ".a .b { color: red; }";
+        let sheet = parse_stylesheet(StyleLanguage::Scss, source);
+        let summary = super::summarize_parity_lite(&sheet);
+        assert_eq!(summary.selector_names, vec!["b"]);
+    }
+
+    #[test]
+    fn parity_summary_ignores_classes_inside_pseudo_functions() {
+        let source = ".btn:is(.active, .primary) { color: red; }";
+        let sheet = parse_stylesheet(StyleLanguage::Scss, source);
+        let summary = super::summarize_parity_lite(&sheet);
+        assert_eq!(summary.selector_names, vec!["btn"]);
+    }
+
+    #[test]
+    fn parity_summary_ignores_global_function_classes() {
+        let source = ":global(.foo) { color: red; }";
+        let sheet = parse_stylesheet(StyleLanguage::Scss, source);
+        let summary = super::summarize_parity_lite(&sheet);
+        assert!(summary.selector_names.is_empty());
+    }
+
+    #[test]
+    fn parity_summary_ignores_not_function_classes() {
+        let source = ".btn:not(.disabled) { color: red; }";
         let sheet = parse_stylesheet(StyleLanguage::Scss, source);
         let summary = super::summarize_parity_lite(&sheet);
         assert_eq!(summary.selector_names, vec!["btn"]);
