@@ -101,3 +101,78 @@ Open follow-ups stay separate:
 
 - `Q29.3` naming / repo convention
 - `Q29.4` split preconditions beyond current boundary readiness
+
+## Q29.4 current precondition call
+
+Current recommendation:
+
+- do **not** block a first subtree extraction on `engine-shadow-runner` dependency rewrites
+- treat `engine-shadow-runner` as an internal consumer that can be adapted after extraction
+
+Why:
+
+- `engine-shadow-runner` is a dev-facing compare driver, not a shipped runtime surface
+- the producer boundary already has its own crate docs, crate metadata, tests, and release-facing checks
+- subtree extraction is about preserving and isolating producer history first, not finishing cross-repo consumption in one step
+
+So the current precondition line is:
+
+1. boundary must be stable
+2. standalone scaffold requirements must be known
+3. post-split consumer adaptation may remain follow-up work
+
+That means the current split is blocked by missing standalone-repo scaffold only, not by `engine-shadow-runner` staying in the monorepo for now.
+
+## Q29.4 consumer follow-up after extraction
+
+If a subtree branch becomes a standalone repository later, the current in-repo consumer has three realistic follow-up paths:
+
+1. keep `engine-shadow-runner` in this repo and switch to a Git dependency
+2. keep `engine-shadow-runner` in this repo and temporarily vendor or mirror the crate source
+3. move `engine-shadow-runner` into the extracted Rust repo later if the Rust workspace should stay co-located
+
+Current recommendation:
+
+- do not decide this before the first extraction
+- extract the producer boundary first
+- choose the consumer path once repo naming and ownership are fixed
+
+## Q29.3 naming input
+
+Current naming guidance:
+
+- distinguish **repository naming** from **crate naming**
+- do not force a crate rename just because repository branding may change
+
+Repository-side inputs already observed:
+
+- GitHub org: `omenien`
+- npm scope: `@omena`
+- VS Code publisher: `omena`
+
+Current crate-side reality:
+
+- crate name: `engine-input-producers`
+- in-repo Rust convention: `engine-*`
+
+Current recommendation:
+
+1. first split discussion may use an `omena-*` repository name if desired
+2. keep the Rust crate name `engine-input-producers` for the first extraction unless there is a stronger packaging reason to rename it
+
+Why:
+
+- the split question is already large enough without adding a cargo package rename
+- keeping the crate name stable reduces migration noise for the current internal consumer
+- repository branding can move independently from crate identity
+
+## Practical next step
+
+If `Q29.2` proceeds, the narrow next execution is:
+
+1. create a local subtree branch with `./scripts/prepare-engine-input-producers-subtree.sh`
+2. inspect the extracted branch contents
+3. decide repository naming and ownership
+4. add standalone Rust workspace scaffolding in the extracted branch or new repo
+
+This keeps the first split decision mechanical and reversible.
