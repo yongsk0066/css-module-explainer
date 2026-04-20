@@ -185,6 +185,10 @@ pub struct ParserIndexSummaryV0 {
     pub selector_names: Vec<String>,
     pub bem_suffix_parent_names: Vec<String>,
     pub bem_suffix_safe_selector_names: Vec<String>,
+    pub selectors_with_composes_names: Vec<String>,
+    pub local_composes_selector_names: Vec<String>,
+    pub imported_composes_selector_names: Vec<String>,
+    pub global_composes_selector_names: Vec<String>,
     pub keyframes_names: Vec<String>,
     pub nested_unsafe_selector_names: Vec<String>,
     pub value_decl_names: Vec<String>,
@@ -194,6 +198,9 @@ pub struct ParserIndexSummaryV0 {
     pub animation_name_ref_names: Vec<String>,
     pub value_import_alias_count: usize,
     pub composes_class_name_count: usize,
+    pub local_composes_class_name_count: usize,
+    pub imported_composes_class_name_count: usize,
+    pub global_composes_class_name_count: usize,
     pub bem_suffix_count: usize,
     pub nested_safety_counts: NestedSafetyCountsV0,
 }
@@ -245,6 +252,10 @@ struct IndexSummaryAcc {
     selector_names: Vec<String>,
     bem_suffix_parent_names: Vec<String>,
     bem_suffix_safe_selector_names: Vec<String>,
+    selectors_with_composes_names: Vec<String>,
+    local_composes_selector_names: Vec<String>,
+    imported_composes_selector_names: Vec<String>,
+    global_composes_selector_names: Vec<String>,
     keyframes_names: Vec<String>,
     nested_unsafe_selector_names: Vec<String>,
     value_decl_names: Vec<String>,
@@ -254,6 +265,9 @@ struct IndexSummaryAcc {
     animation_name_ref_names: Vec<String>,
     value_import_alias_count: usize,
     composes_class_name_count: usize,
+    local_composes_class_name_count: usize,
+    imported_composes_class_name_count: usize,
+    global_composes_class_name_count: usize,
     bem_suffix_count: usize,
     nested_safety_counts: NestedSafetyCountsV0,
 }
@@ -328,6 +342,14 @@ pub fn summarize_index_bridge(sheet: &Stylesheet) -> ParserIndexSummaryV0 {
     acc.bem_suffix_parent_names.dedup();
     acc.bem_suffix_safe_selector_names.sort();
     acc.bem_suffix_safe_selector_names.dedup();
+    acc.selectors_with_composes_names.sort();
+    acc.selectors_with_composes_names.dedup();
+    acc.local_composes_selector_names.sort();
+    acc.local_composes_selector_names.dedup();
+    acc.imported_composes_selector_names.sort();
+    acc.imported_composes_selector_names.dedup();
+    acc.global_composes_selector_names.sort();
+    acc.global_composes_selector_names.dedup();
     acc.keyframes_names.sort();
     acc.keyframes_names.dedup();
     acc.nested_unsafe_selector_names.sort();
@@ -353,6 +375,10 @@ pub fn summarize_index_bridge(sheet: &Stylesheet) -> ParserIndexSummaryV0 {
         selector_names: acc.selector_names,
         bem_suffix_parent_names: acc.bem_suffix_parent_names,
         bem_suffix_safe_selector_names: acc.bem_suffix_safe_selector_names,
+        selectors_with_composes_names: acc.selectors_with_composes_names,
+        local_composes_selector_names: acc.local_composes_selector_names,
+        imported_composes_selector_names: acc.imported_composes_selector_names,
+        global_composes_selector_names: acc.global_composes_selector_names,
         keyframes_names: acc.keyframes_names,
         nested_unsafe_selector_names: acc.nested_unsafe_selector_names,
         value_decl_names: acc.value_decl_names,
@@ -362,6 +388,9 @@ pub fn summarize_index_bridge(sheet: &Stylesheet) -> ParserIndexSummaryV0 {
         animation_name_ref_names: acc.animation_name_ref_names,
         value_import_alias_count: acc.value_import_alias_count,
         composes_class_name_count: acc.composes_class_name_count,
+        local_composes_class_name_count: acc.local_composes_class_name_count,
+        imported_composes_class_name_count: acc.imported_composes_class_name_count,
+        global_composes_class_name_count: acc.global_composes_class_name_count,
         bem_suffix_count: acc.bem_suffix_count,
         nested_safety_counts: acc.nested_safety_counts,
     }
@@ -460,6 +489,26 @@ struct RuleSelectorFacts {
     bem_suffix_count: usize,
 }
 
+#[derive(Debug, Default)]
+struct RuleComposesFacts {
+    local_class_name_count: usize,
+    imported_class_name_count: usize,
+    global_class_name_count: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ComposesKind {
+    Local,
+    Imported,
+    Global,
+}
+
+#[derive(Debug)]
+struct ComposesSpec {
+    class_names: Vec<String>,
+    kind: ComposesKind,
+}
+
 fn classify_declaration_kind(property: &str) -> DeclarationKind {
     match property.trim().to_ascii_lowercase().as_str() {
         "composes" => DeclarationKind::Composes,
@@ -527,6 +576,25 @@ fn increment_nested_safety_count(
     }
 }
 
+fn collect_rule_composes_facts(children: &[SyntaxNode]) -> RuleComposesFacts {
+    let mut facts = RuleComposesFacts::default();
+    for child in children {
+        if let Some(SyntaxNodePayload::Declaration(declaration)) = &child.payload
+            && classify_declaration_kind(&declaration.property) == DeclarationKind::Composes
+            && let Some(spec) = parse_composes_spec(&declaration.value)
+        {
+            match spec.kind {
+                ComposesKind::Local => facts.local_class_name_count += spec.class_names.len(),
+                ComposesKind::Imported => {
+                    facts.imported_class_name_count += spec.class_names.len();
+                }
+                ComposesKind::Global => facts.global_class_name_count += spec.class_names.len(),
+            }
+        }
+    }
+    facts
+}
+
 fn collect_index_names(
     nodes: &[SyntaxNode],
     acc: &mut IndexSummaryAcc,
@@ -553,6 +621,37 @@ fn collect_index_names(
                         resolved.len(),
                     );
                     acc.selector_names.extend(resolved.iter().cloned());
+                    let composes_facts = collect_rule_composes_facts(&node.children);
+                    if composes_facts.local_class_name_count > 0
+                        || composes_facts.imported_class_name_count > 0
+                        || composes_facts.global_class_name_count > 0
+                    {
+                        acc.selectors_with_composes_names
+                            .extend(resolved.iter().cloned());
+                        let selector_multiplier = resolved.len();
+                        if composes_facts.local_class_name_count > 0 {
+                            acc.local_composes_selector_names
+                                .extend(resolved.iter().cloned());
+                            acc.local_composes_class_name_count +=
+                                composes_facts.local_class_name_count * selector_multiplier;
+                        }
+                        if composes_facts.imported_class_name_count > 0 {
+                            acc.imported_composes_selector_names
+                                .extend(resolved.iter().cloned());
+                            acc.imported_composes_class_name_count +=
+                                composes_facts.imported_class_name_count * selector_multiplier;
+                        }
+                        if composes_facts.global_class_name_count > 0 {
+                            acc.global_composes_selector_names
+                                .extend(resolved.iter().cloned());
+                            acc.global_composes_class_name_count +=
+                                composes_facts.global_class_name_count * selector_multiplier;
+                        }
+                        acc.composes_class_name_count += (composes_facts.local_class_name_count
+                            + composes_facts.imported_class_name_count
+                            + composes_facts.global_class_name_count)
+                            * selector_multiplier;
+                    }
                     match selector_facts.nested_safety {
                         NestedSafetyKind::BemSuffixSafe => {
                             acc.bem_suffix_safe_selector_names
@@ -624,10 +723,7 @@ fn collect_index_refs_and_counts(
         match &node.payload {
             Some(SyntaxNodePayload::Declaration(declaration)) => {
                 match classify_declaration_kind(&declaration.property) {
-                    DeclarationKind::Composes => {
-                        acc.composes_class_name_count +=
-                            parse_composes_class_names(&declaration.value).len();
-                    }
+                    DeclarationKind::Composes => {}
                     DeclarationKind::Animation => {
                         acc.animation_ref_names.extend(find_identifier_matches(
                             &declaration.value,
@@ -715,15 +811,25 @@ fn parse_value_import_specs(params: &str) -> Option<Vec<ValueImportSpec>> {
     (!specs.is_empty()).then_some(specs)
 }
 
-fn parse_composes_class_names(value: &str) -> Vec<String> {
+fn parse_composes_spec(value: &str) -> Option<ComposesSpec> {
     let head = value
         .split_once(" from ")
         .map(|(left, _)| left)
         .unwrap_or(value);
-    head.split_whitespace()
+    let class_names: Vec<String> = head
+        .split_whitespace()
         .filter(|name| !name.is_empty())
         .map(ToString::to_string)
-        .collect()
+        .collect();
+    if class_names.is_empty() {
+        return None;
+    }
+    let kind = match value.split_once(" from ").map(|(_, source)| source.trim()) {
+        Some("global") => ComposesKind::Global,
+        Some(_) => ComposesKind::Imported,
+        None => ComposesKind::Local,
+    };
+    Some(ComposesSpec { class_names, kind })
 }
 
 fn find_identifier_matches(raw: &str, known_names: &BTreeSet<String>) -> Vec<String> {

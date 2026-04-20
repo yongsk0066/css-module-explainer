@@ -9,6 +9,10 @@ interface ParserIndexSummaryV0 {
   readonly selectorNames: readonly string[];
   readonly bemSuffixParentNames: readonly string[];
   readonly bemSuffixSafeSelectorNames: readonly string[];
+  readonly selectorsWithComposesNames: readonly string[];
+  readonly localComposesSelectorNames: readonly string[];
+  readonly importedComposesSelectorNames: readonly string[];
+  readonly globalComposesSelectorNames: readonly string[];
   readonly keyframesNames: readonly string[];
   readonly nestedUnsafeSelectorNames: readonly string[];
   readonly valueDeclNames: readonly string[];
@@ -18,6 +22,9 @@ interface ParserIndexSummaryV0 {
   readonly animationNameRefNames: readonly string[];
   readonly valueImportAliasCount: number;
   readonly composesClassNameCount: number;
+  readonly localComposesClassNameCount: number;
+  readonly importedComposesClassNameCount: number;
+  readonly globalComposesClassNameCount: number;
   readonly bemSuffixCount: number;
   readonly nestedSafetyCounts: {
     readonly flat: number;
@@ -53,6 +60,21 @@ const CORPUS = [
     source: `@keyframes fade { from { opacity: 0; } }\n.btn { composes: base primary from "./base.module.scss"; animation: fade 1s linear; animation-name: fade; }`,
   },
   {
+    label: "scss-composes-local",
+    filePath: "/f.module.scss",
+    source: `.btn { composes: base utility; }`,
+  },
+  {
+    label: "scss-composes-global",
+    filePath: "/f.module.scss",
+    source: `.btn { composes: app-shell from global; }`,
+  },
+  {
+    label: "scss-grouped-composes-imported",
+    filePath: "/f.module.scss",
+    source: `.a, .b { composes: base primary from "./base.module.scss"; }`,
+  },
+  {
     label: "scss-bem-safe-nested-index",
     filePath: "/f.module.scss",
     source: `.card { &__icon { &--small { color: red; } } }`,
@@ -76,6 +98,16 @@ const CORPUS = [
 
 function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0 {
   const document = parseStyleDocument(source, filePath);
+  const selectorsWithComposes = document.selectors.filter((selector) => selector.composes.length > 0);
+  const localComposesSelectors = selectorsWithComposes.filter((selector) =>
+    selector.composes.some((ref) => ref.from === undefined && ref.fromGlobal !== true),
+  );
+  const importedComposesSelectors = selectorsWithComposes.filter((selector) =>
+    selector.composes.some((ref) => ref.from !== undefined),
+  );
+  const globalComposesSelectors = selectorsWithComposes.filter((selector) =>
+    selector.composes.some((ref) => ref.fromGlobal === true),
+  );
   return {
     schemaVersion: "0",
     language: filePath.endsWith(".module.less")
@@ -90,6 +122,18 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
       .toSorted(),
     bemSuffixSafeSelectorNames: document.selectors
       .filter((selector) => selector.nestedSafety === "bemSuffixSafe")
+      .map((selector) => selector.name)
+      .toSorted(),
+    selectorsWithComposesNames: selectorsWithComposes
+      .map((selector) => selector.name)
+      .toSorted(),
+    localComposesSelectorNames: localComposesSelectors
+      .map((selector) => selector.name)
+      .toSorted(),
+    importedComposesSelectorNames: importedComposesSelectors
+      .map((selector) => selector.name)
+      .toSorted(),
+    globalComposesSelectorNames: globalComposesSelectors
       .map((selector) => selector.name)
       .toSorted(),
     keyframesNames: [...document.keyframes].map((entry) => entry.name).toSorted(),
@@ -114,6 +158,30 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
     composesClassNameCount: document.selectors.reduce(
       (sum, selector) =>
         sum + selector.composes.reduce((inner, ref) => inner + ref.classNames.length, 0),
+      0,
+    ),
+    localComposesClassNameCount: document.selectors.reduce(
+      (sum, selector) =>
+        sum +
+        selector.composes
+          .filter((ref) => ref.from === undefined && ref.fromGlobal !== true)
+          .reduce((inner, ref) => inner + ref.classNames.length, 0),
+      0,
+    ),
+    importedComposesClassNameCount: document.selectors.reduce(
+      (sum, selector) =>
+        sum +
+        selector.composes
+          .filter((ref) => ref.from !== undefined)
+          .reduce((inner, ref) => inner + ref.classNames.length, 0),
+      0,
+    ),
+    globalComposesClassNameCount: document.selectors.reduce(
+      (sum, selector) =>
+        sum +
+        selector.composes
+          .filter((ref) => ref.fromGlobal === true)
+          .reduce((inner, ref) => inner + ref.classNames.length, 0),
       0,
     ),
     bemSuffixCount: document.selectors.filter((selector) => selector.bemSuffix).length,
