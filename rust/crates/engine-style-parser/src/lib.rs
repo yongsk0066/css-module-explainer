@@ -170,6 +170,8 @@ pub struct ParserParityLiteSummaryV0 {
     pub diagnostic_count: usize,
     pub rule_count: usize,
     pub declaration_count: usize,
+    pub grouped_selector_count: usize,
+    pub max_nesting_depth: usize,
     pub at_rule_kind_counts: AtRuleKindCountsV0,
 }
 
@@ -192,6 +194,8 @@ struct ParityLiteAcc {
     value_decl_names: Vec<String>,
     rule_count: usize,
     declaration_count: usize,
+    grouped_selector_count: usize,
+    max_nesting_depth: usize,
     at_rule_kind_counts: AtRuleKindCountsV0,
 }
 
@@ -235,24 +239,33 @@ pub fn summarize_parity_lite(sheet: &Stylesheet) -> ParserParityLiteSummaryV0 {
         diagnostic_count: sheet.diagnostics.len(),
         rule_count: acc.rule_count,
         declaration_count: acc.declaration_count,
+        grouped_selector_count: acc.grouped_selector_count,
+        max_nesting_depth: acc.max_nesting_depth,
         at_rule_kind_counts: acc.at_rule_kind_counts,
     }
 }
 
 fn collect_parity_names(nodes: &[SyntaxNode], acc: &mut ParityLiteAcc) {
-    collect_parity_names_with_parent(nodes, acc, &[]);
+    collect_parity_names_with_parent(nodes, acc, &[], 0);
 }
 
 fn collect_parity_names_with_parent(
     nodes: &[SyntaxNode],
     acc: &mut ParityLiteAcc,
     parent_selector_names: &[String],
+    depth: usize,
 ) {
     for node in nodes {
         let mut next_parent_names = parent_selector_names.to_vec();
+        let mut next_depth = depth;
         match &node.payload {
             Some(SyntaxNodePayload::Rule(rule)) => {
                 acc.rule_count += 1;
+                next_depth = depth + 1;
+                acc.max_nesting_depth = acc.max_nesting_depth.max(next_depth);
+                if rule.selector_groups.len() > 1 {
+                    acc.grouped_selector_count += rule.selector_groups.len();
+                }
                 let resolved = resolve_rule_selector_names(rule, parent_selector_names);
                 if !resolved.is_empty() {
                     acc.selector_names.extend(resolved.iter().cloned());
@@ -260,6 +273,8 @@ fn collect_parity_names_with_parent(
                 }
             }
             Some(SyntaxNodePayload::AtRule(at_rule)) => {
+                next_depth = depth + 1;
+                acc.max_nesting_depth = acc.max_nesting_depth.max(next_depth);
                 increment_at_rule_kind_count(&mut acc.at_rule_kind_counts, at_rule.kind);
                 match at_rule.kind {
                     AtRuleKind::Keyframes => {
@@ -283,7 +298,7 @@ fn collect_parity_names_with_parent(
             }
             _ => {}
         }
-        collect_parity_names_with_parent(&node.children, acc, &next_parent_names);
+        collect_parity_names_with_parent(&node.children, acc, &next_parent_names, next_depth);
     }
 }
 

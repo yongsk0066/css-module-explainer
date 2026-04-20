@@ -15,6 +15,8 @@ interface ParserParityLiteSummaryV0 {
   readonly diagnosticCount: number;
   readonly ruleCount: number;
   readonly declarationCount: number;
+  readonly groupedSelectorCount: number;
+  readonly maxNestingDepth: number;
   readonly atRuleKindCounts: {
     readonly media: number;
     readonly supports: number;
@@ -140,6 +142,8 @@ function deriveTsSummary(filePath: string, source: string): ParserParityLiteSumm
     diagnosticCount: 0,
     ruleCount: structural.ruleCount,
     declarationCount: structural.declarationCount,
+    groupedSelectorCount: structural.groupedSelectorCount,
+    maxNestingDepth: structural.maxNestingDepth,
     atRuleKindCounts: structural.atRuleKindCounts,
   };
 }
@@ -152,6 +156,8 @@ function deriveTsStructuralSummary(filePath: string, source: string) {
   const summary = {
     ruleCount: 0,
     declarationCount: 0,
+    groupedSelectorCount: 0,
+    maxNestingDepth: 0,
     atRuleKindCounts: {
       media: 0,
       supports: 0,
@@ -163,23 +169,34 @@ function deriveTsStructuralSummary(filePath: string, source: string) {
     },
   };
 
-  walkStructuralNodes(root.nodes ?? [], summary);
+  walkStructuralNodes(root.nodes ?? [], summary, 0);
   return summary;
 }
 
 function walkStructuralNodes(
   nodes: readonly ChildNode[],
   summary: ReturnType<typeof deriveTsStructuralSummary>,
+  depth: number,
 ): void {
   for (const node of nodes) {
     if (node.type === "rule") {
       summary.ruleCount += 1;
-      walkStructuralNodes((node as Rule).nodes ?? [], summary);
+      const rule = node as Rule;
+      const nextDepth = depth + 1;
+      summary.maxNestingDepth = Math.max(summary.maxNestingDepth, nextDepth);
+      const selectorGroups = countTsSelectorGroups(rule.selector);
+      if (selectorGroups > 1) {
+        summary.groupedSelectorCount += selectorGroups;
+      }
+      walkStructuralNodes(rule.nodes ?? [], summary, nextDepth);
       continue;
     }
     if (node.type === "atrule") {
-      incrementTsAtRuleKindCount(summary.atRuleKindCounts, classifyTsAtRuleKind(node as AtRule));
-      walkStructuralNodes((node as AtRule).nodes ?? [], summary);
+      const atRule = node as AtRule;
+      const nextDepth = depth + 1;
+      summary.maxNestingDepth = Math.max(summary.maxNestingDepth, nextDepth);
+      incrementTsAtRuleKindCount(summary.atRuleKindCounts, classifyTsAtRuleKind(atRule));
+      walkStructuralNodes(atRule.nodes ?? [], summary, nextDepth);
       continue;
     }
     if (node.type === "decl") {
@@ -217,6 +234,44 @@ function incrementTsAtRuleKindCount(
   kind: keyof ParserParityLiteSummaryV0["atRuleKindCounts"],
 ) {
   counts[kind] += 1;
+}
+
+function countTsSelectorGroups(selector: string): number {
+  let depthParen = 0;
+  let depthBracket = 0;
+  let start = 0;
+  let count = 0;
+
+  for (let index = 0; index < selector.length; index += 1) {
+    const ch = selector[index];
+    if (ch === "(") {
+      depthParen += 1;
+      continue;
+    }
+    if (ch === ")") {
+      depthParen = Math.max(depthParen - 1, 0);
+      continue;
+    }
+    if (ch === "[") {
+      depthBracket += 1;
+      continue;
+    }
+    if (ch === "]") {
+      depthBracket = Math.max(depthBracket - 1, 0);
+      continue;
+    }
+    if (ch === "," && depthParen === 0 && depthBracket === 0) {
+      if (selector.slice(start, index).trim().length > 0) {
+        count += 1;
+      }
+      start = index + 1;
+    }
+  }
+
+  if (selector.slice(start).trim().length > 0) {
+    count += 1;
+  }
+  return count;
 }
 
 async function runRustSummary(filePath: string, source: string): Promise<ParserParityLiteSummaryV0> {
