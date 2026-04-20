@@ -173,6 +173,7 @@ pub struct ParserParityLiteSummaryV0 {
     pub grouped_selector_count: usize,
     pub max_nesting_depth: usize,
     pub at_rule_kind_counts: AtRuleKindCountsV0,
+    pub declaration_kind_counts: DeclarationKindCountsV0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
@@ -187,6 +188,15 @@ pub struct AtRuleKindCountsV0 {
     pub generic: usize,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct DeclarationKindCountsV0 {
+    pub composes: usize,
+    pub animation: usize,
+    pub animation_name: usize,
+    pub generic: usize,
+}
+
 #[derive(Debug, Default)]
 struct ParityLiteAcc {
     selector_names: Vec<String>,
@@ -197,6 +207,7 @@ struct ParityLiteAcc {
     grouped_selector_count: usize,
     max_nesting_depth: usize,
     at_rule_kind_counts: AtRuleKindCountsV0,
+    declaration_kind_counts: DeclarationKindCountsV0,
 }
 
 pub fn parse_style_module(path: &str, source: &str) -> Option<Stylesheet> {
@@ -242,6 +253,7 @@ pub fn summarize_parity_lite(sheet: &Stylesheet) -> ParserParityLiteSummaryV0 {
         grouped_selector_count: acc.grouped_selector_count,
         max_nesting_depth: acc.max_nesting_depth,
         at_rule_kind_counts: acc.at_rule_kind_counts,
+        declaration_kind_counts: acc.declaration_kind_counts,
     }
 }
 
@@ -293,8 +305,12 @@ fn collect_parity_names_with_parent(
                     _ => {}
                 }
             }
-            Some(SyntaxNodePayload::Declaration(_)) => {
+            Some(SyntaxNodePayload::Declaration(declaration)) => {
                 acc.declaration_count += 1;
+                increment_declaration_kind_count(
+                    &mut acc.declaration_kind_counts,
+                    classify_declaration_kind(&declaration.property),
+                );
             }
             _ => {}
         }
@@ -311,6 +327,32 @@ fn increment_at_rule_kind_count(counts: &mut AtRuleKindCountsV0, kind: AtRuleKin
         AtRuleKind::Value => counts.value += 1,
         AtRuleKind::AtRoot => counts.at_root += 1,
         AtRuleKind::Generic => counts.generic += 1,
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DeclarationKind {
+    Composes,
+    Animation,
+    AnimationName,
+    Generic,
+}
+
+fn classify_declaration_kind(property: &str) -> DeclarationKind {
+    match property.trim().to_ascii_lowercase().as_str() {
+        "composes" => DeclarationKind::Composes,
+        "animation" => DeclarationKind::Animation,
+        "animation-name" => DeclarationKind::AnimationName,
+        _ => DeclarationKind::Generic,
+    }
+}
+
+fn increment_declaration_kind_count(counts: &mut DeclarationKindCountsV0, kind: DeclarationKind) {
+    match kind {
+        DeclarationKind::Composes => counts.composes += 1,
+        DeclarationKind::Animation => counts.animation += 1,
+        DeclarationKind::AnimationName => counts.animation_name += 1,
+        DeclarationKind::Generic => counts.generic += 1,
     }
 }
 

@@ -26,6 +26,12 @@ interface ParserParityLiteSummaryV0 {
     readonly atRoot: number;
     readonly generic: number;
   };
+  readonly declarationKindCounts: {
+    readonly composes: number;
+    readonly animation: number;
+    readonly animationName: number;
+    readonly generic: number;
+  };
 }
 
 const CORPUS = [
@@ -115,6 +121,16 @@ const CORPUS = [
     source: `@supports (display: grid) { @layer ui { .grid > .item { display: grid; } } }`,
   },
   {
+    label: "scss-composes-decl",
+    filePath: "/f.module.scss",
+    source: `.btn { composes: base from "./base.module.scss"; }`,
+  },
+  {
+    label: "scss-animation-decls",
+    filePath: "/f.module.scss",
+    source: `@keyframes fade { from { opacity: 0; } }\n.btn { animation: fade 1s linear; animation-name: fade; }`,
+  },
+  {
     label: "less-variable",
     filePath: "/f.module.less",
     source: `@color: red;\n.btn { color: @color; }`,
@@ -145,6 +161,7 @@ function deriveTsSummary(filePath: string, source: string): ParserParityLiteSumm
     groupedSelectorCount: structural.groupedSelectorCount,
     maxNestingDepth: structural.maxNestingDepth,
     atRuleKindCounts: structural.atRuleKindCounts,
+    declarationKindCounts: structural.declarationKindCounts,
   };
 }
 
@@ -165,6 +182,12 @@ function deriveTsStructuralSummary(filePath: string, source: string) {
       keyframes: 0,
       value: 0,
       atRoot: 0,
+      generic: 0,
+    },
+    declarationKindCounts: {
+      composes: 0,
+      animation: 0,
+      animationName: 0,
       generic: 0,
     },
   };
@@ -200,6 +223,10 @@ function walkStructuralNodes(
       continue;
     }
     if (node.type === "decl") {
+      incrementTsDeclarationKindCount(
+        summary.declarationKindCounts,
+        classifyTsDeclarationKind(node.prop),
+      );
       summary.declarationCount += 1;
       continue;
     }
@@ -232,6 +259,28 @@ function classifyTsAtRuleKind(node: AtRule): keyof ParserParityLiteSummaryV0["at
 function incrementTsAtRuleKindCount(
   counts: ParserParityLiteSummaryV0["atRuleKindCounts"],
   kind: keyof ParserParityLiteSummaryV0["atRuleKindCounts"],
+) {
+  counts[kind] += 1;
+}
+
+function classifyTsDeclarationKind(
+  property: string,
+): keyof ParserParityLiteSummaryV0["declarationKindCounts"] {
+  switch (property.trim().toLowerCase()) {
+    case "composes":
+      return "composes";
+    case "animation":
+      return "animation";
+    case "animation-name":
+      return "animationName";
+    default:
+      return "generic";
+  }
+}
+
+function incrementTsDeclarationKindCount(
+  counts: ParserParityLiteSummaryV0["declarationKindCounts"],
+  kind: keyof ParserParityLiteSummaryV0["declarationKindCounts"],
 ) {
   counts[kind] += 1;
 }
