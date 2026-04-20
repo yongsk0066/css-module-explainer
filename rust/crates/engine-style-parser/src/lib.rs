@@ -86,7 +86,38 @@ pub struct SyntaxNode {
     pub kind: SyntaxNodeKind,
     pub span: TextSpan,
     pub header_span: Option<TextSpan>,
+    pub payload: Option<SyntaxNodePayload>,
     pub children: Vec<SyntaxNode>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SyntaxNodePayload {
+    Rule(RulePayload),
+    AtRule(AtRulePayload),
+    Declaration(DeclarationPayload),
+    Comment(CommentPayload),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RulePayload {
+    pub prelude: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AtRulePayload {
+    pub name: String,
+    pub params: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeclarationPayload {
+    pub property: String,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommentPayload {
+    pub text: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -104,7 +135,7 @@ pub fn parse_style_module(path: &str, source: &str) -> Option<Stylesheet> {
 
 pub fn parse_stylesheet(language: StyleLanguage, source: &str) -> Stylesheet {
     let (tokens, mut diagnostics) = tokenize(language, source);
-    let mut parser = Parser::new(&tokens, &mut diagnostics);
+    let mut parser = Parser::new(source, &tokens, &mut diagnostics);
     let nodes = parser.parse_root();
     Stylesheet {
         language,
@@ -270,14 +301,20 @@ fn is_ident_continue(byte: u8) -> bool {
 }
 
 struct Parser<'a> {
+    source: &'a str,
     tokens: &'a [Token],
     diagnostics: &'a mut Vec<ParseDiagnostic>,
     cursor: usize,
 }
 
 impl<'a> Parser<'a> {
-    fn new(tokens: &'a [Token], diagnostics: &'a mut Vec<ParseDiagnostic>) -> Self {
+    fn new(
+        source: &'a str,
+        tokens: &'a [Token],
+        diagnostics: &'a mut Vec<ParseDiagnostic>,
+    ) -> Self {
         Self {
+            source,
             tokens,
             diagnostics,
             cursor: 0,
@@ -303,6 +340,9 @@ impl<'a> Parser<'a> {
                         kind: SyntaxNodeKind::Comment,
                         span: token.span,
                         header_span: None,
+                        payload: Some(SyntaxNodePayload::Comment(CommentPayload {
+                            text: self.slice(token.span).to_string(),
+                        })),
                         children: Vec::new(),
                     });
                     self.cursor += 1;
@@ -338,6 +378,7 @@ impl<'a> Parser<'a> {
         let mut index = self.cursor;
         let mut saw_at = self.tokens[index].kind == TokenKind::At;
         let mut saw_colon = false;
+        let mut first_colon_index = None;
         let mut paren_depth = 0usize;
         let mut bracket_depth = 0usize;
 
@@ -348,7 +389,12 @@ impl<'a> Parser<'a> {
                 TokenKind::CloseParen => paren_depth = paren_depth.saturating_sub(1),
                 TokenKind::OpenBracket => bracket_depth += 1,
                 TokenKind::CloseBracket => bracket_depth = bracket_depth.saturating_sub(1),
-                TokenKind::Colon if paren_depth == 0 && bracket_depth == 0 => saw_colon = true,
+                TokenKind::Colon if paren_depth == 0 && bracket_depth == 0 => {
+                    saw_colon = true;
+                    if first_colon_index.is_none() {
+                        first_colon_index = Some(index);
+                    }
+                }
                 TokenKind::At if index == start_index => saw_at = true,
                 TokenKind::Semicolon if paren_depth == 0 && bracket_depth == 0 => {
                     let span = TextSpan::new(
@@ -359,7 +405,16 @@ impl<'a> Parser<'a> {
                     return SyntaxNode {
                         kind: classify_statement_kind(saw_at, saw_colon),
                         span,
-                        header_span: Some(span),
+                        header_span: Some(TextSpan::new(
+                            self.tokens[start_index].span.start,
+                            self.tokens[index].span.start,
+                        )),
+                        payload: self.build_inline_payload(
+                            start_index,
+                            index,
+                            saw_at,
+                            first_colon_index,
+                        ),
                         children: Vec::new(),
                     };
                 }
@@ -382,6 +437,15 @@ impl<'a> Parser<'a> {
                         },
                         span: TextSpan::new(self.tokens[start_index].span.start, end),
                         header_span: Some(header_span),
+                        payload: Some(if saw_at {
+                            SyntaxNodePayload::AtRule(
+                                self.build_at_rule_payload(start_index, index),
+                            )
+                        } else {
+                            SyntaxNodePayload::Rule(RulePayload {
+                                prelude: self.slice_trimmed(header_span).to_string(),
+                            })
+                        }),
                         children,
                     };
                 }
@@ -401,8 +465,72 @@ impl<'a> Parser<'a> {
             kind: classify_statement_kind(saw_at, saw_colon),
             span,
             header_span: Some(span),
+            payload: self.build_inline_payload(start_index, index, saw_at, first_colon_index),
             children: Vec::new(),
         }
+    }
+
+    fn build_inline_payload(
+        &self,
+        start_index: usize,
+        end_index: usize,
+        saw_at: bool,
+        first_colon_index: Option<usize>,
+    ) -> Option<SyntaxNodePayload> {
+        if saw_at {
+            return Some(SyntaxNodePayload::AtRule(
+                self.build_at_rule_payload(start_index, end_index),
+            ));
+        }
+
+        let colon_index = first_colon_index?;
+        let property_span = TextSpan::new(
+            self.tokens[start_index].span.start,
+            self.tokens[colon_index].span.start,
+        );
+        let value_start = self.tokens[colon_index].span.end;
+        let value_end = self
+            .tokens
+            .get(end_index.saturating_sub(1))
+            .map_or(value_start, |token| token.span.end);
+        Some(SyntaxNodePayload::Declaration(DeclarationPayload {
+            property: self.slice_trimmed(property_span).to_string(),
+            value: self
+                .slice_trimmed(TextSpan::new(value_start, value_end))
+                .to_string(),
+        }))
+    }
+
+    fn build_at_rule_payload(&self, start_index: usize, end_index: usize) -> AtRulePayload {
+        let name = self
+            .tokens
+            .get(start_index + 1)
+            .map(|token| self.slice(token.span))
+            .unwrap_or_default()
+            .trim()
+            .to_string();
+        let params_start = self
+            .tokens
+            .get(start_index + 2)
+            .map_or(self.tokens[start_index].span.end, |token| token.span.start);
+        let params_end = self
+            .tokens
+            .get(end_index.saturating_sub(1))
+            .map_or(params_start, |token| token.span.end);
+        AtRulePayload {
+            name,
+            params: self
+                .slice_trimmed(TextSpan::new(params_start, params_end))
+                .to_string(),
+        }
+    }
+
+    fn slice(&self, span: TextSpan) -> &'a str {
+        &self.source[span.start..span.end]
+    }
+
+    fn slice_trimmed(&self, span: TextSpan) -> &'a str {
+        self.slice(span).trim()
     }
 }
 
@@ -418,7 +546,10 @@ fn classify_statement_kind(saw_at: bool, saw_colon: bool) -> SyntaxNodeKind {
 
 #[cfg(test)]
 mod tests {
-    use super::{StyleLanguage, SyntaxNodeKind, TextSpan, TokenKind, parse_stylesheet};
+    use super::{
+        AtRulePayload, DeclarationPayload, RulePayload, StyleLanguage, SyntaxNodeKind,
+        SyntaxNodePayload, TextSpan, TokenKind, parse_stylesheet,
+    };
 
     fn token_texts<'a>(source: &'a str, sheet: &super::Stylesheet) -> Vec<(TokenKind, &'a str)> {
         sheet
@@ -476,9 +607,34 @@ mod tests {
         assert_eq!(sheet.nodes.len(), 1);
         let root_rule = &sheet.nodes[0];
         assert_eq!(root_rule.kind, SyntaxNodeKind::Rule);
+        assert_eq!(
+            root_rule.payload,
+            Some(SyntaxNodePayload::Rule(RulePayload {
+                prelude: ".button".to_string(),
+            }))
+        );
         assert_eq!(root_rule.children.len(), 2);
         assert_eq!(root_rule.children[0].kind, SyntaxNodeKind::Comment);
+        assert_eq!(
+            root_rule.children[0].payload,
+            Some(SyntaxNodePayload::Comment(super::CommentPayload {
+                text: "// note".to_string(),
+            }))
+        );
         assert_eq!(root_rule.children[1].kind, SyntaxNodeKind::Rule);
+        assert_eq!(
+            root_rule.children[1].payload,
+            Some(SyntaxNodePayload::Rule(RulePayload {
+                prelude: "&--primary".to_string(),
+            }))
+        );
+        assert_eq!(
+            root_rule.children[1].children[0].payload,
+            Some(SyntaxNodePayload::Declaration(DeclarationPayload {
+                property: "color".to_string(),
+                value: "red".to_string(),
+            }))
+        );
         assert!(sheet.diagnostics.is_empty());
     }
 
@@ -487,7 +643,27 @@ mod tests {
         let source = "@color: red;\n.button { color: @color; }";
         let sheet = parse_stylesheet(StyleLanguage::Less, source);
         assert_eq!(sheet.nodes[0].kind, SyntaxNodeKind::AtRule);
+        assert_eq!(
+            sheet.nodes[0].payload,
+            Some(SyntaxNodePayload::AtRule(AtRulePayload {
+                name: "color".to_string(),
+                params: ": red".to_string(),
+            }))
+        );
         assert_eq!(sheet.nodes[1].kind, SyntaxNodeKind::Rule);
+    }
+
+    #[test]
+    fn parses_at_rule_header_and_params() {
+        let source = "@media screen and (min-width: 10px) { .button { color: red; } }";
+        let sheet = parse_stylesheet(StyleLanguage::Css, source);
+        assert_eq!(
+            sheet.nodes[0].payload,
+            Some(SyntaxNodePayload::AtRule(AtRulePayload {
+                name: "media".to_string(),
+                params: "screen and (min-width: 10px)".to_string(),
+            }))
+        );
     }
 
     #[test]

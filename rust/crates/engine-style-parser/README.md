@@ -7,6 +7,7 @@ Current scope:
 - style-language detection for `.module.css`, `.module.scss`, `.module.less`
 - byte-span tokenization
 - shallow stylesheet parsing into rule / at-rule / declaration / comment nodes
+  with structured prelude / header / value payloads
 - parser diagnostics for unterminated comments, strings, and blocks
 
 Non-goals in this first scaffold:
