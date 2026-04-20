@@ -1,3 +1,5 @@
+use serde::Serialize;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StyleLanguage {
     Css,
@@ -140,6 +142,17 @@ pub struct Stylesheet {
     pub diagnostics: Vec<ParseDiagnostic>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParserParityLiteSummaryV0 {
+    pub schema_version: &'static str,
+    pub language: &'static str,
+    pub selector_names: Vec<String>,
+    pub keyframes_names: Vec<String>,
+    pub value_decl_names: Vec<String>,
+    pub diagnostic_count: usize,
+}
+
 pub fn parse_style_module(path: &str, source: &str) -> Option<Stylesheet> {
     let language = StyleLanguage::from_module_path(path)?;
     Some(parse_stylesheet(language, source))
@@ -155,6 +168,89 @@ pub fn parse_stylesheet(language: StyleLanguage, source: &str) -> Stylesheet {
         nodes,
         diagnostics,
     }
+}
+
+pub fn summarize_parity_lite(sheet: &Stylesheet) -> ParserParityLiteSummaryV0 {
+    let mut selector_names = Vec::new();
+    let mut keyframes_names = Vec::new();
+    let mut value_decl_names = Vec::new();
+    collect_parity_names(
+        &sheet.nodes,
+        &mut selector_names,
+        &mut keyframes_names,
+        &mut value_decl_names,
+    );
+    selector_names.sort();
+    selector_names.dedup();
+    keyframes_names.sort();
+    keyframes_names.dedup();
+    value_decl_names.sort();
+    value_decl_names.dedup();
+
+    ParserParityLiteSummaryV0 {
+        schema_version: "0",
+        language: match sheet.language {
+            StyleLanguage::Css => "css",
+            StyleLanguage::Scss => "scss",
+            StyleLanguage::Less => "less",
+        },
+        selector_names,
+        keyframes_names,
+        value_decl_names,
+        diagnostic_count: sheet.diagnostics.len(),
+    }
+}
+
+fn collect_parity_names(
+    nodes: &[SyntaxNode],
+    selector_names: &mut Vec<String>,
+    keyframes_names: &mut Vec<String>,
+    value_decl_names: &mut Vec<String>,
+) {
+    for node in nodes {
+        match &node.payload {
+            Some(SyntaxNodePayload::Rule(rule)) => {
+                if let Some(name) = extract_simple_selector_name(&rule.prelude) {
+                    selector_names.push(name);
+                }
+            }
+            Some(SyntaxNodePayload::AtRule(at_rule)) => match at_rule.kind {
+                AtRuleKind::Keyframes => {
+                    if !at_rule.params.is_empty() {
+                        keyframes_names.push(at_rule.params.clone());
+                    }
+                }
+                AtRuleKind::Value => {
+                    if let Some((name, _)) = at_rule.params.split_once(':') {
+                        let trimmed = name.trim();
+                        if !trimmed.is_empty() {
+                            value_decl_names.push(trimmed.to_string());
+                        }
+                    }
+                }
+                _ => {}
+            },
+            _ => {}
+        }
+        collect_parity_names(
+            &node.children,
+            selector_names,
+            keyframes_names,
+            value_decl_names,
+        );
+    }
+}
+
+fn extract_simple_selector_name(prelude: &str) -> Option<String> {
+    let trimmed = prelude.trim();
+    let rest = trimmed.strip_prefix('.')?;
+    if rest.is_empty() {
+        return None;
+    }
+    if rest.contains([' ', ',', ':', '&', '#', '[', '>', '+', '~']) {
+        return None;
+    }
+    Some(rest.to_string())
 }
 
 fn tokenize(language: StyleLanguage, source: &str) -> (Vec<Token>, Vec<ParseDiagnostic>) {
