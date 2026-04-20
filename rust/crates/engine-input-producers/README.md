@@ -29,6 +29,11 @@ Primary checks:
 - `pnpm check:rust-semantic-lane`
 - `pnpm check:rust-producer-boundary`
 
+Split-readiness notes:
+
+- preferred current extraction method: `git subtree split`
+- current split feasibility notes: [docs/engine-input-producers-split.md](../../../docs/engine-input-producers-split.md)
+
 Release-facing bundle:
 
 - `pnpm check:rust-release-bundle`
