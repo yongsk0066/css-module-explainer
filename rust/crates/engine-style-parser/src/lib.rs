@@ -183,7 +183,10 @@ pub struct ParserIndexSummaryV0 {
     pub schema_version: &'static str,
     pub language: &'static str,
     pub selector_names: Vec<String>,
+    pub bem_suffix_parent_names: Vec<String>,
+    pub bem_suffix_safe_selector_names: Vec<String>,
     pub keyframes_names: Vec<String>,
+    pub nested_unsafe_selector_names: Vec<String>,
     pub value_decl_names: Vec<String>,
     pub value_import_names: Vec<String>,
     pub value_ref_names: Vec<String>,
@@ -240,7 +243,10 @@ struct ParityLiteAcc {
 #[derive(Debug, Default)]
 struct IndexSummaryAcc {
     selector_names: Vec<String>,
+    bem_suffix_parent_names: Vec<String>,
+    bem_suffix_safe_selector_names: Vec<String>,
     keyframes_names: Vec<String>,
+    nested_unsafe_selector_names: Vec<String>,
     value_decl_names: Vec<String>,
     value_import_names: Vec<String>,
     value_ref_names: Vec<String>,
@@ -318,8 +324,14 @@ pub fn summarize_index_bridge(sheet: &Stylesheet) -> ParserIndexSummaryV0 {
 
     acc.selector_names.sort();
     acc.selector_names.dedup();
+    acc.bem_suffix_parent_names.sort();
+    acc.bem_suffix_parent_names.dedup();
+    acc.bem_suffix_safe_selector_names.sort();
+    acc.bem_suffix_safe_selector_names.dedup();
     acc.keyframes_names.sort();
     acc.keyframes_names.dedup();
+    acc.nested_unsafe_selector_names.sort();
+    acc.nested_unsafe_selector_names.dedup();
     acc.value_decl_names.sort();
     acc.value_decl_names.dedup();
     acc.value_import_names.sort();
@@ -339,7 +351,10 @@ pub fn summarize_index_bridge(sheet: &Stylesheet) -> ParserIndexSummaryV0 {
             StyleLanguage::Less => "less",
         },
         selector_names: acc.selector_names,
+        bem_suffix_parent_names: acc.bem_suffix_parent_names,
+        bem_suffix_safe_selector_names: acc.bem_suffix_safe_selector_names,
         keyframes_names: acc.keyframes_names,
+        nested_unsafe_selector_names: acc.nested_unsafe_selector_names,
         value_decl_names: acc.value_decl_names,
         value_import_names: acc.value_import_names,
         value_ref_names: acc.value_ref_names,
@@ -538,6 +553,20 @@ fn collect_index_names(
                         resolved.len(),
                     );
                     acc.selector_names.extend(resolved.iter().cloned());
+                    match selector_facts.nested_safety {
+                        NestedSafetyKind::BemSuffixSafe => {
+                            acc.bem_suffix_safe_selector_names
+                                .extend(resolved.iter().cloned());
+                            if let Some(parent_name) = parent_selector_names.first() {
+                                acc.bem_suffix_parent_names.push(parent_name.clone());
+                            }
+                        }
+                        NestedSafetyKind::NestedUnsafe => {
+                            acc.nested_unsafe_selector_names
+                                .extend(resolved.iter().cloned());
+                        }
+                        NestedSafetyKind::Flat => {}
+                    }
                     next_parent_is_grouped = resolved.len() > 1;
                     next_parent_names = resolved;
                     split_child_branches = true;

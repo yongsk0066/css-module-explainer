@@ -7,7 +7,10 @@ interface ParserIndexSummaryV0 {
   readonly schemaVersion: "0";
   readonly language: "css" | "scss" | "less";
   readonly selectorNames: readonly string[];
+  readonly bemSuffixParentNames: readonly string[];
+  readonly bemSuffixSafeSelectorNames: readonly string[];
   readonly keyframesNames: readonly string[];
+  readonly nestedUnsafeSelectorNames: readonly string[];
   readonly valueDeclNames: readonly string[];
   readonly valueImportNames: readonly string[];
   readonly valueRefNames: readonly string[];
@@ -81,7 +84,19 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
         ? "scss"
         : "css",
     selectorNames: [...document.selectors].map((selector) => selector.name).toSorted(),
+    bemSuffixParentNames: document.selectors
+      .map((selector) => selector.bemSuffix?.parentResolvedName)
+      .filter((name): name is string => name !== undefined)
+      .toSorted(),
+    bemSuffixSafeSelectorNames: document.selectors
+      .filter((selector) => selector.nestedSafety === "bemSuffixSafe")
+      .map((selector) => selector.name)
+      .toSorted(),
     keyframesNames: [...document.keyframes].map((entry) => entry.name).toSorted(),
+    nestedUnsafeSelectorNames: document.selectors
+      .filter((selector) => selector.nestedSafety === "nestedUnsafe")
+      .map((selector) => selector.name)
+      .toSorted(),
     valueDeclNames: [...document.valueDecls].map((entry) => entry.name).toSorted(),
     valueImportNames: [...document.valueImports].map((entry) => entry.name).toSorted(),
     valueRefNames: [...document.valueRefs].map((entry) => entry.name).toSorted(),
