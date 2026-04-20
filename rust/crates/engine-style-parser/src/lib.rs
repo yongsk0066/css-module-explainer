@@ -297,8 +297,9 @@ fn resolve_rule_selector_names(
     let mut names = Vec::new();
 
     for group in &rule.selector_groups {
-        if let Some(name) = extract_group_selector_name(group, parent_selector_names) {
-            names.push(name);
+        let resolved = extract_group_selector_names(group, parent_selector_names);
+        if !resolved.is_empty() {
+            names.extend(resolved);
         } else if let Some(name) = extract_simple_selector_name(&group.raw) {
             names.push(name);
         }
@@ -307,21 +308,21 @@ fn resolve_rule_selector_names(
     names
 }
 
-fn extract_group_selector_name(
+fn extract_group_selector_names(
     group: &SelectorGroup,
     parent_selector_names: &[String],
-) -> Option<String> {
+) -> Vec<String> {
     match group.segments.as_slice() {
-        [SelectorSegment::ClassName(name)] => Some(name.clone()),
+        [SelectorSegment::ClassName(name)] => vec![name.clone()],
         [
             SelectorSegment::Ampersand,
             SelectorSegment::BemSuffix(suffix),
-        ] => {
-            let parent = parent_selector_names.first()?;
-            Some(format!("{parent}{suffix}"))
-        }
-        [SelectorSegment::Ampersand, SelectorSegment::ClassName(name)] => Some(name.clone()),
-        _ => None,
+        ] => parent_selector_names
+            .iter()
+            .map(|parent| format!("{parent}{suffix}"))
+            .collect(),
+        [SelectorSegment::Ampersand, SelectorSegment::ClassName(name)] => vec![name.clone()],
+        _ => Vec::new(),
     }
 }
 
@@ -1061,5 +1062,39 @@ mod tests {
             summary.selector_names,
             vec!["card", "card__icon", "card__icon--small"]
         );
+    }
+
+    #[test]
+    fn parity_summary_expands_grouped_parent_bem_suffixes() {
+        let source = ".a, .b { &--c { color: red; } }";
+        let sheet = parse_stylesheet(StyleLanguage::Scss, source);
+        let summary = super::summarize_parity_lite(&sheet);
+        assert_eq!(summary.selector_names, vec!["a", "a--c", "b", "b--c"]);
+    }
+
+    #[test]
+    fn parity_summary_expands_grouped_parent_nested_bem_suffixes() {
+        let source = ".a, .b { &__icon { &--small { color: red; } } }";
+        let sheet = parse_stylesheet(StyleLanguage::Scss, source);
+        let summary = super::summarize_parity_lite(&sheet);
+        assert_eq!(
+            summary.selector_names,
+            vec![
+                "a",
+                "a__icon",
+                "a__icon--small",
+                "b",
+                "b__icon",
+                "b__icon--small"
+            ]
+        );
+    }
+
+    #[test]
+    fn parity_summary_keeps_ampersand_class_as_standalone_class() {
+        let source = ".a, .b { &.active { color: red; } }";
+        let sheet = parse_stylesheet(StyleLanguage::Scss, source);
+        let summary = super::summarize_parity_lite(&sheet);
+        assert_eq!(summary.selector_names, vec!["a", "active", "b"]);
     }
 }

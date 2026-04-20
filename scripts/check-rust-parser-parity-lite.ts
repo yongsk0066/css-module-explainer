@@ -34,6 +34,16 @@ const CORPUS = [
     source: `.card { &__icon { &--small { color: red; } } }`,
   },
   {
+    label: "scss-grouped-bem-nested",
+    filePath: "/f.module.scss",
+    source: `.a, .b { &__icon { &--small { color: red; } } }`,
+  },
+  {
+    label: "scss-grouped-active",
+    filePath: "/f.module.scss",
+    source: `.a, .b { &.active { color: red; } }`,
+  },
+  {
     label: "less-variable",
     filePath: "/f.module.less",
     source: `@color: red;\n.btn { color: @color; }`,
