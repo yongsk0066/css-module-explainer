@@ -196,6 +196,8 @@ pub struct ParserIndexSummaryV0 {
     pub value_import_names: Vec<String>,
     pub value_import_sources: Vec<String>,
     pub value_ref_names: Vec<String>,
+    pub declaration_value_ref_names: Vec<String>,
+    pub value_decl_ref_names: Vec<String>,
     pub animation_ref_names: Vec<String>,
     pub animation_name_ref_names: Vec<String>,
     pub value_import_alias_count: usize,
@@ -265,6 +267,8 @@ struct IndexSummaryAcc {
     value_import_names: Vec<String>,
     value_import_sources: Vec<String>,
     value_ref_names: Vec<String>,
+    declaration_value_ref_names: Vec<String>,
+    value_decl_ref_names: Vec<String>,
     animation_ref_names: Vec<String>,
     animation_name_ref_names: Vec<String>,
     value_import_alias_count: usize,
@@ -366,6 +370,10 @@ pub fn summarize_index_bridge(sheet: &Stylesheet) -> ParserIndexSummaryV0 {
     acc.value_import_sources.sort();
     acc.value_ref_names.sort();
     acc.value_ref_names.dedup();
+    acc.declaration_value_ref_names.sort();
+    acc.declaration_value_ref_names.dedup();
+    acc.value_decl_ref_names.sort();
+    acc.value_decl_ref_names.dedup();
     acc.animation_ref_names.sort();
     acc.animation_ref_names.dedup();
     acc.animation_name_ref_names.sort();
@@ -392,6 +400,8 @@ pub fn summarize_index_bridge(sheet: &Stylesheet) -> ParserIndexSummaryV0 {
         value_import_names: acc.value_import_names,
         value_import_sources: acc.value_import_sources,
         value_ref_names: acc.value_ref_names,
+        declaration_value_ref_names: acc.declaration_value_ref_names,
+        value_decl_ref_names: acc.value_decl_ref_names,
         animation_ref_names: acc.animation_ref_names,
         animation_name_ref_names: acc.animation_name_ref_names,
         value_import_alias_count: acc.value_import_alias_count,
@@ -749,36 +759,37 @@ fn collect_index_refs_and_counts(
                             &declaration.value,
                             known_keyframe_names,
                         ));
-                        acc.value_ref_names.extend(find_identifier_matches(
-                            &declaration.value,
-                            known_value_names,
-                        ));
+                        let value_refs =
+                            find_identifier_matches(&declaration.value, known_value_names);
+                        acc.value_ref_names.extend(value_refs.iter().cloned());
+                        acc.declaration_value_ref_names.extend(value_refs);
                     }
                     DeclarationKind::AnimationName => {
                         acc.animation_name_ref_names.extend(find_identifier_matches(
                             &declaration.value,
                             known_keyframe_names,
                         ));
-                        acc.value_ref_names.extend(find_identifier_matches(
-                            &declaration.value,
-                            known_value_names,
-                        ));
+                        let value_refs =
+                            find_identifier_matches(&declaration.value, known_value_names);
+                        acc.value_ref_names.extend(value_refs.iter().cloned());
+                        acc.declaration_value_ref_names.extend(value_refs);
                     }
                     DeclarationKind::Generic => {
-                        acc.value_ref_names.extend(find_identifier_matches(
-                            &declaration.value,
-                            known_value_names,
-                        ));
+                        let value_refs =
+                            find_identifier_matches(&declaration.value, known_value_names);
+                        acc.value_ref_names.extend(value_refs.iter().cloned());
+                        acc.declaration_value_ref_names.extend(value_refs);
                     }
                 }
             }
             Some(SyntaxNodePayload::AtRule(at_rule)) if at_rule.kind == AtRuleKind::Value => {
                 if let Some((name, value)) = parse_local_value_decl_parts(&at_rule.params) {
-                    acc.value_ref_names.extend(
-                        find_identifier_matches(value, known_value_names)
-                            .into_iter()
-                            .filter(|candidate| candidate != name),
-                    );
+                    let value_refs: Vec<String> = find_identifier_matches(value, known_value_names)
+                        .into_iter()
+                        .filter(|candidate| candidate != name)
+                        .collect();
+                    acc.value_ref_names.extend(value_refs.iter().cloned());
+                    acc.value_decl_ref_names.extend(value_refs);
                 }
             }
             _ => {}

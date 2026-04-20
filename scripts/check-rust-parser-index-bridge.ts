@@ -20,6 +20,8 @@ interface ParserIndexSummaryV0 {
   readonly valueImportNames: readonly string[];
   readonly valueImportSources: readonly string[];
   readonly valueRefNames: readonly string[];
+  readonly declarationValueRefNames: readonly string[];
+  readonly valueDeclRefNames: readonly string[];
   readonly animationRefNames: readonly string[];
   readonly animationNameRefNames: readonly string[];
   readonly valueImportAliasCount: number;
@@ -57,9 +59,19 @@ const CORPUS = [
     source: `@value brand: red;\n.btn { color: brand; }`,
   },
   {
+    label: "scss-value-decl-dependency-chain",
+    filePath: "/f.module.scss",
+    source: `@value base: red;\n@value accent: base;\n.btn { color: accent; }`,
+  },
+  {
     label: "scss-composes-and-animation",
     filePath: "/f.module.scss",
     source: `@keyframes fade { from { opacity: 0; } }\n.btn { composes: base primary from "./base.module.scss"; animation: fade 1s linear; animation-name: fade; }`,
+  },
+  {
+    label: "scss-animation-with-value-ref",
+    filePath: "/f.module.scss",
+    source: `@keyframes fade { from { opacity: 0; } }\n@value speed: 1s;\n.btn { animation: fade speed linear; animation-name: fade; }`,
   },
   {
     label: "scss-composes-local",
@@ -152,6 +164,14 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
     valueImportNames: [...document.valueImports].map((entry) => entry.name).toSorted(),
     valueImportSources: [...document.valueImports].map((entry) => entry.from).toSorted(),
     valueRefNames: [...document.valueRefs].map((entry) => entry.name).toSorted(),
+    declarationValueRefNames: document.valueRefs
+      .filter((entry) => entry.source === "declaration")
+      .map((entry) => entry.name)
+      .toSorted(),
+    valueDeclRefNames: document.valueRefs
+      .filter((entry) => entry.source === "valueDecl")
+      .map((entry) => entry.name)
+      .toSorted(),
     animationRefNames: document.animationNameRefs
       .filter((entry) => entry.property === "animation")
       .map((entry) => entry.name)
