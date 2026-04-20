@@ -103,6 +103,23 @@ pub enum SyntaxNodePayload {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RulePayload {
     pub prelude: String,
+    pub selector_groups: Vec<SelectorGroup>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectorGroup {
+    pub raw: String,
+    pub segments: Vec<SelectorSegment>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SelectorSegment {
+    ClassName(String),
+    Ampersand,
+    BemSuffix(String),
+    Pseudo(String),
+    Combinator(String),
+    Other(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -207,11 +224,30 @@ fn collect_parity_names(
     keyframes_names: &mut Vec<String>,
     value_decl_names: &mut Vec<String>,
 ) {
+    collect_parity_names_with_parent(
+        nodes,
+        selector_names,
+        keyframes_names,
+        value_decl_names,
+        &[],
+    );
+}
+
+fn collect_parity_names_with_parent(
+    nodes: &[SyntaxNode],
+    selector_names: &mut Vec<String>,
+    keyframes_names: &mut Vec<String>,
+    value_decl_names: &mut Vec<String>,
+    parent_selector_names: &[String],
+) {
     for node in nodes {
+        let mut next_parent_names = parent_selector_names.to_vec();
         match &node.payload {
             Some(SyntaxNodePayload::Rule(rule)) => {
-                if let Some(name) = extract_simple_selector_name(&rule.prelude) {
-                    selector_names.push(name);
+                let resolved = resolve_rule_selector_names(rule, parent_selector_names);
+                if !resolved.is_empty() {
+                    selector_names.extend(resolved.iter().cloned());
+                    next_parent_names = resolved;
                 }
             }
             Some(SyntaxNodePayload::AtRule(at_rule)) => match at_rule.kind {
@@ -232,11 +268,12 @@ fn collect_parity_names(
             },
             _ => {}
         }
-        collect_parity_names(
+        collect_parity_names_with_parent(
             &node.children,
             selector_names,
             keyframes_names,
             value_decl_names,
+            &next_parent_names,
         );
     }
 }
@@ -251,6 +288,152 @@ fn extract_simple_selector_name(prelude: &str) -> Option<String> {
         return None;
     }
     Some(rest.to_string())
+}
+
+fn resolve_rule_selector_names(
+    rule: &RulePayload,
+    parent_selector_names: &[String],
+) -> Vec<String> {
+    let mut names = Vec::new();
+
+    for group in &rule.selector_groups {
+        if let Some(name) = extract_group_selector_name(group, parent_selector_names) {
+            names.push(name);
+        } else if let Some(name) = extract_simple_selector_name(&group.raw) {
+            names.push(name);
+        }
+    }
+
+    names
+}
+
+fn extract_group_selector_name(
+    group: &SelectorGroup,
+    parent_selector_names: &[String],
+) -> Option<String> {
+    match group.segments.as_slice() {
+        [SelectorSegment::ClassName(name)] => Some(name.clone()),
+        [
+            SelectorSegment::Ampersand,
+            SelectorSegment::BemSuffix(suffix),
+        ] => {
+            let parent = parent_selector_names.first()?;
+            Some(format!("{parent}{suffix}"))
+        }
+        [SelectorSegment::Ampersand, SelectorSegment::ClassName(name)] => Some(name.clone()),
+        _ => None,
+    }
+}
+
+fn parse_selector_groups(prelude: &str) -> Vec<SelectorGroup> {
+    let mut groups = Vec::new();
+    let mut depth_paren = 0usize;
+    let mut depth_bracket = 0usize;
+    let mut start = 0usize;
+
+    for (index, ch) in prelude.char_indices() {
+        match ch {
+            '(' => depth_paren += 1,
+            ')' => depth_paren = depth_paren.saturating_sub(1),
+            '[' => depth_bracket += 1,
+            ']' => depth_bracket = depth_bracket.saturating_sub(1),
+            ',' if depth_paren == 0 && depth_bracket == 0 => {
+                let raw = prelude[start..index].trim();
+                if !raw.is_empty() {
+                    groups.push(SelectorGroup {
+                        raw: raw.to_string(),
+                        segments: parse_selector_segments(raw),
+                    });
+                }
+                start = index + ch.len_utf8();
+            }
+            _ => {}
+        }
+    }
+
+    let raw = prelude[start..].trim();
+    if !raw.is_empty() {
+        groups.push(SelectorGroup {
+            raw: raw.to_string(),
+            segments: parse_selector_segments(raw),
+        });
+    }
+
+    groups
+}
+
+fn parse_selector_segments(raw: &str) -> Vec<SelectorSegment> {
+    let chars: Vec<char> = raw.chars().collect();
+    let mut index = 0usize;
+    let mut segments = Vec::new();
+
+    while index < chars.len() {
+        match chars[index] {
+            c if c.is_whitespace() => index += 1,
+            '.' => {
+                index += 1;
+                let start = index;
+                while index < chars.len() && is_selector_ident_continue(chars[index]) {
+                    index += 1;
+                }
+                if start < index {
+                    segments.push(SelectorSegment::ClassName(
+                        chars[start..index].iter().collect(),
+                    ));
+                } else {
+                    segments.push(SelectorSegment::Other(".".to_string()));
+                }
+            }
+            '&' => {
+                segments.push(SelectorSegment::Ampersand);
+                index += 1;
+                if index + 1 < chars.len()
+                    && ((chars[index] == '-' && chars[index + 1] == '-')
+                        || (chars[index] == '_' && chars[index + 1] == '_'))
+                {
+                    let start = index;
+                    index += 2;
+                    while index < chars.len() && is_selector_ident_continue(chars[index]) {
+                        index += 1;
+                    }
+                    segments.push(SelectorSegment::BemSuffix(
+                        chars[start..index].iter().collect(),
+                    ));
+                }
+            }
+            ':' => {
+                index += 1;
+                let start = index;
+                while index < chars.len() && is_selector_ident_continue(chars[index]) {
+                    index += 1;
+                }
+                segments.push(SelectorSegment::Pseudo(
+                    chars[start..index].iter().collect(),
+                ));
+            }
+            '>' | '+' | '~' => {
+                segments.push(SelectorSegment::Combinator(chars[index].to_string()));
+                index += 1;
+            }
+            _ => {
+                let start = index;
+                index += 1;
+                while index < chars.len()
+                    && !chars[index].is_whitespace()
+                    && !matches!(chars[index], '.' | '&' | ':' | '>' | '+' | '~' | ',')
+                {
+                    index += 1;
+                }
+                segments.push(SelectorSegment::Other(chars[start..index].iter().collect()));
+            }
+        }
+    }
+
+    segments
+}
+
+fn is_selector_ident_continue(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-') || !ch.is_ascii()
 }
 
 fn tokenize(language: StyleLanguage, source: &str) -> (Vec<Token>, Vec<ParseDiagnostic>) {
@@ -550,8 +733,10 @@ impl<'a> Parser<'a> {
                                 self.build_at_rule_payload(start_index, index),
                             )
                         } else {
+                            let prelude = self.slice_trimmed(header_span).to_string();
                             SyntaxNodePayload::Rule(RulePayload {
-                                prelude: self.slice_trimmed(header_span).to_string(),
+                                selector_groups: parse_selector_groups(&prelude),
+                                prelude,
                             })
                         }),
                         children,
@@ -668,8 +853,8 @@ fn classify_at_rule_kind(name: &str) -> AtRuleKind {
 #[cfg(test)]
 mod tests {
     use super::{
-        AtRuleKind, AtRulePayload, DeclarationPayload, RulePayload, StyleLanguage, SyntaxNodeKind,
-        SyntaxNodePayload, TextSpan, TokenKind, parse_stylesheet,
+        AtRuleKind, AtRulePayload, DeclarationPayload, RulePayload, SelectorGroup, SelectorSegment,
+        StyleLanguage, SyntaxNodeKind, SyntaxNodePayload, TextSpan, TokenKind, parse_stylesheet,
     };
 
     fn token_texts<'a>(source: &'a str, sheet: &super::Stylesheet) -> Vec<(TokenKind, &'a str)> {
@@ -732,6 +917,10 @@ mod tests {
             root_rule.payload,
             Some(SyntaxNodePayload::Rule(RulePayload {
                 prelude: ".button".to_string(),
+                selector_groups: vec![SelectorGroup {
+                    raw: ".button".to_string(),
+                    segments: vec![SelectorSegment::ClassName("button".to_string())],
+                }],
             }))
         );
         assert_eq!(root_rule.children.len(), 2);
@@ -747,6 +936,13 @@ mod tests {
             root_rule.children[1].payload,
             Some(SyntaxNodePayload::Rule(RulePayload {
                 prelude: "&--primary".to_string(),
+                selector_groups: vec![SelectorGroup {
+                    raw: "&--primary".to_string(),
+                    segments: vec![
+                        SelectorSegment::Ampersand,
+                        SelectorSegment::BemSuffix("--primary".to_string()),
+                    ],
+                }],
             }))
         );
         assert_eq!(
@@ -831,6 +1027,39 @@ mod tests {
                 .diagnostics
                 .iter()
                 .any(|diagnostic| diagnostic.message == "unterminated block")
+        );
+    }
+
+    #[test]
+    fn splits_grouped_selectors_into_groups_and_segments() {
+        let source = ".a, .b { &--c { color: red; } }";
+        let sheet = parse_stylesheet(StyleLanguage::Scss, source);
+        assert_eq!(
+            sheet.nodes[0].payload,
+            Some(SyntaxNodePayload::Rule(RulePayload {
+                prelude: ".a, .b".to_string(),
+                selector_groups: vec![
+                    SelectorGroup {
+                        raw: ".a".to_string(),
+                        segments: vec![SelectorSegment::ClassName("a".to_string())],
+                    },
+                    SelectorGroup {
+                        raw: ".b".to_string(),
+                        segments: vec![SelectorSegment::ClassName("b".to_string())],
+                    },
+                ],
+            }))
+        );
+    }
+
+    #[test]
+    fn parity_summary_reconstructs_bem_suffix_names() {
+        let source = ".card { &__icon { &--small { color: red; } } }";
+        let sheet = parse_stylesheet(StyleLanguage::Scss, source);
+        let summary = super::summarize_parity_lite(&sheet);
+        assert_eq!(
+            summary.selector_names,
+            vec!["card", "card__icon", "card__icon--small"]
         );
     }
 }

@@ -29,6 +29,11 @@ const CORPUS = [
     source: `@value brand: red;\n@keyframes fade { from { opacity: 0; } }\n.btn { color: brand; }`,
   },
   {
+    label: "scss-bem-nested",
+    filePath: "/f.module.scss",
+    source: `.card { &__icon { &--small { color: red; } } }`,
+  },
+  {
     label: "less-variable",
     filePath: "/f.module.less",
     source: `@color: red;\n.btn { color: @color; }`,
