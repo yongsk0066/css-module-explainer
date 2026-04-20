@@ -11,6 +11,9 @@ interface ParserIndexSummaryV0 {
   readonly valueDeclNames: readonly string[];
   readonly valueImportNames: readonly string[];
   readonly valueRefNames: readonly string[];
+  readonly animationRefNames: readonly string[];
+  readonly animationNameRefNames: readonly string[];
+  readonly valueImportAliasCount: number;
   readonly composesClassNameCount: number;
 }
 
@@ -61,6 +64,15 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
     valueDeclNames: [...document.valueDecls].map((entry) => entry.name).sort(),
     valueImportNames: [...document.valueImports].map((entry) => entry.name).sort(),
     valueRefNames: [...document.valueRefs].map((entry) => entry.name).sort(),
+    animationRefNames: document.animationNameRefs
+      .filter((entry) => entry.property === "animation")
+      .map((entry) => entry.name)
+      .sort(),
+    animationNameRefNames: document.animationNameRefs
+      .filter((entry) => entry.property === "animation-name")
+      .map((entry) => entry.name)
+      .sort(),
+    valueImportAliasCount: document.valueImports.filter((entry) => entry.importedName !== entry.name).length,
     composesClassNameCount: document.selectors.reduce(
       (sum, selector) => sum + selector.composes.reduce((inner, ref) => inner + ref.classNames.length, 0),
       0,

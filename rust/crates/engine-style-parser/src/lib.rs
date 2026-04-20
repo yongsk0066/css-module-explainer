@@ -187,6 +187,9 @@ pub struct ParserIndexSummaryV0 {
     pub value_decl_names: Vec<String>,
     pub value_import_names: Vec<String>,
     pub value_ref_names: Vec<String>,
+    pub animation_ref_names: Vec<String>,
+    pub animation_name_ref_names: Vec<String>,
+    pub value_import_alias_count: usize,
     pub composes_class_name_count: usize,
 }
 
@@ -231,6 +234,9 @@ struct IndexSummaryAcc {
     value_decl_names: Vec<String>,
     value_import_names: Vec<String>,
     value_ref_names: Vec<String>,
+    animation_ref_names: Vec<String>,
+    animation_name_ref_names: Vec<String>,
+    value_import_alias_count: usize,
     composes_class_name_count: usize,
 }
 
@@ -290,7 +296,13 @@ pub fn summarize_index_bridge(sheet: &Stylesheet) -> ParserIndexSummaryV0 {
         .chain(acc.value_import_names.iter())
         .cloned()
         .collect();
-    collect_index_refs_and_counts(&sheet.nodes, &known_value_names, &mut acc);
+    let known_keyframe_names: BTreeSet<String> = acc.keyframes_names.iter().cloned().collect();
+    collect_index_refs_and_counts(
+        &sheet.nodes,
+        &known_value_names,
+        &known_keyframe_names,
+        &mut acc,
+    );
 
     acc.selector_names.sort();
     acc.selector_names.dedup();
@@ -302,6 +314,10 @@ pub fn summarize_index_bridge(sheet: &Stylesheet) -> ParserIndexSummaryV0 {
     acc.value_import_names.dedup();
     acc.value_ref_names.sort();
     acc.value_ref_names.dedup();
+    acc.animation_ref_names.sort();
+    acc.animation_ref_names.dedup();
+    acc.animation_name_ref_names.sort();
+    acc.animation_name_ref_names.dedup();
 
     ParserIndexSummaryV0 {
         schema_version: "0",
@@ -315,6 +331,9 @@ pub fn summarize_index_bridge(sheet: &Stylesheet) -> ParserIndexSummaryV0 {
         value_decl_names: acc.value_decl_names,
         value_import_names: acc.value_import_names,
         value_ref_names: acc.value_ref_names,
+        animation_ref_names: acc.animation_ref_names,
+        animation_name_ref_names: acc.animation_name_ref_names,
+        value_import_alias_count: acc.value_import_alias_count,
         composes_class_name_count: acc.composes_class_name_count,
     }
 }
@@ -440,8 +459,13 @@ fn collect_index_names(
                     }
                 }
                 AtRuleKind::Value => {
-                    if let Some(import_names) = parse_value_import_names(&at_rule.params) {
-                        acc.value_import_names.extend(import_names);
+                    if let Some(import_specs) = parse_value_import_specs(&at_rule.params) {
+                        acc.value_import_alias_count += import_specs
+                            .iter()
+                            .filter(|spec| spec.imported_name != spec.local_name)
+                            .count();
+                        acc.value_import_names
+                            .extend(import_specs.into_iter().map(|spec| spec.local_name));
                     } else if let Some((name, _)) = parse_local_value_decl_parts(&at_rule.params) {
                         acc.value_decl_names.push(name.to_string());
                     }
@@ -457,25 +481,49 @@ fn collect_index_names(
 fn collect_index_refs_and_counts(
     nodes: &[SyntaxNode],
     known_value_names: &BTreeSet<String>,
+    known_keyframe_names: &BTreeSet<String>,
     acc: &mut IndexSummaryAcc,
 ) {
     for node in nodes {
         match &node.payload {
             Some(SyntaxNodePayload::Declaration(declaration)) => {
-                if classify_declaration_kind(&declaration.property) == DeclarationKind::Composes {
-                    acc.composes_class_name_count +=
-                        parse_composes_class_names(&declaration.value).len();
-                } else {
-                    acc.value_ref_names.extend(find_value_identifier_matches(
-                        &declaration.value,
-                        known_value_names,
-                    ));
+                match classify_declaration_kind(&declaration.property) {
+                    DeclarationKind::Composes => {
+                        acc.composes_class_name_count +=
+                            parse_composes_class_names(&declaration.value).len();
+                    }
+                    DeclarationKind::Animation => {
+                        acc.animation_ref_names.extend(find_identifier_matches(
+                            &declaration.value,
+                            known_keyframe_names,
+                        ));
+                        acc.value_ref_names.extend(find_identifier_matches(
+                            &declaration.value,
+                            known_value_names,
+                        ));
+                    }
+                    DeclarationKind::AnimationName => {
+                        acc.animation_name_ref_names.extend(find_identifier_matches(
+                            &declaration.value,
+                            known_keyframe_names,
+                        ));
+                        acc.value_ref_names.extend(find_identifier_matches(
+                            &declaration.value,
+                            known_value_names,
+                        ));
+                    }
+                    DeclarationKind::Generic => {
+                        acc.value_ref_names.extend(find_identifier_matches(
+                            &declaration.value,
+                            known_value_names,
+                        ));
+                    }
                 }
             }
             Some(SyntaxNodePayload::AtRule(at_rule)) if at_rule.kind == AtRuleKind::Value => {
                 if let Some((name, value)) = parse_local_value_decl_parts(&at_rule.params) {
                     acc.value_ref_names.extend(
-                        find_value_identifier_matches(value, known_value_names)
+                        find_identifier_matches(value, known_value_names)
                             .into_iter()
                             .filter(|candidate| candidate != name),
                     );
@@ -483,7 +531,7 @@ fn collect_index_refs_and_counts(
             }
             _ => {}
         }
-        collect_index_refs_and_counts(&node.children, known_value_names, acc);
+        collect_index_refs_and_counts(&node.children, known_value_names, known_keyframe_names, acc);
     }
 }
 
@@ -500,23 +548,35 @@ fn parse_local_value_decl_parts(params: &str) -> Option<(&str, &str)> {
     Some((trimmed_name, trimmed_value))
 }
 
-fn parse_value_import_names(params: &str) -> Option<Vec<String>> {
+struct ValueImportSpec {
+    imported_name: String,
+    local_name: String,
+}
+
+fn parse_value_import_specs(params: &str) -> Option<Vec<ValueImportSpec>> {
     let (raw_specs, _) = params.split_once(" from ")?;
-    let mut names = Vec::new();
+    let mut specs = Vec::new();
     for raw_spec in raw_specs.split(',') {
         let trimmed = raw_spec.trim();
         if trimmed.is_empty() {
             continue;
         }
+        let imported_name = trimmed
+            .split_once(" as ")
+            .map(|(imported, _)| imported.trim())
+            .unwrap_or(trimmed);
         let local_name = trimmed
             .split_once(" as ")
             .map(|(_, local)| local.trim())
             .unwrap_or(trimmed);
-        if !local_name.is_empty() {
-            names.push(local_name.to_string());
+        if !imported_name.is_empty() && !local_name.is_empty() {
+            specs.push(ValueImportSpec {
+                imported_name: imported_name.to_string(),
+                local_name: local_name.to_string(),
+            });
         }
     }
-    (!names.is_empty()).then_some(names)
+    (!specs.is_empty()).then_some(specs)
 }
 
 fn parse_composes_class_names(value: &str) -> Vec<String> {
@@ -530,7 +590,7 @@ fn parse_composes_class_names(value: &str) -> Vec<String> {
         .collect()
 }
 
-fn find_value_identifier_matches(raw: &str, known_value_names: &BTreeSet<String>) -> Vec<String> {
+fn find_identifier_matches(raw: &str, known_names: &BTreeSet<String>) -> Vec<String> {
     let mut matches = Vec::new();
     let chars: Vec<char> = raw.chars().collect();
     let mut index = 0usize;
@@ -541,7 +601,7 @@ fn find_value_identifier_matches(raw: &str, known_value_names: &BTreeSet<String>
         |end: usize, identifier_start: &mut Option<usize>, matches: &mut Vec<String>| {
             if let Some(start) = *identifier_start {
                 let candidate: String = chars[start..end].iter().collect();
-                if known_value_names.contains(&candidate) {
+                if known_names.contains(&candidate) {
                     matches.push(candidate);
                 }
                 *identifier_start = None;
