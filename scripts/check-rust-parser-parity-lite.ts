@@ -44,6 +44,26 @@ const CORPUS = [
     source: `.a, .b { &.active { color: red; } }`,
   },
   {
+    label: "scss-pseudo",
+    filePath: "/f.module.scss",
+    source: `.btn:hover { color: red; }`,
+  },
+  {
+    label: "scss-compound-class",
+    filePath: "/f.module.scss",
+    source: `.btn.active { color: red; }`,
+  },
+  {
+    label: "scss-combinator-rightmost",
+    filePath: "/f.module.scss",
+    source: `.a > .b { color: red; }`,
+  },
+  {
+    label: "scss-layer-wrapper",
+    filePath: "/f.module.scss",
+    source: `@layer ui { .btn:hover { color: red; } }`,
+  },
+  {
     label: "less-variable",
     filePath: "/f.module.less",
     source: `@color: red;\n.btn { color: @color; }`,

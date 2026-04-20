@@ -322,7 +322,26 @@ fn extract_group_selector_names(
             .map(|parent| format!("{parent}{suffix}"))
             .collect(),
         [SelectorSegment::Ampersand, SelectorSegment::ClassName(name)] => vec![name.clone()],
-        _ => Vec::new(),
+        segments => {
+            let last_combinator = segments
+                .iter()
+                .enumerate()
+                .rev()
+                .find_map(|(index, segment)| {
+                    matches!(segment, SelectorSegment::Combinator(_)).then_some(index)
+                });
+            let tail = last_combinator
+                .map(|index| &segments[index + 1..])
+                .unwrap_or(segments);
+            let names: Vec<String> = tail
+                .iter()
+                .filter_map(|segment| match segment {
+                    SelectorSegment::ClassName(name) => Some(name.clone()),
+                    _ => None,
+                })
+                .collect();
+            if names.is_empty() { Vec::new() } else { names }
+        }
     }
 }
 
@@ -1096,5 +1115,37 @@ mod tests {
         let sheet = parse_stylesheet(StyleLanguage::Scss, source);
         let summary = super::summarize_parity_lite(&sheet);
         assert_eq!(summary.selector_names, vec!["a", "active", "b"]);
+    }
+
+    #[test]
+    fn parity_summary_keeps_class_from_pseudo_selector() {
+        let source = ".btn:hover { color: red; }";
+        let sheet = parse_stylesheet(StyleLanguage::Scss, source);
+        let summary = super::summarize_parity_lite(&sheet);
+        assert_eq!(summary.selector_names, vec!["btn"]);
+    }
+
+    #[test]
+    fn parity_summary_keeps_multiple_classes_from_compound_selector() {
+        let source = ".btn.active { color: red; }";
+        let sheet = parse_stylesheet(StyleLanguage::Scss, source);
+        let summary = super::summarize_parity_lite(&sheet);
+        assert_eq!(summary.selector_names, vec!["active", "btn"]);
+    }
+
+    #[test]
+    fn parity_summary_prefers_rightmost_class_after_combinator() {
+        let source = ".a > .b { color: red; }";
+        let sheet = parse_stylesheet(StyleLanguage::Scss, source);
+        let summary = super::summarize_parity_lite(&sheet);
+        assert_eq!(summary.selector_names, vec!["b"]);
+    }
+
+    #[test]
+    fn parity_summary_collects_nested_layer_rule_selectors() {
+        let source = "@layer ui { .btn:hover { color: red; } }";
+        let sheet = parse_stylesheet(StyleLanguage::Scss, source);
+        let summary = super::summarize_parity_lite(&sheet);
+        assert_eq!(summary.selector_names, vec!["btn"]);
     }
 }
