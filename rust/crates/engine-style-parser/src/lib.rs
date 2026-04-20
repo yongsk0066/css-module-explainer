@@ -105,8 +105,20 @@ pub struct RulePayload {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AtRulePayload {
+    pub kind: AtRuleKind,
     pub name: String,
     pub params: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AtRuleKind {
+    Media,
+    Supports,
+    Layer,
+    Keyframes,
+    Value,
+    AtRoot,
+    Generic,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -518,6 +530,7 @@ impl<'a> Parser<'a> {
             .get(end_index.saturating_sub(1))
             .map_or(params_start, |token| token.span.end);
         AtRulePayload {
+            kind: classify_at_rule_kind(&name),
             name,
             params: self
                 .slice_trimmed(TextSpan::new(params_start, params_end))
@@ -544,10 +557,22 @@ fn classify_statement_kind(saw_at: bool, saw_colon: bool) -> SyntaxNodeKind {
     }
 }
 
+fn classify_at_rule_kind(name: &str) -> AtRuleKind {
+    match name {
+        "media" => AtRuleKind::Media,
+        "supports" => AtRuleKind::Supports,
+        "layer" => AtRuleKind::Layer,
+        "keyframes" | "-webkit-keyframes" => AtRuleKind::Keyframes,
+        "value" => AtRuleKind::Value,
+        "at-root" => AtRuleKind::AtRoot,
+        _ => AtRuleKind::Generic,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        AtRulePayload, DeclarationPayload, RulePayload, StyleLanguage, SyntaxNodeKind,
+        AtRuleKind, AtRulePayload, DeclarationPayload, RulePayload, StyleLanguage, SyntaxNodeKind,
         SyntaxNodePayload, TextSpan, TokenKind, parse_stylesheet,
     };
 
@@ -646,6 +671,7 @@ mod tests {
         assert_eq!(
             sheet.nodes[0].payload,
             Some(SyntaxNodePayload::AtRule(AtRulePayload {
+                kind: AtRuleKind::Generic,
                 name: "color".to_string(),
                 params: ": red".to_string(),
             }))
@@ -660,8 +686,31 @@ mod tests {
         assert_eq!(
             sheet.nodes[0].payload,
             Some(SyntaxNodePayload::AtRule(AtRulePayload {
+                kind: AtRuleKind::Media,
                 name: "media".to_string(),
                 params: "screen and (min-width: 10px)".to_string(),
+            }))
+        );
+    }
+
+    #[test]
+    fn classifies_keyframes_and_value_at_rules() {
+        let source = "@value brand: red;\n@keyframes fade { from { opacity: 0; } }\n";
+        let sheet = parse_stylesheet(StyleLanguage::Scss, source);
+        assert_eq!(
+            sheet.nodes[0].payload,
+            Some(SyntaxNodePayload::AtRule(AtRulePayload {
+                kind: AtRuleKind::Value,
+                name: "value".to_string(),
+                params: "brand: red".to_string(),
+            }))
+        );
+        assert_eq!(
+            sheet.nodes[1].payload,
+            Some(SyntaxNodePayload::AtRule(AtRulePayload {
+                kind: AtRuleKind::Keyframes,
+                name: "keyframes".to_string(),
+                params: "fade".to_string(),
             }))
         );
     }
