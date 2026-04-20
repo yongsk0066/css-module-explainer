@@ -4,7 +4,10 @@ import { strict as assert } from "node:assert";
 import type { AtRule, ChildNode, Comment, Root, Rule } from "postcss";
 import { parse as postcssParse } from "postcss";
 import { parseStyleDocument } from "../server/engine-core-ts/src/core/scss/scss-parser";
-import { findLangForPath, getRuntimeSyntax } from "../server/engine-core-ts/src/core/scss/lang-registry";
+import {
+  findLangForPath,
+  getRuntimeSyntax,
+} from "../server/engine-core-ts/src/core/scss/lang-registry";
 
 interface ParserParityLiteSummaryV0 {
   readonly schemaVersion: "0";
@@ -152,9 +155,9 @@ function deriveTsSummary(filePath: string, source: string): ParserParityLiteSumm
       : filePath.endsWith(".module.scss")
         ? "scss"
         : "css",
-    selectorNames: [...document.selectors].map((selector) => selector.name).sort(),
-    keyframesNames: [...document.keyframes].map((entry) => entry.name).sort(),
-    valueDeclNames: [...document.valueDecls].map((entry) => entry.name).sort(),
+    selectorNames: [...document.selectors].map((selector) => selector.name).toSorted(),
+    keyframesNames: [...document.keyframes].map((entry) => entry.name).toSorted(),
+    valueDeclNames: [...document.valueDecls].map((entry) => entry.name).toSorted(),
     diagnosticCount: 0,
     ruleCount: structural.ruleCount,
     declarationCount: structural.declarationCount,
@@ -323,7 +326,10 @@ function countTsSelectorGroups(selector: string): number {
   return count;
 }
 
-async function runRustSummary(filePath: string, source: string): Promise<ParserParityLiteSummaryV0> {
+async function runRustSummary(
+  filePath: string,
+  source: string,
+): Promise<ParserParityLiteSummaryV0> {
   return new Promise((resolve, reject) => {
     const child = spawn(
       "cargo",

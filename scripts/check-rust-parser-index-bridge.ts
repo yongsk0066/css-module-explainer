@@ -80,29 +80,36 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
       : filePath.endsWith(".module.scss")
         ? "scss"
         : "css",
-    selectorNames: [...document.selectors].map((selector) => selector.name).sort(),
-    keyframesNames: [...document.keyframes].map((entry) => entry.name).sort(),
-    valueDeclNames: [...document.valueDecls].map((entry) => entry.name).sort(),
-    valueImportNames: [...document.valueImports].map((entry) => entry.name).sort(),
-    valueRefNames: [...document.valueRefs].map((entry) => entry.name).sort(),
+    selectorNames: [...document.selectors].map((selector) => selector.name).toSorted(),
+    keyframesNames: [...document.keyframes].map((entry) => entry.name).toSorted(),
+    valueDeclNames: [...document.valueDecls].map((entry) => entry.name).toSorted(),
+    valueImportNames: [...document.valueImports].map((entry) => entry.name).toSorted(),
+    valueRefNames: [...document.valueRefs].map((entry) => entry.name).toSorted(),
     animationRefNames: document.animationNameRefs
       .filter((entry) => entry.property === "animation")
       .map((entry) => entry.name)
-      .sort(),
+      .toSorted(),
     animationNameRefNames: document.animationNameRefs
       .filter((entry) => entry.property === "animation-name")
       .map((entry) => entry.name)
-      .sort(),
-    valueImportAliasCount: document.valueImports.filter((entry) => entry.importedName !== entry.name).length,
+      .toSorted(),
+    valueImportAliasCount: document.valueImports.filter(
+      (entry) => entry.importedName !== entry.name,
+    ).length,
     composesClassNameCount: document.selectors.reduce(
-      (sum, selector) => sum + selector.composes.reduce((inner, ref) => inner + ref.classNames.length, 0),
+      (sum, selector) =>
+        sum + selector.composes.reduce((inner, ref) => inner + ref.classNames.length, 0),
       0,
     ),
     bemSuffixCount: document.selectors.filter((selector) => selector.bemSuffix).length,
     nestedSafetyCounts: {
       flat: document.selectors.filter((selector) => selector.nestedSafety === "flat").length,
-      bemSuffixSafe: document.selectors.filter((selector) => selector.nestedSafety === "bemSuffixSafe").length,
-      nestedUnsafe: document.selectors.filter((selector) => selector.nestedSafety === "nestedUnsafe").length,
+      bemSuffixSafe: document.selectors.filter(
+        (selector) => selector.nestedSafety === "bemSuffixSafe",
+      ).length,
+      nestedUnsafe: document.selectors.filter(
+        (selector) => selector.nestedSafety === "nestedUnsafe",
+      ).length,
     },
   };
 }
