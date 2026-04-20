@@ -15,6 +15,12 @@ interface ParserIndexSummaryV0 {
   readonly animationNameRefNames: readonly string[];
   readonly valueImportAliasCount: number;
   readonly composesClassNameCount: number;
+  readonly bemSuffixCount: number;
+  readonly nestedSafetyCounts: {
+    readonly flat: number;
+    readonly bemSuffixSafe: number;
+    readonly nestedUnsafe: number;
+  };
 }
 
 const CORPUS = [
@@ -42,6 +48,21 @@ const CORPUS = [
     label: "scss-composes-and-animation",
     filePath: "/f.module.scss",
     source: `@keyframes fade { from { opacity: 0; } }\n.btn { composes: base primary from "./base.module.scss"; animation: fade 1s linear; animation-name: fade; }`,
+  },
+  {
+    label: "scss-bem-safe-nested-index",
+    filePath: "/f.module.scss",
+    source: `.card { &__icon { &--small { color: red; } } }`,
+  },
+  {
+    label: "scss-grouped-bem-unsafe-index",
+    filePath: "/f.module.scss",
+    source: `.a, .b { &__icon { &--small { color: red; } } }`,
+  },
+  {
+    label: "scss-amp-class-unsafe-index",
+    filePath: "/f.module.scss",
+    source: `.btn { &.active { color: red; } }`,
   },
   {
     label: "scss-mixed-wrapper-index",
@@ -77,6 +98,12 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
       (sum, selector) => sum + selector.composes.reduce((inner, ref) => inner + ref.classNames.length, 0),
       0,
     ),
+    bemSuffixCount: document.selectors.filter((selector) => selector.bemSuffix).length,
+    nestedSafetyCounts: {
+      flat: document.selectors.filter((selector) => selector.nestedSafety === "flat").length,
+      bemSuffixSafe: document.selectors.filter((selector) => selector.nestedSafety === "bemSuffixSafe").length,
+      nestedUnsafe: document.selectors.filter((selector) => selector.nestedSafety === "nestedUnsafe").length,
+    },
   };
 }
 

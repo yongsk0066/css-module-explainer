@@ -191,6 +191,8 @@ pub struct ParserIndexSummaryV0 {
     pub animation_name_ref_names: Vec<String>,
     pub value_import_alias_count: usize,
     pub composes_class_name_count: usize,
+    pub bem_suffix_count: usize,
+    pub nested_safety_counts: NestedSafetyCountsV0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
@@ -212,6 +214,14 @@ pub struct DeclarationKindCountsV0 {
     pub animation: usize,
     pub animation_name: usize,
     pub generic: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct NestedSafetyCountsV0 {
+    pub flat: usize,
+    pub bem_suffix_safe: usize,
+    pub nested_unsafe: usize,
 }
 
 #[derive(Debug, Default)]
@@ -238,6 +248,8 @@ struct IndexSummaryAcc {
     animation_name_ref_names: Vec<String>,
     value_import_alias_count: usize,
     composes_class_name_count: usize,
+    bem_suffix_count: usize,
+    nested_safety_counts: NestedSafetyCountsV0,
 }
 
 pub fn parse_style_module(path: &str, source: &str) -> Option<Stylesheet> {
@@ -289,7 +301,7 @@ pub fn summarize_parity_lite(sheet: &Stylesheet) -> ParserParityLiteSummaryV0 {
 
 pub fn summarize_index_bridge(sheet: &Stylesheet) -> ParserIndexSummaryV0 {
     let mut acc = IndexSummaryAcc::default();
-    collect_index_names(&sheet.nodes, &mut acc, &[]);
+    collect_index_names(&sheet.nodes, &mut acc, &[], false);
     let known_value_names: BTreeSet<String> = acc
         .value_decl_names
         .iter()
@@ -335,6 +347,8 @@ pub fn summarize_index_bridge(sheet: &Stylesheet) -> ParserIndexSummaryV0 {
         animation_name_ref_names: acc.animation_name_ref_names,
         value_import_alias_count: acc.value_import_alias_count,
         composes_class_name_count: acc.composes_class_name_count,
+        bem_suffix_count: acc.bem_suffix_count,
+        nested_safety_counts: acc.nested_safety_counts,
     }
 }
 
@@ -419,6 +433,18 @@ enum DeclarationKind {
     Generic,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum NestedSafetyKind {
+    Flat,
+    BemSuffixSafe,
+    NestedUnsafe,
+}
+
+struct RuleSelectorFacts {
+    nested_safety: NestedSafetyKind,
+    bem_suffix_count: usize,
+}
+
 fn classify_declaration_kind(property: &str) -> DeclarationKind {
     match property.trim().to_ascii_lowercase().as_str() {
         "composes" => DeclarationKind::Composes,
@@ -437,19 +463,84 @@ fn increment_declaration_kind_count(counts: &mut DeclarationKindCountsV0, kind: 
     }
 }
 
+fn classify_rule_selector_facts(
+    rule: &RulePayload,
+    parent_selector_names: &[String],
+    parent_is_grouped: bool,
+) -> RuleSelectorFacts {
+    let is_nested = rule
+        .selector_groups
+        .iter()
+        .any(|group| group.raw.contains('&'));
+    if !is_nested {
+        return RuleSelectorFacts {
+            nested_safety: NestedSafetyKind::Flat,
+            bem_suffix_count: 0,
+        };
+    }
+
+    let bem_suffix_safe = rule.selector_groups.len() == 1
+        && parent_selector_names.len() == 1
+        && !parent_is_grouped
+        && matches!(
+            rule.selector_groups[0].segments.as_slice(),
+            [SelectorSegment::Ampersand, SelectorSegment::BemSuffix(_)]
+        );
+
+    if bem_suffix_safe {
+        RuleSelectorFacts {
+            nested_safety: NestedSafetyKind::BemSuffixSafe,
+            bem_suffix_count: 1,
+        }
+    } else {
+        RuleSelectorFacts {
+            nested_safety: NestedSafetyKind::NestedUnsafe,
+            bem_suffix_count: 0,
+        }
+    }
+}
+
+fn increment_nested_safety_count(
+    counts: &mut NestedSafetyCountsV0,
+    kind: NestedSafetyKind,
+    amount: usize,
+) {
+    match kind {
+        NestedSafetyKind::Flat => counts.flat += amount,
+        NestedSafetyKind::BemSuffixSafe => counts.bem_suffix_safe += amount,
+        NestedSafetyKind::NestedUnsafe => counts.nested_unsafe += amount,
+    }
+}
+
 fn collect_index_names(
     nodes: &[SyntaxNode],
     acc: &mut IndexSummaryAcc,
     parent_selector_names: &[String],
+    parent_is_grouped: bool,
 ) {
     for node in nodes {
         let mut next_parent_names = parent_selector_names.to_vec();
+        let mut next_parent_is_grouped = false;
+        let mut split_child_branches = false;
         match &node.payload {
             Some(SyntaxNodePayload::Rule(rule)) => {
                 let resolved = resolve_rule_selector_names(rule, parent_selector_names);
                 if !resolved.is_empty() {
+                    let selector_facts = classify_rule_selector_facts(
+                        rule,
+                        parent_selector_names,
+                        parent_is_grouped,
+                    );
+                    acc.bem_suffix_count += selector_facts.bem_suffix_count;
+                    increment_nested_safety_count(
+                        &mut acc.nested_safety_counts,
+                        selector_facts.nested_safety,
+                        resolved.len(),
+                    );
                     acc.selector_names.extend(resolved.iter().cloned());
+                    next_parent_is_grouped = resolved.len() > 1;
                     next_parent_names = resolved;
+                    split_child_branches = true;
                 }
             }
             Some(SyntaxNodePayload::AtRule(at_rule)) => match at_rule.kind {
@@ -474,7 +565,23 @@ fn collect_index_names(
             },
             _ => {}
         }
-        collect_index_names(&node.children, acc, &next_parent_names);
+        if split_child_branches {
+            for parent_name in &next_parent_names {
+                collect_index_names(
+                    &node.children,
+                    acc,
+                    std::slice::from_ref(parent_name),
+                    next_parent_is_grouped,
+                );
+            }
+        } else {
+            collect_index_names(
+                &node.children,
+                acc,
+                &next_parent_names,
+                next_parent_is_grouped,
+            );
+        }
     }
 }
 
