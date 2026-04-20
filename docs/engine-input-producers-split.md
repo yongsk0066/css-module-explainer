@@ -44,6 +44,25 @@ The extracted branch preserves history only for:
 
 This is enough to preserve the actual producer implementation history.
 
+## Observed local dry-run result
+
+Validated locally on `2026-04-20` with:
+
+```bash
+./scripts/prepare-engine-input-producers-subtree.sh split/engine-input-producers
+```
+
+Observed result:
+
+- subtree branch created successfully
+- extracted branch root contains only the crate-level files:
+  - `Cargo.toml`
+  - `README.md`
+  - `src/*`
+- current extracted history depth: `30` commits
+
+This confirms that the current path is mechanically extractable as a history-preserving crate branch.
+
 ## What subtree split does not preserve automatically
 
 The crate currently depends on repo-root Rust workspace settings:
