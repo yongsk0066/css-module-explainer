@@ -13,10 +13,12 @@ interface ParserIndexSummaryV0 {
   readonly localComposesSelectorNames: readonly string[];
   readonly importedComposesSelectorNames: readonly string[];
   readonly globalComposesSelectorNames: readonly string[];
+  readonly composesImportSources: readonly string[];
   readonly keyframesNames: readonly string[];
   readonly nestedUnsafeSelectorNames: readonly string[];
   readonly valueDeclNames: readonly string[];
   readonly valueImportNames: readonly string[];
+  readonly valueImportSources: readonly string[];
   readonly valueRefNames: readonly string[];
   readonly animationRefNames: readonly string[];
   readonly animationNameRefNames: readonly string[];
@@ -136,6 +138,11 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
     globalComposesSelectorNames: globalComposesSelectors
       .map((selector) => selector.name)
       .toSorted(),
+    composesImportSources: selectorsWithComposes
+      .flatMap((selector) =>
+        selector.composes.map((ref) => ref.from).filter((from): from is string => from !== undefined),
+      )
+      .toSorted(),
     keyframesNames: [...document.keyframes].map((entry) => entry.name).toSorted(),
     nestedUnsafeSelectorNames: document.selectors
       .filter((selector) => selector.nestedSafety === "nestedUnsafe")
@@ -143,6 +150,7 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
       .toSorted(),
     valueDeclNames: [...document.valueDecls].map((entry) => entry.name).toSorted(),
     valueImportNames: [...document.valueImports].map((entry) => entry.name).toSorted(),
+    valueImportSources: [...document.valueImports].map((entry) => entry.from).toSorted(),
     valueRefNames: [...document.valueRefs].map((entry) => entry.name).toSorted(),
     animationRefNames: document.animationNameRefs
       .filter((entry) => entry.property === "animation")

@@ -189,10 +189,12 @@ pub struct ParserIndexSummaryV0 {
     pub local_composes_selector_names: Vec<String>,
     pub imported_composes_selector_names: Vec<String>,
     pub global_composes_selector_names: Vec<String>,
+    pub composes_import_sources: Vec<String>,
     pub keyframes_names: Vec<String>,
     pub nested_unsafe_selector_names: Vec<String>,
     pub value_decl_names: Vec<String>,
     pub value_import_names: Vec<String>,
+    pub value_import_sources: Vec<String>,
     pub value_ref_names: Vec<String>,
     pub animation_ref_names: Vec<String>,
     pub animation_name_ref_names: Vec<String>,
@@ -256,10 +258,12 @@ struct IndexSummaryAcc {
     local_composes_selector_names: Vec<String>,
     imported_composes_selector_names: Vec<String>,
     global_composes_selector_names: Vec<String>,
+    composes_import_sources: Vec<String>,
     keyframes_names: Vec<String>,
     nested_unsafe_selector_names: Vec<String>,
     value_decl_names: Vec<String>,
     value_import_names: Vec<String>,
+    value_import_sources: Vec<String>,
     value_ref_names: Vec<String>,
     animation_ref_names: Vec<String>,
     animation_name_ref_names: Vec<String>,
@@ -350,6 +354,7 @@ pub fn summarize_index_bridge(sheet: &Stylesheet) -> ParserIndexSummaryV0 {
     acc.imported_composes_selector_names.dedup();
     acc.global_composes_selector_names.sort();
     acc.global_composes_selector_names.dedup();
+    acc.composes_import_sources.sort();
     acc.keyframes_names.sort();
     acc.keyframes_names.dedup();
     acc.nested_unsafe_selector_names.sort();
@@ -358,6 +363,7 @@ pub fn summarize_index_bridge(sheet: &Stylesheet) -> ParserIndexSummaryV0 {
     acc.value_decl_names.dedup();
     acc.value_import_names.sort();
     acc.value_import_names.dedup();
+    acc.value_import_sources.sort();
     acc.value_ref_names.sort();
     acc.value_ref_names.dedup();
     acc.animation_ref_names.sort();
@@ -379,10 +385,12 @@ pub fn summarize_index_bridge(sheet: &Stylesheet) -> ParserIndexSummaryV0 {
         local_composes_selector_names: acc.local_composes_selector_names,
         imported_composes_selector_names: acc.imported_composes_selector_names,
         global_composes_selector_names: acc.global_composes_selector_names,
+        composes_import_sources: acc.composes_import_sources,
         keyframes_names: acc.keyframes_names,
         nested_unsafe_selector_names: acc.nested_unsafe_selector_names,
         value_decl_names: acc.value_decl_names,
         value_import_names: acc.value_import_names,
+        value_import_sources: acc.value_import_sources,
         value_ref_names: acc.value_ref_names,
         animation_ref_names: acc.animation_ref_names,
         animation_name_ref_names: acc.animation_name_ref_names,
@@ -494,6 +502,7 @@ struct RuleComposesFacts {
     local_class_name_count: usize,
     imported_class_name_count: usize,
     global_class_name_count: usize,
+    imported_sources: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -507,6 +516,7 @@ enum ComposesKind {
 struct ComposesSpec {
     class_names: Vec<String>,
     kind: ComposesKind,
+    from_source: Option<String>,
 }
 
 fn classify_declaration_kind(property: &str) -> DeclarationKind {
@@ -587,6 +597,9 @@ fn collect_rule_composes_facts(children: &[SyntaxNode]) -> RuleComposesFacts {
                 ComposesKind::Local => facts.local_class_name_count += spec.class_names.len(),
                 ComposesKind::Imported => {
                     facts.imported_class_name_count += spec.class_names.len();
+                    if let Some(source) = spec.from_source {
+                        facts.imported_sources.push(source);
+                    }
                 }
                 ComposesKind::Global => facts.global_class_name_count += spec.class_names.len(),
             }
@@ -640,6 +653,11 @@ fn collect_index_names(
                                 .extend(resolved.iter().cloned());
                             acc.imported_composes_class_name_count +=
                                 composes_facts.imported_class_name_count * selector_multiplier;
+                            acc.composes_import_sources.extend(
+                                composes_facts.imported_sources.iter().flat_map(|source| {
+                                    std::iter::repeat_n(source.clone(), selector_multiplier)
+                                }),
+                            );
                         }
                         if composes_facts.global_class_name_count > 0 {
                             acc.global_composes_selector_names
@@ -684,7 +702,9 @@ fn collect_index_names(
                             .filter(|spec| spec.imported_name != spec.local_name)
                             .count();
                         acc.value_import_names
-                            .extend(import_specs.into_iter().map(|spec| spec.local_name));
+                            .extend(import_specs.iter().map(|spec| spec.local_name.clone()));
+                        acc.value_import_sources
+                            .extend(import_specs.into_iter().filter_map(|spec| spec.from_source));
                     } else if let Some((name, _)) = parse_local_value_decl_parts(&at_rule.params) {
                         acc.value_decl_names.push(name.to_string());
                     }
@@ -783,10 +803,12 @@ fn parse_local_value_decl_parts(params: &str) -> Option<(&str, &str)> {
 struct ValueImportSpec {
     imported_name: String,
     local_name: String,
+    from_source: Option<String>,
 }
 
 fn parse_value_import_specs(params: &str) -> Option<Vec<ValueImportSpec>> {
-    let (raw_specs, _) = params.split_once(" from ")?;
+    let (raw_specs, raw_source) = params.split_once(" from ")?;
+    let from_source = parse_quoted_import_source(raw_source);
     let mut specs = Vec::new();
     for raw_spec in raw_specs.split(',') {
         let trimmed = raw_spec.trim();
@@ -805,6 +827,7 @@ fn parse_value_import_specs(params: &str) -> Option<Vec<ValueImportSpec>> {
             specs.push(ValueImportSpec {
                 imported_name: imported_name.to_string(),
                 local_name: local_name.to_string(),
+                from_source: from_source.clone(),
             });
         }
     }
@@ -824,12 +847,31 @@ fn parse_composes_spec(value: &str) -> Option<ComposesSpec> {
     if class_names.is_empty() {
         return None;
     }
+    let from_source = value
+        .split_once(" from ")
+        .and_then(|(_, source)| parse_quoted_import_source(source));
     let kind = match value.split_once(" from ").map(|(_, source)| source.trim()) {
         Some("global") => ComposesKind::Global,
         Some(_) => ComposesKind::Imported,
         None => ComposesKind::Local,
     };
-    Some(ComposesSpec { class_names, kind })
+    Some(ComposesSpec {
+        class_names,
+        kind,
+        from_source,
+    })
+}
+
+fn parse_quoted_import_source(raw: &str) -> Option<String> {
+    let trimmed = raw.trim();
+    if trimmed.len() < 2 {
+        return None;
+    }
+    let quote = trimmed.chars().next()?;
+    if !matches!(quote, '"' | '\'') || !trimmed.ends_with(quote) {
+        return None;
+    }
+    Some(trimmed[1..trimmed.len() - 1].to_string())
 }
 
 fn find_identifier_matches(raw: &str, known_names: &BTreeSet<String>) -> Vec<String> {
