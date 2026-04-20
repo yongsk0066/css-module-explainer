@@ -1,4 +1,5 @@
 use serde::Serialize;
+use std::collections::BTreeSet;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StyleLanguage {
@@ -176,6 +177,19 @@ pub struct ParserParityLiteSummaryV0 {
     pub declaration_kind_counts: DeclarationKindCountsV0,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParserIndexSummaryV0 {
+    pub schema_version: &'static str,
+    pub language: &'static str,
+    pub selector_names: Vec<String>,
+    pub keyframes_names: Vec<String>,
+    pub value_decl_names: Vec<String>,
+    pub value_import_names: Vec<String>,
+    pub value_ref_names: Vec<String>,
+    pub composes_class_name_count: usize,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct AtRuleKindCountsV0 {
@@ -208,6 +222,16 @@ struct ParityLiteAcc {
     max_nesting_depth: usize,
     at_rule_kind_counts: AtRuleKindCountsV0,
     declaration_kind_counts: DeclarationKindCountsV0,
+}
+
+#[derive(Debug, Default)]
+struct IndexSummaryAcc {
+    selector_names: Vec<String>,
+    keyframes_names: Vec<String>,
+    value_decl_names: Vec<String>,
+    value_import_names: Vec<String>,
+    value_ref_names: Vec<String>,
+    composes_class_name_count: usize,
 }
 
 pub fn parse_style_module(path: &str, source: &str) -> Option<Stylesheet> {
@@ -254,6 +278,44 @@ pub fn summarize_parity_lite(sheet: &Stylesheet) -> ParserParityLiteSummaryV0 {
         max_nesting_depth: acc.max_nesting_depth,
         at_rule_kind_counts: acc.at_rule_kind_counts,
         declaration_kind_counts: acc.declaration_kind_counts,
+    }
+}
+
+pub fn summarize_index_bridge(sheet: &Stylesheet) -> ParserIndexSummaryV0 {
+    let mut acc = IndexSummaryAcc::default();
+    collect_index_names(&sheet.nodes, &mut acc, &[]);
+    let known_value_names: BTreeSet<String> = acc
+        .value_decl_names
+        .iter()
+        .chain(acc.value_import_names.iter())
+        .cloned()
+        .collect();
+    collect_index_refs_and_counts(&sheet.nodes, &known_value_names, &mut acc);
+
+    acc.selector_names.sort();
+    acc.selector_names.dedup();
+    acc.keyframes_names.sort();
+    acc.keyframes_names.dedup();
+    acc.value_decl_names.sort();
+    acc.value_decl_names.dedup();
+    acc.value_import_names.sort();
+    acc.value_import_names.dedup();
+    acc.value_ref_names.sort();
+    acc.value_ref_names.dedup();
+
+    ParserIndexSummaryV0 {
+        schema_version: "0",
+        language: match sheet.language {
+            StyleLanguage::Css => "css",
+            StyleLanguage::Scss => "scss",
+            StyleLanguage::Less => "less",
+        },
+        selector_names: acc.selector_names,
+        keyframes_names: acc.keyframes_names,
+        value_decl_names: acc.value_decl_names,
+        value_import_names: acc.value_import_names,
+        value_ref_names: acc.value_ref_names,
+        composes_class_name_count: acc.composes_class_name_count,
     }
 }
 
@@ -354,6 +416,177 @@ fn increment_declaration_kind_count(counts: &mut DeclarationKindCountsV0, kind: 
         DeclarationKind::AnimationName => counts.animation_name += 1,
         DeclarationKind::Generic => counts.generic += 1,
     }
+}
+
+fn collect_index_names(
+    nodes: &[SyntaxNode],
+    acc: &mut IndexSummaryAcc,
+    parent_selector_names: &[String],
+) {
+    for node in nodes {
+        let mut next_parent_names = parent_selector_names.to_vec();
+        match &node.payload {
+            Some(SyntaxNodePayload::Rule(rule)) => {
+                let resolved = resolve_rule_selector_names(rule, parent_selector_names);
+                if !resolved.is_empty() {
+                    acc.selector_names.extend(resolved.iter().cloned());
+                    next_parent_names = resolved;
+                }
+            }
+            Some(SyntaxNodePayload::AtRule(at_rule)) => match at_rule.kind {
+                AtRuleKind::Keyframes => {
+                    if !at_rule.params.is_empty() {
+                        acc.keyframes_names.push(at_rule.params.clone());
+                    }
+                }
+                AtRuleKind::Value => {
+                    if let Some(import_names) = parse_value_import_names(&at_rule.params) {
+                        acc.value_import_names.extend(import_names);
+                    } else if let Some((name, _)) = parse_local_value_decl_parts(&at_rule.params) {
+                        acc.value_decl_names.push(name.to_string());
+                    }
+                }
+                _ => {}
+            },
+            _ => {}
+        }
+        collect_index_names(&node.children, acc, &next_parent_names);
+    }
+}
+
+fn collect_index_refs_and_counts(
+    nodes: &[SyntaxNode],
+    known_value_names: &BTreeSet<String>,
+    acc: &mut IndexSummaryAcc,
+) {
+    for node in nodes {
+        match &node.payload {
+            Some(SyntaxNodePayload::Declaration(declaration)) => {
+                if classify_declaration_kind(&declaration.property) == DeclarationKind::Composes {
+                    acc.composes_class_name_count +=
+                        parse_composes_class_names(&declaration.value).len();
+                } else {
+                    acc.value_ref_names.extend(find_value_identifier_matches(
+                        &declaration.value,
+                        known_value_names,
+                    ));
+                }
+            }
+            Some(SyntaxNodePayload::AtRule(at_rule)) if at_rule.kind == AtRuleKind::Value => {
+                if let Some((name, value)) = parse_local_value_decl_parts(&at_rule.params) {
+                    acc.value_ref_names.extend(
+                        find_value_identifier_matches(value, known_value_names)
+                            .into_iter()
+                            .filter(|candidate| candidate != name),
+                    );
+                }
+            }
+            _ => {}
+        }
+        collect_index_refs_and_counts(&node.children, known_value_names, acc);
+    }
+}
+
+fn parse_local_value_decl_parts(params: &str) -> Option<(&str, &str)> {
+    if params.contains(" from ") {
+        return None;
+    }
+    let (name, value) = params.split_once(':')?;
+    let trimmed_name = name.trim();
+    let trimmed_value = value.trim();
+    if trimmed_name.is_empty() || trimmed_value.is_empty() {
+        return None;
+    }
+    Some((trimmed_name, trimmed_value))
+}
+
+fn parse_value_import_names(params: &str) -> Option<Vec<String>> {
+    let (raw_specs, _) = params.split_once(" from ")?;
+    let mut names = Vec::new();
+    for raw_spec in raw_specs.split(',') {
+        let trimmed = raw_spec.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let local_name = trimmed
+            .split_once(" as ")
+            .map(|(_, local)| local.trim())
+            .unwrap_or(trimmed);
+        if !local_name.is_empty() {
+            names.push(local_name.to_string());
+        }
+    }
+    (!names.is_empty()).then_some(names)
+}
+
+fn parse_composes_class_names(value: &str) -> Vec<String> {
+    let head = value
+        .split_once(" from ")
+        .map(|(left, _)| left)
+        .unwrap_or(value);
+    head.split_whitespace()
+        .filter(|name| !name.is_empty())
+        .map(ToString::to_string)
+        .collect()
+}
+
+fn find_value_identifier_matches(raw: &str, known_value_names: &BTreeSet<String>) -> Vec<String> {
+    let mut matches = Vec::new();
+    let chars: Vec<char> = raw.chars().collect();
+    let mut index = 0usize;
+    let mut quote: Option<char> = None;
+    let mut identifier_start: Option<usize> = None;
+
+    let flush_identifier =
+        |end: usize, identifier_start: &mut Option<usize>, matches: &mut Vec<String>| {
+            if let Some(start) = *identifier_start {
+                let candidate: String = chars[start..end].iter().collect();
+                if known_value_names.contains(&candidate) {
+                    matches.push(candidate);
+                }
+                *identifier_start = None;
+            }
+        };
+
+    while index < chars.len() {
+        let ch = chars[index];
+        if let Some(active_quote) = quote {
+            if ch == '\\' && index + 1 < chars.len() {
+                index += 2;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            index += 1;
+            continue;
+        }
+
+        if ch == '"' || ch == '\'' {
+            flush_identifier(index, &mut identifier_start, &mut matches);
+            quote = Some(ch);
+            index += 1;
+            continue;
+        }
+
+        if is_value_ident_continue(ch) {
+            if identifier_start.is_none() {
+                identifier_start = Some(index);
+            }
+            index += 1;
+            continue;
+        }
+
+        flush_identifier(index, &mut identifier_start, &mut matches);
+        index += 1;
+    }
+
+    flush_identifier(chars.len(), &mut identifier_start, &mut matches);
+    matches
+}
+
+fn is_value_ident_continue(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | '$')
 }
 
 fn extract_simple_selector_name(prelude: &str) -> Option<String> {

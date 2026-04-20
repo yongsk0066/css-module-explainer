@@ -47,6 +47,7 @@
     "check:rust-workspace": "cargo fmt --manifest-path rust/Cargo.toml --all --check && cargo check --manifest-path rust/Cargo.toml && cargo clippy --manifest-path rust/Cargo.toml --all-targets --all-features -- -D warnings",
     "check:rust-parser-scaffold": "cargo test --manifest-path rust/Cargo.toml -p engine-style-parser",
     "check:rust-parser-parity-lite": "tsx ./scripts/check-rust-parser-parity-lite.ts",
+    "check:rust-parser-index-bridge": "tsx ./scripts/check-rust-parser-index-bridge.ts",
     "check:rust-type-fact-compare": "tsx ./scripts/check-rust-type-fact-compare.ts",
     "check:rust-query-plan-compare": "tsx ./scripts/check-rust-query-plan-compare.ts",
     "check:rust-expression-domain-compare": "tsx ./scripts/check-rust-expression-domain-compare.ts",
