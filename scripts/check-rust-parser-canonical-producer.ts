@@ -18,10 +18,22 @@ interface ParserCanonicalCandidateBundleV0 {
   readonly cssModulesIntermediate: ParserIndexSummaryV0;
 }
 
+interface ParserEvaluatorCandidateV0 {
+  readonly kind: "selector-index-facts";
+  readonly selectorName: string;
+}
+
+interface ParserEvaluatorCandidatesV0 {
+  readonly schemaVersion: "0";
+  readonly language: "css" | "scss" | "less";
+  readonly results: readonly ParserEvaluatorCandidateV0[];
+}
+
 interface ParserCanonicalProducerSignalV0 {
   readonly schemaVersion: "0";
   readonly language: "css" | "scss" | "less";
   readonly canonicalCandidate: ParserCanonicalCandidateBundleV0;
+  readonly evaluatorCandidates: ParserEvaluatorCandidatesV0;
   readonly publicProductGate: {
     readonly canonicalCandidateCommand: "pnpm check:rust-parser-canonical-candidate";
     readonly publicProductGateCommand: "pnpm check:rust-parser-public-product";
@@ -113,6 +125,12 @@ void (async () => {
       entry.source,
     );
     // oxlint-disable-next-line eslint/no-await-in-loop
+    const evaluatorCandidates = await runRustJson<ParserEvaluatorCandidatesV0>(
+      "engine-style-parser-evaluator-candidates",
+      entry.filePath,
+      entry.source,
+    );
+    // oxlint-disable-next-line eslint/no-await-in-loop
     const actual = await runRustJson<ParserCanonicalProducerSignalV0>(
       "engine-style-parser-canonical-producer",
       entry.filePath,
@@ -123,6 +141,7 @@ void (async () => {
       schemaVersion: "0",
       language: canonicalCandidate.language,
       canonicalCandidate,
+      evaluatorCandidates,
       publicProductGate: {
         canonicalCandidateCommand: "pnpm check:rust-parser-canonical-candidate",
         publicProductGateCommand: "pnpm check:rust-parser-public-product",
