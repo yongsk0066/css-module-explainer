@@ -523,6 +523,40 @@ export interface SourceResolutionFragmentsV0 {
   readonly fragments: readonly SourceResolutionFragmentV0[];
 }
 
+export interface CheckerStyleRecoveryFindingV0 {
+  readonly filePath: string;
+  readonly code: string;
+  readonly severity: string;
+  readonly range: {
+    readonly start: {
+      readonly line: number;
+      readonly character: number;
+    };
+    readonly end: {
+      readonly line: number;
+      readonly character: number;
+    };
+  };
+  readonly message: string;
+  readonly analysisReason?: string;
+  readonly valueCertaintyShapeLabel?: string;
+}
+
+export interface CheckerStyleRecoveryCanonicalCandidateBundleV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly reportVersion: string;
+  readonly bundle: "style-recovery";
+  readonly distinctFileCount: number;
+  readonly codeCounts: Readonly<Record<string, number>>;
+  readonly summary: {
+    readonly warnings: number;
+    readonly hints: number;
+    readonly total: number;
+  };
+  readonly findings: readonly CheckerStyleRecoveryFindingV0[];
+}
+
 export async function runShadow(snapshot: unknown): Promise<ShadowSummaryV0> {
   return runShadowJson<ShadowSummaryV0>([], snapshot);
 }
@@ -781,6 +815,15 @@ export async function runShadowSourceResolutionFragmentsInput(
   input: EngineInputV2,
 ): Promise<SourceResolutionFragmentsV0> {
   return runShadowJson<SourceResolutionFragmentsV0>(["input-source-resolution-fragments"], input);
+}
+
+export async function runShadowCheckerStyleRecoveryCanonicalCandidate(
+  snapshot: unknown,
+): Promise<CheckerStyleRecoveryCanonicalCandidateBundleV0> {
+  return runShadowJson<CheckerStyleRecoveryCanonicalCandidateBundleV0>(
+    ["output-checker-style-recovery-canonical-candidate"],
+    snapshot,
+  );
 }
 
 function runShadowJson<T>(args: string[], payload: unknown): Promise<T> {

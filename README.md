@@ -189,6 +189,7 @@ pnpm check
 pnpm check:semantic-smoke
 pnpm check:lsp-server-smoke
 pnpm check:rust-gate-evidence
+pnpm check:rust-checker-style-recovery-canonical-candidate
 pnpm check:plugin-consumer-example
 pnpm check:plugin-consumers
 pnpm check:eslint-plugin-smoke
@@ -265,6 +266,7 @@ Current checker policy:
 - `pnpm check:rust-parser-lane` runs the current parser lane bundle: scaffold tests, parity-lite, CSS Modules intermediate producer, parser canonical-candidate, parser evaluator-candidates, and parser canonical-producer
 - `pnpm check:rust-parser-consumer-boundary` consumes the parser canonical-producer output into a bounded downstream-style summary and compares that against the current TS style HIR
 - `pnpm check:rust-parser-public-product` is the canonical parser/public-product gate and currently runs the parser lane bundle plus that consumer-boundary check
+- `pnpm check:rust-checker-style-recovery-canonical-candidate` is the current bounded checker-canonical entrance check; it compares the `style-recovery` checker subset against a versioned Rust shadow canonical-candidate bundle
 - Rust shadow validation now covers:
   - input summaries: `pnpm check:rust-type-fact-compare`, `pnpm check:rust-query-plan-compare`, `pnpm check:rust-expression-domain-compare`
   - input-only candidates: `pnpm check:rust-expression-domain-candidates`
@@ -280,6 +282,7 @@ Current checker policy:
   - aggregated producer-boundary checks: `pnpm check:rust-source-side-lane`, `pnpm check:rust-semantic-lane`, `pnpm check:rust-producer-boundary`
   - parser canonical boundary: `pnpm check:rust-parser-canonical-candidate`, `pnpm check:rust-parser-evaluator-candidates`, `pnpm check:rust-parser-canonical-producer`
   - parser/public-product gate: `pnpm check:rust-parser-consumer-boundary`, `pnpm check:rust-parser-public-product`
+  - bounded checker entrance: `pnpm check:rust-checker-style-recovery-canonical-candidate`
   - broader Rust lane bundle: `pnpm check:rust-lane-bundle`
   - release-facing Rust bundle: `pnpm check:rust-release-bundle`
   - full snapshot parity: `pnpm check:rust-shadow-compare`

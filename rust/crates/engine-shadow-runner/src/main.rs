@@ -116,15 +116,71 @@ struct SelectorUsagePayloadV2 {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct CheckerReportV1 {
+    version: String,
+    findings: Vec<CheckerFindingRecordV1>,
     summary: CheckerReportSummaryV1,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct CheckerReportSummaryV1 {
     warnings: usize,
     hints: usize,
     total: usize,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CheckerFindingRecordV1 {
+    file_path: String,
+    category: String,
+    code: String,
+    severity: String,
+    range: RangeV0,
+    message: String,
+    analysis_reason: Option<String>,
+    value_certainty_shape_label: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "camelCase")]
+struct RangeV0 {
+    start: PositionV0,
+    end: PositionV0,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "camelCase")]
+struct PositionV0 {
+    line: usize,
+    character: usize,
+}
+
+#[derive(Debug, Serialize, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "camelCase")]
+struct CheckerStyleRecoveryFindingV0 {
+    file_path: String,
+    code: String,
+    severity: String,
+    range: RangeV0,
+    message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    analysis_reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    value_certainty_shape_label: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CheckerStyleRecoveryCanonicalCandidateBundleV0 {
+    schema_version: &'static str,
+    input_version: String,
+    report_version: String,
+    bundle: &'static str,
+    distinct_file_count: usize,
+    code_counts: BTreeMap<String, usize>,
+    summary: CheckerReportSummaryV1,
+    findings: Vec<CheckerStyleRecoveryFindingV0>,
 }
 
 #[derive(Debug, Serialize)]
@@ -346,6 +402,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some("input-source-resolution-query-fragments") => {
             let input: EngineInputV2 = serde_json::from_str(&stdin)?;
             let summary = summarize_source_resolution_query_fragments_input(&input);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
+        Some("output-checker-style-recovery-canonical-candidate") => {
+            let payload: ShadowPayloadV0 = serde_json::from_str(&stdin)?;
+            let summary = summarize_checker_style_recovery_canonical_candidate(payload);
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
         Some(other) => {
@@ -603,6 +664,69 @@ fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {
         checker_warning_count: output.checker_report.summary.warnings,
         checker_hint_count: output.checker_report.summary.hints,
         checker_total_findings: output.checker_report.summary.total,
+    }
+}
+
+fn summarize_checker_style_recovery_canonical_candidate(
+    payload: ShadowPayloadV0,
+) -> CheckerStyleRecoveryCanonicalCandidateBundleV0 {
+    let input_version = payload.input.version.to_string();
+    let report = payload.output.checker_report;
+    let mut code_counts = BTreeMap::new();
+    let mut file_paths = std::collections::BTreeSet::new();
+    let mut findings = Vec::new();
+    let mut warnings = 0usize;
+    let mut hints = 0usize;
+
+    for finding in report.findings {
+        if finding.category != "style" {
+            continue;
+        }
+        if !matches!(
+            finding.code.as_str(),
+            "missing-composed-module"
+                | "missing-composed-selector"
+                | "missing-value-module"
+                | "missing-imported-value"
+                | "missing-keyframes"
+        ) {
+            continue;
+        }
+
+        *code_counts.entry(finding.code.clone()).or_insert(0) += 1;
+        file_paths.insert(finding.file_path.clone());
+        if finding.severity == "warning" {
+            warnings += 1;
+        }
+        if finding.severity == "hint" {
+            hints += 1;
+        }
+        findings.push(CheckerStyleRecoveryFindingV0 {
+            file_path: finding.file_path,
+            code: finding.code,
+            severity: finding.severity,
+            range: finding.range,
+            message: finding.message,
+            analysis_reason: finding.analysis_reason,
+            value_certainty_shape_label: finding.value_certainty_shape_label,
+        });
+    }
+
+    findings.sort();
+
+    CheckerStyleRecoveryCanonicalCandidateBundleV0 {
+        schema_version: "0",
+        input_version,
+        report_version: report.version,
+        bundle: "style-recovery",
+        distinct_file_count: file_paths.len(),
+        code_counts,
+        summary: CheckerReportSummaryV1 {
+            warnings,
+            hints,
+            total: findings.len(),
+        },
+        findings,
     }
 }
 
