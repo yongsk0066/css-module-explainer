@@ -51,6 +51,9 @@ interface ParserIndexSummaryV0 {
   };
   readonly composes: {
     readonly selectorsWithComposesNames: readonly string[];
+    readonly selectorsWithComposesUnderMediaNames: readonly string[];
+    readonly selectorsWithComposesUnderSupportsNames: readonly string[];
+    readonly selectorsWithComposesUnderLayerNames: readonly string[];
     readonly localSelectorNames: readonly string[];
     readonly importedSelectorNames: readonly string[];
     readonly globalSelectorNames: readonly string[];
@@ -147,6 +150,16 @@ const CORPUS = [
     label: "scss-supports-layer-animation-value-index",
     filePath: "/f.module.scss",
     source: `@supports (display: grid) { @layer ui { @keyframes fade { from { opacity: 0; } } @value speed: 1s; .btn { animation: fade speed linear; animation-name: fade; } } }`,
+  },
+  {
+    label: "scss-media-composes-index",
+    filePath: "/f.module.scss",
+    source: `@media (min-width: 1px) { .btn { composes: base from "./base.module.scss"; } }`,
+  },
+  {
+    label: "scss-supports-layer-composes-index",
+    filePath: "/f.module.scss",
+    source: `@supports (display: grid) { @layer ui { .card { composes: shell from global; } } }`,
   },
 ] as const;
 
@@ -328,6 +341,15 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
   const selectorsWithAnimationNameRefsUnderLayer = selectorsWithAnimationNameRefs.filter(
     (selector) => wrapperSelectorNames.layer.includes(selector.name),
   );
+  const selectorsWithComposesUnderMedia = selectorsWithComposes.filter((selector) =>
+    wrapperSelectorNames.media.includes(selector.name),
+  );
+  const selectorsWithComposesUnderSupports = selectorsWithComposes.filter((selector) =>
+    wrapperSelectorNames.supports.includes(selector.name),
+  );
+  const selectorsWithComposesUnderLayer = selectorsWithComposes.filter((selector) =>
+    wrapperSelectorNames.layer.includes(selector.name),
+  );
   return {
     schemaVersion: "0",
     language: filePath.endsWith(".module.less")
@@ -432,6 +454,15 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
     },
     composes: {
       selectorsWithComposesNames: selectorsWithComposes.map((selector) => selector.name).toSorted(),
+      selectorsWithComposesUnderMediaNames: selectorsWithComposesUnderMedia
+        .map((selector) => selector.name)
+        .toSorted(),
+      selectorsWithComposesUnderSupportsNames: selectorsWithComposesUnderSupports
+        .map((selector) => selector.name)
+        .toSorted(),
+      selectorsWithComposesUnderLayerNames: selectorsWithComposesUnderLayer
+        .map((selector) => selector.name)
+        .toSorted(),
       localSelectorNames: localComposesSelectors.map((selector) => selector.name).toSorted(),
       importedSelectorNames: importedComposesSelectors.map((selector) => selector.name).toSorted(),
       globalSelectorNames: globalComposesSelectors.map((selector) => selector.name).toSorted(),
