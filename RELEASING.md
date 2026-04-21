@@ -70,6 +70,7 @@ Before a release:
 pnpm install
 pnpm release:verify
 pnpm test:extension-host
+pnpm check:rust-parser-public-product
 pnpm check:rust-lane-bundle
 pnpm check:rust-release-bundle
 pnpm check:semantic-smoke
@@ -104,8 +105,11 @@ contracts can still be assembled across the parity corpus.
 `EngineInputV2` / `EngineOutputV2` golden fixtures under
 `test/_fixtures/contract-parity-v2/`.
 
+`pnpm check:rust-parser-public-product` is the canonical parser/public-product
+gate. It currently aliases `pnpm check:rust-parser-lane`.
+
 `pnpm check:rust-lane-bundle` is the broader Rust lane gate. It combines the
-current semantic producer boundary checks with the parser/public-product lane.
+current semantic producer boundary checks with `pnpm check:rust-parser-public-product`.
 
 `pnpm check:rust-release-bundle` is the release-facing Rust gate. It runs the
 workspace hygiene pass, `pnpm check:rust-lane-bundle`, and the current

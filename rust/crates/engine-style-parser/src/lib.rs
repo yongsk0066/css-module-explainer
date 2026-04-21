@@ -238,6 +238,9 @@ pub struct ParserIndexValueFactsV0 {
 #[serde(rename_all = "camelCase")]
 pub struct ParserIndexKeyframesFactsV0 {
     pub names: Vec<String>,
+    pub names_under_media: Vec<String>,
+    pub names_under_supports: Vec<String>,
+    pub names_under_layer: Vec<String>,
     pub animation_ref_names: Vec<String>,
     pub animation_name_ref_names: Vec<String>,
     pub selectors_with_animation_ref_names: Vec<String>,
@@ -389,6 +392,9 @@ struct IndexSummaryAcc {
     selectors_under_layer_names: Vec<String>,
     animation_ref_names: Vec<String>,
     animation_name_ref_names: Vec<String>,
+    keyframes_names_under_media: Vec<String>,
+    keyframes_names_under_supports: Vec<String>,
+    keyframes_names_under_layer: Vec<String>,
     value_import_alias_count: usize,
     composes_class_name_count: usize,
     local_composes_class_name_count: usize,
@@ -605,6 +611,12 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
     acc.animation_ref_names.dedup();
     acc.animation_name_ref_names.sort();
     acc.animation_name_ref_names.dedup();
+    acc.keyframes_names_under_media.sort();
+    acc.keyframes_names_under_media.dedup();
+    acc.keyframes_names_under_supports.sort();
+    acc.keyframes_names_under_supports.dedup();
+    acc.keyframes_names_under_layer.sort();
+    acc.keyframes_names_under_layer.dedup();
     let selectors_with_value_refs_names = acc.selectors_with_value_refs_names.clone();
     let selectors_with_animation_ref_names = acc.selectors_with_animation_ref_names.clone();
     let selectors_with_animation_name_ref_names =
@@ -665,6 +677,9 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
         },
         keyframes: ParserIndexKeyframesFactsV0 {
             names: acc.keyframes_names,
+            names_under_media: acc.keyframes_names_under_media,
+            names_under_supports: acc.keyframes_names_under_supports,
+            names_under_layer: acc.keyframes_names_under_layer,
             animation_ref_names: acc.animation_ref_names,
             animation_name_ref_names: acc.animation_name_ref_names,
             selectors_with_animation_ref_names: acc.selectors_with_animation_ref_names,
@@ -1466,6 +1481,18 @@ fn collect_index_selector_attachment_facts_with_context(
                 split_child_branches = true;
             }
         } else if let Some(SyntaxNodePayload::AtRule(at_rule)) = &node.payload {
+            if at_rule.kind == AtRuleKind::Keyframes && !at_rule.params.is_empty() {
+                if wrapper_ctx.under_media {
+                    acc.keyframes_names_under_media.push(at_rule.params.clone());
+                }
+                if wrapper_ctx.under_supports {
+                    acc.keyframes_names_under_supports
+                        .push(at_rule.params.clone());
+                }
+                if wrapper_ctx.under_layer {
+                    acc.keyframes_names_under_layer.push(at_rule.params.clone());
+                }
+            }
             match at_rule.kind {
                 AtRuleKind::Media => child_wrapper_ctx.under_media = true,
                 AtRuleKind::Supports => child_wrapper_ctx.under_supports = true,

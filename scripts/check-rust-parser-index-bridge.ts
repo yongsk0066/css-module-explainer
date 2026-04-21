@@ -53,6 +53,9 @@ interface ParserIndexSummaryV0 {
   };
   readonly keyframes: {
     readonly names: readonly string[];
+    readonly namesUnderMedia: readonly string[];
+    readonly namesUnderSupports: readonly string[];
+    readonly namesUnderLayer: readonly string[];
     readonly animationRefNames: readonly string[];
     readonly animationNameRefNames: readonly string[];
     readonly selectorsWithAnimationRefNames: readonly string[];
@@ -139,6 +142,11 @@ const CORPUS = [
     label: "scss-animation-with-value-ref",
     filePath: "/f.module.scss",
     source: `@keyframes fade { from { opacity: 0; } }\n@value speed: 1s;\n.btn { animation: fade speed linear; animation-name: fade; }`,
+  },
+  {
+    label: "scss-media-keyframes-index",
+    filePath: "/f.module.scss",
+    source: `@media (min-width: 1px) { @keyframes pulse { from { opacity: 0; } } .btn { animation: pulse 1s linear; } }`,
   },
   {
     label: "scss-composes-local",
@@ -247,10 +255,10 @@ function getRuntimeSyntax(lang: "scss" | "less" | "css") {
   }
 }
 
-function collectWrapperSelectorNames(
+function collectWrapperNamesForRanges(
   filePath: string,
   source: string,
-  selectorRuleRanges: readonly {
+  entries: readonly {
     readonly name: string;
     readonly ruleRange: {
       readonly start: { readonly line: number; readonly character: number };
@@ -284,17 +292,30 @@ function collectWrapperSelectorNames(
           start: { line: rule.source!.start!.line - 1, character: rule.source!.start!.column - 1 },
           end: { line: rule.source!.end!.line - 1, character: rule.source!.end!.column - 1 },
         };
-        for (const selector of selectorRuleRanges) {
-          if (!rangeContains(ruleRange, selector.ruleRange)) continue;
-          if (ctx.underMedia) media.add(selector.name);
-          if (ctx.underSupports) supports.add(selector.name);
-          if (ctx.underLayer) layer.add(selector.name);
+        for (const entry of entries) {
+          if (!rangeContains(ruleRange, entry.ruleRange)) continue;
+          if (ctx.underMedia) media.add(entry.name);
+          if (ctx.underSupports) supports.add(entry.name);
+          if (ctx.underLayer) layer.add(entry.name);
         }
         walk(rule.nodes ?? [], ctx);
         continue;
       }
       if (node.type === "atrule") {
         const atRule = node as AtRule;
+        const atRuleRange = {
+          start: {
+            line: atRule.source!.start!.line - 1,
+            character: atRule.source!.start!.column - 1,
+          },
+          end: { line: atRule.source!.end!.line - 1, character: atRule.source!.end!.column - 1 },
+        };
+        for (const entry of entries) {
+          if (!rangeContains(atRuleRange, entry.ruleRange)) continue;
+          if (ctx.underMedia) media.add(entry.name);
+          if (ctx.underSupports) supports.add(entry.name);
+          if (ctx.underLayer) layer.add(entry.name);
+        }
         walk(atRule.nodes ?? [], {
           underMedia: ctx.underMedia || atRule.name === "media",
           underSupports: ctx.underSupports || atRule.name === "supports",
@@ -314,12 +335,20 @@ function collectWrapperSelectorNames(
 
 function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0 {
   const document = parseStyleDocument(source, filePath);
-  const wrapperSelectorNames = collectWrapperSelectorNames(
+  const wrapperSelectorNames = collectWrapperNamesForRanges(
     filePath,
     source,
     document.selectors.map((selector) => ({
       name: selector.name,
       ruleRange: selector.ruleRange,
+    })),
+  );
+  const wrapperKeyframesNames = collectWrapperNamesForRanges(
+    filePath,
+    source,
+    document.keyframes.map((entry) => ({
+      name: entry.name,
+      ruleRange: entry.ruleRange,
     })),
   );
   const selectorsWithComposes = document.selectors.filter(
@@ -593,6 +622,9 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
     },
     keyframes: {
       names: [...document.keyframes].map((entry) => entry.name).toSorted(),
+      namesUnderMedia: wrapperKeyframesNames.media,
+      namesUnderSupports: wrapperKeyframesNames.supports,
+      namesUnderLayer: wrapperKeyframesNames.layer,
       animationRefNames: document.animationNameRefs
         .filter((entry) => entry.property === "animation")
         .map((entry) => entry.name)

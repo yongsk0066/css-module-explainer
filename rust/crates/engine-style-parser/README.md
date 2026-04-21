@@ -24,5 +24,6 @@ Primary check:
 - `pnpm check:rust-parser-css-modules-intermediate`
 - `pnpm check:rust-parser-index-producer`
 - `pnpm check:rust-parser-lane`
+- `pnpm check:rust-parser-public-product`
 
 This crate is intentionally internal. `publish = false` remains in effect at the workspace level.
