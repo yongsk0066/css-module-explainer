@@ -11,6 +11,13 @@ import type {
 import type { CheckerStyleRecoveryCanonicalProducerSignalV0 } from "./rust-style-recovery-consumer";
 
 export type CheckerReportJsonFinding = CheckerFindingRecordV1;
+const STYLE_RECOVERY_CODES = new Set([
+  "missing-composed-module",
+  "missing-composed-selector",
+  "missing-value-module",
+  "missing-imported-value",
+  "missing-keyframes",
+]);
 
 export interface CheckerReportJsonV1 {
   readonly schemaVersion: "1";
@@ -34,6 +41,17 @@ export interface CheckerReportJsonV1 {
   };
   readonly findings: readonly CheckerReportJsonFinding[];
   readonly rustStyleRecoveryCanonicalProducer?: CheckerStyleRecoveryCanonicalProducerSignalV0;
+  readonly rustStyleRecoveryConsistency?: RustStyleRecoveryConsistencyV0;
+}
+
+export interface RustStyleRecoveryConsistencyV0 {
+  readonly schemaVersion: "0";
+  readonly bundle: "style-recovery";
+  readonly tsFindingCount: number;
+  readonly rustFindingCount: number;
+  readonly countsMatch: boolean;
+  readonly findingsMatch: boolean;
+  readonly mismatchedCodes: readonly string[];
 }
 
 const CHECKER_JSON_SCHEMA_VERSION = "1" as const;
@@ -46,6 +64,10 @@ export function buildCheckerJsonReport(
   filters: WorkspaceCheckCommandFilters,
   rustStyleRecoveryCanonicalProducer?: CheckerStyleRecoveryCanonicalProducerSignalV0,
 ): CheckerReportJsonV1 {
+  const rustStyleRecoveryConsistency = rustStyleRecoveryCanonicalProducer
+    ? deriveRustStyleRecoveryConsistency(report, rustStyleRecoveryCanonicalProducer)
+    : undefined;
+
   return {
     schemaVersion: CHECKER_JSON_SCHEMA_VERSION,
     reportVersion: report.version,
@@ -64,5 +86,110 @@ export function buildCheckerJsonReport(
     summary: report.summary,
     findings: report.findings,
     ...(rustStyleRecoveryCanonicalProducer ? { rustStyleRecoveryCanonicalProducer } : {}),
+    ...(rustStyleRecoveryConsistency ? { rustStyleRecoveryConsistency } : {}),
   };
+}
+
+function deriveRustStyleRecoveryConsistency(
+  report: CheckerReportV1,
+  rustStyleRecoveryCanonicalProducer: CheckerStyleRecoveryCanonicalProducerSignalV0,
+): RustStyleRecoveryConsistencyV0 {
+  const tsFindings = report.findings
+    .filter((finding) => finding.category === "style" && STYLE_RECOVERY_CODES.has(finding.code))
+    .map((finding) => {
+      const result = {
+        filePath: finding.filePath,
+        code: finding.code,
+        severity: finding.severity,
+        range: finding.range,
+        message: finding.message,
+      };
+      return Object.assign(
+        result,
+        finding.analysisReason ? { analysisReason: finding.analysisReason } : {},
+        finding.valueCertaintyShapeLabel
+          ? { valueCertaintyShapeLabel: finding.valueCertaintyShapeLabel }
+          : {},
+      );
+    })
+    .toSorted(compareStyleRecoveryFinding);
+
+  const rustFindings = [...rustStyleRecoveryCanonicalProducer.canonicalCandidate.findings].toSorted(
+    compareStyleRecoveryFinding,
+  );
+  const mismatchedCodes = new Set<string>();
+  const allCodes = new Set([
+    ...tsFindings.map((finding) => finding.code),
+    ...rustFindings.map((finding) => finding.code),
+  ]);
+
+  for (const code of allCodes) {
+    const tsCount = tsFindings.filter((finding) => finding.code === code).length;
+    const rustCount = rustFindings.filter((finding) => finding.code === code).length;
+    if (tsCount !== rustCount) {
+      mismatchedCodes.add(code);
+    }
+  }
+
+  return {
+    schemaVersion: "0",
+    bundle: "style-recovery",
+    tsFindingCount: tsFindings.length,
+    rustFindingCount: rustFindings.length,
+    countsMatch: tsFindings.length === rustFindings.length,
+    findingsMatch: JSON.stringify(tsFindings) === JSON.stringify(rustFindings),
+    mismatchedCodes: [...mismatchedCodes].toSorted(),
+  };
+}
+
+function compareStyleRecoveryFinding(
+  left: {
+    readonly filePath: string;
+    readonly code: string;
+    readonly severity: string;
+    readonly range: {
+      readonly start: {
+        readonly line: number;
+        readonly character: number;
+      };
+      readonly end: {
+        readonly line: number;
+        readonly character: number;
+      };
+    };
+    readonly message: string;
+    readonly analysisReason?: string;
+    readonly valueCertaintyShapeLabel?: string;
+  },
+  right: {
+    readonly filePath: string;
+    readonly code: string;
+    readonly severity: string;
+    readonly range: {
+      readonly start: {
+        readonly line: number;
+        readonly character: number;
+      };
+      readonly end: {
+        readonly line: number;
+        readonly character: number;
+      };
+    };
+    readonly message: string;
+    readonly analysisReason?: string;
+    readonly valueCertaintyShapeLabel?: string;
+  },
+): number {
+  return (
+    left.filePath.localeCompare(right.filePath) ||
+    left.code.localeCompare(right.code) ||
+    left.severity.localeCompare(right.severity) ||
+    left.range.start.line - right.range.start.line ||
+    left.range.start.character - right.range.start.character ||
+    left.range.end.line - right.range.end.line ||
+    left.range.end.character - right.range.end.character ||
+    left.message.localeCompare(right.message) ||
+    (left.analysisReason ?? "").localeCompare(right.analysisReason ?? "") ||
+    (left.valueCertaintyShapeLabel ?? "").localeCompare(right.valueCertaintyShapeLabel ?? "")
+  );
 }

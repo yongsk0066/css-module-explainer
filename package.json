@@ -63,6 +63,7 @@
     "check:rust-checker-style-recovery-canonical-candidate": "tsx ./scripts/check-rust-checker-style-recovery-canonical-candidate.ts",
     "check:rust-checker-style-recovery-canonical-producer": "tsx ./scripts/check-rust-checker-style-recovery-canonical-producer.ts",
     "check:rust-checker-style-recovery-consumer-boundary": "tsx ./scripts/check-rust-checker-style-recovery-consumer-boundary.ts",
+    "check:rust-checker-style-recovery-lane": "pnpm check:rust-checker-style-recovery-canonical-candidate && pnpm check:rust-checker-style-recovery-canonical-producer && pnpm check:rust-checker-style-recovery-consumer-boundary",
     "check:rust-type-fact-compare": "tsx ./scripts/check-rust-type-fact-compare.ts",
     "check:rust-query-plan-compare": "tsx ./scripts/check-rust-query-plan-compare.ts",
     "check:rust-expression-domain-compare": "tsx ./scripts/check-rust-expression-domain-compare.ts",

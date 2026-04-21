@@ -76,6 +76,10 @@ void (async () => {
         payload.rustStyleRecoveryCanonicalProducer,
         `${entry.label}: missing rustStyleRecoveryCanonicalProducer`,
       );
+      assert.ok(
+        payload.rustStyleRecoveryConsistency,
+        `${entry.label}: missing consistency summary`,
+      );
       assert.equal(
         payload.rustStyleRecoveryCanonicalProducer.canonicalCandidate.summary.total,
         1,
@@ -91,8 +95,18 @@ void (async () => {
         false,
         `${entry.label}: release gate should remain false`,
       );
+      assert.equal(
+        payload.rustStyleRecoveryConsistency.findingsMatch,
+        true,
+        `${entry.label}: expected consistency match`,
+      );
+      assert.equal(
+        payload.rustStyleRecoveryConsistency.countsMatch,
+        true,
+        `${entry.label}: expected consistency count match`,
+      );
 
-      return `== rust-checker-style-recovery-consumer:${entry.label} ==\nvalidated code=${entry.code} releaseGate=false\n\n`;
+      return `== rust-checker-style-recovery-consumer:${entry.label} ==\nvalidated code=${entry.code} consistent=true releaseGate=false\n\n`;
     }),
   );
 

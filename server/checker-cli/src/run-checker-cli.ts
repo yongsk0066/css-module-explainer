@@ -23,6 +23,7 @@ import {
   buildRustStyleRecoveryCanonicalProducer,
   type CheckerStyleRecoveryCanonicalProducerSignalV0,
 } from "./rust-style-recovery-consumer";
+import type { RustStyleRecoveryConsistencyV0 } from "./checker-report";
 
 export interface CheckerCliIO {
   readonly stdout: (message: string) => void;
@@ -71,6 +72,7 @@ export async function runCheckerCli(
     parsed.filters,
     rustStyleRecoveryCanonicalProducer,
   );
+  const rustStyleRecoveryConsistency = jsonReport.rustStyleRecoveryConsistency;
   writeResult(
     command.workspaceCheck,
     command.checkerReport,
@@ -78,6 +80,7 @@ export async function runCheckerCli(
     parsed,
     io,
     rustStyleRecoveryCanonicalProducer,
+    rustStyleRecoveryConsistency,
   );
   return shouldFail(command.checkerReport, parsed.failOn) ? 1 : 0;
 }
@@ -410,6 +413,7 @@ function writeResult(
   parsed: Pick<ParsedCliOptions, "format" | "summaryMode">,
   io: CheckerCliIO,
   rustStyleRecoveryCanonicalProducer?: CheckerStyleRecoveryCanonicalProducerSignalV0,
+  rustStyleRecoveryConsistency?: RustStyleRecoveryConsistencyV0,
 ): void {
   if (parsed.format === "json") {
     io.stdout(`${JSON.stringify(jsonReport, null, 2)}\n`);
@@ -448,6 +452,7 @@ function writeResult(
   if (rustStyleRecoveryCanonicalProducer) {
     io.stdout(
       `Rust style-recovery consumer: findings=${rustStyleRecoveryCanonicalProducer.canonicalCandidate.summary.total} ` +
+        `consistent=${rustStyleRecoveryConsistency?.findingsMatch === true} ` +
         `releaseGate=${rustStyleRecoveryCanonicalProducer.boundedCheckerGate.includedInRustReleaseBundle}\n`,
     );
   }
