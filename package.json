@@ -42,6 +42,7 @@
     "test": "vitest run",
     "check:eslint-plugin-smoke": "tsx ./scripts/check-eslint-plugin-smoke.ts",
     "check:stylelint-plugin-smoke": "node ./scripts/check-stylelint-plugin-smoke.mjs",
+    "check:plugin-consumers": "pnpm check:eslint-plugin-smoke && pnpm check:stylelint-plugin-smoke",
     "check:backend-typecheck-smoke": "tsx ./scripts/check-backend-typecheck-smoke.ts",
     "check:type-fact-backend-parity": "tsx ./scripts/check-type-fact-backend-parity.ts",
     "check:rust-workspace": "cargo fmt --manifest-path rust/Cargo.toml --all --check && cargo check --manifest-path rust/Cargo.toml && cargo clippy --manifest-path rust/Cargo.toml --all-targets --all-features -- -D warnings",
@@ -132,7 +133,7 @@
     "test:coverage": "vitest run --coverage",
     "package": "pnpm build && vsce package --no-dependencies",
     "version-packages": "changeset version && ./scripts/release.sh",
-    "release:verify": "./scripts/release.sh && pnpm check && pnpm check:rust-release-bundle && pnpm test && pnpm build",
+    "release:verify": "./scripts/release.sh && pnpm check && pnpm check:plugin-consumers && pnpm check:rust-release-bundle && pnpm test && pnpm build",
     "release:publish": "./scripts/publish-extension.sh"
   },
   "devDependencies": {

@@ -72,6 +72,7 @@ Before a release:
 ```bash
 pnpm install
 pnpm release:verify
+pnpm check:plugin-consumers
 pnpm test:extension-host
 pnpm check:rust-parser-public-product
 pnpm check:rust-lane-bundle
@@ -89,13 +90,18 @@ pnpm exec vsce package --no-dependencies
 
 1. sync `SERVER_VERSION`
 2. run `pnpm check`
-3. run `pnpm check:rust-release-bundle`
-4. run `pnpm test`
-5. run `pnpm build`
+3. run `pnpm check:plugin-consumers`
+4. run `pnpm check:rust-release-bundle`
+5. run `pnpm test`
+6. run `pnpm build`
 
 `pnpm check:semantic-smoke` is the canonical semantic smoke pass. It is not the
 release gate yet. It gives one repeatable workspace/checker sanity check before
 packaging.
+
+`pnpm check:plugin-consumers` is the current plugin-facing consumer batch gate.
+It runs the ESLint and Stylelint smoke consumers together, so user-facing
+lint-plugin regressions are exercised before packaging.
 
 The smoke corpus is defined in `scripts/semantic-smoke-corpus.ts`. Treat that
 file as the release-facing semantic fixture list. Update it when a new semantic

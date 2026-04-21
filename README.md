@@ -189,6 +189,7 @@ pnpm check
 pnpm check:semantic-smoke
 pnpm check:lsp-server-smoke
 pnpm check:rust-gate-evidence
+pnpm check:plugin-consumers
 pnpm check:eslint-plugin-smoke
 pnpm check:stylelint-plugin-smoke
 pnpm check:release-batch
@@ -228,6 +229,7 @@ Current checker policy:
 - `changed-style` and `changed-source` presets use compact text output by default
 - `pnpm check:semantic-smoke` is the canonical repo-local smoke command
 - `pnpm check:lsp-server-smoke` spawns the built `lsp-server` over stdio and verifies hover/definition through a generic protocol client
+- `pnpm check:plugin-consumers` runs the current ESLint and Stylelint consumer smokes together
 - `pnpm check:eslint-plugin-smoke` runs the ESLint consumer against JSX fixtures and asserts that source-side semantic findings are reported as ESLint diagnostics
   - current config split: aggregate `recommended`, granular `focused`, optional `dynamicMoat`
 - `pnpm check:stylelint-plugin-smoke` runs the first Stylelint consumer against a CSS Modules fixture and asserts that unused selectors are reported as Stylelint diagnostics
