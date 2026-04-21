@@ -25,6 +25,8 @@ interface ParserIndexSummaryV0 {
   };
   readonly values: {
     readonly declNames: readonly string[];
+    readonly declNamesWithLocalRefs: readonly string[];
+    readonly declNamesWithImportedRefs: readonly string[];
     readonly importNames: readonly string[];
     readonly importSources: readonly string[];
     readonly importAliasCount: number;
@@ -381,6 +383,22 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
   const selectorsWithAnimationNameRefsUnderLayer = selectorsWithAnimationNameRefs.filter(
     (selector) => wrapperSelectorNames.layer.includes(selector.name),
   );
+  const valueDeclsWithLocalRefs = document.valueDecls.filter((decl) =>
+    document.valueRefs.some(
+      (entry) =>
+        entry.source === "valueDecl" &&
+        localValueNames.has(entry.name) &&
+        rangeContains(decl.ruleRange, entry.range),
+    ),
+  );
+  const valueDeclsWithImportedRefs = document.valueDecls.filter((decl) =>
+    document.valueRefs.some(
+      (entry) =>
+        entry.source === "valueDecl" &&
+        importedValueNames.has(entry.name) &&
+        rangeContains(decl.ruleRange, entry.range),
+    ),
+  );
   const selectorsWithComposesUnderMedia = selectorsWithComposes.filter((selector) =>
     wrapperSelectorNames.media.includes(selector.name),
   );
@@ -433,6 +451,8 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
     },
     values: {
       declNames: [...document.valueDecls].map((entry) => entry.name).toSorted(),
+      declNamesWithLocalRefs: valueDeclsWithLocalRefs.map((entry) => entry.name).toSorted(),
+      declNamesWithImportedRefs: valueDeclsWithImportedRefs.map((entry) => entry.name).toSorted(),
       importNames: [...document.valueImports].map((entry) => entry.name).toSorted(),
       importSources: [...document.valueImports].map((entry) => entry.from).toSorted(),
       importAliasCount: document.valueImports.filter((entry) => entry.importedName !== entry.name)

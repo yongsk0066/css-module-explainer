@@ -207,6 +207,8 @@ pub struct ParserIndexSelectorFactsV0 {
 #[serde(rename_all = "camelCase")]
 pub struct ParserIndexValueFactsV0 {
     pub decl_names: Vec<String>,
+    pub decl_names_with_local_refs: Vec<String>,
+    pub decl_names_with_imported_refs: Vec<String>,
     pub import_names: Vec<String>,
     pub import_sources: Vec<String>,
     pub import_alias_count: usize,
@@ -325,6 +327,8 @@ struct IndexSummaryAcc {
     keyframes_names: Vec<String>,
     nested_unsafe_selector_names: Vec<String>,
     value_decl_names: Vec<String>,
+    value_decl_names_with_local_refs: Vec<String>,
+    value_decl_names_with_imported_refs: Vec<String>,
     value_import_names: Vec<String>,
     value_import_sources: Vec<String>,
     value_import_source_by_name: BTreeMap<String, String>,
@@ -465,6 +469,10 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
     acc.nested_unsafe_selector_names.dedup();
     acc.value_decl_names.sort();
     acc.value_decl_names.dedup();
+    acc.value_decl_names_with_local_refs.sort();
+    acc.value_decl_names_with_local_refs.dedup();
+    acc.value_decl_names_with_imported_refs.sort();
+    acc.value_decl_names_with_imported_refs.dedup();
     acc.value_import_names.sort();
     acc.value_import_names.dedup();
     acc.value_import_sources.sort();
@@ -552,6 +560,8 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
         },
         values: ParserIndexValueFactsV0 {
             decl_names: acc.value_decl_names,
+            decl_names_with_local_refs: acc.value_decl_names_with_local_refs,
+            decl_names_with_imported_refs: acc.value_decl_names_with_imported_refs,
             import_names: acc.value_import_names,
             import_sources: acc.value_import_sources,
             import_alias_count: acc.value_import_alias_count,
@@ -1093,12 +1103,27 @@ fn collect_index_refs_and_counts(
             }
             Some(SyntaxNodePayload::AtRule(at_rule)) if at_rule.kind == AtRuleKind::Value => {
                 if let Some((name, value)) = parse_local_value_decl_parts(&at_rule.params) {
-                    extend_value_ref_facts(
-                        acc,
+                    let value_refs: Vec<String> =
                         find_identifier_matches(value, value_ref_ctx.known)
                             .into_iter()
                             .filter(|candidate| candidate != name)
-                            .collect(),
+                            .collect();
+                    if value_refs
+                        .iter()
+                        .any(|candidate| value_ref_ctx.local.contains(candidate))
+                    {
+                        acc.value_decl_names_with_local_refs.push(name.to_string());
+                    }
+                    if value_refs
+                        .iter()
+                        .any(|candidate| value_ref_ctx.imported.contains(candidate))
+                    {
+                        acc.value_decl_names_with_imported_refs
+                            .push(name.to_string());
+                    }
+                    extend_value_ref_facts(
+                        acc,
+                        value_refs,
                         value_ref_ctx,
                         ValueRefOrigin::ValueDecl,
                     );
