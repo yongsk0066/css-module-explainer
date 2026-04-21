@@ -21,6 +21,7 @@ Non-goals in this first scaffold:
 Primary check:
 
 - `cargo test --manifest-path rust/Cargo.toml -p engine-style-parser`
+- `pnpm check:rust-parser-css-modules-intermediate`
 - `pnpm check:rust-parser-index-producer`
 - `pnpm check:rust-parser-lane`
 

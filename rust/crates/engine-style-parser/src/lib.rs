@@ -390,7 +390,7 @@ pub fn summarize_parity_lite(sheet: &Stylesheet) -> ParserParityLiteSummaryV0 {
     }
 }
 
-pub fn summarize_index_bridge(sheet: &Stylesheet) -> ParserIndexSummaryV0 {
+pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSummaryV0 {
     let mut acc = IndexSummaryAcc::default();
     collect_index_names(&sheet.nodes, &mut acc, &[], false);
     let known_value_names: BTreeSet<String> = acc
@@ -560,6 +560,10 @@ pub fn summarize_index_bridge(sheet: &Stylesheet) -> ParserIndexSummaryV0 {
             selectors_under_layer_names: acc.selectors_under_layer_names,
         },
     }
+}
+
+pub fn summarize_index_bridge(sheet: &Stylesheet) -> ParserIndexSummaryV0 {
+    summarize_css_modules_intermediate(sheet)
 }
 
 fn collect_parity_names(nodes: &[SyntaxNode], acc: &mut ParityLiteAcc) {

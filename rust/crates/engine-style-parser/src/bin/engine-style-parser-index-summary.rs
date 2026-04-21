@@ -1,6 +1,6 @@
 use std::io::{self, Read};
 
-use engine_style_parser::{parse_style_module, summarize_index_bridge};
+use engine_style_parser::{parse_style_module, summarize_css_modules_intermediate};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let Some(path) = std::env::args().nth(1) else {
@@ -11,7 +11,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let Some(sheet) = parse_style_module(&path, &source) else {
         return Err("unsupported style module path".into());
     };
-    let summary = summarize_index_bridge(&sheet);
+    let summary = summarize_css_modules_intermediate(&sheet);
     serde_json::to_writer_pretty(io::stdout(), &summary)?;
     Ok(())
 }

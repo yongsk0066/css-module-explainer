@@ -492,7 +492,7 @@ async function runRustSummary(filePath: string, source: string): Promise<ParserI
         "-p",
         "engine-style-parser",
         "--bin",
-        "engine-style-parser-index-producer",
+        "engine-style-parser-css-modules-intermediate",
         "--",
         filePath,
       ],
@@ -513,7 +513,9 @@ async function runRustSummary(filePath: string, source: string): Promise<ParserI
     child.on("error", reject);
     child.on("close", (code) => {
       if (code !== 0) {
-        reject(new Error(`engine-style-parser-index-producer exited with ${code}\n${stderr}`));
+        reject(
+          new Error(`engine-style-parser-css-modules-intermediate exited with ${code}\n${stderr}`),
+        );
         return;
       }
       resolve(JSON.parse(stdout) as ParserIndexSummaryV0);
@@ -525,7 +527,7 @@ async function runRustSummary(filePath: string, source: string): Promise<ParserI
 
 void (async () => {
   for (const entry of CORPUS) {
-    process.stdout.write(`== rust-parser-index-producer:${entry.label} ==\n`);
+    process.stdout.write(`== rust-parser-css-modules-intermediate:${entry.label} ==\n`);
     const expected = deriveTsSummary(entry.filePath, entry.source);
     // oxlint-disable-next-line eslint/no-await-in-loop
     const actual = await runRustSummary(entry.filePath, entry.source);
@@ -541,7 +543,7 @@ void (async () => {
     );
 
     process.stdout.write(
-      `matched index summary: selectors=${actual.selectors.names.length} valueImports=${actual.values.importNames.length} valueRefs=${actual.values.refNames.length} composes=${actual.composes.classNameCount}\n\n`,
+      `matched intermediate summary: selectors=${actual.selectors.names.length} valueImports=${actual.values.importNames.length} valueRefs=${actual.values.refNames.length} composes=${actual.composes.classNameCount}\n\n`,
     );
   }
 })().catch((error: unknown) => {

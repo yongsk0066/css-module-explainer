@@ -242,8 +242,9 @@ Current checker policy:
 - `pnpm check:type-fact-backend-parity` compares canonical `EngineInputV2.typeFacts` across `typescript-current` and `tsgo-preview` on the backend smoke corpus
 - `pnpm check:rust-parser-scaffold` exercises the first internal Rust parser scaffold crate, `rust/crates/engine-style-parser`
 - `pnpm check:rust-parser-parity-lite` compares the Rust parser scaffold against the current TS style parser on a bounded shared fixture set
-- `pnpm check:rust-parser-index-producer` compares the Rust parser indexing producer facts against the current TS style HIR on a bounded shared fixture set
-- `pnpm check:rust-parser-lane` runs the current parser lane bundle: scaffold tests, parity-lite, and indexing producer
+- `pnpm check:rust-parser-css-modules-intermediate` compares the Rust parser CSS Modules intermediate facts against the current TS style HIR on a bounded shared fixture set
+- `pnpm check:rust-parser-index-producer` remains as a compatibility alias for the same intermediate producer check
+- `pnpm check:rust-parser-lane` runs the current parser lane bundle: scaffold tests, parity-lite, and CSS Modules intermediate producer
 - Rust shadow validation now covers:
   - input summaries: `pnpm check:rust-type-fact-compare`, `pnpm check:rust-query-plan-compare`, `pnpm check:rust-expression-domain-compare`
   - input-only candidates: `pnpm check:rust-expression-domain-candidates`
