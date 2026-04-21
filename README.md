@@ -337,7 +337,10 @@ Current scope:
 Flat config example:
 
 ```js
-import cssModuleExplainer from "eslint-plugin-css-module-explainer";
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+const cssModuleExplainer = require("eslint-plugin-css-module-explainer");
 
 export default [...cssModuleExplainer.configs.recommended];
 ```
@@ -345,12 +348,22 @@ export default [...cssModuleExplainer.configs.recommended];
 Focused variant:
 
 ```js
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+const cssModuleExplainer = require("eslint-plugin-css-module-explainer");
+
 export default [...cssModuleExplainer.configs.focused];
 ```
 
 Optional dynamic moat:
 
 ```js
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+const cssModuleExplainer = require("eslint-plugin-css-module-explainer");
+
 export default [...cssModuleExplainer.configs.dynamicMoat];
 ```
 

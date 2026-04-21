@@ -25,7 +25,10 @@ Config variants:
 Recommended flat config:
 
 ```js
-import cssModuleExplainer from "eslint-plugin-css-module-explainer";
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+const cssModuleExplainer = require("eslint-plugin-css-module-explainer");
 
 export default [...cssModuleExplainer.configs.recommended];
 ```
@@ -33,6 +36,11 @@ export default [...cssModuleExplainer.configs.recommended];
 Focused variant:
 
 ```js
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+const cssModuleExplainer = require("eslint-plugin-css-module-explainer");
+
 export default [...cssModuleExplainer.configs.focused];
 ```
 
@@ -52,6 +60,11 @@ Current limitations:
 Optional dynamic moat:
 
 ```js
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+const cssModuleExplainer = require("eslint-plugin-css-module-explainer");
+
 export default [...cssModuleExplainer.configs.dynamicMoat];
 ```
 

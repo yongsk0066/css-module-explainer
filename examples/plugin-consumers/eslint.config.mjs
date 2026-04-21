@@ -1,4 +1,7 @@
-import cssModuleExplainer from "eslint-plugin-css-module-explainer";
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+const cssModuleExplainer = require("eslint-plugin-css-module-explainer");
 
 export default [
   {
