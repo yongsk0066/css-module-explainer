@@ -32,6 +32,9 @@ interface ParserIndexSummaryV0 {
     readonly declarationRefNames: readonly string[];
     readonly valueDeclRefNames: readonly string[];
     readonly selectorsWithRefsNames: readonly string[];
+    readonly selectorsWithRefsUnderMediaNames: readonly string[];
+    readonly selectorsWithRefsUnderSupportsNames: readonly string[];
+    readonly selectorsWithRefsUnderLayerNames: readonly string[];
   };
   readonly keyframes: {
     readonly names: readonly string[];
@@ -39,6 +42,12 @@ interface ParserIndexSummaryV0 {
     readonly animationNameRefNames: readonly string[];
     readonly selectorsWithAnimationRefNames: readonly string[];
     readonly selectorsWithAnimationNameRefNames: readonly string[];
+    readonly selectorsWithAnimationRefsUnderMediaNames: readonly string[];
+    readonly selectorsWithAnimationRefsUnderSupportsNames: readonly string[];
+    readonly selectorsWithAnimationRefsUnderLayerNames: readonly string[];
+    readonly selectorsWithAnimationNameRefsUnderMediaNames: readonly string[];
+    readonly selectorsWithAnimationNameRefsUnderSupportsNames: readonly string[];
+    readonly selectorsWithAnimationNameRefsUnderLayerNames: readonly string[];
   };
   readonly composes: {
     readonly selectorsWithComposesNames: readonly string[];
@@ -133,6 +142,11 @@ const CORPUS = [
     label: "scss-supports-layer-wrapper-index",
     filePath: "/f.module.scss",
     source: `@supports (display: grid) { @layer ui { .card { color: red; } } }`,
+  },
+  {
+    label: "scss-supports-layer-animation-value-index",
+    filePath: "/f.module.scss",
+    source: `@supports (display: grid) { @layer ui { @keyframes fade { from { opacity: 0; } } @value speed: 1s; .btn { animation: fade speed linear; animation-name: fade; } } }`,
   },
 ] as const;
 
@@ -287,6 +301,33 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
         rangeContains(selector.ruleRange, entry.range),
     ),
   );
+  const selectorsWithValueRefsUnderMedia = selectorsWithValueRefs.filter((selector) =>
+    wrapperSelectorNames.media.includes(selector.name),
+  );
+  const selectorsWithValueRefsUnderSupports = selectorsWithValueRefs.filter((selector) =>
+    wrapperSelectorNames.supports.includes(selector.name),
+  );
+  const selectorsWithValueRefsUnderLayer = selectorsWithValueRefs.filter((selector) =>
+    wrapperSelectorNames.layer.includes(selector.name),
+  );
+  const selectorsWithAnimationRefsUnderMedia = selectorsWithAnimationRefs.filter((selector) =>
+    wrapperSelectorNames.media.includes(selector.name),
+  );
+  const selectorsWithAnimationRefsUnderSupports = selectorsWithAnimationRefs.filter((selector) =>
+    wrapperSelectorNames.supports.includes(selector.name),
+  );
+  const selectorsWithAnimationRefsUnderLayer = selectorsWithAnimationRefs.filter((selector) =>
+    wrapperSelectorNames.layer.includes(selector.name),
+  );
+  const selectorsWithAnimationNameRefsUnderMedia = selectorsWithAnimationNameRefs.filter(
+    (selector) => wrapperSelectorNames.media.includes(selector.name),
+  );
+  const selectorsWithAnimationNameRefsUnderSupports = selectorsWithAnimationNameRefs.filter(
+    (selector) => wrapperSelectorNames.supports.includes(selector.name),
+  );
+  const selectorsWithAnimationNameRefsUnderLayer = selectorsWithAnimationNameRefs.filter(
+    (selector) => wrapperSelectorNames.layer.includes(selector.name),
+  );
   return {
     schemaVersion: "0",
     language: filePath.endsWith(".module.less")
@@ -344,6 +385,15 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
         .map((entry) => entry.name)
         .toSorted(),
       selectorsWithRefsNames: selectorsWithValueRefs.map((selector) => selector.name).toSorted(),
+      selectorsWithRefsUnderMediaNames: selectorsWithValueRefsUnderMedia
+        .map((selector) => selector.name)
+        .toSorted(),
+      selectorsWithRefsUnderSupportsNames: selectorsWithValueRefsUnderSupports
+        .map((selector) => selector.name)
+        .toSorted(),
+      selectorsWithRefsUnderLayerNames: selectorsWithValueRefsUnderLayer
+        .map((selector) => selector.name)
+        .toSorted(),
     },
     keyframes: {
       names: [...document.keyframes].map((entry) => entry.name).toSorted(),
@@ -359,6 +409,24 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
         .map((selector) => selector.name)
         .toSorted(),
       selectorsWithAnimationNameRefNames: selectorsWithAnimationNameRefs
+        .map((selector) => selector.name)
+        .toSorted(),
+      selectorsWithAnimationRefsUnderMediaNames: selectorsWithAnimationRefsUnderMedia
+        .map((selector) => selector.name)
+        .toSorted(),
+      selectorsWithAnimationRefsUnderSupportsNames: selectorsWithAnimationRefsUnderSupports
+        .map((selector) => selector.name)
+        .toSorted(),
+      selectorsWithAnimationRefsUnderLayerNames: selectorsWithAnimationRefsUnderLayer
+        .map((selector) => selector.name)
+        .toSorted(),
+      selectorsWithAnimationNameRefsUnderMediaNames: selectorsWithAnimationNameRefsUnderMedia
+        .map((selector) => selector.name)
+        .toSorted(),
+      selectorsWithAnimationNameRefsUnderSupportsNames: selectorsWithAnimationNameRefsUnderSupports
+        .map((selector) => selector.name)
+        .toSorted(),
+      selectorsWithAnimationNameRefsUnderLayerNames: selectorsWithAnimationNameRefsUnderLayer
         .map((selector) => selector.name)
         .toSorted(),
     },

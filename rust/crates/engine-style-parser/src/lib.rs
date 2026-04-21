@@ -214,6 +214,9 @@ pub struct ParserIndexValueFactsV0 {
     pub declaration_ref_names: Vec<String>,
     pub value_decl_ref_names: Vec<String>,
     pub selectors_with_refs_names: Vec<String>,
+    pub selectors_with_refs_under_media_names: Vec<String>,
+    pub selectors_with_refs_under_supports_names: Vec<String>,
+    pub selectors_with_refs_under_layer_names: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
@@ -224,6 +227,12 @@ pub struct ParserIndexKeyframesFactsV0 {
     pub animation_name_ref_names: Vec<String>,
     pub selectors_with_animation_ref_names: Vec<String>,
     pub selectors_with_animation_name_ref_names: Vec<String>,
+    pub selectors_with_animation_refs_under_media_names: Vec<String>,
+    pub selectors_with_animation_refs_under_supports_names: Vec<String>,
+    pub selectors_with_animation_refs_under_layer_names: Vec<String>,
+    pub selectors_with_animation_name_refs_under_media_names: Vec<String>,
+    pub selectors_with_animation_name_refs_under_supports_names: Vec<String>,
+    pub selectors_with_animation_name_refs_under_layer_names: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
@@ -309,8 +318,17 @@ struct IndexSummaryAcc {
     declaration_value_ref_names: Vec<String>,
     value_decl_ref_names: Vec<String>,
     selectors_with_value_refs_names: Vec<String>,
+    selectors_with_value_refs_under_media_names: Vec<String>,
+    selectors_with_value_refs_under_supports_names: Vec<String>,
+    selectors_with_value_refs_under_layer_names: Vec<String>,
     selectors_with_animation_ref_names: Vec<String>,
+    selectors_with_animation_refs_under_media_names: Vec<String>,
+    selectors_with_animation_refs_under_supports_names: Vec<String>,
+    selectors_with_animation_refs_under_layer_names: Vec<String>,
     selectors_with_animation_name_ref_names: Vec<String>,
+    selectors_with_animation_name_refs_under_media_names: Vec<String>,
+    selectors_with_animation_name_refs_under_supports_names: Vec<String>,
+    selectors_with_animation_name_refs_under_layer_names: Vec<String>,
     selectors_under_media_names: Vec<String>,
     selectors_under_supports_names: Vec<String>,
     selectors_under_layer_names: Vec<String>,
@@ -429,10 +447,36 @@ pub fn summarize_index_bridge(sheet: &Stylesheet) -> ParserIndexSummaryV0 {
     acc.value_decl_ref_names.dedup();
     acc.selectors_with_value_refs_names.sort();
     acc.selectors_with_value_refs_names.dedup();
+    acc.selectors_with_value_refs_under_media_names.sort();
+    acc.selectors_with_value_refs_under_media_names.dedup();
+    acc.selectors_with_value_refs_under_supports_names.sort();
+    acc.selectors_with_value_refs_under_supports_names.dedup();
+    acc.selectors_with_value_refs_under_layer_names.sort();
+    acc.selectors_with_value_refs_under_layer_names.dedup();
     acc.selectors_with_animation_ref_names.sort();
     acc.selectors_with_animation_ref_names.dedup();
+    acc.selectors_with_animation_refs_under_media_names.sort();
+    acc.selectors_with_animation_refs_under_media_names.dedup();
+    acc.selectors_with_animation_refs_under_supports_names
+        .sort();
+    acc.selectors_with_animation_refs_under_supports_names
+        .dedup();
+    acc.selectors_with_animation_refs_under_layer_names.sort();
+    acc.selectors_with_animation_refs_under_layer_names.dedup();
     acc.selectors_with_animation_name_ref_names.sort();
     acc.selectors_with_animation_name_ref_names.dedup();
+    acc.selectors_with_animation_name_refs_under_media_names
+        .sort();
+    acc.selectors_with_animation_name_refs_under_media_names
+        .dedup();
+    acc.selectors_with_animation_name_refs_under_supports_names
+        .sort();
+    acc.selectors_with_animation_name_refs_under_supports_names
+        .dedup();
+    acc.selectors_with_animation_name_refs_under_layer_names
+        .sort();
+    acc.selectors_with_animation_name_refs_under_layer_names
+        .dedup();
     acc.selectors_under_media_names.sort();
     acc.selectors_under_media_names.dedup();
     acc.selectors_under_supports_names.sort();
@@ -475,6 +519,10 @@ pub fn summarize_index_bridge(sheet: &Stylesheet) -> ParserIndexSummaryV0 {
             declaration_ref_names: acc.declaration_value_ref_names,
             value_decl_ref_names: acc.value_decl_ref_names,
             selectors_with_refs_names: acc.selectors_with_value_refs_names,
+            selectors_with_refs_under_media_names: acc.selectors_with_value_refs_under_media_names,
+            selectors_with_refs_under_supports_names: acc
+                .selectors_with_value_refs_under_supports_names,
+            selectors_with_refs_under_layer_names: acc.selectors_with_value_refs_under_layer_names,
         },
         keyframes: ParserIndexKeyframesFactsV0 {
             names: acc.keyframes_names,
@@ -482,6 +530,18 @@ pub fn summarize_index_bridge(sheet: &Stylesheet) -> ParserIndexSummaryV0 {
             animation_name_ref_names: acc.animation_name_ref_names,
             selectors_with_animation_ref_names: acc.selectors_with_animation_ref_names,
             selectors_with_animation_name_ref_names: acc.selectors_with_animation_name_ref_names,
+            selectors_with_animation_refs_under_media_names: acc
+                .selectors_with_animation_refs_under_media_names,
+            selectors_with_animation_refs_under_supports_names: acc
+                .selectors_with_animation_refs_under_supports_names,
+            selectors_with_animation_refs_under_layer_names: acc
+                .selectors_with_animation_refs_under_layer_names,
+            selectors_with_animation_name_refs_under_media_names: acc
+                .selectors_with_animation_name_refs_under_media_names,
+            selectors_with_animation_name_refs_under_supports_names: acc
+                .selectors_with_animation_name_refs_under_supports_names,
+            selectors_with_animation_name_refs_under_layer_names: acc
+                .selectors_with_animation_name_refs_under_layer_names,
         },
         composes: ParserIndexComposesFactsV0 {
             selectors_with_composes_names: acc.selectors_with_composes_names,
@@ -980,14 +1040,50 @@ fn collect_index_selector_attachment_facts_with_context(
                 if ref_facts.has_value_refs {
                     acc.selectors_with_value_refs_names
                         .extend(resolved.iter().cloned());
+                    if wrapper_ctx.under_media {
+                        acc.selectors_with_value_refs_under_media_names
+                            .extend(resolved.iter().cloned());
+                    }
+                    if wrapper_ctx.under_supports {
+                        acc.selectors_with_value_refs_under_supports_names
+                            .extend(resolved.iter().cloned());
+                    }
+                    if wrapper_ctx.under_layer {
+                        acc.selectors_with_value_refs_under_layer_names
+                            .extend(resolved.iter().cloned());
+                    }
                 }
                 if ref_facts.has_animation_refs {
                     acc.selectors_with_animation_ref_names
                         .extend(resolved.iter().cloned());
+                    if wrapper_ctx.under_media {
+                        acc.selectors_with_animation_refs_under_media_names
+                            .extend(resolved.iter().cloned());
+                    }
+                    if wrapper_ctx.under_supports {
+                        acc.selectors_with_animation_refs_under_supports_names
+                            .extend(resolved.iter().cloned());
+                    }
+                    if wrapper_ctx.under_layer {
+                        acc.selectors_with_animation_refs_under_layer_names
+                            .extend(resolved.iter().cloned());
+                    }
                 }
                 if ref_facts.has_animation_name_refs {
                     acc.selectors_with_animation_name_ref_names
                         .extend(resolved.iter().cloned());
+                    if wrapper_ctx.under_media {
+                        acc.selectors_with_animation_name_refs_under_media_names
+                            .extend(resolved.iter().cloned());
+                    }
+                    if wrapper_ctx.under_supports {
+                        acc.selectors_with_animation_name_refs_under_supports_names
+                            .extend(resolved.iter().cloned());
+                    }
+                    if wrapper_ctx.under_layer {
+                        acc.selectors_with_animation_name_refs_under_layer_names
+                            .extend(resolved.iter().cloned());
+                    }
                 }
                 if wrapper_ctx.under_media {
                     acc.selectors_under_media_names
