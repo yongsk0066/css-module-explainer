@@ -2,6 +2,8 @@ import { spawn } from "node:child_process";
 import { strict as assert } from "node:assert";
 
 import { parseStyleDocument } from "../server/engine-core-ts/src/core/scss/scss-parser";
+import { parse as postcssParse, type AtRule, type ChildNode, type Root, type Rule } from "postcss";
+import safeParser from "postcss-safe-parser";
 
 interface ParserIndexSummaryV0 {
   readonly schemaVersion: "0";
@@ -25,6 +27,9 @@ interface ParserIndexSummaryV0 {
   readonly selectorsWithValueRefsNames: readonly string[];
   readonly selectorsWithAnimationRefNames: readonly string[];
   readonly selectorsWithAnimationNameRefNames: readonly string[];
+  readonly selectorsUnderMediaNames: readonly string[];
+  readonly selectorsUnderSupportsNames: readonly string[];
+  readonly selectorsUnderLayerNames: readonly string[];
   readonly animationRefNames: readonly string[];
   readonly animationNameRefNames: readonly string[];
   readonly valueImportAliasCount: number;
@@ -111,6 +116,11 @@ const CORPUS = [
     filePath: "/f.module.scss",
     source: `@media (min-width: 1px) { @value brand from "./tokens.module.scss"; .btn:hover { color: brand; } }`,
   },
+  {
+    label: "scss-supports-layer-wrapper-index",
+    filePath: "/f.module.scss",
+    source: `@supports (display: grid) { @layer ui { .card { color: red; } } }`,
+  },
 ] as const;
 
 function comparePosition(
@@ -136,8 +146,98 @@ function rangeContains(
   );
 }
 
+function findLangForPath(filePath: string): "scss" | "less" | "css" {
+  if (filePath.endsWith(".module.scss")) return "scss";
+  if (filePath.endsWith(".module.less")) return "less";
+  return "css";
+}
+
+function getRuntimeSyntax(lang: "scss" | "less" | "css") {
+  switch (lang) {
+    case "scss":
+      return safeParser;
+    case "less":
+      return safeParser;
+    case "css":
+      return null;
+  }
+}
+
+function collectWrapperSelectorNames(
+  filePath: string,
+  source: string,
+  selectorRuleRanges: readonly {
+    readonly name: string;
+    readonly ruleRange: {
+      readonly start: { readonly line: number; readonly character: number };
+      readonly end: { readonly line: number; readonly character: number };
+    };
+  }[],
+) {
+  const lang = findLangForPath(filePath);
+  const syntax = getRuntimeSyntax(lang);
+  const root =
+    typeof syntax?.parse === "function"
+      ? (syntax.parse(source, { from: filePath }) as Root)
+      : (postcssParse(source, { from: filePath }) as Root);
+
+  const media = new Set<string>();
+  const supports = new Set<string>();
+  const layer = new Set<string>();
+
+  function walk(
+    nodes: readonly ChildNode[],
+    ctx: {
+      readonly underMedia: boolean;
+      readonly underSupports: boolean;
+      readonly underLayer: boolean;
+    },
+  ): void {
+    for (const node of nodes) {
+      if (node.type === "rule") {
+        const rule = node as Rule;
+        const ruleRange = {
+          start: { line: rule.source!.start!.line - 1, character: rule.source!.start!.column - 1 },
+          end: { line: rule.source!.end!.line - 1, character: rule.source!.end!.column - 1 },
+        };
+        for (const selector of selectorRuleRanges) {
+          if (!rangeContains(ruleRange, selector.ruleRange)) continue;
+          if (ctx.underMedia) media.add(selector.name);
+          if (ctx.underSupports) supports.add(selector.name);
+          if (ctx.underLayer) layer.add(selector.name);
+        }
+        walk(rule.nodes ?? [], ctx);
+        continue;
+      }
+      if (node.type === "atrule") {
+        const atRule = node as AtRule;
+        walk(atRule.nodes ?? [], {
+          underMedia: ctx.underMedia || atRule.name === "media",
+          underSupports: ctx.underSupports || atRule.name === "supports",
+          underLayer: ctx.underLayer || atRule.name === "layer",
+        });
+      }
+    }
+  }
+
+  walk(root.nodes ?? [], { underMedia: false, underSupports: false, underLayer: false });
+  return {
+    media: [...media].toSorted(),
+    supports: [...supports].toSorted(),
+    layer: [...layer].toSorted(),
+  };
+}
+
 function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0 {
   const document = parseStyleDocument(source, filePath);
+  const wrapperSelectorNames = collectWrapperSelectorNames(
+    filePath,
+    source,
+    document.selectors.map((selector) => ({
+      name: selector.name,
+      ruleRange: selector.ruleRange,
+    })),
+  );
   const selectorsWithComposes = document.selectors.filter(
     (selector) => selector.composes.length > 0,
   );
@@ -229,6 +329,9 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
     selectorsWithAnimationNameRefNames: selectorsWithAnimationNameRefs
       .map((selector) => selector.name)
       .toSorted(),
+    selectorsUnderMediaNames: wrapperSelectorNames.media,
+    selectorsUnderSupportsNames: wrapperSelectorNames.supports,
+    selectorsUnderLayerNames: wrapperSelectorNames.layer,
     animationRefNames: document.animationNameRefs
       .filter((entry) => entry.property === "animation")
       .map((entry) => entry.name)
