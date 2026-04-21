@@ -10,9 +10,12 @@ const WORKSPACE_ROOT = path.join(REPO_ROOT, "test/_fixtures/eslint-plugin-smoke"
 const INVALID_CLASS_FILE_PATH = path.join(WORKSPACE_ROOT, "src/App.jsx");
 const DYNAMIC_CLASS_FILE_PATH = path.join(WORKSPACE_ROOT, "src/Dynamic.jsx");
 const MISSING_MODULE_FILE_PATH = path.join(WORKSPACE_ROOT, "src/MissingModule.jsx");
+const TEMPLATE_PREFIX_FILE_PATH = path.join(WORKSPACE_ROOT, "src/TemplatePrefix.jsx");
 
 async function main(): Promise<void> {
   await assertInvalidClassReferenceRule();
+  await assertMissingStaticClassRule();
+  await assertMissingTemplatePrefixRule();
   await assertNoUnknownDynamicClassRule();
   await assertMissingModuleRule();
 }
@@ -47,6 +50,84 @@ async function assertInvalidClassReferenceRule(): Promise<void> {
   const [message] = result.messages;
   if (!message || !message.message.includes("Class '.ghost' not found")) {
     throw new Error(`Unexpected ESLint message: ${message?.message ?? "<missing>"}`);
+  }
+}
+
+async function assertMissingStaticClassRule(): Promise<void> {
+  const eslint = new ESLint({
+    cwd: WORKSPACE_ROOT,
+    ignore: false,
+    overrideConfigFile: true,
+    overrideConfig: [
+      {
+        files: ["**/*.{js,jsx}"],
+        languageOptions: {
+          ecmaVersion: "latest",
+          sourceType: "module",
+          parserOptions: {
+            ecmaFeatures: { jsx: true },
+          },
+        },
+        plugins: {
+          "css-module-explainer": plugin,
+        },
+        rules: {
+          "css-module-explainer/missing-static-class": "error",
+        },
+      },
+    ],
+  });
+
+  const [result] = await eslint.lintFiles([INVALID_CLASS_FILE_PATH]);
+  if (!result) {
+    throw new Error("ESLint returned no results.");
+  }
+  if (result.messages.length !== 1) {
+    throw new Error(`Expected 1 missing-static-class message, got ${result.messages.length}.`);
+  }
+  const [message] = result.messages;
+  if (!message || !message.message.includes("Class '.ghost' not found")) {
+    throw new Error(`Unexpected missing-static-class message: ${message?.message ?? "<missing>"}`);
+  }
+}
+
+async function assertMissingTemplatePrefixRule(): Promise<void> {
+  const eslint = new ESLint({
+    cwd: WORKSPACE_ROOT,
+    ignore: false,
+    overrideConfigFile: true,
+    overrideConfig: [
+      {
+        files: ["**/*.{js,jsx}"],
+        languageOptions: {
+          ecmaVersion: "latest",
+          sourceType: "module",
+          parserOptions: {
+            ecmaFeatures: { jsx: true },
+          },
+        },
+        plugins: {
+          "css-module-explainer": plugin,
+        },
+        rules: {
+          "css-module-explainer/missing-template-prefix": "error",
+        },
+      },
+    ],
+  });
+
+  const [result] = await eslint.lintFiles([TEMPLATE_PREFIX_FILE_PATH]);
+  if (!result) {
+    throw new Error("ESLint returned no results.");
+  }
+  if (result.messages.length !== 1) {
+    throw new Error(`Expected 1 missing-template-prefix message, got ${result.messages.length}.`);
+  }
+  const [message] = result.messages;
+  if (!message || !message.message.includes("No class starting with 'ghost-' found")) {
+    throw new Error(
+      `Unexpected missing-template-prefix message: ${message?.message ?? "<missing>"}`,
+    );
   }
 }
 

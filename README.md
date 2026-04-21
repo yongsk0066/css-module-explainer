@@ -322,6 +322,8 @@ Current scope:
 
 - source-side rules only
   - `missing-module`
+  - `missing-static-class`
+  - `missing-template-prefix`
   - `invalid-class-reference`
   - `no-unknown-dynamic-class`
   - aggregate `source-check`

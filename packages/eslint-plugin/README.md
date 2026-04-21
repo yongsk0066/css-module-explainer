@@ -5,6 +5,8 @@ First-cut ESLint consumer for CSS Module Explainer.
 Current rules:
 
 - `css-module-explainer/missing-module`
+- `css-module-explainer/missing-static-class`
+- `css-module-explainer/missing-template-prefix`
 - `css-module-explainer/invalid-class-reference`
 - `css-module-explainer/no-unknown-dynamic-class`
 - `css-module-explainer/source-check`
@@ -22,6 +24,8 @@ export default [
     },
     rules: {
       "css-module-explainer/missing-module": "error",
+      "css-module-explainer/missing-static-class": "error",
+      "css-module-explainer/missing-template-prefix": "error",
       "css-module-explainer/invalid-class-reference": "error",
     },
   },
