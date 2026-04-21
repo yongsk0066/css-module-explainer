@@ -70,6 +70,7 @@ Before a release:
 pnpm install
 pnpm release:verify
 pnpm test:extension-host
+pnpm check:rust-lane-bundle
 pnpm check:rust-release-bundle
 pnpm check:semantic-smoke
 pnpm check:release-batch
@@ -102,6 +103,13 @@ contracts can still be assembled across the parity corpus.
 `pnpm check:contract-parity-v2-golden` verifies the normalized
 `EngineInputV2` / `EngineOutputV2` golden fixtures under
 `test/_fixtures/contract-parity-v2/`.
+
+`pnpm check:rust-lane-bundle` is the broader Rust lane gate. It combines the
+current semantic producer boundary checks with the parser/public-product lane.
+
+`pnpm check:rust-release-bundle` is the release-facing Rust gate. It runs the
+workspace hygiene pass, `pnpm check:rust-lane-bundle`, and the current
+`rust-gate-evidence` measurement step.
 
 `V2` is the canonical live contract surface for release validation. Historical
 `V1` parity commands remain available only to validate the frozen compatibility

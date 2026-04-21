@@ -258,6 +258,7 @@ Current checker policy:
   - consolidated source-side lane: `pnpm check:rust-source-side-canonical-candidate`, `pnpm check:rust-source-side-evaluator-candidates`, `pnpm check:rust-source-side-canonical-producer`
   - consolidated semantic lane: `pnpm check:rust-semantic-canonical-candidate`, `pnpm check:rust-semantic-evaluator-candidates`, `pnpm check:rust-semantic-canonical-producer`
   - aggregated producer-boundary checks: `pnpm check:rust-source-side-lane`, `pnpm check:rust-semantic-lane`, `pnpm check:rust-producer-boundary`
+  - broader Rust lane bundle: `pnpm check:rust-lane-bundle`
   - release-facing Rust bundle: `pnpm check:rust-release-bundle`
   - full snapshot parity: `pnpm check:rust-shadow-compare`
 - Current `3.9.0` framing is a consolidated semantic lane:
