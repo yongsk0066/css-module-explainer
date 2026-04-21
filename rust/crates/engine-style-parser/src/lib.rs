@@ -242,6 +242,7 @@ pub struct ParserCanonicalProducerSignalV0 {
 #[serde(rename_all = "camelCase")]
 pub struct ParserPublicProductGateSignalV0 {
     pub canonical_candidate_command: &'static str,
+    pub consumer_boundary_command: &'static str,
     pub public_product_gate_command: &'static str,
     pub included_in_parser_lane: bool,
     pub included_in_rust_lane_bundle: bool,
@@ -968,6 +969,7 @@ pub fn summarize_parser_canonical_producer_signal(
         evaluator_candidates,
         public_product_gate: ParserPublicProductGateSignalV0 {
             canonical_candidate_command: "pnpm check:rust-parser-canonical-candidate",
+            consumer_boundary_command: "pnpm check:rust-parser-consumer-boundary",
             public_product_gate_command: "pnpm check:rust-parser-public-product",
             included_in_parser_lane: true,
             included_in_rust_lane_bundle: true,

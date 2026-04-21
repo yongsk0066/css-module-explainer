@@ -36,6 +36,7 @@ interface ParserCanonicalProducerSignalV0 {
   readonly evaluatorCandidates: ParserEvaluatorCandidatesV0;
   readonly publicProductGate: {
     readonly canonicalCandidateCommand: "pnpm check:rust-parser-canonical-candidate";
+    readonly consumerBoundaryCommand: "pnpm check:rust-parser-consumer-boundary";
     readonly publicProductGateCommand: "pnpm check:rust-parser-public-product";
     readonly includedInParserLane: true;
     readonly includedInRustLaneBundle: true;
@@ -144,6 +145,7 @@ void (async () => {
       evaluatorCandidates,
       publicProductGate: {
         canonicalCandidateCommand: "pnpm check:rust-parser-canonical-candidate",
+        consumerBoundaryCommand: "pnpm check:rust-parser-consumer-boundary",
         publicProductGateCommand: "pnpm check:rust-parser-public-product",
         includedInParserLane: true,
         includedInRustLaneBundle: true,

@@ -25,6 +25,7 @@ Primary check:
 - `pnpm check:rust-parser-canonical-candidate`
 - `pnpm check:rust-parser-evaluator-candidates`
 - `pnpm check:rust-parser-canonical-producer`
+- `pnpm check:rust-parser-consumer-boundary`
 - `pnpm check:rust-parser-lane`
 - `pnpm check:rust-parser-public-product`
 
