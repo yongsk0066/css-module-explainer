@@ -189,6 +189,7 @@ pnpm check
 pnpm check:semantic-smoke
 pnpm check:lsp-server-smoke
 pnpm check:rust-gate-evidence
+pnpm check:plugin-consumer-example
 pnpm check:plugin-consumers
 pnpm check:eslint-plugin-smoke
 pnpm check:stylelint-plugin-smoke
@@ -229,6 +230,7 @@ Current checker policy:
 - `changed-style` and `changed-source` presets use compact text output by default
 - `pnpm check:semantic-smoke` is the canonical repo-local smoke command
 - `pnpm check:lsp-server-smoke` spawns the built `lsp-server` over stdio and verifies hover/definition through a generic protocol client
+- `pnpm check:plugin-consumer-example` runs the clean repo-local lint-consumer example workspace under both ESLint and Stylelint
 - `pnpm check:plugin-consumers` runs the current ESLint and Stylelint consumer smokes together
 - `pnpm check:eslint-plugin-smoke` runs the ESLint consumer against JSX fixtures and asserts that source-side semantic findings are reported as ESLint diagnostics
   - current config split: aggregate `recommended`, granular `focused`, optional `dynamicMoat`
@@ -352,6 +354,10 @@ Optional dynamic moat:
 export default [...cssModuleExplainer.configs.dynamicMoat];
 ```
 
+Repo-local clean example:
+
+- [examples/plugin-consumers](./examples/plugin-consumers/README.md)
+
 Supported rule options today:
 
 - `workspaceRoot`
@@ -374,6 +380,7 @@ Current scope:
   - `missing-keyframes`
 
 See [packages/stylelint-plugin/README.md](./packages/stylelint-plugin/README.md) for usage.
+See [examples/plugin-consumers](./examples/plugin-consumers/README.md) for a clean repo-local consumer workspace.
 
 ### External clients
 

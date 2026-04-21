@@ -72,6 +72,7 @@ Before a release:
 ```bash
 pnpm install
 pnpm release:verify
+pnpm check:plugin-consumer-example
 pnpm check:plugin-consumers
 pnpm test:extension-host
 pnpm check:rust-parser-public-product
@@ -90,14 +91,19 @@ pnpm exec vsce package --no-dependencies
 
 1. sync `SERVER_VERSION`
 2. run `pnpm check`
-3. run `pnpm check:plugin-consumers`
-4. run `pnpm check:rust-release-bundle`
-5. run `pnpm test`
-6. run `pnpm build`
+3. run `pnpm check:plugin-consumer-example`
+4. run `pnpm check:plugin-consumers`
+5. run `pnpm check:rust-release-bundle`
+6. run `pnpm test`
+7. run `pnpm build`
 
 `pnpm check:semantic-smoke` is the canonical semantic smoke pass. It is not the
 release gate yet. It gives one repeatable workspace/checker sanity check before
 packaging.
+
+`pnpm check:plugin-consumer-example` verifies the clean repo-local example
+workspace under both lint consumers. It is the closest release-facing check for
+copy-paste setup viability.
 
 `pnpm check:plugin-consumers` is the current plugin-facing consumer batch gate.
 It runs the ESLint and Stylelint smoke consumers together, so user-facing

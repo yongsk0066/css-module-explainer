@@ -1,0 +1,21 @@
+@value brand: #2563eb;
+
+@keyframes pulse {
+  from {
+    opacity: 0.8;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.button {
+  color: brand;
+  animation-name: pulse;
+}
+
+.active {
+  composes: button;
+  font-weight: 600;
+}
