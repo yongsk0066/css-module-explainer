@@ -107,7 +107,9 @@ contracts can still be assembled across the parity corpus.
 `test/_fixtures/contract-parity-v2/`.
 
 `pnpm check:rust-parser-public-product` is the canonical parser/public-product
-gate. It currently aliases `pnpm check:rust-parser-lane`.
+gate. It currently aliases `pnpm check:rust-parser-lane`, which includes the
+parser canonical-candidate and parser canonical-producer checks in addition to
+the scaffold/parity/intermediate checks.
 
 `pnpm check:rust-lane-bundle` is the broader Rust lane gate. It combines the
 current semantic producer boundary checks with `pnpm check:rust-parser-public-product`.

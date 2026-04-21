@@ -189,6 +189,34 @@ pub struct ParserIndexSummaryV0 {
     pub wrappers: ParserIndexWrapperFactsV0,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParserCanonicalCandidateBundleV0 {
+    pub schema_version: &'static str,
+    pub language: &'static str,
+    pub parity_lite: ParserParityLiteSummaryV0,
+    pub css_modules_intermediate: ParserIndexSummaryV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParserCanonicalProducerSignalV0 {
+    pub schema_version: &'static str,
+    pub language: &'static str,
+    pub canonical_candidate: ParserCanonicalCandidateBundleV0,
+    pub public_product_gate: ParserPublicProductGateSignalV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParserPublicProductGateSignalV0 {
+    pub canonical_candidate_command: &'static str,
+    pub public_product_gate_command: &'static str,
+    pub included_in_parser_lane: bool,
+    pub included_in_rust_lane_bundle: bool,
+    pub included_in_rust_release_bundle: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ParserIndexSelectorFactsV0 {
@@ -740,6 +768,39 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
             selectors_under_media_names: acc.selectors_under_media_names,
             selectors_under_supports_names: acc.selectors_under_supports_names,
             selectors_under_layer_names: acc.selectors_under_layer_names,
+        },
+    }
+}
+
+pub fn summarize_parser_canonical_candidate(
+    sheet: &Stylesheet,
+) -> ParserCanonicalCandidateBundleV0 {
+    let parity_lite = summarize_parity_lite(sheet);
+    let css_modules_intermediate = summarize_css_modules_intermediate(sheet);
+
+    ParserCanonicalCandidateBundleV0 {
+        schema_version: "0",
+        language: parity_lite.language,
+        parity_lite,
+        css_modules_intermediate,
+    }
+}
+
+pub fn summarize_parser_canonical_producer_signal(
+    sheet: &Stylesheet,
+) -> ParserCanonicalProducerSignalV0 {
+    let canonical_candidate = summarize_parser_canonical_candidate(sheet);
+
+    ParserCanonicalProducerSignalV0 {
+        schema_version: "0",
+        language: canonical_candidate.language,
+        canonical_candidate,
+        public_product_gate: ParserPublicProductGateSignalV0 {
+            canonical_candidate_command: "pnpm check:rust-parser-canonical-candidate",
+            public_product_gate_command: "pnpm check:rust-parser-public-product",
+            included_in_parser_lane: true,
+            included_in_rust_lane_bundle: true,
+            included_in_rust_release_bundle: true,
         },
     }
 }

@@ -9,12 +9,11 @@ Current scope:
 - shallow stylesheet parsing into rule / at-rule / declaration / comment nodes
   with structured prelude / header / value payloads
 - parser diagnostics for unterminated comments, strings, and blocks
-- indexing-fact producer binaries for bounded Rust-vs-TS bridge checks
+- bounded Rust-vs-TS parity and CSS Modules intermediate producer binaries
+- parser canonical-candidate / canonical-producer artifacts over those bounded outputs
 
 Non-goals in this first scaffold:
 
-- no selector semantics
-- no CSS Modules indexing
 - no TS/runtime integration yet
 - no public package commitment
 
@@ -23,6 +22,8 @@ Primary check:
 - `cargo test --manifest-path rust/Cargo.toml -p engine-style-parser`
 - `pnpm check:rust-parser-css-modules-intermediate`
 - `pnpm check:rust-parser-index-producer`
+- `pnpm check:rust-parser-canonical-candidate`
+- `pnpm check:rust-parser-canonical-producer`
 - `pnpm check:rust-parser-lane`
 - `pnpm check:rust-parser-public-product`
 

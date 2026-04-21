@@ -244,7 +244,9 @@ Current checker policy:
 - `pnpm check:rust-parser-parity-lite` compares the Rust parser scaffold against the current TS style parser on a bounded shared fixture set
 - `pnpm check:rust-parser-css-modules-intermediate` compares the Rust parser CSS Modules intermediate facts against the current TS style HIR on a bounded shared fixture set
 - `pnpm check:rust-parser-index-producer` remains as a compatibility alias for the same intermediate producer check
-- `pnpm check:rust-parser-lane` runs the current parser lane bundle: scaffold tests, parity-lite, and CSS Modules intermediate producer
+- `pnpm check:rust-parser-canonical-candidate` validates the versioned parser canonical-candidate bundle over the current parity-lite + CSS Modules intermediate artifacts
+- `pnpm check:rust-parser-canonical-producer` validates the parser canonical-producer signal over that canonical-candidate bundle and current gate placement
+- `pnpm check:rust-parser-lane` runs the current parser lane bundle: scaffold tests, parity-lite, CSS Modules intermediate producer, parser canonical-candidate, and parser canonical-producer
 - `pnpm check:rust-parser-public-product` is the canonical parser/public-product gate and currently aliases the parser lane bundle
 - Rust shadow validation now covers:
   - input summaries: `pnpm check:rust-type-fact-compare`, `pnpm check:rust-query-plan-compare`, `pnpm check:rust-expression-domain-compare`
@@ -259,6 +261,7 @@ Current checker policy:
   - consolidated source-side lane: `pnpm check:rust-source-side-canonical-candidate`, `pnpm check:rust-source-side-evaluator-candidates`, `pnpm check:rust-source-side-canonical-producer`
   - consolidated semantic lane: `pnpm check:rust-semantic-canonical-candidate`, `pnpm check:rust-semantic-evaluator-candidates`, `pnpm check:rust-semantic-canonical-producer`
   - aggregated producer-boundary checks: `pnpm check:rust-source-side-lane`, `pnpm check:rust-semantic-lane`, `pnpm check:rust-producer-boundary`
+  - parser canonical boundary: `pnpm check:rust-parser-canonical-candidate`, `pnpm check:rust-parser-canonical-producer`
   - parser/public-product gate: `pnpm check:rust-parser-public-product`
   - broader Rust lane bundle: `pnpm check:rust-lane-bundle`
   - release-facing Rust bundle: `pnpm check:rust-release-bundle`
@@ -267,7 +270,7 @@ Current checker policy:
   - `expression-semantics` and `source-resolution` still carry family-level canonical-producer signals and a shared top-level source-side lane
   - `expression-domain` carries input-only canonical artifacts plus type-fact-backed evaluator-candidate coverage on the Rust shadow path
   - a top-level `semantic` lane now consolidates `source-side + expression-domain` into one canonical-candidate / evaluator-candidate / canonical-producer path
-  - `engine-style-parser` now has a canonical parser/public-product gate and a bounded CSS Modules intermediate producer surface
+  - `engine-style-parser` now has a canonical parser/public-product gate, a parser canonical-candidate bundle, a parser canonical-producer signal, and a bounded CSS Modules intermediate producer surface
   - `selector-usage` remains a shadow validation family, not a release-gating canonical candidate
   - current `EngineInputV2` does not preserve enough reference-level evidence to reproduce `selector-usage` semantics as an input-only canonical producer
   - the current internal Rust producer boundary is [`rust/crates/engine-input-producers`](./rust/crates/engine-input-producers/README.md)
