@@ -368,6 +368,9 @@ Current scope:
   - `unused-selector`
   - `missing-composed-module`
   - `missing-composed-selector`
+  - `missing-value-module`
+  - `missing-imported-value`
+  - `missing-keyframes`
 
 See [packages/stylelint-plugin/README.md](./packages/stylelint-plugin/README.md) for usage.
 

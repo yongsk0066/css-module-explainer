@@ -1,0 +1,5 @@
+@value primary from "./MissingTokens.module.css";
+
+.button {
+  color: primary;
+}

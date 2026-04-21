@@ -7,6 +7,9 @@ const STYLE_FILE_PATHS = [
   path.join(WORKSPACE_ROOT, "src/App.module.css"),
   path.join(WORKSPACE_ROOT, "src/ComposesMissingModule.module.css"),
   path.join(WORKSPACE_ROOT, "src/ComposesMissingSelector.module.css"),
+  path.join(WORKSPACE_ROOT, "src/ValueMissingModule.module.css"),
+  path.join(WORKSPACE_ROOT, "src/ValueMissingImported.module.css"),
+  path.join(WORKSPACE_ROOT, "src/KeyframesMissing.module.css"),
 ];
 const PLUGIN_NAME = "stylelint-plugin-css-module-explainer";
 
@@ -35,6 +38,24 @@ async function main() {
             workspaceRoot: WORKSPACE_ROOT,
           },
         ],
+        "css-module-explainer/missing-value-module": [
+          true,
+          {
+            workspaceRoot: WORKSPACE_ROOT,
+          },
+        ],
+        "css-module-explainer/missing-imported-value": [
+          true,
+          {
+            workspaceRoot: WORKSPACE_ROOT,
+          },
+        ],
+        "css-module-explainer/missing-keyframes": [
+          true,
+          {
+            workspaceRoot: WORKSPACE_ROOT,
+          },
+        ],
       },
     },
   });
@@ -57,6 +78,18 @@ async function main() {
   assertSingleWarning(
     warningsByFile.get("ComposesMissingSelector.module.css"),
     "Selector '.base' not found in composed module './Base.module.css'.",
+  );
+  assertSingleWarning(
+    warningsByFile.get("ValueMissingModule.module.css"),
+    "Cannot resolve imported @value module './MissingTokens.module.css'.",
+  );
+  assertSingleWarning(
+    warningsByFile.get("ValueMissingImported.module.css"),
+    "@value 'primary' not found in './Tokens.module.css'.",
+  );
+  assertSingleWarning(
+    warningsByFile.get("KeyframesMissing.module.css"),
+    "@keyframes 'fade' not found in this file.",
   );
 }
 
