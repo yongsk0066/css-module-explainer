@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { runCheckerCli } from "../../../server/checker-cli/src";
 
 const tempDirs: string[] = [];
+const STYLELINT_SMOKE_ROOT = path.join(process.cwd(), "test/_fixtures/stylelint-plugin-smoke");
 
 afterEach(() => {
   for (const dir of tempDirs.splice(0)) {
@@ -429,6 +430,90 @@ describe("runCheckerCli", () => {
     expect(output).toContain("source-missing:");
     expect(output).toContain("style-recovery:");
     expect(output).toContain("style-unused:");
+  });
+
+  it("emits rust style-recovery producer and consistency in json output", async () => {
+    const stdout: string[] = [];
+
+    const exitCode = await runCheckerCli(
+      [
+        STYLELINT_SMOKE_ROOT,
+        "--style-file",
+        "src/ValueMissingModule.module.css",
+        "--preset",
+        "changed-style",
+        "--include-bundle",
+        "style-recovery",
+        "--format",
+        "json",
+        "--fail-on",
+        "none",
+        "--rust-style-recovery-consumer",
+      ],
+      {
+        stdout: (message) => stdout.push(message),
+        stderr: () => {},
+        cwd: () => STYLELINT_SMOKE_ROOT,
+      },
+    );
+
+    expect(exitCode).toBe(0);
+    const payload = JSON.parse(stdout.join(""));
+    expect(payload.rustStyleRecoveryCanonicalProducer).toMatchObject({
+      canonicalCandidate: {
+        bundle: "style-recovery",
+        summary: { total: 1 },
+        findings: [
+          expect.objectContaining({
+            code: "missing-value-module",
+          }),
+        ],
+      },
+      boundedCheckerGate: {
+        checkerBundle: "style-recovery",
+        includedInRustReleaseBundle: false,
+      },
+    });
+    expect(payload.rustStyleRecoveryConsistency).toEqual({
+      schemaVersion: "0",
+      bundle: "style-recovery",
+      tsFindingCount: 1,
+      rustFindingCount: 1,
+      countsMatch: true,
+      findingsMatch: true,
+      mismatchedCodes: [],
+    });
+  });
+
+  it("prints rust style-recovery consistency summary in text output", async () => {
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+
+    const exitCode = await runCheckerCli(
+      [
+        STYLELINT_SMOKE_ROOT,
+        "--style-file",
+        "src/KeyframesMissing.module.css",
+        "--preset",
+        "changed-style",
+        "--include-bundle",
+        "style-recovery",
+        "--fail-on",
+        "none",
+        "--rust-style-recovery-consumer",
+      ],
+      {
+        stdout: (message) => stdout.push(message),
+        stderr: (message) => stderr.push(message),
+        cwd: () => STYLELINT_SMOKE_ROOT,
+      },
+    );
+
+    expect(exitCode).toBe(0);
+    expect(stderr).toEqual([]);
+    expect(stdout.join("")).toContain(
+      "Rust style-recovery consumer: findings=1 consistent=true releaseGate=false",
+    );
   });
 });
 
