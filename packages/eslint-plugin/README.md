@@ -7,6 +7,8 @@ Current rules:
 - `css-module-explainer/missing-module`
 - `css-module-explainer/missing-static-class`
 - `css-module-explainer/missing-template-prefix`
+- `css-module-explainer/missing-resolved-class-values`
+- `css-module-explainer/missing-resolved-class-domain`
 - `css-module-explainer/invalid-class-reference`
 - `css-module-explainer/no-unknown-dynamic-class`
 - `css-module-explainer/source-check`
@@ -59,3 +61,10 @@ Optional moat rule:
 
 This rule targets dynamic class expressions whose resolved values or domains do
 not map to any known selector in the referenced CSS Module.
+
+Focused dynamic variants:
+
+```js
+"css-module-explainer/missing-resolved-class-values": "error"
+"css-module-explainer/missing-resolved-class-domain": "error"
+```

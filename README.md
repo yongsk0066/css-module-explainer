@@ -321,12 +321,14 @@ The first ESLint consumer lives at `packages/eslint-plugin`.
 Current scope:
 
 - source-side rules only
-  - `missing-module`
-  - `missing-static-class`
-  - `missing-template-prefix`
-  - `invalid-class-reference`
-  - `no-unknown-dynamic-class`
-  - aggregate `source-check`
+- `missing-module`
+- `missing-static-class`
+- `missing-template-prefix`
+- `missing-resolved-class-values`
+- `missing-resolved-class-domain`
+- `invalid-class-reference`
+- `no-unknown-dynamic-class`
+- aggregate `source-check`
 
 Flat config example:
 

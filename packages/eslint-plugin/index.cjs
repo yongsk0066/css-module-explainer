@@ -2,6 +2,8 @@ const sourceCheckRule = require("./lib/source-check.cjs");
 const missingModuleRule = require("./lib/missing-module.cjs");
 const missingStaticClassRule = require("./lib/missing-static-class.cjs");
 const missingTemplatePrefixRule = require("./lib/missing-template-prefix.cjs");
+const missingResolvedClassValuesRule = require("./lib/missing-resolved-class-values.cjs");
+const missingResolvedClassDomainRule = require("./lib/missing-resolved-class-domain.cjs");
 const invalidClassReferenceRule = require("./lib/invalid-class-reference.cjs");
 const noUnknownDynamicClassRule = require("./lib/no-unknown-dynamic-class.cjs");
 
@@ -14,6 +16,8 @@ const plugin = {
     "missing-module": missingModuleRule,
     "missing-static-class": missingStaticClassRule,
     "missing-template-prefix": missingTemplatePrefixRule,
+    "missing-resolved-class-values": missingResolvedClassValuesRule,
+    "missing-resolved-class-domain": missingResolvedClassDomainRule,
     "invalid-class-reference": invalidClassReferenceRule,
     "no-unknown-dynamic-class": noUnknownDynamicClassRule,
     "source-check": sourceCheckRule,
