@@ -8,40 +8,50 @@ import safeParser from "postcss-safe-parser";
 interface ParserIndexSummaryV0 {
   readonly schemaVersion: "0";
   readonly language: "css" | "scss" | "less";
-  readonly selectorNames: readonly string[];
-  readonly bemSuffixParentNames: readonly string[];
-  readonly bemSuffixSafeSelectorNames: readonly string[];
-  readonly selectorsWithComposesNames: readonly string[];
-  readonly localComposesSelectorNames: readonly string[];
-  readonly importedComposesSelectorNames: readonly string[];
-  readonly globalComposesSelectorNames: readonly string[];
-  readonly composesImportSources: readonly string[];
-  readonly keyframesNames: readonly string[];
-  readonly nestedUnsafeSelectorNames: readonly string[];
-  readonly valueDeclNames: readonly string[];
-  readonly valueImportNames: readonly string[];
-  readonly valueImportSources: readonly string[];
-  readonly valueRefNames: readonly string[];
-  readonly declarationValueRefNames: readonly string[];
-  readonly valueDeclRefNames: readonly string[];
-  readonly selectorsWithValueRefsNames: readonly string[];
-  readonly selectorsWithAnimationRefNames: readonly string[];
-  readonly selectorsWithAnimationNameRefNames: readonly string[];
-  readonly selectorsUnderMediaNames: readonly string[];
-  readonly selectorsUnderSupportsNames: readonly string[];
-  readonly selectorsUnderLayerNames: readonly string[];
-  readonly animationRefNames: readonly string[];
-  readonly animationNameRefNames: readonly string[];
-  readonly valueImportAliasCount: number;
-  readonly composesClassNameCount: number;
-  readonly localComposesClassNameCount: number;
-  readonly importedComposesClassNameCount: number;
-  readonly globalComposesClassNameCount: number;
-  readonly bemSuffixCount: number;
-  readonly nestedSafetyCounts: {
-    readonly flat: number;
-    readonly bemSuffixSafe: number;
-    readonly nestedUnsafe: number;
+  readonly selectors: {
+    readonly names: readonly string[];
+    readonly bemSuffixParentNames: readonly string[];
+    readonly bemSuffixSafeNames: readonly string[];
+    readonly nestedUnsafeNames: readonly string[];
+    readonly selectorsWithValueRefsNames: readonly string[];
+    readonly selectorsWithAnimationRefNames: readonly string[];
+    readonly selectorsWithAnimationNameRefNames: readonly string[];
+    readonly bemSuffixCount: number;
+    readonly nestedSafetyCounts: {
+      readonly flat: number;
+      readonly bemSuffixSafe: number;
+      readonly nestedUnsafe: number;
+    };
+  };
+  readonly values: {
+    readonly declNames: readonly string[];
+    readonly importNames: readonly string[];
+    readonly importSources: readonly string[];
+    readonly importAliasCount: number;
+    readonly refNames: readonly string[];
+    readonly declarationRefNames: readonly string[];
+    readonly valueDeclRefNames: readonly string[];
+  };
+  readonly keyframes: {
+    readonly names: readonly string[];
+    readonly animationRefNames: readonly string[];
+    readonly animationNameRefNames: readonly string[];
+  };
+  readonly composes: {
+    readonly selectorsWithComposesNames: readonly string[];
+    readonly localSelectorNames: readonly string[];
+    readonly importedSelectorNames: readonly string[];
+    readonly globalSelectorNames: readonly string[];
+    readonly importSources: readonly string[];
+    readonly classNameCount: number;
+    readonly localClassNameCount: number;
+    readonly importedClassNameCount: number;
+    readonly globalClassNameCount: number;
+  };
+  readonly wrappers: {
+    readonly selectorsUnderMediaNames: readonly string[];
+    readonly selectorsUnderSupportsNames: readonly string[];
+    readonly selectorsUnderLayerNames: readonly string[];
   };
 }
 
@@ -281,106 +291,113 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
       : filePath.endsWith(".module.scss")
         ? "scss"
         : "css",
-    selectorNames: [...document.selectors].map((selector) => selector.name).toSorted(),
-    bemSuffixParentNames: document.selectors
-      .map((selector) => selector.bemSuffix?.parentResolvedName)
-      .filter((name): name is string => name !== undefined)
-      .toSorted(),
-    bemSuffixSafeSelectorNames: document.selectors
-      .filter((selector) => selector.nestedSafety === "bemSuffixSafe")
-      .map((selector) => selector.name)
-      .toSorted(),
-    selectorsWithComposesNames: selectorsWithComposes.map((selector) => selector.name).toSorted(),
-    localComposesSelectorNames: localComposesSelectors.map((selector) => selector.name).toSorted(),
-    importedComposesSelectorNames: importedComposesSelectors
-      .map((selector) => selector.name)
-      .toSorted(),
-    globalComposesSelectorNames: globalComposesSelectors
-      .map((selector) => selector.name)
-      .toSorted(),
-    composesImportSources: selectorsWithComposes
-      .flatMap((selector) =>
-        selector.composes
-          .map((ref) => ref.from)
-          .filter((from): from is string => from !== undefined),
-      )
-      .toSorted(),
-    keyframesNames: [...document.keyframes].map((entry) => entry.name).toSorted(),
-    nestedUnsafeSelectorNames: document.selectors
-      .filter((selector) => selector.nestedSafety === "nestedUnsafe")
-      .map((selector) => selector.name)
-      .toSorted(),
-    valueDeclNames: [...document.valueDecls].map((entry) => entry.name).toSorted(),
-    valueImportNames: [...document.valueImports].map((entry) => entry.name).toSorted(),
-    valueImportSources: [...document.valueImports].map((entry) => entry.from).toSorted(),
-    valueRefNames: [...document.valueRefs].map((entry) => entry.name).toSorted(),
-    declarationValueRefNames: document.valueRefs
-      .filter((entry) => entry.source === "declaration")
-      .map((entry) => entry.name)
-      .toSorted(),
-    valueDeclRefNames: document.valueRefs
-      .filter((entry) => entry.source === "valueDecl")
-      .map((entry) => entry.name)
-      .toSorted(),
-    selectorsWithValueRefsNames: selectorsWithValueRefs.map((selector) => selector.name).toSorted(),
-    selectorsWithAnimationRefNames: selectorsWithAnimationRefs
-      .map((selector) => selector.name)
-      .toSorted(),
-    selectorsWithAnimationNameRefNames: selectorsWithAnimationNameRefs
-      .map((selector) => selector.name)
-      .toSorted(),
-    selectorsUnderMediaNames: wrapperSelectorNames.media,
-    selectorsUnderSupportsNames: wrapperSelectorNames.supports,
-    selectorsUnderLayerNames: wrapperSelectorNames.layer,
-    animationRefNames: document.animationNameRefs
-      .filter((entry) => entry.property === "animation")
-      .map((entry) => entry.name)
-      .toSorted(),
-    animationNameRefNames: document.animationNameRefs
-      .filter((entry) => entry.property === "animation-name")
-      .map((entry) => entry.name)
-      .toSorted(),
-    valueImportAliasCount: document.valueImports.filter(
-      (entry) => entry.importedName !== entry.name,
-    ).length,
-    composesClassNameCount: document.selectors.reduce(
-      (sum, selector) =>
-        sum + selector.composes.reduce((inner, ref) => inner + ref.classNames.length, 0),
-      0,
-    ),
-    localComposesClassNameCount: document.selectors.reduce(
-      (sum, selector) =>
-        sum +
-        selector.composes
-          .filter((ref) => ref.from === undefined && ref.fromGlobal !== true)
-          .reduce((inner, ref) => inner + ref.classNames.length, 0),
-      0,
-    ),
-    importedComposesClassNameCount: document.selectors.reduce(
-      (sum, selector) =>
-        sum +
-        selector.composes
-          .filter((ref) => ref.from !== undefined)
-          .reduce((inner, ref) => inner + ref.classNames.length, 0),
-      0,
-    ),
-    globalComposesClassNameCount: document.selectors.reduce(
-      (sum, selector) =>
-        sum +
-        selector.composes
-          .filter((ref) => ref.fromGlobal === true)
-          .reduce((inner, ref) => inner + ref.classNames.length, 0),
-      0,
-    ),
-    bemSuffixCount: document.selectors.filter((selector) => selector.bemSuffix).length,
-    nestedSafetyCounts: {
-      flat: document.selectors.filter((selector) => selector.nestedSafety === "flat").length,
-      bemSuffixSafe: document.selectors.filter(
-        (selector) => selector.nestedSafety === "bemSuffixSafe",
-      ).length,
-      nestedUnsafe: document.selectors.filter(
-        (selector) => selector.nestedSafety === "nestedUnsafe",
-      ).length,
+    selectors: {
+      names: [...document.selectors].map((selector) => selector.name).toSorted(),
+      bemSuffixParentNames: document.selectors
+        .map((selector) => selector.bemSuffix?.parentResolvedName)
+        .filter((name): name is string => name !== undefined)
+        .toSorted(),
+      bemSuffixSafeNames: document.selectors
+        .filter((selector) => selector.nestedSafety === "bemSuffixSafe")
+        .map((selector) => selector.name)
+        .toSorted(),
+      nestedUnsafeNames: document.selectors
+        .filter((selector) => selector.nestedSafety === "nestedUnsafe")
+        .map((selector) => selector.name)
+        .toSorted(),
+      selectorsWithValueRefsNames: selectorsWithValueRefs
+        .map((selector) => selector.name)
+        .toSorted(),
+      selectorsWithAnimationRefNames: selectorsWithAnimationRefs
+        .map((selector) => selector.name)
+        .toSorted(),
+      selectorsWithAnimationNameRefNames: selectorsWithAnimationNameRefs
+        .map((selector) => selector.name)
+        .toSorted(),
+      bemSuffixCount: document.selectors.filter((selector) => selector.bemSuffix).length,
+      nestedSafetyCounts: {
+        flat: document.selectors.filter((selector) => selector.nestedSafety === "flat").length,
+        bemSuffixSafe: document.selectors.filter(
+          (selector) => selector.nestedSafety === "bemSuffixSafe",
+        ).length,
+        nestedUnsafe: document.selectors.filter(
+          (selector) => selector.nestedSafety === "nestedUnsafe",
+        ).length,
+      },
+    },
+    values: {
+      declNames: [...document.valueDecls].map((entry) => entry.name).toSorted(),
+      importNames: [...document.valueImports].map((entry) => entry.name).toSorted(),
+      importSources: [...document.valueImports].map((entry) => entry.from).toSorted(),
+      importAliasCount: document.valueImports.filter((entry) => entry.importedName !== entry.name)
+        .length,
+      refNames: [...document.valueRefs].map((entry) => entry.name).toSorted(),
+      declarationRefNames: document.valueRefs
+        .filter((entry) => entry.source === "declaration")
+        .map((entry) => entry.name)
+        .toSorted(),
+      valueDeclRefNames: document.valueRefs
+        .filter((entry) => entry.source === "valueDecl")
+        .map((entry) => entry.name)
+        .toSorted(),
+    },
+    keyframes: {
+      names: [...document.keyframes].map((entry) => entry.name).toSorted(),
+      animationRefNames: document.animationNameRefs
+        .filter((entry) => entry.property === "animation")
+        .map((entry) => entry.name)
+        .toSorted(),
+      animationNameRefNames: document.animationNameRefs
+        .filter((entry) => entry.property === "animation-name")
+        .map((entry) => entry.name)
+        .toSorted(),
+    },
+    composes: {
+      selectorsWithComposesNames: selectorsWithComposes.map((selector) => selector.name).toSorted(),
+      localSelectorNames: localComposesSelectors.map((selector) => selector.name).toSorted(),
+      importedSelectorNames: importedComposesSelectors.map((selector) => selector.name).toSorted(),
+      globalSelectorNames: globalComposesSelectors.map((selector) => selector.name).toSorted(),
+      importSources: selectorsWithComposes
+        .flatMap((selector) =>
+          selector.composes
+            .map((ref) => ref.from)
+            .filter((from): from is string => from !== undefined),
+        )
+        .toSorted(),
+      classNameCount: document.selectors.reduce(
+        (sum, selector) =>
+          sum + selector.composes.reduce((inner, ref) => inner + ref.classNames.length, 0),
+        0,
+      ),
+      localClassNameCount: document.selectors.reduce(
+        (sum, selector) =>
+          sum +
+          selector.composes
+            .filter((ref) => ref.from === undefined && ref.fromGlobal !== true)
+            .reduce((inner, ref) => inner + ref.classNames.length, 0),
+        0,
+      ),
+      importedClassNameCount: document.selectors.reduce(
+        (sum, selector) =>
+          sum +
+          selector.composes
+            .filter((ref) => ref.from !== undefined)
+            .reduce((inner, ref) => inner + ref.classNames.length, 0),
+        0,
+      ),
+      globalClassNameCount: document.selectors.reduce(
+        (sum, selector) =>
+          sum +
+          selector.composes
+            .filter((ref) => ref.fromGlobal === true)
+            .reduce((inner, ref) => inner + ref.classNames.length, 0),
+        0,
+      ),
+    },
+    wrappers: {
+      selectorsUnderMediaNames: wrapperSelectorNames.media,
+      selectorsUnderSupportsNames: wrapperSelectorNames.supports,
+      selectorsUnderLayerNames: wrapperSelectorNames.layer,
     },
   };
 }
@@ -446,7 +463,7 @@ void (async () => {
     );
 
     process.stdout.write(
-      `matched index summary: selectors=${actual.selectorNames.length} valueImports=${actual.valueImportNames.length} valueRefs=${actual.valueRefNames.length} composes=${actual.composesClassNameCount}\n\n`,
+      `matched index summary: selectors=${actual.selectors.names.length} valueImports=${actual.values.importNames.length} valueRefs=${actual.values.refNames.length} composes=${actual.composes.classNameCount}\n\n`,
     );
   }
 })().catch((error: unknown) => {

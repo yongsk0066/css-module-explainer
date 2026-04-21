@@ -182,37 +182,67 @@ pub struct ParserParityLiteSummaryV0 {
 pub struct ParserIndexSummaryV0 {
     pub schema_version: &'static str,
     pub language: &'static str,
-    pub selector_names: Vec<String>,
+    pub selectors: ParserIndexSelectorFactsV0,
+    pub values: ParserIndexValueFactsV0,
+    pub keyframes: ParserIndexKeyframesFactsV0,
+    pub composes: ParserIndexComposesFactsV0,
+    pub wrappers: ParserIndexWrapperFactsV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ParserIndexSelectorFactsV0 {
+    pub names: Vec<String>,
     pub bem_suffix_parent_names: Vec<String>,
-    pub bem_suffix_safe_selector_names: Vec<String>,
-    pub selectors_with_composes_names: Vec<String>,
-    pub local_composes_selector_names: Vec<String>,
-    pub imported_composes_selector_names: Vec<String>,
-    pub global_composes_selector_names: Vec<String>,
-    pub composes_import_sources: Vec<String>,
-    pub keyframes_names: Vec<String>,
-    pub nested_unsafe_selector_names: Vec<String>,
-    pub value_decl_names: Vec<String>,
-    pub value_import_names: Vec<String>,
-    pub value_import_sources: Vec<String>,
-    pub value_ref_names: Vec<String>,
-    pub declaration_value_ref_names: Vec<String>,
-    pub value_decl_ref_names: Vec<String>,
+    pub bem_suffix_safe_names: Vec<String>,
+    pub nested_unsafe_names: Vec<String>,
     pub selectors_with_value_refs_names: Vec<String>,
     pub selectors_with_animation_ref_names: Vec<String>,
     pub selectors_with_animation_name_ref_names: Vec<String>,
+    pub bem_suffix_count: usize,
+    pub nested_safety_counts: NestedSafetyCountsV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ParserIndexValueFactsV0 {
+    pub decl_names: Vec<String>,
+    pub import_names: Vec<String>,
+    pub import_sources: Vec<String>,
+    pub import_alias_count: usize,
+    pub ref_names: Vec<String>,
+    pub declaration_ref_names: Vec<String>,
+    pub value_decl_ref_names: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ParserIndexKeyframesFactsV0 {
+    pub names: Vec<String>,
+    pub animation_ref_names: Vec<String>,
+    pub animation_name_ref_names: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ParserIndexComposesFactsV0 {
+    pub selectors_with_composes_names: Vec<String>,
+    pub local_selector_names: Vec<String>,
+    pub imported_selector_names: Vec<String>,
+    pub global_selector_names: Vec<String>,
+    pub import_sources: Vec<String>,
+    pub class_name_count: usize,
+    pub local_class_name_count: usize,
+    pub imported_class_name_count: usize,
+    pub global_class_name_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ParserIndexWrapperFactsV0 {
     pub selectors_under_media_names: Vec<String>,
     pub selectors_under_supports_names: Vec<String>,
     pub selectors_under_layer_names: Vec<String>,
-    pub animation_ref_names: Vec<String>,
-    pub animation_name_ref_names: Vec<String>,
-    pub value_import_alias_count: usize,
-    pub composes_class_name_count: usize,
-    pub local_composes_class_name_count: usize,
-    pub imported_composes_class_name_count: usize,
-    pub global_composes_class_name_count: usize,
-    pub bem_suffix_count: usize,
-    pub nested_safety_counts: NestedSafetyCountsV0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
@@ -418,37 +448,47 @@ pub fn summarize_index_bridge(sheet: &Stylesheet) -> ParserIndexSummaryV0 {
             StyleLanguage::Scss => "scss",
             StyleLanguage::Less => "less",
         },
-        selector_names: acc.selector_names,
-        bem_suffix_parent_names: acc.bem_suffix_parent_names,
-        bem_suffix_safe_selector_names: acc.bem_suffix_safe_selector_names,
-        selectors_with_composes_names: acc.selectors_with_composes_names,
-        local_composes_selector_names: acc.local_composes_selector_names,
-        imported_composes_selector_names: acc.imported_composes_selector_names,
-        global_composes_selector_names: acc.global_composes_selector_names,
-        composes_import_sources: acc.composes_import_sources,
-        keyframes_names: acc.keyframes_names,
-        nested_unsafe_selector_names: acc.nested_unsafe_selector_names,
-        value_decl_names: acc.value_decl_names,
-        value_import_names: acc.value_import_names,
-        value_import_sources: acc.value_import_sources,
-        value_ref_names: acc.value_ref_names,
-        declaration_value_ref_names: acc.declaration_value_ref_names,
-        value_decl_ref_names: acc.value_decl_ref_names,
-        selectors_with_value_refs_names: acc.selectors_with_value_refs_names,
-        selectors_with_animation_ref_names: acc.selectors_with_animation_ref_names,
-        selectors_with_animation_name_ref_names: acc.selectors_with_animation_name_ref_names,
-        selectors_under_media_names: acc.selectors_under_media_names,
-        selectors_under_supports_names: acc.selectors_under_supports_names,
-        selectors_under_layer_names: acc.selectors_under_layer_names,
-        animation_ref_names: acc.animation_ref_names,
-        animation_name_ref_names: acc.animation_name_ref_names,
-        value_import_alias_count: acc.value_import_alias_count,
-        composes_class_name_count: acc.composes_class_name_count,
-        local_composes_class_name_count: acc.local_composes_class_name_count,
-        imported_composes_class_name_count: acc.imported_composes_class_name_count,
-        global_composes_class_name_count: acc.global_composes_class_name_count,
-        bem_suffix_count: acc.bem_suffix_count,
-        nested_safety_counts: acc.nested_safety_counts,
+        selectors: ParserIndexSelectorFactsV0 {
+            names: acc.selector_names,
+            bem_suffix_parent_names: acc.bem_suffix_parent_names,
+            bem_suffix_safe_names: acc.bem_suffix_safe_selector_names,
+            nested_unsafe_names: acc.nested_unsafe_selector_names,
+            selectors_with_value_refs_names: acc.selectors_with_value_refs_names,
+            selectors_with_animation_ref_names: acc.selectors_with_animation_ref_names,
+            selectors_with_animation_name_ref_names: acc.selectors_with_animation_name_ref_names,
+            bem_suffix_count: acc.bem_suffix_count,
+            nested_safety_counts: acc.nested_safety_counts,
+        },
+        values: ParserIndexValueFactsV0 {
+            decl_names: acc.value_decl_names,
+            import_names: acc.value_import_names,
+            import_sources: acc.value_import_sources,
+            import_alias_count: acc.value_import_alias_count,
+            ref_names: acc.value_ref_names,
+            declaration_ref_names: acc.declaration_value_ref_names,
+            value_decl_ref_names: acc.value_decl_ref_names,
+        },
+        keyframes: ParserIndexKeyframesFactsV0 {
+            names: acc.keyframes_names,
+            animation_ref_names: acc.animation_ref_names,
+            animation_name_ref_names: acc.animation_name_ref_names,
+        },
+        composes: ParserIndexComposesFactsV0 {
+            selectors_with_composes_names: acc.selectors_with_composes_names,
+            local_selector_names: acc.local_composes_selector_names,
+            imported_selector_names: acc.imported_composes_selector_names,
+            global_selector_names: acc.global_composes_selector_names,
+            import_sources: acc.composes_import_sources,
+            class_name_count: acc.composes_class_name_count,
+            local_class_name_count: acc.local_composes_class_name_count,
+            imported_class_name_count: acc.imported_composes_class_name_count,
+            global_class_name_count: acc.global_composes_class_name_count,
+        },
+        wrappers: ParserIndexWrapperFactsV0 {
+            selectors_under_media_names: acc.selectors_under_media_names,
+            selectors_under_supports_names: acc.selectors_under_supports_names,
+            selectors_under_layer_names: acc.selectors_under_layer_names,
+        },
     }
 }
 
