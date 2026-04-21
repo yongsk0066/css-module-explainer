@@ -22,6 +22,9 @@ interface ParserIndexSummaryV0 {
   readonly valueRefNames: readonly string[];
   readonly declarationValueRefNames: readonly string[];
   readonly valueDeclRefNames: readonly string[];
+  readonly selectorsWithValueRefsNames: readonly string[];
+  readonly selectorsWithAnimationRefNames: readonly string[];
+  readonly selectorsWithAnimationNameRefNames: readonly string[];
   readonly animationRefNames: readonly string[];
   readonly animationNameRefNames: readonly string[];
   readonly valueImportAliasCount: number;
@@ -110,6 +113,29 @@ const CORPUS = [
   },
 ] as const;
 
+function comparePosition(
+  left: { readonly line: number; readonly character: number },
+  right: { readonly line: number; readonly character: number },
+): number {
+  if (left.line !== right.line) return left.line - right.line;
+  return left.character - right.character;
+}
+
+function rangeContains(
+  outer: {
+    readonly start: { readonly line: number; readonly character: number };
+    readonly end: { readonly line: number; readonly character: number };
+  },
+  inner: {
+    readonly start: { readonly line: number; readonly character: number };
+    readonly end: { readonly line: number; readonly character: number };
+  },
+): boolean {
+  return (
+    comparePosition(outer.start, inner.start) <= 0 && comparePosition(outer.end, inner.end) >= 0
+  );
+}
+
 function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0 {
   const document = parseStyleDocument(source, filePath);
   const selectorsWithComposes = document.selectors.filter(
@@ -123,6 +149,30 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
   );
   const globalComposesSelectors = selectorsWithComposes.filter((selector) =>
     selector.composes.some((ref) => ref.fromGlobal === true),
+  );
+  const selectorsWithValueRefs = document.selectors.filter((selector) =>
+    document.valueRefs.some(
+      (entry) =>
+        entry.source === "declaration" &&
+        entry.range &&
+        rangeContains(selector.ruleRange, entry.range),
+    ),
+  );
+  const selectorsWithAnimationRefs = document.selectors.filter((selector) =>
+    document.animationNameRefs.some(
+      (entry) =>
+        entry.property === "animation" &&
+        entry.range &&
+        rangeContains(selector.ruleRange, entry.range),
+    ),
+  );
+  const selectorsWithAnimationNameRefs = document.selectors.filter((selector) =>
+    document.animationNameRefs.some(
+      (entry) =>
+        entry.property === "animation-name" &&
+        entry.range &&
+        rangeContains(selector.ruleRange, entry.range),
+    ),
   );
   return {
     schemaVersion: "0",
@@ -171,6 +221,13 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
     valueDeclRefNames: document.valueRefs
       .filter((entry) => entry.source === "valueDecl")
       .map((entry) => entry.name)
+      .toSorted(),
+    selectorsWithValueRefsNames: selectorsWithValueRefs.map((selector) => selector.name).toSorted(),
+    selectorsWithAnimationRefNames: selectorsWithAnimationRefs
+      .map((selector) => selector.name)
+      .toSorted(),
+    selectorsWithAnimationNameRefNames: selectorsWithAnimationNameRefs
+      .map((selector) => selector.name)
       .toSorted(),
     animationRefNames: document.animationNameRefs
       .filter((entry) => entry.property === "animation")

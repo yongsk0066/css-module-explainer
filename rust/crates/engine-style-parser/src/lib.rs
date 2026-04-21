@@ -198,6 +198,9 @@ pub struct ParserIndexSummaryV0 {
     pub value_ref_names: Vec<String>,
     pub declaration_value_ref_names: Vec<String>,
     pub value_decl_ref_names: Vec<String>,
+    pub selectors_with_value_refs_names: Vec<String>,
+    pub selectors_with_animation_ref_names: Vec<String>,
+    pub selectors_with_animation_name_ref_names: Vec<String>,
     pub animation_ref_names: Vec<String>,
     pub animation_name_ref_names: Vec<String>,
     pub value_import_alias_count: usize,
@@ -269,6 +272,9 @@ struct IndexSummaryAcc {
     value_ref_names: Vec<String>,
     declaration_value_ref_names: Vec<String>,
     value_decl_ref_names: Vec<String>,
+    selectors_with_value_refs_names: Vec<String>,
+    selectors_with_animation_ref_names: Vec<String>,
+    selectors_with_animation_name_ref_names: Vec<String>,
     animation_ref_names: Vec<String>,
     animation_name_ref_names: Vec<String>,
     value_import_alias_count: usize,
@@ -343,6 +349,14 @@ pub fn summarize_index_bridge(sheet: &Stylesheet) -> ParserIndexSummaryV0 {
         &known_keyframe_names,
         &mut acc,
     );
+    collect_index_selector_attachment_facts(
+        &sheet.nodes,
+        &known_value_names,
+        &known_keyframe_names,
+        &mut acc,
+        &[],
+        false,
+    );
 
     acc.selector_names.sort();
     acc.selector_names.dedup();
@@ -374,6 +388,12 @@ pub fn summarize_index_bridge(sheet: &Stylesheet) -> ParserIndexSummaryV0 {
     acc.declaration_value_ref_names.dedup();
     acc.value_decl_ref_names.sort();
     acc.value_decl_ref_names.dedup();
+    acc.selectors_with_value_refs_names.sort();
+    acc.selectors_with_value_refs_names.dedup();
+    acc.selectors_with_animation_ref_names.sort();
+    acc.selectors_with_animation_ref_names.dedup();
+    acc.selectors_with_animation_name_ref_names.sort();
+    acc.selectors_with_animation_name_ref_names.dedup();
     acc.animation_ref_names.sort();
     acc.animation_ref_names.dedup();
     acc.animation_name_ref_names.sort();
@@ -402,6 +422,9 @@ pub fn summarize_index_bridge(sheet: &Stylesheet) -> ParserIndexSummaryV0 {
         value_ref_names: acc.value_ref_names,
         declaration_value_ref_names: acc.declaration_value_ref_names,
         value_decl_ref_names: acc.value_decl_ref_names,
+        selectors_with_value_refs_names: acc.selectors_with_value_refs_names,
+        selectors_with_animation_ref_names: acc.selectors_with_animation_ref_names,
+        selectors_with_animation_name_ref_names: acc.selectors_with_animation_name_ref_names,
         animation_ref_names: acc.animation_ref_names,
         animation_name_ref_names: acc.animation_name_ref_names,
         value_import_alias_count: acc.value_import_alias_count,
@@ -515,6 +538,13 @@ struct RuleComposesFacts {
     imported_sources: Vec<String>,
 }
 
+#[derive(Debug, Default)]
+struct RuleReferenceFacts {
+    has_value_refs: bool,
+    has_animation_refs: bool,
+    has_animation_name_refs: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ComposesKind {
     Local,
@@ -612,6 +642,45 @@ fn collect_rule_composes_facts(children: &[SyntaxNode]) -> RuleComposesFacts {
                     }
                 }
                 ComposesKind::Global => facts.global_class_name_count += spec.class_names.len(),
+            }
+        }
+    }
+    facts
+}
+
+fn collect_rule_reference_facts(
+    children: &[SyntaxNode],
+    known_value_names: &BTreeSet<String>,
+    known_keyframe_names: &BTreeSet<String>,
+) -> RuleReferenceFacts {
+    let mut facts = RuleReferenceFacts::default();
+    for child in children {
+        if let Some(SyntaxNodePayload::Declaration(declaration)) = &child.payload {
+            match classify_declaration_kind(&declaration.property) {
+                DeclarationKind::Composes => {}
+                DeclarationKind::Animation => {
+                    if !find_identifier_matches(&declaration.value, known_keyframe_names).is_empty()
+                    {
+                        facts.has_animation_refs = true;
+                    }
+                    if !find_identifier_matches(&declaration.value, known_value_names).is_empty() {
+                        facts.has_value_refs = true;
+                    }
+                }
+                DeclarationKind::AnimationName => {
+                    if !find_identifier_matches(&declaration.value, known_keyframe_names).is_empty()
+                    {
+                        facts.has_animation_name_refs = true;
+                    }
+                    if !find_identifier_matches(&declaration.value, known_value_names).is_empty() {
+                        facts.has_value_refs = true;
+                    }
+                }
+                DeclarationKind::Generic => {
+                    if !find_identifier_matches(&declaration.value, known_value_names).is_empty() {
+                        facts.has_value_refs = true;
+                    }
+                }
             }
         }
     }
@@ -795,6 +864,68 @@ fn collect_index_refs_and_counts(
             _ => {}
         }
         collect_index_refs_and_counts(&node.children, known_value_names, known_keyframe_names, acc);
+    }
+}
+
+fn collect_index_selector_attachment_facts(
+    nodes: &[SyntaxNode],
+    known_value_names: &BTreeSet<String>,
+    known_keyframe_names: &BTreeSet<String>,
+    acc: &mut IndexSummaryAcc,
+    parent_selector_names: &[String],
+    _parent_is_grouped: bool,
+) {
+    for node in nodes {
+        let mut next_parent_names = parent_selector_names.to_vec();
+        let mut next_parent_is_grouped = false;
+        let mut split_child_branches = false;
+        if let Some(SyntaxNodePayload::Rule(rule)) = &node.payload {
+            let resolved = resolve_rule_selector_names(rule, parent_selector_names);
+            if !resolved.is_empty() {
+                let ref_facts = collect_rule_reference_facts(
+                    &node.children,
+                    known_value_names,
+                    known_keyframe_names,
+                );
+                if ref_facts.has_value_refs {
+                    acc.selectors_with_value_refs_names
+                        .extend(resolved.iter().cloned());
+                }
+                if ref_facts.has_animation_refs {
+                    acc.selectors_with_animation_ref_names
+                        .extend(resolved.iter().cloned());
+                }
+                if ref_facts.has_animation_name_refs {
+                    acc.selectors_with_animation_name_ref_names
+                        .extend(resolved.iter().cloned());
+                }
+                next_parent_is_grouped = resolved.len() > 1;
+                next_parent_names = resolved;
+                split_child_branches = true;
+            }
+        }
+
+        if split_child_branches {
+            for parent_name in &next_parent_names {
+                collect_index_selector_attachment_facts(
+                    &node.children,
+                    known_value_names,
+                    known_keyframe_names,
+                    acc,
+                    std::slice::from_ref(parent_name),
+                    next_parent_is_grouped,
+                );
+            }
+        } else {
+            collect_index_selector_attachment_facts(
+                &node.children,
+                known_value_names,
+                known_keyframe_names,
+                acc,
+                &next_parent_names,
+                next_parent_is_grouped,
+            );
+        }
     }
 }
 
