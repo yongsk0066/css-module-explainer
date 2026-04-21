@@ -3,8 +3,9 @@ set -euo pipefail
 
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 fixture_dir="${repo_root}/rust/external-consumers/engine-input-producers-git-consumer"
-default_repo_url="https://github.com/omenien/omena-engine-input-producers.git"
-default_repo_ref="0b7cd56"
+dependency_line="$(grep '^engine-input-producers = ' "${fixture_dir}/Cargo.toml")"
+default_repo_url="$(printf '%s\n' "${dependency_line}" | sed -E 's/.*git = "([^"]+)".*/\1/')"
+default_repo_ref="$(printf '%s\n' "${dependency_line}" | sed -E 's/.*rev = "([^"]+)".*/\1/')"
 repo_url="${ENGINE_INPUT_PRODUCERS_GIT_REPO:-${default_repo_url}}"
 repo_ref="${ENGINE_INPUT_PRODUCERS_GIT_REF:-${default_repo_ref}}"
 target_dir="${repo_root}/rust/target"

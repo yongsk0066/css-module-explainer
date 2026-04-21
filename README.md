@@ -246,6 +246,8 @@ Current checker policy:
 - `pnpm check:rust-input-producers-git-consumer` verifies that the split input-producers repo can be consumed as a remote git dependency by the repo-stored standalone fixture at `rust/external-consumers/engine-input-producers-git-consumer`
 - `pnpm check:rust-input-producers-split-boundary` verifies the full input-producers split boundary: monorepo producer-boundary validation plus remote git-consumer validation against `omena-engine-input-producers`
 - `pnpm check:rust-split-boundaries` runs both current Rust split-boundary checks together
+- `pnpm check:rust-split-consumer-pins` verifies that the repo-stored split consumer fixtures are pinned to the current `main` commit of each split repo
+- `pnpm update:rust-split-consumer-pins` refreshes those fixture refs plus lockfiles when the split repos advance
 - The current external Rust split boundaries are:
   - `omenien/omena-engine-input-producers`
   - `omenien/omena-engine-style-parser`

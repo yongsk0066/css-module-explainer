@@ -3,8 +3,9 @@ set -euo pipefail
 
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 fixture_dir="${repo_root}/rust/external-consumers/engine-style-parser-git-consumer"
-default_repo_url="https://github.com/omenien/omena-engine-style-parser.git"
-default_repo_ref="baf57a5"
+dependency_line="$(grep '^engine-style-parser = ' "${fixture_dir}/Cargo.toml")"
+default_repo_url="$(printf '%s\n' "${dependency_line}" | sed -E 's/.*git = "([^"]+)".*/\1/')"
+default_repo_ref="$(printf '%s\n' "${dependency_line}" | sed -E 's/.*rev = "([^"]+)".*/\1/')"
 repo_url="${ENGINE_STYLE_PARSER_GIT_REPO:-${default_repo_url}}"
 repo_ref="${ENGINE_STYLE_PARSER_GIT_REF:-${default_repo_ref}}"
 target_dir="${repo_root}/rust/target"
