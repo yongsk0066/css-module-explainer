@@ -29,9 +29,13 @@ interface ParserIndexSummaryV0 {
     readonly importSources: readonly string[];
     readonly importAliasCount: number;
     readonly refNames: readonly string[];
+    readonly localRefNames: readonly string[];
+    readonly importedRefNames: readonly string[];
     readonly declarationRefNames: readonly string[];
     readonly valueDeclRefNames: readonly string[];
     readonly selectorsWithRefsNames: readonly string[];
+    readonly selectorsWithLocalRefsNames: readonly string[];
+    readonly selectorsWithImportedRefsNames: readonly string[];
     readonly selectorsWithRefsUnderMediaNames: readonly string[];
     readonly selectorsWithRefsUnderSupportsNames: readonly string[];
     readonly selectorsWithRefsUnderLayerNames: readonly string[];
@@ -95,6 +99,11 @@ const CORPUS = [
     label: "scss-value-decl-dependency-chain",
     filePath: "/f.module.scss",
     source: `@value base: red;\n@value accent: base;\n.btn { color: accent; }`,
+  },
+  {
+    label: "scss-mixed-local-imported-value-refs",
+    filePath: "/f.module.scss",
+    source: `@value brand from "./tokens.module.scss";\n@value accent: red;\n.btn { color: brand; background: accent; }`,
   },
   {
     label: "scss-composes-and-animation",
@@ -298,6 +307,26 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
         rangeContains(selector.ruleRange, entry.range),
     ),
   );
+  const localValueNames = new Set(document.valueDecls.map((entry) => entry.name));
+  const importedValueNames = new Set(document.valueImports.map((entry) => entry.name));
+  const selectorsWithLocalValueRefs = document.selectors.filter((selector) =>
+    document.valueRefs.some(
+      (entry) =>
+        localValueNames.has(entry.name) &&
+        entry.source === "declaration" &&
+        entry.range &&
+        rangeContains(selector.ruleRange, entry.range),
+    ),
+  );
+  const selectorsWithImportedValueRefs = document.selectors.filter((selector) =>
+    document.valueRefs.some(
+      (entry) =>
+        importedValueNames.has(entry.name) &&
+        entry.source === "declaration" &&
+        entry.range &&
+        rangeContains(selector.ruleRange, entry.range),
+    ),
+  );
   const selectorsWithAnimationRefs = document.selectors.filter((selector) =>
     document.animationNameRefs.some(
       (entry) =>
@@ -398,6 +427,14 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
       importAliasCount: document.valueImports.filter((entry) => entry.importedName !== entry.name)
         .length,
       refNames: [...document.valueRefs].map((entry) => entry.name).toSorted(),
+      localRefNames: document.valueRefs
+        .filter((entry) => localValueNames.has(entry.name))
+        .map((entry) => entry.name)
+        .toSorted(),
+      importedRefNames: document.valueRefs
+        .filter((entry) => importedValueNames.has(entry.name))
+        .map((entry) => entry.name)
+        .toSorted(),
       declarationRefNames: document.valueRefs
         .filter((entry) => entry.source === "declaration")
         .map((entry) => entry.name)
@@ -407,6 +444,12 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
         .map((entry) => entry.name)
         .toSorted(),
       selectorsWithRefsNames: selectorsWithValueRefs.map((selector) => selector.name).toSorted(),
+      selectorsWithLocalRefsNames: selectorsWithLocalValueRefs
+        .map((selector) => selector.name)
+        .toSorted(),
+      selectorsWithImportedRefsNames: selectorsWithImportedValueRefs
+        .map((selector) => selector.name)
+        .toSorted(),
       selectorsWithRefsUnderMediaNames: selectorsWithValueRefsUnderMedia
         .map((selector) => selector.name)
         .toSorted(),

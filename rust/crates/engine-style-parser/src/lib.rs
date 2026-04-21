@@ -211,9 +211,13 @@ pub struct ParserIndexValueFactsV0 {
     pub import_sources: Vec<String>,
     pub import_alias_count: usize,
     pub ref_names: Vec<String>,
+    pub local_ref_names: Vec<String>,
+    pub imported_ref_names: Vec<String>,
     pub declaration_ref_names: Vec<String>,
     pub value_decl_ref_names: Vec<String>,
     pub selectors_with_refs_names: Vec<String>,
+    pub selectors_with_local_refs_names: Vec<String>,
+    pub selectors_with_imported_refs_names: Vec<String>,
     pub selectors_with_refs_under_media_names: Vec<String>,
     pub selectors_with_refs_under_supports_names: Vec<String>,
     pub selectors_with_refs_under_layer_names: Vec<String>,
@@ -321,9 +325,13 @@ struct IndexSummaryAcc {
     value_import_names: Vec<String>,
     value_import_sources: Vec<String>,
     value_ref_names: Vec<String>,
+    local_value_ref_names: Vec<String>,
+    imported_value_ref_names: Vec<String>,
     declaration_value_ref_names: Vec<String>,
     value_decl_ref_names: Vec<String>,
     selectors_with_value_refs_names: Vec<String>,
+    selectors_with_local_value_refs_names: Vec<String>,
+    selectors_with_imported_value_refs_names: Vec<String>,
     selectors_with_value_refs_under_media_names: Vec<String>,
     selectors_with_value_refs_under_supports_names: Vec<String>,
     selectors_with_value_refs_under_layer_names: Vec<String>,
@@ -399,22 +407,24 @@ pub fn summarize_parity_lite(sheet: &Stylesheet) -> ParserParityLiteSummaryV0 {
 pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSummaryV0 {
     let mut acc = IndexSummaryAcc::default();
     collect_index_names(&sheet.nodes, &mut acc, &[], false);
+    let local_value_names: BTreeSet<String> = acc.value_decl_names.iter().cloned().collect();
+    let imported_value_names: BTreeSet<String> = acc.value_import_names.iter().cloned().collect();
     let known_value_names: BTreeSet<String> = acc
         .value_decl_names
         .iter()
         .chain(acc.value_import_names.iter())
         .cloned()
         .collect();
+    let value_ref_ctx = ValueRefContext {
+        known: &known_value_names,
+        local: &local_value_names,
+        imported: &imported_value_names,
+    };
     let known_keyframe_names: BTreeSet<String> = acc.keyframes_names.iter().cloned().collect();
-    collect_index_refs_and_counts(
-        &sheet.nodes,
-        &known_value_names,
-        &known_keyframe_names,
-        &mut acc,
-    );
+    collect_index_refs_and_counts(&sheet.nodes, value_ref_ctx, &known_keyframe_names, &mut acc);
     collect_index_selector_attachment_facts(
         &sheet.nodes,
-        &known_value_names,
+        value_ref_ctx,
         &known_keyframe_names,
         &mut acc,
         &[],
@@ -453,12 +463,20 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
     acc.value_import_sources.sort();
     acc.value_ref_names.sort();
     acc.value_ref_names.dedup();
+    acc.local_value_ref_names.sort();
+    acc.local_value_ref_names.dedup();
+    acc.imported_value_ref_names.sort();
+    acc.imported_value_ref_names.dedup();
     acc.declaration_value_ref_names.sort();
     acc.declaration_value_ref_names.dedup();
     acc.value_decl_ref_names.sort();
     acc.value_decl_ref_names.dedup();
     acc.selectors_with_value_refs_names.sort();
     acc.selectors_with_value_refs_names.dedup();
+    acc.selectors_with_local_value_refs_names.sort();
+    acc.selectors_with_local_value_refs_names.dedup();
+    acc.selectors_with_imported_value_refs_names.sort();
+    acc.selectors_with_imported_value_refs_names.dedup();
     acc.selectors_with_value_refs_under_media_names.sort();
     acc.selectors_with_value_refs_under_media_names.dedup();
     acc.selectors_with_value_refs_under_supports_names.sort();
@@ -528,9 +546,13 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
             import_sources: acc.value_import_sources,
             import_alias_count: acc.value_import_alias_count,
             ref_names: acc.value_ref_names,
+            local_ref_names: acc.local_value_ref_names,
+            imported_ref_names: acc.imported_value_ref_names,
             declaration_ref_names: acc.declaration_value_ref_names,
             value_decl_ref_names: acc.value_decl_ref_names,
             selectors_with_refs_names: acc.selectors_with_value_refs_names,
+            selectors_with_local_refs_names: acc.selectors_with_local_value_refs_names,
+            selectors_with_imported_refs_names: acc.selectors_with_imported_value_refs_names,
             selectors_with_refs_under_media_names: acc.selectors_with_value_refs_under_media_names,
             selectors_with_refs_under_supports_names: acc
                 .selectors_with_value_refs_under_supports_names,
@@ -688,6 +710,8 @@ struct RuleComposesFacts {
 #[derive(Debug, Default)]
 struct RuleReferenceFacts {
     has_value_refs: bool,
+    has_local_value_refs: bool,
+    has_imported_value_refs: bool,
     has_animation_refs: bool,
     has_animation_name_refs: bool,
 }
@@ -697,6 +721,13 @@ struct WrapperContext {
     under_media: bool,
     under_supports: bool,
     under_layer: bool,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ValueRefContext<'a> {
+    known: &'a BTreeSet<String>,
+    local: &'a BTreeSet<String>,
+    imported: &'a BTreeSet<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -804,7 +835,7 @@ fn collect_rule_composes_facts(children: &[SyntaxNode]) -> RuleComposesFacts {
 
 fn collect_rule_reference_facts(
     children: &[SyntaxNode],
-    known_value_names: &BTreeSet<String>,
+    value_ref_ctx: ValueRefContext<'_>,
     known_keyframe_names: &BTreeSet<String>,
 ) -> RuleReferenceFacts {
     let mut facts = RuleReferenceFacts::default();
@@ -817,8 +848,16 @@ fn collect_rule_reference_facts(
                     {
                         facts.has_animation_refs = true;
                     }
-                    if !find_identifier_matches(&declaration.value, known_value_names).is_empty() {
+                    let value_refs =
+                        find_identifier_matches(&declaration.value, value_ref_ctx.known);
+                    if !value_refs.is_empty() {
                         facts.has_value_refs = true;
+                        facts.has_local_value_refs |= value_refs
+                            .iter()
+                            .any(|name| value_ref_ctx.local.contains(name));
+                        facts.has_imported_value_refs |= value_refs
+                            .iter()
+                            .any(|name| value_ref_ctx.imported.contains(name));
                     }
                 }
                 DeclarationKind::AnimationName => {
@@ -826,13 +865,29 @@ fn collect_rule_reference_facts(
                     {
                         facts.has_animation_name_refs = true;
                     }
-                    if !find_identifier_matches(&declaration.value, known_value_names).is_empty() {
+                    let value_refs =
+                        find_identifier_matches(&declaration.value, value_ref_ctx.known);
+                    if !value_refs.is_empty() {
                         facts.has_value_refs = true;
+                        facts.has_local_value_refs |= value_refs
+                            .iter()
+                            .any(|name| value_ref_ctx.local.contains(name));
+                        facts.has_imported_value_refs |= value_refs
+                            .iter()
+                            .any(|name| value_ref_ctx.imported.contains(name));
                     }
                 }
                 DeclarationKind::Generic => {
-                    if !find_identifier_matches(&declaration.value, known_value_names).is_empty() {
+                    let value_refs =
+                        find_identifier_matches(&declaration.value, value_ref_ctx.known);
+                    if !value_refs.is_empty() {
                         facts.has_value_refs = true;
+                        facts.has_local_value_refs |= value_refs
+                            .iter()
+                            .any(|name| value_ref_ctx.local.contains(name));
+                        facts.has_imported_value_refs |= value_refs
+                            .iter()
+                            .any(|name| value_ref_ctx.imported.contains(name));
                     }
                 }
             }
@@ -968,7 +1023,7 @@ fn collect_index_names(
 
 fn collect_index_refs_and_counts(
     nodes: &[SyntaxNode],
-    known_value_names: &BTreeSet<String>,
+    value_ref_ctx: ValueRefContext<'_>,
     known_keyframe_names: &BTreeSet<String>,
     acc: &mut IndexSummaryAcc,
 ) {
@@ -983,8 +1038,20 @@ fn collect_index_refs_and_counts(
                             known_keyframe_names,
                         ));
                         let value_refs =
-                            find_identifier_matches(&declaration.value, known_value_names);
+                            find_identifier_matches(&declaration.value, value_ref_ctx.known);
                         acc.value_ref_names.extend(value_refs.iter().cloned());
+                        acc.local_value_ref_names.extend(
+                            value_refs
+                                .iter()
+                                .filter(|name| value_ref_ctx.local.contains(*name))
+                                .cloned(),
+                        );
+                        acc.imported_value_ref_names.extend(
+                            value_refs
+                                .iter()
+                                .filter(|name| value_ref_ctx.imported.contains(*name))
+                                .cloned(),
+                        );
                         acc.declaration_value_ref_names.extend(value_refs);
                     }
                     DeclarationKind::AnimationName => {
@@ -993,37 +1060,74 @@ fn collect_index_refs_and_counts(
                             known_keyframe_names,
                         ));
                         let value_refs =
-                            find_identifier_matches(&declaration.value, known_value_names);
+                            find_identifier_matches(&declaration.value, value_ref_ctx.known);
                         acc.value_ref_names.extend(value_refs.iter().cloned());
+                        acc.local_value_ref_names.extend(
+                            value_refs
+                                .iter()
+                                .filter(|name| value_ref_ctx.local.contains(*name))
+                                .cloned(),
+                        );
+                        acc.imported_value_ref_names.extend(
+                            value_refs
+                                .iter()
+                                .filter(|name| value_ref_ctx.imported.contains(*name))
+                                .cloned(),
+                        );
                         acc.declaration_value_ref_names.extend(value_refs);
                     }
                     DeclarationKind::Generic => {
                         let value_refs =
-                            find_identifier_matches(&declaration.value, known_value_names);
+                            find_identifier_matches(&declaration.value, value_ref_ctx.known);
                         acc.value_ref_names.extend(value_refs.iter().cloned());
+                        acc.local_value_ref_names.extend(
+                            value_refs
+                                .iter()
+                                .filter(|name| value_ref_ctx.local.contains(*name))
+                                .cloned(),
+                        );
+                        acc.imported_value_ref_names.extend(
+                            value_refs
+                                .iter()
+                                .filter(|name| value_ref_ctx.imported.contains(*name))
+                                .cloned(),
+                        );
                         acc.declaration_value_ref_names.extend(value_refs);
                     }
                 }
             }
             Some(SyntaxNodePayload::AtRule(at_rule)) if at_rule.kind == AtRuleKind::Value => {
                 if let Some((name, value)) = parse_local_value_decl_parts(&at_rule.params) {
-                    let value_refs: Vec<String> = find_identifier_matches(value, known_value_names)
-                        .into_iter()
-                        .filter(|candidate| candidate != name)
-                        .collect();
+                    let value_refs: Vec<String> =
+                        find_identifier_matches(value, value_ref_ctx.known)
+                            .into_iter()
+                            .filter(|candidate| candidate != name)
+                            .collect();
                     acc.value_ref_names.extend(value_refs.iter().cloned());
+                    acc.local_value_ref_names.extend(
+                        value_refs
+                            .iter()
+                            .filter(|candidate| value_ref_ctx.local.contains(*candidate))
+                            .cloned(),
+                    );
+                    acc.imported_value_ref_names.extend(
+                        value_refs
+                            .iter()
+                            .filter(|candidate| value_ref_ctx.imported.contains(*candidate))
+                            .cloned(),
+                    );
                     acc.value_decl_ref_names.extend(value_refs);
                 }
             }
             _ => {}
         }
-        collect_index_refs_and_counts(&node.children, known_value_names, known_keyframe_names, acc);
+        collect_index_refs_and_counts(&node.children, value_ref_ctx, known_keyframe_names, acc);
     }
 }
 
 fn collect_index_selector_attachment_facts(
     nodes: &[SyntaxNode],
-    known_value_names: &BTreeSet<String>,
+    value_ref_ctx: ValueRefContext<'_>,
     known_keyframe_names: &BTreeSet<String>,
     acc: &mut IndexSummaryAcc,
     parent_selector_names: &[String],
@@ -1031,7 +1135,7 @@ fn collect_index_selector_attachment_facts(
 ) {
     collect_index_selector_attachment_facts_with_context(
         nodes,
-        known_value_names,
+        value_ref_ctx,
         known_keyframe_names,
         acc,
         parent_selector_names,
@@ -1041,7 +1145,7 @@ fn collect_index_selector_attachment_facts(
 
 fn collect_index_selector_attachment_facts_with_context(
     nodes: &[SyntaxNode],
-    known_value_names: &BTreeSet<String>,
+    value_ref_ctx: ValueRefContext<'_>,
     known_keyframe_names: &BTreeSet<String>,
     acc: &mut IndexSummaryAcc,
     parent_selector_names: &[String],
@@ -1056,7 +1160,7 @@ fn collect_index_selector_attachment_facts_with_context(
             if !resolved.is_empty() {
                 let ref_facts = collect_rule_reference_facts(
                     &node.children,
-                    known_value_names,
+                    value_ref_ctx,
                     known_keyframe_names,
                 );
                 if ref_facts.has_value_refs {
@@ -1074,6 +1178,14 @@ fn collect_index_selector_attachment_facts_with_context(
                         acc.selectors_with_value_refs_under_layer_names
                             .extend(resolved.iter().cloned());
                     }
+                }
+                if ref_facts.has_local_value_refs {
+                    acc.selectors_with_local_value_refs_names
+                        .extend(resolved.iter().cloned());
+                }
+                if ref_facts.has_imported_value_refs {
+                    acc.selectors_with_imported_value_refs_names
+                        .extend(resolved.iter().cloned());
                 }
                 if ref_facts.has_animation_refs {
                     acc.selectors_with_animation_ref_names
@@ -1153,7 +1265,7 @@ fn collect_index_selector_attachment_facts_with_context(
             for parent_name in &next_parent_names {
                 collect_index_selector_attachment_facts_with_context(
                     &node.children,
-                    known_value_names,
+                    value_ref_ctx,
                     known_keyframe_names,
                     acc,
                     std::slice::from_ref(parent_name),
@@ -1163,7 +1275,7 @@ fn collect_index_selector_attachment_facts_with_context(
         } else {
             collect_index_selector_attachment_facts_with_context(
                 &node.children,
-                known_value_names,
+                value_ref_ctx,
                 known_keyframe_names,
                 acc,
                 &next_parent_names,
