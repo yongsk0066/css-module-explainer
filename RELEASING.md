@@ -127,6 +127,12 @@ gate. It currently runs `pnpm check:rust-parser-lane` plus
 parser evaluator-candidates, parser canonical-producer, and one bounded
 downstream consumer check all stay green together.
 
+`pnpm check:rust-checker-entrance` is the current official checker-canonical
+entrance gate. It currently aliases `pnpm check:rust-checker-bounded-lanes`,
+which runs the bounded `style-recovery` and `source-missing` checker lanes.
+Keep this outside the default stable release gate until a checker lane moves
+from bounded entrance status to broader Rust lane status.
+
 `pnpm check:rust-lane-bundle` is the broader Rust lane gate. It combines the
 current semantic producer boundary checks with `pnpm check:rust-parser-public-product`.
 
