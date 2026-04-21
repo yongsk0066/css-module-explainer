@@ -31,8 +31,11 @@ interface ParserIndexSummaryV0 {
     readonly refNames: readonly string[];
     readonly localRefNames: readonly string[];
     readonly importedRefNames: readonly string[];
+    readonly importedRefSources: readonly string[];
     readonly declarationRefNames: readonly string[];
+    readonly declarationImportedRefSources: readonly string[];
     readonly valueDeclRefNames: readonly string[];
+    readonly valueDeclImportedRefSources: readonly string[];
     readonly selectorsWithRefsNames: readonly string[];
     readonly selectorsWithLocalRefsNames: readonly string[];
     readonly selectorsWithImportedRefsNames: readonly string[];
@@ -104,6 +107,11 @@ const CORPUS = [
     label: "scss-mixed-local-imported-value-refs",
     filePath: "/f.module.scss",
     source: `@value brand from "./tokens.module.scss";\n@value accent: red;\n.btn { color: brand; background: accent; }`,
+  },
+  {
+    label: "scss-imported-value-ref-in-value-decl",
+    filePath: "/f.module.scss",
+    source: `@value brand from "./tokens.module.scss";\n@value accent: brand;\n.btn { color: accent; }`,
   },
   {
     label: "scss-composes-and-animation",
@@ -309,6 +317,9 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
   );
   const localValueNames = new Set(document.valueDecls.map((entry) => entry.name));
   const importedValueNames = new Set(document.valueImports.map((entry) => entry.name));
+  const importedValueSourceByName = new Map(
+    document.valueImports.map((entry) => [entry.name, entry.from] as const),
+  );
   const selectorsWithLocalValueRefs = document.selectors.filter((selector) =>
     document.valueRefs.some(
       (entry) =>
@@ -435,13 +446,25 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
         .filter((entry) => importedValueNames.has(entry.name))
         .map((entry) => entry.name)
         .toSorted(),
+      importedRefSources: document.valueRefs
+        .filter((entry) => importedValueNames.has(entry.name))
+        .flatMap((entry) => importedValueSourceByName.get(entry.name) ?? [])
+        .toSorted(),
       declarationRefNames: document.valueRefs
         .filter((entry) => entry.source === "declaration")
         .map((entry) => entry.name)
         .toSorted(),
+      declarationImportedRefSources: document.valueRefs
+        .filter((entry) => entry.source === "declaration" && importedValueNames.has(entry.name))
+        .flatMap((entry) => importedValueSourceByName.get(entry.name) ?? [])
+        .toSorted(),
       valueDeclRefNames: document.valueRefs
         .filter((entry) => entry.source === "valueDecl")
         .map((entry) => entry.name)
+        .toSorted(),
+      valueDeclImportedRefSources: document.valueRefs
+        .filter((entry) => entry.source === "valueDecl" && importedValueNames.has(entry.name))
+        .flatMap((entry) => importedValueSourceByName.get(entry.name) ?? [])
         .toSorted(),
       selectorsWithRefsNames: selectorsWithValueRefs.map((selector) => selector.name).toSorted(),
       selectorsWithLocalRefsNames: selectorsWithLocalValueRefs

@@ -1,5 +1,5 @@
 use serde::Serialize;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StyleLanguage {
@@ -213,8 +213,11 @@ pub struct ParserIndexValueFactsV0 {
     pub ref_names: Vec<String>,
     pub local_ref_names: Vec<String>,
     pub imported_ref_names: Vec<String>,
+    pub imported_ref_sources: Vec<String>,
     pub declaration_ref_names: Vec<String>,
+    pub declaration_imported_ref_sources: Vec<String>,
     pub value_decl_ref_names: Vec<String>,
+    pub value_decl_imported_ref_sources: Vec<String>,
     pub selectors_with_refs_names: Vec<String>,
     pub selectors_with_local_refs_names: Vec<String>,
     pub selectors_with_imported_refs_names: Vec<String>,
@@ -324,11 +327,15 @@ struct IndexSummaryAcc {
     value_decl_names: Vec<String>,
     value_import_names: Vec<String>,
     value_import_sources: Vec<String>,
+    value_import_source_by_name: BTreeMap<String, String>,
     value_ref_names: Vec<String>,
     local_value_ref_names: Vec<String>,
     imported_value_ref_names: Vec<String>,
+    imported_value_ref_sources: Vec<String>,
     declaration_value_ref_names: Vec<String>,
+    declaration_imported_value_ref_sources: Vec<String>,
     value_decl_ref_names: Vec<String>,
+    value_decl_imported_value_ref_sources: Vec<String>,
     selectors_with_value_refs_names: Vec<String>,
     selectors_with_local_value_refs_names: Vec<String>,
     selectors_with_imported_value_refs_names: Vec<String>,
@@ -467,10 +474,13 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
     acc.local_value_ref_names.dedup();
     acc.imported_value_ref_names.sort();
     acc.imported_value_ref_names.dedup();
+    acc.imported_value_ref_sources.sort();
     acc.declaration_value_ref_names.sort();
     acc.declaration_value_ref_names.dedup();
+    acc.declaration_imported_value_ref_sources.sort();
     acc.value_decl_ref_names.sort();
     acc.value_decl_ref_names.dedup();
+    acc.value_decl_imported_value_ref_sources.sort();
     acc.selectors_with_value_refs_names.sort();
     acc.selectors_with_value_refs_names.dedup();
     acc.selectors_with_local_value_refs_names.sort();
@@ -548,8 +558,11 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
             ref_names: acc.value_ref_names,
             local_ref_names: acc.local_value_ref_names,
             imported_ref_names: acc.imported_value_ref_names,
+            imported_ref_sources: acc.imported_value_ref_sources,
             declaration_ref_names: acc.declaration_value_ref_names,
+            declaration_imported_ref_sources: acc.declaration_imported_value_ref_sources,
             value_decl_ref_names: acc.value_decl_ref_names,
+            value_decl_imported_ref_sources: acc.value_decl_imported_value_ref_sources,
             selectors_with_refs_names: acc.selectors_with_value_refs_names,
             selectors_with_local_refs_names: acc.selectors_with_local_value_refs_names,
             selectors_with_imported_refs_names: acc.selectors_with_imported_value_refs_names,
@@ -728,6 +741,12 @@ struct ValueRefContext<'a> {
     known: &'a BTreeSet<String>,
     local: &'a BTreeSet<String>,
     imported: &'a BTreeSet<String>,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum ValueRefOrigin {
+    Declaration,
+    ValueDecl,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -991,6 +1010,12 @@ fn collect_index_names(
                             .count();
                         acc.value_import_names
                             .extend(import_specs.iter().map(|spec| spec.local_name.clone()));
+                        acc.value_import_source_by_name
+                            .extend(import_specs.iter().filter_map(|spec| {
+                                spec.from_source
+                                    .as_ref()
+                                    .map(|source| (spec.local_name.clone(), source.clone()))
+                            }));
                         acc.value_import_sources
                             .extend(import_specs.into_iter().filter_map(|spec| spec.from_source));
                     } else if let Some((name, _)) = parse_local_value_decl_parts(&at_rule.params) {
@@ -1037,91 +1062,96 @@ fn collect_index_refs_and_counts(
                             &declaration.value,
                             known_keyframe_names,
                         ));
-                        let value_refs =
-                            find_identifier_matches(&declaration.value, value_ref_ctx.known);
-                        acc.value_ref_names.extend(value_refs.iter().cloned());
-                        acc.local_value_ref_names.extend(
-                            value_refs
-                                .iter()
-                                .filter(|name| value_ref_ctx.local.contains(*name))
-                                .cloned(),
+                        extend_value_ref_facts(
+                            acc,
+                            find_identifier_matches(&declaration.value, value_ref_ctx.known),
+                            value_ref_ctx,
+                            ValueRefOrigin::Declaration,
                         );
-                        acc.imported_value_ref_names.extend(
-                            value_refs
-                                .iter()
-                                .filter(|name| value_ref_ctx.imported.contains(*name))
-                                .cloned(),
-                        );
-                        acc.declaration_value_ref_names.extend(value_refs);
                     }
                     DeclarationKind::AnimationName => {
                         acc.animation_name_ref_names.extend(find_identifier_matches(
                             &declaration.value,
                             known_keyframe_names,
                         ));
-                        let value_refs =
-                            find_identifier_matches(&declaration.value, value_ref_ctx.known);
-                        acc.value_ref_names.extend(value_refs.iter().cloned());
-                        acc.local_value_ref_names.extend(
-                            value_refs
-                                .iter()
-                                .filter(|name| value_ref_ctx.local.contains(*name))
-                                .cloned(),
+                        extend_value_ref_facts(
+                            acc,
+                            find_identifier_matches(&declaration.value, value_ref_ctx.known),
+                            value_ref_ctx,
+                            ValueRefOrigin::Declaration,
                         );
-                        acc.imported_value_ref_names.extend(
-                            value_refs
-                                .iter()
-                                .filter(|name| value_ref_ctx.imported.contains(*name))
-                                .cloned(),
-                        );
-                        acc.declaration_value_ref_names.extend(value_refs);
                     }
                     DeclarationKind::Generic => {
-                        let value_refs =
-                            find_identifier_matches(&declaration.value, value_ref_ctx.known);
-                        acc.value_ref_names.extend(value_refs.iter().cloned());
-                        acc.local_value_ref_names.extend(
-                            value_refs
-                                .iter()
-                                .filter(|name| value_ref_ctx.local.contains(*name))
-                                .cloned(),
+                        extend_value_ref_facts(
+                            acc,
+                            find_identifier_matches(&declaration.value, value_ref_ctx.known),
+                            value_ref_ctx,
+                            ValueRefOrigin::Declaration,
                         );
-                        acc.imported_value_ref_names.extend(
-                            value_refs
-                                .iter()
-                                .filter(|name| value_ref_ctx.imported.contains(*name))
-                                .cloned(),
-                        );
-                        acc.declaration_value_ref_names.extend(value_refs);
                     }
                 }
             }
             Some(SyntaxNodePayload::AtRule(at_rule)) if at_rule.kind == AtRuleKind::Value => {
                 if let Some((name, value)) = parse_local_value_decl_parts(&at_rule.params) {
-                    let value_refs: Vec<String> =
+                    extend_value_ref_facts(
+                        acc,
                         find_identifier_matches(value, value_ref_ctx.known)
                             .into_iter()
                             .filter(|candidate| candidate != name)
-                            .collect();
-                    acc.value_ref_names.extend(value_refs.iter().cloned());
-                    acc.local_value_ref_names.extend(
-                        value_refs
-                            .iter()
-                            .filter(|candidate| value_ref_ctx.local.contains(*candidate))
-                            .cloned(),
+                            .collect(),
+                        value_ref_ctx,
+                        ValueRefOrigin::ValueDecl,
                     );
-                    acc.imported_value_ref_names.extend(
-                        value_refs
-                            .iter()
-                            .filter(|candidate| value_ref_ctx.imported.contains(*candidate))
-                            .cloned(),
-                    );
-                    acc.value_decl_ref_names.extend(value_refs);
                 }
             }
             _ => {}
         }
         collect_index_refs_and_counts(&node.children, value_ref_ctx, known_keyframe_names, acc);
+    }
+}
+
+fn extend_value_ref_facts(
+    acc: &mut IndexSummaryAcc,
+    value_refs: Vec<String>,
+    value_ref_ctx: ValueRefContext<'_>,
+    origin: ValueRefOrigin,
+) {
+    acc.value_ref_names.extend(value_refs.iter().cloned());
+
+    let local_refs: Vec<String> = value_refs
+        .iter()
+        .filter(|name| value_ref_ctx.local.contains(*name))
+        .cloned()
+        .collect();
+    acc.local_value_ref_names.extend(local_refs);
+
+    let imported_refs: Vec<String> = value_refs
+        .iter()
+        .filter(|name| value_ref_ctx.imported.contains(*name))
+        .cloned()
+        .collect();
+    acc.imported_value_ref_names
+        .extend(imported_refs.iter().cloned());
+
+    let imported_ref_sources: Vec<String> = imported_refs
+        .iter()
+        .filter_map(|name| acc.value_import_source_by_name.get(name))
+        .cloned()
+        .collect();
+    acc.imported_value_ref_sources
+        .extend(imported_ref_sources.iter().cloned());
+
+    match origin {
+        ValueRefOrigin::Declaration => {
+            acc.declaration_value_ref_names.extend(value_refs);
+            acc.declaration_imported_value_ref_sources
+                .extend(imported_ref_sources);
+        }
+        ValueRefOrigin::ValueDecl => {
+            acc.value_decl_ref_names.extend(value_refs);
+            acc.value_decl_imported_value_ref_sources
+                .extend(imported_ref_sources);
+        }
     }
 }
 
