@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.13.0] — 2026-04-21
+
+### Added
+
+- **Expanded lint-consumer surface** — the ESLint consumer now exposes focused source-side rules for `missing-static-class`, `missing-template-prefix`, `missing-resolved-class-values`, and `missing-resolved-class-domain`, while the Stylelint consumer now covers `composes`, `@value`, and `@keyframes` resolution failures in addition to `unused-selector`.
+- **Plugin consumer example workspace** — the repo now includes `examples/plugin-consumers`, a clean dual-consumer setup for ESLint and Stylelint, plus `pnpm check:plugin-consumer-example` to verify that the example wiring stays valid.
+
+### Changed
+
+- **`3.13.0` is now framed as a lint-consumer plugin milestone** — the release narrative now includes user-facing plugin work rather than only internal Rust lane promotion. ESLint and Stylelint consumer surfaces are broad enough to batch as one plugin-facing release unit.
+- **Plugin-facing release verification is now explicit** — `pnpm check:plugin-consumers` and `pnpm check:plugin-consumer-example` now sit in the release verification path so plugin regressions are exercised before packaging.
+
 ## [3.12.0] — 2026-04-21
 
 ### Added
