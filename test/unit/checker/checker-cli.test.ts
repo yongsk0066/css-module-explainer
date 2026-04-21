@@ -6,6 +6,7 @@ import { runCheckerCli } from "../../../server/checker-cli/src";
 
 const tempDirs: string[] = [];
 const STYLELINT_SMOKE_ROOT = path.join(process.cwd(), "test/_fixtures/stylelint-plugin-smoke");
+const ESLINT_SMOKE_ROOT = path.join(process.cwd(), "test/_fixtures/eslint-plugin-smoke");
 
 afterEach(() => {
   for (const dir of tempDirs.splice(0)) {
@@ -484,7 +485,7 @@ describe("runCheckerCli", () => {
       findingsMatch: true,
       mismatchedCodes: [],
     });
-  });
+  }, 5000);
 
   it("prints rust style-recovery consistency summary in text output", async () => {
     const stdout: string[] = [];
@@ -515,7 +516,92 @@ describe("runCheckerCli", () => {
     expect(stdout.join("")).toContain(
       "Rust style-recovery consumer: findings=1 consistent=true releaseGate=false",
     );
-  });
+  }, 5000);
+
+  it("emits rust source-missing producer and consistency in json output", async () => {
+    const stdout: string[] = [];
+
+    const exitCode = await runCheckerCli(
+      [
+        ESLINT_SMOKE_ROOT,
+        "--source-file",
+        "src/MissingModule.jsx",
+        "--preset",
+        "changed-source",
+        "--include-bundle",
+        "source-missing",
+        "--format",
+        "json",
+        "--fail-on",
+        "none",
+        "--rust-source-missing-consumer",
+      ],
+      {
+        stdout: (message) => stdout.push(message),
+        stderr: () => {},
+        cwd: () => ESLINT_SMOKE_ROOT,
+      },
+    );
+
+    expect(exitCode).toBe(0);
+    const payload = JSON.parse(stdout.join(""));
+    expect(payload.rustSourceMissingCanonicalProducer).toMatchObject({
+      canonicalCandidate: {
+        bundle: "source-missing",
+        summary: { total: 1 },
+        findings: [
+          expect.objectContaining({
+            code: "missing-module",
+          }),
+        ],
+      },
+      boundedCheckerGate: {
+        boundedCheckerLaneCommand: "pnpm check:rust-checker-bounded-lanes",
+        checkerBundle: "source-missing",
+        includedInRustReleaseBundle: false,
+      },
+    });
+    expect(payload.rustSourceMissingConsistency).toEqual({
+      schemaVersion: "0",
+      bundle: "source-missing",
+      tsFindingCount: 1,
+      rustFindingCount: 1,
+      countsMatch: true,
+      findingsMatch: true,
+      mismatchedCodes: [],
+    });
+  }, 5000);
+
+  it("prints rust source-missing consistency summary in text output", async () => {
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+
+    const exitCode = await runCheckerCli(
+      [
+        ESLINT_SMOKE_ROOT,
+        "--source-file",
+        "src/App.jsx",
+        "--preset",
+        "changed-source",
+        "--include-bundle",
+        "source-missing",
+        "--fail-on",
+        "none",
+        "--rust-source-missing-consumer",
+      ],
+      {
+        stdout: (message) => stdout.push(message),
+        stderr: (message) => stderr.push(message),
+        cwd: () => ESLINT_SMOKE_ROOT,
+      },
+    );
+
+    expect(exitCode).toBe(0);
+    expect(stderr).toEqual([]);
+    expect(stdout.join("")).toContain(
+      "Rust source-missing consumer: findings=1 consistent=true releaseGate=false",
+    );
+  }, 5000);
 });
 
 function makeWorkspace(files: Readonly<Record<string, string>>): string {

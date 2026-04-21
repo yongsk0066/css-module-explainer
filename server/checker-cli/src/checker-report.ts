@@ -9,6 +9,7 @@ import type {
   WorkspaceCheckResult,
 } from "../../engine-host-node/src/checker-host";
 import type { CheckerStyleRecoveryCanonicalProducerSignalV0 } from "./rust-style-recovery-consumer";
+import type { CheckerSourceMissingCanonicalProducerSignalV0 } from "./rust-source-missing-consumer";
 
 export type CheckerReportJsonFinding = CheckerFindingRecordV1;
 const STYLE_RECOVERY_CODES = new Set([
@@ -17,6 +18,13 @@ const STYLE_RECOVERY_CODES = new Set([
   "missing-value-module",
   "missing-imported-value",
   "missing-keyframes",
+]);
+const SOURCE_MISSING_CODES = new Set([
+  "missing-module",
+  "missing-static-class",
+  "missing-template-prefix",
+  "missing-resolved-class-values",
+  "missing-resolved-class-domain",
 ]);
 
 export interface CheckerReportJsonV1 {
@@ -42,11 +50,23 @@ export interface CheckerReportJsonV1 {
   readonly findings: readonly CheckerReportJsonFinding[];
   readonly rustStyleRecoveryCanonicalProducer?: CheckerStyleRecoveryCanonicalProducerSignalV0;
   readonly rustStyleRecoveryConsistency?: RustStyleRecoveryConsistencyV0;
+  readonly rustSourceMissingCanonicalProducer?: CheckerSourceMissingCanonicalProducerSignalV0;
+  readonly rustSourceMissingConsistency?: RustSourceMissingConsistencyV0;
 }
 
 export interface RustStyleRecoveryConsistencyV0 {
   readonly schemaVersion: "0";
   readonly bundle: "style-recovery";
+  readonly tsFindingCount: number;
+  readonly rustFindingCount: number;
+  readonly countsMatch: boolean;
+  readonly findingsMatch: boolean;
+  readonly mismatchedCodes: readonly string[];
+}
+
+export interface RustSourceMissingConsistencyV0 {
+  readonly schemaVersion: "0";
+  readonly bundle: "source-missing";
   readonly tsFindingCount: number;
   readonly rustFindingCount: number;
   readonly countsMatch: boolean;
@@ -63,9 +83,13 @@ export function buildCheckerJsonReport(
   workspaceRoot: string,
   filters: WorkspaceCheckCommandFilters,
   rustStyleRecoveryCanonicalProducer?: CheckerStyleRecoveryCanonicalProducerSignalV0,
+  rustSourceMissingCanonicalProducer?: CheckerSourceMissingCanonicalProducerSignalV0,
 ): CheckerReportJsonV1 {
   const rustStyleRecoveryConsistency = rustStyleRecoveryCanonicalProducer
     ? deriveRustStyleRecoveryConsistency(report, rustStyleRecoveryCanonicalProducer)
+    : undefined;
+  const rustSourceMissingConsistency = rustSourceMissingCanonicalProducer
+    ? deriveRustSourceMissingConsistency(report, rustSourceMissingCanonicalProducer)
     : undefined;
 
   return {
@@ -87,6 +111,8 @@ export function buildCheckerJsonReport(
     findings: report.findings,
     ...(rustStyleRecoveryCanonicalProducer ? { rustStyleRecoveryCanonicalProducer } : {}),
     ...(rustStyleRecoveryConsistency ? { rustStyleRecoveryConsistency } : {}),
+    ...(rustSourceMissingCanonicalProducer ? { rustSourceMissingCanonicalProducer } : {}),
+    ...(rustSourceMissingConsistency ? { rustSourceMissingConsistency } : {}),
   };
 }
 
@@ -134,6 +160,58 @@ function deriveRustStyleRecoveryConsistency(
   return {
     schemaVersion: "0",
     bundle: "style-recovery",
+    tsFindingCount: tsFindings.length,
+    rustFindingCount: rustFindings.length,
+    countsMatch: tsFindings.length === rustFindings.length,
+    findingsMatch: JSON.stringify(tsFindings) === JSON.stringify(rustFindings),
+    mismatchedCodes: [...mismatchedCodes].toSorted(),
+  };
+}
+
+function deriveRustSourceMissingConsistency(
+  report: CheckerReportV1,
+  rustSourceMissingCanonicalProducer: CheckerSourceMissingCanonicalProducerSignalV0,
+): RustSourceMissingConsistencyV0 {
+  const tsFindings = report.findings
+    .filter((finding) => finding.category === "source" && SOURCE_MISSING_CODES.has(finding.code))
+    .map((finding) => {
+      const result = {
+        filePath: finding.filePath,
+        code: finding.code,
+        severity: finding.severity,
+        range: finding.range,
+        message: finding.message,
+      };
+      return Object.assign(
+        result,
+        finding.analysisReason ? { analysisReason: finding.analysisReason } : {},
+        finding.valueCertaintyShapeLabel
+          ? { valueCertaintyShapeLabel: finding.valueCertaintyShapeLabel }
+          : {},
+      );
+    })
+    .toSorted(compareStyleRecoveryFinding);
+
+  const rustFindings = [...rustSourceMissingCanonicalProducer.canonicalCandidate.findings].toSorted(
+    compareStyleRecoveryFinding,
+  );
+  const mismatchedCodes = new Set<string>();
+  const allCodes = new Set([
+    ...tsFindings.map((finding) => finding.code),
+    ...rustFindings.map((finding) => finding.code),
+  ]);
+
+  for (const code of allCodes) {
+    const tsCount = tsFindings.filter((finding) => finding.code === code).length;
+    const rustCount = rustFindings.filter((finding) => finding.code === code).length;
+    if (tsCount !== rustCount) {
+      mismatchedCodes.add(code);
+    }
+  }
+
+  return {
+    schemaVersion: "0",
+    bundle: "source-missing",
     tsFindingCount: tsFindings.length,
     rustFindingCount: rustFindings.length,
     countsMatch: tsFindings.length === rustFindings.length,

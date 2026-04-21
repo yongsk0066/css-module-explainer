@@ -571,6 +571,54 @@ export interface CheckerStyleRecoveryCanonicalProducerSignalV0 {
   };
 }
 
+export interface CheckerSourceMissingFindingV0 {
+  readonly filePath: string;
+  readonly code: string;
+  readonly severity: string;
+  readonly range: {
+    readonly start: {
+      readonly line: number;
+      readonly character: number;
+    };
+    readonly end: {
+      readonly line: number;
+      readonly character: number;
+    };
+  };
+  readonly message: string;
+  readonly analysisReason?: string;
+  readonly valueCertaintyShapeLabel?: string;
+}
+
+export interface CheckerSourceMissingCanonicalCandidateBundleV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly reportVersion: string;
+  readonly bundle: "source-missing";
+  readonly distinctFileCount: number;
+  readonly codeCounts: Readonly<Record<string, number>>;
+  readonly summary: {
+    readonly warnings: number;
+    readonly hints: number;
+    readonly total: number;
+  };
+  readonly findings: readonly CheckerSourceMissingFindingV0[];
+}
+
+export interface CheckerSourceMissingCanonicalProducerSignalV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly canonicalCandidate: CheckerSourceMissingCanonicalCandidateBundleV0;
+  readonly boundedCheckerGate: {
+    readonly canonicalCandidateCommand: "pnpm check:rust-checker-source-missing-canonical-candidate";
+    readonly canonicalProducerCommand: "pnpm check:rust-checker-source-missing-canonical-producer";
+    readonly boundedCheckerLaneCommand: "pnpm check:rust-checker-bounded-lanes";
+    readonly checkerBundle: "source-missing";
+    readonly includedInRustLaneBundle: false;
+    readonly includedInRustReleaseBundle: false;
+  };
+}
+
 export async function runShadow(snapshot: unknown): Promise<ShadowSummaryV0> {
   return runShadowJson<ShadowSummaryV0>([], snapshot);
 }
@@ -845,6 +893,24 @@ export async function runShadowCheckerStyleRecoveryCanonicalProducer(
 ): Promise<CheckerStyleRecoveryCanonicalProducerSignalV0> {
   return runShadowJson<CheckerStyleRecoveryCanonicalProducerSignalV0>(
     ["output-checker-style-recovery-canonical-producer"],
+    snapshot,
+  );
+}
+
+export async function runShadowCheckerSourceMissingCanonicalCandidate(
+  snapshot: unknown,
+): Promise<CheckerSourceMissingCanonicalCandidateBundleV0> {
+  return runShadowJson<CheckerSourceMissingCanonicalCandidateBundleV0>(
+    ["output-checker-source-missing-canonical-candidate"],
+    snapshot,
+  );
+}
+
+export async function runShadowCheckerSourceMissingCanonicalProducer(
+  snapshot: unknown,
+): Promise<CheckerSourceMissingCanonicalProducerSignalV0> {
+  return runShadowJson<CheckerSourceMissingCanonicalProducerSignalV0>(
+    ["output-checker-source-missing-canonical-producer"],
     snapshot,
   );
 }

@@ -203,6 +203,53 @@ struct CheckerStyleRecoveryCanonicalProducerSignalV0 {
     bounded_checker_gate: CheckerStyleRecoveryCanonicalProducerGateV0,
 }
 
+#[derive(Debug, Serialize, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "camelCase")]
+struct CheckerSourceMissingFindingV0 {
+    file_path: String,
+    code: String,
+    severity: String,
+    range: RangeV0,
+    message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    analysis_reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    value_certainty_shape_label: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CheckerSourceMissingCanonicalCandidateBundleV0 {
+    schema_version: &'static str,
+    input_version: String,
+    report_version: String,
+    bundle: &'static str,
+    distinct_file_count: usize,
+    code_counts: BTreeMap<String, usize>,
+    summary: CheckerReportSummaryV1,
+    findings: Vec<CheckerSourceMissingFindingV0>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CheckerSourceMissingCanonicalProducerGateV0 {
+    canonical_candidate_command: &'static str,
+    canonical_producer_command: &'static str,
+    bounded_checker_lane_command: &'static str,
+    checker_bundle: &'static str,
+    included_in_rust_lane_bundle: bool,
+    included_in_rust_release_bundle: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CheckerSourceMissingCanonicalProducerSignalV0 {
+    schema_version: &'static str,
+    input_version: String,
+    canonical_candidate: CheckerSourceMissingCanonicalCandidateBundleV0,
+    bounded_checker_gate: CheckerSourceMissingCanonicalProducerGateV0,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ShadowSummaryV0 {
@@ -432,6 +479,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some("output-checker-style-recovery-canonical-producer") => {
             let payload: ShadowPayloadV0 = serde_json::from_str(&stdin)?;
             let summary = summarize_checker_style_recovery_canonical_producer(payload);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
+        Some("output-checker-source-missing-canonical-candidate") => {
+            let payload: ShadowPayloadV0 = serde_json::from_str(&stdin)?;
+            let summary = summarize_checker_source_missing_canonical_candidate(payload);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
+        Some("output-checker-source-missing-canonical-producer") => {
+            let payload: ShadowPayloadV0 = serde_json::from_str(&stdin)?;
+            let summary = summarize_checker_source_missing_canonical_producer(payload);
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
         Some(other) => {
@@ -768,6 +825,88 @@ fn summarize_checker_style_recovery_canonical_producer(
             canonical_producer_command: "pnpm check:rust-checker-style-recovery-canonical-producer",
             bounded_checker_lane_command: "pnpm check:rust-checker-bounded-lanes",
             checker_bundle: "style-recovery",
+            included_in_rust_lane_bundle: false,
+            included_in_rust_release_bundle: false,
+        },
+    }
+}
+
+fn summarize_checker_source_missing_canonical_candidate(
+    payload: ShadowPayloadV0,
+) -> CheckerSourceMissingCanonicalCandidateBundleV0 {
+    let input_version = payload.input.version.clone();
+    let report = payload.output.checker_report;
+    let mut code_counts = BTreeMap::new();
+    let mut file_paths = std::collections::BTreeSet::new();
+    let mut findings = Vec::new();
+    let mut warnings = 0usize;
+    let mut hints = 0usize;
+
+    for finding in report.findings {
+        if finding.category != "source" {
+            continue;
+        }
+        if !matches!(
+            finding.code.as_str(),
+            "missing-module"
+                | "missing-static-class"
+                | "missing-template-prefix"
+                | "missing-resolved-class-values"
+                | "missing-resolved-class-domain"
+        ) {
+            continue;
+        }
+
+        *code_counts.entry(finding.code.clone()).or_insert(0) += 1;
+        file_paths.insert(finding.file_path.clone());
+        if finding.severity == "warning" {
+            warnings += 1;
+        }
+        if finding.severity == "hint" {
+            hints += 1;
+        }
+        findings.push(CheckerSourceMissingFindingV0 {
+            file_path: finding.file_path,
+            code: finding.code,
+            severity: finding.severity,
+            range: finding.range,
+            message: finding.message,
+            analysis_reason: finding.analysis_reason,
+            value_certainty_shape_label: finding.value_certainty_shape_label,
+        });
+    }
+
+    findings.sort();
+
+    CheckerSourceMissingCanonicalCandidateBundleV0 {
+        schema_version: "0",
+        input_version,
+        report_version: report.version,
+        bundle: "source-missing",
+        distinct_file_count: file_paths.len(),
+        code_counts,
+        summary: CheckerReportSummaryV1 {
+            warnings,
+            hints,
+            total: findings.len(),
+        },
+        findings,
+    }
+}
+
+fn summarize_checker_source_missing_canonical_producer(
+    payload: ShadowPayloadV0,
+) -> CheckerSourceMissingCanonicalProducerSignalV0 {
+    let canonical_candidate = summarize_checker_source_missing_canonical_candidate(payload);
+    CheckerSourceMissingCanonicalProducerSignalV0 {
+        schema_version: "0",
+        input_version: canonical_candidate.input_version.clone(),
+        canonical_candidate,
+        bounded_checker_gate: CheckerSourceMissingCanonicalProducerGateV0 {
+            canonical_candidate_command: "pnpm check:rust-checker-source-missing-canonical-candidate",
+            canonical_producer_command: "pnpm check:rust-checker-source-missing-canonical-producer",
+            bounded_checker_lane_command: "pnpm check:rust-checker-bounded-lanes",
+            checker_bundle: "source-missing",
             included_in_rust_lane_bundle: false,
             included_in_rust_release_bundle: false,
         },

@@ -23,7 +23,14 @@ import {
   buildRustStyleRecoveryCanonicalProducer,
   type CheckerStyleRecoveryCanonicalProducerSignalV0,
 } from "./rust-style-recovery-consumer";
-import type { RustStyleRecoveryConsistencyV0 } from "./checker-report";
+import {
+  buildRustSourceMissingCanonicalProducer,
+  type CheckerSourceMissingCanonicalProducerSignalV0,
+} from "./rust-source-missing-consumer";
+import type {
+  RustSourceMissingConsistencyV0,
+  RustStyleRecoveryConsistencyV0,
+} from "./checker-report";
 
 export interface CheckerCliIO {
   readonly stdout: (message: string) => void;
@@ -65,14 +72,19 @@ export async function runCheckerCli(
   const rustStyleRecoveryCanonicalProducer = parsed.rustStyleRecoveryConsumer
     ? await buildRustStyleRecoveryCanonicalProducer(parsed.options, command.checkerReport)
     : undefined;
+  const rustSourceMissingCanonicalProducer = parsed.rustSourceMissingConsumer
+    ? await buildRustSourceMissingCanonicalProducer(parsed.options, command.checkerReport)
+    : undefined;
   const jsonReport = buildCheckerJsonReport(
     command.workspaceCheck,
     command.checkerReport,
     parsed.options.workspaceRoot,
     parsed.filters,
     rustStyleRecoveryCanonicalProducer,
+    rustSourceMissingCanonicalProducer,
   );
   const rustStyleRecoveryConsistency = jsonReport.rustStyleRecoveryConsistency;
+  const rustSourceMissingConsistency = jsonReport.rustSourceMissingConsistency;
   writeResult(
     command.workspaceCheck,
     command.checkerReport,
@@ -81,6 +93,8 @@ export async function runCheckerCli(
     io,
     rustStyleRecoveryCanonicalProducer,
     rustStyleRecoveryConsistency,
+    rustSourceMissingCanonicalProducer,
+    rustSourceMissingConsistency,
   );
   return shouldFail(command.checkerReport, parsed.failOn) ? 1 : 0;
 }
@@ -92,6 +106,7 @@ interface ParsedCliOptions {
   readonly failOn: CheckerCliFailOn;
   readonly summaryMode: CheckerCliSummaryMode;
   readonly rustStyleRecoveryConsumer: boolean;
+  readonly rustSourceMissingConsumer: boolean;
 }
 
 async function parseCliArgs(
@@ -113,6 +128,7 @@ async function parseCliArgs(
   let severity: CheckerCliSeverity = "all";
   let summaryMode: CheckerCliSummaryMode = "full";
   let rustStyleRecoveryConsumer = false;
+  let rustSourceMissingConsumer = false;
   let explicitFailOn = false;
   let explicitCategory = false;
   let explicitSeverity = false;
@@ -207,6 +223,11 @@ async function parseCliArgs(
 
     if (arg === "--rust-style-recovery-consumer") {
       rustStyleRecoveryConsumer = true;
+      continue;
+    }
+
+    if (arg === "--rust-source-missing-consumer") {
+      rustSourceMissingConsumer = true;
       continue;
     }
 
@@ -359,6 +380,7 @@ async function parseCliArgs(
     failOn,
     summaryMode,
     rustStyleRecoveryConsumer,
+    rustSourceMissingConsumer,
   };
 }
 
@@ -414,6 +436,8 @@ function writeResult(
   io: CheckerCliIO,
   rustStyleRecoveryCanonicalProducer?: CheckerStyleRecoveryCanonicalProducerSignalV0,
   rustStyleRecoveryConsistency?: RustStyleRecoveryConsistencyV0,
+  rustSourceMissingCanonicalProducer?: CheckerSourceMissingCanonicalProducerSignalV0,
+  rustSourceMissingConsistency?: RustSourceMissingConsistencyV0,
 ): void {
   if (parsed.format === "json") {
     io.stdout(`${JSON.stringify(jsonReport, null, 2)}\n`);
@@ -454,6 +478,14 @@ function writeResult(
       `Rust style-recovery consumer: findings=${rustStyleRecoveryCanonicalProducer.canonicalCandidate.summary.total} ` +
         `consistent=${rustStyleRecoveryConsistency?.findingsMatch === true} ` +
         `releaseGate=${rustStyleRecoveryCanonicalProducer.boundedCheckerGate.includedInRustReleaseBundle}\n`,
+    );
+  }
+
+  if (rustSourceMissingCanonicalProducer) {
+    io.stdout(
+      `Rust source-missing consumer: findings=${rustSourceMissingCanonicalProducer.canonicalCandidate.summary.total} ` +
+        `consistent=${rustSourceMissingConsistency?.findingsMatch === true} ` +
+        `releaseGate=${rustSourceMissingCanonicalProducer.boundedCheckerGate.includedInRustReleaseBundle}\n`,
     );
   }
 }
