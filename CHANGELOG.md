@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.10.0] — 2026-04-21
+
+### Added
+
+- **Parser public-product gate** — the Rust parser track now has a canonical `pnpm check:rust-parser-public-product` command that packages scaffold tests, bounded parser parity-lite, and CSS Modules intermediate producer validation behind one parser/public-product boundary.
+- **Expanded parser CSS Modules intermediate facts** — the Rust parser intermediate now carries wrapper-aware `keyframes`, `value`, and `composes` source/target facts, including imported value-ref sources, `@value` dependency ownership, wrapper-scoped local/imported value refs, wrapper-scoped `composes` kind splits, and wrapper-scoped imported `composes` source paths.
+
+### Changed
+
+- **`3.10.0` is now framed as a parser public-product Rust milestone** — the release narrative no longer treats the parser track as a watch-only sidecar. `engine-style-parser` now has its own canonical public-product gate while still participating in the broader Rust lane bundle.
+- **Release-facing Rust validation now names the parser lane explicitly** — `pnpm check:rust-lane-bundle`, `pnpm check:rust-release-bundle`, and `RELEASING.md` now refer to `pnpm check:rust-parser-public-product` as the canonical parser/public-product gate.
+
 ## [3.9.0] — 2026-04-20
 
 ### Added

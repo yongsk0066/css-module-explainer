@@ -263,10 +263,11 @@ Current checker policy:
   - broader Rust lane bundle: `pnpm check:rust-lane-bundle`
   - release-facing Rust bundle: `pnpm check:rust-release-bundle`
   - full snapshot parity: `pnpm check:rust-shadow-compare`
-- Current `3.9.0` framing is a consolidated semantic lane:
+- Current `3.10.0` framing is a parser public-product Rust milestone:
   - `expression-semantics` and `source-resolution` still carry family-level canonical-producer signals and a shared top-level source-side lane
   - `expression-domain` carries input-only canonical artifacts plus type-fact-backed evaluator-candidate coverage on the Rust shadow path
   - a top-level `semantic` lane now consolidates `source-side + expression-domain` into one canonical-candidate / evaluator-candidate / canonical-producer path
+  - `engine-style-parser` now has a canonical parser/public-product gate and a bounded CSS Modules intermediate producer surface
   - `selector-usage` remains a shadow validation family, not a release-gating canonical candidate
   - current `EngineInputV2` does not preserve enough reference-level evidence to reproduce `selector-usage` semantics as an input-only canonical producer
   - the current internal Rust producer boundary is [`rust/crates/engine-input-producers`](./rust/crates/engine-input-producers/README.md)
