@@ -19,6 +19,10 @@ import {
   type CheckerCodeBundle,
 } from "../../engine-core-ts/src/core/checker/checker-code-bundles";
 import { buildCheckerJsonReport, type CheckerReportJsonV1 } from "./checker-report";
+import {
+  buildRustStyleRecoveryCanonicalProducer,
+  type CheckerStyleRecoveryCanonicalProducerSignalV0,
+} from "./rust-style-recovery-consumer";
 
 export interface CheckerCliIO {
   readonly stdout: (message: string) => void;
@@ -57,13 +61,24 @@ export async function runCheckerCli(
     workspace: parsed.options,
     filters: parsed.filters,
   });
+  const rustStyleRecoveryCanonicalProducer = parsed.rustStyleRecoveryConsumer
+    ? await buildRustStyleRecoveryCanonicalProducer(parsed.options, command.checkerReport)
+    : undefined;
   const jsonReport = buildCheckerJsonReport(
     command.workspaceCheck,
     command.checkerReport,
     parsed.options.workspaceRoot,
     parsed.filters,
+    rustStyleRecoveryCanonicalProducer,
   );
-  writeResult(command.workspaceCheck, command.checkerReport, jsonReport, parsed, io);
+  writeResult(
+    command.workspaceCheck,
+    command.checkerReport,
+    jsonReport,
+    parsed,
+    io,
+    rustStyleRecoveryCanonicalProducer,
+  );
   return shouldFail(command.checkerReport, parsed.failOn) ? 1 : 0;
 }
 
@@ -73,6 +88,7 @@ interface ParsedCliOptions {
   readonly format: CheckerCliFormat;
   readonly failOn: CheckerCliFailOn;
   readonly summaryMode: CheckerCliSummaryMode;
+  readonly rustStyleRecoveryConsumer: boolean;
 }
 
 async function parseCliArgs(
@@ -93,6 +109,7 @@ async function parseCliArgs(
   let category: CheckerCliCategory = "all";
   let severity: CheckerCliSeverity = "all";
   let summaryMode: CheckerCliSummaryMode = "full";
+  let rustStyleRecoveryConsumer = false;
   let explicitFailOn = false;
   let explicitCategory = false;
   let explicitSeverity = false;
@@ -182,6 +199,11 @@ async function parseCliArgs(
     if (arg === "--compact") {
       summaryMode = "compact";
       explicitSummaryMode = true;
+      continue;
+    }
+
+    if (arg === "--rust-style-recovery-consumer") {
+      rustStyleRecoveryConsumer = true;
       continue;
     }
 
@@ -333,6 +355,7 @@ async function parseCliArgs(
     format,
     failOn,
     summaryMode,
+    rustStyleRecoveryConsumer,
   };
 }
 
@@ -386,6 +409,7 @@ function writeResult(
   jsonReport: CheckerReportJsonV1,
   parsed: Pick<ParsedCliOptions, "format" | "summaryMode">,
   io: CheckerCliIO,
+  rustStyleRecoveryCanonicalProducer?: CheckerStyleRecoveryCanonicalProducerSignalV0,
 ): void {
   if (parsed.format === "json") {
     io.stdout(`${JSON.stringify(jsonReport, null, 2)}\n`);
@@ -420,6 +444,13 @@ function writeResult(
     `Checked ${result.sourceFiles.length} source files and ${result.styleFiles.length} style modules. ` +
       `${result.summary.total} findings (${result.summary.warnings} warnings, ${result.summary.hints} hints).\n`,
   );
+
+  if (rustStyleRecoveryCanonicalProducer) {
+    io.stdout(
+      `Rust style-recovery consumer: findings=${rustStyleRecoveryCanonicalProducer.canonicalCandidate.summary.total} ` +
+        `releaseGate=${rustStyleRecoveryCanonicalProducer.boundedCheckerGate.includedInRustReleaseBundle}\n`,
+    );
+  }
 }
 
 function shouldFail(report: CheckerReportV1, failOn: CheckerCliFailOn): boolean {
@@ -494,6 +525,7 @@ function buildHelpText(): string {
     "  --severity <all|warning|hint> Filter findings by severity",
     "  --summary                    Print summary only for text output",
     "  --compact                    Group text output by file for changed-file workflows",
+    "  --rust-style-recovery-consumer Consume the bounded Rust style-recovery producer alongside the TS checker result",
     "  --classname-transform <mode> Style transform mode",
     "  --path-alias <prefix=target> Repeatable native path-alias override",
     "  --include-code <code>        Restrict findings to one rule code (repeatable)",

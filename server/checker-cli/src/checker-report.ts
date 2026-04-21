@@ -8,6 +8,7 @@ import type {
   WorkspaceCheckCommandPreset,
   WorkspaceCheckResult,
 } from "../../engine-host-node/src/checker-host";
+import type { CheckerStyleRecoveryCanonicalProducerSignalV0 } from "./rust-style-recovery-consumer";
 
 export type CheckerReportJsonFinding = CheckerFindingRecordV1;
 
@@ -32,6 +33,7 @@ export interface CheckerReportJsonV1 {
     readonly total: number;
   };
   readonly findings: readonly CheckerReportJsonFinding[];
+  readonly rustStyleRecoveryCanonicalProducer?: CheckerStyleRecoveryCanonicalProducerSignalV0;
 }
 
 const CHECKER_JSON_SCHEMA_VERSION = "1" as const;
@@ -42,6 +44,7 @@ export function buildCheckerJsonReport(
   report: CheckerReportV1,
   workspaceRoot: string,
   filters: WorkspaceCheckCommandFilters,
+  rustStyleRecoveryCanonicalProducer?: CheckerStyleRecoveryCanonicalProducerSignalV0,
 ): CheckerReportJsonV1 {
   return {
     schemaVersion: CHECKER_JSON_SCHEMA_VERSION,
@@ -60,5 +63,6 @@ export function buildCheckerJsonReport(
     styleFiles: result.styleFiles,
     summary: report.summary,
     findings: report.findings,
+    ...(rustStyleRecoveryCanonicalProducer ? { rustStyleRecoveryCanonicalProducer } : {}),
   };
 }

@@ -268,6 +268,7 @@ Current checker policy:
 - `pnpm check:rust-parser-public-product` is the canonical parser/public-product gate and currently runs the parser lane bundle plus that consumer-boundary check
 - `pnpm check:rust-checker-style-recovery-canonical-candidate` is the current bounded checker-canonical entrance check; it compares the `style-recovery` checker subset against a versioned Rust shadow canonical-candidate bundle
 - `pnpm check:rust-checker-style-recovery-canonical-producer` validates the matching checker canonical-producer signal for that same bounded `style-recovery` subset
+- `pnpm check:rust-checker-style-recovery-consumer-boundary` validates the opt-in `checker-cli` Rust consumer path for that same bounded subset
 - Rust shadow validation now covers:
   - input summaries: `pnpm check:rust-type-fact-compare`, `pnpm check:rust-query-plan-compare`, `pnpm check:rust-expression-domain-compare`
   - input-only candidates: `pnpm check:rust-expression-domain-candidates`
@@ -285,6 +286,7 @@ Current checker policy:
   - parser/public-product gate: `pnpm check:rust-parser-consumer-boundary`, `pnpm check:rust-parser-public-product`
   - bounded checker entrance: `pnpm check:rust-checker-style-recovery-canonical-candidate`
   - bounded checker producer signal: `pnpm check:rust-checker-style-recovery-canonical-producer`
+  - bounded checker consumer path: `pnpm check:rust-checker-style-recovery-consumer-boundary`
   - broader Rust lane bundle: `pnpm check:rust-lane-bundle`
   - release-facing Rust bundle: `pnpm check:rust-release-bundle`
   - full snapshot parity: `pnpm check:rust-shadow-compare`
