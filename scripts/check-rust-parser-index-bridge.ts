@@ -31,11 +31,14 @@ interface ParserIndexSummaryV0 {
     readonly refNames: readonly string[];
     readonly declarationRefNames: readonly string[];
     readonly valueDeclRefNames: readonly string[];
+    readonly selectorsWithRefsNames: readonly string[];
   };
   readonly keyframes: {
     readonly names: readonly string[];
     readonly animationRefNames: readonly string[];
     readonly animationNameRefNames: readonly string[];
+    readonly selectorsWithAnimationRefNames: readonly string[];
+    readonly selectorsWithAnimationNameRefNames: readonly string[];
   };
   readonly composes: {
     readonly selectorsWithComposesNames: readonly string[];
@@ -340,6 +343,7 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
         .filter((entry) => entry.source === "valueDecl")
         .map((entry) => entry.name)
         .toSorted(),
+      selectorsWithRefsNames: selectorsWithValueRefs.map((selector) => selector.name).toSorted(),
     },
     keyframes: {
       names: [...document.keyframes].map((entry) => entry.name).toSorted(),
@@ -350,6 +354,12 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
       animationNameRefNames: document.animationNameRefs
         .filter((entry) => entry.property === "animation-name")
         .map((entry) => entry.name)
+        .toSorted(),
+      selectorsWithAnimationRefNames: selectorsWithAnimationRefs
+        .map((selector) => selector.name)
+        .toSorted(),
+      selectorsWithAnimationNameRefNames: selectorsWithAnimationNameRefs
+        .map((selector) => selector.name)
         .toSorted(),
     },
     composes: {

@@ -213,6 +213,7 @@ pub struct ParserIndexValueFactsV0 {
     pub ref_names: Vec<String>,
     pub declaration_ref_names: Vec<String>,
     pub value_decl_ref_names: Vec<String>,
+    pub selectors_with_refs_names: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
@@ -221,6 +222,8 @@ pub struct ParserIndexKeyframesFactsV0 {
     pub names: Vec<String>,
     pub animation_ref_names: Vec<String>,
     pub animation_name_ref_names: Vec<String>,
+    pub selectors_with_animation_ref_names: Vec<String>,
+    pub selectors_with_animation_name_ref_names: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
@@ -440,6 +443,10 @@ pub fn summarize_index_bridge(sheet: &Stylesheet) -> ParserIndexSummaryV0 {
     acc.animation_ref_names.dedup();
     acc.animation_name_ref_names.sort();
     acc.animation_name_ref_names.dedup();
+    let selectors_with_value_refs_names = acc.selectors_with_value_refs_names.clone();
+    let selectors_with_animation_ref_names = acc.selectors_with_animation_ref_names.clone();
+    let selectors_with_animation_name_ref_names =
+        acc.selectors_with_animation_name_ref_names.clone();
 
     ParserIndexSummaryV0 {
         schema_version: "0",
@@ -453,9 +460,9 @@ pub fn summarize_index_bridge(sheet: &Stylesheet) -> ParserIndexSummaryV0 {
             bem_suffix_parent_names: acc.bem_suffix_parent_names,
             bem_suffix_safe_names: acc.bem_suffix_safe_selector_names,
             nested_unsafe_names: acc.nested_unsafe_selector_names,
-            selectors_with_value_refs_names: acc.selectors_with_value_refs_names,
-            selectors_with_animation_ref_names: acc.selectors_with_animation_ref_names,
-            selectors_with_animation_name_ref_names: acc.selectors_with_animation_name_ref_names,
+            selectors_with_value_refs_names,
+            selectors_with_animation_ref_names,
+            selectors_with_animation_name_ref_names,
             bem_suffix_count: acc.bem_suffix_count,
             nested_safety_counts: acc.nested_safety_counts,
         },
@@ -467,11 +474,14 @@ pub fn summarize_index_bridge(sheet: &Stylesheet) -> ParserIndexSummaryV0 {
             ref_names: acc.value_ref_names,
             declaration_ref_names: acc.declaration_value_ref_names,
             value_decl_ref_names: acc.value_decl_ref_names,
+            selectors_with_refs_names: acc.selectors_with_value_refs_names,
         },
         keyframes: ParserIndexKeyframesFactsV0 {
             names: acc.keyframes_names,
             animation_ref_names: acc.animation_ref_names,
             animation_name_ref_names: acc.animation_name_ref_names,
+            selectors_with_animation_ref_names: acc.selectors_with_animation_ref_names,
+            selectors_with_animation_name_ref_names: acc.selectors_with_animation_name_ref_names,
         },
         composes: ParserIndexComposesFactsV0 {
             selectors_with_composes_names: acc.selectors_with_composes_names,
