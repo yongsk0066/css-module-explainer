@@ -13,31 +13,27 @@ Current rules:
 - `css-module-explainer/no-unknown-dynamic-class`
 - `css-module-explainer/source-check`
 
+Config variants:
+
+- `configs.recommended`
+  - aggregate source-side diagnostics through `source-check`
+- `configs.focused`
+  - explicit focused rules for missing module/static/template/dynamic findings
+- `configs.dynamicMoat`
+  - optional moat rule for unresolved dynamic class expressions
+
 Recommended flat config:
 
 ```js
 import cssModuleExplainer from "eslint-plugin-css-module-explainer";
 
-export default [
-  {
-    files: ["**/*.{js,jsx,ts,tsx}"],
-    plugins: {
-      "css-module-explainer": cssModuleExplainer,
-    },
-    rules: {
-      "css-module-explainer/missing-module": "error",
-      "css-module-explainer/missing-static-class": "error",
-      "css-module-explainer/missing-template-prefix": "error",
-      "css-module-explainer/invalid-class-reference": "error",
-    },
-  },
-];
+export default [...cssModuleExplainer.configs.recommended];
 ```
 
-Aggregate variant:
+Focused variant:
 
 ```js
-"css-module-explainer/source-check": "error"
+export default [...cssModuleExplainer.configs.focused];
 ```
 
 Supported options:
@@ -53,16 +49,16 @@ Current limitations:
 - style-side rules are not exposed yet
 - this package is still a local workspace package, not a published artifact
 
-Optional moat rule:
+Optional dynamic moat:
 
 ```js
-"css-module-explainer/no-unknown-dynamic-class": "error"
+export default [...cssModuleExplainer.configs.dynamicMoat];
 ```
 
 This rule targets dynamic class expressions whose resolved values or domains do
 not map to any known selector in the referenced CSS Module.
 
-Focused dynamic variants:
+Manual focused dynamic variants:
 
 ```js
 "css-module-explainer/missing-resolved-class-values": "error"

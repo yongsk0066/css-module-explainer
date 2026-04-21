@@ -7,6 +7,14 @@ const missingResolvedClassDomainRule = require("./lib/missing-resolved-class-dom
 const invalidClassReferenceRule = require("./lib/invalid-class-reference.cjs");
 const noUnknownDynamicClassRule = require("./lib/no-unknown-dynamic-class.cjs");
 
+const FOCUSED_SOURCE_RULES = {
+  "css-module-explainer/missing-module": "error",
+  "css-module-explainer/missing-static-class": "error",
+  "css-module-explainer/missing-template-prefix": "error",
+  "css-module-explainer/missing-resolved-class-values": "error",
+  "css-module-explainer/missing-resolved-class-domain": "error",
+};
+
 const plugin = {
   meta: {
     name: "eslint-plugin-css-module-explainer",
@@ -31,8 +39,27 @@ plugin.configs = {
         "css-module-explainer": plugin,
       },
       rules: {
-        "css-module-explainer/missing-module": "error",
-        "css-module-explainer/invalid-class-reference": "error",
+        "css-module-explainer/source-check": "error",
+      },
+    },
+  ],
+  focused: [
+    {
+      plugins: {
+        "css-module-explainer": plugin,
+      },
+      rules: {
+        ...FOCUSED_SOURCE_RULES,
+      },
+    },
+  ],
+  dynamicMoat: [
+    {
+      plugins: {
+        "css-module-explainer": plugin,
+      },
+      rules: {
+        "css-module-explainer/no-unknown-dynamic-class": "error",
       },
     },
   ],

@@ -228,8 +228,8 @@ Current checker policy:
 - `changed-style` and `changed-source` presets use compact text output by default
 - `pnpm check:semantic-smoke` is the canonical repo-local smoke command
 - `pnpm check:lsp-server-smoke` spawns the built `lsp-server` over stdio and verifies hover/definition through a generic protocol client
-- `pnpm check:eslint-plugin-smoke` runs the first ESLint consumer against a JSX fixture and asserts that source-side semantic findings are reported as ESLint diagnostics
-  - current first-cut rules: `missing-module`, `invalid-class-reference`, plus aggregate `source-check`
+- `pnpm check:eslint-plugin-smoke` runs the ESLint consumer against JSX fixtures and asserts that source-side semantic findings are reported as ESLint diagnostics
+  - current config split: aggregate `recommended`, granular `focused`, optional `dynamicMoat`
 - `pnpm check:stylelint-plugin-smoke` runs the first Stylelint consumer against a CSS Modules fixture and asserts that unused selectors are reported as Stylelint diagnostics
 - `pnpm check:rust-gate-evidence` records wall-clock timings for the current second/third-consumer proof set so Rust gate discussions use measured repo-local workloads instead of guesses
   - current baseline variant: `typescript-current`
@@ -335,24 +335,19 @@ Flat config example:
 ```js
 import cssModuleExplainer from "eslint-plugin-css-module-explainer";
 
-export default [
-  {
-    files: ["**/*.{js,jsx,ts,tsx}"],
-    plugins: {
-      "css-module-explainer": cssModuleExplainer,
-    },
-    rules: {
-      "css-module-explainer/missing-module": "error",
-      "css-module-explainer/invalid-class-reference": "error",
-    },
-  },
-];
+export default [...cssModuleExplainer.configs.recommended];
 ```
 
-If you want one aggregate rule instead, use:
+Focused variant:
 
 ```js
-"css-module-explainer/source-check": "error"
+export default [...cssModuleExplainer.configs.focused];
+```
+
+Optional dynamic moat:
+
+```js
+export default [...cssModuleExplainer.configs.dynamicMoat];
 ```
 
 Supported rule options today:
