@@ -260,6 +260,15 @@ pub struct ParserIndexComposesFactsV0 {
     pub local_selector_names: Vec<String>,
     pub imported_selector_names: Vec<String>,
     pub global_selector_names: Vec<String>,
+    pub local_selector_names_under_media: Vec<String>,
+    pub local_selector_names_under_supports: Vec<String>,
+    pub local_selector_names_under_layer: Vec<String>,
+    pub imported_selector_names_under_media: Vec<String>,
+    pub imported_selector_names_under_supports: Vec<String>,
+    pub imported_selector_names_under_layer: Vec<String>,
+    pub global_selector_names_under_media: Vec<String>,
+    pub global_selector_names_under_supports: Vec<String>,
+    pub global_selector_names_under_layer: Vec<String>,
     pub import_sources: Vec<String>,
     pub class_name_count: usize,
     pub local_class_name_count: usize,
@@ -329,6 +338,15 @@ struct IndexSummaryAcc {
     local_composes_selector_names: Vec<String>,
     imported_composes_selector_names: Vec<String>,
     global_composes_selector_names: Vec<String>,
+    local_composes_selector_names_under_media: Vec<String>,
+    local_composes_selector_names_under_supports: Vec<String>,
+    local_composes_selector_names_under_layer: Vec<String>,
+    imported_composes_selector_names_under_media: Vec<String>,
+    imported_composes_selector_names_under_supports: Vec<String>,
+    imported_composes_selector_names_under_layer: Vec<String>,
+    global_composes_selector_names_under_media: Vec<String>,
+    global_composes_selector_names_under_supports: Vec<String>,
+    global_composes_selector_names_under_layer: Vec<String>,
     composes_import_sources: Vec<String>,
     keyframes_names: Vec<String>,
     nested_unsafe_selector_names: Vec<String>,
@@ -474,6 +492,24 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
     acc.imported_composes_selector_names.dedup();
     acc.global_composes_selector_names.sort();
     acc.global_composes_selector_names.dedup();
+    acc.local_composes_selector_names_under_media.sort();
+    acc.local_composes_selector_names_under_media.dedup();
+    acc.local_composes_selector_names_under_supports.sort();
+    acc.local_composes_selector_names_under_supports.dedup();
+    acc.local_composes_selector_names_under_layer.sort();
+    acc.local_composes_selector_names_under_layer.dedup();
+    acc.imported_composes_selector_names_under_media.sort();
+    acc.imported_composes_selector_names_under_media.dedup();
+    acc.imported_composes_selector_names_under_supports.sort();
+    acc.imported_composes_selector_names_under_supports.dedup();
+    acc.imported_composes_selector_names_under_layer.sort();
+    acc.imported_composes_selector_names_under_layer.dedup();
+    acc.global_composes_selector_names_under_media.sort();
+    acc.global_composes_selector_names_under_media.dedup();
+    acc.global_composes_selector_names_under_supports.sort();
+    acc.global_composes_selector_names_under_supports.dedup();
+    acc.global_composes_selector_names_under_layer.sort();
+    acc.global_composes_selector_names_under_layer.dedup();
     acc.composes_import_sources.sort();
     acc.keyframes_names.sort();
     acc.keyframes_names.dedup();
@@ -657,6 +693,16 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
             local_selector_names: acc.local_composes_selector_names,
             imported_selector_names: acc.imported_composes_selector_names,
             global_selector_names: acc.global_composes_selector_names,
+            local_selector_names_under_media: acc.local_composes_selector_names_under_media,
+            local_selector_names_under_supports: acc.local_composes_selector_names_under_supports,
+            local_selector_names_under_layer: acc.local_composes_selector_names_under_layer,
+            imported_selector_names_under_media: acc.imported_composes_selector_names_under_media,
+            imported_selector_names_under_supports: acc
+                .imported_composes_selector_names_under_supports,
+            imported_selector_names_under_layer: acc.imported_composes_selector_names_under_layer,
+            global_selector_names_under_media: acc.global_composes_selector_names_under_media,
+            global_selector_names_under_supports: acc.global_composes_selector_names_under_supports,
+            global_selector_names_under_layer: acc.global_composes_selector_names_under_layer,
             import_sources: acc.composes_import_sources,
             class_name_count: acc.composes_class_name_count,
             local_class_name_count: acc.local_composes_class_name_count,
@@ -1359,6 +1405,48 @@ fn collect_index_selector_attachment_facts_with_context(
                     }
                     if wrapper_ctx.under_layer {
                         acc.selectors_with_composes_under_layer_names
+                            .extend(resolved.iter().cloned());
+                    }
+                }
+                if composes_facts.local_class_name_count > 0 {
+                    if wrapper_ctx.under_media {
+                        acc.local_composes_selector_names_under_media
+                            .extend(resolved.iter().cloned());
+                    }
+                    if wrapper_ctx.under_supports {
+                        acc.local_composes_selector_names_under_supports
+                            .extend(resolved.iter().cloned());
+                    }
+                    if wrapper_ctx.under_layer {
+                        acc.local_composes_selector_names_under_layer
+                            .extend(resolved.iter().cloned());
+                    }
+                }
+                if composes_facts.imported_class_name_count > 0 {
+                    if wrapper_ctx.under_media {
+                        acc.imported_composes_selector_names_under_media
+                            .extend(resolved.iter().cloned());
+                    }
+                    if wrapper_ctx.under_supports {
+                        acc.imported_composes_selector_names_under_supports
+                            .extend(resolved.iter().cloned());
+                    }
+                    if wrapper_ctx.under_layer {
+                        acc.imported_composes_selector_names_under_layer
+                            .extend(resolved.iter().cloned());
+                    }
+                }
+                if composes_facts.global_class_name_count > 0 {
+                    if wrapper_ctx.under_media {
+                        acc.global_composes_selector_names_under_media
+                            .extend(resolved.iter().cloned());
+                    }
+                    if wrapper_ctx.under_supports {
+                        acc.global_composes_selector_names_under_supports
+                            .extend(resolved.iter().cloned());
+                    }
+                    if wrapper_ctx.under_layer {
+                        acc.global_composes_selector_names_under_layer
                             .extend(resolved.iter().cloned());
                     }
                 }

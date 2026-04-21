@@ -72,6 +72,15 @@ interface ParserIndexSummaryV0 {
     readonly localSelectorNames: readonly string[];
     readonly importedSelectorNames: readonly string[];
     readonly globalSelectorNames: readonly string[];
+    readonly localSelectorNamesUnderMedia: readonly string[];
+    readonly localSelectorNamesUnderSupports: readonly string[];
+    readonly localSelectorNamesUnderLayer: readonly string[];
+    readonly importedSelectorNamesUnderMedia: readonly string[];
+    readonly importedSelectorNamesUnderSupports: readonly string[];
+    readonly importedSelectorNamesUnderLayer: readonly string[];
+    readonly globalSelectorNamesUnderMedia: readonly string[];
+    readonly globalSelectorNamesUnderSupports: readonly string[];
+    readonly globalSelectorNamesUnderLayer: readonly string[];
     readonly importSources: readonly string[];
     readonly classNameCount: number;
     readonly localClassNameCount: number;
@@ -190,6 +199,11 @@ const CORPUS = [
     label: "scss-supports-layer-composes-index",
     filePath: "/f.module.scss",
     source: `@supports (display: grid) { @layer ui { .card { composes: shell from global; } } }`,
+  },
+  {
+    label: "scss-supports-layer-mixed-composes",
+    filePath: "/f.module.scss",
+    source: `@supports (display: grid) { @layer ui { .card { composes: base utility; composes: shell from global; composes: tone from "./base.module.scss"; } } }`,
   },
 ] as const;
 
@@ -437,6 +451,33 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
   const selectorsWithComposesUnderLayer = selectorsWithComposes.filter((selector) =>
     wrapperSelectorNames.layer.includes(selector.name),
   );
+  const localComposesSelectorsUnderMedia = localComposesSelectors.filter((selector) =>
+    wrapperSelectorNames.media.includes(selector.name),
+  );
+  const localComposesSelectorsUnderSupports = localComposesSelectors.filter((selector) =>
+    wrapperSelectorNames.supports.includes(selector.name),
+  );
+  const localComposesSelectorsUnderLayer = localComposesSelectors.filter((selector) =>
+    wrapperSelectorNames.layer.includes(selector.name),
+  );
+  const importedComposesSelectorsUnderMedia = importedComposesSelectors.filter((selector) =>
+    wrapperSelectorNames.media.includes(selector.name),
+  );
+  const importedComposesSelectorsUnderSupports = importedComposesSelectors.filter((selector) =>
+    wrapperSelectorNames.supports.includes(selector.name),
+  );
+  const importedComposesSelectorsUnderLayer = importedComposesSelectors.filter((selector) =>
+    wrapperSelectorNames.layer.includes(selector.name),
+  );
+  const globalComposesSelectorsUnderMedia = globalComposesSelectors.filter((selector) =>
+    wrapperSelectorNames.media.includes(selector.name),
+  );
+  const globalComposesSelectorsUnderSupports = globalComposesSelectors.filter((selector) =>
+    wrapperSelectorNames.supports.includes(selector.name),
+  );
+  const globalComposesSelectorsUnderLayer = globalComposesSelectors.filter((selector) =>
+    wrapperSelectorNames.layer.includes(selector.name),
+  );
   return {
     schemaVersion: "0",
     language: filePath.endsWith(".module.less")
@@ -599,6 +640,33 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
       localSelectorNames: localComposesSelectors.map((selector) => selector.name).toSorted(),
       importedSelectorNames: importedComposesSelectors.map((selector) => selector.name).toSorted(),
       globalSelectorNames: globalComposesSelectors.map((selector) => selector.name).toSorted(),
+      localSelectorNamesUnderMedia: localComposesSelectorsUnderMedia
+        .map((selector) => selector.name)
+        .toSorted(),
+      localSelectorNamesUnderSupports: localComposesSelectorsUnderSupports
+        .map((selector) => selector.name)
+        .toSorted(),
+      localSelectorNamesUnderLayer: localComposesSelectorsUnderLayer
+        .map((selector) => selector.name)
+        .toSorted(),
+      importedSelectorNamesUnderMedia: importedComposesSelectorsUnderMedia
+        .map((selector) => selector.name)
+        .toSorted(),
+      importedSelectorNamesUnderSupports: importedComposesSelectorsUnderSupports
+        .map((selector) => selector.name)
+        .toSorted(),
+      importedSelectorNamesUnderLayer: importedComposesSelectorsUnderLayer
+        .map((selector) => selector.name)
+        .toSorted(),
+      globalSelectorNamesUnderMedia: globalComposesSelectorsUnderMedia
+        .map((selector) => selector.name)
+        .toSorted(),
+      globalSelectorNamesUnderSupports: globalComposesSelectorsUnderSupports
+        .map((selector) => selector.name)
+        .toSorted(),
+      globalSelectorNamesUnderLayer: globalComposesSelectorsUnderLayer
+        .map((selector) => selector.name)
+        .toSorted(),
       importSources: selectorsWithComposes
         .flatMap((selector) =>
           selector.composes
