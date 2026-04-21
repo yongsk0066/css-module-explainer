@@ -471,6 +471,7 @@ describe("runCheckerCli", () => {
         ],
       },
       boundedCheckerGate: {
+        consumerBoundaryCommand: "pnpm check:rust-checker-style-recovery-consumer-boundary",
         boundedCheckerLaneCommand: "pnpm check:rust-checker-bounded-lanes",
         checkerBundle: "style-recovery",
         includedInRustReleaseBundle: false,
@@ -556,6 +557,7 @@ describe("runCheckerCli", () => {
         ],
       },
       boundedCheckerGate: {
+        consumerBoundaryCommand: "pnpm check:rust-checker-source-missing-consumer-boundary",
         boundedCheckerLaneCommand: "pnpm check:rust-checker-bounded-lanes",
         checkerBundle: "source-missing",
         includedInRustReleaseBundle: false,

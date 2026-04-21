@@ -70,6 +70,7 @@
     "check:rust-checker-source-missing-lane": "pnpm check:rust-checker-source-missing-canonical-candidate && pnpm check:rust-checker-source-missing-canonical-producer && pnpm check:rust-checker-source-missing-consumer-boundary",
     "check:rust-checker-bounded-lanes": "pnpm check:rust-checker-style-recovery-lane && pnpm check:rust-checker-source-missing-lane",
     "check:rust-checker-entrance": "pnpm check:rust-checker-bounded-lanes",
+    "check:rust-checker-promotion-review": "tsx ./scripts/check-rust-checker-promotion-review.ts",
     "check:rust-type-fact-compare": "tsx ./scripts/check-rust-type-fact-compare.ts",
     "check:rust-query-plan-compare": "tsx ./scripts/check-rust-query-plan-compare.ts",
     "check:rust-expression-domain-compare": "tsx ./scripts/check-rust-expression-domain-compare.ts",

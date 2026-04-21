@@ -50,6 +50,7 @@ export interface CheckerSourceMissingCanonicalProducerSignalV0 {
   readonly boundedCheckerGate: {
     readonly canonicalCandidateCommand: "pnpm check:rust-checker-source-missing-canonical-candidate";
     readonly canonicalProducerCommand: "pnpm check:rust-checker-source-missing-canonical-producer";
+    readonly consumerBoundaryCommand: "pnpm check:rust-checker-source-missing-consumer-boundary";
     readonly boundedCheckerLaneCommand: "pnpm check:rust-checker-bounded-lanes";
     readonly checkerBundle: "source-missing";
     readonly includedInRustLaneBundle: false;

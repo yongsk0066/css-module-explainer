@@ -133,6 +133,11 @@ which runs the bounded `style-recovery` and `source-missing` checker lanes.
 Keep this outside the default stable release gate until a checker lane moves
 from bounded entrance status to broader Rust lane status.
 
+`pnpm check:rust-checker-promotion-review` is the operator check for that
+promotion decision. It validates the current checker-lane gate metadata and
+confirms the bounded checker lanes are still outside `rust-lane-bundle` and
+`rust-release-bundle`.
+
 `pnpm check:rust-lane-bundle` is the broader Rust lane gate. It combines the
 current semantic producer boundary checks with `pnpm check:rust-parser-public-product`.
 

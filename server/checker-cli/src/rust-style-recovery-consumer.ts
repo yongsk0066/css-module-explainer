@@ -50,6 +50,7 @@ export interface CheckerStyleRecoveryCanonicalProducerSignalV0 {
   readonly boundedCheckerGate: {
     readonly canonicalCandidateCommand: "pnpm check:rust-checker-style-recovery-canonical-candidate";
     readonly canonicalProducerCommand: "pnpm check:rust-checker-style-recovery-canonical-producer";
+    readonly consumerBoundaryCommand: "pnpm check:rust-checker-style-recovery-consumer-boundary";
     readonly boundedCheckerLaneCommand: "pnpm check:rust-checker-bounded-lanes";
     readonly checkerBundle: "style-recovery";
     readonly includedInRustLaneBundle: false;

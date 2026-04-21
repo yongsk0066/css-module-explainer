@@ -111,6 +111,7 @@ void (async () => {
       boundedCheckerGate: {
         canonicalCandidateCommand: "pnpm check:rust-checker-source-missing-canonical-candidate",
         canonicalProducerCommand: "pnpm check:rust-checker-source-missing-canonical-producer",
+        consumerBoundaryCommand: "pnpm check:rust-checker-source-missing-consumer-boundary",
         boundedCheckerLaneCommand: "pnpm check:rust-checker-bounded-lanes",
         checkerBundle: "source-missing",
         includedInRustLaneBundle: false,

@@ -188,6 +188,7 @@ struct CheckerStyleRecoveryCanonicalCandidateBundleV0 {
 struct CheckerStyleRecoveryCanonicalProducerGateV0 {
     canonical_candidate_command: &'static str,
     canonical_producer_command: &'static str,
+    consumer_boundary_command: &'static str,
     bounded_checker_lane_command: &'static str,
     checker_bundle: &'static str,
     included_in_rust_lane_bundle: bool,
@@ -235,6 +236,7 @@ struct CheckerSourceMissingCanonicalCandidateBundleV0 {
 struct CheckerSourceMissingCanonicalProducerGateV0 {
     canonical_candidate_command: &'static str,
     canonical_producer_command: &'static str,
+    consumer_boundary_command: &'static str,
     bounded_checker_lane_command: &'static str,
     checker_bundle: &'static str,
     included_in_rust_lane_bundle: bool,
@@ -823,6 +825,7 @@ fn summarize_checker_style_recovery_canonical_producer(
         bounded_checker_gate: CheckerStyleRecoveryCanonicalProducerGateV0 {
             canonical_candidate_command: "pnpm check:rust-checker-style-recovery-canonical-candidate",
             canonical_producer_command: "pnpm check:rust-checker-style-recovery-canonical-producer",
+            consumer_boundary_command: "pnpm check:rust-checker-style-recovery-consumer-boundary",
             bounded_checker_lane_command: "pnpm check:rust-checker-bounded-lanes",
             checker_bundle: "style-recovery",
             included_in_rust_lane_bundle: false,
@@ -905,6 +908,7 @@ fn summarize_checker_source_missing_canonical_producer(
         bounded_checker_gate: CheckerSourceMissingCanonicalProducerGateV0 {
             canonical_candidate_command: "pnpm check:rust-checker-source-missing-canonical-candidate",
             canonical_producer_command: "pnpm check:rust-checker-source-missing-canonical-producer",
+            consumer_boundary_command: "pnpm check:rust-checker-source-missing-consumer-boundary",
             bounded_checker_lane_command: "pnpm check:rust-checker-bounded-lanes",
             checker_bundle: "source-missing",
             included_in_rust_lane_bundle: false,
