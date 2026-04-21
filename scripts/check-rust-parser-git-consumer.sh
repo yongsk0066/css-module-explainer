@@ -2,7 +2,7 @@
 set -euo pipefail
 
 repo_url="${ENGINE_STYLE_PARSER_GIT_REPO:-https://github.com/omenien/omena-engine-style-parser.git}"
-repo_ref="${ENGINE_STYLE_PARSER_GIT_REF:-71f3cd2}"
+repo_ref="${ENGINE_STYLE_PARSER_GIT_REF:-baf57a5}"
 temp_dir="$(mktemp -d)"
 trap 'rm -rf "${temp_dir}"' EXIT
 
