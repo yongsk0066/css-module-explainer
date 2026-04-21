@@ -273,6 +273,9 @@ pub struct ParserIndexComposesFactsV0 {
     pub global_selector_names_under_supports: Vec<String>,
     pub global_selector_names_under_layer: Vec<String>,
     pub import_sources: Vec<String>,
+    pub import_sources_under_media: Vec<String>,
+    pub import_sources_under_supports: Vec<String>,
+    pub import_sources_under_layer: Vec<String>,
     pub class_name_count: usize,
     pub local_class_name_count: usize,
     pub imported_class_name_count: usize,
@@ -351,6 +354,9 @@ struct IndexSummaryAcc {
     global_composes_selector_names_under_supports: Vec<String>,
     global_composes_selector_names_under_layer: Vec<String>,
     composes_import_sources: Vec<String>,
+    composes_import_sources_under_media: Vec<String>,
+    composes_import_sources_under_supports: Vec<String>,
+    composes_import_sources_under_layer: Vec<String>,
     keyframes_names: Vec<String>,
     nested_unsafe_selector_names: Vec<String>,
     value_decl_names: Vec<String>,
@@ -517,6 +523,9 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
     acc.global_composes_selector_names_under_layer.sort();
     acc.global_composes_selector_names_under_layer.dedup();
     acc.composes_import_sources.sort();
+    acc.composes_import_sources_under_media.sort();
+    acc.composes_import_sources_under_supports.sort();
+    acc.composes_import_sources_under_layer.sort();
     acc.keyframes_names.sort();
     acc.keyframes_names.dedup();
     acc.nested_unsafe_selector_names.sort();
@@ -719,6 +728,9 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
             global_selector_names_under_supports: acc.global_composes_selector_names_under_supports,
             global_selector_names_under_layer: acc.global_composes_selector_names_under_layer,
             import_sources: acc.composes_import_sources,
+            import_sources_under_media: acc.composes_import_sources_under_media,
+            import_sources_under_supports: acc.composes_import_sources_under_supports,
+            import_sources_under_layer: acc.composes_import_sources_under_layer,
             class_name_count: acc.composes_class_name_count,
             local_class_name_count: acc.local_composes_class_name_count,
             imported_class_name_count: acc.imported_composes_class_name_count,
@@ -1441,14 +1453,29 @@ fn collect_index_selector_attachment_facts_with_context(
                     if wrapper_ctx.under_media {
                         acc.imported_composes_selector_names_under_media
                             .extend(resolved.iter().cloned());
+                        acc.composes_import_sources_under_media.extend(
+                            composes_facts.imported_sources.iter().flat_map(|source| {
+                                std::iter::repeat_n(source.clone(), resolved.len())
+                            }),
+                        );
                     }
                     if wrapper_ctx.under_supports {
                         acc.imported_composes_selector_names_under_supports
                             .extend(resolved.iter().cloned());
+                        acc.composes_import_sources_under_supports.extend(
+                            composes_facts.imported_sources.iter().flat_map(|source| {
+                                std::iter::repeat_n(source.clone(), resolved.len())
+                            }),
+                        );
                     }
                     if wrapper_ctx.under_layer {
                         acc.imported_composes_selector_names_under_layer
                             .extend(resolved.iter().cloned());
+                        acc.composes_import_sources_under_layer.extend(
+                            composes_facts.imported_sources.iter().flat_map(|source| {
+                                std::iter::repeat_n(source.clone(), resolved.len())
+                            }),
+                        );
                     }
                 }
                 if composes_facts.global_class_name_count > 0 {

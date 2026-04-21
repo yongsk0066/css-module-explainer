@@ -85,6 +85,9 @@ interface ParserIndexSummaryV0 {
     readonly globalSelectorNamesUnderSupports: readonly string[];
     readonly globalSelectorNamesUnderLayer: readonly string[];
     readonly importSources: readonly string[];
+    readonly importSourcesUnderMedia: readonly string[];
+    readonly importSourcesUnderSupports: readonly string[];
+    readonly importSourcesUnderLayer: readonly string[];
     readonly classNameCount: number;
     readonly localClassNameCount: number;
     readonly importedClassNameCount: number;
@@ -700,6 +703,27 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
         .map((selector) => selector.name)
         .toSorted(),
       importSources: selectorsWithComposes
+        .flatMap((selector) =>
+          selector.composes
+            .map((ref) => ref.from)
+            .filter((from): from is string => from !== undefined),
+        )
+        .toSorted(),
+      importSourcesUnderMedia: selectorsWithComposesUnderMedia
+        .flatMap((selector) =>
+          selector.composes
+            .map((ref) => ref.from)
+            .filter((from): from is string => from !== undefined),
+        )
+        .toSorted(),
+      importSourcesUnderSupports: selectorsWithComposesUnderSupports
+        .flatMap((selector) =>
+          selector.composes
+            .map((ref) => ref.from)
+            .filter((from): from is string => from !== undefined),
+        )
+        .toSorted(),
+      importSourcesUnderLayer: selectorsWithComposesUnderLayer
         .flatMap((selector) =>
           selector.composes
             .map((ref) => ref.from)
