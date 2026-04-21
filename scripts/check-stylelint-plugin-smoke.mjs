@@ -3,12 +3,16 @@ import stylelint from "stylelint";
 
 const REPO_ROOT = process.cwd();
 const WORKSPACE_ROOT = path.join(REPO_ROOT, "test/_fixtures/stylelint-plugin-smoke");
-const STYLE_FILE_PATH = path.join(WORKSPACE_ROOT, "src/App.module.css");
+const STYLE_FILE_PATHS = [
+  path.join(WORKSPACE_ROOT, "src/App.module.css"),
+  path.join(WORKSPACE_ROOT, "src/ComposesMissingModule.module.css"),
+  path.join(WORKSPACE_ROOT, "src/ComposesMissingSelector.module.css"),
+];
 const PLUGIN_NAME = "stylelint-plugin-css-module-explainer";
 
 async function main() {
   const result = await stylelint.lint({
-    files: [STYLE_FILE_PATH],
+    files: STYLE_FILE_PATHS,
     configBasedir: REPO_ROOT,
     config: {
       extends: [`${PLUGIN_NAME}/recommended`],
@@ -19,20 +23,51 @@ async function main() {
             workspaceRoot: WORKSPACE_ROOT,
           },
         ],
+        "css-module-explainer/missing-composed-module": [
+          true,
+          {
+            workspaceRoot: WORKSPACE_ROOT,
+          },
+        ],
+        "css-module-explainer/missing-composed-selector": [
+          true,
+          {
+            workspaceRoot: WORKSPACE_ROOT,
+          },
+        ],
       },
     },
   });
 
-  const [fileResult] = result.results;
-  if (!fileResult) {
-    throw new Error("Stylelint returned no results.");
+  const warningsByFile = new Map(
+    result.results.map((fileResult) => [
+      path.basename(fileResult.source ?? ""),
+      fileResult.warnings,
+    ]),
+  );
+
+  assertSingleWarning(
+    warningsByFile.get("App.module.css"),
+    "Selector '.ghost' is declared but never used.",
+  );
+  assertSingleWarning(
+    warningsByFile.get("ComposesMissingModule.module.css"),
+    "Cannot resolve composed CSS Module './Missing.module.css'.",
+  );
+  assertSingleWarning(
+    warningsByFile.get("ComposesMissingSelector.module.css"),
+    "Selector '.base' not found in composed module './Base.module.css'.",
+  );
+}
+
+function assertSingleWarning(warnings, expectedText) {
+  if (!warnings) {
+    throw new Error(`Missing stylelint result for expected warning '${expectedText}'.`);
   }
-  if (fileResult.warnings.length !== 1) {
-    throw new Error(`Expected 1 unused-selector warning, got ${fileResult.warnings.length}.`);
-  }
-  const [warning] = fileResult.warnings;
-  if (!warning || !warning.text.includes("Selector '.ghost' is declared but never used.")) {
-    throw new Error(`Unexpected stylelint warning: ${warning?.text ?? "<missing>"}`);
+  if (!warnings.some((warning) => warning.text.includes(expectedText))) {
+    throw new Error(
+      `Expected warning '${expectedText}', got ${warnings.map((warning) => warning.text).join(" | ")}`,
+    );
   }
 }
 

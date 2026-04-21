@@ -1,15 +1,15 @@
 const stylelint = require("stylelint");
 const { createFindingRule } = require("./_shared.cjs");
 
-const ruleName = "css-module-explainer/unused-selector";
+const ruleName = "css-module-explainer/missing-composed-module";
 const messages = stylelint.utils.ruleMessages(ruleName, {
-  rejected: (selectorName) => `Selector '.${selectorName}' is declared but never used.`,
+  rejected: (specifier) => `Cannot resolve composed CSS Module '${specifier}'.`,
 });
 
 const plugin = createFindingRule({
   stylelint,
   ruleName,
-  code: "unused-selector",
+  code: "missing-composed-module",
 });
 
 plugin.ruleName = ruleName;

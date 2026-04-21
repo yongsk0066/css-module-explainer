@@ -1,0 +1,3 @@
+.button {
+  composes: base from "./Missing.module.css";
+}

@@ -2,9 +2,11 @@
 
 First-cut Stylelint consumer for CSS Module Explainer.
 
-Current rule:
+Current rules:
 
 - `css-module-explainer/unused-selector`
+- `css-module-explainer/missing-composed-module`
+- `css-module-explainer/missing-composed-selector`
 
 Recommended config:
 
@@ -21,6 +23,8 @@ export default {
   plugins: ["stylelint-plugin-css-module-explainer"],
   rules: {
     "css-module-explainer/unused-selector": [true],
+    "css-module-explainer/missing-composed-module": [true],
+    "css-module-explainer/missing-composed-selector": [true],
   },
 };
 ```

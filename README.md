@@ -366,6 +366,8 @@ Current scope:
 
 - style-side rules only
   - `unused-selector`
+  - `missing-composed-module`
+  - `missing-composed-selector`
 
 See [packages/stylelint-plugin/README.md](./packages/stylelint-plugin/README.md) for usage.
 

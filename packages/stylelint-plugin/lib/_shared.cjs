@@ -6,10 +6,43 @@ const REPO_ROOT = path.resolve(__dirname, "../../../");
 
 module.exports = {
   STYLE_MODULE_FILE_PATTERN,
+  createFindingRule,
   getRuleOptions,
   offsetForRangePosition,
   runStyleChecks,
 };
+
+function createFindingRule({ stylelint, ruleName, code, possible = [true] }) {
+  const ruleFunction = (primary, secondaryOptions = {}) => {
+    return (root, result) => {
+      const valid = stylelint.utils.validateOptions(result, ruleName, {
+        actual: primary,
+        possible,
+      });
+      if (!valid) return;
+
+      const filePath = root.source?.input?.file;
+      if (!filePath || !STYLE_MODULE_FILE_PATTERN.test(filePath)) return;
+      const sourceText = root.source?.input?.css ?? root.toString();
+
+      const ruleOptions = getRuleOptions(filePath, secondaryOptions);
+      const findings = runStyleChecks(filePath, ruleOptions, [code]);
+
+      for (const finding of findings) {
+        stylelint.utils.report({
+          result,
+          ruleName,
+          message: finding.message,
+          node: root,
+          index: offsetForRangePosition(sourceText, finding.range.start),
+          endIndex: offsetForRangePosition(sourceText, finding.range.end),
+        });
+      }
+    };
+  };
+
+  return stylelint.createPlugin(ruleName, ruleFunction);
+}
 
 function getRuleOptions(filePath, secondaryOptions = {}) {
   return {
@@ -19,7 +52,7 @@ function getRuleOptions(filePath, secondaryOptions = {}) {
   };
 }
 
-function runStyleChecks(filePath, ruleOptions) {
+function runStyleChecks(filePath, ruleOptions, includeCodes = ["unused-selector"]) {
   const args = [
     "--silent",
     "check:workspace",
@@ -29,8 +62,6 @@ function runStyleChecks(filePath, ruleOptions) {
     "style",
     "--severity",
     "all",
-    "--include-code",
-    "unused-selector",
     "--format",
     "json",
     "--fail-on",
@@ -38,6 +69,10 @@ function runStyleChecks(filePath, ruleOptions) {
     "--classname-transform",
     ruleOptions.classnameTransform,
   ];
+
+  for (const code of includeCodes) {
+    args.push("--include-code", code);
+  }
 
   for (const [key, value] of Object.entries(ruleOptions.pathAlias)) {
     args.push("--path-alias", `${key}=${value}`);
