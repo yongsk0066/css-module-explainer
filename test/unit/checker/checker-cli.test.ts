@@ -470,6 +470,7 @@ describe("runCheckerCli", () => {
         ],
       },
       boundedCheckerGate: {
+        boundedCheckerLaneCommand: "pnpm check:rust-checker-bounded-lanes",
         checkerBundle: "style-recovery",
         includedInRustReleaseBundle: false,
       },

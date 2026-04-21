@@ -270,6 +270,7 @@ Current checker policy:
 - `pnpm check:rust-checker-style-recovery-canonical-producer` validates the matching checker canonical-producer signal for that same bounded `style-recovery` subset
 - `pnpm check:rust-checker-style-recovery-consumer-boundary` validates the opt-in `checker-cli` Rust consumer path for that same bounded subset
 - `pnpm check:rust-checker-style-recovery-lane` runs the full bounded checker entrance lane: canonical-candidate, canonical-producer, and opt-in consumer-boundary consistency
+- `pnpm check:rust-checker-bounded-lanes` is the current aggregate entry for bounded checker-canonical lanes; today it runs `style-recovery`
 - Rust shadow validation now covers:
   - input summaries: `pnpm check:rust-type-fact-compare`, `pnpm check:rust-query-plan-compare`, `pnpm check:rust-expression-domain-compare`
   - input-only candidates: `pnpm check:rust-expression-domain-candidates`
@@ -289,6 +290,7 @@ Current checker policy:
   - bounded checker producer signal: `pnpm check:rust-checker-style-recovery-canonical-producer`
   - bounded checker consumer path: `pnpm check:rust-checker-style-recovery-consumer-boundary`
   - bounded checker lane: `pnpm check:rust-checker-style-recovery-lane`
+  - bounded checker lane aggregate: `pnpm check:rust-checker-bounded-lanes`
   - broader Rust lane bundle: `pnpm check:rust-lane-bundle`
   - release-facing Rust bundle: `pnpm check:rust-release-bundle`
   - full snapshot parity: `pnpm check:rust-shadow-compare`

@@ -111,6 +111,7 @@ void (async () => {
       boundedCheckerGate: {
         canonicalCandidateCommand: "pnpm check:rust-checker-style-recovery-canonical-candidate",
         canonicalProducerCommand: "pnpm check:rust-checker-style-recovery-canonical-producer",
+        boundedCheckerLaneCommand: "pnpm check:rust-checker-bounded-lanes",
         checkerBundle: "style-recovery",
         includedInRustLaneBundle: false,
         includedInRustReleaseBundle: false,

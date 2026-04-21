@@ -564,6 +564,7 @@ export interface CheckerStyleRecoveryCanonicalProducerSignalV0 {
   readonly boundedCheckerGate: {
     readonly canonicalCandidateCommand: "pnpm check:rust-checker-style-recovery-canonical-candidate";
     readonly canonicalProducerCommand: "pnpm check:rust-checker-style-recovery-canonical-producer";
+    readonly boundedCheckerLaneCommand: "pnpm check:rust-checker-bounded-lanes";
     readonly checkerBundle: "style-recovery";
     readonly includedInRustLaneBundle: false;
     readonly includedInRustReleaseBundle: false;
