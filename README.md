@@ -243,6 +243,9 @@ Current checker policy:
 - `pnpm check:rust-parser-scaffold` exercises the first internal Rust parser scaffold crate, `rust/crates/engine-style-parser`
 - `pnpm check:rust-parser-git-consumer` verifies that the split parser repo can be consumed as a remote git dependency by a minimal standalone Rust crate
 - `pnpm check:rust-parser-split-boundary` verifies the full parser split boundary: parser public-product validation inside the monorepo plus remote git-consumer validation against `omena-engine-style-parser`
+- `pnpm check:rust-input-producers-git-consumer` verifies that the split input-producers repo can be consumed as a remote git dependency by a minimal standalone Rust crate
+- `pnpm check:rust-input-producers-split-boundary` verifies the full input-producers split boundary: monorepo producer-boundary validation plus remote git-consumer validation against `omena-engine-input-producers`
+- `pnpm check:rust-split-boundaries` runs both current Rust split-boundary checks together
 - `pnpm check:rust-parser-parity-lite` compares the Rust parser scaffold against the current TS style parser on a bounded shared fixture set
 - `pnpm check:rust-parser-css-modules-intermediate` compares the Rust parser CSS Modules intermediate facts against the current TS style HIR on a bounded shared fixture set
 - `pnpm check:rust-parser-index-producer` remains as a compatibility alias for the same intermediate producer check
