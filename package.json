@@ -49,6 +49,7 @@
     "check:rust-parser-parity-lite": "tsx ./scripts/check-rust-parser-parity-lite.ts",
     "check:rust-parser-index-producer": "tsx ./scripts/check-rust-parser-index-bridge.ts",
     "check:rust-parser-index-bridge": "pnpm check:rust-parser-index-producer",
+    "check:rust-parser-lane": "pnpm check:rust-parser-scaffold && pnpm check:rust-parser-parity-lite && pnpm check:rust-parser-index-producer",
     "check:rust-type-fact-compare": "tsx ./scripts/check-rust-type-fact-compare.ts",
     "check:rust-query-plan-compare": "tsx ./scripts/check-rust-query-plan-compare.ts",
     "check:rust-expression-domain-compare": "tsx ./scripts/check-rust-expression-domain-compare.ts",

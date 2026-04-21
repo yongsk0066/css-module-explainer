@@ -22,5 +22,6 @@ Primary check:
 
 - `cargo test --manifest-path rust/Cargo.toml -p engine-style-parser`
 - `pnpm check:rust-parser-index-producer`
+- `pnpm check:rust-parser-lane`
 
 This crate is intentionally internal. `publish = false` remains in effect at the workspace level.
