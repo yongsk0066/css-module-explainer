@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.12.0] — 2026-04-21
+
+### Added
+
+- **Parser consumer-boundary check** — the Rust parser track now exposes `pnpm check:rust-parser-consumer-boundary`, which consumes the parser canonical-producer output into a bounded downstream-style summary and compares it directly against the current TS style HIR.
+
+### Changed
+
+- **`3.12.0` is now framed as a parser consumed-boundary Rust milestone** — `engine-style-parser` no longer stops at parser-internal boundary checks. The parser public-product gate now covers both the parser lane itself and one bounded downstream consumer over the canonical producer output.
+- **Parser public-product gate now means lane plus consumer** — `pnpm check:rust-parser-public-product` now runs `pnpm check:rust-parser-lane` and `pnpm check:rust-parser-consumer-boundary`, and the broader Rust lane bundle inherits that stronger parser boundary.
+
 ## [3.11.0] — 2026-04-21
 
 ### Added
