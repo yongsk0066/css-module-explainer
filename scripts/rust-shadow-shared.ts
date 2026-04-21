@@ -557,6 +557,19 @@ export interface CheckerStyleRecoveryCanonicalCandidateBundleV0 {
   readonly findings: readonly CheckerStyleRecoveryFindingV0[];
 }
 
+export interface CheckerStyleRecoveryCanonicalProducerSignalV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly canonicalCandidate: CheckerStyleRecoveryCanonicalCandidateBundleV0;
+  readonly boundedCheckerGate: {
+    readonly canonicalCandidateCommand: "pnpm check:rust-checker-style-recovery-canonical-candidate";
+    readonly canonicalProducerCommand: "pnpm check:rust-checker-style-recovery-canonical-producer";
+    readonly checkerBundle: "style-recovery";
+    readonly includedInRustLaneBundle: false;
+    readonly includedInRustReleaseBundle: false;
+  };
+}
+
 export async function runShadow(snapshot: unknown): Promise<ShadowSummaryV0> {
   return runShadowJson<ShadowSummaryV0>([], snapshot);
 }
@@ -822,6 +835,15 @@ export async function runShadowCheckerStyleRecoveryCanonicalCandidate(
 ): Promise<CheckerStyleRecoveryCanonicalCandidateBundleV0> {
   return runShadowJson<CheckerStyleRecoveryCanonicalCandidateBundleV0>(
     ["output-checker-style-recovery-canonical-candidate"],
+    snapshot,
+  );
+}
+
+export async function runShadowCheckerStyleRecoveryCanonicalProducer(
+  snapshot: unknown,
+): Promise<CheckerStyleRecoveryCanonicalProducerSignalV0> {
+  return runShadowJson<CheckerStyleRecoveryCanonicalProducerSignalV0>(
+    ["output-checker-style-recovery-canonical-producer"],
     snapshot,
   );
 }

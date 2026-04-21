@@ -185,6 +185,25 @@ struct CheckerStyleRecoveryCanonicalCandidateBundleV0 {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct CheckerStyleRecoveryCanonicalProducerGateV0 {
+    canonical_candidate_command: &'static str,
+    canonical_producer_command: &'static str,
+    checker_bundle: &'static str,
+    included_in_rust_lane_bundle: bool,
+    included_in_rust_release_bundle: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CheckerStyleRecoveryCanonicalProducerSignalV0 {
+    schema_version: &'static str,
+    input_version: String,
+    canonical_candidate: CheckerStyleRecoveryCanonicalCandidateBundleV0,
+    bounded_checker_gate: CheckerStyleRecoveryCanonicalProducerGateV0,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct ShadowSummaryV0 {
     schema_version: &'static str,
     input_version: String,
@@ -407,6 +426,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some("output-checker-style-recovery-canonical-candidate") => {
             let payload: ShadowPayloadV0 = serde_json::from_str(&stdin)?;
             let summary = summarize_checker_style_recovery_canonical_candidate(payload);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
+        Some("output-checker-style-recovery-canonical-producer") => {
+            let payload: ShadowPayloadV0 = serde_json::from_str(&stdin)?;
+            let summary = summarize_checker_style_recovery_canonical_producer(payload);
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
         Some(other) => {
@@ -727,6 +751,24 @@ fn summarize_checker_style_recovery_canonical_candidate(
             total: findings.len(),
         },
         findings,
+    }
+}
+
+fn summarize_checker_style_recovery_canonical_producer(
+    payload: ShadowPayloadV0,
+) -> CheckerStyleRecoveryCanonicalProducerSignalV0 {
+    let canonical_candidate = summarize_checker_style_recovery_canonical_candidate(payload);
+    CheckerStyleRecoveryCanonicalProducerSignalV0 {
+        schema_version: "0",
+        input_version: canonical_candidate.input_version.clone(),
+        canonical_candidate,
+        bounded_checker_gate: CheckerStyleRecoveryCanonicalProducerGateV0 {
+            canonical_candidate_command: "pnpm check:rust-checker-style-recovery-canonical-candidate",
+            canonical_producer_command: "pnpm check:rust-checker-style-recovery-canonical-producer",
+            checker_bundle: "style-recovery",
+            included_in_rust_lane_bundle: false,
+            included_in_rust_release_bundle: false,
+        },
     }
 }
 
