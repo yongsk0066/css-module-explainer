@@ -246,6 +246,10 @@ Current checker policy:
 - `pnpm check:rust-input-producers-git-consumer` verifies that the split input-producers repo can be consumed as a remote git dependency by a minimal standalone Rust crate
 - `pnpm check:rust-input-producers-split-boundary` verifies the full input-producers split boundary: monorepo producer-boundary validation plus remote git-consumer validation against `omena-engine-input-producers`
 - `pnpm check:rust-split-boundaries` runs both current Rust split-boundary checks together
+- The current external Rust split boundaries are:
+  - `omenien/omena-engine-input-producers`
+  - `omenien/omena-engine-style-parser`
+  - keep both pinned behind repeatable remote-consumer checks before any new rename or public packaging move
 - `pnpm check:rust-parser-parity-lite` compares the Rust parser scaffold against the current TS style parser on a bounded shared fixture set
 - `pnpm check:rust-parser-css-modules-intermediate` compares the Rust parser CSS Modules intermediate facts against the current TS style HIR on a bounded shared fixture set
 - `pnpm check:rust-parser-index-producer` remains as a compatibility alias for the same intermediate producer check
