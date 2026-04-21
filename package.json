@@ -55,6 +55,7 @@
     "check:rust-parser-canonical-producer": "tsx ./scripts/check-rust-parser-canonical-producer.ts",
     "check:rust-parser-lane": "pnpm check:rust-parser-scaffold && pnpm check:rust-parser-parity-lite && pnpm check:rust-parser-css-modules-intermediate && pnpm check:rust-parser-canonical-candidate && pnpm check:rust-parser-evaluator-candidates && pnpm check:rust-parser-canonical-producer",
     "check:rust-parser-consumer-boundary": "tsx ./scripts/check-rust-parser-consumer-boundary.ts",
+    "check:rust-parser-git-consumer": "./scripts/check-rust-parser-git-consumer.sh",
     "check:rust-parser-public-product": "pnpm check:rust-parser-lane && pnpm check:rust-parser-consumer-boundary",
     "check:rust-type-fact-compare": "tsx ./scripts/check-rust-type-fact-compare.ts",
     "check:rust-query-plan-compare": "tsx ./scripts/check-rust-query-plan-compare.ts",
