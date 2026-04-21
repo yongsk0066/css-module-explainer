@@ -57,6 +57,7 @@
     "check:rust-parser-consumer-boundary": "tsx ./scripts/check-rust-parser-consumer-boundary.ts",
     "check:rust-parser-git-consumer": "./scripts/check-rust-parser-git-consumer.sh",
     "check:rust-parser-public-product": "pnpm check:rust-parser-lane && pnpm check:rust-parser-consumer-boundary",
+    "check:rust-parser-split-boundary": "pnpm check:rust-parser-public-product && pnpm check:rust-parser-git-consumer",
     "check:rust-type-fact-compare": "tsx ./scripts/check-rust-type-fact-compare.ts",
     "check:rust-query-plan-compare": "tsx ./scripts/check-rust-query-plan-compare.ts",
     "check:rust-expression-domain-compare": "tsx ./scripts/check-rust-expression-domain-compare.ts",
