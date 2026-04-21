@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.11.0] — 2026-04-21
+
+### Added
+
+- **Parser canonical-candidate lane** — the Rust parser track now exposes a versioned parser canonical-candidate bundle and parser canonical-producer signal on top of the existing parity-lite and CSS Modules intermediate artifacts.
+- **Dedicated parser canonical checks** — `pnpm check:rust-parser-canonical-candidate` and `pnpm check:rust-parser-canonical-producer` now validate the parser lane's promoted artifact boundary directly.
+
+### Changed
+
+- **`3.11.0` is now framed as a parser canonical-candidate Rust milestone** — the parser track no longer stops at a public-product gate plus bounded intermediate producer. `engine-style-parser` now carries an explicit canonical-candidate / canonical-producer ladder within the parser/public-product lane.
+- **Parser lane bundle now includes promoted parser boundary checks** — `pnpm check:rust-parser-lane`, `pnpm check:rust-parser-public-product`, `pnpm check:rust-lane-bundle`, and release-facing Rust validation now run the parser canonical-candidate and canonical-producer steps as part of the parser lane.
+
 ## [3.10.0] — 2026-04-21
 
 ### Added

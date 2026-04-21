@@ -266,7 +266,7 @@ Current checker policy:
   - broader Rust lane bundle: `pnpm check:rust-lane-bundle`
   - release-facing Rust bundle: `pnpm check:rust-release-bundle`
   - full snapshot parity: `pnpm check:rust-shadow-compare`
-- Current `3.10.0` framing is a parser public-product Rust milestone:
+- Current `3.11.0` framing is a parser canonical-candidate Rust milestone:
   - `expression-semantics` and `source-resolution` still carry family-level canonical-producer signals and a shared top-level source-side lane
   - `expression-domain` carries input-only canonical artifacts plus type-fact-backed evaluator-candidate coverage on the Rust shadow path
   - a top-level `semantic` lane now consolidates `source-side + expression-domain` into one canonical-candidate / evaluator-candidate / canonical-producer path
