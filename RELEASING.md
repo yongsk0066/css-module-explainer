@@ -121,6 +121,11 @@ current semantic producer boundary checks with `pnpm check:rust-parser-public-pr
 workspace hygiene pass, `pnpm check:rust-lane-bundle`, and the current
 `rust-gate-evidence` measurement step.
 
+`pnpm check:rust-split-boundaries` is the current operational check for the two
+external Rust split repos. It is not part of the default stable release gate.
+Run it when validating split-repo sync, remote-consumer viability, or split
+boundary changes.
+
 `V2` is the canonical live contract surface for release validation. Historical
 `V1` parity commands remain available only to validate the frozen compatibility
 view derived from `V2`.
