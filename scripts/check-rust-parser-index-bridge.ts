@@ -44,6 +44,12 @@ interface ParserIndexSummaryV0 {
     readonly selectorsWithRefsUnderMediaNames: readonly string[];
     readonly selectorsWithRefsUnderSupportsNames: readonly string[];
     readonly selectorsWithRefsUnderLayerNames: readonly string[];
+    readonly selectorsWithLocalRefsUnderMediaNames: readonly string[];
+    readonly selectorsWithLocalRefsUnderSupportsNames: readonly string[];
+    readonly selectorsWithLocalRefsUnderLayerNames: readonly string[];
+    readonly selectorsWithImportedRefsUnderMediaNames: readonly string[];
+    readonly selectorsWithImportedRefsUnderSupportsNames: readonly string[];
+    readonly selectorsWithImportedRefsUnderLayerNames: readonly string[];
   };
   readonly keyframes: {
     readonly names: readonly string[];
@@ -159,6 +165,11 @@ const CORPUS = [
     label: "scss-mixed-wrapper-index",
     filePath: "/f.module.scss",
     source: `@media (min-width: 1px) { @value brand from "./tokens.module.scss"; .btn:hover { color: brand; } }`,
+  },
+  {
+    label: "scss-supports-layer-mixed-value-refs",
+    filePath: "/f.module.scss",
+    source: `@supports (display: grid) { @layer ui { @value brand from "./tokens.module.scss"; @value accent: red; .btn { color: brand; background: accent; } } }`,
   },
   {
     label: "scss-supports-layer-wrapper-index",
@@ -365,6 +376,24 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
   const selectorsWithValueRefsUnderLayer = selectorsWithValueRefs.filter((selector) =>
     wrapperSelectorNames.layer.includes(selector.name),
   );
+  const selectorsWithLocalValueRefsUnderMedia = selectorsWithLocalValueRefs.filter((selector) =>
+    wrapperSelectorNames.media.includes(selector.name),
+  );
+  const selectorsWithLocalValueRefsUnderSupports = selectorsWithLocalValueRefs.filter((selector) =>
+    wrapperSelectorNames.supports.includes(selector.name),
+  );
+  const selectorsWithLocalValueRefsUnderLayer = selectorsWithLocalValueRefs.filter((selector) =>
+    wrapperSelectorNames.layer.includes(selector.name),
+  );
+  const selectorsWithImportedValueRefsUnderMedia = selectorsWithImportedValueRefs.filter(
+    (selector) => wrapperSelectorNames.media.includes(selector.name),
+  );
+  const selectorsWithImportedValueRefsUnderSupports = selectorsWithImportedValueRefs.filter(
+    (selector) => wrapperSelectorNames.supports.includes(selector.name),
+  );
+  const selectorsWithImportedValueRefsUnderLayer = selectorsWithImportedValueRefs.filter(
+    (selector) => wrapperSelectorNames.layer.includes(selector.name),
+  );
   const selectorsWithAnimationRefsUnderMedia = selectorsWithAnimationRefs.filter((selector) =>
     wrapperSelectorNames.media.includes(selector.name),
   );
@@ -500,6 +529,24 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
         .map((selector) => selector.name)
         .toSorted(),
       selectorsWithRefsUnderLayerNames: selectorsWithValueRefsUnderLayer
+        .map((selector) => selector.name)
+        .toSorted(),
+      selectorsWithLocalRefsUnderMediaNames: selectorsWithLocalValueRefsUnderMedia
+        .map((selector) => selector.name)
+        .toSorted(),
+      selectorsWithLocalRefsUnderSupportsNames: selectorsWithLocalValueRefsUnderSupports
+        .map((selector) => selector.name)
+        .toSorted(),
+      selectorsWithLocalRefsUnderLayerNames: selectorsWithLocalValueRefsUnderLayer
+        .map((selector) => selector.name)
+        .toSorted(),
+      selectorsWithImportedRefsUnderMediaNames: selectorsWithImportedValueRefsUnderMedia
+        .map((selector) => selector.name)
+        .toSorted(),
+      selectorsWithImportedRefsUnderSupportsNames: selectorsWithImportedValueRefsUnderSupports
+        .map((selector) => selector.name)
+        .toSorted(),
+      selectorsWithImportedRefsUnderLayerNames: selectorsWithImportedValueRefsUnderLayer
         .map((selector) => selector.name)
         .toSorted(),
     },

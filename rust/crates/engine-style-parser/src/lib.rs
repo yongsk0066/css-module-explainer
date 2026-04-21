@@ -226,6 +226,12 @@ pub struct ParserIndexValueFactsV0 {
     pub selectors_with_refs_under_media_names: Vec<String>,
     pub selectors_with_refs_under_supports_names: Vec<String>,
     pub selectors_with_refs_under_layer_names: Vec<String>,
+    pub selectors_with_local_refs_under_media_names: Vec<String>,
+    pub selectors_with_local_refs_under_supports_names: Vec<String>,
+    pub selectors_with_local_refs_under_layer_names: Vec<String>,
+    pub selectors_with_imported_refs_under_media_names: Vec<String>,
+    pub selectors_with_imported_refs_under_supports_names: Vec<String>,
+    pub selectors_with_imported_refs_under_layer_names: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
@@ -346,6 +352,12 @@ struct IndexSummaryAcc {
     selectors_with_value_refs_under_media_names: Vec<String>,
     selectors_with_value_refs_under_supports_names: Vec<String>,
     selectors_with_value_refs_under_layer_names: Vec<String>,
+    selectors_with_local_value_refs_under_media_names: Vec<String>,
+    selectors_with_local_value_refs_under_supports_names: Vec<String>,
+    selectors_with_local_value_refs_under_layer_names: Vec<String>,
+    selectors_with_imported_value_refs_under_media_names: Vec<String>,
+    selectors_with_imported_value_refs_under_supports_names: Vec<String>,
+    selectors_with_imported_value_refs_under_layer_names: Vec<String>,
     selectors_with_animation_ref_names: Vec<String>,
     selectors_with_animation_refs_under_media_names: Vec<String>,
     selectors_with_animation_refs_under_supports_names: Vec<String>,
@@ -501,6 +513,28 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
     acc.selectors_with_value_refs_under_supports_names.dedup();
     acc.selectors_with_value_refs_under_layer_names.sort();
     acc.selectors_with_value_refs_under_layer_names.dedup();
+    acc.selectors_with_local_value_refs_under_media_names.sort();
+    acc.selectors_with_local_value_refs_under_media_names
+        .dedup();
+    acc.selectors_with_local_value_refs_under_supports_names
+        .sort();
+    acc.selectors_with_local_value_refs_under_supports_names
+        .dedup();
+    acc.selectors_with_local_value_refs_under_layer_names.sort();
+    acc.selectors_with_local_value_refs_under_layer_names
+        .dedup();
+    acc.selectors_with_imported_value_refs_under_media_names
+        .sort();
+    acc.selectors_with_imported_value_refs_under_media_names
+        .dedup();
+    acc.selectors_with_imported_value_refs_under_supports_names
+        .sort();
+    acc.selectors_with_imported_value_refs_under_supports_names
+        .dedup();
+    acc.selectors_with_imported_value_refs_under_layer_names
+        .sort();
+    acc.selectors_with_imported_value_refs_under_layer_names
+        .dedup();
     acc.selectors_with_animation_ref_names.sort();
     acc.selectors_with_animation_ref_names.dedup();
     acc.selectors_with_animation_refs_under_media_names.sort();
@@ -580,6 +614,18 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
             selectors_with_refs_under_supports_names: acc
                 .selectors_with_value_refs_under_supports_names,
             selectors_with_refs_under_layer_names: acc.selectors_with_value_refs_under_layer_names,
+            selectors_with_local_refs_under_media_names: acc
+                .selectors_with_local_value_refs_under_media_names,
+            selectors_with_local_refs_under_supports_names: acc
+                .selectors_with_local_value_refs_under_supports_names,
+            selectors_with_local_refs_under_layer_names: acc
+                .selectors_with_local_value_refs_under_layer_names,
+            selectors_with_imported_refs_under_media_names: acc
+                .selectors_with_imported_value_refs_under_media_names,
+            selectors_with_imported_refs_under_supports_names: acc
+                .selectors_with_imported_value_refs_under_supports_names,
+            selectors_with_imported_refs_under_layer_names: acc
+                .selectors_with_imported_value_refs_under_layer_names,
         },
         keyframes: ParserIndexKeyframesFactsV0 {
             names: acc.keyframes_names,
@@ -1237,10 +1283,34 @@ fn collect_index_selector_attachment_facts_with_context(
                 if ref_facts.has_local_value_refs {
                     acc.selectors_with_local_value_refs_names
                         .extend(resolved.iter().cloned());
+                    if wrapper_ctx.under_media {
+                        acc.selectors_with_local_value_refs_under_media_names
+                            .extend(resolved.iter().cloned());
+                    }
+                    if wrapper_ctx.under_supports {
+                        acc.selectors_with_local_value_refs_under_supports_names
+                            .extend(resolved.iter().cloned());
+                    }
+                    if wrapper_ctx.under_layer {
+                        acc.selectors_with_local_value_refs_under_layer_names
+                            .extend(resolved.iter().cloned());
+                    }
                 }
                 if ref_facts.has_imported_value_refs {
                     acc.selectors_with_imported_value_refs_names
                         .extend(resolved.iter().cloned());
+                    if wrapper_ctx.under_media {
+                        acc.selectors_with_imported_value_refs_under_media_names
+                            .extend(resolved.iter().cloned());
+                    }
+                    if wrapper_ctx.under_supports {
+                        acc.selectors_with_imported_value_refs_under_supports_names
+                            .extend(resolved.iter().cloned());
+                    }
+                    if wrapper_ctx.under_layer {
+                        acc.selectors_with_imported_value_refs_under_layer_names
+                            .extend(resolved.iter().cloned());
+                    }
                 }
                 if ref_facts.has_animation_refs {
                     acc.selectors_with_animation_ref_names
