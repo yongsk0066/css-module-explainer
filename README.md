@@ -241,9 +241,9 @@ Current checker policy:
 - `CME_TYPE_FACT_BACKEND=tsgo-preview pnpm check:release-batch` and `pnpm check:real-project-corpus` now exercise the checker path through the same host-side preview probe
 - `pnpm check:type-fact-backend-parity` compares canonical `EngineInputV2.typeFacts` across `typescript-current` and `tsgo-preview` on the backend smoke corpus
 - `pnpm check:rust-parser-scaffold` exercises the first internal Rust parser scaffold crate, `rust/crates/engine-style-parser`
-- `pnpm check:rust-parser-git-consumer` verifies that the split parser repo can be consumed as a remote git dependency by a minimal standalone Rust crate
+- `pnpm check:rust-parser-git-consumer` verifies that the split parser repo can be consumed as a remote git dependency by the repo-stored standalone fixture at `rust/external-consumers/engine-style-parser-git-consumer`
 - `pnpm check:rust-parser-split-boundary` verifies the full parser split boundary: parser public-product validation inside the monorepo plus remote git-consumer validation against `omena-engine-style-parser`
-- `pnpm check:rust-input-producers-git-consumer` verifies that the split input-producers repo can be consumed as a remote git dependency by a minimal standalone Rust crate
+- `pnpm check:rust-input-producers-git-consumer` verifies that the split input-producers repo can be consumed as a remote git dependency by the repo-stored standalone fixture at `rust/external-consumers/engine-input-producers-git-consumer`
 - `pnpm check:rust-input-producers-split-boundary` verifies the full input-producers split boundary: monorepo producer-boundary validation plus remote git-consumer validation against `omena-engine-input-producers`
 - `pnpm check:rust-split-boundaries` runs both current Rust split-boundary checks together
 - The current external Rust split boundaries are:
