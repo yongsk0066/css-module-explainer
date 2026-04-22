@@ -23,6 +23,7 @@ jobs:
       - run: corepack enable && corepack prepare pnpm@10.30.3 --activate
       - run: pnpm install --frozen-lockfile
       - run: ./scripts/release.sh
+      - run: pnpm build
       - id: rust_workspace
         name: Run rust-workspace
         run: pnpm check:rust-workspace
