@@ -54,6 +54,12 @@ export {
   type WorkspaceRuntimeManagerArgs,
 } from "./workspace-runtime-manager";
 export {
+  createServerRuntimeManager,
+  type CreateServerRuntimeManagerArgs,
+  type ServerRuntimeManagerBundle,
+  type ServerRuntimeManagerOptions,
+} from "./server-runtime-manager";
+export {
   createRuntimeTypeResolver,
   resolveRuntimeTypeBackend,
   createStyleDocumentLookup,

@@ -6,6 +6,7 @@ import {
   WorkspaceRegistry,
   type WorkspaceProviderDeps,
 } from "../workspace/workspace-registry";
+import { toWorkspaceFolderInfo } from "../workspace/workspace-folder-info";
 import type { SharedRuntimeCaches } from "./shared-runtime-caches";
 import type { RuntimeSink } from "./runtime-sink";
 import type { WorkspaceRuntime, WorkspaceRuntimeIO } from "./workspace-runtime";
@@ -30,6 +31,13 @@ export interface WorkspaceRuntimeManager {
   hasFolder(folderUri: string): boolean;
   getFolders(): readonly WorkspaceFolderInfo[];
   registerInitialFolders(folders: readonly WorkspaceFolderInfo[]): void;
+  applyWorkspaceFolderChange(
+    event: {
+      readonly removed: readonly { readonly uri: string; readonly name: string }[];
+      readonly added: readonly { readonly uri: string; readonly name: string }[];
+    },
+    documents: RuntimeDocumentsLike,
+  ): void;
   addFolder(folder: WorkspaceFolderInfo): void;
   removeFolder(folderUri: string, documents: RuntimeDocumentsLike): boolean;
 }
@@ -72,6 +80,15 @@ export function createWorkspaceRuntimeManager(
           serverName: args.serverName,
           getModeForStylePath: args.getModeForStylePath,
         });
+      }
+    },
+    applyWorkspaceFolderChange(event, documents): void {
+      for (const folder of event.removed) {
+        this.removeFolder(folder.uri, documents);
+      }
+      for (const folder of event.added) {
+        if (this.hasFolder(folder.uri)) continue;
+        this.addFolder(toWorkspaceFolderInfo(folder));
       }
     },
     addFolder(folder: WorkspaceFolderInfo): void {
