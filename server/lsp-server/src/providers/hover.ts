@@ -13,11 +13,11 @@ import {
   findSelectorAtCursor,
   readSelectorStyleDependencySummary,
   readSelectorUsageSummary,
-  resolveRefDetails,
   resolveComposesTarget,
   resolveValueImportTarget,
   resolveValueTarget,
 } from "../../../engine-core-ts/src/core/query";
+import { resolveSourceExpressionHoverResult } from "../../../engine-host-node/src/source-hover-query";
 import { findLangForPath } from "../../../engine-core-ts/src/core/scss/lang-registry";
 import { toLspRange } from "./lsp-adapters";
 import {
@@ -34,9 +34,9 @@ import type { CursorParams, ProviderDeps } from "./provider-deps";
  * Handle `textDocument/hover` for any class expression under the cursor.
  *
  * Dispatches through the unified expression cursor stage.
- * Selector resolution runs through the shared ref query so
- * hover, definition, and rename logic all see the same semantic
- * targets. The resulting selector list is handed to the pure
+ * Source-side semantic resolution runs through the Node host boundary so
+ * hover, definition, and rename logic can move off direct core query calls
+ * incrementally. The resulting selector list is handed to the pure
  * `renderHover` markdown builder. An empty match yields a `null`
  * Hover; an exception is logged by `wrapHandler` and also returns
  * `null`.
@@ -60,28 +60,13 @@ function buildHover(
   deps: ProviderDeps,
   maxCandidates: number,
 ): Hover | null {
-  const result = resolveRefDetails(ctx, {
-    styleDocumentForPath: deps.styleDocumentForPath,
-    typeResolver: deps.typeResolver,
-    filePath: params.filePath,
-    workspaceRoot: deps.workspaceRoot,
-  });
-  const styleDependenciesBySelector = new Map(
-    result.selectors.map((selector) => [
-      selector.canonicalName,
-      readSelectorStyleDependencySummary(
-        deps.styleDependencyGraph,
-        ctx.expression.scssModulePath,
-        selector.canonicalName,
-      ),
-    ]),
-  );
+  const result = resolveSourceExpressionHoverResult(ctx, params.filePath, deps);
   const markdown = renderHover({
     expression: ctx.expression,
     scssModulePath: ctx.expression.scssModulePath,
     selectors: result.selectors,
     dynamicExplanation: result.dynamicExplanation,
-    styleDependenciesBySelector,
+    styleDependenciesBySelector: result.styleDependenciesBySelector,
     workspaceRoot: deps.workspaceRoot,
     maxCandidates,
   });
