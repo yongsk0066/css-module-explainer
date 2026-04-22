@@ -25,14 +25,25 @@ export function computeScssUnusedDiagnostics(
   semanticReferenceIndex: ProviderDeps["semanticReferenceIndex"],
   styleDependencyGraph?: ProviderDeps["styleDependencyGraph"],
   styleDocumentForPath?: (filePath: string) => StyleDocumentHIR | null,
+  runtimeDeps?: Pick<
+    ProviderDeps,
+    "analysisCache" | "typeResolver" | "workspaceRoot" | "settings"
+  > & {
+    readonly env?: NodeJS.ProcessEnv;
+  },
 ): Diagnostic[] {
   return resolveStyleDiagnosticFindings(
     { scssPath, styleDocument },
     {
+      ...(runtimeDeps?.analysisCache ? { analysisCache: runtimeDeps.analysisCache } : {}),
       semanticReferenceIndex,
       ...(styleDependencyGraph ? { styleDependencyGraph } : {}),
       ...(styleDocumentForPath ? { styleDocumentForPath } : {}),
+      ...(runtimeDeps?.typeResolver ? { typeResolver: runtimeDeps.typeResolver } : {}),
+      ...(runtimeDeps?.workspaceRoot ? { workspaceRoot: runtimeDeps.workspaceRoot } : {}),
+      ...(runtimeDeps?.settings ? { settings: runtimeDeps.settings } : {}),
     },
+    runtimeDeps?.env ? { env: runtimeDeps.env } : undefined,
   ).map((finding) => toDiagnostic(finding, styleDocument, styleDocumentForPath));
 }
 

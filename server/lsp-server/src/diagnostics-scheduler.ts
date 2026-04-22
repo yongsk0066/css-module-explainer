@@ -164,6 +164,13 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
       providerDeps.semanticReferenceIndex,
       providerDeps.styleDependencyGraph,
       providerDeps.styleDocumentForPath,
+      {
+        analysisCache: providerDeps.analysisCache,
+        typeResolver: providerDeps.typeResolver,
+        workspaceRoot: providerDeps.workspaceRoot,
+        settings: providerDeps.settings,
+        env: process.env,
+      },
     );
     this.safeSendDiagnostics(uri, diagnostics);
   }
