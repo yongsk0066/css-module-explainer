@@ -11,6 +11,15 @@ import type {
   SelectorUsageSummary,
 } from "../../../engine-core-ts/src/core/query";
 
+type SelectorUsageRenderSummary = Pick<
+  SelectorUsageSummary,
+  | "totalReferences"
+  | "directReferenceCount"
+  | "hasExpandedReferences"
+  | "hasStyleDependencyReferences"
+  | "hasAnyReferences"
+>;
+
 export interface RenderArgs {
   readonly expression: ClassExpressionHIR;
   readonly scssModulePath: string;
@@ -24,7 +33,7 @@ export interface RenderArgs {
 export interface RenderSelectorHoverArgs {
   readonly selector: SelectorDeclHIR;
   readonly scssModulePath: string;
-  readonly usageSummary: SelectorUsageSummary;
+  readonly usageSummary: SelectorUsageRenderSummary;
   readonly styleDependencies?: SelectorStyleDependencySummary;
   readonly workspaceRoot: string;
   readonly headingName?: string;
@@ -296,7 +305,7 @@ function renderOutgoingStyleDependencyNote(
   return `\n\n_Composes: ${shown.join(", ")}${suffix}._`;
 }
 
-function renderSelectorUsageNote(summary: SelectorUsageSummary): string {
+function renderSelectorUsageNote(summary: SelectorUsageRenderSummary): string {
   const parts = [`_References: ${summary.totalReferences} total`];
   if (summary.totalReferences !== summary.directReferenceCount) {
     parts.push(`${summary.directReferenceCount} direct`);

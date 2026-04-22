@@ -74,6 +74,27 @@ export async function resolveWorkspaceCheckFiles(params: {
   };
 }
 
+export function resolveWorkspaceCheckFilesSync(params: {
+  readonly workspaceRoot: string;
+  readonly sourceFilePaths?: readonly string[];
+  readonly styleFilePaths?: readonly string[];
+}): WorkspaceCheckResolvedFiles {
+  const sourceFiles = (
+    params.sourceFilePaths ?? collectWorkspaceFilesSync(params.workspaceRoot, SOURCE_GLOB)
+  ).toSorted();
+  const styleFiles = (
+    params.styleFilePaths ??
+    collectWorkspaceFilesSync(params.workspaceRoot, buildStyleFileWatcherGlob())
+  )
+    .filter((filePath) => findLangForPath(filePath) !== null)
+    .toSorted();
+
+  return {
+    sourceFiles,
+    styleFiles,
+  };
+}
+
 export function createWorkspaceStyleHost(params: {
   readonly styleFiles: readonly string[];
   readonly classnameTransform: ClassnameTransformMode;
@@ -190,6 +211,16 @@ async function collectWorkspaceFiles(
   pattern: string,
 ): Promise<readonly string[]> {
   return fastGlob(pattern, {
+    cwd: workspaceRoot,
+    absolute: true,
+    onlyFiles: true,
+    followSymbolicLinks: false,
+    ignore: [...DEFAULT_IGNORES],
+  });
+}
+
+function collectWorkspaceFilesSync(workspaceRoot: string, pattern: string): readonly string[] {
+  return fastGlob.sync(pattern, {
     cwd: workspaceRoot,
     absolute: true,
     onlyFiles: true,
