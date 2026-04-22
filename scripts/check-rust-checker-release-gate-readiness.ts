@@ -78,6 +78,14 @@ void (async () => {
     "pnpm check:rust-checker-release-gate-shadow",
   );
   assert.equal(
+    styleProducer.boundedCheckerGate.releaseGateShadowReviewCommand,
+    "pnpm check:rust-checker-release-gate-shadow-review",
+  );
+  assert.equal(
+    sourceProducer.boundedCheckerGate.releaseGateShadowReviewCommand,
+    "pnpm check:rust-checker-release-gate-shadow-review",
+  );
+  assert.equal(
     styleProducer.boundedCheckerGate.releaseBundleCommand,
     "pnpm check:rust-release-bundle",
   );
@@ -87,6 +95,11 @@ void (async () => {
   );
   assert.equal(styleProducer.boundedCheckerGate.minimumBoundedLaneCountForRustReleaseBundle, 2);
   assert.equal(sourceProducer.boundedCheckerGate.minimumBoundedLaneCountForRustReleaseBundle, 2);
+  assert.equal(styleProducer.boundedCheckerGate.minimumSuccessfulShadowRunsForRustReleaseBundle, 3);
+  assert.equal(
+    sourceProducer.boundedCheckerGate.minimumSuccessfulShadowRunsForRustReleaseBundle,
+    3,
+  );
   assert.equal(styleProducer.boundedCheckerGate.releaseGateStage, "shadowed");
   assert.equal(sourceProducer.boundedCheckerGate.releaseGateStage, "shadowed");
   assert.equal(styleProducer.boundedCheckerGate.includedInRustLaneBundle, true);
@@ -110,8 +123,10 @@ void (async () => {
       `promotionEvidence=${styleProducer.boundedCheckerGate.promotionEvidenceCommand}`,
       `releaseGateReadiness=${styleProducer.boundedCheckerGate.releaseGateReadinessCommand}`,
       `releaseGateShadow=${styleProducer.boundedCheckerGate.releaseGateShadowCommand}`,
+      `releaseGateShadowReview=${styleProducer.boundedCheckerGate.releaseGateShadowReviewCommand}`,
       `releaseBundle=${styleProducer.boundedCheckerGate.releaseBundleCommand}`,
       `minimumBoundedLaneCount=${styleProducer.boundedCheckerGate.minimumBoundedLaneCountForRustReleaseBundle}`,
+      `minimumSuccessfulShadowRuns=${styleProducer.boundedCheckerGate.minimumSuccessfulShadowRunsForRustReleaseBundle}`,
       `currentBoundedLaneCount=${CURRENT_BOUNDED_LANE_COUNT}`,
       `readyForReleaseGateReview=${readyForReleaseGateReview}`,
       `releaseGateStage=${styleProducer.boundedCheckerGate.releaseGateStage}`,
@@ -127,8 +142,10 @@ void (async () => {
       `promotionEvidence=${sourceProducer.boundedCheckerGate.promotionEvidenceCommand}`,
       `releaseGateReadiness=${sourceProducer.boundedCheckerGate.releaseGateReadinessCommand}`,
       `releaseGateShadow=${sourceProducer.boundedCheckerGate.releaseGateShadowCommand}`,
+      `releaseGateShadowReview=${sourceProducer.boundedCheckerGate.releaseGateShadowReviewCommand}`,
       `releaseBundle=${sourceProducer.boundedCheckerGate.releaseBundleCommand}`,
       `minimumBoundedLaneCount=${sourceProducer.boundedCheckerGate.minimumBoundedLaneCountForRustReleaseBundle}`,
+      `minimumSuccessfulShadowRuns=${sourceProducer.boundedCheckerGate.minimumSuccessfulShadowRunsForRustReleaseBundle}`,
       `currentBoundedLaneCount=${CURRENT_BOUNDED_LANE_COUNT}`,
       `readyForReleaseGateReview=${readyForReleaseGateReview}`,
       `releaseGateStage=${sourceProducer.boundedCheckerGate.releaseGateStage}`,

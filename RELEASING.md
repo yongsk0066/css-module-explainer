@@ -169,6 +169,11 @@ together while the checker lanes remain outside the release bundle.
 every `master` push. This gives repeated operational observations without
 changing the stable release gate.
 
+`pnpm check:rust-checker-release-gate-shadow-review` is the current operator
+review command for enforcement readiness. It reads recent
+`Checker Release Gate Shadow` workflow history through `gh` and reports whether
+the repo has accumulated the current minimum of `3` successful shadow runs.
+
 `pnpm check:rust-lane-bundle` is the broader Rust lane gate. It combines the
 current semantic producer boundary checks, `pnpm check:rust-parser-public-product`,
 and `pnpm check:rust-checker-entrance`.

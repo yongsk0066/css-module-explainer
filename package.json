@@ -76,6 +76,7 @@
     "check:rust-checker-promotion-evidence": "pnpm check:rust-checker-promotion-review && pnpm check:rust-checker-broader-lane-readiness && pnpm check:rust-checker-real-project-bounded",
     "check:rust-checker-release-gate-readiness": "tsx ./scripts/check-rust-checker-release-gate-readiness.ts",
     "check:rust-checker-release-gate-shadow": "pnpm check:rust-release-bundle && pnpm check:rust-checker-entrance && pnpm check:rust-checker-promotion-evidence",
+    "check:rust-checker-release-gate-shadow-review": "tsx ./scripts/check-rust-checker-release-gate-shadow-review.ts",
     "check:rust-type-fact-compare": "tsx ./scripts/check-rust-type-fact-compare.ts",
     "check:rust-query-plan-compare": "tsx ./scripts/check-rust-query-plan-compare.ts",
     "check:rust-expression-domain-compare": "tsx ./scripts/check-rust-expression-domain-compare.ts",

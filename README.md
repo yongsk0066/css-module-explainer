@@ -282,6 +282,7 @@ Current checker policy:
 - `pnpm check:rust-checker-promotion-evidence` runs the full bounded checker promotion evidence set: promotion review, broader-lane readiness, and real-project bounded corpus validation
 - `pnpm check:rust-checker-release-gate-readiness` locks the release-gate promotion criteria for the current checker lanes; today it requires the broader-lane promotion evidence to exist, a release target of `pnpm check:rust-release-bundle`, a shadow soak target of `pnpm check:rust-checker-release-gate-shadow`, and a minimum bounded-lane count of `2`, while still keeping both lanes out of the release gate
 - `pnpm check:rust-checker-release-gate-shadow` is the non-enforcing shadow soak for checker entrance promotion; it runs the release-facing Rust bundle, the checker entrance gate, and the checker promotion evidence together without yet flipping checker entrance into the release bundle
+- `pnpm check:rust-checker-release-gate-shadow-review` reviews the current GitHub Actions shadow history for that workflow; today it reports whether the repo has accumulated `3` successful shadow runs, which is the current threshold before any release-bundle enforcement flip is considered
 - `.github/workflows/checker-release-gate-shadow.yml` runs that same shadow soak on every `master` push without changing the stable release gate
 - Rust shadow validation now covers:
   - input summaries: `pnpm check:rust-type-fact-compare`, `pnpm check:rust-query-plan-compare`, `pnpm check:rust-expression-domain-compare`
@@ -314,6 +315,7 @@ Current checker policy:
   - checker promotion evidence bundle: `pnpm check:rust-checker-promotion-evidence`
   - checker release-gate readiness: `pnpm check:rust-checker-release-gate-readiness`
   - checker release-gate shadow soak: `pnpm check:rust-checker-release-gate-shadow`
+  - checker release-gate shadow review: `pnpm check:rust-checker-release-gate-shadow-review`
   - broader Rust lane bundle: `pnpm check:rust-lane-bundle`
   - release-facing Rust bundle: `pnpm check:rust-release-bundle`
   - full snapshot parity: `pnpm check:rust-shadow-compare`
