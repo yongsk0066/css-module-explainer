@@ -234,6 +234,22 @@ requires `pnpm check:ts7-phase-a-decision-ready` first, then the bounded
 protocol tsgo, editing tsgo, server build tsgo, and workspace build tsgo
 subsets.
 
+`pnpm check:tsgo-operational-lane` is the current bounded non-release
+operational lane for the tsgo backend. It runs the tsgo-backed release batch,
+real-project corpus, LSP smoke, and `pnpm check:ts7-phase-b-readiness`
+together.
+
+`.github/workflows/tsgo-operational-shadow.yml` is the observational workflow
+for that lane. It builds the repo, runs the tsgo-backed release batch,
+real-project corpus, LSP smoke, and the full operational lane as separate
+steps, and records repeatable shadow history for the next limited non-release
+default judgment.
+
+`pnpm check:tsgo-operational-shadow-review` is the current operator review
+command for that workflow. It reads recent `TSGO Operational Shadow` history
+through `gh` and reports whether the repo has accumulated the current minimum
+of `3` successful shadow runs before any limited non-release default judgment.
+
 `pnpm check:ts7-decision-ready` is the current top-level judgment gate for the
 TS 7 track. It requires both `Phase A decision-ready` and `Phase B readiness`
 before any broader tsgo adoption or release-facing

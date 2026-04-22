@@ -273,8 +273,14 @@ Current checker policy:
   - it runs `@typescript/native-preview@beta -b tsconfig.json --checkers 2 --builders 2`
 - `pnpm check:ts7-phase-b-readiness` is the current entry check for Phase B
   - it requires `pnpm check:ts7-phase-a-decision-ready` first, then the bounded protocol, editing, server-build, and workspace-build tsgo subsets
+- `pnpm check:tsgo-operational-lane` is the current bounded non-release operational lane for the tsgo backend
+  - it runs `release-batch-tsgo`, `real-project-corpus-tsgo`, `lsp-server-smoke-tsgo`, and `ts7-phase-b-readiness` together
+- `pnpm check:tsgo-operational-shadow-review` reviews recent `TSGO Operational Shadow` workflow history through `gh`
+  - today it reports whether the repo has accumulated the current minimum of `3` successful shadow runs before any limited non-release default judgment
 - `pnpm check:ts7-decision-ready` is the current top-level judgment gate for the TS 7 track
   - it requires both `Phase A decision-ready` and `Phase B readiness`
+- `.github/workflows/tsgo-operational-shadow.yml` is the observational workflow for that bounded operational lane
+  - it builds the repo, runs the tsgo-backed release batch, real-project corpus, LSP smoke, and full operational lane, and records repeatable shadow history for the next default-candidate judgment
 - `.github/workflows/ts7-phase-a-shadow.yml` builds the repo, then runs the Phase A readiness gate, non-release shadow path, and stability check on every `master` push and on manual dispatch
 - `pnpm check:rust-parser-scaffold` exercises the first internal Rust parser scaffold crate, `rust/crates/engine-style-parser`
 - `pnpm check:rust-parser-git-consumer` verifies that the split parser repo can be consumed as a remote git dependency by the repo-stored standalone fixture at `rust/external-consumers/engine-style-parser-git-consumer`
@@ -361,6 +367,8 @@ Current checker policy:
   - `tsgo` is now wired into explicit tsgo-backed operational commands: `pnpm check:release-batch-tsgo`, `pnpm check:real-project-corpus-tsgo`, and `pnpm check:lsp-server-smoke-tsgo`
   - the current limited non-release aggregate for that backend is `pnpm check:ts7-phase-a-tsgo-lane`
   - the next step up from that lane is `pnpm check:ts7-phase-b-protocol-tsgo`
+  - the current bounded non-release operational aggregate is `pnpm check:tsgo-operational-lane`
+  - the current operational shadow review command is `pnpm check:tsgo-operational-shadow-review`
   - the current top-level TS 7 judgment command is `pnpm check:ts7-decision-ready`
   - `selector-usage` remains a shadow validation family, not a release-gating canonical candidate
   - current `EngineInputV2` does not preserve enough reference-level evidence to reproduce `selector-usage` semantics as an input-only canonical producer
