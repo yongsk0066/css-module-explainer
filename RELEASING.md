@@ -175,8 +175,14 @@ remain attributable after the stable release gate flip.
 
 `pnpm check:ts7-phase-a-readiness` is the current pre-adoption gate for the
 TS 7 beta path. `pnpm check:ts7-phase-a-shadow` is the current non-release
-shadow path for that same backend preview; it runs `release-batch` and
-`real-project-corpus` through `CME_TYPE_FACT_BACKEND=tsgo-preview`.
+shadow path for that same backend preview. The explicit preview-backed
+operational commands are:
+
+- `pnpm check:release-batch-preview`
+- `pnpm check:real-project-corpus-preview`
+
+`pnpm check:ts7-phase-a-shadow` runs those two preview-backed operational
+commands together.
 
 `pnpm check:ts7-phase-a-stability` is the direct stability check for the two
 preview-specific risk points that the basic shadow path does not prove by

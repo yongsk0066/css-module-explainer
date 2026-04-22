@@ -247,8 +247,10 @@ Current checker policy:
 - `pnpm check:type-fact-backend-parity` compares canonical `EngineInputV2.typeFacts` across `typescript-current` and `tsgo-preview` on the backend smoke corpus
 - `pnpm check:ts7-phase-a-readiness` is the current aggregate pre-adoption gate for the TS 7 beta path
   - it runs backend typecheck smoke, type-fact backend parity, and `rust-gate-evidence -- --variant tsgo-preview --repeat 1 --json`
+- `pnpm check:release-batch-preview` is the current preview-backed variant of the release-batch operational path
+- `pnpm check:real-project-corpus-preview` is the current preview-backed variant of the real-project operational path
 - `pnpm check:ts7-phase-a-shadow` is the current non-release shadow path for TS 7 beta Phase A
-  - it runs `release-batch` and `real-project-corpus` through `CME_TYPE_FACT_BACKEND=tsgo-preview`
+  - it runs those two preview-backed operational commands together
 - `pnpm check:ts7-phase-a-stability` directly checks the two preview-specific risk points that the basic shadow path does not prove by itself
   - repeated `EngineInputV2.typeFacts` snapshots from `tsgo-preview` must stay byte-stable across runs
   - concurrent `release-batch` and `real-project-corpus` invocations under `CME_TYPE_FACT_BACKEND=tsgo-preview` must keep identical outputs across rounds
@@ -339,7 +341,7 @@ Current checker policy:
   - the ESLint and Stylelint plugin consumers now form a first plugin-facing batch with focused rule surfaces, aggregate configs, a clean example workspace, and release-facing consumer gates
   - the bounded checker entrance (`style-recovery` + `source-missing`) is now enforced in `pnpm check:rust-release-bundle`
   - the next backend transition step is explicitly staged behind `pnpm check:ts7-phase-a-readiness`
-  - `tsgo-preview` is now also wired into a separate non-release shadow path via `pnpm check:ts7-phase-a-shadow`
+  - `tsgo-preview` is now also wired into explicit preview-backed operational commands: `pnpm check:release-batch-preview` and `pnpm check:real-project-corpus-preview`
   - the current limited non-release aggregate for that preview is `pnpm check:ts7-phase-a-preview-lane`
   - `selector-usage` remains a shadow validation family, not a release-gating canonical candidate
   - current `EngineInputV2` does not preserve enough reference-level evidence to reproduce `selector-usage` semantics as an input-only canonical producer
