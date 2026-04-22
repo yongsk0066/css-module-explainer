@@ -71,12 +71,33 @@ pub struct SourceDocumentV2 {
     pub class_expressions: Vec<ClassExpressionInputV2>,
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "camelCase")]
+pub struct PositionV2 {
+    pub line: usize,
+    pub character: usize,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "camelCase")]
+pub struct RangeV2 {
+    pub start: PositionV2,
+    pub end: PositionV2,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BemSuffixInfoV2 {
+    pub raw_token_range: RangeV2,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ClassExpressionInputV2 {
     pub id: String,
     pub kind: String,
     pub scss_module_path: String,
+    pub range: RangeV2,
     pub root_binding_decl_id: Option<String>,
     pub access_path: Option<Vec<String>>,
 }
@@ -100,8 +121,10 @@ pub struct StyleSelectorV2 {
     pub name: String,
     pub view_kind: String,
     pub canonical_name: Option<String>,
+    pub range: RangeV2,
     pub nested_safety: Option<String>,
     pub composes: Option<Vec<serde_json::Value>>,
+    pub bem_suffix: Option<BemSuffixInfoV2>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -374,6 +397,16 @@ pub struct SelectorUsageEvaluatorCandidatePayloadV0 {
     pub has_expanded_references: bool,
     pub has_style_dependency_references: bool,
     pub has_any_references: bool,
+    pub all_sites: Vec<SelectorUsageReferenceSiteV0>,
+}
+
+#[derive(Debug, Serialize, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "camelCase")]
+pub struct SelectorUsageReferenceSiteV0 {
+    pub file_path: String,
+    pub range: RangeV2,
+    pub expansion: String,
+    pub reference_kind: String,
 }
 
 #[derive(Debug, Serialize, Clone)]

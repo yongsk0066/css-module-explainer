@@ -1,3 +1,4 @@
+import type { Range } from "@css-module-explainer/shared";
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
 import { buildEngineInputV2 } from "./engine-input-v2";
 import {
@@ -29,6 +30,14 @@ export interface SelectorUsageEvaluatorCandidatePayloadV0 {
   readonly hasExpandedReferences: boolean;
   readonly hasStyleDependencyReferences: boolean;
   readonly hasAnyReferences: boolean;
+  readonly allSites?: readonly SelectorUsageReferenceSiteV0[];
+}
+
+export interface SelectorUsageReferenceSiteV0 {
+  readonly filePath: string;
+  readonly range: Range;
+  readonly expansion: "direct" | "expanded";
+  readonly referenceKind: "source" | "styleDependency";
 }
 
 export interface SelectorUsageRenderSummary {
@@ -117,4 +126,13 @@ export function buildSelectorUsageRenderSummaryFromRustPayload(
     hasStyleDependencyReferences: payload.hasStyleDependencyReferences,
     hasAnyReferences: payload.hasAnyReferences,
   };
+}
+
+export function buildSelectorUsageLocationsFromRustPayload(
+  payload: SelectorUsageEvaluatorCandidatePayloadV0,
+) {
+  return payload.allSites?.map((site) => ({
+    filePath: site.filePath,
+    range: site.range,
+  }));
 }

@@ -1,84 +1,121 @@
 import { describe, expect, it } from "vitest";
-import { parseStyleDocument } from "../../../server/engine-core-ts/src/core/scss/scss-parser";
+import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/engine-core-ts/src/core/semantic/workspace-reference-index";
+import type { ProviderDeps } from "../../../server/lsp-server/src/providers/cursor-dispatch";
 import { resolveStyleReferencesAtCursor } from "../../../server/engine-host-node/src/style-references-query";
-import { makeBaseDeps } from "../../_fixtures/test-helpers";
+import { infoAtLine, makeBaseDeps, semanticSiteAt } from "../../_fixtures/test-helpers";
+import { buildStyleDocumentFromSelectorMap } from "../../_fixtures/style-documents";
+
+function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
+  return makeBaseDeps({
+    selectorMapForPath: () => new Map([["indicator", infoAtLine("indicator", 5)]]),
+    workspaceRoot: "/fake",
+    ...overrides,
+  });
+}
 
 describe("resolveStyleReferencesAtCursor", () => {
-  it("returns declaration plus same-file animation references", () => {
-    const filePath = "/fake/src/Button.module.scss";
-    const content = `@keyframes fade {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.box {
-  animation: fade 1s linear;
-}
-
-.pulse {
-  animation-name: fade;
-}
-`;
-    const styleDocument = parseStyleDocument(content, filePath);
-    const deps = makeBaseDeps({
-      styleDocumentForPath: (path) => (path === filePath ? styleDocument : null),
-    });
+  it("returns selector reference locations from the semantic index by default", () => {
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    semanticReferenceIndex.record("file:///fake/src/App.tsx", [
+      semanticSiteAt("file:///fake/src/App.tsx", "indicator", 10, "/fake/src/Button.module.scss"),
+    ]);
+    const styleDocument = buildStyleDocumentFromSelectorMap(
+      "/fake/src/Button.module.scss",
+      new Map([["indicator", infoAtLine("indicator", 5)]]),
+    );
 
     const result = resolveStyleReferencesAtCursor(
       {
-        filePath,
-        line: 0,
-        character: 13,
+        filePath: "/fake/src/Button.module.scss",
+        line: 5,
+        character: 3,
         includeDeclaration: true,
         styleDocument,
       },
-      deps,
+      makeDeps({ semanticReferenceIndex }),
     );
 
-    expect(result).toHaveLength(3);
-    expect(result.every((location) => location.uri === "file:///fake/src/Button.module.scss")).toBe(
-      true,
-    );
-    expect(result.some((location) => location.range.start.line === 0)).toBe(true);
-    expect(result.some((location) => location.range.start.line === 6)).toBe(true);
-    expect(result.some((location) => location.range.start.line === 10)).toBe(true);
+    expect(result).toEqual([
+      {
+        uri: "file:///fake/src/App.tsx",
+        range: {
+          start: { line: 10, character: 10 },
+          end: { line: 10, character: 19 },
+        },
+      },
+    ]);
   });
 
-  it("returns imported value declaration and local sites", () => {
-    const filePath = "/fake/src/Button.module.scss";
-    const tokensPath = "/fake/src/tokens.module.scss";
-    const content = `@value primary from "./tokens.module.scss";
-
-.button {
-  color: primary;
-}
-`;
-    const tokens = `@value primary: #ff3355;`;
-    const styleDocument = parseStyleDocument(content, filePath);
-    const tokensDocument = parseStyleDocument(tokens, tokensPath);
-    const deps = makeBaseDeps({
-      styleDocumentForPath: (path) => {
-        if (path === filePath) return styleDocument;
-        if (path === tokensPath) return tokensDocument;
-        return null;
-      },
-    });
+  it("uses rust selector-usage payloads for selector reference locations", () => {
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    semanticReferenceIndex.record("file:///fake/src/App.tsx", [
+      semanticSiteAt("file:///fake/src/App.tsx", "indicator", 10, "/fake/src/Button.module.scss"),
+    ]);
+    const styleDocument = buildStyleDocumentFromSelectorMap(
+      "/fake/src/Button.module.scss",
+      new Map([["indicator", infoAtLine("indicator", 5)]]),
+    );
 
     const result = resolveStyleReferencesAtCursor(
       {
-        filePath,
-        line: 0,
-        character: 9,
+        filePath: "/fake/src/Button.module.scss",
+        line: 5,
+        character: 3,
         includeDeclaration: true,
         styleDocument,
       },
-      deps,
+      makeDeps({ semanticReferenceIndex }),
+      {
+        env: { CME_SELECTED_QUERY_BACKEND: "rust-selector-usage" } as NodeJS.ProcessEnv,
+        readRustSelectorUsagePayloadForWorkspaceTarget: () => ({
+          canonicalName: "indicator",
+          totalReferences: 2,
+          directReferenceCount: 1,
+          editableDirectReferenceCount: 1,
+          exactReferenceCount: 1,
+          inferredOrBetterReferenceCount: 1,
+          hasExpandedReferences: true,
+          hasStyleDependencyReferences: true,
+          hasAnyReferences: true,
+          allSites: [
+            {
+              filePath: "/fake/src/App.tsx",
+              range: {
+                start: { line: 10, character: 10 },
+                end: { line: 10, character: 19 },
+              },
+              expansion: "direct",
+              referenceKind: "source",
+            },
+            {
+              filePath: "/fake/src/Other.module.scss",
+              range: {
+                start: { line: 2, character: 1 },
+                end: { line: 2, character: 10 },
+              },
+              expansion: "direct",
+              referenceKind: "styleDependency",
+            },
+          ],
+        }),
+      },
     );
 
-    expect(result).toHaveLength(3);
-    expect(result[0]?.uri).toBe("file:///fake/src/tokens.module.scss");
-    expect(result.some((location) => location.uri === "file:///fake/src/Button.module.scss")).toBe(
-      true,
-    );
+    expect(result).toEqual([
+      {
+        uri: "file:///fake/src/App.tsx",
+        range: {
+          start: { line: 10, character: 10 },
+          end: { line: 10, character: 19 },
+        },
+      },
+      {
+        uri: "file:///fake/src/Other.module.scss",
+        range: {
+          start: { line: 2, character: 1 },
+          end: { line: 2, character: 10 },
+        },
+      },
+    ]);
   });
 });

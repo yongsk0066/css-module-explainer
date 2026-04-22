@@ -2,12 +2,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Component, Path, PathBuf};
 
 use crate::{
-    EngineInputV2, SelectorUsageCandidateV0, SelectorUsageCandidatesV0,
+    EngineInputV2, RangeV2, SelectorUsageCandidateV0, SelectorUsageCandidatesV0,
     SelectorUsageCanonicalCandidateBundleV0, SelectorUsageCanonicalProducerSignalV0,
     SelectorUsageEvaluatorCandidatePayloadV0, SelectorUsageEvaluatorCandidateV0,
     SelectorUsageEvaluatorCandidatesV0, SelectorUsageFragmentV0, SelectorUsageFragmentsV0,
     SelectorUsagePlanSummaryV0, SelectorUsageQueryFragmentV0, SelectorUsageQueryFragmentsV0,
-    canonical_selector_count, map_selector_certainty, resolve_selector_names,
+    SelectorUsageReferenceSiteV0, StyleAnalysisInputV2, StyleSelectorV2, canonical_selector_count,
+    map_selector_certainty, resolve_selector_names,
 };
 
 pub fn summarize_selector_usage_plan_input(input: &EngineInputV2) -> SelectorUsagePlanSummaryV0 {
@@ -115,6 +116,7 @@ struct SelectorUsageAggregate {
     exact_reference_count: usize,
     inferred_or_better_reference_count: usize,
     has_expanded_references: bool,
+    all_sites: Vec<SelectorUsageReferenceSiteV0>,
 }
 
 struct SelectorUsageInputRows {
@@ -239,6 +241,19 @@ fn collect_selector_usage_input_rows(input: &EngineInputV2) -> SelectorUsageInpu
                 .entry((expression.scss_module_path.clone(), selector_name))
                 .or_default();
             counts.total_references += 1;
+            push_usage_site(
+                &mut counts.all_sites,
+                SelectorUsageReferenceSiteV0 {
+                    file_path: entry.file_path.clone(),
+                    range: expression.range.clone(),
+                    expansion: if is_direct_source {
+                        "direct".to_string()
+                    } else {
+                        "expanded".to_string()
+                    },
+                    reference_kind: "source".to_string(),
+                },
+            );
             if is_direct_source {
                 counts.direct_reference_count += 1;
                 counts.editable_direct_reference_count += 1;
@@ -279,11 +294,16 @@ fn collect_selector_usage_input_rows(input: &EngineInputV2) -> SelectorUsageInpu
             let mut counts = source_counts
                 .remove(&(style.file_path.clone(), canonical_name.clone()))
                 .unwrap_or_default();
-            let style_dependency_count = count_incoming_style_dependencies(
+            let style_dependency_sites = collect_incoming_style_dependency_sites(
                 &incoming_style_dependencies,
+                &style_index,
                 &style.file_path,
                 canonical_name,
             );
+            let style_dependency_count = style_dependency_sites.len();
+            for site in style_dependency_sites {
+                push_usage_site(&mut counts.all_sites, site);
+            }
 
             counts.total_references += style_dependency_count;
             counts.direct_reference_count += style_dependency_count;
@@ -323,6 +343,7 @@ fn collect_selector_usage_input_rows(input: &EngineInputV2) -> SelectorUsageInpu
                     has_expanded_references: candidate.has_expanded_references,
                     has_style_dependency_references: candidate.has_style_dependency_references,
                     has_any_references: candidate.has_any_references,
+                    all_sites: counts.all_sites.clone(),
                 },
             });
         }
@@ -415,33 +436,88 @@ fn build_incoming_style_dependencies(
     incoming
 }
 
-fn count_incoming_style_dependencies(
+fn collect_incoming_style_dependency_sites(
     incoming: &BTreeMap<(String, String), BTreeSet<(String, String)>>,
+    style_index: &BTreeMap<String, &StyleAnalysisInputV2>,
     file_path: &str,
     canonical_name: &str,
-) -> usize {
+ ) -> Vec<SelectorUsageReferenceSiteV0> {
     let mut seen = BTreeSet::<(String, String)>::new();
+    let mut sites = Vec::<SelectorUsageReferenceSiteV0>::new();
     collect_incoming_style_dependencies(
         incoming,
+        style_index,
         &(file_path.to_string(), canonical_name.to_string()),
         &mut seen,
+        &mut sites,
     );
-    seen.len()
+    sites.sort_by(|a, b| {
+        a.file_path
+            .cmp(&b.file_path)
+            .then(a.range.start.line.cmp(&b.range.start.line))
+            .then(a.range.start.character.cmp(&b.range.start.character))
+            .then(a.range.end.line.cmp(&b.range.end.line))
+            .then(a.range.end.character.cmp(&b.range.end.character))
+            .then(a.reference_kind.cmp(&b.reference_kind))
+            .then(a.expansion.cmp(&b.expansion))
+    });
+    sites.dedup();
+    sites
 }
 
 fn collect_incoming_style_dependencies(
     incoming: &BTreeMap<(String, String), BTreeSet<(String, String)>>,
+    style_index: &BTreeMap<String, &StyleAnalysisInputV2>,
     key: &(String, String),
     seen: &mut BTreeSet<(String, String)>,
+    sites: &mut Vec<SelectorUsageReferenceSiteV0>,
 ) {
     let Some(entries) = incoming.get(key) else {
         return;
     };
     for entry in entries {
         if seen.insert(entry.clone()) {
-            collect_incoming_style_dependencies(incoming, entry, seen);
+            if let Some(style) = style_index.get(&entry.0)
+                && let Some(selector) =
+                    find_canonical_selector(style, &entry.1)
+            {
+                sites.push(SelectorUsageReferenceSiteV0 {
+                    file_path: entry.0.clone(),
+                    range: selector_site_range(selector),
+                    expansion: "direct".to_string(),
+                    reference_kind: "styleDependency".to_string(),
+                });
+            }
+            collect_incoming_style_dependencies(incoming, style_index, entry, seen, sites);
         }
     }
+}
+
+fn push_usage_site(
+    sites: &mut Vec<SelectorUsageReferenceSiteV0>,
+    site: SelectorUsageReferenceSiteV0,
+) {
+    if !sites.iter().any(|existing| existing == &site) {
+        sites.push(site);
+    }
+}
+
+fn find_canonical_selector<'a>(
+    style: &'a StyleAnalysisInputV2,
+    canonical_name: &str,
+) -> Option<&'a StyleSelectorV2> {
+    style.document.selectors.iter().find(|selector| {
+        selector.view_kind == "canonical"
+            && selector.canonical_name.as_deref() == Some(canonical_name)
+    })
+}
+
+fn selector_site_range(selector: &StyleSelectorV2) -> RangeV2 {
+    selector
+        .bem_suffix
+        .as_ref()
+        .map(|suffix| suffix.raw_token_range.clone())
+        .unwrap_or_else(|| selector.range.clone())
 }
 
 fn normalize_joined_path(base_file_path: &str, relative_from: &str) -> String {
@@ -585,6 +661,10 @@ mod tests {
         assert_eq!(summary.results[0].kind, "selector-usage");
         assert_eq!(summary.results[0].file_path, "/tmp/App.module.scss");
         assert_eq!(summary.results[0].query_id, "btn-active");
+        assert_eq!(summary.results[0].payload.all_sites.len(), 1);
+        assert_eq!(summary.results[0].payload.all_sites[0].file_path, "/tmp/App.tsx");
+        assert_eq!(summary.results[0].payload.all_sites[0].expansion, "expanded");
+        assert_eq!(summary.results[0].payload.all_sites[0].reference_kind, "source");
     }
 
     #[test]

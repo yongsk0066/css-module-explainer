@@ -17,11 +17,21 @@ import {
 import type { StyleDocumentHIR } from "../../engine-core-ts/src/core/hir/style-types";
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
 import { pathToFileUrl } from "../../engine-core-ts/src/core/util/text-utils";
+import {
+  buildSelectorUsageLocationsFromRustPayload,
+  resolveRustSelectorUsagePayloadForWorkspaceTarget,
+} from "./selector-usage-query-backend";
+import { resolveSelectedQueryBackendKind } from "./selected-query-backend";
 import { resolveSelectorReferenceLocations } from "./selector-references-query";
 
 export interface StyleReferenceLocation {
   readonly uri: string;
   readonly range: Range;
+}
+
+export interface StyleReferenceQueryOptions {
+  readonly env?: NodeJS.ProcessEnv;
+  readonly readRustSelectorUsagePayloadForWorkspaceTarget?: typeof resolveRustSelectorUsagePayloadForWorkspaceTarget;
 }
 
 export function resolveStyleReferencesAtCursor(
@@ -34,8 +44,15 @@ export function resolveStyleReferencesAtCursor(
   },
   deps: Pick<
     ProviderDeps,
-    "semanticReferenceIndex" | "styleDependencyGraph" | "styleDocumentForPath"
+    | "analysisCache"
+    | "semanticReferenceIndex"
+    | "settings"
+    | "styleDependencyGraph"
+    | "styleDocumentForPath"
+    | "typeResolver"
+    | "workspaceRoot"
   >,
+  options: StyleReferenceQueryOptions = {},
 ): readonly StyleReferenceLocation[] {
   const selector = findSelectorAtCursor(args.styleDocument, args.line, args.character);
   const composesHit = selector
@@ -59,6 +76,28 @@ export function resolveStyleReferencesAtCursor(
         };
       })();
   if (target) {
+    if (resolveSelectedQueryBackendKind(options.env) === "rust-selector-usage") {
+      const payload = (
+        options.readRustSelectorUsagePayloadForWorkspaceTarget ??
+        resolveRustSelectorUsagePayloadForWorkspaceTarget
+      )(
+        {
+          workspaceRoot: deps.workspaceRoot,
+          classnameTransform: deps.settings.scss.classnameTransform,
+          pathAlias: deps.settings.pathAlias,
+        },
+        deps,
+        target.filePath,
+        target.canonicalName,
+      );
+      const rustLocations =
+        payload &&
+        buildSelectorUsageLocationsFromRustPayload(payload)?.map((site) => ({
+          uri: pathToFileUrl(site.filePath),
+          range: site.range,
+        }));
+      if (rustLocations) return rustLocations;
+    }
     return resolveSelectorReferenceLocations(deps, target);
   }
 

@@ -250,11 +250,12 @@ LSP layer. It is a milestone boundary, not a stable release gate.
 the first live Rust selected-query consumer slice. It exercises the explicit
 unit/runtime coverage for the opt-in Rust consumer paths currently wired into
 source `definition`, source `hover`, source `rename`, style `hover`
-usage-summary resolution, style `reference-lens` title/count summary
-resolution, style module usage / style diagnostics unused-selector resolution,
-style `rename` rewrite-safety blocking, `explain-expression`, source
-diagnostics symbol-ref invalid-class analysis, and host-side `engine-query-v2`
-query-result emission for `source-expression-resolution`,
+usage-summary resolution, style `references` location resolution, style
+`reference-lens` title/count summary resolution, style module usage / style
+diagnostics unused-selector resolution, style `rename` rewrite-safety
+blocking, `explain-expression`, source diagnostics symbol-ref invalid-class
+analysis, and host-side `engine-query-v2` query-result emission for
+`source-expression-resolution`,
 `expression-semantics`, and `selector-usage`.
 It is a milestone boundary, not a stable release gate and not yet a default
 selected-query backend flip.
