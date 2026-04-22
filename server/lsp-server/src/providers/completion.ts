@@ -1,6 +1,6 @@
 import { CompletionItemKind, type CompletionItem } from "vscode-languageserver/node";
 import type { SelectorDeclHIR } from "../../../engine-core-ts/src/core/hir/style-types";
-import { readCompletionContext } from "../../../engine-core-ts/src/core/query";
+import { resolveSourceCompletionSelectors } from "../../../engine-host-node/src/source-completion-query";
 import type { CursorParams, ProviderDeps } from "./provider-deps";
 import { wrapHandler } from "./_wrap-handler";
 export { isInsideCall } from "../../../engine-core-ts/src/core/query";
@@ -23,27 +23,9 @@ export const handleCompletion = wrapHandler<CursorParams, [], CompletionItem[] |
 );
 
 function computeCompletion(params: CursorParams, deps: ProviderDeps): CompletionItem[] | null {
-  const entry = deps.analysisCache.get(
-    params.documentUri,
-    params.content,
-    params.filePath,
-    params.version,
-  );
-  if (
-    entry.sourceDocument.utilityBindings.length === 0 &&
-    entry.sourceDocument.styleImports.length === 0
-  ) {
-    return null;
-  }
-
-  const textBefore = getTextBefore(params.content, params.line, params.character);
-  const ctx = readCompletionContext(entry, textBefore);
-  if (!ctx) return null;
-
-  const styleDocument = deps.styleDocumentForPath(ctx.scssModulePath);
-  if (!styleDocument || styleDocument.selectors.length === 0) return null;
-
-  return styleDocument.selectors.map(toCompletionItem);
+  const selectors = resolveSourceCompletionSelectors(params, deps);
+  if (selectors.length === 0) return null;
+  return selectors.map(toCompletionItem);
 }
 
 function toCompletionItem(selector: SelectorDeclHIR): CompletionItem {
@@ -81,13 +63,3 @@ export const COMPLETION_TRIGGER_CHARACTERS = ["'", '"', "`", ",", "."] as const;
  * are ignored. Escaped quotes (backslash) are handled. This
  * means `cx(')')` correctly remains "inside" the call.
  */
-/** All text from file start to (line, character). */
-function getTextBefore(content: string, line: number, character: number): string {
-  let offset = 0;
-  for (let i = 0; i < line; i++) {
-    const nl = content.indexOf("\n", offset);
-    if (nl === -1) return content;
-    offset = nl + 1;
-  }
-  return content.slice(0, offset + character);
-}
