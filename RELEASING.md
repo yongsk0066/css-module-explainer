@@ -224,9 +224,14 @@ preview path for TS 7 beta Phase B. It runs the editing/reference subset
 preview path for TS 7 beta Phase B. It runs
 `@typescript/native-preview@beta -b server/tsconfig.json --checkers 2 --builders 2`.
 
+`pnpm check:ts7-phase-b-workspace-build-preview` is the current workspace-level
+project-reference preview path for TS 7 beta Phase B. It runs
+`@typescript/native-preview@beta -b tsconfig.json --checkers 2 --builders 2`.
+
 `pnpm check:ts7-phase-b-readiness` is the current entry check for Phase B. It
 requires `pnpm check:ts7-phase-a-decision-ready` first, then the bounded
-protocol preview, editing preview, and build preview subsets.
+protocol preview, editing preview, server build preview, and workspace build
+preview subsets.
 
 `pnpm check:ts7-preview-decision-ready` is the current top-level judgment gate
 for the TS 7 preview track. It requires both `Phase A decision-ready` and

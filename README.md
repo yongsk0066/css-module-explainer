@@ -268,8 +268,10 @@ Current checker policy:
   - it runs `references`, `rename`, and `code-actions` protocol tests under `CME_TYPE_FACT_BACKEND=tsgo-preview`
 - `pnpm check:ts7-phase-b-build-preview` is the current bounded build-mode preview path for TS 7 beta Phase B
   - it runs `@typescript/native-preview@beta -b server/tsconfig.json --checkers 2 --builders 2`
+- `pnpm check:ts7-phase-b-workspace-build-preview` is the current workspace-level project-reference preview path for TS 7 beta Phase B
+  - it runs `@typescript/native-preview@beta -b tsconfig.json --checkers 2 --builders 2`
 - `pnpm check:ts7-phase-b-readiness` is the current entry check for Phase B
-  - it requires `pnpm check:ts7-phase-a-decision-ready` first, then the bounded protocol, editing, and build preview subsets
+  - it requires `pnpm check:ts7-phase-a-decision-ready` first, then the bounded protocol, editing, server-build, and workspace-build preview subsets
 - `pnpm check:ts7-preview-decision-ready` is the current top-level judgment gate for the TS 7 preview track
   - it requires both `Phase A decision-ready` and `Phase B readiness`
 - `.github/workflows/ts7-phase-a-shadow.yml` builds the repo, then runs the Phase A readiness gate, non-release shadow path, and stability check on every `master` push and on manual dispatch
