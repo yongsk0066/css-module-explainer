@@ -23,9 +23,21 @@ jobs:
       - run: corepack enable && corepack prepare pnpm@10.30.3 --activate
       - run: pnpm install --frozen-lockfile
       - run: ./scripts/release.sh
-      - id: rust_release_bundle
-        name: Run release-facing Rust bundle
-        run: pnpm check:rust-release-bundle
+      - id: rust_workspace
+        name: Run rust-workspace
+        run: pnpm check:rust-workspace
+        continue-on-error: true
+      - id: rust_producer_boundary
+        name: Run rust-producer-boundary
+        run: pnpm check:rust-producer-boundary
+        continue-on-error: true
+      - id: rust_parser_public_product
+        name: Run rust-parser-public-product
+        run: pnpm check:rust-parser-public-product
+        continue-on-error: true
+      - id: rust_gate_evidence
+        name: Run rust-gate-evidence
+        run: pnpm check:rust-gate-evidence -- --variant typescript-current --repeat 1 --json
         continue-on-error: true
       - id: checker_entrance
         name: Run checker entrance gate
@@ -38,11 +50,23 @@ jobs:
       - if: always()
         name: Enforce shadow soak result
         run: |
-          echo "rust_release_bundle=${{ steps.rust_release_bundle.outcome }}"
+          echo "rust_workspace=${{ steps.rust_workspace.outcome }}"
+          echo "rust_producer_boundary=${{ steps.rust_producer_boundary.outcome }}"
+          echo "rust_parser_public_product=${{ steps.rust_parser_public_product.outcome }}"
+          echo "rust_gate_evidence=${{ steps.rust_gate_evidence.outcome }}"
           echo "checker_entrance=${{ steps.checker_entrance.outcome }}"
           echo "checker_promotion_evidence=${{ steps.checker_promotion_evidence.outcome }}"
           failed=0
-          if [ "${{ steps.rust_release_bundle.outcome }}" != "success" ]; then
+          if [ "${{ steps.rust_workspace.outcome }}" != "success" ]; then
+            failed=1
+          fi
+          if [ "${{ steps.rust_producer_boundary.outcome }}" != "success" ]; then
+            failed=1
+          fi
+          if [ "${{ steps.rust_parser_public_product.outcome }}" != "success" ]; then
+            failed=1
+          fi
+          if [ "${{ steps.rust_gate_evidence.outcome }}" != "success" ]; then
             failed=1
           fi
           if [ "${{ steps.checker_entrance.outcome }}" != "success" ]; then
