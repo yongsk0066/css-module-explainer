@@ -246,6 +246,13 @@ for `definition`, `hover`, `completion`, `references`, `rename`, and
 helpers instead of directly owning the main core query/rewrite reads inside the
 LSP layer. It is a milestone boundary, not a stable release gate.
 
+`pnpm check:rust-selected-query-consumers` is the current local lock point for
+the first live Rust selected-query consumer slice. It exercises the explicit
+unit/runtime coverage for the opt-in Rust consumer paths currently wired into
+source `definition`, source `hover`, `explain-expression`, and source
+diagnostics symbol-ref invalid-class analysis. It is a milestone boundary, not
+a stable release gate and not yet a default selected-query backend flip.
+
 `pnpm check:editor-path-boundary` is the current local lock point for the
 editor-path runtime transition after the selected-query cut. It runs
 `pnpm check:selected-query-boundary` plus the protocol subset for
