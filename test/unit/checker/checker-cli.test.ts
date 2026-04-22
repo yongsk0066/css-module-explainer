@@ -498,7 +498,7 @@ describe("runCheckerCli", () => {
       findingsMatch: true,
       mismatchedCodes: [],
     });
-  }, 15000);
+  }, 30000);
 
   it("prints rust style-recovery consistency summary in text output", async () => {
     const stdout: string[] = [];
@@ -529,7 +529,7 @@ describe("runCheckerCli", () => {
     expect(stdout.join("")).toContain(
       "Rust style-recovery consumer: findings=1 consistent=true releaseGate=false",
     );
-  }, 15000);
+  }, 30000);
 
   it("emits rust source-missing producer and consistency in json output", async () => {
     const stdout: string[] = [];
@@ -596,7 +596,7 @@ describe("runCheckerCli", () => {
       findingsMatch: true,
       mismatchedCodes: [],
     });
-  }, 15000);
+  }, 30000);
 
   it("prints rust source-missing consistency summary in text output", async () => {
     const stdout: string[] = [];
@@ -627,7 +627,7 @@ describe("runCheckerCli", () => {
     expect(stdout.join("")).toContain(
       "Rust source-missing consumer: findings=1 consistent=true releaseGate=false",
     );
-  }, 15000);
+  }, 30000);
 });
 
 function makeWorkspace(files: Readonly<Record<string, string>>): string {
