@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.14.0] — 2026-04-22
+
+### Added
+
+- **TS 7 beta Phase A readiness gate** — the repo now exposes `pnpm check:ts7-phase-a-readiness`, which batches backend typecheck smoke, type-fact backend parity, and the `tsgo-preview` slice of `rust-gate-evidence` into one repeatable pre-adoption check.
+
+### Changed
+
+- **Checker entrance is now enforced in the release-facing Rust gate** — `style-recovery` and `source-missing` remain the current bounded checker lanes, but they are no longer release-gate shadow only. `pnpm check:rust-release-bundle` now includes `pnpm check:rust-checker-entrance`, and the checker producer metadata now marks both lanes as `releaseGateStage=enforced`.
+- **`3.14.0` is now framed as a checker release-gate Rust milestone** — the release narrative moves from checker release-gate readiness to actual release-bundle enforcement, while also leaving the next `TS 7 beta Phase A` work staged as an explicit follow-up gate instead of an informal note.
+
 ## [3.13.0] — 2026-04-21
 
 ### Added
