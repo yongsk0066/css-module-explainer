@@ -44,4 +44,33 @@ describe("style rename query", () => {
     expect(styleDocument).not.toBeNull();
     expect(planStyleRenameAtCursor(SCSS_PATH, 99, 0, styleDocument!, deps, "status")).toBeNull();
   });
+
+  it("uses rust selector-usage payloads for rename safety blocking", () => {
+    const deps = makeBaseDeps({
+      selectorMapForPath: () => new Map([["indicator", infoAtLine("indicator", 1)]]),
+      workspaceRoot: "/fake",
+    });
+    const styleDocument = deps.styleDocumentForPath(SCSS_PATH);
+
+    expect(styleDocument).not.toBeNull();
+    const target = readStyleRenameTargetAtCursor(SCSS_PATH, 1, 3, styleDocument!, deps, {
+      env: { CME_SELECTED_QUERY_BACKEND: "rust-selector-usage" } as NodeJS.ProcessEnv,
+      readRustSelectorUsagePayloadForWorkspaceTarget: () => ({
+        canonicalName: "indicator",
+        totalReferences: 2,
+        directReferenceCount: 1,
+        editableDirectReferenceCount: 1,
+        exactReferenceCount: 1,
+        inferredOrBetterReferenceCount: 2,
+        hasExpandedReferences: true,
+        hasStyleDependencyReferences: false,
+        hasAnyReferences: true,
+      }),
+    });
+
+    expect(target).toEqual({
+      kind: "blocked",
+      reason: "expandedReferences",
+    });
+  });
 });
