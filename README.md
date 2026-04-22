@@ -234,6 +234,9 @@ Current checker policy:
 - `pnpm check:selected-query-boundary` is the current `3.9` selected-query lock point
   - it runs the editor-facing protocol subset for `definition`, `hover`, `completion`, `references`, `rename`, and `codeLens`
   - these providers now route their main selected-query and source/style rewrite reads through `engine-host-node` helpers instead of directly owning the core query/rewrite calls in the LSP layer
+- `pnpm check:editor-path-boundary` is the current editor-path runtime lock point
+  - it runs `pnpm check:selected-query-boundary` plus the protocol subset for `diagnostics`, `scss-diagnostics`, watched-file invalidation, workspace-folder changes, and settings reload
+  - those paths now route diagnostics/checker entry, session bootstrap, workspace-folder mutation, watched-file invalidation, and settings-reload orchestration through `engine-host-node` helpers or aggregates instead of owning the runtime policy directly in the LSP layer
 - `pnpm check:plugin-consumer-example` runs the clean repo-local lint-consumer example workspace under both ESLint and Stylelint
 - `pnpm check:plugin-consumers` runs the current ESLint and Stylelint consumer smokes together
 - `pnpm check:eslint-plugin-smoke` runs the ESLint consumer against JSX fixtures and asserts that source-side semantic findings are reported as ESLint diagnostics

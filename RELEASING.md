@@ -246,6 +246,14 @@ for `definition`, `hover`, `completion`, `references`, `rename`, and
 helpers instead of directly owning the main core query/rewrite reads inside the
 LSP layer. It is a milestone boundary, not a stable release gate.
 
+`pnpm check:editor-path-boundary` is the current local lock point for the
+editor-path runtime transition after the selected-query cut. It runs
+`pnpm check:selected-query-boundary` plus the protocol subset for
+`diagnostics`, `scss-diagnostics`, watched-file invalidation,
+workspace-folder changes, and settings reload after those paths have been
+routed through `engine-host-node` helpers or runtime aggregates. It is a
+milestone boundary, not a stable release gate.
+
 `pnpm check:operational-lane` is the current limited non-release default lane.
 Today it resolves to the tsgo-backed operational lane.
 
@@ -266,12 +274,6 @@ limited non-release default judgment.
 TS 7 track. It requires both `Phase A decision-ready` and `Phase B readiness`
 before any broader tsgo adoption or release-facing
 
-`pnpm check:selected-query-boundary` is the current local lock point for the
-`3.9` selected-query/editor-path transition. It runs the protocol subset for
-`definition`, `hover`, `completion`, `references`, and `rename`, which are the
-current editor-facing providers that have been routed through `engine-host-node`
-query/rewrite helpers. It is a milestone boundary, not a default stable release
-gate.
 judgment.
 
 `TS 7 Phase C` is now opened. Its current scope is limited to long-lived and
