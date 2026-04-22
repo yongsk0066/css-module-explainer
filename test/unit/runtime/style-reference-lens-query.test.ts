@@ -59,4 +59,42 @@ describe("resolveStyleReferenceLenses", () => {
     expect(result[0]!.locations).toHaveLength(1);
     expect(result[0]!.locations[0]!.uri).toBe("file:///a.tsx");
   });
+
+  it("uses rust selector-usage payloads for the lens title summary", () => {
+    const idx = new WorkspaceSemanticWorkspaceReferenceIndex();
+    idx.record("file:///a.tsx", [
+      semanticSiteAt("file:///a.tsx", "indicator", 10, "/fake/src/Button.module.scss"),
+    ]);
+    const styleDocument = buildStyleDocumentFromSelectorMap(
+      "/fake/src/Button.module.scss",
+      new Map([
+        ["indicator", infoAtLine("indicator", 5)],
+        ["active", infoAtLine("active", 10)],
+      ]),
+    );
+
+    const result = resolveStyleReferenceLenses(
+      "/fake/src/Button.module.scss",
+      styleDocument,
+      makeDeps({ semanticReferenceIndex: idx }),
+      {
+        env: { CME_SELECTED_QUERY_BACKEND: "rust-selector-usage" } as NodeJS.ProcessEnv,
+        readRustSelectorUsagePayloadForWorkspaceTarget: () => ({
+          canonicalName: "indicator",
+          totalReferences: 4,
+          directReferenceCount: 2,
+          editableDirectReferenceCount: 1,
+          exactReferenceCount: 1,
+          inferredOrBetterReferenceCount: 3,
+          hasExpandedReferences: true,
+          hasStyleDependencyReferences: true,
+          hasAnyReferences: true,
+        }),
+      },
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.title).toBe("4 references (2 direct, composed, dynamic)");
+    expect(result[0]?.locations).toHaveLength(1);
+  });
 });
