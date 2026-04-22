@@ -7,14 +7,16 @@ import type {
 import { LSPErrorCodes, ResponseError } from "vscode-languageserver/node";
 import {
   groupTextEditsByUri,
-  planSelectorRename,
-  readStyleSelectorRenameTargetAtCursor,
   renameBlockReasonMessage,
 } from "../../../../engine-core-ts/src/core/rewrite";
 import {
   planSourceExpressionRename,
   readSourceExpressionRenameTarget,
 } from "../../../../engine-host-node/src/source-rename-query";
+import {
+  planStyleRenameAtCursor,
+  readStyleRenameTargetAtCursor,
+} from "../../../../engine-host-node/src/style-rename-query";
 import { findLangForPath } from "../../../../engine-core-ts/src/core/scss/lang-registry";
 import { fileUrlToPath } from "../../../../engine-core-ts/src/core/util/text-utils";
 import { toLspRange } from "../lsp-adapters";
@@ -46,7 +48,7 @@ export function handlePrepareRename(
       const styleDocument = deps.styleDocumentForPath(filePath);
       if (!styleDocument) return null;
       return toPrepareRenameResult(
-        readStyleSelectorRenameTargetAtCursor(
+        readStyleRenameTargetAtCursor(
           filePath,
           params.position.line,
           params.position.character,
@@ -87,14 +89,12 @@ export const handleRename = wrapHandler<
       const styleDocument = deps.styleDocumentForPath(filePath);
       if (!styleDocument) return null;
       return toWorkspaceEdit(
-        planFromResult(
-          readStyleSelectorRenameTargetAtCursor(
-            filePath,
-            params.position.line,
-            params.position.character,
-            styleDocument,
-            deps,
-          ),
+        planStyleRenameAtCursor(
+          filePath,
+          params.position.line,
+          params.position.character,
+          styleDocument,
+          deps,
           params.newName,
         ),
       );
@@ -118,7 +118,7 @@ function isResponseError(err: unknown): err is ResponseError<unknown> {
 
 function toPrepareRenameResult(
   result:
-    | ReturnType<typeof readStyleSelectorRenameTargetAtCursor>
+    | ReturnType<typeof readStyleRenameTargetAtCursor>
     | ReturnType<typeof readSourceExpressionRenameTarget>,
 ): { range: LspRange; placeholder: string } | null {
   if (result.kind === "miss") return null;
@@ -131,17 +131,9 @@ function toPrepareRenameResult(
   };
 }
 
-function planFromResult(
-  result:
-    | ReturnType<typeof readStyleSelectorRenameTargetAtCursor>
-    | ReturnType<typeof readSourceExpressionRenameTarget>,
-  newName: string,
-) {
-  if (result.kind !== "target") return null;
-  return planSelectorRename(result.target, newName);
-}
-
-function toWorkspaceEdit(plan: ReturnType<typeof planSelectorRename> | null): WorkspaceEdit | null {
+function toWorkspaceEdit(
+  plan: ReturnType<typeof planSourceExpressionRename> | null,
+): WorkspaceEdit | null {
   if (!plan || plan.kind !== "plan") return null;
 
   const changes: WorkspaceEdit["changes"] = {};
