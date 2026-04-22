@@ -1,0 +1,26 @@
+name: Checker Release Gate Shadow
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: checker-release-gate-shadow-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  shadow-soak:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version-file: .nvmrc
+      - run: corepack enable && corepack prepare pnpm@10.30.3 --activate
+      - run: pnpm install --frozen-lockfile
+      - run: ./scripts/release.sh
+      - run: pnpm check:rust-checker-release-gate-shadow

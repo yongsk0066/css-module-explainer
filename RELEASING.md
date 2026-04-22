@@ -165,6 +165,10 @@ shadow soak for checker entrance promotion. It runs `pnpm check:rust-release-bun
 `pnpm check:rust-checker-entrance`, and `pnpm check:rust-checker-promotion-evidence`
 together while the checker lanes remain outside the release bundle.
 
+`.github/workflows/checker-release-gate-shadow.yml` runs the same shadow soak on
+every `master` push. This gives repeated operational observations without
+changing the stable release gate.
+
 `pnpm check:rust-lane-bundle` is the broader Rust lane gate. It combines the
 current semantic producer boundary checks, `pnpm check:rust-parser-public-product`,
 and `pnpm check:rust-checker-entrance`.
