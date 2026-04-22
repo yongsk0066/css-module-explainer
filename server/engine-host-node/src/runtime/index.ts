@@ -30,6 +30,13 @@ export {
   type WatchedFileApplicationResult,
 } from "./watched-file-application";
 export {
+  applySettingsReload,
+  type ApplySettingsReloadArgs,
+  type ResourceSettingsByWorkspaceFolder,
+  type SettingsReloadApplicationResult,
+  type SettingsReloadDocuments,
+} from "./settings-reload-application";
+export {
   createWorkspaceAnalysisCache,
   type WorkspaceAnalysisRuntimeArgs,
 } from "./workspace-analysis-runtime";

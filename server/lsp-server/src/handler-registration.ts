@@ -18,20 +18,14 @@ import {
   formatCompatPathAliasDeprecationMessage,
   fetchResourceSettingsInfo,
   fetchWindowSettings,
-  mergeSettings,
-  resourceSettingsDependencyKey,
-  shouldWarnCompatPathAlias,
   type WindowSettings,
 } from "../../engine-core-ts/src/settings";
 import { createDiagnosticsScheduler, type DiagnosticsScheduler } from "./diagnostics-scheduler";
 import type { WorkspaceRegistry } from "../../engine-host-node/src/workspace/workspace-registry";
 import {
-  planSettingsReload,
-  type SettingsReloadWorkspaceChange,
-  createRuntimeDependencySnapshot,
-  snapshotOpenDocuments,
   type RuntimeFileEvent,
   applyWatchedFileChanges,
+  applySettingsReload,
 } from "../../engine-host-node/src/runtime";
 
 export interface HandlerContext {
@@ -103,89 +97,32 @@ function registerSettingsHandler(state: HandlerState): () => void {
         const registry = state.ctx.getRegistry();
         if (!registry) return;
 
-        const bundles = registry.allDeps();
-        const snapshot = createRuntimeDependencySnapshot(
-          bundles,
-          snapshotOpenDocuments({
-            documents: state.ctx.documents,
-            getWorkspaceRoot: (uri) => state.ctx.getDeps(uri)?.workspaceRoot ?? null,
-          }),
-        );
         const resourceSettingsByBundle = await Promise.all(
-          bundles.map(async (deps) => ({
-            deps,
+          registry.allDeps().map(async (deps) => ({
+            workspaceFolderUri: deps.workspaceFolderUri,
             resourceSettingsInfo: await fetchResourceSettingsInfo(
               connection,
               deps.workspaceFolderUri,
             ),
           })),
         );
-        const workspaceChanges: SettingsReloadWorkspaceChange[] = [];
-        for (const { deps, resourceSettingsInfo } of resourceSettingsByBundle) {
-          const resourceSettings = resourceSettingsInfo.settings;
-          const nextSettings = mergeSettings(windowSettings, resourceSettings);
-          const prevSettings = deps.settings;
-          const prevSettingsKey = resourceSettingsDependencyKey(prevSettings);
-          const nextSettingsKey = resourceSettingsDependencyKey(nextSettings);
-          deps.settings = nextSettings;
-
-          if (
-            shouldWarnCompatPathAlias(
-              resourceSettingsInfo,
-              state.warnedCompatPathAliasRoots,
-              deps.workspaceRoot,
-            )
-          ) {
-            state.warnedCompatPathAliasRoots.add(deps.workspaceRoot);
-            connection.console.info(formatCompatPathAliasDeprecationMessage(deps.workspaceRoot));
-          }
-
-          const aliasChanged = !shallowEqualPathAlias(
-            prevSettings.pathAlias,
-            nextSettings.pathAlias,
-          );
-          const modeChanged =
-            prevSettings.scss.classnameTransform !== nextSettings.scss.classnameTransform;
-          workspaceChanges.push({
-            workspaceRoot: deps.workspaceRoot,
-            aliasChanged,
-            modeChanged,
-            settingsKeyChanged: prevSettingsKey !== nextSettingsKey,
-            affectedSettingsDependencyUris: snapshot.findSettingsDependencyUris(
-              deps.workspaceRoot,
-              prevSettingsKey,
-            ),
-          });
+        const result = applySettingsReload({
+          registry,
+          documents: state.ctx.documents,
+          windowSettings,
+          warnedCompatPathAliasRoots: state.warnedCompatPathAliasRoots,
+          resourceSettingsByWorkspaceFolder: resourceSettingsByBundle,
+        });
+        for (const workspaceRoot of result.warningWorkspaceRoots) {
+          state.warnedCompatPathAliasRoots.add(workspaceRoot);
+          connection.console.info(formatCompatPathAliasDeprecationMessage(workspaceRoot));
         }
-
-        const plan = planSettingsReload(workspaceChanges, snapshot.openDocuments);
-        for (const deps of bundles) {
-          if (!plan.aliasRebuildRoots.includes(deps.workspaceRoot)) continue;
-          deps.rebuildAliasResolver(deps.settings.pathAlias);
-        }
-
-        if (plan.resourceChanged) {
-          for (const uri of plan.affectedSourceUris) {
-            const deps = state.ctx.getDeps(uri);
-            if (!deps) continue;
-            deps.semanticReferenceIndex.forget(uri);
-            deps.analysisCache.invalidate(uri);
+        for (const item of result.scheduledDiagnostics) {
+          if (item.kind === "style") {
+            state.scheduler.scheduleScss(item.uri);
+            continue;
           }
-          bundles[0]?.refreshCodeLens();
-          for (const doc of snapshot.openDocuments) {
-            if (doc.isStyle) {
-              if (
-                doc.workspaceRoot !== null &&
-                plan.affectedStyleRoots.includes(doc.workspaceRoot)
-              ) {
-                state.scheduler.scheduleScss(doc.uri);
-              }
-              continue;
-            }
-            if (plan.affectedSourceUris.includes(doc.uri)) {
-              state.scheduler.scheduleTsx(doc.uri);
-            }
-          }
+          state.scheduler.scheduleTsx(item.uri);
         }
       })
       .catch((err: unknown) => safeLogError(connection, "settings fetch failed", err));
@@ -193,19 +130,6 @@ function registerSettingsHandler(state: HandlerState): () => void {
 
   connection.onDidChangeConfiguration(reloadSettings);
   return reloadSettings;
-}
-
-function shallowEqualPathAlias(
-  a: Readonly<Record<string, string>>,
-  b: Readonly<Record<string, string>>,
-): boolean {
-  const aKeys = Object.keys(a);
-  const bKeys = Object.keys(b);
-  if (aKeys.length !== bKeys.length) return false;
-  for (const k of aKeys) {
-    if (a[k] !== b[k]) return false;
-  }
-  return true;
 }
 
 function registerCursorHandlers(state: HandlerState): void {
