@@ -178,6 +178,11 @@ TS 7 beta path. `pnpm check:ts7-phase-a-shadow` is the current non-release
 shadow path for that same backend preview; it runs `release-batch` and
 `real-project-corpus` through `CME_TYPE_FACT_BACKEND=tsgo-preview`.
 
+`pnpm check:ts7-phase-a-stability` is the direct stability check for the two
+preview-specific risk points that the basic shadow path does not prove by
+itself: repeated `EngineInputV2.typeFacts` ordering stability and concurrent
+checker-process output stability under `CME_TYPE_FACT_BACKEND=tsgo-preview`.
+
 `.github/workflows/ts7-phase-a-shadow.yml` runs the readiness gate plus that
 non-release shadow path on every `master` push and on manual dispatch. This
 workflow is observational only; it is not part of `pnpm check:rust-release-bundle`.

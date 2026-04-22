@@ -49,6 +49,7 @@
     "check:ts7-phase-a-readiness": "pnpm check:backend-typecheck-smoke && pnpm check:type-fact-backend-parity && pnpm check:rust-gate-evidence -- --variant tsgo-preview --repeat 1 --json",
     "check:ts7-phase-a-shadow": "CME_TYPE_FACT_BACKEND=tsgo-preview pnpm check:release-batch && CME_TYPE_FACT_BACKEND=tsgo-preview pnpm check:real-project-corpus",
     "check:ts7-phase-a-shadow-review": "tsx ./scripts/check-ts7-phase-a-shadow-review.ts",
+    "check:ts7-phase-a-stability": "tsx ./scripts/check-ts7-phase-a-stability.ts",
     "check:rust-workspace": "cargo fmt --manifest-path rust/Cargo.toml --all --check && cargo check --manifest-path rust/Cargo.toml && cargo clippy --manifest-path rust/Cargo.toml --all-targets --all-features -- -D warnings",
     "check:rust-parser-scaffold": "cargo test --manifest-path rust/Cargo.toml -p engine-style-parser",
     "check:rust-parser-parity-lite": "tsx ./scripts/check-rust-parser-parity-lite.ts",
