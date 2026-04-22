@@ -20,6 +20,14 @@ const cx = classNames.bind(styles);
 const el = cx('indicator');
 `;
 
+const SYMBOL_REF_TSX = `
+import classNames from 'classnames/bind';
+import styles from './Button.module.scss';
+const cx = classNames.bind(styles);
+const size = pick();
+const el = cx(size);
+`;
+
 const detectCxBindings = (_sourceFile: ts.SourceFile): CxBinding[] => [
   {
     cxVarName: "cx",
@@ -65,6 +73,48 @@ function makeDeps(): ProviderDeps {
   return makeBaseDeps({
     analysisCache,
     selectorMapForPath: () => new Map([["indicator", info("indicator")]]),
+    workspaceRoot: "/fake",
+  });
+}
+
+function makeSymbolRefDeps(): ProviderDeps {
+  const sourceFileCache = new SourceFileCache({ max: 10 });
+  const analysisCache = new DocumentAnalysisCache({
+    sourceFileCache,
+    fileExists: () => true,
+    aliasResolver: EMPTY_ALIAS_RESOLVER,
+    scanCxImports: (sf, fp) => ({ stylesBindings: new Map(), bindings: detectCxBindings(sf, fp) }),
+    parseClassExpressions: (_sf, bindings) =>
+      buildTestClassExpressions({
+        filePath: "/fake/src/Button.tsx",
+        bindings,
+        expressions:
+          bindings.length === 0
+            ? []
+            : [
+                {
+                  kind: "symbolRef",
+                  origin: "cxCall",
+                  rawReference: "size",
+                  rootName: "size",
+                  pathSegments: [],
+                  range: {
+                    start: { line: 5, character: 15 },
+                    end: { line: 5, character: 19 },
+                  },
+                  scssModulePath: bindings[0]!.scssModulePath,
+                },
+              ],
+      }),
+    max: 10,
+  });
+  return makeBaseDeps({
+    analysisCache,
+    selectorMapForPath: () =>
+      new Map([
+        ["indicator", info("indicator")],
+        ["active", info("active")],
+      ]),
     workspaceRoot: "/fake",
   });
 }
@@ -120,6 +170,60 @@ describe("resolveSourceExpressionHoverResult", () => {
     });
 
     expect(result.selectors.map((selector) => selector.name)).toEqual(["indicator"]);
+    expect(Array.from(result.styleDependenciesBySelector.keys())).toEqual(["indicator"]);
+  });
+
+  it("can source selectors and explanation from the rust expression-semantics backend", () => {
+    const deps = makeSymbolRefDeps();
+    const params = {
+      documentUri: "file:///fake/src/Button.tsx",
+      content: SYMBOL_REF_TSX,
+      filePath: "/fake/src/Button.tsx",
+      line: 5,
+      character: 17,
+      version: 1,
+    };
+    const ctx = readSourceExpressionContextAtCursor(params, {
+      analysisCache: deps.analysisCache,
+      styleDocumentForPath: deps.styleDocumentForPath,
+    });
+
+    expect(ctx).not.toBeNull();
+    const result = resolveSourceExpressionHoverResult(ctx!, params, deps, {
+      env: {
+        CME_SELECTED_QUERY_BACKEND: "rust-expression-semantics",
+      } as NodeJS.ProcessEnv,
+      readRustExpressionSemanticsPayload: () => ({
+        expressionId: "expr-1",
+        expressionKind: "symbolRef",
+        styleFilePath: "/fake/src/Button.module.scss",
+        selectorNames: ["indicator"],
+        candidateNames: ["indicator", "active"],
+        finiteValues: ["indicator", "active"],
+        valueDomainKind: "finiteSet",
+        selectorCertainty: "inferred",
+        valueCertainty: "inferred",
+        selectorCertaintyShapeKind: "boundedFinite",
+        selectorCertaintyShapeLabel: "bounded selector set (1)",
+        valueCertaintyShapeKind: "boundedFinite",
+        valueCertaintyShapeLabel: "bounded finite (2)",
+      }),
+    });
+
+    expect(result.selectors.map((selector) => selector.name)).toEqual(["indicator"]);
+    expect(result.dynamicExplanation).toEqual(
+      expect.objectContaining({
+        kind: "symbolRef",
+        subject: "size",
+        candidates: ["indicator", "active"],
+        valueCertainty: "inferred",
+        valueCertaintyShapeLabel: "bounded finite (2)",
+        valueCertaintyReasonLabel: "analysis preserved multiple finite candidate values",
+        selectorCertainty: "inferred",
+        selectorCertaintyShapeLabel: "bounded selector set (1)",
+        reasonLabel: "branched local flow analysis",
+      }),
+    );
     expect(Array.from(result.styleDependenciesBySelector.keys())).toEqual(["indicator"]);
   });
 });

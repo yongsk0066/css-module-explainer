@@ -14,30 +14,20 @@ import {
   readSourceExpressionResolution,
   resolveRefDetails,
 } from "../../engine-core-ts/src/core/query";
-import type { ExpressionSemanticsSummary } from "../../engine-core-ts/src/core/query/read-expression-semantics";
 import {
   deriveSelectorCertaintyProfileV2,
   deriveValueCertaintyProfileV2,
 } from "../../engine-core-ts/src/core/semantic/certainty";
 import type { ClassnameTransformMode } from "../../engine-core-ts/src/core/scss/classname-transform";
-import {
-  TOP_CLASS_VALUE,
-  charInclusionClassValue,
-  compositeClassValue,
-  finiteSetClassValue,
-  prefixClassValue,
-  prefixSuffixClassValue,
-  suffixClassValue,
-} from "../../engine-core-ts/src/core/abstract-value/class-value-domain";
 import type { TypeFactBackendKind } from "./type-backend";
+import {
+  buildExpressionSemanticsSummaryFromRustPayload,
+  resolveRustExpressionSemanticsPayload,
+} from "./expression-semantics-query-backend";
 import {
   createWorkspaceAnalysisHost,
   createWorkspaceStyleHost,
 } from "./checker-host/workspace-check-support";
-import {
-  resolveRustExpressionSemanticsPayload,
-  type ExpressionSemanticsEvaluatorCandidatePayloadV0,
-} from "./expression-semantics-query-backend";
 import { classifyValueDomainV2 } from "./query-metadata-v2";
 import { resolveSelectedQueryBackendKind } from "./selected-query-backend";
 
@@ -236,7 +226,7 @@ function resolveExplainExpressionViaRustSemantics(
     styleDocument?.selectors.filter((selector) => payload.selectorNames.includes(selector.name)) ??
     [];
   const semantics = buildExpressionSemanticsSummaryFromRustPayload(
-    ctx,
+    ctx.expression,
     styleDocument,
     selectors,
     payload,
@@ -283,125 +273,4 @@ function resolveExplainExpressionViaRustSemantics(
         : {}),
     },
   };
-}
-
-function buildExpressionSemanticsSummaryFromRustPayload(
-  ctx: NonNullable<ReturnType<typeof readSourceExpressionContextAtCursor>>,
-  styleDocument: ReturnType<ReturnType<typeof createWorkspaceStyleHost>["styleDocumentForPath"]>,
-  selectors: NonNullable<
-    ReturnType<ReturnType<typeof createWorkspaceStyleHost>["styleDocumentForPath"]>
-  >["selectors"],
-  payload: ExpressionSemanticsEvaluatorCandidatePayloadV0,
-): ExpressionSemanticsSummary {
-  const abstractValue = buildRustExpressionAbstractValue(payload);
-  const selectorNames = selectors.map((selector) => selector.name);
-  const reason = inferRustExpressionReason(payload);
-
-  return {
-    expression: ctx.expression,
-    styleDocument,
-    selectors,
-    selectorNames: selectorNames.length > 0 ? selectorNames : payload.selectorNames,
-    candidateNames: payload.candidateNames,
-    finiteValues: payload.finiteValues ?? null,
-    valueDomainKind: mapRustValueDomainKind(payload.valueDomainKind),
-    ...(abstractValue ? { abstractValue } : {}),
-    ...(payload.valueCertainty ? { valueCertainty: payload.valueCertainty } : {}),
-    selectorCertainty: payload.selectorCertainty,
-    ...(reason !== undefined ? { reason } : {}),
-  };
-}
-
-function mapRustValueDomainKind(
-  valueDomainKind: string,
-): ExpressionSemanticsSummary["valueDomainKind"] {
-  switch (valueDomainKind) {
-    case "none":
-    case "exact":
-    case "finiteSet":
-    case "prefix":
-    case "top":
-      return valueDomainKind;
-    case "constrained":
-      return "top";
-    default:
-      return "top";
-  }
-}
-
-function buildRustExpressionAbstractValue(payload: ExpressionSemanticsEvaluatorCandidatePayloadV0) {
-  switch (payload.valueDomainKind) {
-    case "none":
-      return undefined;
-    case "exact": {
-      const value = payload.finiteValues?.[0] ?? payload.candidateNames[0];
-      return value ? finiteSetClassValue([value]) : undefined;
-    }
-    case "finiteSet":
-      return payload.finiteValues?.length
-        ? finiteSetClassValue(payload.finiteValues)
-        : payload.candidateNames.length > 0
-          ? finiteSetClassValue(payload.candidateNames)
-          : undefined;
-    case "prefix":
-      return payload.valuePrefix ? prefixClassValue(payload.valuePrefix) : undefined;
-    case "constrained":
-      return buildRustConstrainedAbstractValue(payload);
-    case "top":
-      return TOP_CLASS_VALUE;
-    default:
-      return undefined;
-  }
-}
-
-function buildRustConstrainedAbstractValue(
-  payload: ExpressionSemanticsEvaluatorCandidatePayloadV0,
-) {
-  switch (payload.valueConstraintKind) {
-    case "prefix":
-      return payload.valuePrefix ? prefixClassValue(payload.valuePrefix) : TOP_CLASS_VALUE;
-    case "suffix":
-      return payload.valueSuffix ? suffixClassValue(payload.valueSuffix) : TOP_CLASS_VALUE;
-    case "prefixSuffix":
-      return prefixSuffixClassValue(
-        payload.valuePrefix ?? "",
-        payload.valueSuffix ?? "",
-        payload.valueMinLen,
-      );
-    case "charInclusion":
-      return charInclusionClassValue(
-        payload.valueCharMust ?? "",
-        payload.valueCharMay ?? "",
-        undefined,
-        Boolean(payload.valueMayIncludeOtherChars),
-      );
-    case "composite":
-      return compositeClassValue({
-        ...(payload.valuePrefix ? { prefix: payload.valuePrefix } : {}),
-        ...(payload.valueSuffix ? { suffix: payload.valueSuffix } : {}),
-        ...(payload.valueMinLen !== undefined ? { minLength: payload.valueMinLen } : {}),
-        mustChars: payload.valueCharMust ?? "",
-        mayChars: payload.valueCharMay ?? "",
-        ...(payload.valueMayIncludeOtherChars ? { mayIncludeOtherChars: true } : {}),
-      });
-    default:
-      return TOP_CLASS_VALUE;
-  }
-}
-
-function inferRustExpressionReason(
-  payload: ExpressionSemanticsEvaluatorCandidatePayloadV0,
-): "flowLiteral" | "flowBranch" | undefined {
-  if (payload.valueCertainty === "exact" && payload.selectorCertainty === "exact") {
-    return "flowLiteral";
-  }
-  if (
-    payload.finiteValues !== undefined ||
-    payload.candidateNames.length > 1 ||
-    payload.valueDomainKind === "constrained" ||
-    payload.valueDomainKind === "top"
-  ) {
-    return "flowBranch";
-  }
-  return undefined;
 }
