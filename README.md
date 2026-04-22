@@ -252,9 +252,11 @@ Current checker policy:
 - `pnpm check:ts7-phase-a-stability` directly checks the two preview-specific risk points that the basic shadow path does not prove by itself
   - repeated `EngineInputV2.typeFacts` snapshots from `tsgo-preview` must stay byte-stable across runs
   - concurrent `release-batch` and `real-project-corpus` invocations under `CME_TYPE_FACT_BACKEND=tsgo-preview` must keep identical outputs across rounds
+- `pnpm check:ts7-phase-a-preview-lane` is the current limited non-release aggregate for TS 7 beta Phase A
+  - it runs readiness, shadow, and stability together
 - `pnpm check:ts7-phase-a-shadow-review` reviews recent `TS7 Phase A Shadow` workflow history through `gh`
   - today it reports whether the repo has accumulated the current minimum of `3` successful shadow runs before any broader backend adoption judgment
-- `.github/workflows/ts7-phase-a-shadow.yml` runs the Phase A readiness gate plus that non-release shadow path on every `master` push and on manual dispatch
+- `.github/workflows/ts7-phase-a-shadow.yml` runs the Phase A readiness gate, non-release shadow path, and stability check on every `master` push and on manual dispatch
 - `pnpm check:rust-parser-scaffold` exercises the first internal Rust parser scaffold crate, `rust/crates/engine-style-parser`
 - `pnpm check:rust-parser-git-consumer` verifies that the split parser repo can be consumed as a remote git dependency by the repo-stored standalone fixture at `rust/external-consumers/engine-style-parser-git-consumer`
 - `pnpm check:rust-parser-split-boundary` verifies the full parser split boundary: parser public-product validation inside the monorepo plus remote git-consumer validation against `omena-engine-style-parser`
@@ -338,6 +340,7 @@ Current checker policy:
   - the bounded checker entrance (`style-recovery` + `source-missing`) is now enforced in `pnpm check:rust-release-bundle`
   - the next backend transition step is explicitly staged behind `pnpm check:ts7-phase-a-readiness`
   - `tsgo-preview` is now also wired into a separate non-release shadow path via `pnpm check:ts7-phase-a-shadow`
+  - the current limited non-release aggregate for that preview is `pnpm check:ts7-phase-a-preview-lane`
   - `selector-usage` remains a shadow validation family, not a release-gating canonical candidate
   - current `EngineInputV2` does not preserve enough reference-level evidence to reproduce `selector-usage` semantics as an input-only canonical producer
   - the current internal Rust producer boundary is [`rust/crates/engine-input-producers`](./rust/crates/engine-input-producers/README.md)
