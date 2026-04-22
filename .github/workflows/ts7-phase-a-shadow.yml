@@ -23,6 +23,7 @@ jobs:
       - run: corepack enable && corepack prepare pnpm@10.30.3 --activate
       - run: pnpm install --frozen-lockfile
       - run: ./scripts/release.sh
+      - run: pnpm build
       - id: ts7_phase_a_readiness
         name: Run ts7-phase-a readiness
         run: pnpm check:ts7-phase-a-readiness

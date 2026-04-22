@@ -180,9 +180,10 @@ operational commands are:
 
 - `pnpm check:release-batch-preview`
 - `pnpm check:real-project-corpus-preview`
+- `pnpm check:lsp-server-smoke-preview`
 
 `pnpm check:ts7-phase-a-shadow` runs those two preview-backed operational
-commands together.
+commands plus the preview-backed LSP smoke together.
 
 `pnpm check:ts7-phase-a-stability` is the direct stability check for the two
 preview-specific risk points that the basic shadow path does not prove by
@@ -191,12 +192,12 @@ checker-process output stability under `CME_TYPE_FACT_BACKEND=tsgo-preview`.
 
 `pnpm check:ts7-phase-a-preview-lane` is the current limited non-release
 aggregate for Phase A. It runs the readiness gate, non-release shadow path,
-and stability check together.
+stability check, and the repo build together.
 
 `.github/workflows/ts7-phase-a-shadow.yml` runs the readiness gate plus that
 non-release shadow path on every `master` push and on manual dispatch. It now
-also includes the stability check. This workflow is observational only; it is
-not part of `pnpm check:rust-release-bundle`.
+also builds the repo first and includes the stability check. This workflow is
+observational only; it is not part of `pnpm check:rust-release-bundle`.
 
 `pnpm check:ts7-phase-a-shadow-review` is the current operator review command
 for that workflow. It reads recent `TS7 Phase A Shadow` history through `gh`
