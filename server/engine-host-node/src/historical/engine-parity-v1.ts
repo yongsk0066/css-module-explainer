@@ -37,6 +37,8 @@ export function buildCheckerEngineParitySnapshotV1(
     checkerReport: options.checkerReport,
     queryResults: buildSelectedQueryResultsV2({
       workspaceRoot: options.workspaceRoot,
+      classnameTransform: options.classnameTransform,
+      pathAlias: options.pathAlias,
       sourceDocuments: options.sourceDocuments,
       styleFiles: options.styleFiles,
       analysisCache: options.analysisCache,

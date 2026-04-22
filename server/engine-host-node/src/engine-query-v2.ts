@@ -24,9 +24,22 @@ import type {
 } from "../../engine-core-ts/src/contracts";
 import type { SourceDocumentSnapshot } from "./checker-host/workspace-check-support";
 import { classifyValueDomainV2 } from "./query-metadata-v2";
+import type { ClassnameTransformMode } from "../../engine-core-ts/src/core/scss/classname-transform";
+import { DEFAULT_SETTINGS } from "../../engine-core-ts/src/settings";
+import {
+  buildExpressionSemanticsSummaryFromRustPayload,
+  resolveRustExpressionSemanticsPayload,
+} from "./expression-semantics-query-backend";
+import {
+  buildSourceResolutionSummaryFromRustPayload,
+  resolveRustSourceResolutionPayload,
+} from "./source-resolution-query-backend";
+import { resolveSelectedQueryBackendKind } from "./selected-query-backend";
 
 export interface BuildSelectedQueryResultsV2Options {
   readonly workspaceRoot: string;
+  readonly classnameTransform: ClassnameTransformMode;
+  readonly pathAlias: Readonly<Record<string, string>>;
   readonly sourceDocuments: readonly SourceDocumentSnapshot[];
   readonly styleFiles: readonly string[];
   readonly analysisCache: DocumentAnalysisCache;
@@ -34,12 +47,16 @@ export interface BuildSelectedQueryResultsV2Options {
   readonly typeResolver: TypeResolver;
   readonly semanticReferenceIndex: WorkspaceSemanticWorkspaceReferenceIndex;
   readonly styleDependencyGraph: WorkspaceStyleDependencyGraph;
+  readonly env?: NodeJS.ProcessEnv;
+  readonly readRustSourceResolutionPayload?: typeof resolveRustSourceResolutionPayload;
+  readonly readRustExpressionSemanticsPayload?: typeof resolveRustExpressionSemanticsPayload;
 }
 
 export function buildSelectedQueryResultsV2(
   options: BuildSelectedQueryResultsV2Options,
 ): readonly QueryResultV2[] {
   const results: QueryResultV2[] = [];
+  const selectedQueryBackend = resolveSelectedQueryBackendKind(options.env);
 
   for (const document of options.sourceDocuments) {
     const analysis = options.analysisCache.get(
@@ -50,38 +67,94 @@ export function buildSelectedQueryResultsV2(
     );
 
     for (const expression of analysis.sourceDocument.classExpressions) {
-      const resolution = readSourceExpressionResolution(
-        {
-          expression,
-          sourceFile: analysis.sourceFile,
-        },
-        {
-          styleDocumentForPath: options.styleDocumentForPath,
-          typeResolver: options.typeResolver,
-          filePath: document.filePath,
-          workspaceRoot: options.workspaceRoot,
-          sourceBinder: analysis.sourceBinder,
-          sourceBindingGraph: analysis.sourceBindingGraph,
-        },
-      );
-      const semantics = readExpressionSemantics(
-        {
-          expression,
-          sourceFile: analysis.sourceFile,
-        },
-        {
-          styleDocumentForPath: options.styleDocumentForPath,
-          typeResolver: options.typeResolver,
-          filePath: document.filePath,
-          workspaceRoot: options.workspaceRoot,
-          sourceBinder: analysis.sourceBinder,
-          sourceBindingGraph: analysis.sourceBindingGraph,
-        },
-      );
+      const queryContext = {
+        expression,
+        sourceFile: analysis.sourceFile,
+      } as const;
+      const queryEnv = {
+        styleDocumentForPath: options.styleDocumentForPath,
+        typeResolver: options.typeResolver,
+        filePath: document.filePath,
+        workspaceRoot: options.workspaceRoot,
+        sourceBinder: analysis.sourceBinder,
+        sourceBindingGraph: analysis.sourceBindingGraph,
+      } as const;
+      const resolution = readSourceExpressionResolution(queryContext, queryEnv);
+      const semantics = readExpressionSemantics(queryContext, queryEnv);
+      const rustSourceResolutionPayload =
+        selectedQueryBackend === "rust-source-resolution"
+          ? (options.readRustSourceResolutionPayload ?? resolveRustSourceResolutionPayload)(
+              {
+                uri: document.uri,
+                content: document.content,
+                filePath: document.filePath,
+                version: document.version,
+              },
+              expression.id,
+              expression.scssModulePath,
+              {
+                analysisCache: options.analysisCache,
+                styleDocumentForPath: options.styleDocumentForPath,
+                typeResolver: options.typeResolver,
+                workspaceRoot: options.workspaceRoot,
+                settings: {
+                  ...DEFAULT_SETTINGS,
+                  scss: {
+                    ...DEFAULT_SETTINGS.scss,
+                    classnameTransform: options.classnameTransform,
+                  },
+                  pathAlias: options.pathAlias,
+                },
+              },
+            )
+          : null;
+      const rustExpressionSemanticsPayload =
+        selectedQueryBackend === "rust-expression-semantics"
+          ? (options.readRustExpressionSemanticsPayload ?? resolveRustExpressionSemanticsPayload)(
+              {
+                uri: document.uri,
+                content: document.content,
+                filePath: document.filePath,
+                version: document.version,
+              },
+              expression.id,
+              expression.scssModulePath,
+              {
+                analysisCache: options.analysisCache,
+                styleDocumentForPath: options.styleDocumentForPath,
+                typeResolver: options.typeResolver,
+                workspaceRoot: options.workspaceRoot,
+                settings: {
+                  ...DEFAULT_SETTINGS,
+                  scss: {
+                    ...DEFAULT_SETTINGS.scss,
+                    classnameTransform: options.classnameTransform,
+                  },
+                  pathAlias: options.pathAlias,
+                },
+              },
+            )
+          : null;
 
-      results.push(expressionSemanticsResultV2(document.filePath, semantics));
       results.push(
-        sourceExpressionResolutionResultV2(document.filePath, expression.id, resolution),
+        rustExpressionSemanticsPayload
+          ? expressionSemanticsResultV2FromRustPayload(
+              document.filePath,
+              expression,
+              rustExpressionSemanticsPayload,
+              options.styleDocumentForPath,
+            )
+          : expressionSemanticsResultV2(document.filePath, semantics),
+      );
+      results.push(
+        rustSourceResolutionPayload
+          ? sourceExpressionResolutionResultV2FromRustPayload(
+              document.filePath,
+              expression.id,
+              rustSourceResolutionPayload,
+              options.styleDocumentForPath,
+            )
+          : sourceExpressionResolutionResultV2(document.filePath, expression.id, resolution),
       );
     }
   }
@@ -109,6 +182,41 @@ export function buildSelectedQueryResultsV2(
       a.kind.localeCompare(b.kind) ||
       a.queryId.localeCompare(b.queryId),
   );
+}
+
+function expressionSemanticsResultV2FromRustPayload(
+  filePath: string,
+  expression: Parameters<typeof buildExpressionSemanticsSummaryFromRustPayload>[0],
+  payload: Parameters<typeof buildExpressionSemanticsSummaryFromRustPayload>[3],
+  styleDocumentForPath: (filePath: string) => StyleDocumentHIR | null,
+): ExpressionSemanticsQueryResultV2 {
+  const styleDocument = payload.styleFilePath ? styleDocumentForPath(payload.styleFilePath) : null;
+  const selectors =
+    styleDocument?.selectors.filter((selector) =>
+      payload.selectorNames.includes(selector.canonicalName),
+    ) ?? [];
+  const semantics = buildExpressionSemanticsSummaryFromRustPayload(
+    expression,
+    styleDocument,
+    selectors,
+    payload,
+  );
+  return expressionSemanticsResultV2(filePath, semantics);
+}
+
+function sourceExpressionResolutionResultV2FromRustPayload(
+  filePath: string,
+  expressionId: string,
+  payload: Parameters<typeof buildSourceResolutionSummaryFromRustPayload>[2],
+  styleDocumentForPath: (filePath: string) => StyleDocumentHIR | null,
+): SourceExpressionResolutionQueryResultV2 {
+  const styleDocument = payload.styleFilePath ? styleDocumentForPath(payload.styleFilePath) : null;
+  const selectors =
+    styleDocument?.selectors.filter((selector) =>
+      payload.selectorNames.includes(selector.canonicalName),
+    ) ?? [];
+  const resolution = buildSourceResolutionSummaryFromRustPayload(styleDocument, selectors, payload);
+  return sourceExpressionResolutionResultV2(filePath, expressionId, resolution);
 }
 
 function expressionSemanticsResultV2(
