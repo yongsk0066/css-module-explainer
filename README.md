@@ -231,6 +231,9 @@ Current checker policy:
 - `changed-style` and `changed-source` presets use compact text output by default
 - `pnpm check:semantic-smoke` is the canonical repo-local smoke command
 - `pnpm check:lsp-server-smoke` spawns the built `lsp-server` over stdio and verifies hover/definition through a generic protocol client
+- `pnpm check:selected-query-boundary` is the current `3.9` selected-query lock point
+  - it runs the editor-facing protocol subset for `definition`, `hover`, `completion`, `references`, `rename`, and `codeLens`
+  - these providers now route their main selected-query and source/style rewrite reads through `engine-host-node` helpers instead of directly owning the core query/rewrite calls in the LSP layer
 - `pnpm check:plugin-consumer-example` runs the clean repo-local lint-consumer example workspace under both ESLint and Stylelint
 - `pnpm check:plugin-consumers` runs the current ESLint and Stylelint consumer smokes together
 - `pnpm check:eslint-plugin-smoke` runs the ESLint consumer against JSX fixtures and asserts that source-side semantic findings are reported as ESLint diagnostics

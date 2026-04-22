@@ -1,15 +1,9 @@
 import type { CodeLens, CodeLensParams } from "vscode-languageserver/node";
-import type { ShowReferencesArgs, ShowReferencesLocation } from "@css-module-explainer/shared";
-import {
-  listCanonicalSelectors,
-  readSelectorUsageSummary,
-} from "../../../engine-core-ts/src/core/query";
-import type { SelectorDeclHIR } from "../../../engine-core-ts/src/core/hir/style-types";
+import type { ShowReferencesArgs } from "@css-module-explainer/shared";
 import { findLangForPath } from "../../../engine-core-ts/src/core/scss/lang-registry";
 import { fileUrlToPath } from "../../../engine-core-ts/src/core/util/text-utils";
-import { toLspRange } from "./lsp-adapters";
+import { resolveStyleReferenceLenses } from "../../../engine-host-node/src/style-reference-lens-query";
 import { wrapHandler } from "./_wrap-handler";
-import type { ProviderDeps } from "./provider-deps";
 
 /**
  * Handle `textDocument/codeLens` on `.module.{scss,css}` files.
@@ -33,11 +27,9 @@ export const handleCodeLens = wrapHandler<CodeLensParams, [], CodeLens[] | null>
     const styleDocument = deps.styleDocumentForPath(filePath);
     if (!styleDocument) return null;
 
-    const lenses: CodeLens[] = [];
-    for (const selector of listCanonicalSelectors(styleDocument)) {
-      const lens = buildLens(params.textDocument.uri, filePath, selector, deps);
-      if (lens) lenses.push(lens);
-    }
+    const lenses = resolveStyleReferenceLenses(filePath, styleDocument, deps).map<CodeLens>(
+      (lens) => buildLens(params.textDocument.uri, lens),
+    );
     return lenses.length > 0 ? lenses : null;
   },
   null,
@@ -45,47 +37,23 @@ export const handleCodeLens = wrapHandler<CodeLensParams, [], CodeLens[] | null>
 
 function buildLens(
   uri: string,
-  filePath: string,
-  selector: SelectorDeclHIR,
-  deps: ProviderDeps,
-): CodeLens | null {
-  const usage = readSelectorUsageSummary(deps, filePath, selector.canonicalName);
-  if (!usage.hasAnyReferences) return null;
-  const title = formatReferenceLensTitle(usage);
-  const locations: ShowReferencesLocation[] = usage.allSites.map((site) => ({
-    uri: site.uri,
-    range: toLspRange(site.range),
-  }));
+  lens: ReturnType<typeof resolveStyleReferenceLenses>[number],
+): CodeLens {
   // VS Code's built-in `editor.action.showReferences` command takes
   // (uri, position, locations) positionally, so the wire arguments
   // must be a 3-tuple. The `ShowReferencesArgs` contract (shared)
   // documents this shape for both the server and the client
   // middleware (see client/src/extension.ts).
-  const args: ShowReferencesArgs = [uri, selector.range.start, locations];
+  const args: ShowReferencesArgs = [uri, lens.position, lens.locations];
   return {
     range: {
-      start: { line: selector.range.start.line, character: selector.range.start.character },
-      end: { line: selector.range.start.line, character: selector.range.start.character },
+      start: { line: lens.position.line, character: lens.position.character },
+      end: { line: lens.position.line, character: lens.position.character },
     },
     command: {
-      title,
+      title: lens.title,
       command: "editor.action.showReferences",
       arguments: [...args],
     },
   };
-}
-
-function formatReferenceLensTitle(usage: ReturnType<typeof readSelectorUsageSummary>): string {
-  const base = `${usage.totalReferences} reference${usage.totalReferences === 1 ? "" : "s"}`;
-  const details: string[] = [];
-  if (usage.totalReferences !== usage.directReferenceCount) {
-    details.push(`${usage.directReferenceCount} direct`);
-  }
-  if (usage.hasStyleDependencyReferences) {
-    details.push("composed");
-  }
-  if (usage.hasExpandedReferences) {
-    details.push("dynamic");
-  }
-  return details.length > 0 ? `${base} (${details.join(", ")})` : base;
 }

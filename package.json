@@ -154,6 +154,7 @@
     "explain:expression": "tsx ./scripts/explain-expression.ts",
     "check:semantic-smoke": "tsx ./scripts/check-semantic-smoke.ts",
     "check:lsp-server-smoke": "tsx ./scripts/check-lsp-server-smoke.ts",
+    "check:selected-query-boundary": "pnpm exec vitest run test/protocol/definition.test.ts test/protocol/hover.test.ts test/protocol/completion.test.ts test/protocol/references.test.ts test/protocol/rename.test.ts test/protocol/code-lens.test.ts test/protocol/code-lens-refresh.test.ts",
     "check:rust-gate-evidence": "tsx ./scripts/check-rust-gate-evidence.ts",
     "check:real-project-corpus": "tsx ./scripts/check-real-project-corpus.ts",
     "check:release-batch": "tsx ./scripts/check-release-batch.ts",
