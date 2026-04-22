@@ -235,9 +235,12 @@ protocol tsgo, editing tsgo, server build tsgo, and workspace build tsgo
 subsets.
 
 `pnpm check:tsgo-operational-lane` is the current bounded non-release
-operational lane for the tsgo backend. It runs the tsgo-backed release batch,
-real-project corpus, LSP smoke, and `pnpm check:ts7-phase-b-readiness`
-together.
+operational lane for the tsgo backend. It runs the local
+`pnpm check:ts7-phase-a-tsgo-lane` plus the bounded Phase B protocol,
+editing, server-build, and workspace-build tsgo subsets.
+
+`pnpm check:operational-lane` is the current generic non-release default lane
+alias. Today it points at `pnpm check:tsgo-operational-lane`.
 
 `.github/workflows/tsgo-operational-shadow.yml` is the observational workflow
 for that lane. It builds the repo, runs the tsgo-backed release batch,
@@ -254,6 +257,12 @@ of `3` successful shadow runs before any limited non-release default judgment.
 TS 7 track. It requires both `Phase A decision-ready` and `Phase B readiness`
 before any broader tsgo adoption or release-facing
 judgment.
+
+`TS 7 Phase C` begins only after that operational shadow threshold is green.
+Its current scope is limited to long-lived and workspace-edge behavior:
+watch/incremental build behavior, long-lived LSP session behavior beyond the
+one-shot smoke path, and multi-root/workspace-edge cases. It is not a wider
+default flip.
 
 `pnpm check:rust-checker-release-gate-shadow-review` is the current operator
 review command for enforcement readiness. It reads recent
