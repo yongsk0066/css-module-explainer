@@ -5,8 +5,10 @@ import {
 } from "../../engine-core-ts/src/core/query";
 import type { StyleDocumentHIR } from "../../engine-core-ts/src/core/hir/style-types";
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
+import { pathToFileUrl } from "../../engine-core-ts/src/core/util/text-utils";
 import { resolveSelectedQueryBackendKind } from "./selected-query-backend";
 import {
+  buildSelectorUsageLocationsFromRustPayload,
   buildSelectorUsageRenderSummaryFromRustPayload,
   resolveRustSelectorUsagePayloadForWorkspaceTarget,
   type SelectorUsageRenderSummary,
@@ -43,24 +45,28 @@ export function resolveStyleReferenceLenses(
   for (const selector of listCanonicalSelectors(styleDocument)) {
     const usage = readSelectorUsageSummary(deps, filePath, selector.canonicalName);
     if (!usage.hasAnyReferences) continue;
-    const titleUsage =
+    const rustLensResolution =
       selectedQueryBackend === "rust-selector-usage"
-        ? (resolveRustReferenceLensSummary(
+        ? resolveRustReferenceLensSummary(
             deps,
             filePath,
             selector.canonicalName,
             options.readRustSelectorUsagePayloadForWorkspaceTarget ??
               resolveRustSelectorUsagePayloadForWorkspaceTarget,
-          ) ?? usage)
-        : usage;
+          )
+        : null;
+    const titleUsage = rustLensResolution?.usage ?? usage;
+    const locations =
+      rustLensResolution?.locations ??
+      usage.allSites.map((site) => ({
+        uri: site.uri,
+        range: site.range,
+      }));
 
     lenses.push({
       position: selector.range.start,
       title: formatReferenceLensTitle(titleUsage),
-      locations: usage.allSites.map((site) => ({
-        uri: site.uri,
-        range: site.range,
-      })),
+      locations,
     });
   }
   return lenses;
@@ -74,7 +80,10 @@ function resolveRustReferenceLensSummary(
   filePath: string,
   canonicalName: string,
   readRustSelectorUsagePayloadForWorkspaceTarget: typeof resolveRustSelectorUsagePayloadForWorkspaceTarget,
-): SelectorUsageRenderSummary | null {
+): {
+  readonly usage: SelectorUsageRenderSummary;
+  readonly locations: readonly ShowReferencesLocation[];
+} | null {
   const payload = readRustSelectorUsagePayloadForWorkspaceTarget(
     {
       workspaceRoot: deps.workspaceRoot,
@@ -86,7 +95,14 @@ function resolveRustReferenceLensSummary(
     canonicalName,
   );
   if (!payload || !payload.hasAnyReferences) return null;
-  return buildSelectorUsageRenderSummaryFromRustPayload(payload);
+  return {
+    usage: buildSelectorUsageRenderSummaryFromRustPayload(payload),
+    locations:
+      buildSelectorUsageLocationsFromRustPayload(payload)?.map((site) => ({
+        uri: pathToFileUrl(site.filePath),
+        range: site.range,
+      })) ?? [],
+  };
 }
 
 function formatReferenceLensTitle(usage: SelectorUsageRenderSummary): string {

@@ -60,7 +60,7 @@ describe("resolveStyleReferenceLenses", () => {
     expect(result[0]!.locations[0]!.uri).toBe("file:///a.tsx");
   });
 
-  it("uses rust selector-usage payloads for the lens title summary", () => {
+  it("uses rust selector-usage payloads for the lens title summary and locations", () => {
     const idx = new WorkspaceSemanticWorkspaceReferenceIndex();
     idx.record("file:///a.tsx", [
       semanticSiteAt("file:///a.tsx", "indicator", 10, "/fake/src/Button.module.scss"),
@@ -89,12 +89,47 @@ describe("resolveStyleReferenceLenses", () => {
           hasExpandedReferences: true,
           hasStyleDependencyReferences: true,
           hasAnyReferences: true,
+          allSites: [
+            {
+              filePath: "/fake/src/App.tsx",
+              range: {
+                start: { line: 12, character: 8 },
+                end: { line: 12, character: 17 },
+              },
+              expansion: "direct",
+              referenceKind: "source",
+            },
+            {
+              filePath: "/fake/src/Other.module.scss",
+              range: {
+                start: { line: 3, character: 1 },
+                end: { line: 3, character: 10 },
+              },
+              expansion: "direct",
+              referenceKind: "styleDependency",
+            },
+          ],
         }),
       },
     );
 
     expect(result).toHaveLength(1);
     expect(result[0]?.title).toBe("4 references (2 direct, composed, dynamic)");
-    expect(result[0]?.locations).toHaveLength(1);
+    expect(result[0]?.locations).toEqual([
+      {
+        uri: "file:///fake/src/App.tsx",
+        range: {
+          start: { line: 12, character: 8 },
+          end: { line: 12, character: 17 },
+        },
+      },
+      {
+        uri: "file:///fake/src/Other.module.scss",
+        range: {
+          start: { line: 3, character: 1 },
+          end: { line: 3, character: 10 },
+        },
+      },
+    ]);
   });
 });
