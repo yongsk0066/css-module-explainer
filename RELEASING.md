@@ -138,6 +138,12 @@ promotion decision. It validates the current checker-lane gate metadata and
 confirms the bounded checker lanes are still outside `rust-lane-bundle` and
 `rust-release-bundle`.
 
+`pnpm check:rust-checker-broader-lane-readiness` locks the broader-lane
+promotion criteria for those bounded checker lanes. It currently requires two
+bounded lanes, a shared promotion-review command, and a broader target of
+`pnpm check:rust-lane-bundle`, while keeping both lanes outside the broader
+Rust lane and release gate until an explicit promotion step happens.
+
 `pnpm check:rust-lane-bundle` is the broader Rust lane gate. It combines the
 current semantic producer boundary checks with `pnpm check:rust-parser-public-product`.
 

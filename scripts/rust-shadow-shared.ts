@@ -566,6 +566,9 @@ export interface CheckerStyleRecoveryCanonicalProducerSignalV0 {
     readonly canonicalProducerCommand: "pnpm check:rust-checker-style-recovery-canonical-producer";
     readonly consumerBoundaryCommand: "pnpm check:rust-checker-style-recovery-consumer-boundary";
     readonly boundedCheckerLaneCommand: "pnpm check:rust-checker-bounded-lanes";
+    readonly promotionReviewCommand: "pnpm check:rust-checker-promotion-review";
+    readonly broaderRustLaneCommand: "pnpm check:rust-lane-bundle";
+    readonly minimumBoundedLaneCountForRustLaneBundle: 2;
     readonly checkerBundle: "style-recovery";
     readonly includedInRustLaneBundle: false;
     readonly includedInRustReleaseBundle: false;
@@ -615,6 +618,9 @@ export interface CheckerSourceMissingCanonicalProducerSignalV0 {
     readonly canonicalProducerCommand: "pnpm check:rust-checker-source-missing-canonical-producer";
     readonly consumerBoundaryCommand: "pnpm check:rust-checker-source-missing-consumer-boundary";
     readonly boundedCheckerLaneCommand: "pnpm check:rust-checker-bounded-lanes";
+    readonly promotionReviewCommand: "pnpm check:rust-checker-promotion-review";
+    readonly broaderRustLaneCommand: "pnpm check:rust-lane-bundle";
+    readonly minimumBoundedLaneCountForRustLaneBundle: 2;
     readonly checkerBundle: "source-missing";
     readonly includedInRustLaneBundle: false;
     readonly includedInRustReleaseBundle: false;
