@@ -174,7 +174,8 @@ function registerCursorHandlers(state: HandlerState): void {
     if (!state.windowSettings.features.references) return null;
     const deps = getDeps(p.textDocument.uri);
     if (!deps) return null;
-    return handleReferences(p, deps);
+    const cursor = toCursorParams(p, documents);
+    return handleReferences(p, deps, cursor ?? undefined);
   });
 
   connection.onCodeLens((p) => {

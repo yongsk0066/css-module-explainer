@@ -249,7 +249,7 @@ LSP layer. It is a milestone boundary, not a stable release gate.
 `pnpm check:rust-selected-query-consumers` is the current local lock point for
 the first live Rust selected-query consumer slice. It exercises the explicit
 unit/runtime coverage for the opt-in Rust consumer paths currently wired into
-source `definition`, source `hover`, source `rename`, style `hover`
+source `definition`, source `hover`, source `references`, source `rename`, style `hover`
 usage-summary resolution, style `references` location resolution, style
 `reference-lens` title/count summary and location resolution, style module
 usage / style diagnostics unused-selector resolution, style `rename`

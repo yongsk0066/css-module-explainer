@@ -43,6 +43,48 @@ export function Button() {
   expect(result![0]!.range.start.line).toBe(4);
 });
 
+test("references protocol returns TSX sites from a TSX cursor on cx('indicator')", async ({
+  makeClient,
+}) => {
+  const tsxUri = "file:///fake/workspace/src/Button.tsx";
+  const tsx = `import classNames from 'classnames/bind';
+import styles from './Button.module.scss';
+const cx = classNames.bind(styles);
+export function Button() {
+  return <div className={cx('indicator')}>hi</div>;
+}
+`;
+  const scss = `.indicator { color: red; }\n.other { color: blue; }\n`;
+
+  const client = makeClient({
+    readStyleFile: (path) => (path.endsWith("Button.module.scss") ? scss : null),
+    typeResolver: new FakeTypeResolver(),
+  });
+
+  await client.initialize();
+  client.initialized();
+  client.didOpen({
+    textDocument: {
+      uri: tsxUri,
+      languageId: "typescriptreact",
+      version: 1,
+      text: tsx,
+    },
+  });
+  await client.waitForDiagnostics(tsxUri);
+
+  const result = await client.references({
+    textDocument: { uri: tsxUri },
+    position: { line: 4, character: 33 },
+    context: { includeDeclaration: false },
+  });
+
+  expect(result).not.toBeNull();
+  expect(result).toHaveLength(1);
+  expect(result![0]!.uri).toBe(tsxUri);
+  expect(result![0]!.range.start.line).toBe(4);
+});
+
 test("references protocol returns TSX sites for clsx(styles.indicator)", async ({ makeClient }) => {
   const tsxUri = "file:///fake/workspace/src/ClsxButton.tsx";
   const tsx = `import clsx from 'clsx';

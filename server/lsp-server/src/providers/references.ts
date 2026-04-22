@@ -1,9 +1,12 @@
 import type { Location, ReferenceParams } from "vscode-languageserver/node";
+import { resolveSourceExpressionReferences } from "../../../engine-host-node/src/source-references-query";
 import { resolveStyleReferencesAtCursor } from "../../../engine-host-node/src/style-references-query";
 import { findLangForPath } from "../../../engine-core-ts/src/core/scss/lang-registry";
 import { fileUrlToPath } from "../../../engine-core-ts/src/core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
 import { wrapHandler } from "./_wrap-handler";
+import { withSourceExpressionAtCursor } from "./cursor-dispatch";
+import type { CursorParams } from "./provider-deps";
 
 /**
  * Handle `textDocument/references` for a class selector inside a
@@ -19,11 +22,25 @@ import { wrapHandler } from "./_wrap-handler";
  *
  * Error isolation is owned by `wrapHandler`.
  */
-export const handleReferences = wrapHandler<ReferenceParams, [], Location[] | null>(
+export const handleReferences = wrapHandler<
+  ReferenceParams,
+  [cursorParams?: CursorParams],
+  Location[] | null
+>(
   "references",
-  (params, deps) => {
+  (params, deps, cursorParams) => {
     const filePath = fileUrlToPath(params.textDocument.uri);
-    if (!findLangForPath(filePath)) return null;
+    if (!findLangForPath(filePath)) {
+      if (!cursorParams) return null;
+      return withSourceExpressionAtCursor(cursorParams, deps, (ctx) => {
+        const locations = resolveSourceExpressionReferences(ctx, cursorParams, deps);
+        if (locations.length === 0) return null;
+        return locations.map<Location>((location) => ({
+          uri: location.uri,
+          range: toLspRange(location.range),
+        }));
+      });
+    }
 
     const styleDocument = deps.styleDocumentForPath(filePath);
     if (!styleDocument) return null;

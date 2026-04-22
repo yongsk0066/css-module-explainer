@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import type { CxBinding } from "../../../server/engine-core-ts/src/core/cx/cx-types";
+import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/source-file-cache";
+import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/engine-core-ts/src/core/semantic/workspace-reference-index";
 import { WorkspaceStyleDependencyGraph } from "../../../server/engine-core-ts/src/core/semantic/style-dependency-graph";
 import type { ProviderDeps } from "../../../server/lsp-server/src/providers/cursor-dispatch";
@@ -6,7 +9,13 @@ import {
   findSelectorAtCursor,
   handleReferences,
 } from "../../../server/lsp-server/src/providers/references";
-import { infoAtLine, makeBaseDeps, semanticSiteAt } from "../../_fixtures/test-helpers";
+import {
+  EMPTY_ALIAS_RESOLVER,
+  buildTestClassExpressions,
+  infoAtLine,
+  makeBaseDeps,
+  semanticSiteAt,
+} from "../../_fixtures/test-helpers";
 import {
   buildStyleDocumentFromSelectorMap,
   expandSelectorMapWithTransform,
@@ -21,6 +30,69 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   });
 }
 
+const SOURCE_BINDING: CxBinding = {
+  cxVarName: "cx",
+  stylesVarName: "styles",
+  scssModulePath: "/fake/src/Button.module.scss",
+  classNamesImportName: "classNames",
+  bindingRange: {
+    start: { line: 2, character: 6 },
+    end: { line: 2, character: 8 },
+  },
+};
+
+function makeSourceDeps(): ProviderDeps {
+  const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+  semanticReferenceIndex.record("file:///fake/src/App.tsx", [
+    semanticSiteAt(
+      "file:///fake/src/App.tsx",
+      "indicator",
+      3,
+      "/fake/src/Button.module.scss",
+      "indicator",
+      { start: 14, end: 23 },
+    ),
+  ]);
+
+  const sourceFileCache = new SourceFileCache({ max: 10 });
+  const analysisCache = new DocumentAnalysisCache({
+    sourceFileCache,
+    fileExists: () => true,
+    aliasResolver: EMPTY_ALIAS_RESOLVER,
+    scanCxImports: () => ({
+      stylesBindings: new Map([
+        ["styles", { kind: "resolved" as const, absolutePath: SOURCE_BINDING.scssModulePath }],
+      ]),
+      bindings: [SOURCE_BINDING],
+    }),
+    parseClassExpressions: (_sf, bindings) =>
+      buildTestClassExpressions({
+        filePath: "/fake/src/App.tsx",
+        bindings,
+        expressions: [
+          {
+            kind: "literal",
+            origin: "cxCall",
+            className: "indicator",
+            range: {
+              start: { line: 3, character: 14 },
+              end: { line: 3, character: 23 },
+            },
+            scssModulePath: SOURCE_BINDING.scssModulePath,
+          },
+        ],
+      }),
+    max: 10,
+  });
+
+  return makeBaseDeps({
+    analysisCache,
+    semanticReferenceIndex,
+    selectorMapForPath: () => new Map([["indicator", infoAtLine("indicator", 1)]]),
+    workspaceRoot: "/fake",
+  });
+}
+
 describe("handleReferences", () => {
   it("returns null for non-style files", () => {
     const result = handleReferences(
@@ -32,6 +104,39 @@ describe("handleReferences", () => {
       makeDeps(),
     );
     expect(result).toBeNull();
+  });
+
+  it("returns source-side locations when invoked from a TSX class expression cursor", () => {
+    const result = handleReferences(
+      {
+        textDocument: { uri: "file:///fake/src/App.tsx" },
+        position: { line: 3, character: 16 },
+        context: { includeDeclaration: false },
+      },
+      makeSourceDeps(),
+      {
+        documentUri: "file:///fake/src/App.tsx",
+        content: `import classNames from 'classnames/bind';
+import styles from './Button.module.scss';
+const cx = classNames.bind(styles);
+const a = cx('indicator');
+`,
+        filePath: "/fake/src/App.tsx",
+        line: 3,
+        character: 16,
+        version: 1,
+      },
+    );
+
+    expect(result).toEqual([
+      {
+        uri: "file:///fake/src/App.tsx",
+        range: {
+          start: { line: 3, character: 14 },
+          end: { line: 3, character: 23 },
+        },
+      },
+    ]);
   });
 
   it("returns null when cursor is not on a class selector", () => {

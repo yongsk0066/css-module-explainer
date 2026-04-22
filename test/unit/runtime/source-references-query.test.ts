@@ -1,0 +1,230 @@
+import { describe, expect, it } from "vitest";
+import type { CxBinding } from "../../../server/engine-core-ts/src/core/cx/cx-types";
+import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/source-file-cache";
+import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
+import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/engine-core-ts/src/core/semantic/workspace-reference-index";
+import { readSourceExpressionContextAtCursor } from "../../../server/engine-core-ts/src/core/query";
+import type { ProviderDeps } from "../../../server/lsp-server/src/providers/cursor-dispatch";
+import { resolveSourceExpressionReferences } from "../../../server/engine-host-node/src/source-references-query";
+import {
+  EMPTY_ALIAS_RESOLVER,
+  buildTestClassExpressions,
+  infoAtLine,
+  makeBaseDeps,
+  semanticSiteAt,
+} from "../../_fixtures/test-helpers";
+
+const BINDING: CxBinding = {
+  cxVarName: "cx",
+  stylesVarName: "styles",
+  scssModulePath: "/fake/src/Button.module.scss",
+  classNamesImportName: "classNames",
+  bindingRange: {
+    start: { line: 2, character: 6 },
+    end: { line: 2, character: 8 },
+  },
+};
+
+const TSX = `import classNames from 'classnames/bind';
+import styles from './Button.module.scss';
+const cx = classNames.bind(styles);
+const a = cx('indicator');
+`;
+
+function makeTsxDeps(
+  expressions: Parameters<typeof buildTestClassExpressions>[0]["expressions"],
+): ProviderDeps {
+  const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+  semanticReferenceIndex.record("file:///fake/src/App.tsx", [
+    semanticSiteAt(
+      "file:///fake/src/App.tsx",
+      "indicator",
+      3,
+      "/fake/src/Button.module.scss",
+      "indicator",
+      { start: 14, end: 23 },
+    ),
+  ]);
+
+  const sourceFileCache = new SourceFileCache({ max: 10 });
+  const analysisCache = new DocumentAnalysisCache({
+    sourceFileCache,
+    fileExists: () => true,
+    aliasResolver: EMPTY_ALIAS_RESOLVER,
+    scanCxImports: () => ({
+      stylesBindings: new Map([
+        ["styles", { kind: "resolved" as const, absolutePath: BINDING.scssModulePath }],
+      ]),
+      bindings: [BINDING],
+    }),
+    parseClassExpressions: (_sf, bindings) =>
+      buildTestClassExpressions({
+        filePath: "/fake/src/App.tsx",
+        bindings,
+        expressions,
+      }),
+    max: 10,
+  });
+
+  return makeBaseDeps({
+    analysisCache,
+    semanticReferenceIndex,
+    selectorMapForPath: () => new Map([["indicator", infoAtLine("indicator", 1)]]),
+    workspaceRoot: "/fake",
+  });
+}
+
+const cursor = {
+  documentUri: "file:///fake/src/App.tsx",
+  content: TSX,
+  filePath: "/fake/src/App.tsx",
+  line: 3,
+  character: 16,
+  version: 1,
+};
+
+describe("resolveSourceExpressionReferences", () => {
+  it("returns source-side reference locations for a static class expression", () => {
+    const deps = makeTsxDeps([
+      {
+        kind: "literal",
+        origin: "cxCall",
+        className: "indicator",
+        range: {
+          start: { line: 3, character: 14 },
+          end: { line: 3, character: 23 },
+        },
+        scssModulePath: BINDING.scssModulePath,
+      },
+    ]);
+    const ctx = readSourceExpressionContextAtCursor(cursor, {
+      analysisCache: deps.analysisCache,
+      styleDocumentForPath: deps.styleDocumentForPath,
+    });
+
+    expect(ctx).not.toBeNull();
+    expect(resolveSourceExpressionReferences(ctx!, cursor, deps)).toEqual([
+      {
+        uri: "file:///fake/src/App.tsx",
+        range: {
+          start: { line: 3, character: 14 },
+          end: { line: 3, character: 23 },
+        },
+      },
+    ]);
+  });
+
+  it("can resolve source targets through the rust source-resolution backend", () => {
+    const deps = makeTsxDeps([
+      {
+        kind: "literal",
+        origin: "cxCall",
+        className: "indicator",
+        range: {
+          start: { line: 3, character: 14 },
+          end: { line: 3, character: 23 },
+        },
+        scssModulePath: BINDING.scssModulePath,
+      },
+    ]);
+    const ctx = readSourceExpressionContextAtCursor(cursor, {
+      analysisCache: deps.analysisCache,
+      styleDocumentForPath: deps.styleDocumentForPath,
+    });
+
+    expect(ctx).not.toBeNull();
+    expect(
+      resolveSourceExpressionReferences(ctx!, cursor, deps, {
+        env: {
+          CME_SELECTED_QUERY_BACKEND: "rust-source-resolution",
+        } as NodeJS.ProcessEnv,
+        readRustSourceResolutionSelectorMatch: () => ({
+          styleFilePath: "/fake/src/Button.module.scss",
+          selectorNames: ["indicator"],
+        }),
+      }),
+    ).toEqual([
+      {
+        uri: "file:///fake/src/App.tsx",
+        range: {
+          start: { line: 3, character: 14 },
+          end: { line: 3, character: 23 },
+        },
+      },
+    ]);
+  });
+
+  it("can source usage locations through the rust selector-usage backend", () => {
+    const deps = makeTsxDeps([
+      {
+        kind: "literal",
+        origin: "cxCall",
+        className: "indicator",
+        range: {
+          start: { line: 3, character: 14 },
+          end: { line: 3, character: 23 },
+        },
+        scssModulePath: BINDING.scssModulePath,
+      },
+    ]);
+    const ctx = readSourceExpressionContextAtCursor(cursor, {
+      analysisCache: deps.analysisCache,
+      styleDocumentForPath: deps.styleDocumentForPath,
+    });
+
+    expect(ctx).not.toBeNull();
+    expect(
+      resolveSourceExpressionReferences(ctx!, cursor, deps, {
+        env: {
+          CME_SELECTED_QUERY_BACKEND: "rust-selector-usage",
+        } as NodeJS.ProcessEnv,
+        readRustSelectorUsagePayloadForWorkspaceTarget: () => ({
+          canonicalName: "indicator",
+          totalReferences: 2,
+          directReferenceCount: 1,
+          editableDirectReferenceCount: 1,
+          exactReferenceCount: 1,
+          inferredOrBetterReferenceCount: 1,
+          hasExpandedReferences: false,
+          hasStyleDependencyReferences: true,
+          hasAnyReferences: true,
+          allSites: [
+            {
+              filePath: "/fake/src/App.tsx",
+              range: {
+                start: { line: 3, character: 14 },
+                end: { line: 3, character: 23 },
+              },
+              expansion: "direct",
+              referenceKind: "source",
+            },
+            {
+              filePath: "/fake/src/Other.module.scss",
+              range: {
+                start: { line: 2, character: 1 },
+                end: { line: 2, character: 10 },
+              },
+              expansion: "direct",
+              referenceKind: "styleDependency",
+            },
+          ],
+        }),
+      }),
+    ).toEqual([
+      {
+        uri: "file:///fake/src/App.tsx",
+        range: {
+          start: { line: 3, character: 14 },
+          end: { line: 3, character: 23 },
+        },
+      },
+      {
+        uri: "file:///fake/src/Other.module.scss",
+        range: {
+          start: { line: 2, character: 1 },
+          end: { line: 2, character: 10 },
+        },
+      },
+    ]);
+  });
+});
