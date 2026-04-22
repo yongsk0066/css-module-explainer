@@ -182,6 +182,11 @@ shadow path for that same backend preview; it runs `release-batch` and
 non-release shadow path on every `master` push and on manual dispatch. This
 workflow is observational only; it is not part of `pnpm check:rust-release-bundle`.
 
+`pnpm check:ts7-phase-a-shadow-review` is the current operator review command
+for that workflow. It reads recent `TS7 Phase A Shadow` history through `gh`
+and reports whether the repo has accumulated the current minimum of `3`
+successful shadow runs before any broader backend adoption judgment.
+
 `pnpm check:rust-checker-release-gate-shadow-review` is the current operator
 review command for enforcement readiness. It reads recent
 `Checker Release Gate Shadow` workflow history through `gh` and reports whether

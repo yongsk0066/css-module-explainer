@@ -249,6 +249,8 @@ Current checker policy:
   - it runs backend typecheck smoke, type-fact backend parity, and `rust-gate-evidence -- --variant tsgo-preview --repeat 1 --json`
 - `pnpm check:ts7-phase-a-shadow` is the current non-release shadow path for TS 7 beta Phase A
   - it runs `release-batch` and `real-project-corpus` through `CME_TYPE_FACT_BACKEND=tsgo-preview`
+- `pnpm check:ts7-phase-a-shadow-review` reviews recent `TS7 Phase A Shadow` workflow history through `gh`
+  - today it reports whether the repo has accumulated the current minimum of `3` successful shadow runs before any broader backend adoption judgment
 - `.github/workflows/ts7-phase-a-shadow.yml` runs the Phase A readiness gate plus that non-release shadow path on every `master` push and on manual dispatch
 - `pnpm check:rust-parser-scaffold` exercises the first internal Rust parser scaffold crate, `rust/crates/engine-style-parser`
 - `pnpm check:rust-parser-git-consumer` verifies that the split parser repo can be consumed as a remote git dependency by the repo-stored standalone fixture at `rust/external-consumers/engine-style-parser-git-consumer`
