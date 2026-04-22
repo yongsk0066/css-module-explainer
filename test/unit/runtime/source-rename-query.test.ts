@@ -89,11 +89,11 @@ describe("source rename query", () => {
     });
 
     expect(ctx).not.toBeNull();
-    const target = readSourceExpressionRenameTarget(ctx!, deps);
+    const target = readSourceExpressionRenameTarget(ctx!, cursor, deps);
     expect(target.kind).toBe("target");
     expect(target.kind === "target" ? target.target.placeholder : null).toBe("indicator");
 
-    const plan = planSourceExpressionRename(ctx!, deps, "status");
+    const plan = planSourceExpressionRename(ctx!, cursor, deps, "status");
     expect(plan?.kind).toBe("plan");
     expect(plan?.kind === "plan" ? plan.plan.edits[0]?.newText : null).toBe("status");
   });
@@ -125,8 +125,53 @@ describe("source rename query", () => {
     });
 
     expect(ctx).not.toBeNull();
-    const target = readSourceExpressionRenameTarget(ctx!, deps);
+    const target = readSourceExpressionRenameTarget(ctx!, cursor, deps);
     expect(target).toEqual({ kind: "blocked", reason: "dynamicExpression" });
-    expect(planSourceExpressionRename(ctx!, deps, "status")).toBeNull();
+    expect(planSourceExpressionRename(ctx!, cursor, deps, "status")).toBeNull();
+  });
+
+  it("can read a rename target through the rust source-resolution backend", () => {
+    const deps = makeTsxDeps([
+      {
+        kind: "literal",
+        origin: "cxCall",
+        className: "indicator",
+        range: {
+          start: { line: 3, character: 14 },
+          end: { line: 3, character: 23 },
+        },
+        scssModulePath: BINDING.scssModulePath,
+      },
+    ]);
+    const cursor = {
+      documentUri: "file:///fake/src/App.tsx",
+      content: TSX,
+      filePath: "/fake/src/App.tsx",
+      line: 3,
+      character: 16,
+      version: 1,
+    };
+    const ctx = readSourceExpressionContextAtCursor(cursor, {
+      analysisCache: deps.analysisCache,
+      styleDocumentForPath: deps.styleDocumentForPath,
+    });
+
+    expect(ctx).not.toBeNull();
+    const options = {
+      env: {
+        CME_SELECTED_QUERY_BACKEND: "rust-source-resolution",
+      } as NodeJS.ProcessEnv,
+      readRustSourceResolutionSelectorMatch: () => ({
+        styleFilePath: "/fake/src/Button.module.scss",
+        selectorNames: ["indicator"],
+      }),
+    };
+    const target = readSourceExpressionRenameTarget(ctx!, cursor, deps, options);
+    expect(target.kind).toBe("target");
+    expect(target.kind === "target" ? target.target.placeholder : null).toBe("indicator");
+
+    const plan = planSourceExpressionRename(ctx!, cursor, deps, "status", options);
+    expect(plan?.kind).toBe("plan");
+    expect(plan?.kind === "plan" ? plan.plan.edits[0]?.newText : null).toBe("status");
   });
 });

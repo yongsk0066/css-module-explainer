@@ -61,7 +61,7 @@ export function handlePrepareRename(
     if (!cursorParams) return null;
     const ctx = findSourceExpressionContextAtCursor(cursorParams, deps);
     if (!ctx) return null;
-    return toPrepareRenameResult(readSourceExpressionRenameTarget(ctx, deps));
+    return toPrepareRenameResult(readSourceExpressionRenameTarget(ctx, cursorParams, deps));
   } catch (err) {
     if (isResponseError(err)) throw err;
     deps.logError("prepareRename handler failed", err);
@@ -103,7 +103,7 @@ export const handleRename = wrapHandler<
     if (!cursorParams) return null;
     const ctx = findSourceExpressionContextAtCursor(cursorParams, deps);
     if (!ctx) return null;
-    return toWorkspaceEdit(planSourceExpressionRename(ctx, deps, params.newName));
+    return toWorkspaceEdit(planSourceExpressionRename(ctx, cursorParams, deps, params.newName));
   },
   null,
 );
