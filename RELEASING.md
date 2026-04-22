@@ -239,8 +239,8 @@ operational lane for the tsgo backend. It runs the local
 `pnpm check:ts7-phase-a-tsgo-lane` plus the bounded Phase B protocol,
 editing, server-build, and workspace-build tsgo subsets.
 
-`pnpm check:operational-lane` is the current generic non-release default lane
-alias. Today it points at `pnpm check:tsgo-operational-lane`.
+`pnpm check:operational-lane` is the current limited non-release default lane.
+Today it resolves to the tsgo-backed operational lane.
 
 `.github/workflows/tsgo-operational-shadow.yml` is the observational workflow
 for that lane. It builds the repo, runs the tsgo-backed release batch,
@@ -248,18 +248,20 @@ real-project corpus, LSP smoke, and the full operational lane as separate
 steps, and records repeatable shadow history for the next limited non-release
 default judgment.
 
-`pnpm check:tsgo-operational-shadow-review` is the current operator review
-command for that workflow. It reads recent `TSGO Operational Shadow` history
-through `gh` and reports whether the repo has accumulated the current minimum
-of `3` successful shadow runs before any limited non-release default judgment.
+`pnpm check:operational-shadow-review` is the current limited non-release
+default review command. Today it resolves to
+`pnpm check:tsgo-operational-shadow-review`, which reads recent
+`TSGO Operational Shadow` history through `gh` and reports whether the repo
+has accumulated the current minimum of `3` successful shadow runs before any
+limited non-release default judgment.
 
 `pnpm check:ts7-decision-ready` is the current top-level judgment gate for the
 TS 7 track. It requires both `Phase A decision-ready` and `Phase B readiness`
 before any broader tsgo adoption or release-facing
 judgment.
 
-`TS 7 Phase C` begins only after that operational shadow threshold is green.
-Its current scope is limited to long-lived and workspace-edge behavior:
+`TS 7 Phase C` is now opened. Its current scope is limited to long-lived and
+workspace-edge behavior:
 watch/incremental build behavior, long-lived LSP session behavior beyond the
 one-shot smoke path, and multi-root/workspace-edge cases. It is not a wider
 default flip.

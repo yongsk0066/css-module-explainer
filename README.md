@@ -275,8 +275,10 @@ Current checker policy:
   - it requires `pnpm check:ts7-phase-a-decision-ready` first, then the bounded protocol, editing, server-build, and workspace-build tsgo subsets
 - `pnpm check:tsgo-operational-lane` is the current bounded non-release operational lane for the tsgo backend
   - it runs the local `ts7-phase-a-tsgo-lane` plus the bounded Phase B protocol, editing, server-build, and workspace-build tsgo subsets
-- `pnpm check:operational-lane` is the current generic non-release default lane alias
-  - today it points at `pnpm check:tsgo-operational-lane`
+- `pnpm check:operational-lane` is the current limited non-release default lane
+  - today it resolves to the tsgo-backed operational lane
+- `pnpm check:operational-shadow-review` is the current limited non-release default review command
+  - today it resolves to `pnpm check:tsgo-operational-shadow-review`
 - `pnpm check:tsgo-operational-shadow-review` reviews recent `TSGO Operational Shadow` workflow history through `gh`
   - today it reports whether the repo has accumulated the current minimum of `3` successful shadow runs before any limited non-release default judgment
 - `pnpm check:ts7-decision-ready` is the current top-level judgment gate for the TS 7 track
@@ -370,10 +372,10 @@ Current checker policy:
   - the current limited non-release aggregate for that backend is `pnpm check:ts7-phase-a-tsgo-lane`
   - the next step up from that lane is `pnpm check:ts7-phase-b-protocol-tsgo`
   - the current bounded non-release operational aggregate is `pnpm check:tsgo-operational-lane`
-  - the current generic non-release default alias is `pnpm check:operational-lane`
-  - the current operational shadow review command is `pnpm check:tsgo-operational-shadow-review`
+  - the current limited non-release default lane is `pnpm check:operational-lane`
+  - the current limited non-release default review command is `pnpm check:operational-shadow-review`
   - the current top-level TS 7 judgment command is `pnpm check:ts7-decision-ready`
-  - `TS 7 Phase C` starts after the operational shadow threshold is green and is scoped to long-lived and workspace-edge behavior, not wider default flips
+  - `TS 7 Phase C` is now opened and is scoped to long-lived and workspace-edge behavior, not wider default flips
   - the initial `Phase C` surface covers watch / incremental build behavior, long-lived LSP session behavior beyond one-shot smoke, and multi-root / workspace-edge cases
     - long-lived LSP session behavior beyond one-shot smoke
     - multi-root and workspace-edge cases
