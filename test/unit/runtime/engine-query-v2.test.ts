@@ -192,4 +192,63 @@ describe("buildSelectedQueryResultsV2", () => {
       ]),
     );
   });
+
+  it("can source selector-usage query results from the rust backend", () => {
+    const deps = makeDeps();
+    const sourceDocuments = [
+      {
+        uri: "file:///fake/src/Button.tsx",
+        content: SYMBOL_REF_TSX,
+        filePath: "/fake/src/Button.tsx",
+        version: 1,
+      },
+    ] as const;
+
+    const results = buildResults({
+      workspaceRoot: "/fake",
+      classnameTransform: "asIs",
+      pathAlias: {},
+      sourceDocuments,
+      styleFiles: ["/fake/src/Button.module.scss"],
+      analysisCache: deps.analysisCache,
+      styleDocumentForPath: deps.styleDocumentForPath,
+      typeResolver: deps.typeResolver,
+      semanticReferenceIndex: deps.semanticReferenceIndex,
+      styleDependencyGraph: deps.styleDependencyGraph,
+      env: {
+        CME_SELECTED_QUERY_BACKEND: "rust-selector-usage",
+      } as NodeJS.ProcessEnv,
+      readRustSelectorUsagePayload: (_options, filePath, canonicalName) => ({
+        canonicalName,
+        totalReferences: filePath.endsWith("Button.module.scss") ? 3 : 0,
+        directReferenceCount: 2,
+        editableDirectReferenceCount: 1,
+        exactReferenceCount: 1,
+        inferredOrBetterReferenceCount: 2,
+        hasExpandedReferences: true,
+        hasStyleDependencyReferences: true,
+        hasAnyReferences: true,
+      }),
+    });
+
+    expect(results).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "selector-usage",
+          filePath: "/fake/src/Button.module.scss",
+          payload: expect.objectContaining({
+            canonicalName: "indicator",
+            totalReferences: 3,
+            directReferenceCount: 2,
+            editableDirectReferenceCount: 1,
+            exactReferenceCount: 1,
+            inferredOrBetterReferenceCount: 2,
+            hasExpandedReferences: true,
+            hasStyleDependencyReferences: true,
+            hasAnyReferences: true,
+          }),
+        }),
+      ]),
+    );
+  });
 });

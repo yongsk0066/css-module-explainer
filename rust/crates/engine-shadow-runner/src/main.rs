@@ -15,8 +15,11 @@ use engine_input_producers::{
     summarize_expression_semantics_fragments_input,
     summarize_expression_semantics_match_fragments_input,
     summarize_expression_semantics_query_fragments_input, summarize_query_plan_input,
-    summarize_selector_usage_fragments_input, summarize_selector_usage_plan_input,
-    summarize_selector_usage_query_fragments_input,
+    summarize_selector_usage_candidates_input,
+    summarize_selector_usage_canonical_candidate_bundle_input,
+    summarize_selector_usage_canonical_producer_signal_input,
+    summarize_selector_usage_evaluator_candidates_input, summarize_selector_usage_fragments_input,
+    summarize_selector_usage_plan_input, summarize_selector_usage_query_fragments_input,
     summarize_semantic_canonical_candidate_bundle_input,
     summarize_semantic_canonical_producer_signal_input,
     summarize_semantic_evaluator_candidates_input, summarize_source_resolution_candidates_input,
@@ -388,6 +391,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some("input-selector-usage-query-fragments") => {
             let input: EngineInputV2 = serde_json::from_str(&stdin)?;
             let summary = summarize_selector_usage_query_fragments_input(&input);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
+        Some("input-selector-usage-candidates") => {
+            let input: EngineInputV2 = serde_json::from_str(&stdin)?;
+            let summary = summarize_selector_usage_candidates_input(&input);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
+        Some("input-selector-usage-evaluator-candidates") => {
+            let input: EngineInputV2 = serde_json::from_str(&stdin)?;
+            let summary = summarize_selector_usage_evaluator_candidates_input(&input);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
+        Some("input-selector-usage-canonical-candidate") => {
+            let input: EngineInputV2 = serde_json::from_str(&stdin)?;
+            let summary = summarize_selector_usage_canonical_candidate_bundle_input(&input);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
+        Some("input-selector-usage-canonical-producer") => {
+            let input: EngineInputV2 = serde_json::from_str(&stdin)?;
+            let summary = summarize_selector_usage_canonical_producer_signal_input(&input);
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
         Some("input-source-resolution-plan") => {

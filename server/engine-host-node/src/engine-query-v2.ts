@@ -35,6 +35,7 @@ import {
   resolveRustSourceResolutionPayload,
 } from "./source-resolution-query-backend";
 import { resolveSelectedQueryBackendKind } from "./selected-query-backend";
+import { resolveRustSelectorUsagePayload } from "./selector-usage-query-backend";
 
 export interface BuildSelectedQueryResultsV2Options {
   readonly workspaceRoot: string;
@@ -50,6 +51,7 @@ export interface BuildSelectedQueryResultsV2Options {
   readonly env?: NodeJS.ProcessEnv;
   readonly readRustSourceResolutionPayload?: typeof resolveRustSourceResolutionPayload;
   readonly readRustExpressionSemanticsPayload?: typeof resolveRustExpressionSemanticsPayload;
+  readonly readRustSelectorUsagePayload?: typeof resolveRustSelectorUsagePayload;
 }
 
 export function buildSelectedQueryResultsV2(
@@ -163,6 +165,25 @@ export function buildSelectedQueryResultsV2(
     const styleDocument = options.styleDocumentForPath(styleFile);
     if (!styleDocument) continue;
     for (const selector of listCanonicalSelectors(styleDocument)) {
+      const rustSelectorUsagePayload =
+        selectedQueryBackend === "rust-selector-usage"
+          ? (options.readRustSelectorUsagePayload ?? resolveRustSelectorUsagePayload)(
+              options,
+              styleFile,
+              selector.canonicalName,
+            )
+          : null;
+      if (rustSelectorUsagePayload) {
+        results.push(
+          selectorUsageResultV2FromRustPayload(
+            styleFile,
+            selector.canonicalName,
+            rustSelectorUsagePayload,
+          ),
+        );
+        continue;
+      }
+
       const usage = readSelectorUsageSummary(
         {
           semanticReferenceIndex: options.semanticReferenceIndex,
@@ -182,6 +203,31 @@ export function buildSelectedQueryResultsV2(
       a.kind.localeCompare(b.kind) ||
       a.queryId.localeCompare(b.queryId),
   );
+}
+
+function selectorUsageResultV2FromRustPayload(
+  filePath: string,
+  canonicalName: string,
+  payload: ReturnType<typeof resolveRustSelectorUsagePayload> extends infer T
+    ? NonNullable<T>
+    : never,
+): SelectorUsageQueryResultV2 {
+  return {
+    kind: "selector-usage",
+    filePath,
+    queryId: canonicalName,
+    payload: {
+      canonicalName: payload.canonicalName,
+      totalReferences: payload.totalReferences,
+      directReferenceCount: payload.directReferenceCount,
+      editableDirectReferenceCount: payload.editableDirectReferenceCount,
+      exactReferenceCount: payload.exactReferenceCount,
+      inferredOrBetterReferenceCount: payload.inferredOrBetterReferenceCount,
+      hasExpandedReferences: payload.hasExpandedReferences,
+      hasStyleDependencyReferences: payload.hasStyleDependencyReferences,
+      hasAnyReferences: payload.hasAnyReferences,
+    },
+  };
 }
 
 function expressionSemanticsResultV2FromRustPayload(

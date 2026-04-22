@@ -9,7 +9,8 @@ const RUST_MANIFEST = path.join(REPO_ROOT, "rust/Cargo.toml");
 export type SelectedQueryBackendKind =
   | "typescript-current"
   | "rust-source-resolution"
-  | "rust-expression-semantics";
+  | "rust-expression-semantics"
+  | "rust-selector-usage";
 
 export interface SelectedQueryBackendDocument {
   readonly uri: string;
@@ -25,7 +26,8 @@ export function resolveSelectedQueryBackendKind(
   if (
     value === "typescript-current" ||
     value === "rust-source-resolution" ||
-    value === "rust-expression-semantics"
+    value === "rust-expression-semantics" ||
+    value === "rust-selector-usage"
   ) {
     return value;
   }

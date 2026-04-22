@@ -27,6 +27,10 @@ pub use expression_semantics::summarize_expression_semantics_fragments_input;
 pub use expression_semantics::summarize_expression_semantics_match_fragments_input;
 pub use expression_semantics::summarize_expression_semantics_query_fragments_input;
 pub use query_plan::summarize_query_plan_input;
+pub use selector_usage::summarize_selector_usage_candidates_input;
+pub use selector_usage::summarize_selector_usage_canonical_candidate_bundle_input;
+pub use selector_usage::summarize_selector_usage_canonical_producer_signal_input;
+pub use selector_usage::summarize_selector_usage_evaluator_candidates_input;
 pub use selector_usage::summarize_selector_usage_fragments_input;
 pub use selector_usage::summarize_selector_usage_plan_input;
 pub use selector_usage::summarize_selector_usage_query_fragments_input;
@@ -296,7 +300,7 @@ pub struct SelectorUsagePlanSummaryV0 {
     total_composes_refs: usize,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SelectorUsageFragmentV0 {
     pub ordinal: usize,
@@ -316,7 +320,7 @@ pub struct SelectorUsageFragmentsV0 {
     pub fragments: Vec<SelectorUsageFragmentV0>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SelectorUsageQueryFragmentV0 {
     pub query_id: String,
@@ -332,6 +336,80 @@ pub struct SelectorUsageQueryFragmentsV0 {
     pub schema_version: &'static str,
     pub input_version: String,
     pub fragments: Vec<SelectorUsageQueryFragmentV0>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SelectorUsageCandidateV0 {
+    pub query_id: String,
+    pub canonical_name: String,
+    pub file_path: String,
+    pub total_references: usize,
+    pub direct_reference_count: usize,
+    pub editable_direct_reference_count: usize,
+    pub exact_reference_count: usize,
+    pub inferred_or_better_reference_count: usize,
+    pub has_expanded_references: bool,
+    pub has_style_dependency_references: bool,
+    pub has_any_references: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SelectorUsageCandidatesV0 {
+    pub schema_version: &'static str,
+    pub input_version: String,
+    pub candidates: Vec<SelectorUsageCandidateV0>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SelectorUsageEvaluatorCandidatePayloadV0 {
+    pub canonical_name: String,
+    pub total_references: usize,
+    pub direct_reference_count: usize,
+    pub editable_direct_reference_count: usize,
+    pub exact_reference_count: usize,
+    pub inferred_or_better_reference_count: usize,
+    pub has_expanded_references: bool,
+    pub has_style_dependency_references: bool,
+    pub has_any_references: bool,
+}
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SelectorUsageEvaluatorCandidateV0 {
+    pub kind: &'static str,
+    pub file_path: String,
+    pub query_id: String,
+    pub payload: SelectorUsageEvaluatorCandidatePayloadV0,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SelectorUsageEvaluatorCandidatesV0 {
+    pub schema_version: &'static str,
+    pub input_version: String,
+    pub results: Vec<SelectorUsageEvaluatorCandidateV0>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SelectorUsageCanonicalCandidateBundleV0 {
+    pub schema_version: &'static str,
+    pub input_version: String,
+    pub query_fragments: Vec<SelectorUsageQueryFragmentV0>,
+    pub fragments: Vec<SelectorUsageFragmentV0>,
+    pub candidates: Vec<SelectorUsageCandidateV0>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SelectorUsageCanonicalProducerSignalV0 {
+    pub schema_version: &'static str,
+    pub input_version: String,
+    pub canonical_bundle: SelectorUsageCanonicalCandidateBundleV0,
+    pub evaluator_candidates: SelectorUsageEvaluatorCandidatesV0,
 }
 
 #[derive(Debug, Serialize)]
