@@ -261,6 +261,10 @@ Current checker policy:
   - today it reports whether the repo has accumulated the current minimum of `3` successful shadow runs before any broader backend adoption judgment
 - `pnpm check:ts7-phase-a-decision-ready` is the current lock point for Phase A
   - it requires both the local preview lane and the successful-shadow-run threshold
+- `pnpm check:ts7-phase-b-protocol-preview` is the first bounded protocol-layer preview path for TS 7 beta Phase B
+  - it runs `lifecycle`, `hover`, `definition`, `diagnostics`, and `completion` protocol tests under `CME_TYPE_FACT_BACKEND=tsgo-preview`
+- `pnpm check:ts7-phase-b-readiness` is the current entry check for Phase B
+  - it requires `pnpm check:ts7-phase-a-decision-ready` first, then the bounded protocol preview subset
 - `.github/workflows/ts7-phase-a-shadow.yml` builds the repo, then runs the Phase A readiness gate, non-release shadow path, and stability check on every `master` push and on manual dispatch
 - `pnpm check:rust-parser-scaffold` exercises the first internal Rust parser scaffold crate, `rust/crates/engine-style-parser`
 - `pnpm check:rust-parser-git-consumer` verifies that the split parser repo can be consumed as a remote git dependency by the repo-stored standalone fixture at `rust/external-consumers/engine-style-parser-git-consumer`
@@ -346,6 +350,7 @@ Current checker policy:
   - the next backend transition step is explicitly staged behind `pnpm check:ts7-phase-a-readiness`
   - `tsgo-preview` is now also wired into explicit preview-backed operational commands: `pnpm check:release-batch-preview`, `pnpm check:real-project-corpus-preview`, and `pnpm check:lsp-server-smoke-preview`
   - the current limited non-release aggregate for that preview is `pnpm check:ts7-phase-a-preview-lane`
+  - the next step up from that preview lane is `pnpm check:ts7-phase-b-protocol-preview`
   - `selector-usage` remains a shadow validation family, not a release-gating canonical candidate
   - current `EngineInputV2` does not preserve enough reference-level evidence to reproduce `selector-usage` semantics as an input-only canonical producer
   - the current internal Rust producer boundary is [`rust/crates/engine-input-producers`](./rust/crates/engine-input-producers/README.md)

@@ -208,6 +208,15 @@ successful shadow runs before any broader backend adoption judgment.
 requires both the local limited preview lane and the shadow-run threshold to be
 green before any broader preview adoption judgment.
 
+`pnpm check:ts7-phase-b-protocol-preview` is the first bounded protocol-layer
+preview path for TS 7 beta Phase B. It runs a focused subset of protocol tests
+(`lifecycle`, `hover`, `definition`, `diagnostics`, `completion`) under
+`CME_TYPE_FACT_BACKEND=tsgo-preview`.
+
+`pnpm check:ts7-phase-b-readiness` is the current entry check for Phase B. It
+requires `pnpm check:ts7-phase-a-decision-ready` first, then the bounded
+protocol preview subset.
+
 `pnpm check:rust-checker-release-gate-shadow-review` is the current operator
 review command for enforcement readiness. It reads recent
 `Checker Release Gate Shadow` workflow history through `gh` and reports whether
