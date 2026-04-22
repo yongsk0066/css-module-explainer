@@ -166,8 +166,9 @@ shadow soak for checker entrance promotion. It runs `pnpm check:rust-release-bun
 together while the checker lanes remain outside the release bundle.
 
 `.github/workflows/checker-release-gate-shadow.yml` runs the same shadow soak on
-every `master` push. This gives repeated operational observations without
-changing the stable release gate.
+every `master` push. It executes the release bundle, checker entrance, and
+promotion evidence as separate workflow steps so failures are attributable
+without changing the stable release gate.
 
 `pnpm check:rust-checker-release-gate-shadow-review` is the current operator
 review command for enforcement readiness. It reads recent

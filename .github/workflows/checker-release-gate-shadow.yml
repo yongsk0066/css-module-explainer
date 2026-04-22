@@ -23,4 +23,32 @@ jobs:
       - run: corepack enable && corepack prepare pnpm@10.30.3 --activate
       - run: pnpm install --frozen-lockfile
       - run: ./scripts/release.sh
-      - run: pnpm check:rust-checker-release-gate-shadow
+      - id: rust_release_bundle
+        name: Run release-facing Rust bundle
+        run: pnpm check:rust-release-bundle
+        continue-on-error: true
+      - id: checker_entrance
+        name: Run checker entrance gate
+        run: pnpm check:rust-checker-entrance
+        continue-on-error: true
+      - id: checker_promotion_evidence
+        name: Run checker promotion evidence
+        run: pnpm check:rust-checker-promotion-evidence
+        continue-on-error: true
+      - if: always()
+        name: Enforce shadow soak result
+        run: |
+          echo "rust_release_bundle=${{ steps.rust_release_bundle.outcome }}"
+          echo "checker_entrance=${{ steps.checker_entrance.outcome }}"
+          echo "checker_promotion_evidence=${{ steps.checker_promotion_evidence.outcome }}"
+          failed=0
+          if [ "${{ steps.rust_release_bundle.outcome }}" != "success" ]; then
+            failed=1
+          fi
+          if [ "${{ steps.checker_entrance.outcome }}" != "success" ]; then
+            failed=1
+          fi
+          if [ "${{ steps.checker_promotion_evidence.outcome }}" != "success" ]; then
+            failed=1
+          fi
+          exit "$failed"
