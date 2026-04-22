@@ -6,7 +6,7 @@ import {
 } from "../../engine-core-ts/src/core/ts/type-resolver";
 import { TsgoPreviewTypeResolver } from "./tsgo-preview-type-resolver";
 
-export type TypeFactBackendKind = "typescript-current" | "tsgo-preview";
+export type TypeFactBackendKind = "typescript-current" | "tsgo";
 
 export interface SelectTypeResolverOptions {
   readonly typeResolver?: TypeResolver;
@@ -24,8 +24,11 @@ export function resolveTypeFactBackendKind(
   env: NodeJS.ProcessEnv = process.env,
 ): TypeFactBackendKind {
   const value = env.CME_TYPE_FACT_BACKEND ?? "typescript-current";
-  if (value === "typescript-current" || value === "tsgo-preview") {
+  if (value === "typescript-current" || value === "tsgo") {
     return value;
+  }
+  if (value === "tsgo-preview") {
+    return "tsgo";
   }
 
   throw new Error(`Unknown type fact backend: ${value}`);
@@ -40,15 +43,15 @@ export function selectTypeResolver(options: SelectTypeResolverOptions): TypeReso
     };
   }
 
-  if (backend === "tsgo-preview") {
+  if (backend === "tsgo") {
     const previewOptions = options.createProgram
       ? { createProgram: options.createProgram }
       : undefined;
     return {
       backend,
-      // First cut: run a real tsgo preview probe at the host boundary, then
+      // First cut: run a real tsgo probe at the host boundary, then
       // delegate fine-grained symbol resolution to the current TS resolver
-      // until a dedicated preview-backed resolver exists.
+      // until a dedicated tsgo-backed resolver exists.
       typeResolver: new TsgoPreviewTypeResolver(previewOptions),
     };
   }

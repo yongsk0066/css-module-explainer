@@ -175,24 +175,25 @@ remain attributable after the stable release gate flip.
 
 `pnpm check:ts7-phase-a-readiness` is the current pre-adoption gate for the
 TS 7 beta path. `pnpm check:ts7-phase-a-shadow` is the current non-release
-shadow path for that same backend preview. The explicit preview-backed
+shadow path for that same tsgo backend lane. The explicit tsgo-backed
 operational commands are:
 
-- `pnpm check:release-batch-preview`
-- `pnpm check:real-project-corpus-preview`
-- `pnpm check:lsp-server-smoke-preview`
+- `pnpm check:release-batch-tsgo`
+- `pnpm check:real-project-corpus-tsgo`
+- `pnpm check:lsp-server-smoke-tsgo`
 
-`pnpm check:ts7-phase-a-shadow` runs those two preview-backed operational
-commands plus the preview-backed LSP smoke together.
+`pnpm check:ts7-phase-a-shadow` runs those two tsgo-backed operational
+commands plus the tsgo-backed LSP smoke together.
 
 `pnpm check:ts7-phase-a-stability` is the direct stability check for the two
-preview-specific risk points that the basic shadow path does not prove by
-itself: repeated `EngineInputV2.typeFacts` ordering stability and concurrent
-checker-process output stability under `CME_TYPE_FACT_BACKEND=tsgo-preview`.
-It now also pins preview invocations to `@typescript/native-preview@beta` and
+tsgo-specific risk points that the basic shadow path does not prove by itself:
+repeated `EngineInputV2.typeFacts` ordering stability and concurrent
+checker-process output stability under `CME_TYPE_FACT_BACKEND=tsgo`. The
+deprecated alias `CME_TYPE_FACT_BACKEND=tsgo-preview` is still accepted. It
+now also pins tsgo invocations to `@typescript/native-preview@beta` and
 repeats backend smoke under fixed `--checkers` values (`1`, `2`, `4`).
 
-`pnpm check:ts7-phase-a-preview-lane` is the current limited non-release
+`pnpm check:ts7-phase-a-tsgo-lane` is the current limited non-release
 aggregate for Phase A. It runs the readiness gate, non-release shadow path,
 stability check, and the repo build together.
 
@@ -207,35 +208,35 @@ and reports whether the repo has accumulated the current minimum of `3`
 successful shadow runs before any broader backend adoption judgment.
 
 `pnpm check:ts7-phase-a-decision-ready` is the current Phase A lock point. It
-requires both the local limited preview lane and the shadow-run threshold to be
-green before any broader preview adoption judgment.
+requires both the local limited tsgo lane and the shadow-run threshold to be
+green before any broader tsgo adoption judgment.
 
-`pnpm check:ts7-phase-b-protocol-preview` is the first bounded protocol-layer
-preview path for TS 7 beta Phase B. It runs a focused subset of protocol tests
+`pnpm check:ts7-phase-b-protocol-tsgo` is the first bounded protocol-layer
+tsgo path for TS 7 beta Phase B. It runs a focused subset of protocol tests
 (`lifecycle`, `hover`, `definition`, `diagnostics`, `completion`) under
-`CME_TYPE_FACT_BACKEND=tsgo-preview`.
+`CME_TYPE_FACT_BACKEND=tsgo`.
 
-`pnpm check:ts7-phase-b-editing-preview` is the second bounded protocol-layer
-preview path for TS 7 beta Phase B. It runs the editing/reference subset
+`pnpm check:ts7-phase-b-editing-tsgo` is the second bounded protocol-layer
+tsgo path for TS 7 beta Phase B. It runs the editing/reference subset
 (`references`, `rename`, `code-actions`) under
-`CME_TYPE_FACT_BACKEND=tsgo-preview`.
+`CME_TYPE_FACT_BACKEND=tsgo`.
 
-`pnpm check:ts7-phase-b-build-preview` is the current bounded build-mode
-preview path for TS 7 beta Phase B. It runs
+`pnpm check:ts7-phase-b-build-tsgo` is the current bounded build-mode
+tsgo path for TS 7 beta Phase B. It runs
 `@typescript/native-preview@beta -b server/tsconfig.json --checkers 2 --builders 2`.
 
-`pnpm check:ts7-phase-b-workspace-build-preview` is the current workspace-level
-project-reference preview path for TS 7 beta Phase B. It runs
+`pnpm check:ts7-phase-b-workspace-build-tsgo` is the current workspace-level
+project-reference tsgo path for TS 7 beta Phase B. It runs
 `@typescript/native-preview@beta -b tsconfig.json --checkers 2 --builders 2`.
 
 `pnpm check:ts7-phase-b-readiness` is the current entry check for Phase B. It
 requires `pnpm check:ts7-phase-a-decision-ready` first, then the bounded
-protocol preview, editing preview, server build preview, and workspace build
-preview subsets.
+protocol tsgo, editing tsgo, server build tsgo, and workspace build tsgo
+subsets.
 
-`pnpm check:ts7-preview-decision-ready` is the current top-level judgment gate
-for the TS 7 preview track. It requires both `Phase A decision-ready` and
-`Phase B readiness` before any broader preview adoption or release-facing
+`pnpm check:ts7-decision-ready` is the current top-level judgment gate for the
+TS 7 track. It requires both `Phase A decision-ready` and `Phase B readiness`
+before any broader tsgo adoption or release-facing
 judgment.
 
 `pnpm check:rust-checker-release-gate-shadow-review` is the current operator

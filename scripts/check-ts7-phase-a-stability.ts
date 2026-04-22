@@ -8,7 +8,7 @@ import {
 import { buildEngineInputV2 } from "../server/engine-host-node/src/engine-input-v2";
 import { stableJsonStringify } from "./contract-parity-runtime";
 
-type TypeBackend = "tsgo-preview";
+type TypeBackend = "tsgo";
 
 type OrderingFixture = {
   readonly fixture: string;
@@ -38,7 +38,7 @@ const repoRoot = process.cwd();
 const ORDERING_RUN_COUNT = 3 as const;
 const PARALLEL_ROUND_COUNT = 3 as const;
 const CHECKER_CONTROL_RUN_COUNT = 2 as const;
-const TYPE_BACKEND: TypeBackend = "tsgo-preview";
+const TYPE_BACKEND: TypeBackend = "tsgo";
 
 const orderingFixtures: readonly OrderingFixture[] = [
   {

@@ -240,39 +240,40 @@ Current checker policy:
   - current baseline variant: `typescript-current`
   - future variants can be selected with `--variant <label>`
   - repeated runs can be summarized with `--repeat <n>`
-  - current comparison slot: `tsgo-preview` on `check:backend-typecheck-smoke`
-- `pnpm check:backend-typecheck-smoke` now runs a small multi-case corpus (`template-literals`, `path-alias`, `flow-relations`) for both `typescript-current` and `tsgo-preview`
-  - `CME_TYPE_FACT_BACKEND=tsgo-preview` now activates a host-side preview probe before delegating symbol resolution to the current TS resolver
-- `CME_TYPE_FACT_BACKEND=tsgo-preview pnpm check:release-batch` and `pnpm check:real-project-corpus` now exercise the checker path through the same host-side preview probe
-- `pnpm check:type-fact-backend-parity` compares canonical `EngineInputV2.typeFacts` across `typescript-current` and `tsgo-preview` on the backend smoke corpus
+  - current comparison slot: `tsgo` on `check:backend-typecheck-smoke`
+- `pnpm check:backend-typecheck-smoke` now runs a small multi-case corpus (`template-literals`, `path-alias`, `flow-relations`) for both `typescript-current` and `tsgo`
+  - `CME_TYPE_FACT_BACKEND=tsgo` now activates a host-side tsgo probe before delegating symbol resolution to the current TS resolver
+  - `CME_TYPE_FACT_BACKEND=tsgo-preview` remains accepted as a deprecated compatibility alias
+- `CME_TYPE_FACT_BACKEND=tsgo pnpm check:release-batch` and `pnpm check:real-project-corpus` now exercise the checker path through the same host-side tsgo probe
+- `pnpm check:type-fact-backend-parity` compares canonical `EngineInputV2.typeFacts` across `typescript-current` and `tsgo` on the backend smoke corpus
 - `pnpm check:ts7-phase-a-readiness` is the current aggregate pre-adoption gate for the TS 7 beta path
-  - it runs backend typecheck smoke, type-fact backend parity, and `rust-gate-evidence -- --variant tsgo-preview --repeat 1 --json`
-- `pnpm check:release-batch-preview` is the current preview-backed variant of the release-batch operational path
-- `pnpm check:real-project-corpus-preview` is the current preview-backed variant of the real-project operational path
-- `pnpm check:lsp-server-smoke-preview` is the current preview-backed variant of the stdio LSP smoke path
+  - it runs backend typecheck smoke, type-fact backend parity, and `rust-gate-evidence -- --variant tsgo --repeat 1 --json`
+- `pnpm check:release-batch-tsgo` is the current tsgo-backed variant of the release-batch operational path
+- `pnpm check:real-project-corpus-tsgo` is the current tsgo-backed variant of the real-project operational path
+- `pnpm check:lsp-server-smoke-tsgo` is the current tsgo-backed variant of the stdio LSP smoke path
 - `pnpm check:ts7-phase-a-shadow` is the current non-release shadow path for TS 7 beta Phase A
-  - it runs the preview-backed release-batch, real-project-corpus, and LSP smoke commands together
-- `pnpm check:ts7-phase-a-stability` directly checks the two preview-specific risk points that the basic shadow path does not prove by itself
-  - repeated `EngineInputV2.typeFacts` snapshots from `tsgo-preview` must stay byte-stable across runs
-  - concurrent `release-batch` and `real-project-corpus` invocations under `CME_TYPE_FACT_BACKEND=tsgo-preview` must keep identical outputs across rounds
-  - preview probe calls are pinned to `@typescript/native-preview@beta`, and the stability matrix now also repeats backend smoke under fixed `--checkers` values (`1`, `2`, `4`)
-- `pnpm check:ts7-phase-a-preview-lane` is the current limited non-release aggregate for TS 7 beta Phase A
+  - it runs the tsgo-backed release-batch, real-project-corpus, and LSP smoke commands together
+- `pnpm check:ts7-phase-a-stability` directly checks the two tsgo-specific risk points that the basic shadow path does not prove by itself
+  - repeated `EngineInputV2.typeFacts` snapshots from `tsgo` must stay byte-stable across runs
+  - concurrent `release-batch` and `real-project-corpus` invocations under `CME_TYPE_FACT_BACKEND=tsgo` must keep identical outputs across rounds
+  - tsgo probe calls are pinned to `@typescript/native-preview@beta`, and the stability matrix now also repeats backend smoke under fixed `--checkers` values (`1`, `2`, `4`)
+- `pnpm check:ts7-phase-a-tsgo-lane` is the current limited non-release aggregate for TS 7 beta Phase A
   - it builds the repo, then runs readiness, shadow, and stability together
 - `pnpm check:ts7-phase-a-shadow-review` reviews recent `TS7 Phase A Shadow` workflow history through `gh`
   - today it reports whether the repo has accumulated the current minimum of `3` successful shadow runs before any broader backend adoption judgment
 - `pnpm check:ts7-phase-a-decision-ready` is the current lock point for Phase A
-  - it requires both the local preview lane and the successful-shadow-run threshold
-- `pnpm check:ts7-phase-b-protocol-preview` is the first bounded protocol-layer preview path for TS 7 beta Phase B
-  - it runs `lifecycle`, `hover`, `definition`, `diagnostics`, and `completion` protocol tests under `CME_TYPE_FACT_BACKEND=tsgo-preview`
-- `pnpm check:ts7-phase-b-editing-preview` is the second bounded protocol-layer preview path for TS 7 beta Phase B
-  - it runs `references`, `rename`, and `code-actions` protocol tests under `CME_TYPE_FACT_BACKEND=tsgo-preview`
-- `pnpm check:ts7-phase-b-build-preview` is the current bounded build-mode preview path for TS 7 beta Phase B
+  - it requires both the local tsgo lane and the successful-shadow-run threshold
+- `pnpm check:ts7-phase-b-protocol-tsgo` is the first bounded protocol-layer tsgo path for TS 7 beta Phase B
+  - it runs `lifecycle`, `hover`, `definition`, `diagnostics`, and `completion` protocol tests under `CME_TYPE_FACT_BACKEND=tsgo`
+- `pnpm check:ts7-phase-b-editing-tsgo` is the second bounded protocol-layer tsgo path for TS 7 beta Phase B
+  - it runs `references`, `rename`, and `code-actions` protocol tests under `CME_TYPE_FACT_BACKEND=tsgo`
+- `pnpm check:ts7-phase-b-build-tsgo` is the current bounded build-mode tsgo path for TS 7 beta Phase B
   - it runs `@typescript/native-preview@beta -b server/tsconfig.json --checkers 2 --builders 2`
-- `pnpm check:ts7-phase-b-workspace-build-preview` is the current workspace-level project-reference preview path for TS 7 beta Phase B
+- `pnpm check:ts7-phase-b-workspace-build-tsgo` is the current workspace-level project-reference tsgo path for TS 7 beta Phase B
   - it runs `@typescript/native-preview@beta -b tsconfig.json --checkers 2 --builders 2`
 - `pnpm check:ts7-phase-b-readiness` is the current entry check for Phase B
-  - it requires `pnpm check:ts7-phase-a-decision-ready` first, then the bounded protocol, editing, server-build, and workspace-build preview subsets
-- `pnpm check:ts7-preview-decision-ready` is the current top-level judgment gate for the TS 7 preview track
+  - it requires `pnpm check:ts7-phase-a-decision-ready` first, then the bounded protocol, editing, server-build, and workspace-build tsgo subsets
+- `pnpm check:ts7-decision-ready` is the current top-level judgment gate for the TS 7 track
   - it requires both `Phase A decision-ready` and `Phase B readiness`
 - `.github/workflows/ts7-phase-a-shadow.yml` builds the repo, then runs the Phase A readiness gate, non-release shadow path, and stability check on every `master` push and on manual dispatch
 - `pnpm check:rust-parser-scaffold` exercises the first internal Rust parser scaffold crate, `rust/crates/engine-style-parser`
@@ -357,10 +358,10 @@ Current checker policy:
   - the ESLint and Stylelint plugin consumers now form a first plugin-facing batch with focused rule surfaces, aggregate configs, a clean example workspace, and release-facing consumer gates
   - the bounded checker entrance (`style-recovery` + `source-missing`) is now enforced in `pnpm check:rust-release-bundle`
   - the next backend transition step is explicitly staged behind `pnpm check:ts7-phase-a-readiness`
-  - `tsgo-preview` is now also wired into explicit preview-backed operational commands: `pnpm check:release-batch-preview`, `pnpm check:real-project-corpus-preview`, and `pnpm check:lsp-server-smoke-preview`
-  - the current limited non-release aggregate for that preview is `pnpm check:ts7-phase-a-preview-lane`
-  - the next step up from that preview lane is `pnpm check:ts7-phase-b-protocol-preview`
-  - the current top-level preview judgment command is `pnpm check:ts7-preview-decision-ready`
+  - `tsgo` is now wired into explicit tsgo-backed operational commands: `pnpm check:release-batch-tsgo`, `pnpm check:real-project-corpus-tsgo`, and `pnpm check:lsp-server-smoke-tsgo`
+  - the current limited non-release aggregate for that backend is `pnpm check:ts7-phase-a-tsgo-lane`
+  - the next step up from that lane is `pnpm check:ts7-phase-b-protocol-tsgo`
+  - the current top-level TS 7 judgment command is `pnpm check:ts7-decision-ready`
   - `selector-usage` remains a shadow validation family, not a release-gating canonical candidate
   - current `EngineInputV2` does not preserve enough reference-level evidence to reproduce `selector-usage` semantics as an input-only canonical producer
   - the current internal Rust producer boundary is [`rust/crates/engine-input-producers`](./rust/crates/engine-input-producers/README.md)

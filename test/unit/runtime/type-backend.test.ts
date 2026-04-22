@@ -11,10 +11,12 @@ describe("type backend selection", () => {
     expect(resolveTypeFactBackendKind({})).toBe("typescript-current");
   });
 
-  it("reads tsgo-preview from env", () => {
-    expect(resolveTypeFactBackendKind({ CME_TYPE_FACT_BACKEND: "tsgo-preview" })).toBe(
-      "tsgo-preview",
-    );
+  it("reads tsgo from env", () => {
+    expect(resolveTypeFactBackendKind({ CME_TYPE_FACT_BACKEND: "tsgo" })).toBe("tsgo");
+  });
+
+  it("normalizes tsgo-preview from env", () => {
+    expect(resolveTypeFactBackendKind({ CME_TYPE_FACT_BACKEND: "tsgo-preview" })).toBe("tsgo");
   });
 
   it("prefers explicit backend over env", () => {
@@ -36,12 +38,12 @@ describe("type backend selection", () => {
     expect(selection.typeResolver).toBe(fakeResolver);
   });
 
-  it("selects the preview resolver for tsgo-preview", () => {
+  it("selects the preview resolver for tsgo", () => {
     const selection = selectTypeResolver({
-      typeBackend: "tsgo-preview",
+      typeBackend: "tsgo",
     });
 
-    expect(selection.backend).toBe("tsgo-preview");
+    expect(selection.backend).toBe("tsgo");
     expect(selection.typeResolver).toBeInstanceOf(TsgoPreviewTypeResolver);
   });
 

@@ -38,16 +38,15 @@ void (async () => {
   const results = await Promise.all(
     parityFixtures.map(async (entry) => {
       const baseline = await buildTypeFactSnapshot(entry, "typescript-current");
-      const preview = await buildTypeFactSnapshot(entry, "tsgo-preview");
+      const tsgo = await buildTypeFactSnapshot(entry, "tsgo");
       return {
         fixture: entry.fixture,
-        v2Matches:
-          stableJsonStringify(baseline.typeFacts) === stableJsonStringify(preview.typeFacts),
+        v2Matches: stableJsonStringify(baseline.typeFacts) === stableJsonStringify(tsgo.typeFacts),
         baseline: {
           v2TypeFacts: baseline.typeFacts,
         },
-        preview: {
-          v2TypeFacts: preview.typeFacts,
+        tsgo: {
+          v2TypeFacts: tsgo.typeFacts,
         },
       };
     }),
@@ -75,7 +74,7 @@ async function buildTypeFactSnapshot(
     readonly sourceFilePaths: readonly string[];
     readonly styleFilePaths: readonly string[];
   },
-  typeBackend: "typescript-current" | "tsgo-preview",
+  typeBackend: "typescript-current" | "tsgo",
 ) {
   const styleFiles = fixture.styleFilePaths;
   const styleHost = createWorkspaceStyleHost({

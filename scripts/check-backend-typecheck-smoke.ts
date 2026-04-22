@@ -2,7 +2,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import fg from "fast-glob";
 
-type BackendTypecheckVariant = "typescript-current" | "tsgo-preview";
+type BackendTypecheckVariant = "typescript-current" | "tsgo";
 
 const variant = readVariant();
 const fixtureRoot = path.resolve(process.cwd(), "test/_fixtures/backend-typecheck-smoke");
@@ -34,8 +34,11 @@ process.exit(exitCode);
 function readVariant(): BackendTypecheckVariant {
   const value =
     process.env.CME_TYPECHECK_VARIANT ?? process.env.CME_TYPE_FACT_BACKEND ?? "typescript-current";
-  if (value === "typescript-current" || value === "tsgo-preview") {
+  if (value === "typescript-current" || value === "tsgo") {
     return value;
+  }
+  if (value === "tsgo-preview") {
+    return "tsgo";
   }
 
   throw new Error(`Unknown backend typecheck variant: ${value}`);
@@ -45,7 +48,7 @@ function commandForVariant(
   selectedVariant: BackendTypecheckVariant,
   tsconfigPath: string,
 ): readonly string[] {
-  if (selectedVariant === "tsgo-preview") {
+  if (selectedVariant === "tsgo") {
     return [
       "dlx",
       "@typescript/native-preview@beta",

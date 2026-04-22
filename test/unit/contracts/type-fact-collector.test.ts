@@ -78,14 +78,14 @@ describe("selectTypeFactCollector", () => {
     );
   });
 
-  it("routes tsgo-preview collection through the preview worker", () => {
+  it("routes tsgo collection through the preview worker", () => {
     const workerCalls: Array<{
       workspaceRoot: string;
       configPath: string;
       targets: readonly { filePath: string; expressionId: string; position: number }[];
     }> = [];
     const collector = selectTypeFactCollector({
-      typeBackend: "tsgo-preview",
+      typeBackend: "tsgo",
       typeResolver: {
         resolve() {
           return { kind: "unresolvable", values: [] };

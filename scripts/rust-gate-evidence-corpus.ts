@@ -14,10 +14,10 @@ export const RUST_GATE_EVIDENCE_VARIANTS: readonly RustGateEvidenceVariant[] = [
     label: "typescript-current",
   },
   {
-    label: "tsgo-preview",
+    label: "tsgo",
     env: {
-      CME_TYPE_FACT_BACKEND: "tsgo-preview",
-      CME_TYPECHECK_VARIANT: "tsgo-preview",
+      CME_TYPE_FACT_BACKEND: "tsgo",
+      CME_TYPECHECK_VARIANT: "tsgo",
     },
   },
 ] as const;
@@ -26,12 +26,12 @@ export const RUST_GATE_EVIDENCE_CORPUS: readonly RustGateEvidenceEntry[] = [
   {
     label: "release-batch",
     argv: ["check:release-batch"],
-    variants: ["typescript-current", "tsgo-preview"],
+    variants: ["typescript-current", "tsgo"],
   },
   {
     label: "real-project-corpus",
     argv: ["check:real-project-corpus"],
-    variants: ["typescript-current", "tsgo-preview"],
+    variants: ["typescript-current", "tsgo"],
   },
   {
     label: "lsp-server-smoke",
@@ -226,7 +226,7 @@ export const RUST_GATE_EVIDENCE_CORPUS: readonly RustGateEvidenceEntry[] = [
   {
     label: "backend-typecheck-smoke",
     argv: ["check:backend-typecheck-smoke"],
-    variants: ["typescript-current", "tsgo-preview"],
+    variants: ["typescript-current", "tsgo"],
   },
   {
     label: "type-fact-backend-parity",

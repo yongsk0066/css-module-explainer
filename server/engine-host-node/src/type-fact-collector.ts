@@ -41,7 +41,7 @@ export function selectTypeFactCollector(
 ): TypeFactCollectorSelection {
   const resolverSelection = selectTypeResolver(options);
   const collectV2 = (collectOptions: CollectTypeFactCollectorOptions): TypeFactTableV2 => {
-    if (resolverSelection.backend === "tsgo-preview") {
+    if (resolverSelection.backend === "tsgo") {
       return collectTypeFactTableV2WithTsgoPreview({
         ...withTypeResolver(collectOptions, resolverSelection.typeResolver),
         ...(options.findPreviewConfigFile ? { findConfigFile: options.findPreviewConfigFile } : {}),
