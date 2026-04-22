@@ -213,9 +213,14 @@ preview path for TS 7 beta Phase B. It runs a focused subset of protocol tests
 (`lifecycle`, `hover`, `definition`, `diagnostics`, `completion`) under
 `CME_TYPE_FACT_BACKEND=tsgo-preview`.
 
+`pnpm check:ts7-phase-b-editing-preview` is the second bounded protocol-layer
+preview path for TS 7 beta Phase B. It runs the editing/reference subset
+(`references`, `rename`, `code-actions`) under
+`CME_TYPE_FACT_BACKEND=tsgo-preview`.
+
 `pnpm check:ts7-phase-b-readiness` is the current entry check for Phase B. It
 requires `pnpm check:ts7-phase-a-decision-ready` first, then the bounded
-protocol preview subset.
+protocol preview and editing preview subsets.
 
 `pnpm check:rust-checker-release-gate-shadow-review` is the current operator
 review command for enforcement readiness. It reads recent

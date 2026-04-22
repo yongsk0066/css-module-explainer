@@ -263,8 +263,10 @@ Current checker policy:
   - it requires both the local preview lane and the successful-shadow-run threshold
 - `pnpm check:ts7-phase-b-protocol-preview` is the first bounded protocol-layer preview path for TS 7 beta Phase B
   - it runs `lifecycle`, `hover`, `definition`, `diagnostics`, and `completion` protocol tests under `CME_TYPE_FACT_BACKEND=tsgo-preview`
+- `pnpm check:ts7-phase-b-editing-preview` is the second bounded protocol-layer preview path for TS 7 beta Phase B
+  - it runs `references`, `rename`, and `code-actions` protocol tests under `CME_TYPE_FACT_BACKEND=tsgo-preview`
 - `pnpm check:ts7-phase-b-readiness` is the current entry check for Phase B
-  - it requires `pnpm check:ts7-phase-a-decision-ready` first, then the bounded protocol preview subset
+  - it requires `pnpm check:ts7-phase-a-decision-ready` first, then the bounded protocol and editing preview subsets
 - `.github/workflows/ts7-phase-a-shadow.yml` builds the repo, then runs the Phase A readiness gate, non-release shadow path, and stability check on every `master` push and on manual dispatch
 - `pnpm check:rust-parser-scaffold` exercises the first internal Rust parser scaffold crate, `rust/crates/engine-style-parser`
 - `pnpm check:rust-parser-git-consumer` verifies that the split parser repo can be consumed as a remote git dependency by the repo-stored standalone fixture at `rust/external-consumers/engine-style-parser-git-consumer`
