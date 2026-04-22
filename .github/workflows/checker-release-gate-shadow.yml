@@ -24,6 +24,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: ./scripts/release.sh
       - run: pnpm build
+      - run: pnpm exec tsc -b server/engine-core-ts
       - id: rust_workspace
         name: Run rust-workspace
         run: pnpm check:rust-workspace
