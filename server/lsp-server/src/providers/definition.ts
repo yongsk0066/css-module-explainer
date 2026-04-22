@@ -7,7 +7,6 @@ import {
   findKeyframesByName,
   findValueImportAtCursor,
   findValueRefAtCursor,
-  readSourceExpressionResolution,
   resolveComposesTarget,
   resolveValueImportTarget,
   resolveValueTarget,
@@ -19,6 +18,7 @@ import type {
 } from "../../../engine-core-ts/src/core/hir/style-types";
 import { findLangForPath } from "../../../engine-core-ts/src/core/scss/lang-registry";
 import { pathToFileUrl } from "../../../engine-core-ts/src/core/util/text-utils";
+import { resolveSourceExpressionDefinitionTargets } from "../../../engine-host-node/src/source-definition-query";
 import { toLspRange } from "./lsp-adapters";
 import { wrapHandler } from "./_wrap-handler";
 import { withSourceExpressionAtCursor, type SourceExpressionContext } from "./cursor-dispatch";
@@ -29,8 +29,8 @@ import type { CursorParams, ProviderDeps } from "./provider-deps";
  * cursor.
  *
  * Dispatches through the unified expression cursor stage and
- * resolves selector targets through the shared ref
- * query. Each target becomes a `LocationLink`, which lets VS Code
+ * routes source-side query evaluation through the Node host boundary.
+ * Each target becomes a `LocationLink`, which lets VS Code
  * offer multi-match selection when a ref resolves to more than one
  * selector.
  *
@@ -61,28 +61,15 @@ function buildLinks(
   params: CursorParams,
   deps: ProviderDeps,
 ): LocationLink[] | null {
-  const resolution = readSourceExpressionResolution(
-    {
-      expression: ctx.expression,
-      sourceFile: ctx.entry.sourceFile,
-      styleDocument: ctx.styleDocument,
-    },
-    {
-      styleDocumentForPath: deps.styleDocumentForPath,
-      typeResolver: deps.typeResolver,
-      filePath: params.filePath,
-      workspaceRoot: deps.workspaceRoot,
-      sourceBinder: ctx.entry.sourceBinder,
-      sourceBindingGraph: ctx.entry.sourceBindingGraph,
-    },
-  );
-  const selectors = resolution.selectors;
-  if (selectors.length === 0) return null;
-  const styleDocument = resolution.styleDocument;
-  if (!styleDocument) return null;
-  const targetUri = pathToFileUrl(styleDocument.filePath);
-  return selectors.map<LocationLink>((selector) =>
-    toLocationLink(ctx.expression.range, targetUri, selector),
+  const targets = resolveSourceExpressionDefinitionTargets(ctx, params.filePath, deps);
+  if (targets.length === 0) return null;
+  return targets.map<LocationLink>((target) =>
+    toLocationLinkFromTarget(
+      target.originRange,
+      pathToFileUrl(target.targetFilePath),
+      target.targetRange,
+      target.targetSelectionRange,
+    ),
   );
 }
 
@@ -96,6 +83,20 @@ function toLocationLink(
     targetUri,
     targetRange: toLspRange(target.ruleRange),
     targetSelectionRange: toLspRange(target.range),
+  };
+}
+
+function toLocationLinkFromTarget(
+  originRange: Range,
+  targetUri: string,
+  targetRange: Range,
+  targetSelectionRange: Range,
+): LocationLink {
+  return {
+    originSelectionRange: toLspRange(originRange),
+    targetUri,
+    targetRange: toLspRange(targetRange),
+    targetSelectionRange: toLspRange(targetSelectionRange),
   };
 }
 
