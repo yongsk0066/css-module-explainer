@@ -253,8 +253,8 @@ source `definition`, source `hover`, source `rename`, style `hover`
 usage-summary resolution, style `references` location resolution, style
 `reference-lens` title/count summary and location resolution, style module
 usage / style diagnostics unused-selector resolution, style `rename`
-rewrite-safety blocking, `explain-expression`, source diagnostics symbol-ref
-invalid-class analysis, and host-side `engine-query-v2` query-result emission for
+rewrite-safety and direct edit-site resolution, `explain-expression`, source
+diagnostics symbol-ref invalid-class analysis, and host-side `engine-query-v2` query-result emission for
 `source-expression-resolution`,
 `expression-semantics`, and `selector-usage`.
 It is a milestone boundary, not a stable release gate and not yet a default

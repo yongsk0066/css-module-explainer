@@ -8,12 +8,17 @@ import {
   findSelectorAtCursor,
   readSelectorRewriteSafetySummary,
 } from "../../engine-core-ts/src/core/query";
+import type { ResolvedReferenceSite } from "../../engine-core-ts/src/core/query/find-references";
 import type { SelectorReferenceRewritePolicy } from "../../engine-core-ts/src/core/query/read-selector-rewrite-safety";
 import type { StyleDocumentHIR } from "../../engine-core-ts/src/core/hir/style-types";
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
 import { pathToFileUrl } from "../../engine-core-ts/src/core/util/text-utils";
 import { resolveSelectedQueryBackendKind } from "./selected-query-backend";
-import { resolveRustSelectorUsagePayloadForWorkspaceTarget } from "./selector-usage-query-backend";
+import {
+  buildSelectorUsageEditableDirectSitesFromRustPayload,
+  resolveRustSelectorUsagePayloadForWorkspaceTarget,
+  type SelectorUsageEvaluatorCandidatePayloadV0,
+} from "./selector-usage-query-backend";
 
 export interface StyleRenameQueryOptions {
   readonly env?: NodeJS.ProcessEnv;
@@ -148,6 +153,7 @@ function resolveStyleRenameRewriteSafety(
 
   const hasBlockingStyleDependencyReferences = payload.hasStyleDependencyReferences;
   const hasBlockingExpandedReferences = payload.hasExpandedReferences;
+  const rustEditableDirectSites = buildRustEditableDirectSites(payload);
   const referenceRewritePolicy: SelectorReferenceRewritePolicy =
     hasBlockingStyleDependencyReferences
       ? "blockedByStyleDependencies"
@@ -158,14 +164,31 @@ function resolveStyleRenameRewriteSafety(
     ...base,
     usage: {
       ...base.usage,
+      editableDirectSites: rustEditableDirectSites ?? base.usage.editableDirectSites,
       totalReferences: payload.totalReferences,
       directReferenceCount: payload.directReferenceCount,
       hasExpandedReferences: payload.hasExpandedReferences,
       hasStyleDependencyReferences: payload.hasStyleDependencyReferences,
       hasAnyReferences: payload.hasAnyReferences,
     },
+    directSites: rustEditableDirectSites ?? base.directSites,
     referenceRewritePolicy,
     hasBlockingExpandedReferences,
     hasBlockingStyleDependencyReferences,
   };
+}
+
+function buildRustEditableDirectSites(
+  payload: SelectorUsageEvaluatorCandidatePayloadV0,
+): readonly ResolvedReferenceSite[] | null {
+  const editableDirectSites = buildSelectorUsageEditableDirectSitesFromRustPayload(payload);
+  if (!editableDirectSites) return null;
+  return editableDirectSites.map((site) => ({
+    uri: pathToFileUrl(site.filePath),
+    range: site.range,
+    className: site.className,
+    selectorCertainty: "exact",
+    expansion: "direct",
+    referenceKind: "source",
+  }));
 }

@@ -98,6 +98,7 @@ pub struct ClassExpressionInputV2 {
     pub kind: String,
     pub scss_module_path: String,
     pub range: RangeV2,
+    pub class_name: Option<String>,
     pub root_binding_decl_id: Option<String>,
     pub access_path: Option<Vec<String>>,
 }
@@ -398,6 +399,7 @@ pub struct SelectorUsageEvaluatorCandidatePayloadV0 {
     pub has_style_dependency_references: bool,
     pub has_any_references: bool,
     pub all_sites: Vec<SelectorUsageReferenceSiteV0>,
+    pub editable_direct_sites: Vec<SelectorUsageEditableDirectSiteV0>,
 }
 
 #[derive(Debug, Serialize, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -407,6 +409,14 @@ pub struct SelectorUsageReferenceSiteV0 {
     pub range: RangeV2,
     pub expansion: String,
     pub reference_kind: String,
+}
+
+#[derive(Debug, Serialize, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "camelCase")]
+pub struct SelectorUsageEditableDirectSiteV0 {
+    pub file_path: String,
+    pub range: RangeV2,
+    pub class_name: String,
 }
 
 #[derive(Debug, Serialize, Clone)]

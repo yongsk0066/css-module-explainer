@@ -4,7 +4,8 @@ use std::path::{Component, Path, PathBuf};
 use crate::{
     EngineInputV2, RangeV2, SelectorUsageCandidateV0, SelectorUsageCandidatesV0,
     SelectorUsageCanonicalCandidateBundleV0, SelectorUsageCanonicalProducerSignalV0,
-    SelectorUsageEvaluatorCandidatePayloadV0, SelectorUsageEvaluatorCandidateV0,
+    SelectorUsageEditableDirectSiteV0, SelectorUsageEvaluatorCandidatePayloadV0,
+    SelectorUsageEvaluatorCandidateV0,
     SelectorUsageEvaluatorCandidatesV0, SelectorUsageFragmentV0, SelectorUsageFragmentsV0,
     SelectorUsagePlanSummaryV0, SelectorUsageQueryFragmentV0, SelectorUsageQueryFragmentsV0,
     SelectorUsageReferenceSiteV0, StyleAnalysisInputV2, StyleSelectorV2, canonical_selector_count,
@@ -117,6 +118,7 @@ struct SelectorUsageAggregate {
     inferred_or_better_reference_count: usize,
     has_expanded_references: bool,
     all_sites: Vec<SelectorUsageReferenceSiteV0>,
+    editable_direct_sites: Vec<SelectorUsageEditableDirectSiteV0>,
 }
 
 struct SelectorUsageInputRows {
@@ -257,6 +259,16 @@ fn collect_selector_usage_input_rows(input: &EngineInputV2) -> SelectorUsageInpu
             if is_direct_source {
                 counts.direct_reference_count += 1;
                 counts.editable_direct_reference_count += 1;
+                if let Some(class_name) = &expression.class_name {
+                    push_usage_editable_direct_site(
+                        &mut counts.editable_direct_sites,
+                        SelectorUsageEditableDirectSiteV0 {
+                            file_path: entry.file_path.clone(),
+                            range: expression.range.clone(),
+                            class_name: class_name.clone(),
+                        },
+                    );
+                }
             } else {
                 counts.has_expanded_references = true;
             }
@@ -344,6 +356,7 @@ fn collect_selector_usage_input_rows(input: &EngineInputV2) -> SelectorUsageInpu
                     has_style_dependency_references: candidate.has_style_dependency_references,
                     has_any_references: candidate.has_any_references,
                     all_sites: counts.all_sites.clone(),
+                    editable_direct_sites: counts.editable_direct_sites.clone(),
                 },
             });
         }
@@ -496,6 +509,15 @@ fn collect_incoming_style_dependencies(
 fn push_usage_site(
     sites: &mut Vec<SelectorUsageReferenceSiteV0>,
     site: SelectorUsageReferenceSiteV0,
+) {
+    if !sites.iter().any(|existing| existing == &site) {
+        sites.push(site);
+    }
+}
+
+fn push_usage_editable_direct_site(
+    sites: &mut Vec<SelectorUsageEditableDirectSiteV0>,
+    site: SelectorUsageEditableDirectSiteV0,
 ) {
     if !sites.iter().any(|existing| existing == &site) {
         sites.push(site);
@@ -665,6 +687,16 @@ mod tests {
         assert_eq!(summary.results[0].payload.all_sites[0].file_path, "/tmp/App.tsx");
         assert_eq!(summary.results[0].payload.all_sites[0].expansion, "expanded");
         assert_eq!(summary.results[0].payload.all_sites[0].reference_kind, "source");
+        assert!(summary.results[0].payload.editable_direct_sites.is_empty());
+        assert_eq!(summary.results[1].payload.editable_direct_sites.len(), 1);
+        assert_eq!(
+            summary.results[1].payload.editable_direct_sites[0].file_path,
+            "/tmp/Card.tsx"
+        );
+        assert_eq!(
+            summary.results[1].payload.editable_direct_sites[0].class_name,
+            "card-header"
+        );
     }
 
     #[test]

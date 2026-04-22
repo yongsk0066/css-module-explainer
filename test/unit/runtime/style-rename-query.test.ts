@@ -73,4 +73,45 @@ describe("style rename query", () => {
       reason: "expandedReferences",
     });
   });
+
+  it("uses rust selector-usage payloads for direct source rewrite sites", () => {
+    const deps = makeBaseDeps({
+      selectorMapForPath: () => new Map([["indicator", infoAtLine("indicator", 1)]]),
+      workspaceRoot: "/fake",
+    });
+    const styleDocument = deps.styleDocumentForPath(SCSS_PATH);
+
+    expect(styleDocument).not.toBeNull();
+    const plan = planStyleRenameAtCursor(SCSS_PATH, 1, 3, styleDocument!, deps, "status", {
+      env: { CME_SELECTED_QUERY_BACKEND: "rust-selector-usage" } as NodeJS.ProcessEnv,
+      readRustSelectorUsagePayloadForWorkspaceTarget: () => ({
+        canonicalName: "indicator",
+        totalReferences: 1,
+        directReferenceCount: 1,
+        editableDirectReferenceCount: 1,
+        exactReferenceCount: 1,
+        inferredOrBetterReferenceCount: 1,
+        hasExpandedReferences: false,
+        hasStyleDependencyReferences: false,
+        hasAnyReferences: true,
+        editableDirectSites: [
+          {
+            filePath: "/fake/src/App.tsx",
+            range: {
+              start: { line: 10, character: 10 },
+              end: { line: 10, character: 19 },
+            },
+            className: "indicator",
+          },
+        ],
+      }),
+    });
+
+    expect(plan?.kind).toBe("plan");
+    expect(plan?.kind === "plan" ? plan.plan.edits.map((edit) => edit.newText) : []).toEqual([
+      "status",
+      "status",
+    ]);
+    expect(plan?.kind === "plan" ? plan.plan.edits[1]?.uri : null).toBe("file:///fake/src/App.tsx");
+  });
 });

@@ -31,6 +31,7 @@ export interface SelectorUsageEvaluatorCandidatePayloadV0 {
   readonly hasStyleDependencyReferences: boolean;
   readonly hasAnyReferences: boolean;
   readonly allSites?: readonly SelectorUsageReferenceSiteV0[];
+  readonly editableDirectSites?: readonly SelectorUsageEditableDirectSiteV0[];
 }
 
 export interface SelectorUsageReferenceSiteV0 {
@@ -38,6 +39,12 @@ export interface SelectorUsageReferenceSiteV0 {
   readonly range: Range;
   readonly expansion: "direct" | "expanded";
   readonly referenceKind: "source" | "styleDependency";
+}
+
+export interface SelectorUsageEditableDirectSiteV0 {
+  readonly filePath: string;
+  readonly range: Range;
+  readonly className: string;
 }
 
 export interface SelectorUsageRenderSummary {
@@ -134,5 +141,15 @@ export function buildSelectorUsageLocationsFromRustPayload(
   return payload.allSites?.map((site) => ({
     filePath: site.filePath,
     range: site.range,
+  }));
+}
+
+export function buildSelectorUsageEditableDirectSitesFromRustPayload(
+  payload: SelectorUsageEvaluatorCandidatePayloadV0,
+) {
+  return payload.editableDirectSites?.map((site) => ({
+    filePath: site.filePath,
+    range: site.range,
+    className: site.className,
   }));
 }
