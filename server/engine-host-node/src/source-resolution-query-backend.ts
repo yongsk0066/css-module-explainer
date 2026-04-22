@@ -1,19 +1,10 @@
-import path from "node:path";
-import { spawnSync } from "node:child_process";
-import { buildEngineInputV2 } from "./engine-input-v2";
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
-
-const REPO_ROOT = path.resolve(__dirname, "../../..");
-const RUST_MANIFEST = path.join(REPO_ROOT, "rust/Cargo.toml");
-
-export type SelectedQueryBackendKind = "typescript-current" | "rust-source-resolution";
-
-export interface SourceResolutionBackendDocument {
-  readonly uri: string;
-  readonly content: string;
-  readonly filePath: string;
-  readonly version: number;
-}
+import {
+  buildSelectedQueryBackendInput,
+  resolveSelectedQueryBackendKind,
+  runRustSelectedQueryBackendJson,
+  type SelectedQueryBackendDocument,
+} from "./selected-query-backend";
 
 export interface SourceResolutionSelectorMatch {
   readonly styleFilePath: string;
@@ -37,19 +28,8 @@ interface SourceResolutionCanonicalProducerSignalV0 {
   };
 }
 
-export function resolveSelectedQueryBackendKind(
-  env: NodeJS.ProcessEnv = process.env,
-): SelectedQueryBackendKind {
-  const value = env.CME_SELECTED_QUERY_BACKEND?.trim() ?? "typescript-current";
-  if (value === "typescript-current" || value === "rust-source-resolution") {
-    return value;
-  }
-
-  throw new Error(`Unknown selected query backend: ${value}`);
-}
-
 export function resolveRustSourceResolutionSelectorMatch(
-  document: SourceResolutionBackendDocument,
+  document: SelectedQueryBackendDocument,
   expressionId: string,
   scssModulePath: string,
   deps: Pick<
@@ -57,45 +37,11 @@ export function resolveRustSourceResolutionSelectorMatch(
     "analysisCache" | "styleDocumentForPath" | "typeResolver" | "workspaceRoot" | "settings"
   >,
 ): SourceResolutionSelectorMatch | null {
-  const input = buildEngineInputV2({
-    workspaceRoot: deps.workspaceRoot,
-    classnameTransform: deps.settings.scss.classnameTransform,
-    pathAlias: deps.settings.pathAlias,
-    sourceDocuments: [document],
-    styleFiles: [scssModulePath],
-    analysisCache: deps.analysisCache,
-    styleDocumentForPath: deps.styleDocumentForPath,
-    typeResolver: deps.typeResolver,
-  });
-
-  const child = spawnSync(
-    "cargo",
-    [
-      "run",
-      "--manifest-path",
-      RUST_MANIFEST,
-      "-p",
-      "engine-shadow-runner",
-      "--quiet",
-      "--",
-      "input-source-resolution-canonical-producer",
-    ],
-    {
-      cwd: REPO_ROOT,
-      input: JSON.stringify(input),
-      encoding: "utf8",
-    },
+  const input = buildSelectedQueryBackendInput(document, scssModulePath, deps);
+  const signal = runRustSelectedQueryBackendJson<SourceResolutionCanonicalProducerSignalV0>(
+    "input-source-resolution-canonical-producer",
+    input,
   );
-
-  if (child.status !== 0) {
-    throw new Error(
-      [`engine-shadow-runner exited with code ${child.status ?? "unknown"}`, child.stderr?.trim()]
-        .filter(Boolean)
-        .join("\n"),
-    );
-  }
-
-  const signal = JSON.parse(child.stdout) as SourceResolutionCanonicalProducerSignalV0;
   const match = signal.evaluatorCandidates.results.find(
     (candidate) => candidate.queryId === expressionId,
   );
@@ -106,3 +52,5 @@ export function resolveRustSourceResolutionSelectorMatch(
     selectorNames: match.payload.selectorNames,
   };
 }
+
+export { resolveSelectedQueryBackendKind };

@@ -219,6 +219,67 @@ describe("explainExpressionAtLocation", () => {
 
     expect(result).toBeNull();
   });
+
+  it("can source expression semantics from the rust selected-query backend", () => {
+    const workspaceRoot = makeWorkspace({
+      "src/App.tsx": [
+        "import classNames from 'classnames/bind';",
+        "import styles from './Button.module.scss';",
+        "const cx = classNames.bind(styles);",
+        "export function App(enabled: boolean) {",
+        "  const size = enabled ? 'small' : 'large';",
+        "  return <div className={cx(size)} />;",
+        "}",
+        "",
+      ].join("\n"),
+      "src/Button.module.scss": ".small {}\n.large {}",
+    });
+
+    const result = explainExpressionAtLocation({
+      workspaceRoot,
+      filePath: path.join(workspaceRoot, "src/App.tsx"),
+      line: 5,
+      character: 28,
+      env: {
+        CME_SELECTED_QUERY_BACKEND: "rust-expression-semantics",
+      } as NodeJS.ProcessEnv,
+      readRustExpressionSemanticsPayload: () => ({
+        expressionId: "expr-1",
+        expressionKind: "symbolRef",
+        styleFilePath: path.join(workspaceRoot, "src/Button.module.scss"),
+        selectorNames: ["small"],
+        candidateNames: ["small", "large"],
+        finiteValues: ["small", "large"],
+        valueDomainKind: "finiteSet",
+        selectorCertainty: "inferred",
+        valueCertainty: "inferred",
+        selectorCertaintyShapeKind: "boundedFinite",
+        selectorCertaintyShapeLabel: "bounded selector set (1)",
+        valueCertaintyShapeKind: "boundedFinite",
+        valueCertaintyShapeLabel: "bounded finite (2)",
+      }),
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        selectorNames: ["small"],
+        analysisV2: expect.objectContaining({
+          valueDomainKind: "finiteSet",
+          valueCertaintyShapeKind: "boundedFinite",
+          selectorCertaintyShapeKind: "boundedFinite",
+        }),
+        dynamicExplanation: expect.objectContaining({
+          subject: "size",
+          candidates: ["small", "large"],
+          valueCertainty: "inferred",
+          valueCertaintyShapeLabel: "bounded finite (2)",
+          valueCertaintyReasonLabel: "analysis preserved multiple finite candidate values",
+          selectorCertainty: "inferred",
+          selectorCertaintyShapeLabel: "bounded selector set (1)",
+        }),
+      }),
+    );
+  });
 });
 
 function makeWorkspace(files: Record<string, string>): string {
