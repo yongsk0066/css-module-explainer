@@ -204,6 +204,10 @@ for that workflow. It reads recent `TS7 Phase A Shadow` history through `gh`
 and reports whether the repo has accumulated the current minimum of `3`
 successful shadow runs before any broader backend adoption judgment.
 
+`pnpm check:ts7-phase-a-decision-ready` is the current Phase A lock point. It
+requires both the local limited preview lane and the shadow-run threshold to be
+green before any broader preview adoption judgment.
+
 `pnpm check:rust-checker-release-gate-shadow-review` is the current operator
 review command for enforcement readiness. It reads recent
 `Checker Release Gate Shadow` workflow history through `gh` and reports whether

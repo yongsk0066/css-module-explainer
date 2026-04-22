@@ -259,6 +259,8 @@ Current checker policy:
   - it builds the repo, then runs readiness, shadow, and stability together
 - `pnpm check:ts7-phase-a-shadow-review` reviews recent `TS7 Phase A Shadow` workflow history through `gh`
   - today it reports whether the repo has accumulated the current minimum of `3` successful shadow runs before any broader backend adoption judgment
+- `pnpm check:ts7-phase-a-decision-ready` is the current lock point for Phase A
+  - it requires both the local preview lane and the successful-shadow-run threshold
 - `.github/workflows/ts7-phase-a-shadow.yml` builds the repo, then runs the Phase A readiness gate, non-release shadow path, and stability check on every `master` push and on manual dispatch
 - `pnpm check:rust-parser-scaffold` exercises the first internal Rust parser scaffold crate, `rust/crates/engine-style-parser`
 - `pnpm check:rust-parser-git-consumer` verifies that the split parser repo can be consumed as a remote git dependency by the repo-stored standalone fixture at `rust/external-consumers/engine-style-parser-git-consumer`
