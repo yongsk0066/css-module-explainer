@@ -61,7 +61,7 @@ function buildLinks(
   params: CursorParams,
   deps: ProviderDeps,
 ): LocationLink[] | null {
-  const targets = resolveSourceExpressionDefinitionTargets(ctx, params.filePath, deps);
+  const targets = resolveSourceExpressionDefinitionTargets(ctx, params, deps);
   if (targets.length === 0) return null;
   return targets.map<LocationLink>((target) =>
     toLocationLinkFromTarget(

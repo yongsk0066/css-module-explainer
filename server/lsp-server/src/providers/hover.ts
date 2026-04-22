@@ -60,7 +60,7 @@ function buildHover(
   deps: ProviderDeps,
   maxCandidates: number,
 ): Hover | null {
-  const result = resolveSourceExpressionHoverResult(ctx, params.filePath, deps);
+  const result = resolveSourceExpressionHoverResult(ctx, params, deps);
   const markdown = renderHover({
     expression: ctx.expression,
     scssModulePath: ctx.expression.scssModulePath,

@@ -86,10 +86,40 @@ describe("resolveSourceExpressionHoverResult", () => {
     });
 
     expect(ctx).not.toBeNull();
-    const result = resolveSourceExpressionHoverResult(ctx!, params.filePath, deps);
+    const result = resolveSourceExpressionHoverResult(ctx!, params, deps);
 
     expect(result.selectors.map((selector) => selector.name)).toEqual(["indicator"]);
     expect(result.dynamicExplanation).toBeNull();
+    expect(Array.from(result.styleDependenciesBySelector.keys())).toEqual(["indicator"]);
+  });
+
+  it("can source selectors from the rust source-resolution backend", () => {
+    const deps = makeDeps();
+    const params = {
+      documentUri: "file:///fake/src/Button.tsx",
+      content: TSX,
+      filePath: "/fake/src/Button.tsx",
+      line: 4,
+      character: 18,
+      version: 1,
+    };
+    const ctx = readSourceExpressionContextAtCursor(params, {
+      analysisCache: deps.analysisCache,
+      styleDocumentForPath: deps.styleDocumentForPath,
+    });
+
+    expect(ctx).not.toBeNull();
+    const result = resolveSourceExpressionHoverResult(ctx!, params, deps, {
+      env: {
+        CME_SELECTED_QUERY_BACKEND: "rust-source-resolution",
+      } as NodeJS.ProcessEnv,
+      readRustSourceResolutionSelectorMatch: () => ({
+        styleFilePath: "/fake/src/Button.module.scss",
+        selectorNames: ["indicator"],
+      }),
+    });
+
+    expect(result.selectors.map((selector) => selector.name)).toEqual(["indicator"]);
     expect(Array.from(result.styleDependenciesBySelector.keys())).toEqual(["indicator"]);
   });
 });

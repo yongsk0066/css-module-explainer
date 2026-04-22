@@ -91,7 +91,7 @@ describe("resolveSourceExpressionDefinitionTargets", () => {
     });
 
     expect(ctx).not.toBeNull();
-    const targets = resolveSourceExpressionDefinitionTargets(ctx!, baseParams.filePath, deps);
+    const targets = resolveSourceExpressionDefinitionTargets(ctx!, baseParams, deps);
 
     expect(targets).toHaveLength(1);
     expect(targets[0]).toEqual({
@@ -131,11 +131,47 @@ describe("resolveSourceExpressionDefinitionTargets", () => {
     });
 
     expect(ctx).not.toBeNull();
-    const targets = resolveSourceExpressionDefinitionTargets(ctx!, baseParams.filePath, deps);
+    const targets = resolveSourceExpressionDefinitionTargets(ctx!, baseParams, deps);
 
     expect(targets).toHaveLength(2);
     expect(
       targets.every((target) => target.targetFilePath === "/fake/src/Button.module.scss"),
     ).toBe(true);
+  });
+
+  it("can read targets through the rust source-resolution backend", () => {
+    const deps = makeDepsForExpressions([
+      {
+        kind: "literal",
+        origin: "cxCall",
+        className: "indicator",
+        range: {
+          start: { line: 4, character: 15 },
+          end: { line: 4, character: 24 },
+        },
+        scssModulePath: "/fake/src/Button.module.scss",
+      },
+    ]);
+    const ctx = readSourceExpressionContextAtCursor(baseParams, {
+      analysisCache: deps.analysisCache,
+      styleDocumentForPath: deps.styleDocumentForPath,
+    });
+
+    expect(ctx).not.toBeNull();
+    const targets = resolveSourceExpressionDefinitionTargets(ctx!, baseParams, deps, {
+      env: {
+        CME_SELECTED_QUERY_BACKEND: "rust-source-resolution",
+      } as NodeJS.ProcessEnv,
+      readRustSourceResolutionSelectorMatch: (_document) => ({
+        styleFilePath: "/fake/src/Button.module.scss",
+        selectorNames: ["indicator"],
+      }),
+    });
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0]?.targetSelectionRange).toEqual({
+      start: { line: 11, character: 2 },
+      end: { line: 11, character: 11 },
+    });
   });
 });

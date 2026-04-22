@@ -5,10 +5,15 @@ import type {
   ValueDeclHIR,
 } from "../../engine-core-ts/src/core/hir/style-types";
 import {
+  findCanonicalSelector,
   readSourceExpressionResolution,
   type SourceExpressionContext,
 } from "../../engine-core-ts/src/core/query";
-import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
+import type { CursorParams, ProviderDeps } from "../../engine-core-ts/src/provider-deps";
+import {
+  resolveRustSourceResolutionSelectorMatch,
+  resolveSelectedQueryBackendKind,
+} from "./source-resolution-query-backend";
 
 export interface SourceDefinitionTarget {
   readonly originRange: Range;
@@ -17,11 +22,50 @@ export interface SourceDefinitionTarget {
   readonly targetSelectionRange: Range;
 }
 
+export interface SourceDefinitionQueryOptions {
+  readonly env?: NodeJS.ProcessEnv;
+  readonly readRustSourceResolutionSelectorMatch?: typeof resolveRustSourceResolutionSelectorMatch;
+}
+
 export function resolveSourceExpressionDefinitionTargets(
   ctx: SourceExpressionContext,
-  filePath: string,
-  deps: Pick<ProviderDeps, "styleDocumentForPath" | "typeResolver" | "workspaceRoot">,
+  params: Pick<CursorParams, "documentUri" | "content" | "filePath" | "version">,
+  deps: Pick<
+    ProviderDeps,
+    "analysisCache" | "styleDocumentForPath" | "typeResolver" | "workspaceRoot" | "settings"
+  >,
+  options: SourceDefinitionQueryOptions = {},
 ): readonly SourceDefinitionTarget[] {
+  const backend = resolveSelectedQueryBackendKind(options.env);
+  if (backend === "rust-source-resolution") {
+    const readRustSelectorMatch =
+      options.readRustSourceResolutionSelectorMatch ?? resolveRustSourceResolutionSelectorMatch;
+    const match = readRustSelectorMatch(
+      {
+        uri: params.documentUri,
+        content: params.content,
+        filePath: params.filePath,
+        version: params.version,
+      },
+      ctx.expression.id,
+      ctx.expression.scssModulePath,
+      deps,
+    );
+    if (!match) return [];
+    const styleDocument = deps.styleDocumentForPath(match.styleFilePath);
+    if (!styleDocument || match.selectorNames.length === 0) return [];
+    return match.selectorNames
+      .map((name) => {
+        const selector =
+          styleDocument.selectors.find((candidate) => candidate.canonicalName === name) ?? null;
+        return selector ? findCanonicalSelector(styleDocument, selector) : null;
+      })
+      .filter((selector): selector is SelectorDeclHIR => selector !== null)
+      .map((selector) =>
+        toSourceDefinitionTarget(ctx.expression.range, match.styleFilePath, selector),
+      );
+  }
+
   const resolution = readSourceExpressionResolution(
     {
       expression: ctx.expression,
@@ -31,7 +75,7 @@ export function resolveSourceExpressionDefinitionTargets(
     {
       styleDocumentForPath: deps.styleDocumentForPath,
       typeResolver: deps.typeResolver,
-      filePath,
+      filePath: params.filePath,
       workspaceRoot: deps.workspaceRoot,
       sourceBinder: ctx.entry.sourceBinder,
       sourceBindingGraph: ctx.entry.sourceBindingGraph,
