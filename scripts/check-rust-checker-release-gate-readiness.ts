@@ -69,8 +69,14 @@ void (async () => {
     sourceProducer.boundedCheckerGate.releaseGateReadinessCommand,
     "pnpm check:rust-checker-release-gate-readiness",
   );
-  assert.equal(styleProducer.boundedCheckerGate.releaseBundleCommand, "pnpm check:rust-release-bundle");
-  assert.equal(sourceProducer.boundedCheckerGate.releaseBundleCommand, "pnpm check:rust-release-bundle");
+  assert.equal(
+    styleProducer.boundedCheckerGate.releaseBundleCommand,
+    "pnpm check:rust-release-bundle",
+  );
+  assert.equal(
+    sourceProducer.boundedCheckerGate.releaseBundleCommand,
+    "pnpm check:rust-release-bundle",
+  );
   assert.equal(styleProducer.boundedCheckerGate.minimumBoundedLaneCountForRustReleaseBundle, 2);
   assert.equal(sourceProducer.boundedCheckerGate.minimumBoundedLaneCountForRustReleaseBundle, 2);
   assert.equal(styleProducer.boundedCheckerGate.includedInRustLaneBundle, true);
