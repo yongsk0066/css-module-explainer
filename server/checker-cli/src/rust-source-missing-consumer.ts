@@ -63,9 +63,9 @@ export interface CheckerSourceMissingCanonicalProducerSignalV0 {
     readonly minimumBoundedLaneCountForRustReleaseBundle: 2;
     readonly minimumSuccessfulShadowRunsForRustReleaseBundle: 3;
     readonly checkerBundle: "source-missing";
-    readonly releaseGateStage: "shadowed";
+    readonly releaseGateStage: "enforced";
     readonly includedInRustLaneBundle: true;
-    readonly includedInRustReleaseBundle: false;
+    readonly includedInRustReleaseBundle: true;
   };
 }
 

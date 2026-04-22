@@ -860,9 +860,9 @@ fn summarize_checker_style_recovery_canonical_producer(
             minimum_bounded_lane_count_for_rust_release_bundle: 2,
             minimum_successful_shadow_runs_for_rust_release_bundle: 3,
             checker_bundle: "style-recovery",
-            release_gate_stage: "shadowed",
+            release_gate_stage: "enforced",
             included_in_rust_lane_bundle: true,
-            included_in_rust_release_bundle: false,
+            included_in_rust_release_bundle: true,
         },
     }
 }
@@ -954,9 +954,9 @@ fn summarize_checker_source_missing_canonical_producer(
             minimum_bounded_lane_count_for_rust_release_bundle: 2,
             minimum_successful_shadow_runs_for_rust_release_bundle: 3,
             checker_bundle: "source-missing",
-            release_gate_stage: "shadowed",
+            release_gate_stage: "enforced",
             included_in_rust_lane_bundle: true,
-            included_in_rust_release_bundle: false,
+            included_in_rust_release_bundle: true,
         },
     }
 }

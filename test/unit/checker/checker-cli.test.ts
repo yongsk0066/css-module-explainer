@@ -484,9 +484,9 @@ describe("runCheckerCli", () => {
         minimumBoundedLaneCountForRustReleaseBundle: 2,
         minimumSuccessfulShadowRunsForRustReleaseBundle: 3,
         checkerBundle: "style-recovery",
-        releaseGateStage: "shadowed",
+        releaseGateStage: "enforced",
         includedInRustLaneBundle: true,
-        includedInRustReleaseBundle: false,
+        includedInRustReleaseBundle: true,
       },
     });
     expect(payload.rustStyleRecoveryConsistency).toEqual({
@@ -527,7 +527,7 @@ describe("runCheckerCli", () => {
     expect(exitCode).toBe(0);
     expect(stderr).toEqual([]);
     expect(stdout.join("")).toContain(
-      "Rust style-recovery consumer: findings=1 consistent=true releaseGate=false",
+      "Rust style-recovery consumer: findings=1 consistent=true releaseGate=true",
     );
   }, 30000);
 
@@ -582,9 +582,9 @@ describe("runCheckerCli", () => {
         minimumBoundedLaneCountForRustReleaseBundle: 2,
         minimumSuccessfulShadowRunsForRustReleaseBundle: 3,
         checkerBundle: "source-missing",
-        releaseGateStage: "shadowed",
+        releaseGateStage: "enforced",
         includedInRustLaneBundle: true,
-        includedInRustReleaseBundle: false,
+        includedInRustReleaseBundle: true,
       },
     });
     expect(payload.rustSourceMissingConsistency).toEqual({
@@ -625,7 +625,7 @@ describe("runCheckerCli", () => {
     expect(exitCode).toBe(0);
     expect(stderr).toEqual([]);
     expect(stdout.join("")).toContain(
-      "Rust source-missing consumer: findings=1 consistent=true releaseGate=false",
+      "Rust source-missing consumer: findings=1 consistent=true releaseGate=true",
     );
   }, 30000);
 });

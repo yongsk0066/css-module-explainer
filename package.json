@@ -106,7 +106,7 @@
     "check:rust-split-boundaries": "pnpm check:rust-input-producers-split-boundary && pnpm check:rust-parser-split-boundary",
     "check:rust-split-consumer-pins": "tsx ./scripts/update-rust-split-consumer-pins.ts --check",
     "check:rust-lane-bundle": "pnpm check:rust-producer-boundary && pnpm check:rust-parser-public-product && pnpm check:rust-checker-entrance",
-    "check:rust-release-bundle": "pnpm check:rust-workspace && pnpm check:rust-producer-boundary && pnpm check:rust-parser-public-product && pnpm check:rust-gate-evidence -- --variant typescript-current --repeat 1 --json",
+    "check:rust-release-bundle": "pnpm check:rust-workspace && pnpm check:rust-producer-boundary && pnpm check:rust-parser-public-product && pnpm check:rust-checker-entrance && pnpm check:rust-gate-evidence -- --variant typescript-current --repeat 1 --json",
     "check:rust-source-resolution-match-fragments": "tsx ./scripts/check-rust-source-resolution-match-fragments.ts",
     "check:rust-source-resolution-candidates": "tsx ./scripts/check-rust-source-resolution-candidates.ts",
     "check:rust-source-resolution-evaluator-candidates": "tsx ./scripts/check-rust-source-resolution-evaluator-candidates.ts",

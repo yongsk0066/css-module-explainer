@@ -92,8 +92,8 @@ void (async () => {
       );
       assert.equal(
         payload.rustSourceMissingCanonicalProducer.boundedCheckerGate.includedInRustReleaseBundle,
-        false,
-        `${entry.label}: release gate should remain false`,
+        true,
+        `${entry.label}: release gate should remain true`,
       );
       assert.equal(
         payload.rustSourceMissingConsistency.findingsMatch,
@@ -106,7 +106,7 @@ void (async () => {
         `${entry.label}: expected consistency count match`,
       );
 
-      return `== rust-checker-source-missing-consumer:${entry.label} ==\nvalidated code=${entry.code} consistent=true releaseGate=false\n\n`;
+      return `== rust-checker-source-missing-consumer:${entry.label} ==\nvalidated code=${entry.code} consistent=true releaseGate=true\n\n`;
     }),
   );
 

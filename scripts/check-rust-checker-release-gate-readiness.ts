@@ -100,12 +100,12 @@ void (async () => {
     sourceProducer.boundedCheckerGate.minimumSuccessfulShadowRunsForRustReleaseBundle,
     3,
   );
-  assert.equal(styleProducer.boundedCheckerGate.releaseGateStage, "shadowed");
-  assert.equal(sourceProducer.boundedCheckerGate.releaseGateStage, "shadowed");
+  assert.equal(styleProducer.boundedCheckerGate.releaseGateStage, "enforced");
+  assert.equal(sourceProducer.boundedCheckerGate.releaseGateStage, "enforced");
   assert.equal(styleProducer.boundedCheckerGate.includedInRustLaneBundle, true);
   assert.equal(sourceProducer.boundedCheckerGate.includedInRustLaneBundle, true);
-  assert.equal(styleProducer.boundedCheckerGate.includedInRustReleaseBundle, false);
-  assert.equal(sourceProducer.boundedCheckerGate.includedInRustReleaseBundle, false);
+  assert.equal(styleProducer.boundedCheckerGate.includedInRustReleaseBundle, true);
+  assert.equal(sourceProducer.boundedCheckerGate.includedInRustReleaseBundle, true);
 
   const minimumBoundedLaneCount =
     styleProducer.boundedCheckerGate.minimumBoundedLaneCountForRustReleaseBundle;

@@ -130,19 +130,19 @@ downstream consumer check all stay green together.
 `pnpm check:rust-checker-entrance` is the current official checker-canonical
 entrance gate. It currently aliases `pnpm check:rust-checker-bounded-lanes`,
 which runs the bounded `style-recovery` and `source-missing` checker lanes.
-That checker entrance is now included in the broader Rust lane, but it remains
-outside the default stable release gate.
+That checker entrance is now included in both the broader Rust lane and the
+default stable release gate.
 
 `pnpm check:rust-checker-promotion-review` is the operator check for that
 promotion decision. It validates the current checker-lane gate metadata and
-confirms the bounded checker lanes are now inside `rust-lane-bundle` while
-still remaining outside `rust-release-bundle`.
+confirms the bounded checker lanes are now inside both `rust-lane-bundle` and
+`rust-release-bundle`.
 
 `pnpm check:rust-checker-broader-lane-readiness` locks the broader-lane
 promotion criteria for those bounded checker lanes. It currently requires two
 bounded lanes, a shared promotion-review command, and a broader target of
 `pnpm check:rust-lane-bundle`. The current state is that both lanes are
-promoted into the broader Rust lane but still excluded from the release gate.
+promoted into the broader Rust lane and enforced in the release gate.
 
 `pnpm check:rust-checker-real-project-bounded` adds one more promotion-evidence
 layer on top of the smoke fixtures. It validates the bounded checker lanes
@@ -157,25 +157,26 @@ broader-lane readiness, and the bounded real-project corpus check.
 promotion criteria for those checker lanes. It currently requires broader-lane
 promotion evidence, a release target of `pnpm check:rust-release-bundle`, a
 shadow soak target of `pnpm check:rust-checker-release-gate-shadow`, and the
-same minimum bounded-lane count of `2`. The current state is still
-`includedInRustReleaseBundle=false` for both lanes.
+same minimum bounded-lane count of `2`. The current state is now
+`includedInRustReleaseBundle=true` for both lanes.
 
-`pnpm check:rust-checker-release-gate-shadow` is the current non-enforcing
-shadow soak for checker entrance promotion. It runs `pnpm check:rust-release-bundle`,
+`pnpm check:rust-checker-release-gate-shadow` is the current post-enforcement
+observation soak for checker entrance. It runs `pnpm check:rust-release-bundle`,
 `pnpm check:rust-checker-entrance`, and `pnpm check:rust-checker-promotion-evidence`
-together while the checker lanes remain outside the release bundle.
+together after the checker lanes have already been enforced in the release bundle.
 
 `.github/workflows/checker-release-gate-shadow.yml` runs the same shadow soak on
 every `master` push. It builds the repo artifacts and the `server/engine-core-ts`
 and `server/engine-host-node` dist outputs required by
 `pnpm check:rust-gate-evidence`, then executes the release bundle components,
 checker entrance, and promotion evidence as separate workflow steps so failures
-are attributable without changing the stable release gate.
+remain attributable after the stable release gate flip.
 
 `pnpm check:rust-checker-release-gate-shadow-review` is the current operator
 review command for enforcement readiness. It reads recent
 `Checker Release Gate Shadow` workflow history through `gh` and reports whether
-the repo has accumulated the current minimum of `3` successful shadow runs.
+the repo has accumulated the current minimum of `3` successful shadow runs that
+were required before enforcement.
 
 `pnpm check:rust-lane-bundle` is the broader Rust lane gate. It combines the
 current semantic producer boundary checks, `pnpm check:rust-parser-public-product`,
@@ -183,9 +184,8 @@ and `pnpm check:rust-checker-entrance`.
 
 `pnpm check:rust-release-bundle` is the release-facing Rust gate. It runs the
 workspace hygiene pass, the current semantic producer boundary checks,
-`pnpm check:rust-parser-public-product`, and the current `rust-gate-evidence`
-measurement step. It intentionally excludes `pnpm check:rust-checker-entrance`
-for now.
+`pnpm check:rust-parser-public-product`, `pnpm check:rust-checker-entrance`,
+and the current `rust-gate-evidence` measurement step.
 
 `pnpm check:rust-split-boundaries` is the current operational check for the two
 external Rust split repos. It is not part of the default stable release gate.

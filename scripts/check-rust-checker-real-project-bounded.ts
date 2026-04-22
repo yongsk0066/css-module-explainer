@@ -116,9 +116,9 @@ void (async () => {
       minimumBoundedLaneCountForRustReleaseBundle: 2,
       minimumSuccessfulShadowRunsForRustReleaseBundle: 3,
       checkerBundle: "style-recovery",
-      releaseGateStage: "shadowed",
+      releaseGateStage: "enforced",
       includedInRustLaneBundle: true,
-      includedInRustReleaseBundle: false,
+      includedInRustReleaseBundle: true,
     },
   } satisfies CheckerStyleRecoveryCanonicalProducerSignalV0);
 
@@ -143,9 +143,9 @@ void (async () => {
       minimumBoundedLaneCountForRustReleaseBundle: 2,
       minimumSuccessfulShadowRunsForRustReleaseBundle: 3,
       checkerBundle: "source-missing",
-      releaseGateStage: "shadowed",
+      releaseGateStage: "enforced",
       includedInRustLaneBundle: true,
-      includedInRustReleaseBundle: false,
+      includedInRustReleaseBundle: true,
     },
   } satisfies CheckerSourceMissingCanonicalProducerSignalV0);
 

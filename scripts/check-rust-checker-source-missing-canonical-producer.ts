@@ -124,9 +124,9 @@ void (async () => {
         minimumBoundedLaneCountForRustReleaseBundle: 2,
         minimumSuccessfulShadowRunsForRustReleaseBundle: 3,
         checkerBundle: "source-missing",
-        releaseGateStage: "shadowed",
+        releaseGateStage: "enforced",
         includedInRustLaneBundle: true,
-        includedInRustReleaseBundle: false,
+        includedInRustReleaseBundle: true,
       },
     };
 

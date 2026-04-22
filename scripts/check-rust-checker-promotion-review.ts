@@ -70,8 +70,8 @@ void (async () => {
   );
   assert.equal(styleProducer.boundedCheckerGate.includedInRustLaneBundle, true);
   assert.equal(sourceProducer.boundedCheckerGate.includedInRustLaneBundle, true);
-  assert.equal(styleProducer.boundedCheckerGate.includedInRustReleaseBundle, false);
-  assert.equal(sourceProducer.boundedCheckerGate.includedInRustReleaseBundle, false);
+  assert.equal(styleProducer.boundedCheckerGate.includedInRustReleaseBundle, true);
+  assert.equal(sourceProducer.boundedCheckerGate.includedInRustReleaseBundle, true);
 
   process.stdout.write(
     [
