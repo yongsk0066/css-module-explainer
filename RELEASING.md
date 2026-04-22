@@ -153,6 +153,12 @@ not rely on smoke-only evidence.
 for checker-lane promotion evidence. It currently runs promotion review,
 broader-lane readiness, and the bounded real-project corpus check.
 
+`pnpm check:rust-checker-release-gate-readiness` locks the release-gate
+promotion criteria for those checker lanes. It currently requires broader-lane
+promotion evidence, a release target of `pnpm check:rust-release-bundle`, and
+the same minimum bounded-lane count of `2`. The current state is still
+`includedInRustReleaseBundle=false` for both lanes.
+
 `pnpm check:rust-lane-bundle` is the broader Rust lane gate. It combines the
 current semantic producer boundary checks, `pnpm check:rust-parser-public-product`,
 and `pnpm check:rust-checker-entrance`.
