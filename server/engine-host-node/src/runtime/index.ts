@@ -24,6 +24,12 @@ export {
   type WatchedFileDeps,
 } from "./watched-file-changes";
 export {
+  applyWatchedFileChanges,
+  type ApplyWatchedFileChangesArgs,
+  type WatchedFileApplicationDocuments,
+  type WatchedFileApplicationResult,
+} from "./watched-file-application";
+export {
   createWorkspaceAnalysisCache,
   type WorkspaceAnalysisRuntimeArgs,
 } from "./workspace-analysis-runtime";

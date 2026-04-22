@@ -27,12 +27,11 @@ import { createDiagnosticsScheduler, type DiagnosticsScheduler } from "./diagnos
 import type { WorkspaceRegistry } from "../../engine-host-node/src/workspace/workspace-registry";
 import {
   planSettingsReload,
-  planWatchedFileInvalidation,
   type SettingsReloadWorkspaceChange,
   createRuntimeDependencySnapshot,
   snapshotOpenDocuments,
-  collectWatchedFileChangeInputs,
   type RuntimeFileEvent,
+  applyWatchedFileChanges,
 } from "../../engine-host-node/src/runtime";
 
 export interface HandlerContext {
@@ -309,66 +308,16 @@ function registerWatchedFilesHandler(state: HandlerState): void {
   connection.onDidChangeWatchedFiles((params: DidChangeWatchedFilesParams) => {
     const registry = state.ctx.getRegistry();
     if (!registry) return;
-    const snapshot = createRuntimeDependencySnapshot(
-      registry.allDeps(),
-      snapshotOpenDocuments({
-        documents: state.ctx.documents,
-        getWorkspaceRoot: (uri) => state.ctx.getDeps(uri)?.workspaceRoot ?? null,
-      }),
-    );
-    const changes = collectWatchedFileChangeInputs(
-      params.changes.map(toRuntimeFileEvent),
-      {
-        documents: state.ctx.documents,
-        getDepsForFilePath: (filePath) => registry.getDepsForFilePath(filePath),
-      },
-      snapshot,
-    );
-    const plan = planWatchedFileInvalidation(changes, snapshot.openDocuments);
-    const affectedDeps = registry
-      .allDeps()
-      .filter(
-        (deps) =>
-          plan.aliasRebuildRoots.includes(deps.workspaceRoot) ||
-          plan.typeResolverInvalidationRoots.includes(deps.workspaceRoot),
-      );
-    for (const change of changes) {
-      if (change.kind !== "style" || !change.semanticsChanged) continue;
-      const deps = registry.getDepsForFilePath(change.filePath);
-      if (!deps) continue;
-      if (plan.stylePathsToInvalidate.includes(change.filePath)) {
-        deps.invalidateStyle(change.filePath);
-      }
-      if (plan.stylePathsToPush.includes(change.filePath)) {
-        deps.pushStyleFile(change.filePath);
-      }
+    const result = applyWatchedFileChanges({
+      registry,
+      documents: state.ctx.documents,
+      events: params.changes.map(toRuntimeFileEvent),
+    });
+    for (const uri of result.affectedStyleUris) {
+      state.scheduler.scheduleScss(uri);
     }
-    for (const deps of affectedDeps) {
-      if (plan.aliasRebuildRoots.includes(deps.workspaceRoot)) {
-        deps.rebuildAliasResolver(deps.settings.pathAlias);
-      }
-      if (plan.typeResolverInvalidationRoots.includes(deps.workspaceRoot)) {
-        deps.typeResolver.invalidate(deps.workspaceRoot);
-      }
-    }
-    for (const uri of plan.affectedSourceUris) {
-      const deps = state.ctx.getDeps(uri);
-      if (!deps) continue;
-      deps.semanticReferenceIndex.forget(uri);
-      deps.analysisCache.invalidate(uri);
-    }
-    for (const doc of snapshot.openDocuments) {
-      const rootAffected =
-        doc.workspaceRoot !== null && plan.affectedWorkspaceRoots.includes(doc.workspaceRoot);
-      const sourceAffected = plan.affectedSourceUris.includes(doc.uri);
-      if (!rootAffected && !sourceAffected) continue;
-      if (doc.isStyle) {
-        if (rootAffected) state.scheduler.scheduleScss(doc.uri);
-        continue;
-      }
-      if (sourceAffected) {
-        state.scheduler.scheduleTsx(doc.uri);
-      }
+    for (const uri of result.affectedSourceUris) {
+      state.scheduler.scheduleTsx(uri);
     }
   });
 }
