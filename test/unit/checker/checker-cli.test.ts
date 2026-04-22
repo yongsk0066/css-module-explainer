@@ -477,6 +477,7 @@ describe("runCheckerCli", () => {
         broaderRustLaneCommand: "pnpm check:rust-lane-bundle",
         minimumBoundedLaneCountForRustLaneBundle: 2,
         checkerBundle: "style-recovery",
+        includedInRustLaneBundle: true,
         includedInRustReleaseBundle: false,
       },
     });
@@ -566,6 +567,7 @@ describe("runCheckerCli", () => {
         broaderRustLaneCommand: "pnpm check:rust-lane-bundle",
         minimumBoundedLaneCountForRustLaneBundle: 2,
         checkerBundle: "source-missing",
+        includedInRustLaneBundle: true,
         includedInRustReleaseBundle: false,
       },
     });

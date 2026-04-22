@@ -276,8 +276,8 @@ Current checker policy:
 - `pnpm check:rust-checker-source-missing-lane` runs the full bounded source-side checker lane: canonical-candidate, canonical-producer, and opt-in consumer-boundary consistency
 - `pnpm check:rust-checker-bounded-lanes` is the current aggregate entry for bounded checker-canonical lanes; today it runs `style-recovery` and `source-missing`
 - `pnpm check:rust-checker-entrance` is the official checker-canonical entrance gate; it currently aliases `pnpm check:rust-checker-bounded-lanes`
-- `pnpm check:rust-checker-promotion-review` validates the current promotion stance for bounded checker lanes; today it confirms both lanes are still entrance-only and not part of the broader Rust lane or release gate
-- `pnpm check:rust-checker-broader-lane-readiness` locks the current broader-lane promotion criteria for those bounded lanes; today it requires two bounded lanes, a promotion-review command, and a broader target of `pnpm check:rust-lane-bundle`, while still keeping both lanes outside the broader Rust lane and release gate
+- `pnpm check:rust-checker-promotion-review` validates the current promotion stance for bounded checker lanes; today it confirms both lanes are inside the broader Rust lane while still staying outside the release gate
+- `pnpm check:rust-checker-broader-lane-readiness` locks the current broader-lane promotion criteria for those bounded lanes; today it requires two bounded lanes, a promotion-review command, and a broader target of `pnpm check:rust-lane-bundle`, with both lanes promoted into the broader Rust lane but still excluded from the release gate
 - `pnpm check:rust-checker-real-project-bounded` validates both bounded checker lanes against a small multi-file real-project-like corpus instead of smoke-only fixtures
 - `pnpm check:rust-checker-promotion-evidence` runs the full bounded checker promotion evidence set: promotion review, broader-lane readiness, and real-project bounded corpus validation
 - Rust shadow validation now covers:

@@ -56,7 +56,7 @@ export interface CheckerSourceMissingCanonicalProducerSignalV0 {
     readonly broaderRustLaneCommand: "pnpm check:rust-lane-bundle";
     readonly minimumBoundedLaneCountForRustLaneBundle: 2;
     readonly checkerBundle: "source-missing";
-    readonly includedInRustLaneBundle: false;
+    readonly includedInRustLaneBundle: true;
     readonly includedInRustReleaseBundle: false;
   };
 }

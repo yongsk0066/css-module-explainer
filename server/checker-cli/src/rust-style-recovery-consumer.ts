@@ -56,7 +56,7 @@ export interface CheckerStyleRecoveryCanonicalProducerSignalV0 {
     readonly broaderRustLaneCommand: "pnpm check:rust-lane-bundle";
     readonly minimumBoundedLaneCountForRustLaneBundle: 2;
     readonly checkerBundle: "style-recovery";
-    readonly includedInRustLaneBundle: false;
+    readonly includedInRustLaneBundle: true;
     readonly includedInRustReleaseBundle: false;
   };
 }

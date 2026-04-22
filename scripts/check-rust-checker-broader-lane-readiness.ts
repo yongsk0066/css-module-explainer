@@ -71,8 +71,8 @@ void (async () => {
   );
   assert.equal(styleProducer.boundedCheckerGate.minimumBoundedLaneCountForRustLaneBundle, 2);
   assert.equal(sourceProducer.boundedCheckerGate.minimumBoundedLaneCountForRustLaneBundle, 2);
-  assert.equal(styleProducer.boundedCheckerGate.includedInRustLaneBundle, false);
-  assert.equal(sourceProducer.boundedCheckerGate.includedInRustLaneBundle, false);
+  assert.equal(styleProducer.boundedCheckerGate.includedInRustLaneBundle, true);
+  assert.equal(sourceProducer.boundedCheckerGate.includedInRustLaneBundle, true);
   assert.equal(styleProducer.boundedCheckerGate.includedInRustReleaseBundle, false);
   assert.equal(sourceProducer.boundedCheckerGate.includedInRustReleaseBundle, false);
 

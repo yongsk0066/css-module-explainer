@@ -117,7 +117,7 @@ void (async () => {
         broaderRustLaneCommand: "pnpm check:rust-lane-bundle",
         minimumBoundedLaneCountForRustLaneBundle: 2,
         checkerBundle: "style-recovery",
-        includedInRustLaneBundle: false,
+        includedInRustLaneBundle: true,
         includedInRustReleaseBundle: false,
       },
     };

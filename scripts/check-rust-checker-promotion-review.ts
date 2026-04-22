@@ -68,8 +68,8 @@ void (async () => {
     sourceProducer.boundedCheckerGate.boundedCheckerLaneCommand,
     "pnpm check:rust-checker-bounded-lanes",
   );
-  assert.equal(styleProducer.boundedCheckerGate.includedInRustLaneBundle, false);
-  assert.equal(sourceProducer.boundedCheckerGate.includedInRustLaneBundle, false);
+  assert.equal(styleProducer.boundedCheckerGate.includedInRustLaneBundle, true);
+  assert.equal(sourceProducer.boundedCheckerGate.includedInRustLaneBundle, true);
   assert.equal(styleProducer.boundedCheckerGate.includedInRustReleaseBundle, false);
   assert.equal(sourceProducer.boundedCheckerGate.includedInRustReleaseBundle, false);
 

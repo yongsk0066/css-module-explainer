@@ -837,7 +837,7 @@ fn summarize_checker_style_recovery_canonical_producer(
             broader_rust_lane_command: "pnpm check:rust-lane-bundle",
             minimum_bounded_lane_count_for_rust_lane_bundle: 2,
             checker_bundle: "style-recovery",
-            included_in_rust_lane_bundle: false,
+            included_in_rust_lane_bundle: true,
             included_in_rust_release_bundle: false,
         },
     }
@@ -923,7 +923,7 @@ fn summarize_checker_source_missing_canonical_producer(
             broader_rust_lane_command: "pnpm check:rust-lane-bundle",
             minimum_bounded_lane_count_for_rust_lane_bundle: 2,
             checker_bundle: "source-missing",
-            included_in_rust_lane_bundle: false,
+            included_in_rust_lane_bundle: true,
             included_in_rust_release_bundle: false,
         },
     }
