@@ -48,14 +48,23 @@ function commandForVariant(
   if (selectedVariant === "tsgo-preview") {
     return [
       "dlx",
-      "@typescript/native-preview",
+      "@typescript/native-preview@beta",
       "-p",
       tsconfigPath,
       "--pretty",
       "false",
       "--noEmit",
+      ...previewCheckerArgs(),
     ];
   }
 
   return ["exec", "tsc", "-p", tsconfigPath, "--pretty", "false", "--noEmit"];
+}
+
+function previewCheckerArgs(): readonly string[] {
+  const value = process.env.CME_TSGO_PREVIEW_CHECKERS?.trim();
+  if (!value) {
+    return [];
+  }
+  return ["--checkers", value];
 }

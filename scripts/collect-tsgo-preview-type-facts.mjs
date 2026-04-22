@@ -13,7 +13,15 @@ async function main() {
   const input = JSON.parse(readFileSync(0, "utf8"));
   const child = spawn(
     "pnpm",
-    ["dlx", "@typescript/native-preview", "--api", "--async", "--cwd", input.workspaceRoot],
+    [
+      "dlx",
+      "@typescript/native-preview@beta",
+      "--api",
+      "--async",
+      "--cwd",
+      input.workspaceRoot,
+      ...resolvePreviewCheckerArgs(),
+    ],
     {
       cwd: input.workspaceRoot,
       stdio: ["pipe", "pipe", "pipe"],
@@ -112,6 +120,14 @@ function waitForExit(child) {
     child.once("exit", () => resolve());
     child.once("close", () => resolve());
   });
+}
+
+function resolvePreviewCheckerArgs() {
+  const value = process.env.CME_TSGO_PREVIEW_CHECKERS?.trim();
+  if (!value) {
+    return [];
+  }
+  return ["--checkers", value];
 }
 
 main().catch((error) => {

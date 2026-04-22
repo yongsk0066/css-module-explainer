@@ -255,6 +255,7 @@ Current checker policy:
 - `pnpm check:ts7-phase-a-stability` directly checks the two preview-specific risk points that the basic shadow path does not prove by itself
   - repeated `EngineInputV2.typeFacts` snapshots from `tsgo-preview` must stay byte-stable across runs
   - concurrent `release-batch` and `real-project-corpus` invocations under `CME_TYPE_FACT_BACKEND=tsgo-preview` must keep identical outputs across rounds
+  - preview probe calls are pinned to `@typescript/native-preview@beta`, and the stability matrix now also repeats backend smoke under fixed `--checkers` values (`1`, `2`, `4`)
 - `pnpm check:ts7-phase-a-preview-lane` is the current limited non-release aggregate for TS 7 beta Phase A
   - it builds the repo, then runs readiness, shadow, and stability together
 - `pnpm check:ts7-phase-a-shadow-review` reviews recent `TS7 Phase A Shadow` workflow history through `gh`
@@ -265,8 +266,12 @@ Current checker policy:
   - it runs `lifecycle`, `hover`, `definition`, `diagnostics`, and `completion` protocol tests under `CME_TYPE_FACT_BACKEND=tsgo-preview`
 - `pnpm check:ts7-phase-b-editing-preview` is the second bounded protocol-layer preview path for TS 7 beta Phase B
   - it runs `references`, `rename`, and `code-actions` protocol tests under `CME_TYPE_FACT_BACKEND=tsgo-preview`
+- `pnpm check:ts7-phase-b-build-preview` is the current bounded build-mode preview path for TS 7 beta Phase B
+  - it runs `@typescript/native-preview@beta -b server/tsconfig.json --checkers 2 --builders 2`
 - `pnpm check:ts7-phase-b-readiness` is the current entry check for Phase B
-  - it requires `pnpm check:ts7-phase-a-decision-ready` first, then the bounded protocol and editing preview subsets
+  - it requires `pnpm check:ts7-phase-a-decision-ready` first, then the bounded protocol, editing, and build preview subsets
+- `pnpm check:ts7-preview-decision-ready` is the current top-level judgment gate for the TS 7 preview track
+  - it requires both `Phase A decision-ready` and `Phase B readiness`
 - `.github/workflows/ts7-phase-a-shadow.yml` builds the repo, then runs the Phase A readiness gate, non-release shadow path, and stability check on every `master` push and on manual dispatch
 - `pnpm check:rust-parser-scaffold` exercises the first internal Rust parser scaffold crate, `rust/crates/engine-style-parser`
 - `pnpm check:rust-parser-git-consumer` verifies that the split parser repo can be consumed as a remote git dependency by the repo-stored standalone fixture at `rust/external-consumers/engine-style-parser-git-consumer`
@@ -353,6 +358,7 @@ Current checker policy:
   - `tsgo-preview` is now also wired into explicit preview-backed operational commands: `pnpm check:release-batch-preview`, `pnpm check:real-project-corpus-preview`, and `pnpm check:lsp-server-smoke-preview`
   - the current limited non-release aggregate for that preview is `pnpm check:ts7-phase-a-preview-lane`
   - the next step up from that preview lane is `pnpm check:ts7-phase-b-protocol-preview`
+  - the current top-level preview judgment command is `pnpm check:ts7-preview-decision-ready`
   - `selector-usage` remains a shadow validation family, not a release-gating canonical candidate
   - current `EngineInputV2` does not preserve enough reference-level evidence to reproduce `selector-usage` semantics as an input-only canonical producer
   - the current internal Rust producer boundary is [`rust/crates/engine-input-producers`](./rust/crates/engine-input-producers/README.md)

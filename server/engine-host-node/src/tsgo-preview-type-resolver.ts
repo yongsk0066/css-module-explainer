@@ -121,7 +121,16 @@ function defaultRunPreviewCommand(
 ): TsgoPreviewProbeResult {
   const child: SpawnSyncReturns<string> = spawnSync(
     "pnpm",
-    ["dlx", "@typescript/native-preview", "-p", configPath, "--pretty", "false", "--noEmit"],
+    [
+      "dlx",
+      "@typescript/native-preview@beta",
+      "-p",
+      configPath,
+      "--pretty",
+      "false",
+      "--noEmit",
+      ...resolvePreviewCheckerArgs(),
+    ],
     {
       cwd: workspaceRoot,
       encoding: "utf8",
@@ -136,4 +145,12 @@ function defaultRunPreviewCommand(
     stderr: child.stderr ?? "",
     ...(child.error ? { error: child.error } : {}),
   };
+}
+
+function resolvePreviewCheckerArgs(): readonly string[] {
+  const value = process.env.CME_TSGO_PREVIEW_CHECKERS?.trim();
+  if (!value) {
+    return [];
+  }
+  return ["--checkers", value];
 }

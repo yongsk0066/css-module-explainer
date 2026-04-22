@@ -189,6 +189,8 @@ commands plus the preview-backed LSP smoke together.
 preview-specific risk points that the basic shadow path does not prove by
 itself: repeated `EngineInputV2.typeFacts` ordering stability and concurrent
 checker-process output stability under `CME_TYPE_FACT_BACKEND=tsgo-preview`.
+It now also pins preview invocations to `@typescript/native-preview@beta` and
+repeats backend smoke under fixed `--checkers` values (`1`, `2`, `4`).
 
 `pnpm check:ts7-phase-a-preview-lane` is the current limited non-release
 aggregate for Phase A. It runs the readiness gate, non-release shadow path,
@@ -218,9 +220,18 @@ preview path for TS 7 beta Phase B. It runs the editing/reference subset
 (`references`, `rename`, `code-actions`) under
 `CME_TYPE_FACT_BACKEND=tsgo-preview`.
 
+`pnpm check:ts7-phase-b-build-preview` is the current bounded build-mode
+preview path for TS 7 beta Phase B. It runs
+`@typescript/native-preview@beta -b server/tsconfig.json --checkers 2 --builders 2`.
+
 `pnpm check:ts7-phase-b-readiness` is the current entry check for Phase B. It
 requires `pnpm check:ts7-phase-a-decision-ready` first, then the bounded
-protocol preview and editing preview subsets.
+protocol preview, editing preview, and build preview subsets.
+
+`pnpm check:ts7-preview-decision-ready` is the current top-level judgment gate
+for the TS 7 preview track. It requires both `Phase A decision-ready` and
+`Phase B readiness` before any broader preview adoption or release-facing
+judgment.
 
 `pnpm check:rust-checker-release-gate-shadow-review` is the current operator
 review command for enforcement readiness. It reads recent

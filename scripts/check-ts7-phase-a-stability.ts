@@ -29,9 +29,15 @@ type CommandResult = {
   readonly stderr: string;
 };
 
+type CheckerControlConfig = {
+  readonly label: string;
+  readonly env: Readonly<Record<string, string>>;
+};
+
 const repoRoot = process.cwd();
 const ORDERING_RUN_COUNT = 3 as const;
 const PARALLEL_ROUND_COUNT = 3 as const;
+const CHECKER_CONTROL_RUN_COUNT = 2 as const;
 const TYPE_BACKEND: TypeBackend = "tsgo-preview";
 
 const orderingFixtures: readonly OrderingFixture[] = [
@@ -81,6 +87,25 @@ const parallelCommands: readonly CommandSpec[] = [
   },
 ] as const;
 
+const checkerControlConfigs: readonly CheckerControlConfig[] = [
+  {
+    label: "checkers-default",
+    env: {},
+  },
+  {
+    label: "checkers-1",
+    env: { CME_TSGO_PREVIEW_CHECKERS: "1" },
+  },
+  {
+    label: "checkers-2",
+    env: { CME_TSGO_PREVIEW_CHECKERS: "2" },
+  },
+  {
+    label: "checkers-4",
+    env: { CME_TSGO_PREVIEW_CHECKERS: "4" },
+  },
+] as const;
+
 void (async () => {
   const orderingResults = await Promise.all(
     orderingFixtures.map(async (fixture) => {
@@ -103,9 +128,11 @@ void (async () => {
   );
 
   const parallelResults = await runParallelRounds();
+  const checkerControlResults = await runCheckerControlMatrix();
   const orderingStable = orderingResults.every((result) => result.stableOrdering);
   const parallelStable = parallelResults.every((result) => result.stableOutputs);
-  const ok = orderingStable && parallelStable;
+  const checkerControlsStable = checkerControlResults.every((result) => result.stableOutputs);
+  const ok = orderingStable && parallelStable && checkerControlsStable;
 
   process.stdout.write(
     `${JSON.stringify(
@@ -122,6 +149,11 @@ void (async () => {
           roundCount: PARALLEL_ROUND_COUNT,
           commands: parallelResults,
           ok: parallelStable,
+        },
+        checkerControls: {
+          runCount: CHECKER_CONTROL_RUN_COUNT,
+          commands: checkerControlResults,
+          ok: checkerControlsStable,
         },
       },
       null,
@@ -226,13 +258,54 @@ async function runParallelRounds() {
   return results.toSorted((a, b) => a.label.localeCompare(b.label));
 }
 
-function runCommand(label: string, args: readonly string[]) {
+async function runCheckerControlMatrix() {
+  return Promise.all(
+    checkerControlConfigs.map(async (config) => {
+      const baseline = await runCommand(
+        "backend-typecheck-smoke",
+        ["check:backend-typecheck-smoke"],
+        {
+          ...config.env,
+          CME_TYPECHECK_VARIANT: TYPE_BACKEND,
+        },
+      );
+      const repeats = await Promise.all(
+        Array.from({ length: CHECKER_CONTROL_RUN_COUNT - 1 }, () =>
+          runCommand("backend-typecheck-smoke", ["check:backend-typecheck-smoke"], {
+            ...config.env,
+            CME_TYPECHECK_VARIANT: TYPE_BACKEND,
+          }),
+        ),
+      );
+      const stableOutputs = repeats.every(
+        (result) =>
+          result.exitCode === baseline.exitCode &&
+          result.stdout === baseline.stdout &&
+          result.stderr === baseline.stderr,
+      );
+
+      return {
+        label: config.label,
+        runCount: CHECKER_CONTROL_RUN_COUNT,
+        stableOutputs,
+        baselineExitCode: baseline.exitCode,
+      };
+    }),
+  );
+}
+
+function runCommand(
+  label: string,
+  args: readonly string[],
+  envOverrides: Readonly<Record<string, string>> = {},
+) {
   return new Promise<CommandResult>((resolve) => {
     const child = spawn("pnpm", [...args], {
       cwd: repoRoot,
       env: {
         ...process.env,
         CME_TYPE_FACT_BACKEND: TYPE_BACKEND,
+        ...envOverrides,
       },
       stdio: ["ignore", "pipe", "pipe"],
     });
