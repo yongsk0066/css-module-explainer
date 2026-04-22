@@ -247,6 +247,9 @@ Current checker policy:
 - `pnpm check:type-fact-backend-parity` compares canonical `EngineInputV2.typeFacts` across `typescript-current` and `tsgo-preview` on the backend smoke corpus
 - `pnpm check:ts7-phase-a-readiness` is the current aggregate pre-adoption gate for the TS 7 beta path
   - it runs backend typecheck smoke, type-fact backend parity, and `rust-gate-evidence -- --variant tsgo-preview --repeat 1 --json`
+- `pnpm check:ts7-phase-a-shadow` is the current non-release shadow path for TS 7 beta Phase A
+  - it runs `release-batch` and `real-project-corpus` through `CME_TYPE_FACT_BACKEND=tsgo-preview`
+- `.github/workflows/ts7-phase-a-shadow.yml` runs the Phase A readiness gate plus that non-release shadow path on every `master` push and on manual dispatch
 - `pnpm check:rust-parser-scaffold` exercises the first internal Rust parser scaffold crate, `rust/crates/engine-style-parser`
 - `pnpm check:rust-parser-git-consumer` verifies that the split parser repo can be consumed as a remote git dependency by the repo-stored standalone fixture at `rust/external-consumers/engine-style-parser-git-consumer`
 - `pnpm check:rust-parser-split-boundary` verifies the full parser split boundary: parser public-product validation inside the monorepo plus remote git-consumer validation against `omena-engine-style-parser`
@@ -329,6 +332,7 @@ Current checker policy:
   - the ESLint and Stylelint plugin consumers now form a first plugin-facing batch with focused rule surfaces, aggregate configs, a clean example workspace, and release-facing consumer gates
   - the bounded checker entrance (`style-recovery` + `source-missing`) is now enforced in `pnpm check:rust-release-bundle`
   - the next backend transition step is explicitly staged behind `pnpm check:ts7-phase-a-readiness`
+  - `tsgo-preview` is now also wired into a separate non-release shadow path via `pnpm check:ts7-phase-a-shadow`
   - `selector-usage` remains a shadow validation family, not a release-gating canonical candidate
   - current `EngineInputV2` does not preserve enough reference-level evidence to reproduce `selector-usage` semantics as an input-only canonical producer
   - the current internal Rust producer boundary is [`rust/crates/engine-input-producers`](./rust/crates/engine-input-producers/README.md)

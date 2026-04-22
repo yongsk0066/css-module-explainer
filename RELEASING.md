@@ -173,6 +173,15 @@ and `server/engine-host-node` dist outputs required by
 checker entrance, and promotion evidence as separate workflow steps so failures
 remain attributable after the stable release gate flip.
 
+`pnpm check:ts7-phase-a-readiness` is the current pre-adoption gate for the
+TS 7 beta path. `pnpm check:ts7-phase-a-shadow` is the current non-release
+shadow path for that same backend preview; it runs `release-batch` and
+`real-project-corpus` through `CME_TYPE_FACT_BACKEND=tsgo-preview`.
+
+`.github/workflows/ts7-phase-a-shadow.yml` runs the readiness gate plus that
+non-release shadow path on every `master` push and on manual dispatch. This
+workflow is observational only; it is not part of `pnpm check:rust-release-bundle`.
+
 `pnpm check:rust-checker-release-gate-shadow-review` is the current operator
 review command for enforcement readiness. It reads recent
 `Checker Release Gate Shadow` workflow history through `gh` and reports whether
