@@ -47,6 +47,21 @@ for (const variant of selectedVariants) {
       durationsMs.push(performance.now() - start);
       if ((child.status ?? 1) !== 0) {
         exitCode = child.status ?? 1;
+        if (jsonMode) {
+          const command = ["pnpm", ...entry.argv].join(" ");
+          process.stderr.write(
+            [
+              `== rust-gate-evidence failure: ${variant.label}:${entry.label} ==`,
+              `command: ${command}`,
+              `exitCode: ${exitCode}`,
+              child.stdout ? `stdout:\n${child.stdout.trimEnd()}` : "",
+              child.stderr ? `stderr:\n${child.stderr.trimEnd()}` : "",
+            ]
+              .filter(Boolean)
+              .join("\n")
+              .concat("\n"),
+          );
+        }
       }
     }
 

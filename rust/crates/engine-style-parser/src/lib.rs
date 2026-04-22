@@ -1014,11 +1014,10 @@ fn collect_parity_names_with_parent(
                 acc.max_nesting_depth = acc.max_nesting_depth.max(next_depth);
                 increment_at_rule_kind_count(&mut acc.at_rule_kind_counts, at_rule.kind);
                 match at_rule.kind {
-                    AtRuleKind::Keyframes => {
-                        if !at_rule.params.is_empty() {
-                            acc.keyframes_names.push(at_rule.params.clone());
-                        }
+                    AtRuleKind::Keyframes if !at_rule.params.is_empty() => {
+                        acc.keyframes_names.push(at_rule.params.clone());
                     }
+                    AtRuleKind::Keyframes => {}
                     AtRuleKind::Value => {
                         if let Some((name, _)) = at_rule.params.split_once(':') {
                             let trimmed = name.trim();
@@ -1360,11 +1359,10 @@ fn collect_index_names(
                 }
             }
             Some(SyntaxNodePayload::AtRule(at_rule)) => match at_rule.kind {
-                AtRuleKind::Keyframes => {
-                    if !at_rule.params.is_empty() {
-                        acc.keyframes_names.push(at_rule.params.clone());
-                    }
+                AtRuleKind::Keyframes if !at_rule.params.is_empty() => {
+                    acc.keyframes_names.push(at_rule.params.clone());
                 }
+                AtRuleKind::Keyframes => {}
                 AtRuleKind::Value => {
                     if let Some(import_specs) = parse_value_import_specs(&at_rule.params) {
                         acc.value_import_alias_count += import_specs
