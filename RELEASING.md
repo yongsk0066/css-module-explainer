@@ -144,6 +144,15 @@ bounded lanes, a shared promotion-review command, and a broader target of
 `pnpm check:rust-lane-bundle`, while keeping both lanes outside the broader
 Rust lane and release gate until an explicit promotion step happens.
 
+`pnpm check:rust-checker-real-project-bounded` adds one more promotion-evidence
+layer on top of the smoke fixtures. It validates the bounded checker lanes
+against a small multi-file real-project-like corpus, so promotion decisions do
+not rely on smoke-only evidence.
+
+`pnpm check:rust-checker-promotion-evidence` is the aggregate operator command
+for checker-lane promotion evidence. It currently runs promotion review,
+broader-lane readiness, and the bounded real-project corpus check.
+
 `pnpm check:rust-lane-bundle` is the broader Rust lane gate. It combines the
 current semantic producer boundary checks with `pnpm check:rust-parser-public-product`.
 

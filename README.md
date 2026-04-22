@@ -278,6 +278,8 @@ Current checker policy:
 - `pnpm check:rust-checker-entrance` is the official checker-canonical entrance gate; it currently aliases `pnpm check:rust-checker-bounded-lanes`
 - `pnpm check:rust-checker-promotion-review` validates the current promotion stance for bounded checker lanes; today it confirms both lanes are still entrance-only and not part of the broader Rust lane or release gate
 - `pnpm check:rust-checker-broader-lane-readiness` locks the current broader-lane promotion criteria for those bounded lanes; today it requires two bounded lanes, a promotion-review command, and a broader target of `pnpm check:rust-lane-bundle`, while still keeping both lanes outside the broader Rust lane and release gate
+- `pnpm check:rust-checker-real-project-bounded` validates both bounded checker lanes against a small multi-file real-project-like corpus instead of smoke-only fixtures
+- `pnpm check:rust-checker-promotion-evidence` runs the full bounded checker promotion evidence set: promotion review, broader-lane readiness, and real-project bounded corpus validation
 - Rust shadow validation now covers:
   - input summaries: `pnpm check:rust-type-fact-compare`, `pnpm check:rust-query-plan-compare`, `pnpm check:rust-expression-domain-compare`
   - input-only candidates: `pnpm check:rust-expression-domain-candidates`
@@ -305,6 +307,8 @@ Current checker policy:
   - official checker entrance gate: `pnpm check:rust-checker-entrance`
   - checker lane promotion review: `pnpm check:rust-checker-promotion-review`
   - broader checker lane readiness: `pnpm check:rust-checker-broader-lane-readiness`
+  - real-project bounded checker evidence: `pnpm check:rust-checker-real-project-bounded`
+  - checker promotion evidence bundle: `pnpm check:rust-checker-promotion-evidence`
   - broader Rust lane bundle: `pnpm check:rust-lane-bundle`
   - release-facing Rust bundle: `pnpm check:rust-release-bundle`
   - full snapshot parity: `pnpm check:rust-shadow-compare`
