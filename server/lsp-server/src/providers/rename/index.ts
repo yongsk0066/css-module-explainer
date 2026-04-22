@@ -8,10 +8,13 @@ import { LSPErrorCodes, ResponseError } from "vscode-languageserver/node";
 import {
   groupTextEditsByUri,
   planSelectorRename,
-  readExpressionRenameTarget,
   readStyleSelectorRenameTargetAtCursor,
   renameBlockReasonMessage,
 } from "../../../../engine-core-ts/src/core/rewrite";
+import {
+  planSourceExpressionRename,
+  readSourceExpressionRenameTarget,
+} from "../../../../engine-host-node/src/source-rename-query";
 import { findLangForPath } from "../../../../engine-core-ts/src/core/scss/lang-registry";
 import { fileUrlToPath } from "../../../../engine-core-ts/src/core/util/text-utils";
 import { toLspRange } from "../lsp-adapters";
@@ -56,9 +59,7 @@ export function handlePrepareRename(
     if (!cursorParams) return null;
     const ctx = findSourceExpressionContextAtCursor(cursorParams, deps);
     if (!ctx) return null;
-    return toPrepareRenameResult(
-      readExpressionRenameTarget(ctx.expression, ctx.styleDocument, deps),
-    );
+    return toPrepareRenameResult(readSourceExpressionRenameTarget(ctx, deps));
   } catch (err) {
     if (isResponseError(err)) throw err;
     deps.logError("prepareRename handler failed", err);
@@ -102,12 +103,7 @@ export const handleRename = wrapHandler<
     if (!cursorParams) return null;
     const ctx = findSourceExpressionContextAtCursor(cursorParams, deps);
     if (!ctx) return null;
-    return toWorkspaceEdit(
-      planFromResult(
-        readExpressionRenameTarget(ctx.expression, ctx.styleDocument, deps),
-        params.newName,
-      ),
-    );
+    return toWorkspaceEdit(planSourceExpressionRename(ctx, deps, params.newName));
   },
   null,
 );
@@ -123,7 +119,7 @@ function isResponseError(err: unknown): err is ResponseError<unknown> {
 function toPrepareRenameResult(
   result:
     | ReturnType<typeof readStyleSelectorRenameTargetAtCursor>
-    | ReturnType<typeof readExpressionRenameTarget>,
+    | ReturnType<typeof readSourceExpressionRenameTarget>,
 ): { range: LspRange; placeholder: string } | null {
   if (result.kind === "miss") return null;
   if (result.kind === "blocked") {
@@ -138,7 +134,7 @@ function toPrepareRenameResult(
 function planFromResult(
   result:
     | ReturnType<typeof readStyleSelectorRenameTargetAtCursor>
-    | ReturnType<typeof readExpressionRenameTarget>,
+    | ReturnType<typeof readSourceExpressionRenameTarget>,
   newName: string,
 ) {
   if (result.kind !== "target") return null;
