@@ -1,11 +1,9 @@
 import { DiagnosticSeverity, DiagnosticTag, type Diagnostic } from "vscode-languageserver/node";
-import {
-  checkStyleDocument,
-  type StyleCheckerFinding,
-} from "../../../engine-core-ts/src/core/checker";
+import { type StyleCheckerFinding } from "../../../engine-core-ts/src/core/checker";
 import { formatCheckerFinding } from "../../../engine-core-ts/src/checker-surface";
 import type { StyleDocumentHIR } from "../../../engine-core-ts/src/core/hir/style-types";
 import { pathToFileUrl } from "../../../engine-core-ts/src/core/util/text-utils";
+import { resolveStyleDiagnosticFindings } from "../../../engine-host-node/src/style-diagnostics-query";
 import {
   buildCreateKeyframesActionData,
   buildCreateSelectorActionData,
@@ -28,7 +26,7 @@ export function computeScssUnusedDiagnostics(
   styleDependencyGraph?: ProviderDeps["styleDependencyGraph"],
   styleDocumentForPath?: (filePath: string) => StyleDocumentHIR | null,
 ): Diagnostic[] {
-  return checkStyleDocument(
+  return resolveStyleDiagnosticFindings(
     { scssPath, styleDocument },
     {
       semanticReferenceIndex,

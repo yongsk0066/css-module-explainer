@@ -3,12 +3,10 @@ import {
   type Diagnostic,
   type Range as LspRange,
 } from "vscode-languageserver/node";
-import {
-  checkSourceDocument,
-  type SourceCheckerFinding,
-} from "../../../engine-core-ts/src/core/checker";
+import { type SourceCheckerFinding } from "../../../engine-core-ts/src/core/checker";
 import { formatCheckerFinding } from "../../../engine-core-ts/src/checker-surface";
 import { pathToFileUrl } from "../../../engine-core-ts/src/core/util/text-utils";
+import { resolveSourceDiagnosticFindings } from "../../../engine-host-node/src/source-diagnostics-query";
 import { toLspRange } from "./lsp-adapters";
 import { buildCreateSelectorActionData } from "./code-action-data";
 import { wrapHandler } from "./_wrap-handler";
@@ -38,19 +36,9 @@ export const computeDiagnostics = wrapHandler<
 >(
   "diagnostics",
   (params, deps, severity: DiagnosticSeverity = DiagnosticSeverity.Warning) => {
-    return checkSourceDocument(
-      params,
-      {
-        analysisCache: deps.analysisCache,
-        styleDocumentForPath: deps.styleDocumentForPath,
-        typeResolver: deps.typeResolver,
-        workspaceRoot: deps.workspaceRoot,
-      },
-      {
-        includeMissingModule: deps.settings.diagnostics.missingModule,
-        logError: deps.logError,
-      },
-    ).map((finding) => toDiagnostic(finding, deps, severity));
+    return resolveSourceDiagnosticFindings(params, deps).map((finding) =>
+      toDiagnostic(finding, deps, severity),
+    );
   },
   [],
 );
