@@ -25,6 +25,7 @@ jobs:
       - run: ./scripts/release.sh
       - run: pnpm build
       - run: pnpm exec tsc -b server/engine-core-ts
+      - run: pnpm exec tsc -b server/engine-host-node
       - id: rust_workspace
         name: Run rust-workspace
         run: pnpm check:rust-workspace
