@@ -10,11 +10,11 @@ import {
   findValueRefAtCursor,
   listAnimationNameRefs,
   listValueRefs,
-  readSelectorUsageSummary,
   resolveComposesTarget,
   resolveValueImportTarget,
   resolveValueTarget,
 } from "../../../engine-core-ts/src/core/query";
+import { resolveSelectorReferenceLocations } from "../../../engine-host-node/src/selector-references-query";
 import { findLangForPath } from "../../../engine-core-ts/src/core/scss/lang-registry";
 import { fileUrlToPath, pathToFileUrl } from "../../../engine-core-ts/src/core/util/text-utils";
 import { toLspRange } from "./lsp-adapters";
@@ -29,8 +29,7 @@ import { wrapHandler } from "./_wrap-handler";
  * 2. Ask `deps.styleDocumentForPath` — null result also covers
  *    "file missing on disk", so no separate exists-check.
  * 3. Find the selector whose range contains the cursor.
- * 4. Ask the shared reference query for every site referencing
- *    that `(scssPath, canonicalName)` pair.
+ * 4. Route selector/composes reference lookup through the Node host boundary.
  * 5. Convert each CallSite to an LSP `Location`.
  *
  * Error isolation is owned by `wrapHandler`.
@@ -70,14 +69,10 @@ export const handleReferences = wrapHandler<ReferenceParams, [], Location[] | nu
           };
         })();
     if (target) {
-      const usage = readSelectorUsageSummary(deps, target.filePath, target.canonicalName);
-      if (!usage.hasAnyReferences) return null;
+      const locations = resolveSelectorReferenceLocations(deps, target);
+      if (locations.length === 0) return null;
 
-      // No expansion filter here — expanded sites are valid Find Refs
-      // results (they represent where a rename WOULD edit if the user
-      // changed the template/variable resolution). Rename is the only
-      // provider that filters `expansion === "expanded"`; see rename.ts.
-      return usage.allSites.map<Location>((site) => ({
+      return locations.map<Location>((site) => ({
         uri: site.uri,
         range: toLspRange(site.range),
       }));
