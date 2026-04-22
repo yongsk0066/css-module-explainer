@@ -56,10 +56,12 @@ export interface CheckerSourceMissingCanonicalProducerSignalV0 {
     readonly promotionEvidenceCommand: "pnpm check:rust-checker-promotion-evidence";
     readonly broaderRustLaneCommand: "pnpm check:rust-lane-bundle";
     readonly releaseGateReadinessCommand: "pnpm check:rust-checker-release-gate-readiness";
+    readonly releaseGateShadowCommand: "pnpm check:rust-checker-release-gate-shadow";
     readonly releaseBundleCommand: "pnpm check:rust-release-bundle";
     readonly minimumBoundedLaneCountForRustLaneBundle: 2;
     readonly minimumBoundedLaneCountForRustReleaseBundle: 2;
     readonly checkerBundle: "source-missing";
+    readonly releaseGateStage: "shadowed";
     readonly includedInRustLaneBundle: true;
     readonly includedInRustReleaseBundle: false;
   };

@@ -155,9 +155,15 @@ broader-lane readiness, and the bounded real-project corpus check.
 
 `pnpm check:rust-checker-release-gate-readiness` locks the release-gate
 promotion criteria for those checker lanes. It currently requires broader-lane
-promotion evidence, a release target of `pnpm check:rust-release-bundle`, and
-the same minimum bounded-lane count of `2`. The current state is still
+promotion evidence, a release target of `pnpm check:rust-release-bundle`, a
+shadow soak target of `pnpm check:rust-checker-release-gate-shadow`, and the
+same minimum bounded-lane count of `2`. The current state is still
 `includedInRustReleaseBundle=false` for both lanes.
+
+`pnpm check:rust-checker-release-gate-shadow` is the current non-enforcing
+shadow soak for checker entrance promotion. It runs `pnpm check:rust-release-bundle`,
+`pnpm check:rust-checker-entrance`, and `pnpm check:rust-checker-promotion-evidence`
+together while the checker lanes remain outside the release bundle.
 
 `pnpm check:rust-lane-bundle` is the broader Rust lane gate. It combines the
 current semantic producer boundary checks, `pnpm check:rust-parser-public-product`,
