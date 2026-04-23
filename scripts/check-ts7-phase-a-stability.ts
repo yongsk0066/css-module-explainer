@@ -94,15 +94,15 @@ const checkerControlConfigs: readonly CheckerControlConfig[] = [
   },
   {
     label: "checkers-1",
-    env: { CME_TSGO_PREVIEW_CHECKERS: "1" },
+    env: { CME_TSGO_CHECKERS: "1" },
   },
   {
     label: "checkers-2",
-    env: { CME_TSGO_PREVIEW_CHECKERS: "2" },
+    env: { CME_TSGO_CHECKERS: "2" },
   },
   {
     label: "checkers-4",
-    env: { CME_TSGO_PREVIEW_CHECKERS: "4" },
+    env: { CME_TSGO_CHECKERS: "4" },
   },
 ] as const;
 

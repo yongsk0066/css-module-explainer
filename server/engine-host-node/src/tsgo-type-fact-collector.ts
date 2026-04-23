@@ -16,37 +16,37 @@ import { collectTypeFactTableV2 } from "./type-fact-table-v2";
 
 const UNRESOLVABLE: ResolvedType = { kind: "unresolvable", values: [] };
 
-export interface TsgoPreviewTypeFactTarget {
+export interface TsgoTypeFactTarget {
   readonly filePath: string;
   readonly expressionId: string;
   readonly position: number;
 }
 
-export interface TsgoPreviewTypeFactWorkerInput {
+export interface TsgoTypeFactWorkerInput {
   readonly workspaceRoot: string;
   readonly configPath: string;
-  readonly targets: readonly TsgoPreviewTypeFactTarget[];
+  readonly targets: readonly TsgoTypeFactTarget[];
 }
 
-export interface TsgoPreviewTypeFactWorkerResultEntry {
+export interface TsgoTypeFactWorkerResultEntry {
   readonly filePath: string;
   readonly expressionId: string;
   readonly resolvedType: ResolvedType;
 }
 
-export type RunTsgoPreviewTypeFactWorker = (
-  input: TsgoPreviewTypeFactWorkerInput,
-) => readonly TsgoPreviewTypeFactWorkerResultEntry[];
+export type RunTsgoTypeFactWorker = (
+  input: TsgoTypeFactWorkerInput,
+) => readonly TsgoTypeFactWorkerResultEntry[];
 
-export interface CollectTsgoPreviewTypeFactsOptions extends CollectTypeFactTableV1Options {
+export interface CollectTsgoTypeFactsOptions extends CollectTypeFactTableV1Options {
   readonly findConfigFile?: (workspaceRoot: string) => string | null;
-  readonly runWorker?: RunTsgoPreviewTypeFactWorker;
+  readonly runWorker?: RunTsgoTypeFactWorker;
 }
 
-export function collectTypeFactTableV1WithTsgoPreview(
-  options: CollectTsgoPreviewTypeFactsOptions,
+export function collectTypeFactTableV1WithTsgo(
+  options: CollectTsgoTypeFactsOptions,
 ): TypeFactTableV1 {
-  const resolvedTypes = collectTsgoPreviewResolvedTypes(options);
+  const resolvedTypes = collectTsgoResolvedTypes(options);
   if (!resolvedTypes) {
     return collectTypeFactTableV1(options);
   }
@@ -70,10 +70,10 @@ export function collectTypeFactTableV1WithTsgoPreview(
     );
 }
 
-export function collectTypeFactTableV2WithTsgoPreview(
-  options: CollectTsgoPreviewTypeFactsOptions,
+export function collectTypeFactTableV2WithTsgo(
+  options: CollectTsgoTypeFactsOptions,
 ): TypeFactTableV2 {
-  const resolvedTypes = collectTsgoPreviewResolvedTypes(options);
+  const resolvedTypes = collectTsgoResolvedTypes(options);
   if (!resolvedTypes) {
     return collectTypeFactTableV2(options);
   }
@@ -97,8 +97,8 @@ export function collectTypeFactTableV2WithTsgoPreview(
     );
 }
 
-function collectTsgoPreviewResolvedTypes(
-  options: CollectTsgoPreviewTypeFactsOptions,
+function collectTsgoResolvedTypes(
+  options: CollectTsgoTypeFactsOptions,
 ): Map<string, ResolvedType> | null {
   const findConfigFile =
     options.findConfigFile ??
@@ -120,7 +120,7 @@ function collectTsgoPreviewResolvedTypes(
             expression.range.start.line,
             expression.range.start.character,
           ),
-        } satisfies TsgoPreviewTypeFactTarget,
+        } satisfies TsgoTypeFactTarget,
       ];
     }),
   );
@@ -129,7 +129,7 @@ function collectTsgoPreviewResolvedTypes(
     return new Map();
   }
 
-  const runWorker = options.runWorker ?? defaultRunTsgoPreviewTypeFactWorker;
+  const runWorker = options.runWorker ?? defaultRunTsgoTypeFactWorker;
   const resolved = runWorker({
     workspaceRoot: options.workspaceRoot,
     configPath,
@@ -141,10 +141,10 @@ function collectTsgoPreviewResolvedTypes(
   );
 }
 
-function defaultRunTsgoPreviewTypeFactWorker(
-  input: TsgoPreviewTypeFactWorkerInput,
-): readonly TsgoPreviewTypeFactWorkerResultEntry[] {
-  const workerPath = path.join(process.cwd(), "scripts/collect-tsgo-preview-type-facts.mjs");
+function defaultRunTsgoTypeFactWorker(
+  input: TsgoTypeFactWorkerInput,
+): readonly TsgoTypeFactWorkerResultEntry[] {
+  const workerPath = path.join(process.cwd(), "scripts/collect-tsgo-type-facts.mjs");
   const child = spawnSync(process.execPath, [workerPath], {
     cwd: input.workspaceRoot,
     input: JSON.stringify(input),
@@ -156,7 +156,7 @@ function defaultRunTsgoPreviewTypeFactWorker(
   if (child.status !== 0) {
     throw new Error(
       [
-        "tsgo-preview type fact worker failed",
+        "tsgo type fact worker failed",
         child.error ? `error: ${child.error.message}` : null,
         child.stderr.trim() ? `stderr: ${child.stderr.trim()}` : null,
         child.stdout.trim() ? `stdout: ${child.stdout.trim()}` : null,
@@ -166,7 +166,7 @@ function defaultRunTsgoPreviewTypeFactWorker(
     );
   }
 
-  return JSON.parse(child.stdout) as readonly TsgoPreviewTypeFactWorkerResultEntry[];
+  return JSON.parse(child.stdout) as readonly TsgoTypeFactWorkerResultEntry[];
 }
 
 function offsetAtPosition(text: string, line: number, character: number): number {

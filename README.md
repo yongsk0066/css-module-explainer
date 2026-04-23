@@ -277,7 +277,7 @@ Current checker policy:
 - `pnpm check:ts7-phase-a-stability` directly checks the two tsgo-specific risk points that the basic shadow path does not prove by itself
   - repeated `EngineInputV2.typeFacts` snapshots from `tsgo` must stay byte-stable across runs
   - concurrent `release-batch` and `real-project-corpus` invocations under `CME_TYPE_FACT_BACKEND=tsgo` must keep identical outputs across rounds
-  - tsgo probe calls are pinned to `@typescript/native-preview@beta`, and the stability matrix now also repeats backend smoke under fixed `--checkers` values (`1`, `2`, `4`)
+  - tsgo probe calls are pinned to `@typescript/native-preview@beta`, and the stability matrix now also repeats backend smoke under fixed `--checkers` values (`1`, `2`, `4`) via `CME_TSGO_CHECKERS`; the legacy `CME_TSGO_PREVIEW_CHECKERS` name remains accepted as a compatibility alias
 - `pnpm check:ts7-phase-a-tsgo-lane` is the current limited non-release aggregate for TS 7 beta Phase A
   - it builds the repo, then runs readiness, shadow, and stability together
 - `pnpm check:ts7-phase-a-shadow-review` reviews recent `TS7 Phase A Shadow` workflow history through `gh`

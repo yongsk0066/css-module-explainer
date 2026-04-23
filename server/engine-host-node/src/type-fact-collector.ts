@@ -15,13 +15,17 @@ import {
   type TypeFactBackendKind,
 } from "./type-backend";
 import {
-  collectTypeFactTableV2WithTsgoPreview,
-  type RunTsgoPreviewTypeFactWorker,
-} from "./tsgo-preview-type-fact-collector";
+  collectTypeFactTableV2WithTsgo,
+  type RunTsgoTypeFactWorker,
+} from "./tsgo-type-fact-collector";
 
 export interface SelectTypeFactCollectorOptions extends SelectTypeResolverOptions {
+  readonly findTsgoConfigFile?: (workspaceRoot: string) => string | null;
+  readonly runTsgoTypeFactWorker?: RunTsgoTypeFactWorker;
+  /** @deprecated Use findTsgoConfigFile. Kept for internal compatibility. */
   readonly findPreviewConfigFile?: (workspaceRoot: string) => string | null;
-  readonly runPreviewTypeFactWorker?: RunTsgoPreviewTypeFactWorker;
+  /** @deprecated Use runTsgoTypeFactWorker. Kept for internal compatibility. */
+  readonly runPreviewTypeFactWorker?: RunTsgoTypeFactWorker;
 }
 
 export interface TypeFactCollectorSelection {
@@ -40,14 +44,14 @@ export function selectTypeFactCollector(
   options: SelectTypeFactCollectorOptions,
 ): TypeFactCollectorSelection {
   const resolverSelection = selectTypeResolver(options);
+  const findTsgoConfigFile = options.findTsgoConfigFile ?? options.findPreviewConfigFile;
+  const runTsgoTypeFactWorker = options.runTsgoTypeFactWorker ?? options.runPreviewTypeFactWorker;
   const collectV2 = (collectOptions: CollectTypeFactCollectorOptions): TypeFactTableV2 => {
     if (resolverSelection.backend === "tsgo") {
-      return collectTypeFactTableV2WithTsgoPreview({
+      return collectTypeFactTableV2WithTsgo({
         ...withTypeResolver(collectOptions, resolverSelection.typeResolver),
-        ...(options.findPreviewConfigFile ? { findConfigFile: options.findPreviewConfigFile } : {}),
-        ...(options.runPreviewTypeFactWorker
-          ? { runWorker: options.runPreviewTypeFactWorker }
-          : {}),
+        ...(findTsgoConfigFile ? { findConfigFile: findTsgoConfigFile } : {}),
+        ...(runTsgoTypeFactWorker ? { runWorker: runTsgoTypeFactWorker } : {}),
       });
     }
     return collectTypeFactTableV2(withTypeResolver(collectOptions, resolverSelection.typeResolver));

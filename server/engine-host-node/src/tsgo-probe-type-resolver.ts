@@ -8,38 +8,32 @@ import {
   type TypeResolver,
 } from "../../engine-core-ts/src/core/ts/type-resolver";
 
-interface TsgoPreviewProbeResult {
+interface TsgoProbeResult {
   readonly status: number | null;
   readonly stdout: string;
   readonly stderr: string;
   readonly error?: Error;
 }
 
-interface TsgoPreviewProbeState {
+interface TsgoProbeState {
   readonly configPath: string | null;
   readonly ok: boolean;
 }
 
-export interface TsgoPreviewTypeResolverOptions {
+export interface TsgoProbeTypeResolverOptions {
   readonly fallbackResolver?: TypeResolver;
   readonly createProgram?: (workspaceRoot: string) => ts.Program;
   readonly findConfigFile?: (workspaceRoot: string) => string | null;
-  readonly runPreviewCommand?: (
-    workspaceRoot: string,
-    configPath: string,
-  ) => TsgoPreviewProbeResult;
+  readonly runProbeCommand?: (workspaceRoot: string, configPath: string) => TsgoProbeResult;
 }
 
-export class TsgoPreviewTypeResolver implements TypeResolver {
-  private readonly probeStateByWorkspace = new Map<string, TsgoPreviewProbeState>();
+export class TsgoProbeTypeResolver implements TypeResolver {
+  private readonly probeStateByWorkspace = new Map<string, TsgoProbeState>();
   private readonly fallbackResolver: TypeResolver;
   private readonly findConfigFile: (workspaceRoot: string) => string | null;
-  private readonly runPreviewCommand: (
-    workspaceRoot: string,
-    configPath: string,
-  ) => TsgoPreviewProbeResult;
+  private readonly runProbeCommand: (workspaceRoot: string, configPath: string) => TsgoProbeResult;
 
-  constructor(options: TsgoPreviewTypeResolverOptions = {}) {
+  constructor(options: TsgoProbeTypeResolverOptions = {}) {
     this.fallbackResolver =
       options.fallbackResolver ??
       new WorkspaceTypeResolver({
@@ -48,7 +42,7 @@ export class TsgoPreviewTypeResolver implements TypeResolver {
     this.findConfigFile =
       options.findConfigFile ??
       ((workspaceRoot) => ts.findConfigFile(workspaceRoot, ts.sys.fileExists) ?? null);
-    this.runPreviewCommand = options.runPreviewCommand ?? defaultRunPreviewCommand;
+    this.runProbeCommand = options.runProbeCommand ?? defaultRunProbeCommand;
   }
 
   resolve(
@@ -76,7 +70,7 @@ export class TsgoPreviewTypeResolver implements TypeResolver {
     const cached = this.probeStateByWorkspace.get(workspaceRoot);
     if (cached) {
       if (!cached.ok) {
-        throw new Error(`tsgo-preview probe failed for workspace: ${workspaceRoot}`);
+        throw new Error(`tsgo probe failed for workspace: ${workspaceRoot}`);
       }
       return;
     }
@@ -90,7 +84,7 @@ export class TsgoPreviewTypeResolver implements TypeResolver {
       return;
     }
 
-    const result = this.runPreviewCommand(workspaceRoot, configPath);
+    const result = this.runProbeCommand(workspaceRoot, configPath);
     if (result.status !== 0) {
       this.probeStateByWorkspace.set(workspaceRoot, {
         configPath,
@@ -98,7 +92,7 @@ export class TsgoPreviewTypeResolver implements TypeResolver {
       });
       throw new Error(
         [
-          `tsgo-preview probe failed for workspace: ${workspaceRoot}`,
+          `tsgo probe failed for workspace: ${workspaceRoot}`,
           `config: ${configPath}`,
           result.error ? `error: ${result.error.message}` : null,
           result.stderr.trim() ? `stderr: ${result.stderr.trim()}` : null,
@@ -115,10 +109,7 @@ export class TsgoPreviewTypeResolver implements TypeResolver {
   }
 }
 
-function defaultRunPreviewCommand(
-  workspaceRoot: string,
-  configPath: string,
-): TsgoPreviewProbeResult {
+function defaultRunProbeCommand(workspaceRoot: string, configPath: string): TsgoProbeResult {
   const child: SpawnSyncReturns<string> = spawnSync(
     "pnpm",
     [
@@ -129,7 +120,7 @@ function defaultRunPreviewCommand(
       "--pretty",
       "false",
       "--noEmit",
-      ...resolvePreviewCheckerArgs(),
+      ...resolveTsgoCheckerArgs(),
     ],
     {
       cwd: workspaceRoot,
@@ -147,8 +138,9 @@ function defaultRunPreviewCommand(
   };
 }
 
-function resolvePreviewCheckerArgs(): readonly string[] {
-  const value = process.env.CME_TSGO_PREVIEW_CHECKERS?.trim();
+function resolveTsgoCheckerArgs(): readonly string[] {
+  const value =
+    process.env.CME_TSGO_CHECKERS?.trim() ?? process.env.CME_TSGO_PREVIEW_CHECKERS?.trim();
   if (!value) {
     return [];
   }

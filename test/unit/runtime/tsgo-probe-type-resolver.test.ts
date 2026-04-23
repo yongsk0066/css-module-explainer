@@ -1,23 +1,23 @@
 import { describe, expect, it } from "vitest";
 import type { Range, ResolvedType } from "@css-module-explainer/shared";
 import type { TypeResolver } from "../../../server/engine-core-ts/src/core/ts/type-resolver";
-import { TsgoPreviewTypeResolver } from "../../../server/engine-host-node/src/tsgo-preview-type-resolver";
+import { TsgoProbeTypeResolver } from "../../../server/engine-host-node/src/tsgo-probe-type-resolver";
 
 const SAMPLE_RANGE: Range = {
   start: { line: 0, character: 0 },
   end: { line: 0, character: 1 },
 };
 
-describe("TsgoPreviewTypeResolver", () => {
+describe("TsgoProbeTypeResolver", () => {
   it("probes once per workspace and delegates to the fallback resolver", () => {
     const probeCalls: string[] = [];
     const resolveCalls: string[] = [];
     const fallbackResolver = createFakeResolver(resolveCalls);
 
-    const resolver = new TsgoPreviewTypeResolver({
+    const resolver = new TsgoProbeTypeResolver({
       fallbackResolver,
       findConfigFile: (workspaceRoot) => `${workspaceRoot}/tsconfig.json`,
-      runPreviewCommand: (workspaceRoot) => {
+      runProbeCommand: (workspaceRoot) => {
         probeCalls.push(workspaceRoot);
         return { status: 0, stdout: "", stderr: "" };
       },
@@ -32,10 +32,10 @@ describe("TsgoPreviewTypeResolver", () => {
 
   it("re-probes after invalidation", () => {
     const probeCalls: string[] = [];
-    const resolver = new TsgoPreviewTypeResolver({
+    const resolver = new TsgoProbeTypeResolver({
       fallbackResolver: createFakeResolver([]),
       findConfigFile: (workspaceRoot) => `${workspaceRoot}/tsconfig.json`,
-      runPreviewCommand: (workspaceRoot) => {
+      runProbeCommand: (workspaceRoot) => {
         probeCalls.push(workspaceRoot);
         return { status: 0, stdout: "", stderr: "" };
       },
@@ -48,19 +48,19 @@ describe("TsgoPreviewTypeResolver", () => {
     expect(probeCalls).toEqual(["/repo", "/repo"]);
   });
 
-  it("throws when the preview probe fails", () => {
-    const resolver = new TsgoPreviewTypeResolver({
+  it("throws when the tsgo probe fails", () => {
+    const resolver = new TsgoProbeTypeResolver({
       fallbackResolver: createFakeResolver([]),
       findConfigFile: (workspaceRoot) => `${workspaceRoot}/tsconfig.json`,
-      runPreviewCommand: () => ({
+      runProbeCommand: () => ({
         status: 1,
         stdout: "",
-        stderr: "preview failed",
+        stderr: "tsgo failed",
       }),
     });
 
     expect(() => resolver.resolve("/repo/src/App.tsx", "variant", "/repo", SAMPLE_RANGE)).toThrow(
-      "tsgo-preview probe failed",
+      "tsgo probe failed",
     );
   });
 });

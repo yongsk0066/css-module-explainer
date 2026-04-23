@@ -4,7 +4,7 @@ import {
   WorkspaceTypeResolver,
   type TypeResolver,
 } from "../../engine-core-ts/src/core/ts/type-resolver";
-import { TsgoPreviewTypeResolver } from "./tsgo-preview-type-resolver";
+import { TsgoProbeTypeResolver } from "./tsgo-probe-type-resolver";
 
 export type TypeFactBackendKind = "typescript-current" | "tsgo";
 
@@ -44,7 +44,7 @@ export function selectTypeResolver(options: SelectTypeResolverOptions): TypeReso
   }
 
   if (backend === "tsgo") {
-    const previewOptions = options.createProgram
+    const probeOptions = options.createProgram
       ? { createProgram: options.createProgram }
       : undefined;
     return {
@@ -52,7 +52,7 @@ export function selectTypeResolver(options: SelectTypeResolverOptions): TypeReso
       // First cut: run a real tsgo probe at the host boundary, then
       // delegate fine-grained symbol resolution to the current TS resolver
       // until a dedicated tsgo-backed resolver exists.
-      typeResolver: new TsgoPreviewTypeResolver(previewOptions),
+      typeResolver: new TsgoProbeTypeResolver(probeOptions),
     };
   }
 

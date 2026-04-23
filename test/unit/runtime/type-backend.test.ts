@@ -4,7 +4,7 @@ import {
   resolveTypeFactBackendKind,
   selectTypeResolver,
 } from "../../../server/engine-host-node/src/type-backend";
-import { TsgoPreviewTypeResolver } from "../../../server/engine-host-node/src/tsgo-preview-type-resolver";
+import { TsgoProbeTypeResolver } from "../../../server/engine-host-node/src/tsgo-probe-type-resolver";
 
 describe("type backend selection", () => {
   it("defaults to typescript-current", () => {
@@ -38,13 +38,13 @@ describe("type backend selection", () => {
     expect(selection.typeResolver).toBe(fakeResolver);
   });
 
-  it("selects the preview resolver for tsgo", () => {
+  it("selects the probe resolver for tsgo", () => {
     const selection = selectTypeResolver({
       typeBackend: "tsgo",
     });
 
     expect(selection.backend).toBe("tsgo");
-    expect(selection.typeResolver).toBeInstanceOf(TsgoPreviewTypeResolver);
+    expect(selection.typeResolver).toBeInstanceOf(TsgoProbeTypeResolver);
   });
 
   it("throws on unknown backend values", () => {

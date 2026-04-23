@@ -191,7 +191,9 @@ repeated `EngineInputV2.typeFacts` ordering stability and concurrent
 checker-process output stability under `CME_TYPE_FACT_BACKEND=tsgo`. The
 deprecated alias `CME_TYPE_FACT_BACKEND=tsgo-preview` is still accepted. It
 now also pins tsgo invocations to `@typescript/native-preview@beta` and
-repeats backend smoke under fixed `--checkers` values (`1`, `2`, `4`).
+repeats backend smoke under fixed `--checkers` values (`1`, `2`, `4`) via
+`CME_TSGO_CHECKERS`. The legacy `CME_TSGO_PREVIEW_CHECKERS` name remains
+accepted as a compatibility alias.
 
 `pnpm check:ts7-phase-a-tsgo-lane` is the current limited non-release
 aggregate for Phase A. It runs the readiness gate, non-release shadow path,

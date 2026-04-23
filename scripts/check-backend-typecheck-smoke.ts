@@ -57,15 +57,16 @@ function commandForVariant(
       "--pretty",
       "false",
       "--noEmit",
-      ...previewCheckerArgs(),
+      ...tsgoCheckerArgs(),
     ];
   }
 
   return ["exec", "tsc", "-p", tsconfigPath, "--pretty", "false", "--noEmit"];
 }
 
-function previewCheckerArgs(): readonly string[] {
-  const value = process.env.CME_TSGO_PREVIEW_CHECKERS?.trim();
+function tsgoCheckerArgs(): readonly string[] {
+  const value =
+    process.env.CME_TSGO_CHECKERS?.trim() ?? process.env.CME_TSGO_PREVIEW_CHECKERS?.trim();
   if (!value) {
     return [];
   }
