@@ -34,7 +34,12 @@ import {
   buildSourceResolutionSummaryFromRustPayload,
   resolveRustSourceResolutionPayload,
 } from "./source-resolution-query-backend";
-import { resolveSelectedQueryBackendKind } from "./selected-query-backend";
+import {
+  resolveSelectedQueryBackendKind,
+  usesRustExpressionSemanticsBackend,
+  usesRustSelectorUsageBackend,
+  usesRustSourceResolutionBackend,
+} from "./selected-query-backend";
 import { resolveRustSelectorUsagePayload } from "./selector-usage-query-backend";
 
 export interface BuildSelectedQueryResultsV2Options {
@@ -83,60 +88,60 @@ export function buildSelectedQueryResultsV2(
       } as const;
       const resolution = readSourceExpressionResolution(queryContext, queryEnv);
       const semantics = readExpressionSemantics(queryContext, queryEnv);
-      const rustSourceResolutionPayload =
-        selectedQueryBackend === "rust-source-resolution"
-          ? (options.readRustSourceResolutionPayload ?? resolveRustSourceResolutionPayload)(
-              {
-                uri: document.uri,
-                content: document.content,
-                filePath: document.filePath,
-                version: document.version,
-              },
-              expression.id,
-              expression.scssModulePath,
-              {
-                analysisCache: options.analysisCache,
-                styleDocumentForPath: options.styleDocumentForPath,
-                typeResolver: options.typeResolver,
-                workspaceRoot: options.workspaceRoot,
-                settings: {
-                  ...DEFAULT_SETTINGS,
-                  scss: {
-                    ...DEFAULT_SETTINGS.scss,
-                    classnameTransform: options.classnameTransform,
-                  },
-                  pathAlias: options.pathAlias,
+      const rustSourceResolutionPayload = usesRustSourceResolutionBackend(selectedQueryBackend)
+        ? (options.readRustSourceResolutionPayload ?? resolveRustSourceResolutionPayload)(
+            {
+              uri: document.uri,
+              content: document.content,
+              filePath: document.filePath,
+              version: document.version,
+            },
+            expression.id,
+            expression.scssModulePath,
+            {
+              analysisCache: options.analysisCache,
+              styleDocumentForPath: options.styleDocumentForPath,
+              typeResolver: options.typeResolver,
+              workspaceRoot: options.workspaceRoot,
+              settings: {
+                ...DEFAULT_SETTINGS,
+                scss: {
+                  ...DEFAULT_SETTINGS.scss,
+                  classnameTransform: options.classnameTransform,
                 },
+                pathAlias: options.pathAlias,
               },
-            )
-          : null;
-      const rustExpressionSemanticsPayload =
-        selectedQueryBackend === "rust-expression-semantics"
-          ? (options.readRustExpressionSemanticsPayload ?? resolveRustExpressionSemanticsPayload)(
-              {
-                uri: document.uri,
-                content: document.content,
-                filePath: document.filePath,
-                version: document.version,
-              },
-              expression.id,
-              expression.scssModulePath,
-              {
-                analysisCache: options.analysisCache,
-                styleDocumentForPath: options.styleDocumentForPath,
-                typeResolver: options.typeResolver,
-                workspaceRoot: options.workspaceRoot,
-                settings: {
-                  ...DEFAULT_SETTINGS,
-                  scss: {
-                    ...DEFAULT_SETTINGS.scss,
-                    classnameTransform: options.classnameTransform,
-                  },
-                  pathAlias: options.pathAlias,
+            },
+          )
+        : null;
+      const rustExpressionSemanticsPayload = usesRustExpressionSemanticsBackend(
+        selectedQueryBackend,
+      )
+        ? (options.readRustExpressionSemanticsPayload ?? resolveRustExpressionSemanticsPayload)(
+            {
+              uri: document.uri,
+              content: document.content,
+              filePath: document.filePath,
+              version: document.version,
+            },
+            expression.id,
+            expression.scssModulePath,
+            {
+              analysisCache: options.analysisCache,
+              styleDocumentForPath: options.styleDocumentForPath,
+              typeResolver: options.typeResolver,
+              workspaceRoot: options.workspaceRoot,
+              settings: {
+                ...DEFAULT_SETTINGS,
+                scss: {
+                  ...DEFAULT_SETTINGS.scss,
+                  classnameTransform: options.classnameTransform,
                 },
+                pathAlias: options.pathAlias,
               },
-            )
-          : null;
+            },
+          )
+        : null;
 
       results.push(
         rustExpressionSemanticsPayload
@@ -165,14 +170,13 @@ export function buildSelectedQueryResultsV2(
     const styleDocument = options.styleDocumentForPath(styleFile);
     if (!styleDocument) continue;
     for (const selector of listCanonicalSelectors(styleDocument)) {
-      const rustSelectorUsagePayload =
-        selectedQueryBackend === "rust-selector-usage"
-          ? (options.readRustSelectorUsagePayload ?? resolveRustSelectorUsagePayload)(
-              options,
-              styleFile,
-              selector.canonicalName,
-            )
-          : null;
+      const rustSelectorUsagePayload = usesRustSelectorUsageBackend(selectedQueryBackend)
+        ? (options.readRustSelectorUsagePayload ?? resolveRustSelectorUsagePayload)(
+            options,
+            styleFile,
+            selector.canonicalName,
+          )
+        : null;
       if (rustSelectorUsagePayload) {
         results.push(
           selectorUsageResultV2FromRustPayload(

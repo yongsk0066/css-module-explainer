@@ -6,7 +6,10 @@ import {
 import type { StyleDocumentHIR } from "../../engine-core-ts/src/core/hir/style-types";
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
 import { pathToFileUrl } from "../../engine-core-ts/src/core/util/text-utils";
-import { resolveSelectedQueryBackendKind } from "./selected-query-backend";
+import {
+  resolveSelectedQueryBackendKind,
+  usesRustSelectorUsageBackend,
+} from "./selected-query-backend";
 import {
   buildSelectorUsageLocationsFromRustPayload,
   buildSelectorUsageRenderSummaryFromRustPayload,
@@ -45,16 +48,15 @@ export function resolveStyleReferenceLenses(
   for (const selector of listCanonicalSelectors(styleDocument)) {
     const usage = readSelectorUsageSummary(deps, filePath, selector.canonicalName);
     if (!usage.hasAnyReferences) continue;
-    const rustLensResolution =
-      selectedQueryBackend === "rust-selector-usage"
-        ? resolveRustReferenceLensSummary(
-            deps,
-            filePath,
-            selector.canonicalName,
-            options.readRustSelectorUsagePayloadForWorkspaceTarget ??
-              resolveRustSelectorUsagePayloadForWorkspaceTarget,
-          )
-        : null;
+    const rustLensResolution = usesRustSelectorUsageBackend(selectedQueryBackend)
+      ? resolveRustReferenceLensSummary(
+          deps,
+          filePath,
+          selector.canonicalName,
+          options.readRustSelectorUsagePayloadForWorkspaceTarget ??
+            resolveRustSelectorUsagePayloadForWorkspaceTarget,
+        )
+      : null;
     const titleUsage = rustLensResolution?.usage ?? usage;
     const locations =
       rustLensResolution?.locations ??

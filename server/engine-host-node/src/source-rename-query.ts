@@ -22,6 +22,7 @@ import type { CursorParams, ProviderDeps } from "../../engine-core-ts/src/provid
 import {
   resolveRustSourceResolutionSelectorMatch,
   resolveSelectedQueryBackendKind,
+  usesRustSourceResolutionBackend,
 } from "./source-resolution-query-backend";
 
 export interface SourceRenameQueryOptions {
@@ -54,7 +55,7 @@ export function readSourceExpressionRenameTarget(
     return { kind: "miss" } as const;
   }
 
-  if (resolveSelectedQueryBackendKind(options.env) === "rust-source-resolution") {
+  if (usesRustSourceResolutionBackend(resolveSelectedQueryBackendKind(options.env))) {
     const rustResult = readSourceExpressionRenameTargetFromRust(
       expression,
       params,

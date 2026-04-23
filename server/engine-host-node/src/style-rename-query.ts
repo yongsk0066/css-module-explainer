@@ -13,7 +13,10 @@ import type { SelectorReferenceRewritePolicy } from "../../engine-core-ts/src/co
 import type { StyleDocumentHIR } from "../../engine-core-ts/src/core/hir/style-types";
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
 import { pathToFileUrl } from "../../engine-core-ts/src/core/util/text-utils";
-import { resolveSelectedQueryBackendKind } from "./selected-query-backend";
+import {
+  resolveSelectedQueryBackendKind,
+  usesRustSelectorUsageBackend,
+} from "./selected-query-backend";
 import {
   buildSelectorUsageEditableDirectSitesFromRustPayload,
   resolveRustSelectorUsagePayloadForWorkspaceTarget,
@@ -132,7 +135,7 @@ function resolveStyleRenameRewriteSafety(
   options: StyleRenameQueryOptions,
 ) {
   const base = readSelectorRewriteSafetySummary(deps, filePath, canonicalName);
-  if (resolveSelectedQueryBackendKind(options.env) !== "rust-selector-usage") {
+  if (!usesRustSelectorUsageBackend(resolveSelectedQueryBackendKind(options.env))) {
     return base;
   }
 

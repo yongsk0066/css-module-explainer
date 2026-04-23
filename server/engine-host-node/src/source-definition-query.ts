@@ -13,6 +13,7 @@ import type { CursorParams, ProviderDeps } from "../../engine-core-ts/src/provid
 import {
   resolveRustSourceResolutionSelectorMatch,
   resolveSelectedQueryBackendKind,
+  usesRustSourceResolutionBackend,
 } from "./source-resolution-query-backend";
 
 export interface SourceDefinitionTarget {
@@ -37,35 +38,24 @@ export function resolveSourceExpressionDefinitionTargets(
   options: SourceDefinitionQueryOptions = {},
 ): readonly SourceDefinitionTarget[] {
   const backend = resolveSelectedQueryBackendKind(options.env);
-  if (backend === "rust-source-resolution") {
-    const readRustSelectorMatch =
-      options.readRustSourceResolutionSelectorMatch ?? resolveRustSourceResolutionSelectorMatch;
-    const match = readRustSelectorMatch(
-      {
-        uri: params.documentUri,
-        content: params.content,
-        filePath: params.filePath,
-        version: params.version,
-      },
-      ctx.expression.id,
-      ctx.expression.scssModulePath,
+  if (usesRustSourceResolutionBackend(backend)) {
+    const rustTargets = resolveSourceDefinitionTargetsFromRust(
+      ctx,
+      params,
       deps,
+      options.readRustSourceResolutionSelectorMatch ?? resolveRustSourceResolutionSelectorMatch,
     );
-    if (!match) return [];
-    const styleDocument = deps.styleDocumentForPath(match.styleFilePath);
-    if (!styleDocument || match.selectorNames.length === 0) return [];
-    return match.selectorNames
-      .map((name) => {
-        const selector =
-          styleDocument.selectors.find((candidate) => candidate.canonicalName === name) ?? null;
-        return selector ? findCanonicalSelector(styleDocument, selector) : null;
-      })
-      .filter((selector): selector is SelectorDeclHIR => selector !== null)
-      .map((selector) =>
-        toSourceDefinitionTarget(ctx.expression.range, match.styleFilePath, selector),
-      );
+    if (rustTargets.length > 0) return rustTargets;
   }
 
+  return resolveSourceDefinitionTargetsFromTypescript(ctx, params, deps);
+}
+
+function resolveSourceDefinitionTargetsFromTypescript(
+  ctx: SourceExpressionContext,
+  params: Pick<CursorParams, "filePath">,
+  deps: Pick<ProviderDeps, "styleDocumentForPath" | "typeResolver" | "workspaceRoot">,
+): readonly SourceDefinitionTarget[] {
   const resolution = readSourceExpressionResolution(
     {
       expression: ctx.expression,
@@ -86,6 +76,41 @@ export function resolveSourceExpressionDefinitionTargets(
   return resolution.selectors.map((selector) =>
     toSourceDefinitionTarget(ctx.expression.range, styleDocument.filePath, selector),
   );
+}
+
+function resolveSourceDefinitionTargetsFromRust(
+  ctx: SourceExpressionContext,
+  params: Pick<CursorParams, "documentUri" | "content" | "filePath" | "version">,
+  deps: Pick<
+    ProviderDeps,
+    "analysisCache" | "styleDocumentForPath" | "typeResolver" | "workspaceRoot" | "settings"
+  >,
+  readRustSelectorMatch: typeof resolveRustSourceResolutionSelectorMatch,
+): readonly SourceDefinitionTarget[] {
+  const match = readRustSelectorMatch(
+    {
+      uri: params.documentUri,
+      content: params.content,
+      filePath: params.filePath,
+      version: params.version,
+    },
+    ctx.expression.id,
+    ctx.expression.scssModulePath,
+    deps,
+  );
+  if (!match) return [];
+  const styleDocument = deps.styleDocumentForPath(match.styleFilePath);
+  if (!styleDocument || match.selectorNames.length === 0) return [];
+  return match.selectorNames
+    .map((name) => {
+      const selector =
+        styleDocument.selectors.find((candidate) => candidate.canonicalName === name) ?? null;
+      return selector ? findCanonicalSelector(styleDocument, selector) : null;
+    })
+    .filter((selector): selector is SelectorDeclHIR => selector !== null)
+    .map((selector) =>
+      toSourceDefinitionTarget(ctx.expression.range, match.styleFilePath, selector),
+    );
 }
 
 function toSourceDefinitionTarget(

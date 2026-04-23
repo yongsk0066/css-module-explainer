@@ -257,6 +257,10 @@ rewrite-safety and direct edit-site resolution, `explain-expression`, source
 diagnostics symbol-ref invalid-class analysis, and host-side `engine-query-v2` query-result emission for
 `source-expression-resolution`,
 `expression-semantics`, and `selector-usage`.
+`CME_SELECTED_QUERY_BACKEND=rust-selected-query` is the unified opt-in backend
+for that consumer slice; the narrower `rust-source-resolution`,
+`rust-expression-semantics`, and `rust-selector-usage` values remain available
+for isolated debugging.
 It is a milestone boundary, not a stable release gate and not yet a default
 selected-query backend flip.
 

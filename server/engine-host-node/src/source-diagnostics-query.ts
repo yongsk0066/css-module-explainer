@@ -9,7 +9,10 @@ import {
   buildExpressionSemanticsSummaryFromRustPayload,
   resolveRustExpressionSemanticsPayload,
 } from "./expression-semantics-query-backend";
-import { resolveSelectedQueryBackendKind } from "./selected-query-backend";
+import {
+  resolveSelectedQueryBackendKind,
+  usesRustExpressionSemanticsBackend,
+} from "./selected-query-backend";
 
 export interface SourceDiagnosticsQueryOptions {
   readonly env?: NodeJS.ProcessEnv;
@@ -30,7 +33,7 @@ export function resolveSourceDiagnosticFindings(
   options: SourceDiagnosticsQueryOptions = {},
 ): readonly SourceCheckerFinding[] {
   const selectedQueryBackend = resolveSelectedQueryBackendKind(options.env);
-  if (selectedQueryBackend === "rust-expression-semantics") {
+  if (usesRustExpressionSemanticsBackend(selectedQueryBackend)) {
     return resolveSourceDiagnosticFindingsViaRustSemantics(
       params,
       deps,
@@ -107,6 +110,18 @@ function resolveSourceDiagnosticFindingsViaRustSemantics(
         continue;
       }
 
+      const fallbackFinding = findInvalidClassReference(
+        expression,
+        entry.sourceFile,
+        styleDocument,
+        {
+          typeResolver: deps.typeResolver,
+          filePath: params.filePath,
+          workspaceRoot: deps.workspaceRoot,
+          sourceBinder: entry.sourceBinder,
+          sourceBindingGraph: entry.sourceBindingGraph,
+        },
+      );
       const payload = readRustSemanticsPayload(
         {
           uri: params.documentUri,
@@ -119,20 +134,19 @@ function resolveSourceDiagnosticFindingsViaRustSemantics(
         deps,
       );
       if (!payload || !payload.styleFilePath) {
-        const finding = findInvalidClassReference(expression, entry.sourceFile, styleDocument, {
-          typeResolver: deps.typeResolver,
-          filePath: params.filePath,
-          workspaceRoot: deps.workspaceRoot,
-          sourceBinder: entry.sourceBinder,
-          sourceBindingGraph: entry.sourceBindingGraph,
-        });
-        if (!finding) continue;
-        findings.push(mapInvalidClassFinding(finding, styleDocument.filePath));
+        if (fallbackFinding) {
+          findings.push(mapInvalidClassFinding(fallbackFinding, styleDocument.filePath));
+        }
         continue;
       }
 
       const payloadStyleDocument = deps.styleDocumentForPath(payload.styleFilePath);
-      if (!payloadStyleDocument) continue;
+      if (!payloadStyleDocument) {
+        if (fallbackFinding) {
+          findings.push(mapInvalidClassFinding(fallbackFinding, styleDocument.filePath));
+        }
+        continue;
+      }
       const selectors =
         payloadStyleDocument.selectors.filter((selector) =>
           payload.selectorNames.includes(selector.name),
@@ -143,7 +157,12 @@ function resolveSourceDiagnosticFindingsViaRustSemantics(
         selectors,
         payload,
       );
-      if (!semantics.abstractValue || !semantics.reason || !semantics.valueCertainty) continue;
+      if (!semantics.abstractValue || !semantics.reason || !semantics.valueCertainty) {
+        if (fallbackFinding) {
+          findings.push(mapInvalidClassFinding(fallbackFinding, styleDocument.filePath));
+        }
+        continue;
+      }
 
       const finiteValues =
         semantics.finiteValues ?? enumerateFiniteClassValues(semantics.abstractValue);

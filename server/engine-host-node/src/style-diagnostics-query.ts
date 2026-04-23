@@ -4,7 +4,10 @@ import {
 } from "../../engine-core-ts/src/core/checker";
 import type { StyleDocumentHIR } from "../../engine-core-ts/src/core/hir/style-types";
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
-import { resolveSelectedQueryBackendKind } from "./selected-query-backend";
+import {
+  resolveSelectedQueryBackendKind,
+  usesRustSelectorUsageBackend,
+} from "./selected-query-backend";
 import {
   resolveUnusedStyleSelectors,
   type StyleModuleUsageQueryOptions,
@@ -29,7 +32,7 @@ export function resolveStyleDiagnosticFindings(
 ): readonly StyleCheckerFinding[] {
   const selectedQueryBackend = resolveSelectedQueryBackendKind(options.env);
   if (
-    selectedQueryBackend === "rust-selector-usage" &&
+    usesRustSelectorUsageBackend(selectedQueryBackend) &&
     deps.analysisCache &&
     deps.styleDependencyGraph &&
     deps.styleDocumentForPath &&

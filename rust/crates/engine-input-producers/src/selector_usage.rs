@@ -5,11 +5,10 @@ use crate::{
     EngineInputV2, RangeV2, SelectorUsageCandidateV0, SelectorUsageCandidatesV0,
     SelectorUsageCanonicalCandidateBundleV0, SelectorUsageCanonicalProducerSignalV0,
     SelectorUsageEditableDirectSiteV0, SelectorUsageEvaluatorCandidatePayloadV0,
-    SelectorUsageEvaluatorCandidateV0,
-    SelectorUsageEvaluatorCandidatesV0, SelectorUsageFragmentV0, SelectorUsageFragmentsV0,
-    SelectorUsagePlanSummaryV0, SelectorUsageQueryFragmentV0, SelectorUsageQueryFragmentsV0,
-    SelectorUsageReferenceSiteV0, StyleAnalysisInputV2, StyleSelectorV2, canonical_selector_count,
-    map_selector_certainty, resolve_selector_names,
+    SelectorUsageEvaluatorCandidateV0, SelectorUsageEvaluatorCandidatesV0, SelectorUsageFragmentV0,
+    SelectorUsageFragmentsV0, SelectorUsagePlanSummaryV0, SelectorUsageQueryFragmentV0,
+    SelectorUsageQueryFragmentsV0, SelectorUsageReferenceSiteV0, StyleAnalysisInputV2,
+    StyleSelectorV2, canonical_selector_count, map_selector_certainty, resolve_selector_names,
 };
 
 pub fn summarize_selector_usage_plan_input(input: &EngineInputV2) -> SelectorUsagePlanSummaryV0 {
@@ -454,7 +453,7 @@ fn collect_incoming_style_dependency_sites(
     style_index: &BTreeMap<String, &StyleAnalysisInputV2>,
     file_path: &str,
     canonical_name: &str,
- ) -> Vec<SelectorUsageReferenceSiteV0> {
+) -> Vec<SelectorUsageReferenceSiteV0> {
     let mut seen = BTreeSet::<(String, String)>::new();
     let mut sites = Vec::<SelectorUsageReferenceSiteV0>::new();
     collect_incoming_style_dependencies(
@@ -491,8 +490,7 @@ fn collect_incoming_style_dependencies(
     for entry in entries {
         if seen.insert(entry.clone()) {
             if let Some(style) = style_index.get(&entry.0)
-                && let Some(selector) =
-                    find_canonical_selector(style, &entry.1)
+                && let Some(selector) = find_canonical_selector(style, &entry.1)
             {
                 sites.push(SelectorUsageReferenceSiteV0 {
                     file_path: entry.0.clone(),
@@ -684,9 +682,18 @@ mod tests {
         assert_eq!(summary.results[0].file_path, "/tmp/App.module.scss");
         assert_eq!(summary.results[0].query_id, "btn-active");
         assert_eq!(summary.results[0].payload.all_sites.len(), 1);
-        assert_eq!(summary.results[0].payload.all_sites[0].file_path, "/tmp/App.tsx");
-        assert_eq!(summary.results[0].payload.all_sites[0].expansion, "expanded");
-        assert_eq!(summary.results[0].payload.all_sites[0].reference_kind, "source");
+        assert_eq!(
+            summary.results[0].payload.all_sites[0].file_path,
+            "/tmp/App.tsx"
+        );
+        assert_eq!(
+            summary.results[0].payload.all_sites[0].expansion,
+            "expanded"
+        );
+        assert_eq!(
+            summary.results[0].payload.all_sites[0].reference_kind,
+            "source"
+        );
         assert!(summary.results[0].payload.editable_direct_sites.is_empty());
         assert_eq!(summary.results[1].payload.editable_direct_sites.len(), 1);
         assert_eq!(

@@ -29,7 +29,10 @@ import {
   createWorkspaceStyleHost,
 } from "./checker-host/workspace-check-support";
 import { classifyValueDomainV2 } from "./query-metadata-v2";
-import { resolveSelectedQueryBackendKind } from "./selected-query-backend";
+import {
+  resolveSelectedQueryBackendKind,
+  usesRustExpressionSemanticsBackend,
+} from "./selected-query-backend";
 
 export interface ExplainExpressionOptions {
   readonly workspaceRoot: string;
@@ -102,7 +105,7 @@ export function explainExpressionAtLocation(
   if (!ctx) return null;
 
   const selectedQueryBackend = resolveSelectedQueryBackendKind(options.env ?? process.env);
-  if (selectedQueryBackend === "rust-expression-semantics") {
+  if (usesRustExpressionSemanticsBackend(selectedQueryBackend)) {
     const rustResult = resolveExplainExpressionViaRustSemantics(
       options,
       ctx,

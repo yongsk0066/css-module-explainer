@@ -11,12 +11,16 @@ import type {
 import type { CursorParams, ProviderDeps } from "../../engine-core-ts/src/provider-deps";
 import { pathToFileUrl } from "../../engine-core-ts/src/core/util/text-utils";
 import {
+  resolveRustSourceResolutionSelectorMatch,
+  usesRustSelectorUsageBackend,
+  usesRustSourceResolutionBackend,
+} from "./source-resolution-query-backend";
+import {
   buildSelectorUsageLocationsFromRustPayload,
   resolveRustSelectorUsagePayloadForWorkspaceTarget,
 } from "./selector-usage-query-backend";
 import { resolveSelectedQueryBackendKind } from "./selected-query-backend";
 import { resolveSelectorReferenceLocations } from "./selector-references-query";
-import { resolveRustSourceResolutionSelectorMatch } from "./source-resolution-query-backend";
 
 export interface SourceReferenceLocation {
   readonly uri: string;
@@ -68,7 +72,7 @@ function resolveSourceReferenceTargets(
   options: SourceReferencesQueryOptions,
 ): readonly SourceReferenceTarget[] {
   const selectedQueryBackend = resolveSelectedQueryBackendKind(options.env);
-  if (selectedQueryBackend === "rust-source-resolution") {
+  if (usesRustSourceResolutionBackend(selectedQueryBackend)) {
     const rustTargets = resolveReferenceTargetsFromRust(
       ctx,
       params,
@@ -169,7 +173,7 @@ function resolveReferenceLocationsForTarget(
   options: SourceReferencesQueryOptions,
 ): readonly SourceReferenceLocation[] {
   const selectedQueryBackend = resolveSelectedQueryBackendKind(options.env);
-  if (selectedQueryBackend === "rust-selector-usage") {
+  if (usesRustSelectorUsageBackend(selectedQueryBackend)) {
     const payload = (
       options.readRustSelectorUsagePayloadForWorkspaceTarget ??
       resolveRustSelectorUsagePayloadForWorkspaceTarget

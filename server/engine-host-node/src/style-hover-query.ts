@@ -9,7 +9,10 @@ import {
 } from "../../engine-core-ts/src/core/query";
 import type { SelectorDeclHIR } from "../../engine-core-ts/src/core/hir/style-types";
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
-import { resolveSelectedQueryBackendKind } from "./selected-query-backend";
+import {
+  resolveSelectedQueryBackendKind,
+  usesRustSelectorUsageBackend,
+} from "./selected-query-backend";
 import {
   buildSelectorUsageRenderSummaryFromRustPayload,
   resolveRustSelectorUsagePayloadForWorkspaceTarget,
@@ -117,7 +120,7 @@ function resolveStyleSelectorUsageSummary(
   options: StyleHoverQueryOptions,
 ): SelectorUsageRenderSummary {
   const backend = resolveSelectedQueryBackendKind(options.env);
-  if (backend === "rust-selector-usage") {
+  if (usesRustSelectorUsageBackend(backend)) {
     const payload = (
       options.readRustSelectorUsagePayloadForWorkspaceTarget ??
       resolveRustSelectorUsagePayloadForWorkspaceTarget

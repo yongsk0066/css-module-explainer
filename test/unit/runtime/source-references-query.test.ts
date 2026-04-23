@@ -227,4 +227,66 @@ describe("resolveSourceExpressionReferences", () => {
       },
     ]);
   });
+
+  it("can use the unified rust-selected-query backend for source targets and usage locations", () => {
+    const deps = makeTsxDeps([
+      {
+        kind: "literal",
+        origin: "cxCall",
+        className: "indicator",
+        range: {
+          start: { line: 3, character: 14 },
+          end: { line: 3, character: 23 },
+        },
+        scssModulePath: BINDING.scssModulePath,
+      },
+    ]);
+    const ctx = readSourceExpressionContextAtCursor(cursor, {
+      analysisCache: deps.analysisCache,
+      styleDocumentForPath: deps.styleDocumentForPath,
+    });
+
+    expect(ctx).not.toBeNull();
+    expect(
+      resolveSourceExpressionReferences(ctx!, cursor, deps, {
+        env: {
+          CME_SELECTED_QUERY_BACKEND: "rust-selected-query",
+        } as NodeJS.ProcessEnv,
+        readRustSourceResolutionSelectorMatch: () => ({
+          styleFilePath: "/fake/src/Button.module.scss",
+          selectorNames: ["indicator"],
+        }),
+        readRustSelectorUsagePayloadForWorkspaceTarget: () => ({
+          canonicalName: "indicator",
+          totalReferences: 1,
+          directReferenceCount: 1,
+          editableDirectReferenceCount: 1,
+          exactReferenceCount: 1,
+          inferredOrBetterReferenceCount: 1,
+          hasExpandedReferences: false,
+          hasStyleDependencyReferences: false,
+          hasAnyReferences: true,
+          allSites: [
+            {
+              filePath: "/fake/src/FromRust.tsx",
+              range: {
+                start: { line: 9, character: 4 },
+                end: { line: 9, character: 13 },
+              },
+              expansion: "direct",
+              referenceKind: "source",
+            },
+          ],
+        }),
+      }),
+    ).toEqual([
+      {
+        uri: "file:///fake/src/FromRust.tsx",
+        range: {
+          start: { line: 9, character: 4 },
+          end: { line: 9, character: 13 },
+        },
+      },
+    ]);
+  });
 });

@@ -21,7 +21,10 @@ import {
   buildSelectorUsageLocationsFromRustPayload,
   resolveRustSelectorUsagePayloadForWorkspaceTarget,
 } from "./selector-usage-query-backend";
-import { resolveSelectedQueryBackendKind } from "./selected-query-backend";
+import {
+  resolveSelectedQueryBackendKind,
+  usesRustSelectorUsageBackend,
+} from "./selected-query-backend";
 import { resolveSelectorReferenceLocations } from "./selector-references-query";
 
 export interface StyleReferenceLocation {
@@ -76,7 +79,7 @@ export function resolveStyleReferencesAtCursor(
         };
       })();
   if (target) {
-    if (resolveSelectedQueryBackendKind(options.env) === "rust-selector-usage") {
+    if (usesRustSelectorUsageBackend(resolveSelectedQueryBackendKind(options.env))) {
       const payload = (
         options.readRustSelectorUsagePayloadForWorkspaceTarget ??
         resolveRustSelectorUsagePayloadForWorkspaceTarget

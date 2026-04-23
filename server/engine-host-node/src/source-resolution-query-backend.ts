@@ -18,6 +18,9 @@ import {
   buildSelectedQueryBackendInput,
   resolveSelectedQueryBackendKind,
   runRustSelectedQueryBackendJson,
+  usesRustExpressionSemanticsBackend,
+  usesRustSelectorUsageBackend,
+  usesRustSourceResolutionBackend,
   type SelectedQueryBackendDocument,
 } from "./selected-query-backend";
 
@@ -118,7 +121,12 @@ export function buildSourceResolutionSummaryFromRustPayload(
   };
 }
 
-export { resolveSelectedQueryBackendKind };
+export {
+  resolveSelectedQueryBackendKind,
+  usesRustExpressionSemanticsBackend,
+  usesRustSelectorUsageBackend,
+  usesRustSourceResolutionBackend,
+};
 
 function buildRustSourceResolutionAbstractValue(
   payload: SourceResolutionEvaluatorCandidatePayloadV0,

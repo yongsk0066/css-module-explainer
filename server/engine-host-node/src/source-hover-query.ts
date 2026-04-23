@@ -17,6 +17,8 @@ import {
 import {
   resolveRustSourceResolutionSelectorMatch,
   resolveSelectedQueryBackendKind,
+  usesRustExpressionSemanticsBackend,
+  usesRustSourceResolutionBackend,
 } from "./source-resolution-query-backend";
 
 export interface SourceHoverQueryOptions {
@@ -53,7 +55,7 @@ export function resolveSourceExpressionHoverResult(
   });
 
   const backend = resolveSelectedQueryBackendKind(options.env);
-  if (backend === "rust-expression-semantics") {
+  if (usesRustExpressionSemanticsBackend(backend)) {
     const rustResult = resolveHoverFromRustExpressionSemantics(
       ctx,
       params,
@@ -62,15 +64,14 @@ export function resolveSourceExpressionHoverResult(
     );
     if (rustResult) return rustResult;
   }
-  const selectors =
-    backend === "rust-source-resolution"
-      ? (resolveSelectorsFromRustSourceResolution(
-          ctx,
-          params,
-          deps,
-          options.readRustSourceResolutionSelectorMatch ?? resolveRustSourceResolutionSelectorMatch,
-        ) ?? result.selectors)
-      : result.selectors;
+  const selectors = usesRustSourceResolutionBackend(backend)
+    ? (resolveSelectorsFromRustSourceResolution(
+        ctx,
+        params,
+        deps,
+        options.readRustSourceResolutionSelectorMatch ?? resolveRustSourceResolutionSelectorMatch,
+      ) ?? result.selectors)
+    : result.selectors;
 
   return {
     selectors,

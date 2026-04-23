@@ -4,7 +4,10 @@ import {
 } from "../../engine-core-ts/src/core/query";
 import type { StyleDocumentHIR } from "../../engine-core-ts/src/core/hir/style-types";
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
-import { resolveSelectedQueryBackendKind } from "./selected-query-backend";
+import {
+  resolveSelectedQueryBackendKind,
+  usesRustSelectorUsageBackend,
+} from "./selected-query-backend";
 import { resolveRustSelectorUsagePayloadForWorkspaceTarget } from "./selector-usage-query-backend";
 
 export interface StyleModuleUsageSelectorSummary {
@@ -41,7 +44,7 @@ export function resolveUnusedStyleSelectors(
     deps.styleDependencyGraph,
   );
   const selectedQueryBackend = resolveSelectedQueryBackendKind(options.env);
-  if (selectedQueryBackend !== "rust-selector-usage") {
+  if (!usesRustSelectorUsageBackend(selectedQueryBackend)) {
     return fallback.unusedSelectors;
   }
 

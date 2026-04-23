@@ -8,6 +8,7 @@ const RUST_MANIFEST = path.join(REPO_ROOT, "rust/Cargo.toml");
 
 export type SelectedQueryBackendKind =
   | "typescript-current"
+  | "rust-selected-query"
   | "rust-source-resolution"
   | "rust-expression-semantics"
   | "rust-selector-usage";
@@ -25,6 +26,7 @@ export function resolveSelectedQueryBackendKind(
   const value = env.CME_SELECTED_QUERY_BACKEND?.trim() ?? "typescript-current";
   if (
     value === "typescript-current" ||
+    value === "rust-selected-query" ||
     value === "rust-source-resolution" ||
     value === "rust-expression-semantics" ||
     value === "rust-selector-usage"
@@ -33,6 +35,18 @@ export function resolveSelectedQueryBackendKind(
   }
 
   throw new Error(`Unknown selected query backend: ${value}`);
+}
+
+export function usesRustSourceResolutionBackend(kind: SelectedQueryBackendKind): boolean {
+  return kind === "rust-source-resolution" || kind === "rust-selected-query";
+}
+
+export function usesRustExpressionSemanticsBackend(kind: SelectedQueryBackendKind): boolean {
+  return kind === "rust-expression-semantics" || kind === "rust-selected-query";
+}
+
+export function usesRustSelectorUsageBackend(kind: SelectedQueryBackendKind): boolean {
+  return kind === "rust-selector-usage" || kind === "rust-selected-query";
 }
 
 export function buildSelectedQueryBackendInput(
