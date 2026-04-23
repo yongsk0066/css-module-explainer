@@ -5,20 +5,39 @@ import type {
   SelectorDeclHIR,
   ValueDeclHIR,
 } from "../../../engine-core-ts/src/core/hir/style-types";
-import type {
-  DynamicHoverExplanation,
-  SelectorStyleDependencySummary,
-  SelectorUsageSummary,
-} from "../../../engine-core-ts/src/core/query";
 
-type SelectorUsageRenderSummary = Pick<
-  SelectorUsageSummary,
-  | "totalReferences"
-  | "directReferenceCount"
-  | "hasExpandedReferences"
-  | "hasStyleDependencyReferences"
-  | "hasAnyReferences"
->;
+interface DynamicHoverExplanation {
+  readonly kind: "symbolRef" | "template";
+  readonly subject: string;
+  readonly candidates: readonly string[];
+  readonly valueDomainLabel?: string;
+  readonly valueDomainReasonLabel?: string;
+  readonly valueCertainty?: string;
+  readonly valueCertaintyShapeLabel?: string;
+  readonly valueCertaintyReasonLabel?: string;
+  readonly selectorCertainty?: string;
+  readonly selectorCertaintyShapeLabel?: string;
+  readonly selectorCertaintyReasonLabel?: string;
+  readonly reasonLabel?: string;
+}
+
+interface SelectorStyleDependencyRef {
+  readonly filePath: string;
+  readonly canonicalName: string;
+}
+
+interface SelectorStyleDependencySummary {
+  readonly incoming: readonly SelectorStyleDependencyRef[];
+  readonly outgoing: readonly SelectorStyleDependencyRef[];
+}
+
+interface SelectorUsageRenderSummary {
+  readonly totalReferences: number;
+  readonly directReferenceCount: number;
+  readonly hasExpandedReferences: boolean;
+  readonly hasStyleDependencyReferences: boolean;
+  readonly hasAnyReferences: boolean;
+}
 
 export interface RenderArgs {
   readonly expression: ClassExpressionHIR;
