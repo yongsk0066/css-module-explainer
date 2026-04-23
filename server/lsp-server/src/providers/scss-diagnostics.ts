@@ -3,12 +3,12 @@ import { type StyleCheckerFinding } from "../../../engine-core-ts/src/core/check
 import { formatCheckerFinding } from "../../../engine-core-ts/src/checker-surface";
 import type { StyleDocumentHIR } from "../../../engine-core-ts/src/core/hir/style-types";
 import { pathToFileUrl } from "../../../engine-core-ts/src/core/util/text-utils";
-import { resolveStyleDiagnosticFindings } from "../../../engine-host-node/src/style-diagnostics-query";
 import {
   buildCreateKeyframesActionData,
   buildCreateSelectorActionData,
   buildCreateValueActionData,
-} from "./code-action-data";
+} from "../../../engine-host-node/src/code-action-data";
+import { resolveStyleDiagnosticFindings } from "../../../engine-host-node/src/style-diagnostics-query";
 import type { ProviderDeps } from "./provider-deps";
 import { toLspRange } from "./lsp-adapters";
 

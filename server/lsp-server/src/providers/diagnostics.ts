@@ -6,9 +6,9 @@ import {
 import { type SourceCheckerFinding } from "../../../engine-core-ts/src/core/checker";
 import { formatCheckerFinding } from "../../../engine-core-ts/src/checker-surface";
 import { pathToFileUrl } from "../../../engine-core-ts/src/core/util/text-utils";
+import { buildCreateSelectorActionData } from "../../../engine-host-node/src/code-action-data";
 import { resolveSourceDiagnosticFindings } from "../../../engine-host-node/src/source-diagnostics-query";
 import { toLspRange } from "./lsp-adapters";
-import { buildCreateSelectorActionData } from "./code-action-data";
 import { wrapHandler } from "./_wrap-handler";
 import type { DocumentParams, ProviderDeps } from "./provider-deps";
 

@@ -1,16 +1,18 @@
-import type { Range as LspRange } from "vscode-languageserver/node";
-import { pathToFileUrl } from "../../../engine-core-ts/src/core/util/text-utils";
-import type { StyleDocumentHIR } from "../../../engine-core-ts/src/core/hir/style-types";
+import type { Range } from "@css-module-explainer/shared";
+import type { StyleDocumentHIR } from "../../engine-core-ts/src/core/hir/style-types";
+import { pathToFileUrl } from "../../engine-core-ts/src/core/util/text-utils";
+
+export interface RecoveryEditActionData {
+  readonly uri: string;
+  readonly range: Range;
+  readonly newText: string;
+}
 
 export function buildCreateSelectorActionData(
   className: string,
   scssModulePath: string,
   styleDocument: StyleDocumentHIR,
-): {
-  readonly uri: string;
-  readonly range: LspRange;
-  readonly newText: string;
-} {
+): RecoveryEditActionData {
   const insertionRange = findSelectorInsertionRange(styleDocument);
   return {
     uri: pathToFileUrl(scssModulePath),
@@ -24,11 +26,7 @@ export function buildCreateValueActionData(
   valueName: string,
   scssModulePath: string,
   styleDocument: StyleDocumentHIR,
-): {
-  readonly uri: string;
-  readonly range: LspRange;
-  readonly newText: string;
-} {
+): RecoveryEditActionData {
   const insertionRange = findValueInsertionRange(styleDocument);
   return {
     uri: pathToFileUrl(scssModulePath),
@@ -44,11 +42,7 @@ export function buildCreateKeyframesActionData(
   keyframesName: string,
   scssModulePath: string,
   styleDocument: StyleDocumentHIR,
-): {
-  readonly uri: string;
-  readonly range: LspRange;
-  readonly newText: string;
-} {
+): RecoveryEditActionData {
   const insertionRange = findKeyframesInsertionRange(styleDocument);
   const hasExistingContent =
     styleDocument.keyframes.length > 0 ||
@@ -75,7 +69,7 @@ export function buildCreateKeyframesActionData(
   };
 }
 
-function findSelectorInsertionRange(styleDocument: StyleDocumentHIR): LspRange {
+function findSelectorInsertionRange(styleDocument: StyleDocumentHIR): Range {
   if (styleDocument.selectors.length === 0) {
     return {
       start: { line: 0, character: 0 },
@@ -97,7 +91,7 @@ function findSelectorInsertionRange(styleDocument: StyleDocumentHIR): LspRange {
   };
 }
 
-function findValueInsertionRange(styleDocument: StyleDocumentHIR): LspRange {
+function findValueInsertionRange(styleDocument: StyleDocumentHIR): Range {
   const valueFacts = [...styleDocument.valueDecls, ...styleDocument.valueImports];
   if (valueFacts.length === 0) {
     return {
@@ -120,7 +114,7 @@ function findValueInsertionRange(styleDocument: StyleDocumentHIR): LspRange {
   };
 }
 
-function findKeyframesInsertionRange(styleDocument: StyleDocumentHIR): LspRange {
+function findKeyframesInsertionRange(styleDocument: StyleDocumentHIR): Range {
   if (styleDocument.keyframes.length > 0) {
     let latest = styleDocument.keyframes[0]!.ruleRange.end;
     for (const keyframes of styleDocument.keyframes) {
