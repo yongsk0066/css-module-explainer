@@ -100,7 +100,7 @@ function detectGateKind(
   command: string,
   referencedScripts: readonly string[],
 ): CheckGate["kind"] {
-  if (isAliasScript(scriptName, command, referencedScripts)) return "alias";
+  if (isAliasScript(command, referencedScripts)) return "alias";
   if (
     referencedScripts.length > 0 &&
     /(?:bundle|lane|readiness|shadow|verify|consumers|boundary)$/.test(scriptName)
@@ -113,13 +113,8 @@ function detectGateKind(
   return "command";
 }
 
-function isAliasScript(
-  scriptName: string,
-  command: string,
-  referencedScripts: readonly string[],
-): boolean {
+function isAliasScript(command: string, referencedScripts: readonly string[]): boolean {
   if (referencedScripts.length !== 1) return false;
-  if (scriptName.includes("preview")) return true;
   return /^pnpm\s+(?:run\s+)?[A-Za-z0-9:_-]+\s*$/.test(command.trim());
 }
 

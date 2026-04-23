@@ -115,8 +115,7 @@ function waitForExit(child) {
 }
 
 function resolveTsgoCheckerArgs() {
-  const value =
-    process.env.CME_TSGO_CHECKERS?.trim() ?? process.env.CME_TSGO_PREVIEW_CHECKERS?.trim();
+  const value = process.env.CME_TSGO_CHECKERS?.trim();
   if (!value) {
     return [];
   }

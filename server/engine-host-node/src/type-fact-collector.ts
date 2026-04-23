@@ -22,10 +22,6 @@ import {
 export interface SelectTypeFactCollectorOptions extends SelectTypeResolverOptions {
   readonly findTsgoConfigFile?: (workspaceRoot: string) => string | null;
   readonly runTsgoTypeFactWorker?: RunTsgoTypeFactWorker;
-  /** @deprecated Use findTsgoConfigFile. Kept for internal compatibility. */
-  readonly findPreviewConfigFile?: (workspaceRoot: string) => string | null;
-  /** @deprecated Use runTsgoTypeFactWorker. Kept for internal compatibility. */
-  readonly runPreviewTypeFactWorker?: RunTsgoTypeFactWorker;
 }
 
 export interface TypeFactCollectorSelection {
@@ -44,8 +40,8 @@ export function selectTypeFactCollector(
   options: SelectTypeFactCollectorOptions,
 ): TypeFactCollectorSelection {
   const resolverSelection = selectTypeResolver(options);
-  const findTsgoConfigFile = options.findTsgoConfigFile ?? options.findPreviewConfigFile;
-  const runTsgoTypeFactWorker = options.runTsgoTypeFactWorker ?? options.runPreviewTypeFactWorker;
+  const findTsgoConfigFile = options.findTsgoConfigFile;
+  const runTsgoTypeFactWorker = options.runTsgoTypeFactWorker;
   const collectV2 = (collectOptions: CollectTypeFactCollectorOptions): TypeFactTableV2 => {
     if (resolverSelection.backend === "tsgo") {
       return collectTypeFactTableV2WithTsgo({

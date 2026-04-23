@@ -7,16 +7,12 @@ import {
 import { TsgoProbeTypeResolver } from "../../../server/engine-host-node/src/tsgo-probe-type-resolver";
 
 describe("type backend selection", () => {
-  it("defaults to typescript-current", () => {
-    expect(resolveTypeFactBackendKind({})).toBe("typescript-current");
+  it("defaults to tsgo", () => {
+    expect(resolveTypeFactBackendKind({})).toBe("tsgo");
   });
 
   it("reads tsgo from env", () => {
     expect(resolveTypeFactBackendKind({ CME_TYPE_FACT_BACKEND: "tsgo" })).toBe("tsgo");
-  });
-
-  it("normalizes tsgo-preview from env", () => {
-    expect(resolveTypeFactBackendKind({ CME_TYPE_FACT_BACKEND: "tsgo-preview" })).toBe("tsgo");
   });
 
   it("prefers explicit backend over env", () => {
@@ -30,7 +26,7 @@ describe("type backend selection", () => {
 
     const selection = selectTypeResolver({
       typeBackend: "typescript-current",
-      env: { CME_TYPE_FACT_BACKEND: "tsgo-preview" },
+      env: { CME_TYPE_FACT_BACKEND: "tsgo" },
       typeResolver: fakeResolver,
     });
 

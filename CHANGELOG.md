@@ -5,10 +5,14 @@
 ### Changed
 
 - **Packaged Rust runner matrix** — CI and publish now build Linux, macOS, and Windows `engine-shadow-runner` artifacts, merge them into `dist/bin/`, and verify the generated VSIX preserves the required runner matrix before publishing.
+- **TS 7 backend default** — `CME_TYPE_FACT_BACKEND` now defaults to `tsgo`; use `CME_TYPE_FACT_BACKEND=typescript-current` for explicit current-TypeScript comparison runs.
+- **TS 7 release gate** — `pnpm release:verify` now includes `pnpm check:tsgo-release-bundle`, and Phase C readiness covers long-lived sessions, multi-root churn, watched-file invalidation, and source/style staleness under `tsgo`.
+- **Node-backed TS scripts** — package scripts now run TypeScript entrypoints through `node --import tsx`, avoiding the `tsx` CLI IPC path while keeping the same script bodies.
 
 ### Removed
 
 - **Legacy path alias fallback** — `cssModules.pathAlias` is no longer read. Use the native `cssModuleExplainer.pathAlias` setting for extension-specific CSS Module import aliases.
+- **TS 7 preview compatibility names** — `tsgo-preview` script/env aliases and `CME_TSGO_PREVIEW_CHECKERS` are no longer accepted; use `tsgo` and `CME_TSGO_CHECKERS`.
 
 ## [3.15.0] — 2026-04-24
 

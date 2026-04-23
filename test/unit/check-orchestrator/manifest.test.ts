@@ -20,6 +20,9 @@ describe("check orchestrator manifest", () => {
     expect(resolveGateTarget(manifest, "ts7/phase-b/protocol@tsgo")?.scriptName).toBe(
       "check:ts7-phase-b-protocol-tsgo",
     );
+    expect(resolveGateTarget(manifest, "ts7/phase-c/watch@tsgo")?.scriptName).toBe(
+      "check:ts7-phase-c-watch-tsgo",
+    );
     expect(resolveGateTarget(manifest, "tooling/orchestrator-doctor")?.scriptName).toBe(
       "check:orchestrator-doctor",
     );

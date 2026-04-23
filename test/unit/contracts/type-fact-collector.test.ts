@@ -118,38 +118,6 @@ describe("selectTypeFactCollector", () => {
     expect(workerCalls[0]?.configPath).toBe("/repo/tsconfig.json");
     expect(workerCalls[0]?.targets[0]?.position).toBe(0);
   });
-
-  it("keeps preview-named tsgo collector hooks as compatibility aliases", () => {
-    const workerCalls: string[] = [];
-    const collector = selectTypeFactCollector({
-      typeBackend: "tsgo",
-      typeResolver: {
-        resolve() {
-          return { kind: "unresolvable", values: [] };
-        },
-        invalidate() {},
-        clear() {},
-      } satisfies TypeResolver,
-      findPreviewConfigFile: (workspaceRoot) => `${workspaceRoot}/tsconfig.json`,
-      runPreviewTypeFactWorker: (input) => {
-        workerCalls.push(input.configPath);
-        return [
-          {
-            filePath: "/repo/src/App.tsx",
-            expressionId: "expr-1",
-            resolvedType: { kind: "union", values: ["primary", "secondary"] },
-          },
-        ];
-      },
-    });
-
-    const sourceEntries = createSourceEntries();
-
-    expect(collector.collectV2({ workspaceRoot: "/repo", sourceEntries })[0]?.facts.kind).toBe(
-      "finiteSet",
-    );
-    expect(workerCalls).toEqual(["/repo/tsconfig.json"]);
-  });
 });
 
 function createSourceEntries(): readonly TypeFactSourceEntry[] {

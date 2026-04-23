@@ -252,12 +252,12 @@ Current checker policy:
   - future variants can be selected with `--variant <label>`
   - repeated runs can be summarized with `--repeat <n>`
   - current comparison slot: `tsgo` on `check:backend-typecheck-smoke`
-- `pnpm check:backend-typecheck-smoke` now runs a small multi-case corpus (`template-literals`, `path-alias`, `flow-relations`) for both `typescript-current` and `tsgo`
-  - `CME_TYPE_FACT_BACKEND=tsgo` now activates a host-side tsgo probe before delegating symbol resolution to the current TS resolver
-  - `CME_TYPE_FACT_BACKEND=tsgo-preview` remains accepted as a deprecated compatibility alias
+- `pnpm check:backend-typecheck-smoke` runs a small multi-case corpus (`template-literals`, `path-alias`, `flow-relations`) for the selected typecheck backend
+  - the unset `CME_TYPE_FACT_BACKEND` default is now `tsgo`, which activates a host-side tsgo probe before delegating symbol resolution to the current TS resolver
+  - `CME_TYPE_FACT_BACKEND=typescript-current` remains available as the explicit current-TypeScript fallback
 - `CME_TYPE_FACT_BACKEND=tsgo pnpm check:release-batch` and `pnpm check:real-project-corpus` now exercise the checker path through the same host-side tsgo probe
 - `pnpm check:type-fact-backend-parity` compares canonical `EngineInputV2.typeFacts` across `typescript-current` and `tsgo` on the backend smoke corpus
-- `pnpm check:ts7-phase-a-readiness` is the current aggregate pre-adoption gate for the TS 7 beta path
+- `pnpm check:ts7-phase-a-readiness` is the current aggregate Phase A gate for the TS 7 beta path
   - it runs backend typecheck smoke, type-fact backend parity, and `rust-gate-evidence -- --variant tsgo --repeat 1 --json`
 - `pnpm check:release-batch-tsgo` is the current tsgo-backed variant of the release-batch operational path
 - `pnpm check:real-project-corpus-tsgo` is the current tsgo-backed variant of the real-project operational path
@@ -267,11 +267,11 @@ Current checker policy:
 - `pnpm check:ts7-phase-a-stability` directly checks the two tsgo-specific risk points that the basic shadow path does not prove by itself
   - repeated `EngineInputV2.typeFacts` snapshots from `tsgo` must stay byte-stable across runs
   - concurrent `release-batch` and `real-project-corpus` invocations under `CME_TYPE_FACT_BACKEND=tsgo` must keep identical outputs across rounds
-  - tsgo probe calls run through the repo-pinned `@typescript/native-preview` devDependency, and the stability matrix now also repeats backend smoke under fixed `--checkers` values (`1`, `2`, `4`) via `CME_TSGO_CHECKERS`; the legacy `CME_TSGO_PREVIEW_CHECKERS` name remains accepted as a compatibility alias
+  - tsgo probe calls run through the repo-pinned `@typescript/native-preview` devDependency, and the stability matrix now also repeats backend smoke under fixed `--checkers` values (`1`, `2`, `4`) via `CME_TSGO_CHECKERS`
 - `pnpm check:ts7-phase-a-tsgo-lane` is the current limited non-release aggregate for TS 7 beta Phase A
   - it builds the repo, then runs readiness, shadow, and stability together
 - `pnpm check:ts7-phase-a-shadow-review` reviews recent `TS7 Phase A Shadow` workflow history through `gh`
-  - today it reports whether the repo has accumulated the current minimum of `3` successful shadow runs before any broader backend adoption judgment
+  - today it reports whether the repo has accumulated the current minimum of `3` successful shadow runs before any broader release-facing judgment
 - `pnpm check:ts7-phase-a-decision-ready` is the current lock point for Phase A
   - it requires both the local tsgo lane and the successful-shadow-run threshold
 - `pnpm check:ts7-phase-b-protocol-tsgo` is the first bounded protocol-layer tsgo path for TS 7 beta Phase B
@@ -286,9 +286,9 @@ Current checker policy:
   - it requires `pnpm check:ts7-phase-a-decision-ready` first, then the bounded protocol, editing, server-build, and workspace-build tsgo subsets
 - `pnpm check:tsgo-operational-lane` is the current bounded non-release operational lane for the tsgo backend
   - it runs the local `ts7-phase-a-tsgo-lane` plus the bounded Phase B protocol, editing, server-build, workspace-build, and Phase C edge-readiness tsgo subsets
-- `pnpm check:tsgo-release-bundle` is the current release-shaped tsgo variant; today it aliases the operational lane and remains separate from `pnpm release:verify`
+- `pnpm check:tsgo-release-bundle` is the release-shaped tsgo variant and is part of `pnpm release:verify`
 - `pnpm check:ts7-phase-c-readiness` is the first TS 7 Phase C edge-readiness slice
-  - it runs long-lived LSP session edits and multi-root workspace churn under `CME_TYPE_FACT_BACKEND=tsgo`
+  - it runs long-lived LSP session edits, multi-root workspace churn, watched-file invalidation, and source/style staleness checks under `CME_TYPE_FACT_BACKEND=tsgo`
 - `pnpm check:operational-lane` is the current limited non-release default lane
   - today it resolves to the tsgo-backed operational lane
 - `pnpm check:operational-shadow-review` is the current limited non-release default review command
@@ -296,7 +296,7 @@ Current checker policy:
 - `pnpm check:tsgo-operational-shadow-review` reviews recent `TSGO Operational Shadow` workflow history through `gh`
   - today it reports whether the repo has accumulated the current minimum of `3` successful shadow runs before any limited non-release default judgment
 - `pnpm check:ts7-decision-ready` is the current top-level judgment gate for the TS 7 track
-  - it requires both `Phase A decision-ready` and `Phase B readiness`
+  - it requires `Phase A decision-ready`, `Phase B readiness`, and `Phase C readiness`
 - `.github/workflows/tsgo-operational-shadow.yml` is the observational workflow for that bounded operational lane
   - it builds the repo, runs the tsgo-backed release batch, real-project corpus, LSP smoke, and full operational lane, and records repeatable shadow history for the next default-candidate judgment
 - `.github/workflows/ts7-phase-a-shadow.yml` builds the repo, then runs the Phase A readiness gate, non-release shadow path, and stability check on every `master` push and on manual dispatch
@@ -393,18 +393,13 @@ Current checker policy:
   - the bounded checker entrance (`style-recovery` + `source-missing` + `style-unused`) is now enforced in `pnpm check:rust-release-bundle`
   - packaged VSIX runtime now defaults to `rust-selected-query` when the bundled `engine-shadow-runner` is present, while source checkouts keep the unset default on `typescript-current`
   - LSP providers now consume `engine-host-node` query helpers instead of importing `core/query` or `core/rewrite` internals directly, and architecture tests guard that provider boundary
-  - the next backend transition step is explicitly staged behind `pnpm check:ts7-phase-a-readiness`
-  - `tsgo` is now wired into explicit tsgo-backed operational commands: `pnpm check:release-batch-tsgo`, `pnpm check:real-project-corpus-tsgo`, and `pnpm check:lsp-server-smoke-tsgo`
-  - the current limited non-release aggregate for that backend is `pnpm check:ts7-phase-a-tsgo-lane`
-  - the next step up from that lane is `pnpm check:ts7-phase-b-protocol-tsgo`
-  - the current bounded non-release operational aggregate is `pnpm check:tsgo-operational-lane`, including the Phase C long-lived/workspace-edge slice
+  - `CME_TYPE_FACT_BACKEND` now defaults to `tsgo`, with `typescript-current` retained as an explicit comparison fallback
+  - `tsgo` is wired into release-batch, real-project corpus, LSP smoke, protocol/editing, server build, workspace build, and Phase C edge-readiness checks
+  - the current release-shaped TS 7 aggregate is `pnpm check:tsgo-release-bundle`, and `pnpm release:verify` includes it
   - the current limited non-release default lane is `pnpm check:operational-lane`
   - the current limited non-release default review command is `pnpm check:operational-shadow-review`
   - the current top-level TS 7 judgment command is `pnpm check:ts7-decision-ready`
-  - `TS 7 Phase C` is now opened and is scoped to long-lived and workspace-edge behavior, not wider default flips
-  - the initial `Phase C` surface covers watch / incremental build behavior, long-lived LSP session behavior beyond one-shot smoke, and multi-root / workspace-edge cases
-    - long-lived LSP session behavior beyond one-shot smoke
-    - multi-root and workspace-edge cases
+  - `TS 7 Phase C` now covers watch / incremental behavior, long-lived LSP session behavior beyond one-shot smoke, and multi-root / workspace-edge cases
   - `selector-usage` remains a shadow validation family, not a release-gating canonical candidate
   - current `EngineInputV2` does not preserve enough reference-level evidence to reproduce `selector-usage` semantics as an input-only canonical producer
   - the current internal Rust producer boundary is [`rust/crates/engine-input-producers`](./rust/crates/engine-input-producers/README.md)

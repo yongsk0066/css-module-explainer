@@ -97,8 +97,9 @@ pnpm exec vsce package --no-dependencies
 3. run `pnpm check:plugin-consumer-example`
 4. run `pnpm check:plugin-consumers`
 5. run `pnpm check:rust-release-bundle`
-6. run `pnpm test`
-7. run `pnpm package`
+6. run `pnpm check:tsgo-release-bundle`
+7. run `pnpm test`
+8. run `pnpm package`
 
 `pnpm check:semantic-smoke` is the canonical semantic smoke pass. It is not the
 release gate yet. It gives one repeatable workspace/checker sanity check before
@@ -183,8 +184,8 @@ and `server/engine-host-node` dist outputs required by
 checker entrance, and promotion evidence as separate workflow steps so failures
 remain attributable after the stable release gate flip.
 
-`pnpm check:ts7-phase-a-readiness` is the current pre-adoption gate for the
-TS 7 beta path. `pnpm check:ts7-phase-a-shadow` is the current non-release
+`pnpm check:ts7-phase-a-readiness` is the current Phase A gate for the TS 7
+beta path. `pnpm check:ts7-phase-a-shadow` is the current non-release
 shadow path for that same tsgo backend lane. The explicit tsgo-backed
 operational commands are:
 
@@ -199,11 +200,11 @@ commands plus the tsgo-backed LSP smoke together.
 tsgo-specific risk points that the basic shadow path does not prove by itself:
 repeated `EngineInputV2.typeFacts` ordering stability and concurrent
 checker-process output stability under `CME_TYPE_FACT_BACKEND=tsgo`. The
-deprecated alias `CME_TYPE_FACT_BACKEND=tsgo-preview` is still accepted. It
-now runs tsgo through the repo-pinned `@typescript/native-preview`
+unset `CME_TYPE_FACT_BACKEND` default is now `tsgo`, and the explicit
+`CME_TYPE_FACT_BACKEND=typescript-current` fallback remains available for
+comparison. It runs tsgo through the repo-pinned `@typescript/native-preview`
 devDependency and repeats backend smoke under fixed `--checkers` values (`1`, `2`, `4`) via
-`CME_TSGO_CHECKERS`. The legacy `CME_TSGO_PREVIEW_CHECKERS` name remains
-accepted as a compatibility alias.
+`CME_TSGO_CHECKERS`.
 
 `pnpm check:ts7-phase-a-tsgo-lane` is the current limited non-release
 aggregate for Phase A. It runs the readiness gate, non-release shadow path,
@@ -217,11 +218,11 @@ observational only; it is not part of `pnpm check:rust-release-bundle`.
 `pnpm check:ts7-phase-a-shadow-review` is the current operator review command
 for that workflow. It reads recent `TS7 Phase A Shadow` history through `gh`
 and reports whether the repo has accumulated the current minimum of `3`
-successful shadow runs before any broader backend adoption judgment.
+successful shadow runs before any broader release-facing judgment.
 
 `pnpm check:ts7-phase-a-decision-ready` is the current Phase A lock point. It
 requires both the local limited tsgo lane and the shadow-run threshold to be
-green before any broader tsgo adoption judgment.
+green before any broader release-facing judgment.
 
 `pnpm check:ts7-phase-b-protocol-tsgo` is the first bounded protocol-layer
 tsgo path for TS 7 beta Phase B. It runs a focused subset of protocol tests
@@ -253,12 +254,12 @@ editing, server-build, workspace-build, and Phase C edge-readiness tsgo
 subsets.
 
 `pnpm check:tsgo-release-bundle` is the current release-shaped tsgo variant.
-Today it aliases `pnpm check:tsgo-operational-lane` and stays separate from
-`pnpm release:verify` until the `CME_TYPE_FACT_BACKEND=tsgo` default decision
-is made.
+Today it aliases `pnpm check:tsgo-operational-lane` and is part of
+`pnpm release:verify`.
 
 `pnpm check:ts7-phase-c-readiness` is the first TS 7 Phase C edge-readiness
-slice. It runs long-lived LSP session edits and multi-root workspace churn under
+slice. It runs long-lived LSP session edits, multi-root workspace churn,
+watched-file invalidation, and source/style staleness checks under
 `CME_TYPE_FACT_BACKEND=tsgo`.
 
 `pnpm check:selected-query-boundary` is the current local lock point for the
@@ -347,16 +348,12 @@ has accumulated the current minimum of `3` successful shadow runs before any
 limited non-release default judgment.
 
 `pnpm check:ts7-decision-ready` is the current top-level judgment gate for the
-TS 7 track. It requires both `Phase A decision-ready` and `Phase B readiness`
-before any broader tsgo adoption or release-facing
+TS 7 track. It requires `Phase A decision-ready`, `Phase B readiness`, and
+`Phase C readiness` before any broader release-facing judgment.
 
-judgment.
-
-`TS 7 Phase C` is now opened. Its current scope is limited to long-lived and
-workspace-edge behavior:
-watch/incremental build behavior, long-lived LSP session behavior beyond the
-one-shot smoke path, and multi-root/workspace-edge cases. It is not a wider
-default flip.
+`TS 7 Phase C` is now part of the release-facing tsgo bundle. Its current scope
+covers watch/incremental behavior, long-lived LSP session behavior beyond the
+one-shot smoke path, and multi-root/workspace-edge cases.
 
 `pnpm check:rust-checker-release-gate-shadow-review` is the current operator
 review command for enforcement readiness. It reads recent

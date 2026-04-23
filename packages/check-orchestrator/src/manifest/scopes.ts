@@ -144,13 +144,13 @@ function toRustGatePath(rest: string): string {
 }
 
 function toTs7GatePath(rest: string): string {
-  const backendMatch = /^(phase-[ab])-(.+)-(tsgo|preview)$/.exec(rest);
+  const backendMatch = /^(phase-[abc])-(.+)-tsgo$/.exec(rest);
   if (backendMatch) {
-    const [, phase, name, backend] = backendMatch;
-    return `${phase}/${name}@${backend}`;
+    const [, phase, name] = backendMatch;
+    return `${phase}/${name}@tsgo`;
   }
 
-  const phaseMatch = /^(phase-[ab])-(.+)$/.exec(rest);
+  const phaseMatch = /^(phase-[abc])-(.+)$/.exec(rest);
   if (phaseMatch) {
     const [, phase, name] = phaseMatch;
     return `${phase}/${name}`;
@@ -160,10 +160,10 @@ function toTs7GatePath(rest: string): string {
 }
 
 function toBackendQualifiedPath(rest: string): string {
-  const backendMatch = /^(.+)-(tsgo|preview)$/.exec(rest);
+  const backendMatch = /^(.+)-tsgo$/.exec(rest);
   if (!backendMatch) return rest.replace(":", "/");
-  const [, name, backend] = backendMatch;
-  return `${name}@${backend}`;
+  const [, name] = backendMatch;
+  return `${name}@tsgo`;
 }
 
 function stripCheckPrefix(scriptName: string): string {

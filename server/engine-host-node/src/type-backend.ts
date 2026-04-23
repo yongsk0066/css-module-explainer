@@ -23,12 +23,9 @@ export interface TypeResolverSelection {
 export function resolveTypeFactBackendKind(
   env: NodeJS.ProcessEnv = process.env,
 ): TypeFactBackendKind {
-  const value = env.CME_TYPE_FACT_BACKEND ?? "typescript-current";
+  const value = env.CME_TYPE_FACT_BACKEND ?? "tsgo";
   if (value === "typescript-current" || value === "tsgo") {
     return value;
-  }
-  if (value === "tsgo-preview") {
-    return "tsgo";
   }
 
   throw new Error(`Unknown type fact backend: ${value}`);
