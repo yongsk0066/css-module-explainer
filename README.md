@@ -246,7 +246,9 @@ Current checker policy:
   - prebuilt mode can resolve an explicit `CME_ENGINE_SHADOW_RUNNER_PATH`, a packaged `dist/bin/<platform>-<arch>/engine-shadow-runner`, or the warmed `rust/target/debug` runner
   - it is promotion evidence for widening the packaged runner matrix beyond the current-platform artifact
   - GitHub Actions runs the same lane in the `Rust Selected Query Default Candidate` shadow workflow on `master`
-- `pnpm build` now prepares the current-platform release `engine-shadow-runner` at `dist/bin/<platform>-<arch>/engine-shadow-runner`, and `pnpm check:packaged-engine-shadow-runner` verifies the packaged runner artifact before VSIX packaging
+- `pnpm build` now prepares the current-platform release `engine-shadow-runner` at `dist/bin/<platform>-<arch>/engine-shadow-runner`
+- `pnpm check:packaged-engine-shadow-runner` verifies the packaged runner artifact before VSIX packaging
+- `pnpm check:packaged-selected-query-default` verifies the generated VSIX file set still makes packaged runtime choose `rust-selected-query` by default while excluding checkout-only Rust/source markers
 - `pnpm check:editor-path-boundary` is the current editor-path runtime lock point
   - it runs `pnpm check:selected-query-boundary` plus the protocol subset for `diagnostics`, `scss-diagnostics`, `code-actions`, watched-file invalidation, workspace-folder changes, and settings reload
   - those paths now route diagnostics/checker entry, code-action planning, session bootstrap, workspace-folder mutation, watched-file invalidation, and settings-reload orchestration through `engine-host-node` helpers or aggregates instead of owning the runtime policy directly in the LSP layer

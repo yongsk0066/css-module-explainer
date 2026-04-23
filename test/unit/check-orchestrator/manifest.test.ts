@@ -26,6 +26,9 @@ describe("check orchestrator manifest", () => {
     expect(
       resolveGateTarget(manifest, "release/check/packaged-engine-shadow-runner")?.scriptName,
     ).toBe("check:packaged-engine-shadow-runner");
+    expect(
+      resolveGateTarget(manifest, "release/check/packaged-selected-query-default")?.scriptName,
+    ).toBe("check:packaged-selected-query-default");
   });
 
   it("tracks bundle script references", () => {

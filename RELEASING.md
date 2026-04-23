@@ -97,7 +97,7 @@ pnpm exec vsce package --no-dependencies
 4. run `pnpm check:plugin-consumers`
 5. run `pnpm check:rust-release-bundle`
 6. run `pnpm test`
-7. run `pnpm build`
+7. run `pnpm package`
 
 `pnpm check:semantic-smoke` is the canonical semantic smoke pass. It is not the
 release gate yet. It gives one repeatable workspace/checker sanity check before
@@ -291,7 +291,10 @@ same lane in the
 `dist/bin/<platform>-<arch>/engine-shadow-runner`. `pnpm package`,
 `pnpm release:verify`, `./scripts/publish-extension.sh`, and the CI package job
 run `pnpm check:packaged-engine-shadow-runner` before VSIX packaging so the
-release artifact contains an executable runner.
+release artifact contains an executable runner. After VSIX packaging they also
+run `pnpm check:packaged-selected-query-default`, which verifies the generated
+VSIX file set makes packaged runtime choose `rust-selected-query` by default
+while excluding checkout-only Rust/source markers.
 
 `pnpm check:editor-path-boundary` is the current local lock point for the
 editor-path runtime transition after the selected-query cut. It runs

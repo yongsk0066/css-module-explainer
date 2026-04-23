@@ -85,6 +85,7 @@ jobs:
           path: dist/
       - run: pnpm check:packaged-engine-shadow-runner
       - run: pnpm exec vsce package --no-dependencies
+      - run: pnpm check:packaged-selected-query-default
       - name: VSIX size gate (max 5 MB)
         run: |
           SIZE=$(wc -c < *.vsix | tr -d ' ')
