@@ -18,6 +18,20 @@ const entries = readVsixEntries(vsixPath);
 const platformDir = `${process.platform}-${process.arch}`;
 const binaryName =
   process.platform === "win32" ? "engine-shadow-runner.exe" : "engine-shadow-runner";
+const minimumRunnerTargets = Number.parseInt(
+  process.env.CME_PACKAGED_RUNNER_MIN_TARGETS ?? "1",
+  10,
+);
+const requiredRunnerPlatforms = (process.env.CME_PACKAGED_RUNNER_REQUIRED_PLATFORMS ?? "")
+  .split(",")
+  .map((value) => value.trim())
+  .filter(Boolean);
+
+if (!Number.isInteger(minimumRunnerTargets) || minimumRunnerTargets < 1) {
+  throw new Error(
+    `CME_PACKAGED_RUNNER_MIN_TARGETS must be a positive integer, got ${process.env.CME_PACKAGED_RUNNER_MIN_TARGETS}`,
+  );
+}
 
 for (const entry of [
   "extension/package.json",
@@ -28,6 +42,21 @@ for (const entry of [
   assertEntry(entries, entry);
 }
 
+const runnerTargets = readPackagedRunnerTargets(entries);
+if (runnerTargets.length < minimumRunnerTargets) {
+  throw new Error(
+    `Expected at least ${minimumRunnerTargets} packaged runner target(s), found ${runnerTargets.length}: ${runnerTargets.join(", ")}`,
+  );
+}
+
+for (const platform of requiredRunnerPlatforms) {
+  if (!runnerTargets.some((target) => target.startsWith(`${platform}-`))) {
+    throw new Error(
+      `VSIX is missing packaged runner for required platform ${platform}; found ${runnerTargets.join(", ")}`,
+    );
+  }
+}
+
 for (const prefix of [
   "extension/rust/",
   "extension/client/",
@@ -35,6 +64,7 @@ for (const prefix of [
   "extension/scripts/",
   "extension/server/engine-host-node/",
   "extension/server/lsp-server/",
+  "extension/.runner-artifacts/",
 ]) {
   assertNoPrefix(entries, prefix);
 }
@@ -74,6 +104,15 @@ function readVsixEntries(filePath: string): ReadonlySet<string> {
     encoding: "utf8",
   });
   return new Set(output.split(/\r?\n/u).filter(Boolean));
+}
+
+function readPackagedRunnerTargets(vsixEntries: ReadonlySet<string>): readonly string[] {
+  const targetDirs = new Set<string>();
+  for (const entry of vsixEntries) {
+    const match = /^extension\/dist\/bin\/([^/]+)\/engine-shadow-runner(?:\.exe)?$/u.exec(entry);
+    if (match) targetDirs.add(match[1]!);
+  }
+  return [...targetDirs].toSorted();
 }
 
 function assertEntry(vsixEntries: ReadonlySet<string>, entry: string): void {

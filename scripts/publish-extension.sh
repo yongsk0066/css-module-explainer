@@ -27,7 +27,8 @@ fi
 pnpm check
 pnpm test
 pnpm build
-pnpm check:packaged-engine-shadow-runner
+node ./scripts/merge-engine-shadow-runner-artifacts.mjs
+pnpm check:packaged-engine-shadow-runner-matrix
 
 rm -f ./*.vsix
 pnpm exec vsce package "${PACKAGE_ARGS[@]}"

@@ -304,19 +304,22 @@ use `cargo run` by default, so they do not accidentally reuse a stale
 `rust/target` binary. Prebuilt mode resolves an explicit
 `CME_ENGINE_SHADOW_RUNNER_PATH`, a packaged
 `dist/bin/<platform>-<arch>/engine-shadow-runner`, or the warmed
-`rust/target/debug` runner. It is promotion evidence for widening the packaged
-runner matrix beyond the current-platform artifact. GitHub Actions runs the
-same lane in the
+`rust/target/debug` runner. It is regression evidence for keeping the packaged
+runner matrix safe while `rust-selected-query` is the packaged default. GitHub
+Actions runs the same lane in the
 `Rust Selected Query Default Candidate` shadow workflow on `master`.
 
 `pnpm build` prepares the current-platform release `engine-shadow-runner` at
 `dist/bin/<platform>-<arch>/engine-shadow-runner`. `pnpm package`,
 `pnpm release:verify`, `./scripts/publish-extension.sh`, and the CI package job
-run `pnpm check:packaged-engine-shadow-runner` before VSIX packaging so the
-release artifact contains an executable runner. After VSIX packaging they also
-run `pnpm check:packaged-selected-query-default`, which verifies the generated
-VSIX file set makes packaged runtime choose `rust-selected-query` by default
-while excluding checkout-only Rust/source markers.
+run `pnpm check:packaged-engine-shadow-runner-matrix` before VSIX packaging so
+the release artifact contains executable runner targets. CI and the publish
+workflow build Linux, macOS, and Windows runner artifacts, merge them back into
+`dist/bin/`, and require all three platform families before packaging. After
+VSIX packaging they also run `pnpm check:packaged-selected-query-default`, which
+verifies the generated VSIX file set makes packaged runtime choose
+`rust-selected-query` by default while excluding checkout-only Rust/source
+markers and preserving the required runner matrix.
 
 `pnpm check:editor-path-boundary` is the current local lock point for the
 editor-path runtime transition after the selected-query cut. It runs
@@ -426,11 +429,12 @@ Inputs:
 The workflow:
 
 1. checks out the requested ref
-2. installs dependencies
-3. runs `./scripts/publish-extension.sh`
-4. packages the VSIX
-5. publishes to Marketplace and/or Open VSX
-6. optionally creates a GitHub release
+2. builds Linux, macOS, and Windows `engine-shadow-runner` artifacts
+3. installs dependencies
+4. runs `./scripts/publish-extension.sh`
+5. packages the VSIX with the merged runner matrix
+6. publishes to Marketplace and/or Open VSX
+7. optionally creates a GitHub release
 
 ## Stable release procedure
 

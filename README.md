@@ -245,11 +245,11 @@ Current checker policy:
   - it then warms `engine-shadow-runner`, runs the live Rust selected-query unit consumer slice, and repeats the full protocol suite with the unified Rust selected-query backend explicitly enabled and `CME_ENGINE_SHADOW_RUNNER=prebuilt`
   - prebuilt runner mode is explicit so ad-hoc local runs still use `cargo run` and do not accidentally reuse a stale `rust/target` binary
   - prebuilt mode can resolve an explicit `CME_ENGINE_SHADOW_RUNNER_PATH`, a packaged `dist/bin/<platform>-<arch>/engine-shadow-runner`, or the warmed `rust/target/debug` runner
-  - it is promotion evidence for widening the packaged runner matrix beyond the current-platform artifact
+  - it is regression evidence for keeping the packaged runner matrix safe while `rust-selected-query` is the packaged default
   - GitHub Actions runs the same lane in the `Rust Selected Query Default Candidate` shadow workflow on `master`
 - `pnpm build` now prepares the current-platform release `engine-shadow-runner` at `dist/bin/<platform>-<arch>/engine-shadow-runner`
-- `pnpm check:packaged-engine-shadow-runner` verifies the packaged runner artifact before VSIX packaging
-- `pnpm check:packaged-selected-query-default` verifies the generated VSIX file set still makes packaged runtime choose `rust-selected-query` by default while excluding checkout-only Rust/source markers
+- `pnpm check:packaged-engine-shadow-runner-matrix` verifies packaged runner targets before VSIX packaging; CI and publish require Linux, macOS, and Windows runner artifacts
+- `pnpm check:packaged-selected-query-default` verifies the generated VSIX file set still makes packaged runtime choose `rust-selected-query` by default while excluding checkout-only Rust/source markers and preserving the required runner matrix
 - `pnpm check:editor-path-boundary` is the current editor-path runtime lock point
   - it runs `pnpm check:selected-query-boundary` plus the protocol subset for `diagnostics`, `scss-diagnostics`, `code-actions`, watched-file invalidation, workspace-folder changes, and settings reload
   - those paths now route diagnostics/checker entry, code-action planning, session bootstrap, workspace-folder mutation, watched-file invalidation, and settings-reload orchestration through `engine-host-node` helpers or aggregates instead of owning the runtime policy directly in the LSP layer

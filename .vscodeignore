@@ -35,6 +35,7 @@ examples/
 .personal_docs/
 .changeset/
 .worktrees/
+.runner-artifacts/
 scripts/
 RELEASING.md
 pnpm-workspace.yaml
@@ -43,6 +44,7 @@ rust/
 # Build artifacts we don't need
 **/*.tsbuildinfo
 coverage/
+engine-shadow-runner-*.tgz
 *.log
 pnpm-lock.yaml
 .pnpm-store/
