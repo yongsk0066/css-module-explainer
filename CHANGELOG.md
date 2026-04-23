@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.15.0] — 2026-04-24
+
+### Added
+
+- **Packaged Rust selected-query default** — packaged VSIX runtime now selects the unified `rust-selected-query` backend by default when the bundled `engine-shadow-runner` is present, while source checkouts keep the unset default on `typescript-current`.
+- **TS 7 beta Phase B coverage** — the tsgo lane now covers protocol, editing, server build, and workspace build checks with `@typescript/native-preview@beta`, fixed checker/builder settings, and `tsgo` as the canonical backend alias.
+
+### Changed
+
+- **Provider reads now go through host query boundaries** — LSP providers consume `engine-host-node` query helpers instead of importing core query or rewrite internals directly, and architecture tests now guard that boundary.
+- **TS 7 beta wording now uses probe semantics** — `tsgo-preview` remains a deprecated compatibility alias, but the implementation and release-facing scripts now describe the backend as a host-side tsgo probe with current TypeScript resolver fallback.
+- **`3.15.0` is framed as the packaged Rust default and host-boundary milestone** — the release narrative records the selected-query packaged default, provider host-boundary enforcement, and TS 7 beta operational expansion without declaring `CME_TYPE_FACT_BACKEND=tsgo` as the global default yet.
+
 ## [3.14.0] — 2026-04-22
 
 ### Added
