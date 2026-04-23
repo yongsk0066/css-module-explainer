@@ -240,7 +240,8 @@ subsets.
 `pnpm check:tsgo-operational-lane` is the current bounded non-release
 operational lane for the tsgo backend. It runs the local
 `pnpm check:ts7-phase-a-tsgo-lane` plus the bounded Phase B protocol,
-editing, server-build, and workspace-build tsgo subsets.
+editing, server-build, workspace-build, and Phase C edge-readiness tsgo
+subsets.
 
 `pnpm check:tsgo-release-bundle` is the current release-shaped tsgo variant.
 Today it aliases `pnpm check:tsgo-operational-lane` and stays separate from

@@ -296,7 +296,7 @@ Current checker policy:
 - `pnpm check:ts7-phase-b-readiness` is the current entry check for Phase B
   - it requires `pnpm check:ts7-phase-a-decision-ready` first, then the bounded protocol, editing, server-build, and workspace-build tsgo subsets
 - `pnpm check:tsgo-operational-lane` is the current bounded non-release operational lane for the tsgo backend
-  - it runs the local `ts7-phase-a-tsgo-lane` plus the bounded Phase B protocol, editing, server-build, and workspace-build tsgo subsets
+  - it runs the local `ts7-phase-a-tsgo-lane` plus the bounded Phase B protocol, editing, server-build, workspace-build, and Phase C edge-readiness tsgo subsets
 - `pnpm check:tsgo-release-bundle` is the current release-shaped tsgo variant; today it aliases the operational lane and remains separate from `pnpm release:verify`
 - `pnpm check:ts7-phase-c-readiness` is the first TS 7 Phase C edge-readiness slice
   - it runs long-lived LSP session edits and multi-root workspace churn under `CME_TYPE_FACT_BACKEND=tsgo`
@@ -398,7 +398,7 @@ Current checker policy:
   - `tsgo` is now wired into explicit tsgo-backed operational commands: `pnpm check:release-batch-tsgo`, `pnpm check:real-project-corpus-tsgo`, and `pnpm check:lsp-server-smoke-tsgo`
   - the current limited non-release aggregate for that backend is `pnpm check:ts7-phase-a-tsgo-lane`
   - the next step up from that lane is `pnpm check:ts7-phase-b-protocol-tsgo`
-  - the current bounded non-release operational aggregate is `pnpm check:tsgo-operational-lane`
+  - the current bounded non-release operational aggregate is `pnpm check:tsgo-operational-lane`, including the Phase C long-lived/workspace-edge slice
   - the current limited non-release default lane is `pnpm check:operational-lane`
   - the current limited non-release default review command is `pnpm check:operational-shadow-review`
   - the current top-level TS 7 judgment command is `pnpm check:ts7-decision-ready`
