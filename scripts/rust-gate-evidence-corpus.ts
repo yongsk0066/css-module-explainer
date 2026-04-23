@@ -12,6 +12,10 @@ export interface RustGateEvidenceVariant {
 export const RUST_GATE_EVIDENCE_VARIANTS: readonly RustGateEvidenceVariant[] = [
   {
     label: "typescript-current",
+    env: {
+      CME_TYPE_FACT_BACKEND: "typescript-current",
+      CME_TYPECHECK_VARIANT: "typescript-current",
+    },
   },
   {
     label: "tsgo",

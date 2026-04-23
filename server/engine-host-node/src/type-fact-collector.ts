@@ -14,6 +14,7 @@ import {
   type SelectTypeResolverOptions,
   type TypeFactBackendKind,
 } from "./type-backend";
+import { TsgoProbeTypeResolver } from "./tsgo-probe-type-resolver";
 import {
   collectTypeFactTableV2WithTsgo,
   type RunTsgoTypeFactWorker,
@@ -43,7 +44,10 @@ export function selectTypeFactCollector(
   const findTsgoConfigFile = options.findTsgoConfigFile;
   const runTsgoTypeFactWorker = options.runTsgoTypeFactWorker;
   const collectV2 = (collectOptions: CollectTypeFactCollectorOptions): TypeFactTableV2 => {
-    if (resolverSelection.backend === "tsgo") {
+    if (
+      resolverSelection.backend === "tsgo" &&
+      (runTsgoTypeFactWorker || resolverSelection.typeResolver instanceof TsgoProbeTypeResolver)
+    ) {
       return collectTypeFactTableV2WithTsgo({
         ...withTypeResolver(collectOptions, resolverSelection.typeResolver),
         ...(findTsgoConfigFile ? { findConfigFile: findTsgoConfigFile } : {}),

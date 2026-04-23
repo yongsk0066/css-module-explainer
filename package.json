@@ -214,6 +214,7 @@
     "oxfmt": "^0.45.0",
     "oxlint": "^1.60.0",
     "postcss": "^8.5.9",
+    "postcss-safe-parser": "7.0.1",
     "rolldown": "1.0.0-rc.15",
     "stylelint": "^17.8.0",
     "stylelint-plugin-css-module-explainer": "workspace:*",

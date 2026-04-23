@@ -118,7 +118,52 @@ describe("selectTypeFactCollector", () => {
     expect(workerCalls[0]?.configPath).toBe("/repo/tsconfig.json");
     expect(workerCalls[0]?.targets[0]?.position).toBe(0);
   });
+
+  it("honors an explicit non-tsgo resolver even when the ambient default is tsgo", () => {
+    const collector = selectTypeFactCollector({
+      env: { CME_TYPE_FACT_BACKEND: "tsgo" },
+      typeResolver: finiteSetResolver(["primary", "secondary"]),
+    });
+
+    const [entry] = collector.collectV2({
+      workspaceRoot: "/repo",
+      sourceEntries: createSourceEntries(),
+    });
+
+    expect(collector.backend).toBe("tsgo");
+    expect(entry?.facts).toEqual({ kind: "finiteSet", values: ["primary", "secondary"] });
+  });
+
+  it("falls back to the resolver when tsgo has no project for a target file", () => {
+    const collector = selectTypeFactCollector({
+      typeBackend: "tsgo",
+      typeResolver: finiteSetResolver(["primary", "secondary"]),
+      findTsgoConfigFile: (workspaceRoot) => `${workspaceRoot}/tsconfig.json`,
+      runTsgoTypeFactWorker: () => {
+        throw new Error(
+          "tsgo type fact worker failed\nstderr: no project found for file /repo/src/App.tsx",
+        );
+      },
+    });
+
+    const [entry] = collector.collectV2({
+      workspaceRoot: "/repo",
+      sourceEntries: createSourceEntries(),
+    });
+
+    expect(entry?.facts).toEqual({ kind: "finiteSet", values: ["primary", "secondary"] });
+  });
 });
+
+function finiteSetResolver(values: readonly string[]): TypeResolver {
+  return {
+    resolve() {
+      return { kind: "union", values: [...values] };
+    },
+    invalidate() {},
+    clear() {},
+  };
+}
 
 function createSourceEntries(): readonly TypeFactSourceEntry[] {
   return [

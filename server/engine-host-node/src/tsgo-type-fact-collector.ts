@@ -73,7 +73,15 @@ export function collectTypeFactTableV1WithTsgo(
 export function collectTypeFactTableV2WithTsgo(
   options: CollectTsgoTypeFactsOptions,
 ): TypeFactTableV2 {
-  const resolvedTypes = collectTsgoResolvedTypes(options);
+  let resolvedTypes: Map<string, ResolvedType> | null;
+  try {
+    resolvedTypes = collectTsgoResolvedTypes(options);
+  } catch (error) {
+    if (!isTsgoProjectMissError(error)) {
+      throw error;
+    }
+    return collectTypeFactTableV2(options);
+  }
   if (!resolvedTypes) {
     return collectTypeFactTableV2(options);
   }
@@ -167,6 +175,10 @@ function defaultRunTsgoTypeFactWorker(
   }
 
   return JSON.parse(child.stdout) as readonly TsgoTypeFactWorkerResultEntry[];
+}
+
+function isTsgoProjectMissError(error: unknown): boolean {
+  return error instanceof Error && /\bno project found for file\b/u.test(error.message);
 }
 
 function offsetAtPosition(text: string, line: number, character: number): number {
