@@ -110,18 +110,15 @@ function resolveSourceDiagnosticFindingsViaRustSemantics(
         continue;
       }
 
-      const fallbackFinding = findInvalidClassReference(
+      const fallbackFinding = createFallbackFindingReader({
         expression,
-        entry.sourceFile,
+        sourceFile: entry.sourceFile,
         styleDocument,
-        {
-          typeResolver: deps.typeResolver,
-          filePath: params.filePath,
-          workspaceRoot: deps.workspaceRoot,
-          sourceBinder: entry.sourceBinder,
-          sourceBindingGraph: entry.sourceBindingGraph,
-        },
-      );
+        sourceBinder: entry.sourceBinder,
+        sourceBindingGraph: entry.sourceBindingGraph,
+        deps,
+        filePath: params.filePath,
+      });
       const payload = readRustSemanticsPayload(
         {
           uri: params.documentUri,
@@ -134,16 +131,18 @@ function resolveSourceDiagnosticFindingsViaRustSemantics(
         deps,
       );
       if (!payload || !payload.styleFilePath) {
-        if (fallbackFinding) {
-          findings.push(mapInvalidClassFinding(fallbackFinding, styleDocument.filePath));
+        const fallback = fallbackFinding();
+        if (fallback) {
+          findings.push(mapInvalidClassFinding(fallback, styleDocument.filePath));
         }
         continue;
       }
 
       const payloadStyleDocument = deps.styleDocumentForPath(payload.styleFilePath);
       if (!payloadStyleDocument) {
-        if (fallbackFinding) {
-          findings.push(mapInvalidClassFinding(fallbackFinding, styleDocument.filePath));
+        const fallback = fallbackFinding();
+        if (fallback) {
+          findings.push(mapInvalidClassFinding(fallback, styleDocument.filePath));
         }
         continue;
       }
@@ -158,8 +157,9 @@ function resolveSourceDiagnosticFindingsViaRustSemantics(
         payload,
       );
       if (!semantics.abstractValue || !semantics.reason || !semantics.valueCertainty) {
-        if (fallbackFinding) {
-          findings.push(mapInvalidClassFinding(fallbackFinding, styleDocument.filePath));
+        const fallback = fallbackFinding();
+        if (fallback) {
+          findings.push(mapInvalidClassFinding(fallback, styleDocument.filePath));
         }
         continue;
       }
@@ -204,6 +204,36 @@ function resolveSourceDiagnosticFindingsViaRustSemantics(
   }
 
   return findings;
+}
+
+function createFallbackFindingReader(args: {
+  readonly expression: Parameters<typeof findInvalidClassReference>[0];
+  readonly sourceFile: Parameters<typeof findInvalidClassReference>[1];
+  readonly styleDocument: Parameters<typeof findInvalidClassReference>[2];
+  readonly sourceBinder: Parameters<typeof findInvalidClassReference>[3]["sourceBinder"];
+  readonly sourceBindingGraph: Parameters<
+    typeof findInvalidClassReference
+  >[3]["sourceBindingGraph"];
+  readonly deps: Pick<ProviderDeps, "typeResolver" | "workspaceRoot">;
+  readonly filePath: string;
+}): () => ReturnType<typeof findInvalidClassReference> {
+  let didRead = false;
+  let fallback: ReturnType<typeof findInvalidClassReference> = null;
+  return () => {
+    if (!didRead) {
+      didRead = true;
+      fallback = findInvalidClassReference(args.expression, args.sourceFile, args.styleDocument, {
+        typeResolver: args.deps.typeResolver,
+        filePath: args.filePath,
+        workspaceRoot: args.deps.workspaceRoot,
+        ...(args.sourceBinder !== undefined ? { sourceBinder: args.sourceBinder } : {}),
+        ...(args.sourceBindingGraph !== undefined
+          ? { sourceBindingGraph: args.sourceBindingGraph }
+          : {}),
+      });
+    }
+    return fallback;
+  };
 }
 
 function mapInvalidClassFinding(

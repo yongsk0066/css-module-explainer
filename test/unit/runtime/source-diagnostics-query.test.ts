@@ -4,6 +4,7 @@ import type { CxBinding } from "../../../server/engine-core-ts/src/core/cx/cx-ty
 import type { ResolvedCxBinding } from "../../../server/engine-core-ts/src/core/cx/resolved-bindings";
 import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
 import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/source-file-cache";
+import type { TypeResolver } from "../../../server/engine-core-ts/src/core/ts/type-resolver";
 import type { ProviderDeps } from "../../../server/lsp-server/src/providers/cursor-dispatch";
 import { resolveSourceDiagnosticFindings } from "../../../server/engine-host-node/src/source-diagnostics-query";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
@@ -82,7 +83,7 @@ function makeDeps(): ProviderDeps {
   });
 }
 
-function makeSymbolRefDeps(): ProviderDeps {
+function makeSymbolRefDeps(options: { readonly typeResolver?: TypeResolver } = {}): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
   const analysisCache = new DocumentAnalysisCache({
     sourceFileCache,
@@ -113,7 +114,7 @@ function makeSymbolRefDeps(): ProviderDeps {
   return makeBaseDeps({
     analysisCache,
     selectorMapForPath: () => new Map([["unknown", info("unknown")]]),
-    typeResolver: new FakeTypeResolver(["small", "large"]),
+    typeResolver: options.typeResolver ?? new FakeTypeResolver(["small", "large"]),
     workspaceRoot: "/fake/ws",
   });
 }
@@ -178,4 +179,52 @@ describe("resolveSourceDiagnosticFindings", () => {
       reason: "flowBranch",
     });
   });
+
+  it("does not read the TypeScript fallback when rust semantics are complete", () => {
+    const findings = resolveSourceDiagnosticFindings(
+      {
+        documentUri: "file:///fake/ws/src/Button.tsx",
+        content: SYMBOL_REF_TSX,
+        filePath: "/fake/ws/src/Button.tsx",
+        version: 1,
+      },
+      makeSymbolRefDeps({ typeResolver: throwingTypeResolver() }),
+      {
+        env: {
+          CME_SELECTED_QUERY_BACKEND: "rust-expression-semantics",
+        } as NodeJS.ProcessEnv,
+        readRustExpressionSemanticsPayload: () => ({
+          expressionId: "expr-1",
+          expressionKind: "symbolRef",
+          styleFilePath: "/fake/ws/src/Button.module.scss",
+          selectorNames: [],
+          candidateNames: ["small", "large"],
+          finiteValues: ["small", "large"],
+          valueDomainKind: "finiteSet",
+          selectorCertainty: "possible",
+          valueCertainty: "inferred",
+          selectorCertaintyShapeKind: "unknown",
+          selectorCertaintyShapeLabel: "unknown",
+          valueCertaintyShapeKind: "boundedFinite",
+          valueCertaintyShapeLabel: "bounded finite (2)",
+        }),
+      },
+    );
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toMatchObject({
+      code: "missing-resolved-class-values",
+      missingValues: ["small", "large"],
+    });
+  });
 });
+
+function throwingTypeResolver(): TypeResolver {
+  return {
+    resolve: () => {
+      throw new Error("unexpected TypeScript fallback");
+    },
+    invalidate: () => {},
+    clear: () => {},
+  };
+}
