@@ -643,6 +643,66 @@ export interface CheckerSourceMissingCanonicalProducerSignalV0 {
   };
 }
 
+export interface CheckerStyleUnusedFindingV0 {
+  readonly filePath: string;
+  readonly code: string;
+  readonly severity: string;
+  readonly range: {
+    readonly start: {
+      readonly line: number;
+      readonly character: number;
+    };
+    readonly end: {
+      readonly line: number;
+      readonly character: number;
+    };
+  };
+  readonly message: string;
+  readonly analysisReason?: string;
+  readonly valueCertaintyShapeLabel?: string;
+}
+
+export interface CheckerStyleUnusedCanonicalCandidateBundleV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly reportVersion: string;
+  readonly bundle: "style-unused";
+  readonly distinctFileCount: number;
+  readonly codeCounts: Readonly<Record<string, number>>;
+  readonly summary: {
+    readonly warnings: number;
+    readonly hints: number;
+    readonly total: number;
+  };
+  readonly findings: readonly CheckerStyleUnusedFindingV0[];
+}
+
+export interface CheckerStyleUnusedCanonicalProducerSignalV0 {
+  readonly schemaVersion: string;
+  readonly inputVersion: string;
+  readonly canonicalCandidate: CheckerStyleUnusedCanonicalCandidateBundleV0;
+  readonly boundedCheckerGate: {
+    readonly canonicalCandidateCommand: "pnpm check:rust-checker-style-unused-canonical-candidate";
+    readonly canonicalProducerCommand: "pnpm check:rust-checker-style-unused-canonical-producer";
+    readonly consumerBoundaryCommand: "pnpm check:rust-checker-style-unused-consumer-boundary";
+    readonly boundedCheckerLaneCommand: "pnpm check:rust-checker-bounded-lanes";
+    readonly promotionReviewCommand: "pnpm check:rust-checker-promotion-review";
+    readonly promotionEvidenceCommand: "pnpm check:rust-checker-promotion-evidence";
+    readonly broaderRustLaneCommand: "pnpm check:rust-lane-bundle";
+    readonly releaseGateReadinessCommand: "pnpm check:rust-checker-release-gate-readiness";
+    readonly releaseGateShadowCommand: "pnpm check:rust-checker-release-gate-shadow";
+    readonly releaseGateShadowReviewCommand: "pnpm check:rust-checker-release-gate-shadow-review";
+    readonly releaseBundleCommand: "pnpm check:rust-release-bundle";
+    readonly minimumBoundedLaneCountForRustLaneBundle: 3;
+    readonly minimumBoundedLaneCountForRustReleaseBundle: 3;
+    readonly minimumSuccessfulShadowRunsForRustReleaseBundle: 3;
+    readonly checkerBundle: "style-unused";
+    readonly releaseGateStage: "candidate";
+    readonly includedInRustLaneBundle: false;
+    readonly includedInRustReleaseBundle: false;
+  };
+}
+
 export async function runShadow(snapshot: unknown): Promise<ShadowSummaryV0> {
   return runShadowJson<ShadowSummaryV0>([], snapshot);
 }
@@ -917,6 +977,24 @@ export async function runShadowCheckerStyleRecoveryCanonicalProducer(
 ): Promise<CheckerStyleRecoveryCanonicalProducerSignalV0> {
   return runShadowJson<CheckerStyleRecoveryCanonicalProducerSignalV0>(
     ["output-checker-style-recovery-canonical-producer"],
+    snapshot,
+  );
+}
+
+export async function runShadowCheckerStyleUnusedCanonicalCandidate(
+  snapshot: unknown,
+): Promise<CheckerStyleUnusedCanonicalCandidateBundleV0> {
+  return runShadowJson<CheckerStyleUnusedCanonicalCandidateBundleV0>(
+    ["output-checker-style-unused-canonical-candidate"],
+    snapshot,
+  );
+}
+
+export async function runShadowCheckerStyleUnusedCanonicalProducer(
+  snapshot: unknown,
+): Promise<CheckerStyleUnusedCanonicalProducerSignalV0> {
+  return runShadowJson<CheckerStyleUnusedCanonicalProducerSignalV0>(
+    ["output-checker-style-unused-canonical-producer"],
     snapshot,
   );
 }

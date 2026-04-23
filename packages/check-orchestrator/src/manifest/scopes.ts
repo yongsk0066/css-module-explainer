@@ -9,6 +9,7 @@ interface ScopeDefinition {
 const RUST_FAMILIES = [
   "checker-style-recovery",
   "checker-source-missing",
+  "checker-style-unused",
   "expression-semantics",
   "expression-domain",
   "source-resolution",

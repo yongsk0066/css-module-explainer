@@ -340,7 +340,12 @@ Current checker policy:
 - `pnpm check:rust-checker-source-missing-canonical-producer` validates the matching checker canonical-producer signal for that bounded `source-missing` subset
 - `pnpm check:rust-checker-source-missing-consumer-boundary` validates the opt-in `checker-cli` Rust consumer path for that bounded source subset
 - `pnpm check:rust-checker-source-missing-lane` runs the full bounded source-side checker lane: canonical-candidate, canonical-producer, and opt-in consumer-boundary consistency
-- `pnpm check:rust-checker-bounded-lanes` is the current aggregate entry for bounded checker-canonical lanes; today it runs `style-recovery` and `source-missing`
+- `pnpm check:rust-checker-style-unused-canonical-candidate` is the next checker-canonical expansion candidate for the `style-unused` subset
+- `pnpm check:rust-checker-style-unused-canonical-producer` validates the matching checker canonical-producer signal for that candidate subset
+- `pnpm check:rust-checker-style-unused-consumer-boundary` validates the `checker-cli` consumer boundary for the candidate `style-unused` subset
+- `pnpm check:rust-checker-style-unused-lane` runs that candidate checker lane end to end; it is not part of the stable release gate yet
+- `pnpm check:rust-checker-bounded-lanes` is the current aggregate entry for release-enforced checker-canonical lanes; today it runs `style-recovery` and `source-missing`
+- `pnpm check:rust-checker-expanded-lanes` runs the release-enforced checker lanes plus the candidate `style-unused` expansion lane
 - `pnpm check:rust-checker-entrance` is the official checker-canonical entrance gate; it currently aliases `pnpm check:rust-checker-bounded-lanes`
 - `pnpm check:rust-checker-promotion-review` validates the current promotion stance for bounded checker lanes; today it confirms both lanes are inside the broader Rust lane and the release gate
 - `pnpm check:rust-checker-broader-lane-readiness` locks the current broader-lane promotion criteria for those bounded lanes; today it requires two bounded lanes, a promotion-review command, and a broader target of `pnpm check:rust-lane-bundle`, with both lanes promoted into the broader Rust lane and the release gate
@@ -373,7 +378,12 @@ Current checker policy:
   - bounded source-side checker producer signal: `pnpm check:rust-checker-source-missing-canonical-producer`
   - bounded source-side checker consumer path: `pnpm check:rust-checker-source-missing-consumer-boundary`
   - bounded source-side checker lane: `pnpm check:rust-checker-source-missing-lane`
+  - candidate style-unused checker entrance: `pnpm check:rust-checker-style-unused-canonical-candidate`
+  - candidate style-unused checker producer signal: `pnpm check:rust-checker-style-unused-canonical-producer`
+  - candidate style-unused checker consumer path: `pnpm check:rust-checker-style-unused-consumer-boundary`
+  - candidate style-unused checker lane: `pnpm check:rust-checker-style-unused-lane`
   - bounded checker lane aggregate: `pnpm check:rust-checker-bounded-lanes`
+  - expanded checker lane aggregate: `pnpm check:rust-checker-expanded-lanes`
   - official checker entrance gate: `pnpm check:rust-checker-entrance`
   - checker lane promotion review: `pnpm check:rust-checker-promotion-review`
   - broader checker lane readiness: `pnpm check:rust-checker-broader-lane-readiness`
@@ -392,6 +402,7 @@ Current checker policy:
   - `engine-style-parser` now has a canonical parser/public-product gate, a parser canonical-candidate bundle, parser evaluator-candidates, a parser canonical-producer signal, a bounded CSS Modules intermediate producer surface, and a downstream consumer-boundary check over that producer output
   - the ESLint and Stylelint plugin consumers now form a first plugin-facing batch with focused rule surfaces, aggregate configs, a clean example workspace, and release-facing consumer gates
   - the bounded checker entrance (`style-recovery` + `source-missing`) is now enforced in `pnpm check:rust-release-bundle`
+  - the next checker expansion lane (`style-unused`) now has canonical-candidate, canonical-producer, and consumer-boundary coverage behind `pnpm check:rust-checker-expanded-lanes`; it remains outside the stable release gate until promotion evidence is widened
   - packaged VSIX runtime now defaults to `rust-selected-query` when the bundled `engine-shadow-runner` is present, while source checkouts keep the unset default on `typescript-current`
   - LSP providers now consume `engine-host-node` query helpers instead of importing `core/query` or `core/rewrite` internals directly, and architecture tests guard that provider boundary
   - the next backend transition step is explicitly staged behind `pnpm check:ts7-phase-a-readiness`

@@ -277,6 +277,65 @@ struct CheckerSourceMissingCanonicalProducerSignalV0 {
     bounded_checker_gate: CheckerSourceMissingCanonicalProducerGateV0,
 }
 
+#[derive(Debug, Serialize, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "camelCase")]
+struct CheckerStyleUnusedFindingV0 {
+    file_path: String,
+    code: String,
+    severity: String,
+    range: RangeV0,
+    message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    analysis_reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    value_certainty_shape_label: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CheckerStyleUnusedCanonicalCandidateBundleV0 {
+    schema_version: &'static str,
+    input_version: String,
+    report_version: String,
+    bundle: &'static str,
+    distinct_file_count: usize,
+    code_counts: BTreeMap<String, usize>,
+    summary: CheckerReportSummaryV1,
+    findings: Vec<CheckerStyleUnusedFindingV0>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CheckerStyleUnusedCanonicalProducerGateV0 {
+    canonical_candidate_command: &'static str,
+    canonical_producer_command: &'static str,
+    consumer_boundary_command: &'static str,
+    bounded_checker_lane_command: &'static str,
+    promotion_review_command: &'static str,
+    promotion_evidence_command: &'static str,
+    broader_rust_lane_command: &'static str,
+    release_gate_readiness_command: &'static str,
+    release_gate_shadow_command: &'static str,
+    release_gate_shadow_review_command: &'static str,
+    release_bundle_command: &'static str,
+    minimum_bounded_lane_count_for_rust_lane_bundle: usize,
+    minimum_bounded_lane_count_for_rust_release_bundle: usize,
+    minimum_successful_shadow_runs_for_rust_release_bundle: usize,
+    checker_bundle: &'static str,
+    release_gate_stage: &'static str,
+    included_in_rust_lane_bundle: bool,
+    included_in_rust_release_bundle: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CheckerStyleUnusedCanonicalProducerSignalV0 {
+    schema_version: &'static str,
+    input_version: String,
+    canonical_candidate: CheckerStyleUnusedCanonicalCandidateBundleV0,
+    bounded_checker_gate: CheckerStyleUnusedCanonicalProducerGateV0,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ShadowSummaryV0 {
@@ -526,6 +585,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some("output-checker-style-recovery-canonical-producer") => {
             let payload: ShadowPayloadV0 = serde_json::from_str(&stdin)?;
             let summary = summarize_checker_style_recovery_canonical_producer(payload);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
+        Some("output-checker-style-unused-canonical-candidate") => {
+            let payload: ShadowPayloadV0 = serde_json::from_str(&stdin)?;
+            let summary = summarize_checker_style_unused_canonical_candidate(payload);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
+        Some("output-checker-style-unused-canonical-producer") => {
+            let payload: ShadowPayloadV0 = serde_json::from_str(&stdin)?;
+            let summary = summarize_checker_style_unused_canonical_producer(payload);
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
         Some("output-checker-source-missing-canonical-candidate") => {
@@ -980,6 +1049,90 @@ fn summarize_checker_source_missing_canonical_producer(
             release_gate_stage: "enforced",
             included_in_rust_lane_bundle: true,
             included_in_rust_release_bundle: true,
+        },
+    }
+}
+
+fn summarize_checker_style_unused_canonical_candidate(
+    payload: ShadowPayloadV0,
+) -> CheckerStyleUnusedCanonicalCandidateBundleV0 {
+    let input_version = payload.input.version.clone();
+    let report = payload.output.checker_report;
+    let mut code_counts = BTreeMap::new();
+    let mut file_paths = std::collections::BTreeSet::new();
+    let mut findings = Vec::new();
+    let mut warnings = 0usize;
+    let mut hints = 0usize;
+
+    for finding in report.findings {
+        if finding.category != "style" || finding.code != "unused-selector" {
+            continue;
+        }
+
+        *code_counts.entry(finding.code.clone()).or_insert(0) += 1;
+        file_paths.insert(finding.file_path.clone());
+        if finding.severity == "warning" {
+            warnings += 1;
+        }
+        if finding.severity == "hint" {
+            hints += 1;
+        }
+        findings.push(CheckerStyleUnusedFindingV0 {
+            file_path: finding.file_path,
+            code: finding.code,
+            severity: finding.severity,
+            range: finding.range,
+            message: finding.message,
+            analysis_reason: finding.analysis_reason,
+            value_certainty_shape_label: finding.value_certainty_shape_label,
+        });
+    }
+
+    findings.sort();
+
+    CheckerStyleUnusedCanonicalCandidateBundleV0 {
+        schema_version: "0",
+        input_version,
+        report_version: report.version,
+        bundle: "style-unused",
+        distinct_file_count: file_paths.len(),
+        code_counts,
+        summary: CheckerReportSummaryV1 {
+            warnings,
+            hints,
+            total: findings.len(),
+        },
+        findings,
+    }
+}
+
+fn summarize_checker_style_unused_canonical_producer(
+    payload: ShadowPayloadV0,
+) -> CheckerStyleUnusedCanonicalProducerSignalV0 {
+    let canonical_candidate = summarize_checker_style_unused_canonical_candidate(payload);
+    CheckerStyleUnusedCanonicalProducerSignalV0 {
+        schema_version: "0",
+        input_version: canonical_candidate.input_version.clone(),
+        canonical_candidate,
+        bounded_checker_gate: CheckerStyleUnusedCanonicalProducerGateV0 {
+            canonical_candidate_command: "pnpm check:rust-checker-style-unused-canonical-candidate",
+            canonical_producer_command: "pnpm check:rust-checker-style-unused-canonical-producer",
+            consumer_boundary_command: "pnpm check:rust-checker-style-unused-consumer-boundary",
+            bounded_checker_lane_command: "pnpm check:rust-checker-bounded-lanes",
+            promotion_review_command: "pnpm check:rust-checker-promotion-review",
+            promotion_evidence_command: "pnpm check:rust-checker-promotion-evidence",
+            broader_rust_lane_command: "pnpm check:rust-lane-bundle",
+            release_gate_readiness_command: "pnpm check:rust-checker-release-gate-readiness",
+            release_gate_shadow_command: "pnpm check:rust-checker-release-gate-shadow",
+            release_gate_shadow_review_command: "pnpm check:rust-checker-release-gate-shadow-review",
+            release_bundle_command: "pnpm check:rust-release-bundle",
+            minimum_bounded_lane_count_for_rust_lane_bundle: 3,
+            minimum_bounded_lane_count_for_rust_release_bundle: 3,
+            minimum_successful_shadow_runs_for_rust_release_bundle: 3,
+            checker_bundle: "style-unused",
+            release_gate_stage: "candidate",
+            included_in_rust_lane_bundle: false,
+            included_in_rust_release_bundle: false,
         },
     }
 }

@@ -135,6 +135,17 @@ which runs the bounded `style-recovery` and `source-missing` checker lanes.
 That checker entrance is now included in both the broader Rust lane and the
 default stable release gate.
 
+`pnpm check:rust-checker-style-unused-lane` is the current next-family checker
+expansion candidate. It runs the `style-unused` canonical-candidate,
+canonical-producer, and consumer-boundary checks over the Stylelint smoke
+fixture. It is intentionally outside `pnpm check:rust-checker-entrance` and
+`pnpm check:rust-release-bundle` until the promotion evidence is widened.
+
+`pnpm check:rust-checker-expanded-lanes` is the operator aggregate for comparing
+the release-enforced checker lanes with that candidate expansion lane. It runs
+`pnpm check:rust-checker-bounded-lanes` first, then the candidate
+`style-unused` lane.
+
 `pnpm check:rust-checker-promotion-review` is the operator check for that
 promotion decision. It validates the current checker-lane gate metadata and
 confirms the bounded checker lanes are now inside both `rust-lane-bundle` and
