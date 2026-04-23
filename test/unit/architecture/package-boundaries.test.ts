@@ -52,7 +52,7 @@ describe("package-ready boundaries", () => {
     for (const filePath of walkTsFiles(PROVIDERS_ROOT)) {
       if (filePath.endsWith("provider-deps.ts")) continue;
       const source = readFileSync(filePath, "utf8");
-      expect(source, relativePath(filePath)).not.toMatch(/core\/query\//);
+      expect(source, relativePath(filePath)).not.toMatch(/core\/query(?:["'/])/);
       expect(source, relativePath(filePath)).not.toMatch(/core\/rewrite\//);
     }
   });
