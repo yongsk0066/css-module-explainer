@@ -1,0 +1,244 @@
+import nodePath from "node:path";
+import type { Range } from "@css-module-explainer/shared";
+import {
+  getAllStyleExtensions,
+  findLangForPath,
+} from "../../engine-core-ts/src/core/scss/lang-registry";
+import { fileUrlToPath, pathToFileUrl } from "../../engine-core-ts/src/core/util/text-utils";
+import { isRecord } from "../../engine-core-ts/src/core/util/value-guards";
+import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
+
+export interface CodeActionDiagnosticInput {
+  readonly range: Range;
+  readonly message: string;
+  readonly data?: unknown;
+}
+
+export type CodeActionPlan =
+  | {
+      readonly kind: "textEdit";
+      readonly title: string;
+      readonly diagnosticIndex: number;
+      readonly uri: string;
+      readonly range: Range;
+      readonly newText: string;
+      readonly isPreferred?: boolean;
+    }
+  | {
+      readonly kind: "createFile";
+      readonly title: string;
+      readonly uri: string;
+      readonly diagnosticIndex?: number;
+      readonly isPreferred?: boolean;
+    };
+
+export function planCodeActions(
+  args: {
+    readonly documentUri: string;
+    readonly diagnostics: readonly CodeActionDiagnosticInput[];
+  },
+  deps: Pick<ProviderDeps, "fileExists">,
+): readonly CodeActionPlan[] {
+  const plans: CodeActionPlan[] = [];
+  const diagnosticCreateModuleUris = new Set<string>();
+
+  let diagnosticIndex = 0;
+  for (const diagnostic of args.diagnostics) {
+    const suggestion = extractSuggestion(diagnostic);
+    if (suggestion) {
+      plans.push({
+        kind: "textEdit",
+        title: `Replace with '${suggestion}'`,
+        diagnosticIndex,
+        uri: args.documentUri,
+        range: diagnostic.range,
+        newText: suggestion,
+        isPreferred: true,
+      });
+    }
+
+    const createSelector = extractCreateSelector(diagnostic);
+    if (createSelector) {
+      const className = extractCreateSelectorClassName(diagnostic.message, createSelector.newText);
+      plans.push({
+        kind: "textEdit",
+        title: `Add '.${className}' to ${fileLabel(createSelector.uri)}`,
+        diagnosticIndex,
+        uri: createSelector.uri,
+        range: createSelector.range,
+        newText: createSelector.newText,
+      });
+    }
+
+    const createModuleFile = extractCreateModuleFile(diagnostic);
+    if (createModuleFile) {
+      diagnosticCreateModuleUris.add(createModuleFile.uri);
+      plans.push({
+        kind: "createFile",
+        title: `Create ${fileLabel(createModuleFile.uri)}`,
+        diagnosticIndex,
+        uri: createModuleFile.uri,
+        isPreferred: true,
+      });
+    }
+
+    const createValue = extractCreateValue(diagnostic);
+    if (createValue) {
+      const valueName = extractCreateValueName(diagnostic.message, createValue.newText);
+      plans.push({
+        kind: "textEdit",
+        title: `Add '@value ${valueName}' to ${fileLabel(createValue.uri)}`,
+        diagnosticIndex,
+        uri: createValue.uri,
+        range: createValue.range,
+        newText: createValue.newText,
+      });
+    }
+
+    const createKeyframes = extractCreateKeyframes(diagnostic);
+    if (createKeyframes) {
+      const keyframesName = extractCreateKeyframesName(diagnostic.message, createKeyframes.newText);
+      plans.push({
+        kind: "textEdit",
+        title: `Add '@keyframes ${keyframesName}' to ${fileLabel(createKeyframes.uri)}`,
+        diagnosticIndex,
+        uri: createKeyframes.uri,
+        range: createKeyframes.range,
+        newText: createKeyframes.newText,
+      });
+    }
+
+    diagnosticIndex += 1;
+  }
+
+  if (diagnosticCreateModuleUris.size === 0) {
+    for (const uri of listMissingSiblingStyleModuleUris(args.documentUri, deps)) {
+      plans.push({
+        kind: "createFile",
+        title: `Create ${fileLabel(uri)}`,
+        uri,
+      });
+    }
+  }
+
+  return plans;
+}
+
+function listMissingSiblingStyleModuleUris(
+  uri: string,
+  deps: Pick<ProviderDeps, "fileExists">,
+): readonly string[] {
+  const filePath = fileUrlToPath(uri);
+  if (findLangForPath(filePath) !== null) return [];
+  if (!isSetupEligibleSourcePath(filePath)) return [];
+
+  const sourceBasePath = filePath.replace(/\.[^.]+$/u, "");
+  const siblingPaths = getAllStyleExtensions().map((extension) => `${sourceBasePath}${extension}`);
+  if (siblingPaths.some((candidate) => deps.fileExists(candidate))) {
+    return [];
+  }
+
+  return siblingPaths.map((candidate) => pathToFileUrl(candidate));
+}
+
+function isSetupEligibleSourcePath(filePath: string): boolean {
+  const extension = nodePath.extname(filePath).toLowerCase();
+  return extension === ".tsx" || extension === ".jsx";
+}
+
+function extractSuggestion(diagnostic: CodeActionDiagnosticInput): string | null {
+  const data = diagnostic.data;
+  if (!isRecord(data)) return null;
+  const suggestion = data.suggestion;
+  return typeof suggestion === "string" && suggestion.length > 0 ? suggestion : null;
+}
+
+function extractCreateSelector(diagnostic: CodeActionDiagnosticInput): {
+  readonly uri: string;
+  readonly range: Range;
+  readonly newText: string;
+} | null {
+  const data = diagnostic.data;
+  if (!isRecord(data)) return null;
+  const payload = data.createSelector;
+  if (!isRecord(payload)) return null;
+  if (typeof payload.uri !== "string" || typeof payload.newText !== "string") return null;
+  const range = payload.range;
+  if (!isRange(range)) return null;
+  return { uri: payload.uri, range, newText: payload.newText };
+}
+
+function extractCreateModuleFile(
+  diagnostic: CodeActionDiagnosticInput,
+): { readonly uri: string } | null {
+  const data = diagnostic.data;
+  if (!isRecord(data)) return null;
+  const payload = data.createModuleFile;
+  if (!isRecord(payload)) return null;
+  return typeof payload.uri === "string" && payload.uri.length > 0 ? { uri: payload.uri } : null;
+}
+
+function extractCreateValue(diagnostic: CodeActionDiagnosticInput): {
+  readonly uri: string;
+  readonly range: Range;
+  readonly newText: string;
+} | null {
+  const data = diagnostic.data;
+  if (!isRecord(data)) return null;
+  const payload = data.createValue;
+  if (!isRecord(payload)) return null;
+  if (typeof payload.uri !== "string" || typeof payload.newText !== "string") return null;
+  const range = payload.range;
+  if (!isRange(range)) return null;
+  return { uri: payload.uri, range, newText: payload.newText };
+}
+
+function extractCreateKeyframes(diagnostic: CodeActionDiagnosticInput): {
+  readonly uri: string;
+  readonly range: Range;
+  readonly newText: string;
+} | null {
+  const data = diagnostic.data;
+  if (!isRecord(data)) return null;
+  const payload = data.createKeyframes;
+  if (!isRecord(payload)) return null;
+  if (typeof payload.uri !== "string" || typeof payload.newText !== "string") return null;
+  const range = payload.range;
+  if (!isRange(range)) return null;
+  return { uri: payload.uri, range, newText: payload.newText };
+}
+
+function isRange(value: unknown): value is Range {
+  if (!isRecord(value)) return false;
+  return isPosition(value.start) && isPosition(value.end);
+}
+
+function isPosition(value: unknown): value is Range["start"] {
+  if (!isRecord(value)) return false;
+  return typeof value.line === "number" && typeof value.character === "number";
+}
+
+function extractCreateSelectorClassName(message: string, newText: string): string {
+  const fromMessage =
+    /Class '\.([^']+)' not found/.exec(message)?.[1] ??
+    /Selector '\.([^']+)' not found/.exec(message)?.[1];
+  if (fromMessage) return fromMessage;
+  return /^\s*\.([^{\s]+)\s*\{/u.exec(newText)?.[1] ?? "selector";
+}
+
+function extractCreateValueName(message: string, newText: string): string {
+  const fromMessage =
+    /@value '([^']+)' not found/.exec(message)?.[1] ?? /local binding '([^']+)'/.exec(message)?.[1];
+  if (fromMessage) return fromMessage;
+  return /^\s*@value\s+([^:\s]+)\s*:/u.exec(newText)?.[1] ?? "value";
+}
+
+function extractCreateKeyframesName(message: string, newText: string): string {
+  const fromMessage = /@keyframes '([^']+)' not found/.exec(message)?.[1];
+  if (fromMessage) return fromMessage;
+  return /^\s*@keyframes\s+([^{\s]+)\s*\{/u.exec(newText)?.[1] ?? "keyframes";
+}
+
+function fileLabel(uri: string): string {
+  return uri.split("/").at(-1) ?? uri;
+}

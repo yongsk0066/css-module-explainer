@@ -263,10 +263,11 @@ selected-query backend flip.
 `pnpm check:editor-path-boundary` is the current local lock point for the
 editor-path runtime transition after the selected-query cut. It runs
 `pnpm check:selected-query-boundary` plus the protocol subset for
-`diagnostics`, `scss-diagnostics`, watched-file invalidation,
+`diagnostics`, `scss-diagnostics`, `code-actions`, watched-file invalidation,
 workspace-folder changes, and settings reload after those paths have been
-routed through `engine-host-node` helpers or runtime aggregates. It is a
-milestone boundary, not a stable release gate.
+routed through `engine-host-node` helpers or runtime aggregates, including
+host-side code-action planning. It is a milestone boundary, not a stable
+release gate.
 
 `pnpm check:operational-lane` is the current limited non-release default lane.
 Today it resolves to the tsgo-backed operational lane.
