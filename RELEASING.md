@@ -191,8 +191,8 @@ tsgo-specific risk points that the basic shadow path does not prove by itself:
 repeated `EngineInputV2.typeFacts` ordering stability and concurrent
 checker-process output stability under `CME_TYPE_FACT_BACKEND=tsgo`. The
 deprecated alias `CME_TYPE_FACT_BACKEND=tsgo-preview` is still accepted. It
-now also pins tsgo invocations to `@typescript/native-preview@beta` and
-repeats backend smoke under fixed `--checkers` values (`1`, `2`, `4`) via
+now runs tsgo through the repo-pinned `@typescript/native-preview`
+devDependency and repeats backend smoke under fixed `--checkers` values (`1`, `2`, `4`) via
 `CME_TSGO_CHECKERS`. The legacy `CME_TSGO_PREVIEW_CHECKERS` name remains
 accepted as a compatibility alias.
 
@@ -226,11 +226,11 @@ tsgo path for TS 7 beta Phase B. It runs the editing/reference subset
 
 `pnpm check:ts7-phase-b-build-tsgo` is the current bounded build-mode
 tsgo path for TS 7 beta Phase B. It runs
-`@typescript/native-preview@beta -b server/tsconfig.json --checkers 2 --builders 2`.
+`pnpm exec tsgo -b server/tsconfig.json --checkers 2 --builders 2`.
 
 `pnpm check:ts7-phase-b-workspace-build-tsgo` is the current workspace-level
 project-reference tsgo path for TS 7 beta Phase B. It runs
-`@typescript/native-preview@beta -b tsconfig.json --checkers 2 --builders 2`.
+`pnpm exec tsgo -b tsconfig.json --checkers 2 --builders 2`.
 
 `pnpm check:ts7-phase-b-readiness` is the current entry check for Phase B. It
 requires `pnpm check:ts7-phase-a-decision-ready` first, then the bounded
@@ -241,6 +241,11 @@ subsets.
 operational lane for the tsgo backend. It runs the local
 `pnpm check:ts7-phase-a-tsgo-lane` plus the bounded Phase B protocol,
 editing, server-build, and workspace-build tsgo subsets.
+
+`pnpm check:tsgo-release-bundle` is the current release-shaped tsgo variant.
+Today it aliases `pnpm check:tsgo-operational-lane` and stays separate from
+`pnpm release:verify` until the `CME_TYPE_FACT_BACKEND=tsgo` default decision
+is made.
 
 `pnpm check:selected-query-boundary` is the current local lock point for the
 `3.9` selected-query/editor-path transition. It exercises the protocol subset

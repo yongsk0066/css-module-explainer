@@ -278,7 +278,7 @@ Current checker policy:
 - `pnpm check:ts7-phase-a-stability` directly checks the two tsgo-specific risk points that the basic shadow path does not prove by itself
   - repeated `EngineInputV2.typeFacts` snapshots from `tsgo` must stay byte-stable across runs
   - concurrent `release-batch` and `real-project-corpus` invocations under `CME_TYPE_FACT_BACKEND=tsgo` must keep identical outputs across rounds
-  - tsgo probe calls are pinned to `@typescript/native-preview@beta`, and the stability matrix now also repeats backend smoke under fixed `--checkers` values (`1`, `2`, `4`) via `CME_TSGO_CHECKERS`; the legacy `CME_TSGO_PREVIEW_CHECKERS` name remains accepted as a compatibility alias
+  - tsgo probe calls run through the repo-pinned `@typescript/native-preview` devDependency, and the stability matrix now also repeats backend smoke under fixed `--checkers` values (`1`, `2`, `4`) via `CME_TSGO_CHECKERS`; the legacy `CME_TSGO_PREVIEW_CHECKERS` name remains accepted as a compatibility alias
 - `pnpm check:ts7-phase-a-tsgo-lane` is the current limited non-release aggregate for TS 7 beta Phase A
   - it builds the repo, then runs readiness, shadow, and stability together
 - `pnpm check:ts7-phase-a-shadow-review` reviews recent `TS7 Phase A Shadow` workflow history through `gh`
@@ -290,13 +290,14 @@ Current checker policy:
 - `pnpm check:ts7-phase-b-editing-tsgo` is the second bounded protocol-layer tsgo path for TS 7 beta Phase B
   - it runs `references`, `rename`, and `code-actions` protocol tests under `CME_TYPE_FACT_BACKEND=tsgo`
 - `pnpm check:ts7-phase-b-build-tsgo` is the current bounded build-mode tsgo path for TS 7 beta Phase B
-  - it runs `@typescript/native-preview@beta -b server/tsconfig.json --checkers 2 --builders 2`
+  - it runs `pnpm exec tsgo -b server/tsconfig.json --checkers 2 --builders 2`
 - `pnpm check:ts7-phase-b-workspace-build-tsgo` is the current workspace-level project-reference tsgo path for TS 7 beta Phase B
-  - it runs `@typescript/native-preview@beta -b tsconfig.json --checkers 2 --builders 2`
+  - it runs `pnpm exec tsgo -b tsconfig.json --checkers 2 --builders 2`
 - `pnpm check:ts7-phase-b-readiness` is the current entry check for Phase B
   - it requires `pnpm check:ts7-phase-a-decision-ready` first, then the bounded protocol, editing, server-build, and workspace-build tsgo subsets
 - `pnpm check:tsgo-operational-lane` is the current bounded non-release operational lane for the tsgo backend
   - it runs the local `ts7-phase-a-tsgo-lane` plus the bounded Phase B protocol, editing, server-build, and workspace-build tsgo subsets
+- `pnpm check:tsgo-release-bundle` is the current release-shaped tsgo variant; today it aliases the operational lane and remains separate from `pnpm release:verify`
 - `pnpm check:operational-lane` is the current limited non-release default lane
   - today it resolves to the tsgo-backed operational lane
 - `pnpm check:operational-shadow-review` is the current limited non-release default review command

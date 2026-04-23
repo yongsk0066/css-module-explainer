@@ -13,15 +13,7 @@ async function main() {
   const input = JSON.parse(readFileSync(0, "utf8"));
   const child = spawn(
     "pnpm",
-    [
-      "dlx",
-      "@typescript/native-preview@beta",
-      "--api",
-      "--async",
-      "--cwd",
-      input.workspaceRoot,
-      ...resolveTsgoCheckerArgs(),
-    ],
+    ["exec", "tsgo", "--api", "--async", "--cwd", input.workspaceRoot, ...resolveTsgoCheckerArgs()],
     {
       cwd: input.workspaceRoot,
       stdio: ["pipe", "pipe", "pipe"],

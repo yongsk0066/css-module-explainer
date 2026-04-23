@@ -113,8 +113,8 @@ function defaultRunProbeCommand(workspaceRoot: string, configPath: string): Tsgo
   const child: SpawnSyncReturns<string> = spawnSync(
     "pnpm",
     [
-      "dlx",
-      "@typescript/native-preview@beta",
+      "exec",
+      "tsgo",
       "-p",
       configPath,
       "--pretty",

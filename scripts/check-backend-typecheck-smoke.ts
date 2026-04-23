@@ -50,8 +50,8 @@ function commandForVariant(
 ): readonly string[] {
   if (selectedVariant === "tsgo") {
     return [
-      "dlx",
-      "@typescript/native-preview@beta",
+      "exec",
+      "tsgo",
       "-p",
       tsconfigPath,
       "--pretty",
