@@ -269,7 +269,9 @@ default-candidate evidence lane for
 `CME_SELECTED_QUERY_BACKEND=rust-selected-query`. It runs the explicit
 unit/runtime Rust selected-query consumer slice plus the full protocol suite
 with the unified Rust selected-query backend enabled. It is promotion evidence
-for a future default flip, not the flip itself.
+for a future default flip, not the flip itself. GitHub Actions runs the same
+lane in the `Rust Selected Query Default Candidate` shadow workflow on
+`master`.
 
 `pnpm check:editor-path-boundary` is the current local lock point for the
 editor-path runtime transition after the selected-query cut. It runs

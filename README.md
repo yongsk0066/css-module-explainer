@@ -241,6 +241,7 @@ Current checker policy:
 - `pnpm check:rust-selected-query-default-candidate` is the current default-candidate evidence lane for `CME_SELECTED_QUERY_BACKEND=rust-selected-query`
   - it runs the live Rust selected-query unit consumer slice plus the full protocol suite with the unified Rust selected-query backend enabled
   - it is promotion evidence for a future default flip, not the flip itself
+  - GitHub Actions runs the same lane in the `Rust Selected Query Default Candidate` shadow workflow on `master`
 - `pnpm check:editor-path-boundary` is the current editor-path runtime lock point
   - it runs `pnpm check:selected-query-boundary` plus the protocol subset for `diagnostics`, `scss-diagnostics`, `code-actions`, watched-file invalidation, workspace-folder changes, and settings reload
   - those paths now route diagnostics/checker entry, code-action planning, session bootstrap, workspace-folder mutation, watched-file invalidation, and settings-reload orchestration through `engine-host-node` helpers or aggregates instead of owning the runtime policy directly in the LSP layer
