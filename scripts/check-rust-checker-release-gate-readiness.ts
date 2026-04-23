@@ -5,12 +5,14 @@ import { buildContractParitySnapshot } from "./contract-parity-runtime";
 import {
   runShadowCheckerSourceMissingCanonicalProducer,
   runShadowCheckerStyleRecoveryCanonicalProducer,
+  runShadowCheckerStyleUnusedCanonicalProducer,
 } from "./rust-shadow-shared";
+import { STYLE_UNUSED_ENTRY } from "./rust-checker-style-unused-shared";
 
 const REPO_ROOT = process.cwd();
 const STYLELINT_SMOKE_ROOT = path.join(REPO_ROOT, "test/_fixtures/stylelint-plugin-smoke");
 const ESLINT_SMOKE_ROOT = path.join(REPO_ROOT, "test/_fixtures/eslint-plugin-smoke");
-const CURRENT_BOUNDED_LANE_COUNT = 2 as const;
+const CURRENT_BOUNDED_LANE_COUNT = 3 as const;
 
 const STYLE_RECOVERY_ENTRY: ContractParityEntry = {
   label: "release-gate-readiness-style-recovery",
@@ -49,9 +51,11 @@ const SOURCE_MISSING_ENTRY: ContractParityEntry = {
 void (async () => {
   const styleSnapshot = await buildContractParitySnapshot(STYLE_RECOVERY_ENTRY);
   const sourceSnapshot = await buildContractParitySnapshot(SOURCE_MISSING_ENTRY);
+  const unusedSnapshot = await buildContractParitySnapshot(STYLE_UNUSED_ENTRY);
 
   const styleProducer = await runShadowCheckerStyleRecoveryCanonicalProducer(styleSnapshot);
   const sourceProducer = await runShadowCheckerSourceMissingCanonicalProducer(sourceSnapshot);
+  const unusedProducer = await runShadowCheckerStyleUnusedCanonicalProducer(unusedSnapshot);
 
   assert.equal(
     styleProducer.boundedCheckerGate.promotionEvidenceCommand,
@@ -59,6 +63,10 @@ void (async () => {
   );
   assert.equal(
     sourceProducer.boundedCheckerGate.promotionEvidenceCommand,
+    "pnpm check:rust-checker-promotion-evidence",
+  );
+  assert.equal(
+    unusedProducer.boundedCheckerGate.promotionEvidenceCommand,
     "pnpm check:rust-checker-promotion-evidence",
   );
   assert.equal(
@@ -70,11 +78,19 @@ void (async () => {
     "pnpm check:rust-checker-release-gate-readiness",
   );
   assert.equal(
+    unusedProducer.boundedCheckerGate.releaseGateReadinessCommand,
+    "pnpm check:rust-checker-release-gate-readiness",
+  );
+  assert.equal(
     styleProducer.boundedCheckerGate.releaseGateShadowCommand,
     "pnpm check:rust-checker-release-gate-shadow",
   );
   assert.equal(
     sourceProducer.boundedCheckerGate.releaseGateShadowCommand,
+    "pnpm check:rust-checker-release-gate-shadow",
+  );
+  assert.equal(
+    unusedProducer.boundedCheckerGate.releaseGateShadowCommand,
     "pnpm check:rust-checker-release-gate-shadow",
   );
   assert.equal(
@@ -86,6 +102,10 @@ void (async () => {
     "pnpm check:rust-checker-release-gate-shadow-review",
   );
   assert.equal(
+    unusedProducer.boundedCheckerGate.releaseGateShadowReviewCommand,
+    "pnpm check:rust-checker-release-gate-shadow-review",
+  );
+  assert.equal(
     styleProducer.boundedCheckerGate.releaseBundleCommand,
     "pnpm check:rust-release-bundle",
   );
@@ -93,24 +113,40 @@ void (async () => {
     sourceProducer.boundedCheckerGate.releaseBundleCommand,
     "pnpm check:rust-release-bundle",
   );
-  assert.equal(styleProducer.boundedCheckerGate.minimumBoundedLaneCountForRustReleaseBundle, 2);
-  assert.equal(sourceProducer.boundedCheckerGate.minimumBoundedLaneCountForRustReleaseBundle, 2);
+  assert.equal(
+    unusedProducer.boundedCheckerGate.releaseBundleCommand,
+    "pnpm check:rust-release-bundle",
+  );
+  assert.equal(styleProducer.boundedCheckerGate.minimumBoundedLaneCountForRustReleaseBundle, 3);
+  assert.equal(sourceProducer.boundedCheckerGate.minimumBoundedLaneCountForRustReleaseBundle, 3);
+  assert.equal(unusedProducer.boundedCheckerGate.minimumBoundedLaneCountForRustReleaseBundle, 3);
   assert.equal(styleProducer.boundedCheckerGate.minimumSuccessfulShadowRunsForRustReleaseBundle, 3);
   assert.equal(
     sourceProducer.boundedCheckerGate.minimumSuccessfulShadowRunsForRustReleaseBundle,
     3,
   );
+  assert.equal(
+    unusedProducer.boundedCheckerGate.minimumSuccessfulShadowRunsForRustReleaseBundle,
+    3,
+  );
   assert.equal(styleProducer.boundedCheckerGate.releaseGateStage, "enforced");
   assert.equal(sourceProducer.boundedCheckerGate.releaseGateStage, "enforced");
+  assert.equal(unusedProducer.boundedCheckerGate.releaseGateStage, "enforced");
   assert.equal(styleProducer.boundedCheckerGate.includedInRustLaneBundle, true);
   assert.equal(sourceProducer.boundedCheckerGate.includedInRustLaneBundle, true);
+  assert.equal(unusedProducer.boundedCheckerGate.includedInRustLaneBundle, true);
   assert.equal(styleProducer.boundedCheckerGate.includedInRustReleaseBundle, true);
   assert.equal(sourceProducer.boundedCheckerGate.includedInRustReleaseBundle, true);
+  assert.equal(unusedProducer.boundedCheckerGate.includedInRustReleaseBundle, true);
 
   const minimumBoundedLaneCount =
     styleProducer.boundedCheckerGate.minimumBoundedLaneCountForRustReleaseBundle;
   assert.equal(
     sourceProducer.boundedCheckerGate.minimumBoundedLaneCountForRustReleaseBundle,
+    minimumBoundedLaneCount,
+  );
+  assert.equal(
+    unusedProducer.boundedCheckerGate.minimumBoundedLaneCountForRustReleaseBundle,
     minimumBoundedLaneCount,
   );
 
@@ -151,6 +187,25 @@ void (async () => {
       `releaseGateStage=${sourceProducer.boundedCheckerGate.releaseGateStage}`,
       `includedInRustLaneBundle=${sourceProducer.boundedCheckerGate.includedInRustLaneBundle}`,
       `includedInRustReleaseBundle=${sourceProducer.boundedCheckerGate.includedInRustReleaseBundle}`,
+      "",
+    ].join("\n"),
+  );
+  process.stdout.write(
+    [
+      "== rust-checker-release-gate-readiness:style-unused ==",
+      `bundle=${unusedProducer.boundedCheckerGate.checkerBundle}`,
+      `promotionEvidence=${unusedProducer.boundedCheckerGate.promotionEvidenceCommand}`,
+      `releaseGateReadiness=${unusedProducer.boundedCheckerGate.releaseGateReadinessCommand}`,
+      `releaseGateShadow=${unusedProducer.boundedCheckerGate.releaseGateShadowCommand}`,
+      `releaseGateShadowReview=${unusedProducer.boundedCheckerGate.releaseGateShadowReviewCommand}`,
+      `releaseBundle=${unusedProducer.boundedCheckerGate.releaseBundleCommand}`,
+      `minimumBoundedLaneCount=${unusedProducer.boundedCheckerGate.minimumBoundedLaneCountForRustReleaseBundle}`,
+      `minimumSuccessfulShadowRuns=${unusedProducer.boundedCheckerGate.minimumSuccessfulShadowRunsForRustReleaseBundle}`,
+      `currentBoundedLaneCount=${CURRENT_BOUNDED_LANE_COUNT}`,
+      `readyForReleaseGateReview=${readyForReleaseGateReview}`,
+      `releaseGateStage=${unusedProducer.boundedCheckerGate.releaseGateStage}`,
+      `includedInRustLaneBundle=${unusedProducer.boundedCheckerGate.includedInRustLaneBundle}`,
+      `includedInRustReleaseBundle=${unusedProducer.boundedCheckerGate.includedInRustReleaseBundle}`,
       "",
     ].join("\n"),
   );

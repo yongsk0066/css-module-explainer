@@ -27,8 +27,13 @@ import {
   buildRustSourceMissingCanonicalProducer,
   type CheckerSourceMissingCanonicalProducerSignalV0,
 } from "./rust-source-missing-consumer";
+import {
+  buildRustStyleUnusedCanonicalProducer,
+  type CheckerStyleUnusedCanonicalProducerSignalV0,
+} from "./rust-style-unused-consumer";
 import type {
   RustSourceMissingConsistencyV0,
+  RustStyleUnusedConsistencyV0,
   RustStyleRecoveryConsistencyV0,
 } from "./checker-report";
 
@@ -75,6 +80,9 @@ export async function runCheckerCli(
   const rustSourceMissingCanonicalProducer = parsed.rustSourceMissingConsumer
     ? await buildRustSourceMissingCanonicalProducer(parsed.options, command.checkerReport)
     : undefined;
+  const rustStyleUnusedCanonicalProducer = parsed.rustStyleUnusedConsumer
+    ? await buildRustStyleUnusedCanonicalProducer(parsed.options, command.checkerReport)
+    : undefined;
   const jsonReport = buildCheckerJsonReport(
     command.workspaceCheck,
     command.checkerReport,
@@ -82,9 +90,11 @@ export async function runCheckerCli(
     parsed.filters,
     rustStyleRecoveryCanonicalProducer,
     rustSourceMissingCanonicalProducer,
+    rustStyleUnusedCanonicalProducer,
   );
   const rustStyleRecoveryConsistency = jsonReport.rustStyleRecoveryConsistency;
   const rustSourceMissingConsistency = jsonReport.rustSourceMissingConsistency;
+  const rustStyleUnusedConsistency = jsonReport.rustStyleUnusedConsistency;
   writeResult(
     command.workspaceCheck,
     command.checkerReport,
@@ -95,6 +105,8 @@ export async function runCheckerCli(
     rustStyleRecoveryConsistency,
     rustSourceMissingCanonicalProducer,
     rustSourceMissingConsistency,
+    rustStyleUnusedCanonicalProducer,
+    rustStyleUnusedConsistency,
   );
   return shouldFail(command.checkerReport, parsed.failOn) ? 1 : 0;
 }
@@ -107,6 +119,7 @@ interface ParsedCliOptions {
   readonly summaryMode: CheckerCliSummaryMode;
   readonly rustStyleRecoveryConsumer: boolean;
   readonly rustSourceMissingConsumer: boolean;
+  readonly rustStyleUnusedConsumer: boolean;
 }
 
 async function parseCliArgs(
@@ -129,6 +142,7 @@ async function parseCliArgs(
   let summaryMode: CheckerCliSummaryMode = "full";
   let rustStyleRecoveryConsumer = false;
   let rustSourceMissingConsumer = false;
+  let rustStyleUnusedConsumer = false;
   let explicitFailOn = false;
   let explicitCategory = false;
   let explicitSeverity = false;
@@ -228,6 +242,11 @@ async function parseCliArgs(
 
     if (arg === "--rust-source-missing-consumer") {
       rustSourceMissingConsumer = true;
+      continue;
+    }
+
+    if (arg === "--rust-style-unused-consumer") {
+      rustStyleUnusedConsumer = true;
       continue;
     }
 
@@ -381,6 +400,7 @@ async function parseCliArgs(
     summaryMode,
     rustStyleRecoveryConsumer,
     rustSourceMissingConsumer,
+    rustStyleUnusedConsumer,
   };
 }
 
@@ -438,6 +458,8 @@ function writeResult(
   rustStyleRecoveryConsistency?: RustStyleRecoveryConsistencyV0,
   rustSourceMissingCanonicalProducer?: CheckerSourceMissingCanonicalProducerSignalV0,
   rustSourceMissingConsistency?: RustSourceMissingConsistencyV0,
+  rustStyleUnusedCanonicalProducer?: CheckerStyleUnusedCanonicalProducerSignalV0,
+  rustStyleUnusedConsistency?: RustStyleUnusedConsistencyV0,
 ): void {
   if (parsed.format === "json") {
     io.stdout(`${JSON.stringify(jsonReport, null, 2)}\n`);
@@ -486,6 +508,14 @@ function writeResult(
       `Rust source-missing consumer: findings=${rustSourceMissingCanonicalProducer.canonicalCandidate.summary.total} ` +
         `consistent=${rustSourceMissingConsistency?.findingsMatch === true} ` +
         `releaseGate=${rustSourceMissingCanonicalProducer.boundedCheckerGate.includedInRustReleaseBundle}\n`,
+    );
+  }
+
+  if (rustStyleUnusedCanonicalProducer) {
+    io.stdout(
+      `Rust style-unused consumer: findings=${rustStyleUnusedCanonicalProducer.canonicalCandidate.summary.total} ` +
+        `consistent=${rustStyleUnusedConsistency?.findingsMatch === true} ` +
+        `releaseGate=${rustStyleUnusedCanonicalProducer.boundedCheckerGate.includedInRustReleaseBundle}\n`,
     );
   }
 }
@@ -563,6 +593,8 @@ function buildHelpText(): string {
     "  --summary                    Print summary only for text output",
     "  --compact                    Group text output by file for changed-file workflows",
     "  --rust-style-recovery-consumer Consume the bounded Rust style-recovery producer alongside the TS checker result",
+    "  --rust-source-missing-consumer Consume the bounded Rust source-missing producer alongside the TS checker result",
+    "  --rust-style-unused-consumer Consume the bounded Rust style-unused producer alongside the TS checker result",
     "  --classname-transform <mode> Style transform mode",
     "  --path-alias <prefix=target> Repeatable native path-alias override",
     "  --include-code <code>        Restrict findings to one rule code (repeatable)",

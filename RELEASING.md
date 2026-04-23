@@ -131,20 +131,18 @@ downstream consumer check all stay green together.
 
 `pnpm check:rust-checker-entrance` is the current official checker-canonical
 entrance gate. It currently aliases `pnpm check:rust-checker-bounded-lanes`,
-which runs the bounded `style-recovery` and `source-missing` checker lanes.
+which runs the bounded `style-recovery`, `source-missing`, and `style-unused`
+checker lanes.
 That checker entrance is now included in both the broader Rust lane and the
 default stable release gate.
 
-`pnpm check:rust-checker-style-unused-lane` is the current next-family checker
-expansion candidate. It runs the `style-unused` canonical-candidate,
-canonical-producer, and consumer-boundary checks over the Stylelint smoke
-fixture. It is intentionally outside `pnpm check:rust-checker-entrance` and
-`pnpm check:rust-release-bundle` until the promotion evidence is widened.
+`pnpm check:rust-checker-style-unused-lane` is the third bounded checker lane.
+It runs the `style-unused` canonical-candidate, canonical-producer, and
+consumer-boundary checks over the Stylelint smoke fixture and is included in
+`pnpm check:rust-checker-entrance`.
 
-`pnpm check:rust-checker-expanded-lanes` is the operator aggregate for comparing
-the release-enforced checker lanes with that candidate expansion lane. It runs
-`pnpm check:rust-checker-bounded-lanes` first, then the candidate
-`style-unused` lane.
+`pnpm check:rust-checker-expanded-lanes` remains as a compatibility alias for
+the same release-enforced checker aggregate.
 
 `pnpm check:rust-checker-promotion-review` is the operator check for that
 promotion decision. It validates the current checker-lane gate metadata and
@@ -152,9 +150,9 @@ confirms the bounded checker lanes are now inside both `rust-lane-bundle` and
 `rust-release-bundle`.
 
 `pnpm check:rust-checker-broader-lane-readiness` locks the broader-lane
-promotion criteria for those bounded checker lanes. It currently requires two
+promotion criteria for those bounded checker lanes. It currently requires three
 bounded lanes, a shared promotion-review command, and a broader target of
-`pnpm check:rust-lane-bundle`. The current state is that both lanes are
+`pnpm check:rust-lane-bundle`. The current state is that all three lanes are
 promoted into the broader Rust lane and enforced in the release gate.
 
 `pnpm check:rust-checker-real-project-bounded` adds one more promotion-evidence
@@ -170,8 +168,8 @@ broader-lane readiness, and the bounded real-project corpus check.
 promotion criteria for those checker lanes. It currently requires broader-lane
 promotion evidence, a release target of `pnpm check:rust-release-bundle`, a
 shadow soak target of `pnpm check:rust-checker-release-gate-shadow`, and the
-same minimum bounded-lane count of `2`. The current state is now
-`includedInRustReleaseBundle=true` for both lanes.
+same minimum bounded-lane count of `3`. The current state is now
+`includedInRustReleaseBundle=true` for all three lanes.
 
 `pnpm check:rust-checker-release-gate-shadow` is the current post-enforcement
 observation soak for checker entrance. It runs `pnpm check:rust-release-bundle`,

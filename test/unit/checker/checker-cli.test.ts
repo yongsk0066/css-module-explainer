@@ -480,8 +480,8 @@ describe("runCheckerCli", () => {
         releaseGateShadowCommand: "pnpm check:rust-checker-release-gate-shadow",
         releaseGateShadowReviewCommand: "pnpm check:rust-checker-release-gate-shadow-review",
         releaseBundleCommand: "pnpm check:rust-release-bundle",
-        minimumBoundedLaneCountForRustLaneBundle: 2,
-        minimumBoundedLaneCountForRustReleaseBundle: 2,
+        minimumBoundedLaneCountForRustLaneBundle: 3,
+        minimumBoundedLaneCountForRustReleaseBundle: 3,
         minimumSuccessfulShadowRunsForRustReleaseBundle: 3,
         checkerBundle: "style-recovery",
         releaseGateStage: "enforced",
@@ -578,8 +578,8 @@ describe("runCheckerCli", () => {
         releaseGateShadowCommand: "pnpm check:rust-checker-release-gate-shadow",
         releaseGateShadowReviewCommand: "pnpm check:rust-checker-release-gate-shadow-review",
         releaseBundleCommand: "pnpm check:rust-release-bundle",
-        minimumBoundedLaneCountForRustLaneBundle: 2,
-        minimumBoundedLaneCountForRustReleaseBundle: 2,
+        minimumBoundedLaneCountForRustLaneBundle: 3,
+        minimumBoundedLaneCountForRustReleaseBundle: 3,
         minimumSuccessfulShadowRunsForRustReleaseBundle: 3,
         checkerBundle: "source-missing",
         releaseGateStage: "enforced",
@@ -626,6 +626,108 @@ describe("runCheckerCli", () => {
     expect(stderr).toEqual([]);
     expect(stdout.join("")).toContain(
       "Rust source-missing consumer: findings=1 consistent=true releaseGate=true",
+    );
+  }, 30000);
+
+  it("emits rust style-unused producer and consistency in json output", async () => {
+    const stdout: string[] = [];
+
+    const exitCode = await runCheckerCli(
+      [
+        STYLELINT_SMOKE_ROOT,
+        "--source-file",
+        "src/App.tsx",
+        "--style-file",
+        "src/App.module.css",
+        "--preset",
+        "changed-style",
+        "--include-bundle",
+        "style-unused",
+        "--format",
+        "json",
+        "--fail-on",
+        "none",
+        "--rust-style-unused-consumer",
+      ],
+      {
+        stdout: (message) => stdout.push(message),
+        stderr: () => {},
+        cwd: () => STYLELINT_SMOKE_ROOT,
+      },
+    );
+
+    expect(exitCode).toBe(0);
+    const payload = JSON.parse(stdout.join(""));
+    expect(payload.rustStyleUnusedCanonicalProducer).toMatchObject({
+      canonicalCandidate: {
+        bundle: "style-unused",
+        summary: { total: 1 },
+        findings: [
+          expect.objectContaining({
+            code: "unused-selector",
+          }),
+        ],
+      },
+      boundedCheckerGate: {
+        consumerBoundaryCommand: "pnpm check:rust-checker-style-unused-consumer-boundary",
+        boundedCheckerLaneCommand: "pnpm check:rust-checker-bounded-lanes",
+        promotionReviewCommand: "pnpm check:rust-checker-promotion-review",
+        promotionEvidenceCommand: "pnpm check:rust-checker-promotion-evidence",
+        broaderRustLaneCommand: "pnpm check:rust-lane-bundle",
+        releaseGateReadinessCommand: "pnpm check:rust-checker-release-gate-readiness",
+        releaseGateShadowCommand: "pnpm check:rust-checker-release-gate-shadow",
+        releaseGateShadowReviewCommand: "pnpm check:rust-checker-release-gate-shadow-review",
+        releaseBundleCommand: "pnpm check:rust-release-bundle",
+        minimumBoundedLaneCountForRustLaneBundle: 3,
+        minimumBoundedLaneCountForRustReleaseBundle: 3,
+        minimumSuccessfulShadowRunsForRustReleaseBundle: 3,
+        checkerBundle: "style-unused",
+        releaseGateStage: "enforced",
+        includedInRustLaneBundle: true,
+        includedInRustReleaseBundle: true,
+      },
+    });
+    expect(payload.rustStyleUnusedConsistency).toEqual({
+      schemaVersion: "0",
+      bundle: "style-unused",
+      tsFindingCount: 1,
+      rustFindingCount: 1,
+      countsMatch: true,
+      findingsMatch: true,
+      mismatchedCodes: [],
+    });
+  }, 30000);
+
+  it("prints rust style-unused consistency summary in text output", async () => {
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+
+    const exitCode = await runCheckerCli(
+      [
+        STYLELINT_SMOKE_ROOT,
+        "--source-file",
+        "src/App.tsx",
+        "--style-file",
+        "src/App.module.css",
+        "--preset",
+        "changed-style",
+        "--include-bundle",
+        "style-unused",
+        "--fail-on",
+        "none",
+        "--rust-style-unused-consumer",
+      ],
+      {
+        stdout: (message) => stdout.push(message),
+        stderr: (message) => stderr.push(message),
+        cwd: () => STYLELINT_SMOKE_ROOT,
+      },
+    );
+
+    expect(exitCode).toBe(0);
+    expect(stderr).toEqual([]);
+    expect(stdout.join("")).toContain(
+      "Rust style-unused consumer: findings=1 consistent=true releaseGate=true",
     );
   }, 30000);
 });

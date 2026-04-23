@@ -8,11 +8,15 @@ import {
   runShadowCheckerSourceMissingCanonicalProducer,
   runShadowCheckerStyleRecoveryCanonicalCandidate,
   runShadowCheckerStyleRecoveryCanonicalProducer,
+  runShadowCheckerStyleUnusedCanonicalCandidate,
+  runShadowCheckerStyleUnusedCanonicalProducer,
   type CheckerSourceMissingCanonicalCandidateBundleV0,
   type CheckerSourceMissingCanonicalProducerSignalV0,
   type CheckerStyleRecoveryCanonicalCandidateBundleV0,
   type CheckerStyleRecoveryCanonicalProducerSignalV0,
+  type CheckerStyleUnusedCanonicalProducerSignalV0,
 } from "./rust-shadow-shared";
+import { deriveTsCheckerStyleUnusedCanonicalCandidate } from "./rust-checker-style-unused-shared";
 
 const STYLE_RECOVERY_CODES = new Set([
   "missing-composed-module",
@@ -70,9 +74,27 @@ const SOURCE_MISSING_ENTRY: ContractParityEntry = {
   },
 };
 
+const STYLE_UNUSED_ENTRY: ContractParityEntry = {
+  label: "real-project-dashboard-card-unused",
+  workspace: {
+    workspaceRoot: WORKSPACE_ROOT,
+    sourceFilePaths: [path.join(WORKSPACE_ROOT, "DashboardCard.tsx")],
+    styleFilePaths: [path.join(WORKSPACE_ROOT, "DashboardCard.module.scss")],
+  },
+  filters: {
+    preset: "ci",
+    category: "style",
+    severity: "all",
+    includeBundles: ["style-unused"],
+    includeCodes: [],
+    excludeCodes: [],
+  },
+};
+
 void (async () => {
   const styleSnapshot = await buildContractParitySnapshot(STYLE_RECOVERY_ENTRY);
   const sourceSnapshot = await buildContractParitySnapshot(SOURCE_MISSING_ENTRY);
+  const unusedSnapshot = await buildContractParitySnapshot(STYLE_UNUSED_ENTRY);
 
   const expectedStyleCandidate = deriveTsCheckerStyleRecoveryCanonicalCandidate(styleSnapshot);
   const actualStyleCandidate = await runShadowCheckerStyleRecoveryCanonicalCandidate(styleSnapshot);
@@ -95,6 +117,16 @@ void (async () => {
   assert.equal(actualSourceCandidate.summary.total, 1);
   assert.equal(actualSourceCandidate.findings[0]?.code, "missing-static-class");
 
+  const expectedUnusedCandidate = deriveTsCheckerStyleUnusedCanonicalCandidate(unusedSnapshot);
+  const actualUnusedCandidate = await runShadowCheckerStyleUnusedCanonicalCandidate(unusedSnapshot);
+  deepStrictEqual(
+    actualUnusedCandidate,
+    expectedUnusedCandidate,
+    "real-project-dashboard-card-unused: checker style-unused canonical candidate mismatch",
+  );
+  assert.equal(actualUnusedCandidate.summary.total, 1);
+  assert.equal(actualUnusedCandidate.findings[0]?.code, "unused-selector");
+
   const actualStyleProducer = await runShadowCheckerStyleRecoveryCanonicalProducer(styleSnapshot);
   deepStrictEqual(actualStyleProducer, {
     schemaVersion: "0",
@@ -112,8 +144,8 @@ void (async () => {
       releaseGateShadowCommand: "pnpm check:rust-checker-release-gate-shadow",
       releaseGateShadowReviewCommand: "pnpm check:rust-checker-release-gate-shadow-review",
       releaseBundleCommand: "pnpm check:rust-release-bundle",
-      minimumBoundedLaneCountForRustLaneBundle: 2,
-      minimumBoundedLaneCountForRustReleaseBundle: 2,
+      minimumBoundedLaneCountForRustLaneBundle: 3,
+      minimumBoundedLaneCountForRustReleaseBundle: 3,
       minimumSuccessfulShadowRunsForRustReleaseBundle: 3,
       checkerBundle: "style-recovery",
       releaseGateStage: "enforced",
@@ -139,8 +171,8 @@ void (async () => {
       releaseGateShadowCommand: "pnpm check:rust-checker-release-gate-shadow",
       releaseGateShadowReviewCommand: "pnpm check:rust-checker-release-gate-shadow-review",
       releaseBundleCommand: "pnpm check:rust-release-bundle",
-      minimumBoundedLaneCountForRustLaneBundle: 2,
-      minimumBoundedLaneCountForRustReleaseBundle: 2,
+      minimumBoundedLaneCountForRustLaneBundle: 3,
+      minimumBoundedLaneCountForRustReleaseBundle: 3,
       minimumSuccessfulShadowRunsForRustReleaseBundle: 3,
       checkerBundle: "source-missing",
       releaseGateStage: "enforced",
@@ -148,6 +180,33 @@ void (async () => {
       includedInRustReleaseBundle: true,
     },
   } satisfies CheckerSourceMissingCanonicalProducerSignalV0);
+
+  const actualUnusedProducer = await runShadowCheckerStyleUnusedCanonicalProducer(unusedSnapshot);
+  deepStrictEqual(actualUnusedProducer, {
+    schemaVersion: "0",
+    inputVersion: expectedUnusedCandidate.inputVersion,
+    canonicalCandidate: expectedUnusedCandidate,
+    boundedCheckerGate: {
+      canonicalCandidateCommand: "pnpm check:rust-checker-style-unused-canonical-candidate",
+      canonicalProducerCommand: "pnpm check:rust-checker-style-unused-canonical-producer",
+      consumerBoundaryCommand: "pnpm check:rust-checker-style-unused-consumer-boundary",
+      boundedCheckerLaneCommand: "pnpm check:rust-checker-bounded-lanes",
+      promotionReviewCommand: "pnpm check:rust-checker-promotion-review",
+      promotionEvidenceCommand: "pnpm check:rust-checker-promotion-evidence",
+      broaderRustLaneCommand: "pnpm check:rust-lane-bundle",
+      releaseGateReadinessCommand: "pnpm check:rust-checker-release-gate-readiness",
+      releaseGateShadowCommand: "pnpm check:rust-checker-release-gate-shadow",
+      releaseGateShadowReviewCommand: "pnpm check:rust-checker-release-gate-shadow-review",
+      releaseBundleCommand: "pnpm check:rust-release-bundle",
+      minimumBoundedLaneCountForRustLaneBundle: 3,
+      minimumBoundedLaneCountForRustReleaseBundle: 3,
+      minimumSuccessfulShadowRunsForRustReleaseBundle: 3,
+      checkerBundle: "style-unused",
+      releaseGateStage: "enforced",
+      includedInRustLaneBundle: true,
+      includedInRustReleaseBundle: true,
+    },
+  } satisfies CheckerStyleUnusedCanonicalProducerSignalV0);
 
   const styleConsumerPayload = await runRustConsumerCheck({
     cwd: WORKSPACE_ROOT,
@@ -173,6 +232,18 @@ void (async () => {
   assert.equal(sourceConsumerPayload.rustSourceMissingConsistency.findingsMatch, true);
   assert.equal(sourceConsumerPayload.rustSourceMissingConsistency.countsMatch, true);
 
+  const unusedConsumerPayload = await runRustConsumerCheck({
+    cwd: WORKSPACE_ROOT,
+    sourceFiles: ["DashboardCard.tsx"],
+    styleFiles: ["DashboardCard.module.scss"],
+    includeBundle: "style-unused",
+    flag: "--rust-style-unused-consumer",
+  });
+  assert.equal(unusedConsumerPayload.summary.total, 1);
+  assert.equal(unusedConsumerPayload.findings[0]?.code, "unused-selector");
+  assert.equal(unusedConsumerPayload.rustStyleUnusedConsistency.findingsMatch, true);
+  assert.equal(unusedConsumerPayload.rustStyleUnusedConsistency.countsMatch, true);
+
   process.stdout.write(
     [
       "== rust-checker-real-project-bounded:style-recovery ==",
@@ -189,6 +260,16 @@ void (async () => {
       `label=${SOURCE_MISSING_ENTRY.label}`,
       `findings=${actualSourceCandidate.summary.total}`,
       `code=${actualSourceCandidate.findings[0]?.code}`,
+      "consistent=true",
+      "",
+    ].join("\n"),
+  );
+  process.stdout.write(
+    [
+      "== rust-checker-real-project-bounded:style-unused ==",
+      `label=${STYLE_UNUSED_ENTRY.label}`,
+      `findings=${actualUnusedCandidate.summary.total}`,
+      `code=${actualUnusedCandidate.findings[0]?.code}`,
       "consistent=true",
       "",
     ].join("\n"),
@@ -324,8 +405,11 @@ async function runRustConsumerCheck(input: {
   readonly cwd: string;
   readonly sourceFiles: readonly string[];
   readonly styleFiles: readonly string[];
-  readonly includeBundle: "style-recovery" | "source-missing";
-  readonly flag: "--rust-style-recovery-consumer" | "--rust-source-missing-consumer";
+  readonly includeBundle: "style-recovery" | "source-missing" | "style-unused";
+  readonly flag:
+    | "--rust-style-recovery-consumer"
+    | "--rust-source-missing-consumer"
+    | "--rust-style-unused-consumer";
 }): Promise<any> {
   const stdout: string[] = [];
   const stderr: string[] = [];
@@ -333,6 +417,8 @@ async function runRustConsumerCheck(input: {
     input.cwd,
     "--preset",
     "ci",
+    "--severity",
+    "all",
     ...input.sourceFiles.flatMap((file) => ["--source-file", file]),
     ...input.styleFiles.flatMap((file) => ["--style-file", file]),
     "--include-bundle",

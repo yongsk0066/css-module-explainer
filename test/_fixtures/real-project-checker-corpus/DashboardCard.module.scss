@@ -2,3 +2,7 @@
   composes: surface from "./DashboardCardBase.module.scss";
   padding: 16px;
 }
+
+.ghost {
+  opacity: 0;
+}

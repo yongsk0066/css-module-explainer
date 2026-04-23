@@ -5,7 +5,9 @@ import { buildContractParitySnapshot } from "./contract-parity-runtime";
 import {
   runShadowCheckerSourceMissingCanonicalProducer,
   runShadowCheckerStyleRecoveryCanonicalProducer,
+  runShadowCheckerStyleUnusedCanonicalProducer,
 } from "./rust-shadow-shared";
+import { STYLE_UNUSED_ENTRY } from "./rust-checker-style-unused-shared";
 
 const REPO_ROOT = process.cwd();
 const STYLELINT_SMOKE_ROOT = path.join(REPO_ROOT, "test/_fixtures/stylelint-plugin-smoke");
@@ -48,9 +50,11 @@ const SOURCE_MISSING_ENTRY: ContractParityEntry = {
 void (async () => {
   const styleSnapshot = await buildContractParitySnapshot(STYLE_RECOVERY_ENTRY);
   const sourceSnapshot = await buildContractParitySnapshot(SOURCE_MISSING_ENTRY);
+  const unusedSnapshot = await buildContractParitySnapshot(STYLE_UNUSED_ENTRY);
 
   const styleProducer = await runShadowCheckerStyleRecoveryCanonicalProducer(styleSnapshot);
   const sourceProducer = await runShadowCheckerSourceMissingCanonicalProducer(sourceSnapshot);
+  const unusedProducer = await runShadowCheckerStyleUnusedCanonicalProducer(unusedSnapshot);
 
   assert.equal(
     styleProducer.boundedCheckerGate.consumerBoundaryCommand,
@@ -61,6 +65,10 @@ void (async () => {
     "pnpm check:rust-checker-source-missing-consumer-boundary",
   );
   assert.equal(
+    unusedProducer.boundedCheckerGate.consumerBoundaryCommand,
+    "pnpm check:rust-checker-style-unused-consumer-boundary",
+  );
+  assert.equal(
     styleProducer.boundedCheckerGate.boundedCheckerLaneCommand,
     "pnpm check:rust-checker-bounded-lanes",
   );
@@ -68,10 +76,16 @@ void (async () => {
     sourceProducer.boundedCheckerGate.boundedCheckerLaneCommand,
     "pnpm check:rust-checker-bounded-lanes",
   );
+  assert.equal(
+    unusedProducer.boundedCheckerGate.boundedCheckerLaneCommand,
+    "pnpm check:rust-checker-bounded-lanes",
+  );
   assert.equal(styleProducer.boundedCheckerGate.includedInRustLaneBundle, true);
   assert.equal(sourceProducer.boundedCheckerGate.includedInRustLaneBundle, true);
+  assert.equal(unusedProducer.boundedCheckerGate.includedInRustLaneBundle, true);
   assert.equal(styleProducer.boundedCheckerGate.includedInRustReleaseBundle, true);
   assert.equal(sourceProducer.boundedCheckerGate.includedInRustReleaseBundle, true);
+  assert.equal(unusedProducer.boundedCheckerGate.includedInRustReleaseBundle, true);
 
   process.stdout.write(
     [
@@ -92,6 +106,17 @@ void (async () => {
       `lane=${sourceProducer.boundedCheckerGate.boundedCheckerLaneCommand}`,
       `includedInRustLaneBundle=${sourceProducer.boundedCheckerGate.includedInRustLaneBundle}`,
       `includedInRustReleaseBundle=${sourceProducer.boundedCheckerGate.includedInRustReleaseBundle}`,
+      "",
+    ].join("\n"),
+  );
+  process.stdout.write(
+    [
+      "== rust-checker-promotion-review:style-unused ==",
+      `bundle=${unusedProducer.boundedCheckerGate.checkerBundle}`,
+      `consumerBoundary=${unusedProducer.boundedCheckerGate.consumerBoundaryCommand}`,
+      `lane=${unusedProducer.boundedCheckerGate.boundedCheckerLaneCommand}`,
+      `includedInRustLaneBundle=${unusedProducer.boundedCheckerGate.includedInRustLaneBundle}`,
+      `includedInRustReleaseBundle=${unusedProducer.boundedCheckerGate.includedInRustReleaseBundle}`,
       "",
     ].join("\n"),
   );

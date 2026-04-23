@@ -13,14 +13,14 @@ import {
 const REPO_ROOT = path.resolve(__dirname, "../../..");
 const RUST_MANIFEST = path.join(REPO_ROOT, "rust/Cargo.toml");
 
-export interface CheckerStyleRecoveryCanonicalProducerSignalV0 {
+export interface CheckerStyleUnusedCanonicalProducerSignalV0 {
   readonly schemaVersion: "0";
   readonly inputVersion: string;
   readonly canonicalCandidate: {
     readonly schemaVersion: "0";
     readonly inputVersion: string;
     readonly reportVersion: string;
-    readonly bundle: "style-recovery";
+    readonly bundle: "style-unused";
     readonly distinctFileCount: number;
     readonly codeCounts: Readonly<Record<string, number>>;
     readonly summary: {
@@ -48,9 +48,9 @@ export interface CheckerStyleRecoveryCanonicalProducerSignalV0 {
     }[];
   };
   readonly boundedCheckerGate: {
-    readonly canonicalCandidateCommand: "pnpm check:rust-checker-style-recovery-canonical-candidate";
-    readonly canonicalProducerCommand: "pnpm check:rust-checker-style-recovery-canonical-producer";
-    readonly consumerBoundaryCommand: "pnpm check:rust-checker-style-recovery-consumer-boundary";
+    readonly canonicalCandidateCommand: "pnpm check:rust-checker-style-unused-canonical-candidate";
+    readonly canonicalProducerCommand: "pnpm check:rust-checker-style-unused-canonical-producer";
+    readonly consumerBoundaryCommand: "pnpm check:rust-checker-style-unused-consumer-boundary";
     readonly boundedCheckerLaneCommand: "pnpm check:rust-checker-bounded-lanes";
     readonly promotionReviewCommand: "pnpm check:rust-checker-promotion-review";
     readonly promotionEvidenceCommand: "pnpm check:rust-checker-promotion-evidence";
@@ -62,17 +62,17 @@ export interface CheckerStyleRecoveryCanonicalProducerSignalV0 {
     readonly minimumBoundedLaneCountForRustLaneBundle: 3;
     readonly minimumBoundedLaneCountForRustReleaseBundle: 3;
     readonly minimumSuccessfulShadowRunsForRustReleaseBundle: 3;
-    readonly checkerBundle: "style-recovery";
+    readonly checkerBundle: "style-unused";
     readonly releaseGateStage: "enforced";
     readonly includedInRustLaneBundle: true;
     readonly includedInRustReleaseBundle: true;
   };
 }
 
-export async function buildRustStyleRecoveryCanonicalProducer(
+export async function buildRustStyleUnusedCanonicalProducer(
   workspace: WorkspaceCheckOptions,
   checkerReport: CheckerReportV1,
-): Promise<CheckerStyleRecoveryCanonicalProducerSignalV0> {
+): Promise<CheckerStyleUnusedCanonicalProducerSignalV0> {
   const workspaceRoot = workspace.workspaceRoot;
   const classnameTransform = workspace.classnameTransform ?? "asIs";
   const pathAlias = workspace.pathAlias ?? {};
@@ -112,12 +112,12 @@ export async function buildRustStyleRecoveryCanonicalProducer(
     checkerReport,
   });
 
-  return runRustStyleRecoveryCanonicalProducer(snapshot);
+  return runRustStyleUnusedCanonicalProducer(snapshot);
 }
 
-function runRustStyleRecoveryCanonicalProducer(
+function runRustStyleUnusedCanonicalProducer(
   snapshot: unknown,
-): Promise<CheckerStyleRecoveryCanonicalProducerSignalV0> {
+): Promise<CheckerStyleUnusedCanonicalProducerSignalV0> {
   return new Promise((resolve, reject) => {
     const child = spawn(
       "cargo",
@@ -129,7 +129,7 @@ function runRustStyleRecoveryCanonicalProducer(
         "engine-shadow-runner",
         "--quiet",
         "--",
-        "output-checker-style-recovery-canonical-producer",
+        "output-checker-style-unused-canonical-producer",
       ],
       {
         cwd: REPO_ROOT,
@@ -156,7 +156,7 @@ function runRustStyleRecoveryCanonicalProducer(
         return;
       }
       try {
-        resolve(JSON.parse(stdout.join("")) as CheckerStyleRecoveryCanonicalProducerSignalV0);
+        resolve(JSON.parse(stdout.join("")) as CheckerStyleUnusedCanonicalProducerSignalV0);
       } catch (error) {
         reject(error);
       }

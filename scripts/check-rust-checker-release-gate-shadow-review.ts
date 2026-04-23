@@ -6,7 +6,9 @@ import { buildContractParitySnapshot } from "./contract-parity-runtime";
 import {
   runShadowCheckerSourceMissingCanonicalProducer,
   runShadowCheckerStyleRecoveryCanonicalProducer,
+  runShadowCheckerStyleUnusedCanonicalProducer,
 } from "./rust-shadow-shared";
+import { STYLE_UNUSED_ENTRY } from "./rust-checker-style-unused-shared";
 
 type Run = {
   readonly workflowName: string;
@@ -84,9 +86,11 @@ function loadShadowRuns() {
 void (async () => {
   const styleSnapshot = await buildContractParitySnapshot(STYLE_RECOVERY_ENTRY);
   const sourceSnapshot = await buildContractParitySnapshot(SOURCE_MISSING_ENTRY);
+  const unusedSnapshot = await buildContractParitySnapshot(STYLE_UNUSED_ENTRY);
 
   const styleProducer = await runShadowCheckerStyleRecoveryCanonicalProducer(styleSnapshot);
   const sourceProducer = await runShadowCheckerSourceMissingCanonicalProducer(sourceSnapshot);
+  const unusedProducer = await runShadowCheckerStyleUnusedCanonicalProducer(unusedSnapshot);
 
   assert.equal(
     styleProducer.boundedCheckerGate.releaseGateShadowReviewCommand,
@@ -97,11 +101,19 @@ void (async () => {
     "pnpm check:rust-checker-release-gate-shadow-review",
   );
   assert.equal(
+    unusedProducer.boundedCheckerGate.releaseGateShadowReviewCommand,
+    "pnpm check:rust-checker-release-gate-shadow-review",
+  );
+  assert.equal(
     styleProducer.boundedCheckerGate.minimumSuccessfulShadowRunsForRustReleaseBundle,
     MINIMUM_SUCCESSFUL_SHADOW_RUNS_FOR_RELEASE_ENFORCEMENT,
   );
   assert.equal(
     sourceProducer.boundedCheckerGate.minimumSuccessfulShadowRunsForRustReleaseBundle,
+    MINIMUM_SUCCESSFUL_SHADOW_RUNS_FOR_RELEASE_ENFORCEMENT,
+  );
+  assert.equal(
+    unusedProducer.boundedCheckerGate.minimumSuccessfulShadowRunsForRustReleaseBundle,
     MINIMUM_SUCCESSFUL_SHADOW_RUNS_FOR_RELEASE_ENFORCEMENT,
   );
 

@@ -59,8 +59,8 @@ export interface CheckerSourceMissingCanonicalProducerSignalV0 {
     readonly releaseGateShadowCommand: "pnpm check:rust-checker-release-gate-shadow";
     readonly releaseGateShadowReviewCommand: "pnpm check:rust-checker-release-gate-shadow-review";
     readonly releaseBundleCommand: "pnpm check:rust-release-bundle";
-    readonly minimumBoundedLaneCountForRustLaneBundle: 2;
-    readonly minimumBoundedLaneCountForRustReleaseBundle: 2;
+    readonly minimumBoundedLaneCountForRustLaneBundle: 3;
+    readonly minimumBoundedLaneCountForRustReleaseBundle: 3;
     readonly minimumSuccessfulShadowRunsForRustReleaseBundle: 3;
     readonly checkerBundle: "source-missing";
     readonly releaseGateStage: "enforced";

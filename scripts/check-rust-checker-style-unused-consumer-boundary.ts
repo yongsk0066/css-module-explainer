@@ -27,6 +27,7 @@ void (async () => {
       "json",
       "--fail-on",
       "none",
+      "--rust-style-unused-consumer",
     ],
     {
       stdout: (message) => stdout.push(message),
@@ -40,6 +41,8 @@ void (async () => {
   const payload = JSON.parse(stdout.join(""));
   assert.equal(payload.summary.total, 1, "expected one style-unused finding");
   assert.equal(payload.findings[0]?.code, "unused-selector", "unexpected finding code");
+  assert.ok(payload.rustStyleUnusedCanonicalProducer, "missing rustStyleUnusedCanonicalProducer");
+  assert.ok(payload.rustStyleUnusedConsistency, "missing rustStyleUnusedConsistency");
 
   const snapshot = await buildContractParitySnapshot(STYLE_UNUSED_ENTRY);
   const expectedCandidate = deriveTsCheckerStyleUnusedCanonicalCandidate(snapshot);
@@ -47,9 +50,17 @@ void (async () => {
   assert.deepEqual(actualProducer.canonicalCandidate, expectedCandidate);
   assert.equal(actualProducer.canonicalCandidate.summary.total, payload.summary.total);
   assert.equal(actualProducer.canonicalCandidate.findings[0]?.code, payload.findings[0]?.code);
+  assert.deepEqual(payload.rustStyleUnusedCanonicalProducer.canonicalCandidate, expectedCandidate);
+  assert.equal(
+    payload.rustStyleUnusedCanonicalProducer.boundedCheckerGate.includedInRustReleaseBundle,
+    true,
+    "release gate should be true",
+  );
+  assert.equal(payload.rustStyleUnusedConsistency.findingsMatch, true);
+  assert.equal(payload.rustStyleUnusedConsistency.countsMatch, true);
 
   process.stdout.write(
-    "== rust-checker-style-unused-consumer:stylelint-smoke-unused-selector ==\nvalidated code=unused-selector consistent=true releaseGate=false\n\n",
+    "== rust-checker-style-unused-consumer:stylelint-smoke-unused-selector ==\nvalidated code=unused-selector consistent=true releaseGate=true\n\n",
   );
 })().catch((error: unknown) => {
   console.error(error);
