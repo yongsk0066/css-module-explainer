@@ -247,6 +247,10 @@ Today it aliases `pnpm check:tsgo-operational-lane` and stays separate from
 `pnpm release:verify` until the `CME_TYPE_FACT_BACKEND=tsgo` default decision
 is made.
 
+`pnpm check:ts7-phase-c-readiness` is the first TS 7 Phase C edge-readiness
+slice. It runs long-lived LSP session edits and multi-root workspace churn under
+`CME_TYPE_FACT_BACKEND=tsgo`.
+
 `pnpm check:selected-query-boundary` is the current local lock point for the
 `3.9` selected-query/editor-path transition. It exercises the protocol subset
 for `definition`, `hover`, `completion`, `references`, `rename`, and

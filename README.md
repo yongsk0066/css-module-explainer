@@ -298,6 +298,8 @@ Current checker policy:
 - `pnpm check:tsgo-operational-lane` is the current bounded non-release operational lane for the tsgo backend
   - it runs the local `ts7-phase-a-tsgo-lane` plus the bounded Phase B protocol, editing, server-build, and workspace-build tsgo subsets
 - `pnpm check:tsgo-release-bundle` is the current release-shaped tsgo variant; today it aliases the operational lane and remains separate from `pnpm release:verify`
+- `pnpm check:ts7-phase-c-readiness` is the first TS 7 Phase C edge-readiness slice
+  - it runs long-lived LSP session edits and multi-root workspace churn under `CME_TYPE_FACT_BACKEND=tsgo`
 - `pnpm check:operational-lane` is the current limited non-release default lane
   - today it resolves to the tsgo-backed operational lane
 - `pnpm check:operational-shadow-review` is the current limited non-release default review command
