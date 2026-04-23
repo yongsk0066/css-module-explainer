@@ -241,8 +241,10 @@ Provider entrypoints:
 Responsibilities are split like this:
 
 - core rewrite code decides whether a rewrite is legal and what edits it implies
-- providers convert that result into LSP shapes such as `WorkspaceEdit`, `Hover`,
-  `CodeLens`, and diagnostics
+- host query helpers in `server/engine-host-node/src/*-query.ts` assemble
+  provider-facing summaries from core query/rewrite functions
+- providers convert host query results into LSP shapes such as `WorkspaceEdit`,
+  `Hover`, `CodeLens`, and diagnostics
 
 Providers should not:
 
@@ -250,6 +252,7 @@ Providers should not:
 - rerun selector projection logic
 - invent certainty policy
 - interpret raw style safety metadata directly
+- import `core/query` or `core/rewrite` directly
 
 Benefits:
 
@@ -379,8 +382,8 @@ Allowed direction:
 
 ```text
 providers
-  -> core/query
-  -> core/rewrite
+  -> engine-host-node query helpers
+  -> core/query and core/rewrite
   -> core/*
 
 runtime
@@ -397,7 +400,7 @@ core/* -> providers/*
 core/* -> runtime/*
 runtime/* -> provider-deps
 runtime/* -> vscode-languageserver*
-providers/* -> deep core/query/* or core/rewrite/*
+providers/* -> core/query* or core/rewrite/*
 ```
 
 Current façade boundaries:
@@ -405,7 +408,12 @@ Current façade boundaries:
 - `server/engine-core-ts/src/core/query/index.ts`
 - `server/engine-core-ts/src/core/rewrite/index.ts`
 - `server/engine-core-ts/src/core/semantic/index.ts`
+- `server/engine-host-node/src/*-query.ts`
 - `server/engine-host-node/src/runtime/index.ts`
+
+`test/unit/architecture/package-boundaries.test.ts` enforces that provider
+implementation files do not bypass the host query boundary by importing
+`core/query` or `core/rewrite` directly.
 
 This does not force a package split today. It keeps that option mechanically
 possible later.

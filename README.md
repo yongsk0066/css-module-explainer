@@ -161,11 +161,12 @@ At a high level:
 - Binder resolves source-side names such as `cx`, `styles`, imports, locals, and shadowing.
 - The abstract-value layer models dynamic class expressions such as flow branches, unions, and template prefixes.
 - Semantic storage keeps workspace references, dependency lookups, and style-to-style relationships such as `composes`.
-- Read models turn low-level semantic state into stable summaries that providers consume.
+- `engine-host-node` query helpers turn low-level semantic state into stable summaries that providers consume.
 - Providers adapt those summaries to LSP features such as hover, definition, references, diagnostics, and rename.
 
 The important constraint is that providers do not recompute semantic meaning on
-their own. They read the shared pipeline.
+their own. They read the shared pipeline through the host query boundary rather
+than importing core query or rewrite internals directly.
 
 Contract status:
 
