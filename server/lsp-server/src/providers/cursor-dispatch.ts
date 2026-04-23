@@ -1,7 +1,7 @@
 import {
-  readSourceExpressionContextAtCursor,
+  resolveSourceExpressionContextAtCursor,
   type SourceExpressionContext,
-} from "../../../engine-core-ts/src/core/query";
+} from "../../../engine-host-node/src/source-cursor-query";
 import type { CursorParams, ProviderDeps } from "./provider-deps";
 
 /**
@@ -16,7 +16,7 @@ export function findSourceExpressionContextAtCursor(
   params: CursorParams,
   deps: ProviderDeps,
 ): SourceExpressionContext | null {
-  return readSourceExpressionContextAtCursor(params, deps);
+  return resolveSourceExpressionContextAtCursor(params, deps);
 }
 
 export function withSourceExpressionAtCursor<T>(
@@ -29,5 +29,5 @@ export function withSourceExpressionAtCursor<T>(
   return transform(ctx) ?? null;
 }
 
-export type { SourceExpressionContext } from "../../../engine-core-ts/src/core/query";
+export type { SourceExpressionContext } from "../../../engine-host-node/src/source-cursor-query";
 export type { CursorParams, ProviderDeps } from "./provider-deps";
