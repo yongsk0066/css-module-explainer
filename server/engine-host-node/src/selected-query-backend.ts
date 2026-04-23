@@ -1,10 +1,13 @@
 import path from "node:path";
+import { existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { buildEngineInputV2 } from "./engine-input-v2";
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
 
 const REPO_ROOT = path.resolve(__dirname, "../../..");
 const RUST_MANIFEST = path.join(REPO_ROOT, "rust/Cargo.toml");
+const ENGINE_SHADOW_RUNNER_BINARY =
+  process.platform === "win32" ? "engine-shadow-runner.exe" : "engine-shadow-runner";
 
 export type SelectedQueryBackendKind =
   | "typescript-current"
@@ -69,10 +72,41 @@ export function buildSelectedQueryBackendInput(
   });
 }
 
-export function runRustSelectedQueryBackendJson<T>(command: string, input: unknown): T {
-  const child = spawnSync(
-    "cargo",
-    [
+export interface EngineShadowRunnerInvocation {
+  readonly command: string;
+  readonly args: readonly string[];
+  readonly cwd: string;
+}
+
+export function resolveEngineShadowRunnerBinaryPath(env: NodeJS.ProcessEnv = process.env): string {
+  const targetDir = env.CARGO_TARGET_DIR
+    ? path.resolve(REPO_ROOT, env.CARGO_TARGET_DIR)
+    : path.join(REPO_ROOT, "rust/target");
+  return path.join(targetDir, "debug", ENGINE_SHADOW_RUNNER_BINARY);
+}
+
+export function buildEngineShadowRunnerInvocation(
+  command: string,
+  env: NodeJS.ProcessEnv = process.env,
+  fileExists: (filePath: string) => boolean = existsSync,
+): EngineShadowRunnerInvocation {
+  if (env.CME_ENGINE_SHADOW_RUNNER === "prebuilt") {
+    const runnerPath = resolveEngineShadowRunnerBinaryPath(env);
+    if (!fileExists(runnerPath)) {
+      throw new Error(
+        `CME_ENGINE_SHADOW_RUNNER=prebuilt requires ${runnerPath}; run pnpm check:rust-selected-query-warmup first`,
+      );
+    }
+    return {
+      command: runnerPath,
+      args: [command],
+      cwd: REPO_ROOT,
+    };
+  }
+
+  return {
+    command: "cargo",
+    args: [
       "run",
       "--manifest-path",
       RUST_MANIFEST,
@@ -82,12 +116,17 @@ export function runRustSelectedQueryBackendJson<T>(command: string, input: unkno
       "--",
       command,
     ],
-    {
-      cwd: REPO_ROOT,
-      input: JSON.stringify(input),
-      encoding: "utf8",
-    },
-  );
+    cwd: REPO_ROOT,
+  };
+}
+
+export function runRustSelectedQueryBackendJson<T>(command: string, input: unknown): T {
+  const invocation = buildEngineShadowRunnerInvocation(command);
+  const child = spawnSync(invocation.command, invocation.args, {
+    cwd: invocation.cwd,
+    input: JSON.stringify(input),
+    encoding: "utf8",
+  });
 
   if (child.status !== 0) {
     throw new Error(

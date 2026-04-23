@@ -269,9 +269,13 @@ default-candidate evidence lane for
 `CME_SELECTED_QUERY_BACKEND=rust-selected-query`. It warms
 `engine-shadow-runner`, then runs the explicit unit/runtime Rust selected-query
 consumer slice plus the full protocol suite with the unified Rust selected-query
-backend enabled. The warmup avoids first-use `cargo run` compilation contention
-inside parallel protocol tests. It is promotion evidence for a future default
-flip, not the flip itself. GitHub Actions runs the same lane in the
+backend enabled and `CME_ENGINE_SHADOW_RUNNER=prebuilt`. The warmup avoids
+first-use `cargo run` compilation contention inside parallel protocol tests,
+and the explicit prebuilt mode makes the shadow lane exercise the warmed
+runner binary instead of the cargo wrapper. Ad-hoc local runs still use
+`cargo run` by default, so they do not accidentally reuse a stale `rust/target`
+binary. It is promotion evidence for a future default flip, not the flip
+itself. GitHub Actions runs the same lane in the
 `Rust Selected Query Default Candidate` shadow workflow on `master`.
 
 `pnpm check:editor-path-boundary` is the current local lock point for the

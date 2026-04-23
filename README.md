@@ -239,7 +239,8 @@ Current checker policy:
   - `CME_SELECTED_QUERY_BACKEND=rust-selected-query` is the unified opt-in backend for that slice; the narrower `rust-source-resolution`, `rust-expression-semantics`, and `rust-selector-usage` values remain available for isolated debugging
   - this is a milestone boundary for live Rust selected-query consumption, not a stable release gate and not yet a full selected-query default flip
 - `pnpm check:rust-selected-query-default-candidate` is the current default-candidate evidence lane for `CME_SELECTED_QUERY_BACKEND=rust-selected-query`
-  - it warms `engine-shadow-runner`, then runs the live Rust selected-query unit consumer slice plus the full protocol suite with the unified Rust selected-query backend enabled
+  - it warms `engine-shadow-runner`, then runs the live Rust selected-query unit consumer slice plus the full protocol suite with the unified Rust selected-query backend enabled and `CME_ENGINE_SHADOW_RUNNER=prebuilt`
+  - prebuilt runner mode is explicit so ad-hoc local runs still use `cargo run` and do not accidentally reuse a stale `rust/target` binary
   - it is promotion evidence for a future default flip, not the flip itself
   - GitHub Actions runs the same lane in the `Rust Selected Query Default Candidate` shadow workflow on `master`
 - `pnpm check:editor-path-boundary` is the current editor-path runtime lock point
