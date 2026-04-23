@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
+import type { StyleDocumentHIR } from "../../../server/engine-core-ts/src/core/hir/style-types";
+import { parseStyleDocument } from "../../../server/engine-core-ts/src/core/scss/scss-parser";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/engine-core-ts/src/core/semantic/workspace-reference-index";
-import { resolveStyleSelectorHoverResult } from "../../../server/engine-host-node/src/style-hover-query";
+import {
+  resolveStyleHoverResult,
+  resolveStyleSelectorHoverResult,
+} from "../../../server/engine-host-node/src/style-hover-query";
 import { infoAtLine, makeBaseDeps, semanticSiteAt } from "../../_fixtures/test-helpers";
 
 const SCSS_PATH = "/fake/ws/src/Button.module.scss";
+const TOKENS_PATH = "/fake/ws/src/tokens.module.scss";
 
 describe("style hover query", () => {
   it("uses rust selector-usage payloads for style hover summaries", () => {
@@ -78,4 +84,74 @@ describe("style hover query", () => {
       hasAnyReferences: true,
     });
   });
+
+  it("resolves animation references to keyframes hover data", () => {
+    const scss = `@keyframes fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.box {
+  animation: fade 1s linear;
+}
+
+.pulse {
+  animation-name: fade;
+}
+`;
+    const result = resolveStyleHoverResult(
+      {
+        filePath: SCSS_PATH,
+        line: 6,
+        character: 15,
+      },
+      makeBaseDeps({
+        styleDocumentForPath: styleDocumentMap([parseStyleDocument(scss, SCSS_PATH)]),
+      }),
+    );
+
+    expect(result).toMatchObject({
+      kind: "keyframes",
+      scssModulePath: SCSS_PATH,
+      headingName: "fade",
+      note: "Referenced via `animation`",
+      referenceCount: 2,
+    });
+  });
+
+  it("resolves imported value references to value hover data", () => {
+    const buttonScss = `@value primary from "./tokens.module.scss";
+
+.button {
+  color: primary;
+}
+`;
+    const tokensScss = `@value primary: #ff3355;`;
+    const result = resolveStyleHoverResult(
+      {
+        filePath: SCSS_PATH,
+        line: 3,
+        character: 10,
+      },
+      makeBaseDeps({
+        styleDocumentForPath: styleDocumentMap([
+          parseStyleDocument(buttonScss, SCSS_PATH),
+          parseStyleDocument(tokensScss, TOKENS_PATH),
+        ]),
+      }),
+    );
+
+    expect(result).toMatchObject({
+      kind: "value",
+      scssModulePath: TOKENS_PATH,
+      headingName: "primary",
+      note: "Referenced via `declaration value`; imported from `./tokens.module.scss` as `primary`",
+      referenceCount: 1,
+    });
+  });
 });
+
+function styleDocumentMap(documents: readonly StyleDocumentHIR[]) {
+  const byPath = new Map(documents.map((document) => [document.filePath, document]));
+  return (filePath: string) => byPath.get(filePath) ?? null;
+}

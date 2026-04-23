@@ -1,13 +1,28 @@
 import type { Range } from "@css-module-explainer/shared";
 import {
+  findAnimationNameRefAtCursor,
   findCanonicalSelector,
   findComposesTokenAtCursor,
+  findKeyframesAtCursor,
+  findKeyframesByName,
   findSelectorAtCursor,
+  findValueDeclAtCursor,
+  findValueImportAtCursor,
+  findValueRefAtCursor,
+  listAnimationNameRefs,
+  listValueRefs,
   readSelectorStyleDependencySummary,
   readSelectorUsageSummary,
   resolveComposesTarget,
+  resolveValueImportTarget,
+  resolveValueTarget,
 } from "../../engine-core-ts/src/core/query";
-import type { SelectorDeclHIR } from "../../engine-core-ts/src/core/hir/style-types";
+import type {
+  KeyframesDeclHIR,
+  SelectorDeclHIR,
+  StyleDocumentHIR,
+  ValueDeclHIR,
+} from "../../engine-core-ts/src/core/hir/style-types";
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
 import {
   resolveSelectedQueryBackendKind,
@@ -20,6 +35,7 @@ import {
 } from "./selector-usage-query-backend";
 
 export interface StyleSelectorHoverResult {
+  readonly kind: "selector";
   readonly selector: SelectorDeclHIR;
   readonly range: Range;
   readonly scssModulePath: string;
@@ -29,9 +45,142 @@ export interface StyleSelectorHoverResult {
   readonly note?: string;
 }
 
+export interface StyleKeyframesHoverResult {
+  readonly kind: "keyframes";
+  readonly keyframes: KeyframesDeclHIR;
+  readonly range: Range;
+  readonly scssModulePath: string;
+  readonly referenceCount: number;
+  readonly headingName?: string;
+  readonly note?: string;
+}
+
+export interface StyleValueHoverResult {
+  readonly kind: "value";
+  readonly valueDecl: ValueDeclHIR;
+  readonly range: Range;
+  readonly scssModulePath: string;
+  readonly referenceCount: number;
+  readonly headingName?: string;
+  readonly note?: string;
+}
+
+export type StyleHoverResult =
+  | StyleSelectorHoverResult
+  | StyleKeyframesHoverResult
+  | StyleValueHoverResult;
+
 export interface StyleHoverQueryOptions {
   readonly env?: NodeJS.ProcessEnv;
   readonly readRustSelectorUsagePayloadForWorkspaceTarget?: typeof resolveRustSelectorUsagePayloadForWorkspaceTarget;
+}
+
+export function resolveStyleHoverResult(
+  args: {
+    readonly filePath: string;
+    readonly line: number;
+    readonly character: number;
+  },
+  deps: Pick<
+    ProviderDeps,
+    | "analysisCache"
+    | "styleDocumentForPath"
+    | "typeResolver"
+    | "semanticReferenceIndex"
+    | "styleDependencyGraph"
+    | "workspaceRoot"
+    | "settings"
+  >,
+  options: StyleHoverQueryOptions = {},
+): StyleHoverResult | null {
+  const styleDocument = deps.styleDocumentForPath(args.filePath);
+  if (!styleDocument) return null;
+
+  const selectorHover = resolveStyleSelectorHoverResultForDocument(
+    styleDocument,
+    args,
+    deps,
+    options,
+  );
+  if (selectorHover) return selectorHover;
+
+  const keyframes = findKeyframesAtCursor(styleDocument, args.line, args.character);
+  if (keyframes) {
+    return {
+      kind: "keyframes",
+      keyframes,
+      range: keyframes.range,
+      scssModulePath: args.filePath,
+      referenceCount: listAnimationNameRefs(styleDocument, keyframes.name).length,
+    };
+  }
+
+  const valueDecl = findValueDeclAtCursor(styleDocument, args.line, args.character);
+  if (valueDecl) {
+    return {
+      kind: "value",
+      valueDecl,
+      range: valueDecl.range,
+      scssModulePath: args.filePath,
+      referenceCount: listValueRefs(styleDocument, valueDecl.name).length,
+    };
+  }
+
+  const valueImport = findValueImportAtCursor(styleDocument, args.line, args.character);
+  if (valueImport) {
+    const targetValue = resolveValueImportTarget(
+      deps.styleDocumentForPath,
+      styleDocument.filePath,
+      valueImport,
+    );
+    if (!targetValue) return null;
+    return {
+      kind: "value",
+      valueDecl: targetValue.valueDecl,
+      range: valueImport.range,
+      headingName: valueImport.name,
+      note: `Imported from \`${valueImport.from}\` as \`${valueImport.importedName}\``,
+      scssModulePath: targetValue.filePath,
+      referenceCount: listValueRefs(styleDocument, valueImport.name).length,
+    };
+  }
+
+  const animationRef = findAnimationNameRefAtCursor(styleDocument, args.line, args.character);
+  if (animationRef) {
+    const targetKeyframes = findKeyframesByName(styleDocument, animationRef.name);
+    if (!targetKeyframes) return null;
+    return {
+      kind: "keyframes",
+      keyframes: targetKeyframes,
+      range: animationRef.range,
+      headingName: animationRef.name,
+      note: `Referenced via \`${animationRef.property}\``,
+      scssModulePath: args.filePath,
+      referenceCount: listAnimationNameRefs(styleDocument, targetKeyframes.name).length,
+    };
+  }
+
+  const valueRef = findValueRefAtCursor(styleDocument, args.line, args.character);
+  if (!valueRef) return null;
+  const targetValue = resolveValueTarget(
+    deps.styleDocumentForPath,
+    styleDocument.filePath,
+    styleDocument,
+    valueRef.name,
+  );
+  if (!targetValue) return null;
+  return {
+    kind: "value",
+    valueDecl: targetValue.valueDecl,
+    range: valueRef.range,
+    headingName: valueRef.name,
+    note:
+      targetValue.bindingKind === "imported"
+        ? `Referenced via \`${valueRef.source === "declaration" ? "declaration value" : "@value"}\`; imported from \`${targetValue.valueImport!.from}\` as \`${targetValue.valueImport!.importedName}\``
+        : `Referenced via \`${valueRef.source === "declaration" ? "declaration value" : "@value"}\``,
+    scssModulePath: targetValue.filePath,
+    referenceCount: listValueRefs(styleDocument, valueRef.name).length,
+  };
 }
 
 export function resolveStyleSelectorHoverResult(
@@ -55,10 +204,33 @@ export function resolveStyleSelectorHoverResult(
   const styleDocument = deps.styleDocumentForPath(args.filePath);
   if (!styleDocument) return null;
 
+  return resolveStyleSelectorHoverResultForDocument(styleDocument, args, deps, options);
+}
+
+function resolveStyleSelectorHoverResultForDocument(
+  styleDocument: StyleDocumentHIR,
+  args: {
+    readonly filePath: string;
+    readonly line: number;
+    readonly character: number;
+  },
+  deps: Pick<
+    ProviderDeps,
+    | "analysisCache"
+    | "styleDocumentForPath"
+    | "typeResolver"
+    | "semanticReferenceIndex"
+    | "styleDependencyGraph"
+    | "workspaceRoot"
+    | "settings"
+  >,
+  options: StyleHoverQueryOptions,
+): StyleSelectorHoverResult | null {
   const selector = findSelectorAtCursor(styleDocument, args.line, args.character);
   if (selector) {
     const canonicalSelector = findCanonicalSelector(styleDocument, selector);
     return {
+      kind: "selector",
       selector: canonicalSelector,
       range: selector.bemSuffix?.rawTokenRange ?? selector.range,
       scssModulePath: args.filePath,
@@ -85,6 +257,7 @@ export function resolveStyleSelectorHoverResult(
   if (!composesHit || !target) return null;
 
   return {
+    kind: "selector",
     selector: target.selector,
     range: composesHit.token.range,
     scssModulePath: target.filePath,
