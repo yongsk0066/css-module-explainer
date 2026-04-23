@@ -37,6 +37,8 @@
     "clean": "rm -rf dist",
     "build": "pnpm clean && rolldown -c rolldown.config.ts",
     "watch": "rolldown -c rolldown.config.ts --watch",
+    "cme-check": "tsx ./packages/check-orchestrator/src/cli/main.ts",
+    "check:orchestrator-doctor": "pnpm cme-check doctor",
     "changeset": "changeset",
     "typecheck": "tsc -b",
     "test": "vitest run",

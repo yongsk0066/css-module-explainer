@@ -6,6 +6,7 @@
     { "path": "./server/lsp-server" },
     { "path": "./server/engine-host-node" },
     { "path": "./server/checker-cli" },
+    { "path": "./packages/check-orchestrator" },
     { "path": "./client" }
   ]
 }
