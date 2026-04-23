@@ -264,6 +264,13 @@ for isolated debugging.
 It is a milestone boundary, not a stable release gate and not yet a default
 selected-query backend flip.
 
+`pnpm check:rust-selected-query-default-candidate` is the current
+default-candidate evidence lane for
+`CME_SELECTED_QUERY_BACKEND=rust-selected-query`. It runs the explicit
+unit/runtime Rust selected-query consumer slice plus the full protocol suite
+with the unified Rust selected-query backend enabled. It is promotion evidence
+for a future default flip, not the flip itself.
+
 `pnpm check:editor-path-boundary` is the current local lock point for the
 editor-path runtime transition after the selected-query cut. It runs
 `pnpm check:selected-query-boundary` plus the protocol subset for

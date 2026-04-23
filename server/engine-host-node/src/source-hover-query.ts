@@ -62,7 +62,7 @@ export function resolveSourceExpressionHoverResult(
       deps,
       options.readRustExpressionSemanticsPayload ?? resolveRustExpressionSemanticsPayload,
     );
-    if (rustResult) return rustResult;
+    if (rustResult && rustResult.selectors.length > 0) return rustResult;
   }
   const selectors = usesRustSourceResolutionBackend(backend)
     ? (resolveSelectorsFromRustSourceResolution(

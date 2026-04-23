@@ -226,4 +226,46 @@ describe("resolveSourceExpressionHoverResult", () => {
     );
     expect(Array.from(result.styleDependenciesBySelector.keys())).toEqual(["indicator"]);
   });
+
+  it("falls back when unified rust expression semantics has no hoverable selectors", () => {
+    const deps = makeDeps();
+    const params = {
+      documentUri: "file:///fake/src/Button.tsx",
+      content: TSX,
+      filePath: "/fake/src/Button.tsx",
+      line: 4,
+      character: 18,
+      version: 1,
+    };
+    const ctx = readSourceExpressionContextAtCursor(params, {
+      analysisCache: deps.analysisCache,
+      styleDocumentForPath: deps.styleDocumentForPath,
+    });
+
+    expect(ctx).not.toBeNull();
+    const result = resolveSourceExpressionHoverResult(ctx!, params, deps, {
+      env: {
+        CME_SELECTED_QUERY_BACKEND: "rust-selected-query",
+      } as NodeJS.ProcessEnv,
+      readRustExpressionSemanticsPayload: () => ({
+        expressionId: "expr-1",
+        expressionKind: "literal",
+        styleFilePath: "/fake/src/Button.module.scss",
+        selectorNames: [],
+        candidateNames: [],
+        finiteValues: [],
+        valueDomainKind: "finiteSet",
+        selectorCertainty: "exact",
+        valueCertainty: "exact",
+        selectorCertaintyShapeKind: "boundedFinite",
+        selectorCertaintyShapeLabel: "bounded selector set (0)",
+        valueCertaintyShapeKind: "boundedFinite",
+        valueCertaintyShapeLabel: "bounded finite (0)",
+      }),
+      readRustSourceResolutionSelectorMatch: () => null,
+    });
+
+    expect(result.selectors.map((selector) => selector.name)).toEqual(["indicator"]);
+    expect(Array.from(result.styleDependenciesBySelector.keys())).toEqual(["indicator"]);
+  });
 });
