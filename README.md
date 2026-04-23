@@ -241,6 +241,7 @@ Current checker policy:
 - `pnpm check:rust-selected-query-default-candidate` is the current default-candidate evidence lane for `CME_SELECTED_QUERY_BACKEND=rust-selected-query`
   - it warms `engine-shadow-runner`, then runs the live Rust selected-query unit consumer slice plus the full protocol suite with the unified Rust selected-query backend enabled and `CME_ENGINE_SHADOW_RUNNER=prebuilt`
   - prebuilt runner mode is explicit so ad-hoc local runs still use `cargo run` and do not accidentally reuse a stale `rust/target` binary
+  - prebuilt mode can resolve an explicit `CME_ENGINE_SHADOW_RUNNER_PATH`, a packaged `dist/bin/<platform>-<arch>/engine-shadow-runner`, or the warmed `rust/target/debug` runner
   - it is promotion evidence for a future default flip, not the flip itself
   - GitHub Actions runs the same lane in the `Rust Selected Query Default Candidate` shadow workflow on `master`
 - `pnpm check:editor-path-boundary` is the current editor-path runtime lock point

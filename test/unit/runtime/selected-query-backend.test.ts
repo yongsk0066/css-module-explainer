@@ -1,3 +1,4 @@
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   buildEngineShadowRunnerInvocation,
@@ -38,6 +39,7 @@ describe("selected query backend", () => {
       "input-source-resolution-canonical-producer",
       {
         CME_ENGINE_SHADOW_RUNNER: "",
+        CME_PROJECT_ROOT: "/workspace/css-module-explainer",
       } as NodeJS.ProcessEnv,
     );
 
@@ -45,13 +47,14 @@ describe("selected query backend", () => {
     expect(invocation.args).toEqual([
       "run",
       "--manifest-path",
-      expect.stringContaining("rust/Cargo.toml"),
+      path.join("/workspace/css-module-explainer", "rust/Cargo.toml"),
       "-p",
       "engine-shadow-runner",
       "--quiet",
       "--",
       "input-source-resolution-canonical-producer",
     ]);
+    expect(invocation.cwd).toBe("/workspace/css-module-explainer");
   });
 
   it("can run the prebuilt engine-shadow-runner after the warmup build", () => {
@@ -59,12 +62,50 @@ describe("selected query backend", () => {
       "input-selector-usage-canonical-producer",
       {
         CME_ENGINE_SHADOW_RUNNER: "prebuilt",
+        CME_PROJECT_ROOT: "/workspace/css-module-explainer",
       } as NodeJS.ProcessEnv,
       () => true,
     );
 
     expect(invocation.command).toContain("engine-shadow-runner");
     expect(invocation.args).toEqual(["input-selector-usage-canonical-producer"]);
+    expect(invocation.cwd).toBe("/workspace/css-module-explainer");
+  });
+
+  it("prefers an explicit prebuilt runner path for packaged runtime experiments", () => {
+    const runnerPath = path.join("/extension", "bin", "engine-shadow-runner");
+    const invocation = buildEngineShadowRunnerInvocation(
+      "input-selector-usage-canonical-producer",
+      {
+        CME_ENGINE_SHADOW_RUNNER: "prebuilt",
+        CME_ENGINE_SHADOW_RUNNER_PATH: runnerPath,
+      } as NodeJS.ProcessEnv,
+      (filePath) => filePath === runnerPath,
+    );
+
+    expect(invocation.command).toBe(runnerPath);
+    expect(invocation.args).toEqual(["input-selector-usage-canonical-producer"]);
+  });
+
+  it("can resolve a packaged dist/bin runner before falling back to rust target", () => {
+    const projectRoot = path.join("/extension", "css-module-explainer");
+    const packagedRunner = path.join(
+      projectRoot,
+      "dist/bin",
+      `${process.platform}-${process.arch}`,
+      process.platform === "win32" ? "engine-shadow-runner.exe" : "engine-shadow-runner",
+    );
+    const invocation = buildEngineShadowRunnerInvocation(
+      "input-expression-semantics-canonical-producer",
+      {
+        CME_ENGINE_SHADOW_RUNNER: "prebuilt",
+        CME_PROJECT_ROOT: projectRoot,
+      } as NodeJS.ProcessEnv,
+      (filePath) => filePath === packagedRunner,
+    );
+
+    expect(invocation.command).toBe(packagedRunner);
+    expect(invocation.args).toEqual(["input-expression-semantics-canonical-producer"]);
   });
 
   it("fails fast when prebuilt mode is requested before the runner exists", () => {

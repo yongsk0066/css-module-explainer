@@ -274,8 +274,10 @@ first-use `cargo run` compilation contention inside parallel protocol tests,
 and the explicit prebuilt mode makes the shadow lane exercise the warmed
 runner binary instead of the cargo wrapper. Ad-hoc local runs still use
 `cargo run` by default, so they do not accidentally reuse a stale `rust/target`
-binary. It is promotion evidence for a future default flip, not the flip
-itself. GitHub Actions runs the same lane in the
+binary. Prebuilt mode resolves an explicit `CME_ENGINE_SHADOW_RUNNER_PATH`, a
+packaged `dist/bin/<platform>-<arch>/engine-shadow-runner`, or the warmed
+`rust/target/debug` runner. It is promotion evidence for a future default flip,
+not the flip itself. GitHub Actions runs the same lane in the
 `Rust Selected Query Default Candidate` shadow workflow on `master`.
 
 `pnpm check:editor-path-boundary` is the current local lock point for the

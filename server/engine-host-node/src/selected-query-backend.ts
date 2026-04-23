@@ -5,7 +5,7 @@ import { buildEngineInputV2 } from "./engine-input-v2";
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
 
 const REPO_ROOT = path.resolve(__dirname, "../../..");
-const RUST_MANIFEST = path.join(REPO_ROOT, "rust/Cargo.toml");
+const BUNDLED_EXTENSION_ROOT = path.resolve(__dirname, "../..");
 const ENGINE_SHADOW_RUNNER_BINARY =
   process.platform === "win32" ? "engine-shadow-runner.exe" : "engine-shadow-runner";
 
@@ -78,11 +78,47 @@ export interface EngineShadowRunnerInvocation {
   readonly cwd: string;
 }
 
+function resolveProjectRoot(
+  env: NodeJS.ProcessEnv = process.env,
+  fileExists: (filePath: string) => boolean = existsSync,
+): string {
+  if (env.CME_PROJECT_ROOT) return path.resolve(env.CME_PROJECT_ROOT);
+
+  for (const candidate of [REPO_ROOT, BUNDLED_EXTENSION_ROOT, process.cwd()]) {
+    if (fileExists(path.join(candidate, "package.json"))) return candidate;
+  }
+
+  return REPO_ROOT;
+}
+
 export function resolveEngineShadowRunnerBinaryPath(env: NodeJS.ProcessEnv = process.env): string {
+  return resolveEngineShadowRunnerBinaryPathForEnv(env);
+}
+
+function resolveEngineShadowRunnerBinaryPathForEnv(
+  env: NodeJS.ProcessEnv = process.env,
+  fileExists: (filePath: string) => boolean = existsSync,
+): string {
+  if (env.CME_ENGINE_SHADOW_RUNNER_PATH) {
+    return path.resolve(env.CME_ENGINE_SHADOW_RUNNER_PATH);
+  }
+
+  const projectRoot = resolveProjectRoot(env, fileExists);
   const targetDir = env.CARGO_TARGET_DIR
-    ? path.resolve(REPO_ROOT, env.CARGO_TARGET_DIR)
-    : path.join(REPO_ROOT, "rust/target");
-  return path.join(targetDir, "debug", ENGINE_SHADOW_RUNNER_BINARY);
+    ? path.resolve(projectRoot, env.CARGO_TARGET_DIR)
+    : path.join(projectRoot, "rust/target");
+  const candidates = [
+    path.join(
+      projectRoot,
+      "dist/bin",
+      `${process.platform}-${process.arch}`,
+      ENGINE_SHADOW_RUNNER_BINARY,
+    ),
+    path.join(projectRoot, "dist/bin", ENGINE_SHADOW_RUNNER_BINARY),
+    path.join(targetDir, "debug", ENGINE_SHADOW_RUNNER_BINARY),
+  ];
+
+  return candidates.find(fileExists) ?? candidates[candidates.length - 1]!;
 }
 
 export function buildEngineShadowRunnerInvocation(
@@ -90,8 +126,9 @@ export function buildEngineShadowRunnerInvocation(
   env: NodeJS.ProcessEnv = process.env,
   fileExists: (filePath: string) => boolean = existsSync,
 ): EngineShadowRunnerInvocation {
+  const projectRoot = resolveProjectRoot(env, fileExists);
   if (env.CME_ENGINE_SHADOW_RUNNER === "prebuilt") {
-    const runnerPath = resolveEngineShadowRunnerBinaryPath(env);
+    const runnerPath = resolveEngineShadowRunnerBinaryPathForEnv(env, fileExists);
     if (!fileExists(runnerPath)) {
       throw new Error(
         `CME_ENGINE_SHADOW_RUNNER=prebuilt requires ${runnerPath}; run pnpm check:rust-selected-query-warmup first`,
@@ -100,7 +137,7 @@ export function buildEngineShadowRunnerInvocation(
     return {
       command: runnerPath,
       args: [command],
-      cwd: REPO_ROOT,
+      cwd: projectRoot,
     };
   }
 
@@ -109,14 +146,14 @@ export function buildEngineShadowRunnerInvocation(
     args: [
       "run",
       "--manifest-path",
-      RUST_MANIFEST,
+      path.join(projectRoot, "rust/Cargo.toml"),
       "-p",
       "engine-shadow-runner",
       "--quiet",
       "--",
       command,
     ],
-    cwd: REPO_ROOT,
+    cwd: projectRoot,
   };
 }
 
