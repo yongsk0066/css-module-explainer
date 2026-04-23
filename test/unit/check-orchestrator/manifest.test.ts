@@ -27,6 +27,9 @@ describe("check orchestrator manifest", () => {
       resolveGateTarget(manifest, "release/check/packaged-engine-shadow-runner")?.scriptName,
     ).toBe("check:packaged-engine-shadow-runner");
     expect(
+      resolveGateTarget(manifest, "release/check/packaged-engine-shadow-runner-matrix")?.scriptName,
+    ).toBe("check:packaged-engine-shadow-runner-matrix");
+    expect(
       resolveGateTarget(manifest, "release/check/packaged-selected-query-default")?.scriptName,
     ).toBe("check:packaged-selected-query-default");
   });

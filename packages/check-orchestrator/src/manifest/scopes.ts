@@ -89,6 +89,7 @@ export const SCOPE_DEFINITIONS: readonly ScopeDefinition[] = [
       scriptName.startsWith("check:release-batch") ||
       scriptName.startsWith("check:real-project-corpus") ||
       scriptName === "check:packaged-engine-shadow-runner" ||
+      scriptName === "check:packaged-engine-shadow-runner-matrix" ||
       scriptName === "check:packaged-selected-query-default" ||
       scriptName === "package" ||
       scriptName === "version-packages" ||
