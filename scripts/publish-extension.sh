@@ -27,6 +27,7 @@ fi
 pnpm check
 pnpm test
 pnpm build
+pnpm check:packaged-engine-shadow-runner
 
 rm -f ./*.vsix
 pnpm exec vsce package "${PACKAGE_ARGS[@]}"

@@ -87,6 +87,7 @@ export const SCOPE_DEFINITIONS: readonly ScopeDefinition[] = [
       scriptName.startsWith("release:") ||
       scriptName.startsWith("check:release-batch") ||
       scriptName.startsWith("check:real-project-corpus") ||
+      scriptName === "check:packaged-engine-shadow-runner" ||
       scriptName === "package" ||
       scriptName === "version-packages" ||
       scriptName === "changeset",
@@ -106,6 +107,7 @@ export const SCOPE_DEFINITIONS: readonly ScopeDefinition[] = [
     matches: (scriptName) =>
       [
         "build",
+        "build:engine-shadow-runner",
         "check",
         "clean",
         "format",

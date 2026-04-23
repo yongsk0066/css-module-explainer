@@ -23,6 +23,9 @@ describe("check orchestrator manifest", () => {
     expect(resolveGateTarget(manifest, "tooling/orchestrator-doctor")?.scriptName).toBe(
       "check:orchestrator-doctor",
     );
+    expect(
+      resolveGateTarget(manifest, "release/check/packaged-engine-shadow-runner")?.scriptName,
+    ).toBe("check:packaged-engine-shadow-runner");
   });
 
   it("tracks bundle script references", () => {

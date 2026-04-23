@@ -83,6 +83,7 @@ jobs:
         with:
           name: build-output
           path: dist/
+      - run: pnpm check:packaged-engine-shadow-runner
       - run: pnpm exec vsce package --no-dependencies
       - name: VSIX size gate (max 5 MB)
         run: |

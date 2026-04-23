@@ -280,6 +280,12 @@ packaged `dist/bin/<platform>-<arch>/engine-shadow-runner`, or the warmed
 not the flip itself. GitHub Actions runs the same lane in the
 `Rust Selected Query Default Candidate` shadow workflow on `master`.
 
+`pnpm build` prepares the current-platform release `engine-shadow-runner` at
+`dist/bin/<platform>-<arch>/engine-shadow-runner`. `pnpm package`,
+`pnpm release:verify`, `./scripts/publish-extension.sh`, and the CI package job
+run `pnpm check:packaged-engine-shadow-runner` before VSIX packaging so the
+release artifact contains an executable runner.
+
 `pnpm check:editor-path-boundary` is the current local lock point for the
 editor-path runtime transition after the selected-query cut. It runs
 `pnpm check:selected-query-boundary` plus the protocol subset for
