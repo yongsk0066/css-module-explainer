@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { existsSync, statSync } from "node:fs";
+import { chmodSync, existsSync, statSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 
@@ -18,6 +18,10 @@ if (!existsSync(runnerPath)) {
   throw new Error(`Missing packaged engine-shadow-runner at ${runnerPath}`);
 }
 
+if (process.platform !== "win32") {
+  chmodSync(runnerPath, 0o755);
+}
+
 const mode = "__packaged-runner-smoke__";
 const child = spawnSync(runnerPath, [mode], {
   cwd: repoRoot,
@@ -31,6 +35,7 @@ if (child.status === 0 || !stderr.includes(`unsupported engine-shadow-runner mod
     [
       "Packaged engine-shadow-runner smoke failed",
       `status=${child.status ?? "unknown"}`,
+      child.error ? `error=${child.error.message}` : null,
       stderr.trim() ? `stderr=${stderr.trim()}` : null,
     ]
       .filter(Boolean)
