@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { StyleDependencyGraph } from "../../../server/engine-core-ts/src/core/semantic";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/engine-core-ts/src/core/semantic/workspace-reference-index";
 import { resolveUnusedStyleSelectors } from "../../../server/engine-host-node/src/style-module-usage-query";
 import { infoAtLine, makeBaseDeps, semanticSiteAt } from "../../_fixtures/test-helpers";
@@ -59,6 +60,46 @@ describe("style module usage query", () => {
     ]);
   });
 
+  it("does not precompute the semantic fallback when rust payloads cover all selectors", () => {
+    const styleDocument = buildStyleDocumentFromSelectorMap(
+      SCSS_PATH,
+      new Map([
+        ["indicator", infoAtLine("indicator", 1)],
+        ["active", infoAtLine("active", 3)],
+      ]),
+    );
+    const deps = makeBaseDeps({
+      selectorMapForPath: () =>
+        new Map([
+          ["indicator", infoAtLine("indicator", 1)],
+          ["active", infoAtLine("active", 3)],
+        ]),
+      styleDependencyGraph: throwingStyleDependencyGraph(),
+      workspaceRoot: "/fake/ws",
+    });
+
+    const unused = resolveUnusedStyleSelectors({ scssPath: SCSS_PATH, styleDocument }, deps, {
+      env: { CME_SELECTED_QUERY_BACKEND: "rust-selector-usage" } as NodeJS.ProcessEnv,
+      readRustSelectorUsagePayloadForWorkspaceTarget: (_args, _deps, _filePath, canonicalName) => ({
+        canonicalName,
+        totalReferences: canonicalName === "indicator" ? 1 : 0,
+        directReferenceCount: canonicalName === "indicator" ? 1 : 0,
+        editableDirectReferenceCount: canonicalName === "indicator" ? 1 : 0,
+        exactReferenceCount: canonicalName === "indicator" ? 1 : 0,
+        inferredOrBetterReferenceCount: canonicalName === "indicator" ? 1 : 0,
+        hasExpandedReferences: false,
+        hasStyleDependencyReferences: false,
+        hasAnyReferences: canonicalName === "indicator",
+      }),
+    });
+
+    expect(unused).toEqual([
+      expect.objectContaining({
+        canonicalName: "active",
+      }),
+    ]);
+  });
+
   it("falls back to semantic usage summary when rust payloads are unavailable", () => {
     const styleDocument = buildStyleDocumentFromSelectorMap(
       SCSS_PATH,
@@ -93,3 +134,15 @@ describe("style module usage query", () => {
     ]);
   });
 });
+
+function throwingStyleDependencyGraph(): StyleDependencyGraph {
+  return {
+    record: () => {
+      throw new Error("unexpected semantic fallback");
+    },
+    forget: () => {},
+    forgetWithinRoot: () => {},
+    getIncoming: () => [],
+    getOutgoing: () => [],
+  };
+}

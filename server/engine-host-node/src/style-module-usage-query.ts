@@ -37,15 +37,9 @@ export function resolveUnusedStyleSelectors(
   >,
   options: StyleModuleUsageQueryOptions = {},
 ): readonly StyleModuleUsageSelectorSummary[] {
-  const fallback = readStyleModuleUsageSummary(
-    args.scssPath,
-    args.styleDocument,
-    deps.semanticReferenceIndex,
-    deps.styleDependencyGraph,
-  );
   const selectedQueryBackend = resolveSelectedQueryBackendKind(options.env);
   if (!usesRustSelectorUsageBackend(selectedQueryBackend)) {
-    return fallback.unusedSelectors;
+    return readCurrentUnusedStyleSelectors(args, deps);
   }
 
   const hasUnresolvedDynamicUsage = deps.semanticReferenceIndex
@@ -72,7 +66,7 @@ export function resolveUnusedStyleSelectors(
       selector.canonicalName,
     );
     if (!payload) {
-      return fallback.unusedSelectors;
+      return readCurrentUnusedStyleSelectors(args, deps);
     }
     if (!payload.hasAnyReferences) {
       unused.push({
@@ -83,4 +77,19 @@ export function resolveUnusedStyleSelectors(
   }
 
   return unused;
+}
+
+function readCurrentUnusedStyleSelectors(
+  args: {
+    readonly scssPath: string;
+    readonly styleDocument: StyleDocumentHIR;
+  },
+  deps: Pick<ProviderDeps, "semanticReferenceIndex" | "styleDependencyGraph">,
+): readonly StyleModuleUsageSelectorSummary[] {
+  return readStyleModuleUsageSummary(
+    args.scssPath,
+    args.styleDocument,
+    deps.semanticReferenceIndex,
+    deps.styleDependencyGraph,
+  ).unusedSelectors;
 }

@@ -31,15 +31,8 @@ export function resolveStyleDiagnosticFindings(
   options: StyleDiagnosticsQueryOptions = {},
 ): readonly StyleCheckerFinding[] {
   const selectedQueryBackend = resolveSelectedQueryBackendKind(options.env);
-  if (
-    usesRustSelectorUsageBackend(selectedQueryBackend) &&
-    deps.analysisCache &&
-    deps.styleDependencyGraph &&
-    deps.styleDocumentForPath &&
-    deps.typeResolver &&
-    deps.workspaceRoot &&
-    deps.settings
-  ) {
+  const useRustSelectorUsage = usesRustSelectorUsageBackend(selectedQueryBackend);
+  if (useRustSelectorUsage && hasRustStyleDiagnosticsDeps(deps)) {
     const rustDeps = {
       analysisCache: deps.analysisCache,
       semanticReferenceIndex: deps.semanticReferenceIndex,
@@ -81,9 +74,56 @@ export function resolveStyleDiagnosticFindings(
     ];
   }
 
-  return checkStyleDocument(args, {
-    semanticReferenceIndex: deps.semanticReferenceIndex,
-    ...(deps.styleDependencyGraph ? { styleDependencyGraph: deps.styleDependencyGraph } : {}),
-    ...(deps.styleDocumentForPath ? { styleDocumentForPath: deps.styleDocumentForPath } : {}),
-  });
+  return checkCurrentStyleDocument(args, deps, { includeUnusedSelectors: !useRustSelectorUsage });
+}
+
+function hasRustStyleDiagnosticsDeps(
+  deps: Pick<ProviderDeps, "semanticReferenceIndex"> & {
+    readonly analysisCache?: ProviderDeps["analysisCache"];
+    readonly styleDependencyGraph?: ProviderDeps["styleDependencyGraph"];
+    readonly styleDocumentForPath?: ProviderDeps["styleDocumentForPath"];
+    readonly typeResolver?: ProviderDeps["typeResolver"];
+    readonly workspaceRoot?: ProviderDeps["workspaceRoot"];
+    readonly settings?: ProviderDeps["settings"];
+  },
+): deps is Pick<
+  ProviderDeps,
+  | "analysisCache"
+  | "semanticReferenceIndex"
+  | "styleDependencyGraph"
+  | "styleDocumentForPath"
+  | "typeResolver"
+  | "workspaceRoot"
+  | "settings"
+> {
+  return Boolean(
+    deps.analysisCache &&
+    deps.styleDependencyGraph &&
+    deps.styleDocumentForPath &&
+    deps.typeResolver &&
+    deps.workspaceRoot &&
+    deps.settings,
+  );
+}
+
+function checkCurrentStyleDocument(
+  args: {
+    readonly scssPath: string;
+    readonly styleDocument: StyleDocumentHIR;
+  },
+  deps: Pick<ProviderDeps, "semanticReferenceIndex"> & {
+    readonly styleDependencyGraph?: ProviderDeps["styleDependencyGraph"];
+    readonly styleDocumentForPath?: ProviderDeps["styleDocumentForPath"];
+  },
+  options: { readonly includeUnusedSelectors: boolean },
+): readonly StyleCheckerFinding[] {
+  return checkStyleDocument(
+    args,
+    {
+      semanticReferenceIndex: deps.semanticReferenceIndex,
+      ...(deps.styleDependencyGraph ? { styleDependencyGraph: deps.styleDependencyGraph } : {}),
+      ...(deps.styleDocumentForPath ? { styleDocumentForPath: deps.styleDocumentForPath } : {}),
+    },
+    options,
+  );
 }
