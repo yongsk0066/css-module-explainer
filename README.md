@@ -236,13 +236,15 @@ Current checker policy:
   - these providers now route their main selected-query and source/style rewrite reads through `engine-host-node` helpers instead of directly owning the core query/rewrite calls in the LSP layer
 - `pnpm check:rust-selected-query-consumers` is the current local lock point for the first live Rust selected-query consumer slice
   - it runs the explicit unit/runtime coverage for the current opt-in Rust consumers: source `definition`, source `hover`, source `references`, source `rename`, style `hover` usage-summary resolution, style `references` location resolution, style `reference-lens` title/count summary and location resolution, style module usage / style diagnostics unused-selector resolution, style `rename` rewrite-safety and direct edit-site resolution, `explain-expression`, source diagnostics symbol-ref invalid-class analysis, and host-side `engine-query-v2` query-result emission for `source-expression-resolution`, `expression-semantics`, and `selector-usage`
-  - `CME_SELECTED_QUERY_BACKEND=rust-selected-query` is the unified opt-in backend for that slice; the narrower `rust-source-resolution`, `rust-expression-semantics`, and `rust-selector-usage` values remain available for isolated debugging
-  - this is a milestone boundary for live Rust selected-query consumption, not a stable release gate and not yet a full selected-query default flip
+  - `CME_SELECTED_QUERY_BACKEND=rust-selected-query` is the unified explicit backend for that slice; the narrower `rust-source-resolution`, `rust-expression-semantics`, and `rust-selector-usage` values remain available for isolated debugging
+  - in packaged VSIX runtime, an unset `CME_SELECTED_QUERY_BACKEND` now selects `rust-selected-query` when the packaged/prebuilt `engine-shadow-runner` is available; source checkouts keep the unset default on `typescript-current` so local `dist/` artifacts do not change dev/test behavior
+  - `CME_SELECTED_QUERY_BACKEND=auto` explicitly exercises the same Rust-if-packaged-runner-available selection in source checkouts
 - `pnpm check:rust-selected-query-default-candidate` is the current default-candidate evidence lane for `CME_SELECTED_QUERY_BACKEND=rust-selected-query`
-  - it warms `engine-shadow-runner`, then runs the live Rust selected-query unit consumer slice plus the full protocol suite with the unified Rust selected-query backend enabled and `CME_ENGINE_SHADOW_RUNNER=prebuilt`
+  - it first runs `pnpm check:rust-selected-query-release-default`, which builds the packaged runner and runs the full protocol suite with `CME_SELECTED_QUERY_BACKEND=auto`
+  - it then warms `engine-shadow-runner`, runs the live Rust selected-query unit consumer slice, and repeats the full protocol suite with the unified Rust selected-query backend explicitly enabled and `CME_ENGINE_SHADOW_RUNNER=prebuilt`
   - prebuilt runner mode is explicit so ad-hoc local runs still use `cargo run` and do not accidentally reuse a stale `rust/target` binary
   - prebuilt mode can resolve an explicit `CME_ENGINE_SHADOW_RUNNER_PATH`, a packaged `dist/bin/<platform>-<arch>/engine-shadow-runner`, or the warmed `rust/target/debug` runner
-  - it is promotion evidence for a future default flip, not the flip itself
+  - it is promotion evidence for widening the packaged runner matrix beyond the current-platform artifact
   - GitHub Actions runs the same lane in the `Rust Selected Query Default Candidate` shadow workflow on `master`
 - `pnpm build` now prepares the current-platform release `engine-shadow-runner` at `dist/bin/<platform>-<arch>/engine-shadow-runner`, and `pnpm check:packaged-engine-shadow-runner` verifies the packaged runner artifact before VSIX packaging
 - `pnpm check:editor-path-boundary` is the current editor-path runtime lock point

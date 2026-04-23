@@ -280,6 +280,61 @@ describe("explainExpressionAtLocation", () => {
       }),
     );
   });
+
+  it("falls back to TypeScript semantics when rust payload is non-informative", () => {
+    const workspaceRoot = makeWorkspace({
+      "src/App.tsx": [
+        "import classNames from 'classnames/bind';",
+        "import styles from './Button.module.scss';",
+        "const cx = classNames.bind(styles);",
+        "export function App(enabled: boolean) {",
+        "  const size = enabled ? 'small' : 'large';",
+        "  return <div className={cx(size)} />;",
+        "}",
+        "",
+      ].join("\n"),
+      "src/Button.module.scss": ".small {}",
+    });
+
+    const result = explainExpressionAtLocation({
+      workspaceRoot,
+      filePath: path.join(workspaceRoot, "src/App.tsx"),
+      line: 5,
+      character: 28,
+      env: {
+        CME_SELECTED_QUERY_BACKEND: "rust-selected-query",
+      } as NodeJS.ProcessEnv,
+      readRustExpressionSemanticsPayload: () => ({
+        expressionId: "expr-1",
+        expressionKind: "symbolRef",
+        styleFilePath: path.join(workspaceRoot, "src/Button.module.scss"),
+        selectorNames: [],
+        candidateNames: [],
+        finiteValues: [],
+        valueDomainKind: "none",
+        selectorCertainty: "possible",
+        valueCertainty: "possible",
+        selectorCertaintyShapeKind: "unknown",
+        selectorCertaintyShapeLabel: "unknown",
+        valueCertaintyShapeKind: "unknown",
+        valueCertaintyShapeLabel: "unknown",
+      }),
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        selectorNames: ["small"],
+        analysisV2: expect.objectContaining({
+          valueDomainKind: "finiteSet",
+          valueCertaintyShapeKind: "boundedFinite",
+        }),
+        dynamicExplanation: expect.objectContaining({
+          subject: "size",
+          candidates: expect.arrayContaining(["small", "large"]),
+        }),
+      }),
+    );
+  });
 });
 
 function makeWorkspace(files: Record<string, string>): string {

@@ -257,27 +257,34 @@ rewrite-safety and direct edit-site resolution, `explain-expression`, source
 diagnostics symbol-ref invalid-class analysis, and host-side `engine-query-v2` query-result emission for
 `source-expression-resolution`,
 `expression-semantics`, and `selector-usage`.
-`CME_SELECTED_QUERY_BACKEND=rust-selected-query` is the unified opt-in backend
+`CME_SELECTED_QUERY_BACKEND=rust-selected-query` is the unified explicit backend
 for that consumer slice; the narrower `rust-source-resolution`,
 `rust-expression-semantics`, and `rust-selector-usage` values remain available
-for isolated debugging.
-It is a milestone boundary, not a stable release gate and not yet a default
-selected-query backend flip.
+for isolated debugging. In packaged VSIX runtime, an unset
+`CME_SELECTED_QUERY_BACKEND` now selects `rust-selected-query` when the
+packaged/prebuilt `engine-shadow-runner` is available. Source checkouts keep the
+unset default on `typescript-current` so local `dist/` artifacts do not change
+dev/test behavior. Use `CME_SELECTED_QUERY_BACKEND=auto` to explicitly exercise
+the Rust-if-packaged-runner-available default in source checkouts.
 
 `pnpm check:rust-selected-query-default-candidate` is the current
 default-candidate evidence lane for
-`CME_SELECTED_QUERY_BACKEND=rust-selected-query`. It warms
-`engine-shadow-runner`, then runs the explicit unit/runtime Rust selected-query
-consumer slice plus the full protocol suite with the unified Rust selected-query
-backend enabled and `CME_ENGINE_SHADOW_RUNNER=prebuilt`. The warmup avoids
-first-use `cargo run` compilation contention inside parallel protocol tests,
-and the explicit prebuilt mode makes the shadow lane exercise the warmed
-runner binary instead of the cargo wrapper. Ad-hoc local runs still use
-`cargo run` by default, so they do not accidentally reuse a stale `rust/target`
-binary. Prebuilt mode resolves an explicit `CME_ENGINE_SHADOW_RUNNER_PATH`, a
-packaged `dist/bin/<platform>-<arch>/engine-shadow-runner`, or the warmed
-`rust/target/debug` runner. It is promotion evidence for a future default flip,
-not the flip itself. GitHub Actions runs the same lane in the
+the selected-query backend. It first runs
+`pnpm check:rust-selected-query-release-default`, which builds the packaged
+runner and runs the full protocol suite with `CME_SELECTED_QUERY_BACKEND=auto`.
+It then runs the explicit unit/runtime Rust
+selected-query consumer slice plus the full protocol suite with the unified Rust
+selected-query backend enabled and `CME_ENGINE_SHADOW_RUNNER=prebuilt`. The
+warmup avoids first-use `cargo run` compilation contention inside parallel
+protocol tests, and the explicit prebuilt mode makes the shadow lane exercise
+the warmed runner binary instead of the cargo wrapper. Ad-hoc local runs still
+use `cargo run` by default, so they do not accidentally reuse a stale
+`rust/target` binary. Prebuilt mode resolves an explicit
+`CME_ENGINE_SHADOW_RUNNER_PATH`, a packaged
+`dist/bin/<platform>-<arch>/engine-shadow-runner`, or the warmed
+`rust/target/debug` runner. It is promotion evidence for widening the packaged
+runner matrix beyond the current-platform artifact. GitHub Actions runs the
+same lane in the
 `Rust Selected Query Default Candidate` shadow workflow on `master`.
 
 `pnpm build` prepares the current-platform release `engine-shadow-runner` at

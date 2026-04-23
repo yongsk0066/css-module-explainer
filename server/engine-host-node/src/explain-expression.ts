@@ -223,6 +223,7 @@ function resolveExplainExpressionViaRustSemantics(
     >,
   );
   if (!payload || !payload.styleFilePath) return null;
+  if (!isInformativeRustExpressionPayload(payload)) return null;
 
   const styleDocument = runtime.styleHost.styleDocumentForPath(payload.styleFilePath);
   const selectors =
@@ -276,4 +277,17 @@ function resolveExplainExpressionViaRustSemantics(
         : {}),
     },
   };
+}
+
+function isInformativeRustExpressionPayload(
+  payload: ReturnType<typeof resolveRustExpressionSemanticsPayload>,
+): boolean {
+  if (!payload) return false;
+  if (payload.selectorNames.length > 0) return true;
+  if (payload.candidateNames.length > 0) return true;
+  if ((payload.finiteValues?.length ?? 0) > 0) return true;
+  if (payload.valueDomainKind !== "none" && payload.valueCertaintyShapeKind !== "unknown") {
+    return true;
+  }
+  return payload.selectorCertaintyShapeKind !== "unknown";
 }

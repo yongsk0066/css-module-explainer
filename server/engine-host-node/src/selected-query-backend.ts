@@ -25,8 +25,21 @@ export interface SelectedQueryBackendDocument {
 
 export function resolveSelectedQueryBackendKind(
   env: NodeJS.ProcessEnv = process.env,
+  fileExists: (filePath: string) => boolean = existsSync,
 ): SelectedQueryBackendKind {
-  const value = env.CME_SELECTED_QUERY_BACKEND?.trim() ?? "typescript-current";
+  const value = env.CME_SELECTED_QUERY_BACKEND?.trim();
+  if (value === "auto") {
+    return canUsePrebuiltEngineShadowRunner(env, fileExists)
+      ? "rust-selected-query"
+      : "typescript-current";
+  }
+  if (!value) {
+    return canUsePrebuiltEngineShadowRunner(env, fileExists) &&
+      isPackagedExtensionRuntime(env, fileExists)
+      ? "rust-selected-query"
+      : "typescript-current";
+  }
+
   if (
     value === "typescript-current" ||
     value === "rust-selected-query" ||
@@ -95,6 +108,28 @@ export function resolveEngineShadowRunnerBinaryPath(env: NodeJS.ProcessEnv = pro
   return resolveEngineShadowRunnerBinaryPathForEnv(env);
 }
 
+export function canUsePrebuiltEngineShadowRunner(
+  env: NodeJS.ProcessEnv = process.env,
+  fileExists: (filePath: string) => boolean = existsSync,
+): boolean {
+  return fileExists(resolveEngineShadowRunnerBinaryPathForEnv(env, fileExists));
+}
+
+export function isPackagedExtensionRuntime(
+  env: NodeJS.ProcessEnv = process.env,
+  fileExists: (filePath: string) => boolean = existsSync,
+): boolean {
+  const projectRoot = resolveProjectRoot(env, fileExists);
+  const hasBundledEntrypoints =
+    fileExists(path.join(projectRoot, "dist/client/extension.js")) &&
+    fileExists(path.join(projectRoot, "dist/server/server.js"));
+  const hasSourceCheckoutMarkers =
+    fileExists(path.join(projectRoot, "server/engine-host-node/src/selected-query-backend.ts")) ||
+    fileExists(path.join(projectRoot, "rust/Cargo.toml"));
+
+  return hasBundledEntrypoints && !hasSourceCheckoutMarkers;
+}
+
 function resolveEngineShadowRunnerBinaryPathForEnv(
   env: NodeJS.ProcessEnv = process.env,
   fileExists: (filePath: string) => boolean = existsSync,
@@ -127,7 +162,12 @@ export function buildEngineShadowRunnerInvocation(
   fileExists: (filePath: string) => boolean = existsSync,
 ): EngineShadowRunnerInvocation {
   const projectRoot = resolveProjectRoot(env, fileExists);
-  if (env.CME_ENGINE_SHADOW_RUNNER === "prebuilt") {
+  const runnerMode = env.CME_ENGINE_SHADOW_RUNNER?.trim();
+  const hasRunnerMode = env.CME_ENGINE_SHADOW_RUNNER !== undefined;
+  if (
+    runnerMode === "prebuilt" ||
+    (!hasRunnerMode && canUsePrebuiltEngineShadowRunner(env, fileExists))
+  ) {
     const runnerPath = resolveEngineShadowRunnerBinaryPathForEnv(env, fileExists);
     if (!fileExists(runnerPath)) {
       throw new Error(
