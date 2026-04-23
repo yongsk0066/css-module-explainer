@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CxBinding } from "../../../server/engine-core-ts/src/core/cx/cx-types";
+import { findSelectorAtCursor } from "../../../server/engine-core-ts/src/core/query";
 import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/engine-core-ts/src/core/semantic/workspace-reference-index";
@@ -8,7 +9,6 @@ import type {
   ProviderDeps,
 } from "../../../server/lsp-server/src/providers/cursor-dispatch";
 import { handlePrepareRename, handleRename } from "../../../server/lsp-server/src/providers/rename";
-import { findSelectorAtCursor } from "../../../server/lsp-server/src/providers/references";
 import { DEFAULT_SETTINGS } from "../../../server/engine-core-ts/src/settings";
 import type { Settings } from "../../../server/engine-core-ts/src/settings";
 import {

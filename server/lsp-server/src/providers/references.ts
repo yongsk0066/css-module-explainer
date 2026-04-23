@@ -63,4 +63,3 @@ export const handleReferences = wrapHandler<
   },
   null,
 );
-export { findSelectorAtCursor } from "../../../engine-core-ts/src/core/query";

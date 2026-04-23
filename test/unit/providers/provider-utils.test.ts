@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isInsideCall } from "../../../server/lsp-server/src/providers/completion";
+import { isInsideCall } from "../../../server/engine-core-ts/src/core/query";
 
 describe("isInsideCall", () => {
   it("returns true when the last cx( is still open on the line", () => {

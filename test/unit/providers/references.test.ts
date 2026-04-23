@@ -2,13 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import type { CxBinding } from "../../../server/engine-core-ts/src/core/cx/cx-types";
 import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
+import { findSelectorAtCursor } from "../../../server/engine-core-ts/src/core/query";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/engine-core-ts/src/core/semantic/workspace-reference-index";
 import { WorkspaceStyleDependencyGraph } from "../../../server/engine-core-ts/src/core/semantic/style-dependency-graph";
 import type { ProviderDeps } from "../../../server/lsp-server/src/providers/cursor-dispatch";
-import {
-  findSelectorAtCursor,
-  handleReferences,
-} from "../../../server/lsp-server/src/providers/references";
+import { handleReferences } from "../../../server/lsp-server/src/providers/references";
 import {
   EMPTY_ALIAS_RESOLVER,
   buildTestClassExpressions,

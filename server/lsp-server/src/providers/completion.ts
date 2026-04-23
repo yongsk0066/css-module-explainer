@@ -3,7 +3,6 @@ import type { SelectorDeclHIR } from "../../../engine-core-ts/src/core/hir/style
 import { resolveSourceCompletionSelectors } from "../../../engine-host-node/src/source-completion-query";
 import type { CursorParams, ProviderDeps } from "./provider-deps";
 import { wrapHandler } from "./_wrap-handler";
-export { isInsideCall } from "../../../engine-core-ts/src/core/query";
 
 /**
  * Handle `textDocument/completion` inside a class-util call.
