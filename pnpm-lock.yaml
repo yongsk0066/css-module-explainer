@@ -135,6 +135,8 @@ importers:
         specifier: ^17.0.0
         version: 17.8.0(typescript@6.0.2)
 
+  packages/vitest-cme: {}
+
   server:
     dependencies:
       '@css-module-explainer/shared':
