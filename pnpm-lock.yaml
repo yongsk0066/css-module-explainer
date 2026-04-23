@@ -50,6 +50,9 @@ importers:
       oxlint:
         specifier: ^1.60.0
         version: 1.60.0(oxlint-tsgolint@0.20.0)
+      postcss:
+        specifier: ^8.5.9
+        version: 8.5.9
       rolldown:
         specifier: 1.0.0-rc.15
         version: 1.0.0-rc.15
