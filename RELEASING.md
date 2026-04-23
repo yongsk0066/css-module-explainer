@@ -472,16 +472,12 @@ PRs that only touch:
 
 can use `changeset:skip`.
 
-## Compatibility deprecations
+## 4.0 compatibility removals
 
-Current path alias deprecation policy:
+`cssModules.pathAlias` fallback support has been removed for the 4.0 line.
+Use `cssModuleExplainer.pathAlias` instead.
 
-- legacy key: `cssModules.pathAlias`
-- replacement key: `cssModuleExplainer.pathAlias`
-- warning starts: `3.1.x`
-- planned removal: `4.0.0`
-
-When that compat path is removed, update:
+Before publishing 4.0, verify:
 
 - `server/engine-core-ts/src/settings.ts`
 - `README.md`

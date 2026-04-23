@@ -5,7 +5,7 @@ import ts from "typescript";
  * Workspace-scoped path resolver for CSS Module imports.
  *
  * Merges two alias sources:
- *   - legacy-compatible `cssModules.pathAlias`
+ *   - `cssModuleExplainer.pathAlias`
  *   - `compilerOptions.paths` from the workspace tsconfig/jsconfig
  *
  * `${workspaceFolder}` in settings targets is substituted at

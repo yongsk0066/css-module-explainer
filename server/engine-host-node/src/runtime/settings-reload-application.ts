@@ -1,9 +1,5 @@
-import type { ParsedResourceSettings, WindowSettings } from "../../../engine-core-ts/src/settings";
-import {
-  mergeSettings,
-  resourceSettingsDependencyKey,
-  shouldWarnCompatPathAlias,
-} from "../../../engine-core-ts/src/settings";
+import type { ResourceSettings, WindowSettings } from "../../../engine-core-ts/src/settings";
+import { mergeSettings, resourceSettingsDependencyKey } from "../../../engine-core-ts/src/settings";
 import type { WorkspaceRegistry } from "../workspace/workspace-registry";
 import { createRuntimeDependencySnapshot, snapshotOpenDocuments } from "./dependency-snapshot";
 import { planSettingsReload } from "./invalidation-planner";
@@ -14,14 +10,13 @@ export interface SettingsReloadDocuments {
 
 export interface ResourceSettingsByWorkspaceFolder {
   readonly workspaceFolderUri: string;
-  readonly resourceSettingsInfo: ParsedResourceSettings;
+  readonly resourceSettings: ResourceSettings;
 }
 
 export interface ApplySettingsReloadArgs {
   readonly registry: WorkspaceRegistry;
   readonly documents: SettingsReloadDocuments;
   readonly windowSettings: WindowSettings;
-  readonly warnedCompatPathAliasRoots: ReadonlySet<string>;
   readonly resourceSettingsByWorkspaceFolder: readonly ResourceSettingsByWorkspaceFolder[];
 }
 
@@ -30,7 +25,6 @@ export interface SettingsReloadApplicationResult {
     readonly uri: string;
     readonly kind: "style" | "source";
   }[];
-  readonly warningWorkspaceRoots: readonly string[];
 }
 
 export function applySettingsReload(
@@ -44,34 +38,23 @@ export function applySettingsReload(
       getWorkspaceRoot: (uri) => args.registry.getDeps(uri)?.workspaceRoot ?? null,
     }),
   );
-  const infoByWorkspaceFolder = new Map(
+  const settingsByWorkspaceFolder = new Map(
     args.resourceSettingsByWorkspaceFolder.map((entry) => [
       entry.workspaceFolderUri,
-      entry.resourceSettingsInfo,
+      entry.resourceSettings,
     ]),
   );
 
-  const warningWorkspaceRoots = new Set<string>();
   const workspaceChanges = [];
   for (const deps of bundles) {
-    const resourceSettingsInfo = infoByWorkspaceFolder.get(deps.workspaceFolderUri);
-    if (!resourceSettingsInfo) continue;
+    const resourceSettings = settingsByWorkspaceFolder.get(deps.workspaceFolderUri);
+    if (!resourceSettings) continue;
 
-    const nextSettings = mergeSettings(args.windowSettings, resourceSettingsInfo.settings);
+    const nextSettings = mergeSettings(args.windowSettings, resourceSettings);
     const prevSettings = deps.settings;
     const prevSettingsKey = resourceSettingsDependencyKey(prevSettings);
     const nextSettingsKey = resourceSettingsDependencyKey(nextSettings);
     deps.settings = nextSettings;
-
-    if (
-      shouldWarnCompatPathAlias(
-        resourceSettingsInfo,
-        args.warnedCompatPathAliasRoots,
-        deps.workspaceRoot,
-      )
-    ) {
-      warningWorkspaceRoots.add(deps.workspaceRoot);
-    }
 
     workspaceChanges.push({
       workspaceRoot: deps.workspaceRoot,
@@ -118,7 +101,6 @@ export function applySettingsReload(
 
   return {
     scheduledDiagnostics,
-    warningWorkspaceRoots: [...warningWorkspaceRoots].toSorted(),
   };
 }
 

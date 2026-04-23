@@ -105,7 +105,6 @@ The extension resolves non-relative CSS Module imports from:
 
 - `compilerOptions.paths` in the workspace `tsconfig.json` or `jsconfig.json`
 - native `cssModuleExplainer.pathAlias`
-- legacy `cssModules.pathAlias` settings, when a workspace already uses that key
 
 This allows imports such as:
 
@@ -114,19 +113,9 @@ import styles from "@/components/Button.module.scss";
 import theme from "@styles/theme.module.scss";
 ```
 
-`cssModules.pathAlias` is a compatibility fallback. New setups should use
-`cssModuleExplainer.pathAlias`. The compatibility key is deprecated and planned
-for removal in `4.0.0`.
-
-Example migration:
+Configure extension-specific aliases with `cssModuleExplainer.pathAlias`:
 
 ```jsonc
-// before
-"cssModules.pathAlias": {
-  "@styles": "src/styles"
-}
-
-// after
 "cssModuleExplainer.pathAlias": {
   "@styles": "src/styles"
 }

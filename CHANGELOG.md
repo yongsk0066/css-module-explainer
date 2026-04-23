@@ -1,5 +1,15 @@
 # Changelog
 
+## [4.0.0] — Unreleased
+
+### Changed
+
+- **Packaged Rust runner matrix** — CI and publish now build Linux, macOS, and Windows `engine-shadow-runner` artifacts, merge them into `dist/bin/`, and verify the generated VSIX preserves the required runner matrix before publishing.
+
+### Removed
+
+- **Legacy path alias fallback** — `cssModules.pathAlias` is no longer read. Use the native `cssModuleExplainer.pathAlias` setting for extension-specific CSS Module import aliases.
+
 ## [3.15.0] — 2026-04-24
 
 ### Added

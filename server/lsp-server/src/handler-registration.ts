@@ -15,8 +15,7 @@ import { fileUrlToPath } from "../../engine-core-ts/src/core/util/text-utils";
 import { findLangForPath } from "../../engine-core-ts/src/core/scss/lang-registry";
 import {
   DEFAULT_WINDOW_SETTINGS,
-  formatCompatPathAliasDeprecationMessage,
-  fetchResourceSettingsInfo,
+  fetchResourceSettings,
   fetchWindowSettings,
   type WindowSettings,
 } from "../../engine-core-ts/src/settings";
@@ -43,7 +42,6 @@ export interface HandlerCleanup {
 interface HandlerState {
   readonly ctx: HandlerContext;
   readonly scheduler: DiagnosticsScheduler;
-  readonly warnedCompatPathAliasRoots: Set<string>;
   windowSettings: WindowSettings;
 }
 
@@ -65,7 +63,6 @@ export function registerHandlers(ctx: HandlerContext): HandlerCleanup {
       },
       DEFAULT_WINDOW_SETTINGS,
     ),
-    warnedCompatPathAliasRoots: new Set<string>(),
     windowSettings: DEFAULT_WINDOW_SETTINGS,
   };
 
@@ -100,23 +97,15 @@ function registerSettingsHandler(state: HandlerState): () => void {
         const resourceSettingsByBundle = await Promise.all(
           registry.allDeps().map(async (deps) => ({
             workspaceFolderUri: deps.workspaceFolderUri,
-            resourceSettingsInfo: await fetchResourceSettingsInfo(
-              connection,
-              deps.workspaceFolderUri,
-            ),
+            resourceSettings: await fetchResourceSettings(connection, deps.workspaceFolderUri),
           })),
         );
         const result = applySettingsReload({
           registry,
           documents: state.ctx.documents,
           windowSettings,
-          warnedCompatPathAliasRoots: state.warnedCompatPathAliasRoots,
           resourceSettingsByWorkspaceFolder: resourceSettingsByBundle,
         });
-        for (const workspaceRoot of result.warningWorkspaceRoots) {
-          state.warnedCompatPathAliasRoots.add(workspaceRoot);
-          connection.console.info(formatCompatPathAliasDeprecationMessage(workspaceRoot));
-        }
         for (const item of result.scheduledDiagnostics) {
           if (item.kind === "style") {
             state.scheduler.scheduleScss(item.uri);

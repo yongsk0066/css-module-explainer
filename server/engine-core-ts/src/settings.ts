@@ -25,25 +25,7 @@ export interface ResourceSettings {
   readonly scss: {
     readonly classnameTransform: ClassnameTransformMode;
   };
-  /**
-   * Native key: `cssModuleExplainer.pathAlias`
-   * Fallback compat key: `cssModules.pathAlias`
-   */
   readonly pathAlias: Readonly<Record<string, string>>;
-}
-
-export type PathAliasSource = "native" | "compat" | "none";
-
-export interface ParsedResourceSettings {
-  readonly settings: ResourceSettings;
-  readonly pathAliasSource: PathAliasSource;
-}
-
-export interface CompatPathAliasDeprecationPolicy {
-  readonly legacyKey: "cssModules.pathAlias";
-  readonly replacementKey: "cssModuleExplainer.pathAlias";
-  readonly warnFrom: "3.1.0";
-  readonly plannedRemoval: "4.0.0";
 }
 
 export type Settings = WindowSettings & ResourceSettings;
@@ -62,13 +44,6 @@ const DEFAULT_RESOURCE_SETTINGS: ResourceSettings = {
 const DEFAULTS: Settings = {
   ...DEFAULT_WINDOW_SETTINGS,
   ...DEFAULT_RESOURCE_SETTINGS,
-};
-
-export const COMPAT_PATH_ALIAS_DEPRECATION: CompatPathAliasDeprecationPolicy = {
-  legacyKey: "cssModules.pathAlias",
-  replacementKey: "cssModuleExplainer.pathAlias",
-  warnFrom: "3.1.0",
-  plannedRemoval: "4.0.0",
 };
 
 const CLASSNAME_TRANSFORM_VALUES = [
@@ -125,33 +100,16 @@ export function parseWindowSettings(raw: unknown): WindowSettings {
   };
 }
 
-export function parseResourceSettings(raw: unknown, compat: unknown = undefined): ResourceSettings {
-  return parseResourceSettingsInfo(raw, compat).settings;
-}
-
-export function parseResourceSettingsInfo(
-  raw: unknown,
-  compat: unknown = undefined,
-): ParsedResourceSettings {
+export function parseResourceSettings(raw: unknown): ResourceSettings {
   const r = isRecord(raw) ? raw : {};
   const scss = isRecord(r.scss) ? r.scss : {};
-  const nativePathAlias = parsePathAlias(r.pathAlias);
-  const compatPathAlias = parsePathAlias(isRecord(compat) ? compat.pathAlias : undefined);
   return {
-    settings: {
-      scss: {
-        classnameTransform: isClassnameTransform(scss.classnameTransform)
-          ? scss.classnameTransform
-          : DEFAULT_RESOURCE_SETTINGS.scss.classnameTransform,
-      },
-      pathAlias: Object.keys(nativePathAlias).length > 0 ? nativePathAlias : compatPathAlias,
+    scss: {
+      classnameTransform: isClassnameTransform(scss.classnameTransform)
+        ? scss.classnameTransform
+        : DEFAULT_RESOURCE_SETTINGS.scss.classnameTransform,
     },
-    pathAliasSource:
-      Object.keys(nativePathAlias).length > 0
-        ? "native"
-        : Object.keys(compatPathAlias).length > 0
-          ? "compat"
-          : "none",
+    pathAlias: parsePathAlias(r.pathAlias),
   };
 }
 
@@ -171,18 +129,6 @@ export function resourceSettingsDependencyKey(settings: ResourceSettings): strin
     .map(([key, value]) => `${key}=${value}`)
     .join("|");
   return `transform:${settings.scss.classnameTransform};alias:${pathAlias}`;
-}
-
-export function shouldWarnCompatPathAlias(
-  info: ParsedResourceSettings,
-  warnedWorkspaceRoots: ReadonlySet<string>,
-  workspaceRoot: string,
-): boolean {
-  return info.pathAliasSource === "compat" && !warnedWorkspaceRoots.has(workspaceRoot);
-}
-
-export function formatCompatPathAliasDeprecationMessage(workspaceRoot: string): string {
-  return `[css-module-explainer] ${COMPAT_PATH_ALIAS_DEPRECATION.legacyKey} is deprecated for '${workspaceRoot}'. Use ${COMPAT_PATH_ALIAS_DEPRECATION.replacementKey} instead. Planned removal: ${COMPAT_PATH_ALIAS_DEPRECATION.plannedRemoval}.`;
 }
 
 /**
@@ -218,18 +164,8 @@ export async function fetchResourceSettings(
   connection: Connection,
   scopeUri?: string,
 ): Promise<ResourceSettings> {
-  return (await fetchResourceSettingsInfo(connection, scopeUri)).settings;
-}
-
-export async function fetchResourceSettingsInfo(
-  connection: Connection,
-  scopeUri?: string,
-): Promise<ParsedResourceSettings> {
-  const [raw, compat]: [unknown, unknown] = await Promise.all([
-    getConfigurationForSection(connection, "cssModuleExplainer", scopeUri),
-    getConfigurationForSection(connection, "cssModules", scopeUri),
-  ]);
-  return parseResourceSettingsInfo(raw, compat);
+  const raw = await getConfigurationForSection(connection, "cssModuleExplainer", scopeUri);
+  return parseResourceSettings(raw);
 }
 
 export async function fetchSettings(connection: Connection, scopeUri?: string): Promise<Settings> {
