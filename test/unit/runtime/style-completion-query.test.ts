@@ -103,4 +103,43 @@ describe("resolveStyleCompletionItems", () => {
     expect(insideMixin.map((item) => item.label)).toEqual(["$depth", "$gap"]);
     expect(outsideMixin.map((item) => item.label)).toEqual(["$gap"]);
   });
+
+  it("falls back to raw Sass declarations when the style document is mid-edit invalid", () => {
+    const scss = `$gap: 1rem;
+@mixin raised() {}
+@function tone($value) { @return $value; }
+.button {
+  color: $
+  @include ra
+  border-color: to
+}
+`;
+    const styleDocument = parseStyleDocument(scss, SCSS_PATH);
+
+    expect(styleDocument.sassSymbolDecls).toEqual([]);
+    expect(
+      resolveStyleCompletionItems({
+        content: scss,
+        line: 4,
+        character: 10,
+        styleDocument,
+      }).map((item) => item.label),
+    ).toEqual(["$gap"]);
+    expect(
+      resolveStyleCompletionItems({
+        content: scss,
+        line: 5,
+        character: 13,
+        styleDocument,
+      }).map((item) => item.label),
+    ).toEqual(["raised"]);
+    expect(
+      resolveStyleCompletionItems({
+        content: scss,
+        line: 6,
+        character: 18,
+        styleDocument,
+      }).map((item) => item.label),
+    ).toEqual(["tone"]);
+  });
 });

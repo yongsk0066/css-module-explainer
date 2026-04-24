@@ -26,6 +26,13 @@ type StyleCompletionContext =
       readonly replacementStartCharacter: number;
     };
 
+interface SassSymbolCompletionDecl {
+  readonly symbolKind: SassSymbolDeclHIR["symbolKind"];
+  readonly name: string;
+  readonly range: Range;
+  readonly ruleRange: Range;
+}
+
 export function resolveStyleCompletionItems(args: {
   readonly content: string;
   readonly line: number;
@@ -42,7 +49,7 @@ export function resolveStyleCompletionItems(args: {
     end: { line: args.line, character: args.character },
   };
   const candidates = collectSassSymbolCompletionDecls(
-    args.styleDocument,
+    readSassSymbolCompletionDecls(args.styleDocument, args.content),
     context.symbolKind,
     args.line,
     args.character,
@@ -90,14 +97,14 @@ function isSassFunctionValueContext(linePrefix: string): boolean {
 }
 
 function collectSassSymbolCompletionDecls(
-  styleDocument: StyleDocumentHIR,
+  decls: readonly SassSymbolCompletionDecl[],
   symbolKind: SassSymbolDeclHIR["symbolKind"],
   line: number,
   character: number,
-): readonly SassSymbolDeclHIR[] {
+): readonly SassSymbolCompletionDecl[] {
   const seen = new Set<string>();
-  const results: SassSymbolDeclHIR[] = [];
-  for (const decl of styleDocument.sassSymbolDecls) {
+  const results: SassSymbolCompletionDecl[] = [];
+  for (const decl of decls) {
     if (decl.symbolKind !== symbolKind) continue;
     if (decl.symbolKind === "variable" && !isVariableDeclVisible(decl, line, character)) continue;
     if (seen.has(decl.name)) continue;
@@ -107,7 +114,56 @@ function collectSassSymbolCompletionDecls(
   return results;
 }
 
-function isVariableDeclVisible(decl: SassSymbolDeclHIR, line: number, character: number): boolean {
+function readSassSymbolCompletionDecls(
+  styleDocument: StyleDocumentHIR,
+  content: string,
+): readonly SassSymbolCompletionDecl[] {
+  if (styleDocument.sassSymbolDecls.length > 0) return styleDocument.sassSymbolDecls;
+  return collectFallbackSassSymbolCompletionDecls(content);
+}
+
+function collectFallbackSassSymbolCompletionDecls(
+  content: string,
+): readonly SassSymbolCompletionDecl[] {
+  const decls: SassSymbolCompletionDecl[] = [];
+  const lines = content.split(/\r?\n/u);
+  for (const [line, text] of lines.entries()) {
+    const variable = /^(\s*)\$([A-Za-z_-][A-Za-z0-9_-]*)\s*:/u.exec(text);
+    if (variable) {
+      decls.push(makeFallbackDecl("variable", variable[2]!, line, variable[1]!.length));
+      continue;
+    }
+
+    const callable = /^(\s*)@(mixin|function)\s+([A-Za-z_-][A-Za-z0-9_-]*)/u.exec(text);
+    if (!callable) continue;
+    const symbolKind = callable[2] === "mixin" ? "mixin" : "function";
+    const character = callable[1]!.length + `@${callable[2]} `.length;
+    decls.push(makeFallbackDecl(symbolKind, callable[3]!, line, character));
+  }
+  return decls;
+}
+
+function makeFallbackDecl(
+  symbolKind: SassSymbolDeclHIR["symbolKind"],
+  name: string,
+  line: number,
+  character: number,
+): SassSymbolCompletionDecl {
+  const range = {
+    start: { line, character },
+    end: {
+      line,
+      character: character + (symbolKind === "variable" ? name.length + 1 : name.length),
+    },
+  };
+  return { symbolKind, name, range, ruleRange: range };
+}
+
+function isVariableDeclVisible(
+  decl: SassSymbolCompletionDecl,
+  line: number,
+  character: number,
+): boolean {
   if (startsAtSamePosition(decl.range, decl.ruleRange)) return true;
   return rangeContains(decl.ruleRange, line, character);
 }
@@ -117,7 +173,7 @@ function startsAtSamePosition(a: Range, b: Range): boolean {
 }
 
 function toStyleCompletionItem(
-  decl: SassSymbolDeclHIR,
+  decl: SassSymbolCompletionDecl,
   replacementRange: Range,
 ): StyleCompletionItem {
   return {
@@ -130,19 +186,19 @@ function toStyleCompletionItem(
   };
 }
 
-function completionLabel(decl: SassSymbolDeclHIR): string {
+function completionLabel(decl: SassSymbolCompletionDecl): string {
   return decl.symbolKind === "variable" ? `$${decl.name}` : decl.name;
 }
 
-function completionInsertText(decl: SassSymbolDeclHIR): string {
+function completionInsertText(decl: SassSymbolCompletionDecl): string {
   return completionLabel(decl);
 }
 
-function completionFilterText(decl: SassSymbolDeclHIR): string {
+function completionFilterText(decl: SassSymbolCompletionDecl): string {
   return decl.name;
 }
 
-function completionDetail(decl: SassSymbolDeclHIR): string {
+function completionDetail(decl: SassSymbolCompletionDecl): string {
   switch (decl.symbolKind) {
     case "variable":
       return "Sass variable";

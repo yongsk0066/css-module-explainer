@@ -26,6 +26,16 @@ const SASS_SYMBOL_SCSS = `$gap: 1rem;
 }
 `;
 
+const INVALID_SASS_SYMBOL_SCSS = `$gap: 1rem;
+@mixin raised() {}
+@function tone($value) { @return $value; }
+.button {
+  color: $
+  @include ra
+  border-color: to
+}
+`;
+
 describe("completion protocol / clsx", () => {
   let client: LspTestClient | null = null;
 
@@ -187,6 +197,44 @@ describe("completion protocol", () => {
         end: { line: 4, character: 10 },
       },
     });
+
+    const mixinResult = await client.completion({
+      textDocument: { uri: "file:///fake/workspace/src/Button.module.scss" },
+      position: { line: 5, character: 13 },
+    });
+    const mixinItems = Array.isArray(mixinResult) ? mixinResult : mixinResult!.items;
+    expect(mixinItems.map((item) => item.label)).toEqual(["raised"]);
+
+    const functionResult = await client.completion({
+      textDocument: { uri: "file:///fake/workspace/src/Button.module.scss" },
+      position: { line: 6, character: 18 },
+    });
+    const functionItems = Array.isArray(functionResult) ? functionResult : functionResult!.items;
+    expect(functionItems.map((item) => item.label)).toEqual(["tone"]);
+  });
+
+  it("returns Sass symbol completions while the SCSS buffer is mid-edit invalid", async () => {
+    client = createInProcessServer({
+      readStyleFile: () => INVALID_SASS_SYMBOL_SCSS,
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/Button.module.scss",
+        languageId: "scss",
+        version: 1,
+        text: INVALID_SASS_SYMBOL_SCSS,
+      },
+    });
+
+    const variableResult = await client.completion({
+      textDocument: { uri: "file:///fake/workspace/src/Button.module.scss" },
+      position: { line: 4, character: 10 },
+    });
+    const variableItems = Array.isArray(variableResult) ? variableResult : variableResult!.items;
+    expect(variableItems.map((item) => item.label)).toEqual(["$gap"]);
 
     const mixinResult = await client.completion({
       textDocument: { uri: "file:///fake/workspace/src/Button.module.scss" },
