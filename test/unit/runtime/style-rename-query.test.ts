@@ -94,6 +94,29 @@ describe("style rename query", () => {
     ]);
   });
 
+  it("reads and plans same-file Sass function rename edits", () => {
+    const scss = `@function tone($value) { @return $value; }
+.button {
+  color: tone(red);
+}
+`;
+    const styleDocument = parseStyleDocument(scss, SCSS_PATH);
+    const deps = makeBaseDeps({
+      styleDocumentForPath: (filePath) => (filePath === SCSS_PATH ? styleDocument : null),
+    });
+
+    const target = readStyleRenameTargetAtCursor(SCSS_PATH, 2, 10, styleDocument, deps);
+    expect(target.kind).toBe("target");
+    expect(target.kind === "target" ? target.target.placeholder : null).toBe("tone");
+
+    const plan = planStyleRenameAtCursor(SCSS_PATH, 2, 10, styleDocument, deps, "theme-tone");
+    expect(plan?.kind).toBe("plan");
+    expect(plan?.kind === "plan" ? plan.plan.edits : []).toMatchObject([
+      { uri: "file:///fake/src/Button.module.scss", newText: "theme-tone" },
+      { uri: "file:///fake/src/Button.module.scss", newText: "theme-tone" },
+    ]);
+  });
+
   it("uses rust selector-usage payloads for rename safety blocking", () => {
     const deps = makeBaseDeps({
       selectorMapForPath: () => new Map([["indicator", infoAtLine("indicator", 1)]]),

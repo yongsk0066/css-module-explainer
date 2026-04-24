@@ -16,10 +16,12 @@ export function App() {
 
 const SASS_SYMBOL_SCSS = `$gap: 1rem;
 @mixin raised() {}
+@function tone($value) { @return $value; }
 .button {
   color: $gap;
   margin: $gap;
   @include raised();
+  border-color: tone($gap);
 }
 `;
 
@@ -148,21 +150,26 @@ describe("rename protocol", () => {
 
     const prep = await client.prepareRename({
       textDocument: { uri: "file:///fake/workspace/src/Button.module.scss" },
-      position: { line: 3, character: 10 },
+      position: { line: 4, character: 10 },
     });
     expect(prep).not.toBeNull();
     expect(prep!.placeholder).toBe("$gap");
 
     const edit = await client.rename({
       textDocument: { uri: "file:///fake/workspace/src/Button.module.scss" },
-      position: { line: 3, character: 10 },
+      position: { line: 4, character: 10 },
       newName: "space",
     });
     expect(edit).not.toBeNull();
     const scssEdits = edit!.changes!["file:///fake/workspace/src/Button.module.scss"]!;
-    expect(scssEdits).toHaveLength(3);
-    expect(scssEdits.map((textEdit) => textEdit.newText)).toEqual(["$space", "$space", "$space"]);
-    expect(scssEdits.map((textEdit) => textEdit.range.start.line)).toEqual([0, 3, 4]);
+    expect(scssEdits).toHaveLength(4);
+    expect(scssEdits.map((textEdit) => textEdit.newText)).toEqual([
+      "$space",
+      "$space",
+      "$space",
+      "$space",
+    ]);
+    expect(scssEdits.map((textEdit) => textEdit.range.start.line)).toEqual([0, 4, 5, 7]);
   });
 
   it("rename from a Sass mixin include updates same-file declaration and include", async () => {
@@ -183,14 +190,42 @@ describe("rename protocol", () => {
 
     const edit = await client.rename({
       textDocument: { uri: "file:///fake/workspace/src/Button.module.scss" },
-      position: { line: 5, character: 13 },
+      position: { line: 6, character: 13 },
       newName: "elevated",
     });
     expect(edit).not.toBeNull();
     const scssEdits = edit!.changes!["file:///fake/workspace/src/Button.module.scss"]!;
     expect(scssEdits).toHaveLength(2);
     expect(scssEdits.map((textEdit) => textEdit.newText)).toEqual(["elevated", "elevated"]);
-    expect(scssEdits.map((textEdit) => textEdit.range.start.line)).toEqual([1, 5]);
+    expect(scssEdits.map((textEdit) => textEdit.range.start.line)).toEqual([1, 6]);
+  });
+
+  it("rename from a Sass function call updates same-file declaration and call", async () => {
+    client = createInProcessServer({
+      readStyleFile: () => SASS_SYMBOL_SCSS,
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/Button.module.scss",
+        languageId: "scss",
+        version: 1,
+        text: SASS_SYMBOL_SCSS,
+      },
+    });
+
+    const edit = await client.rename({
+      textDocument: { uri: "file:///fake/workspace/src/Button.module.scss" },
+      position: { line: 7, character: 17 },
+      newName: "theme-tone",
+    });
+    expect(edit).not.toBeNull();
+    const scssEdits = edit!.changes!["file:///fake/workspace/src/Button.module.scss"]!;
+    expect(scssEdits).toHaveLength(2);
+    expect(scssEdits.map((textEdit) => textEdit.newText)).toEqual(["theme-tone", "theme-tone"]);
+    expect(scssEdits.map((textEdit) => textEdit.range.start.line)).toEqual([2, 7]);
   });
 
   it("prepareRename rejects dynamic source expressions with a message", async () => {
