@@ -20,6 +20,7 @@ export {
   findSassSymbolDeclAtCursor,
   findSassSymbolDeclByName,
   findSassSymbolDeclForSymbol,
+  findSassModuleUseAtCursor,
   findSelectorAtCursor,
   findValueDeclAtCursor,
   findValueDeclByName,
@@ -31,9 +32,13 @@ export {
   listSassSymbols,
   listSassSymbolsForDecl,
   listValueRefs,
+  listSassModuleUseCandidatePaths,
   resolveValueImportTarget,
   resolveValueTarget,
   resolveComposesTarget,
+  resolveSassModuleUseTarget,
+  type ResolvedSassModuleUseTarget,
+  type SassModulePathAliasResolver,
 } from "./find-style-selector";
 export { findInvalidClassReference } from "./find-invalid-class-references";
 export { isInsideCall, readCompletionContext } from "./read-completion-context";

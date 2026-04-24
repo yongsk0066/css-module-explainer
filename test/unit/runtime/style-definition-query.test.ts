@@ -6,6 +6,7 @@ import { resolveStyleDefinitionTargets } from "../../../server/engine-host-node/
 const BUTTON_PATH = "/fake/workspace/src/Button.module.scss";
 const BASE_PATH = "/fake/workspace/src/Base.module.scss";
 const TOKENS_PATH = "/fake/workspace/src/tokens.module.scss";
+const TOKENS_PARTIAL_PATH = "/fake/workspace/src/_tokens.module.scss";
 
 describe("resolveStyleDefinitionTargets", () => {
   it("resolves cross-file composes tokens to target selectors", () => {
@@ -85,6 +86,36 @@ describe("resolveStyleDefinitionTargets", () => {
       targetSelectionRange: {
         start: { line: 0, character: 7 },
         end: { line: 0, character: 14 },
+      },
+    });
+  });
+
+  it("resolves Sass @use source tokens to module files with partial candidates", () => {
+    const buttonScss = `@use "./tokens.module";
+
+.button {
+  color: tokens.$gap;
+}
+`;
+    const tokensScss = `$gap: 1rem;`;
+    const targets = resolveStyleDefinitionTargets(
+      { filePath: BUTTON_PATH, line: 0, character: 10 },
+      depsForDocuments([
+        parseStyleDocument(buttonScss, BUTTON_PATH),
+        parseStyleDocument(tokensScss, TOKENS_PARTIAL_PATH),
+      ]),
+    );
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0]).toMatchObject({
+      originRange: {
+        start: { line: 0, character: 6 },
+        end: { line: 0, character: 21 },
+      },
+      targetFilePath: TOKENS_PARTIAL_PATH,
+      targetSelectionRange: {
+        start: { line: 0, character: 0 },
+        end: { line: 0, character: 0 },
       },
     });
   });

@@ -4,11 +4,13 @@ import {
   findCanonicalSelector,
   findComposesTokenAtCursor,
   findKeyframesByName,
+  findSassModuleUseAtCursor,
   findSassSymbolAtCursor,
   findSassSymbolDeclForSymbol,
   findValueImportAtCursor,
   findValueRefAtCursor,
   resolveComposesTarget,
+  resolveSassModuleUseTarget,
   resolveValueImportTarget,
   resolveValueTarget,
 } from "../../engine-core-ts/src/core/query";
@@ -64,6 +66,25 @@ export function resolveStyleDefinitionTargets(
       : [];
   }
 
+  const sassModuleUse = findSassModuleUseAtCursor(styleDocument, params.line, params.character);
+  if (sassModuleUse) {
+    const target = resolveSassModuleUseTarget(
+      deps.styleDocumentForPath,
+      styleDocument.filePath,
+      sassModuleUse,
+    );
+    return target
+      ? [
+          {
+            originRange: sassModuleUse.range,
+            targetFilePath: target.filePath,
+            targetRange: fileStartRange(),
+            targetSelectionRange: fileStartRange(),
+          },
+        ]
+      : [];
+  }
+
   const sassSymbol = findSassSymbolAtCursor(styleDocument, params.line, params.character);
   if (sassSymbol) {
     const target = findSassSymbolDeclForSymbol(styleDocument, sassSymbol);
@@ -95,5 +116,12 @@ function toStyleDefinitionTarget(
     targetFilePath,
     targetRange: target.ruleRange,
     targetSelectionRange: target.range,
+  };
+}
+
+function fileStartRange(): Range {
+  return {
+    start: { line: 0, character: 0 },
+    end: { line: 0, character: 0 },
   };
 }

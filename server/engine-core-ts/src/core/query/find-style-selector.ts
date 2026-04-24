@@ -2,6 +2,7 @@ import path from "node:path";
 import type {
   AnimationNameRefHIR,
   KeyframesDeclHIR,
+  SassModuleUseHIR,
   SassSymbolDeclHIR,
   SassSymbolOccurrenceHIR,
   SelectorDeclHIR,
@@ -192,6 +193,17 @@ export function findValueImportAtCursor(
   return null;
 }
 
+export function findSassModuleUseAtCursor(
+  styleDocument: StyleDocumentHIR,
+  line: number,
+  character: number,
+): SassModuleUseHIR | null {
+  for (const moduleUse of styleDocument.sassModuleUses) {
+    if (rangeContains(moduleUse.range, line, character)) return moduleUse;
+  }
+  return null;
+}
+
 export function findValueDeclByName(
   styleDocument: StyleDocumentHIR,
   name: string,
@@ -314,6 +326,102 @@ export interface ResolvedValueTarget {
   readonly valueDecl: ValueDeclHIR;
   readonly bindingKind: "local" | "imported";
   readonly valueImport?: ValueImportHIR;
+}
+
+export interface SassModulePathAliasResolver {
+  resolve(
+    specifier: string,
+    fileExists?: (candidate: string) => boolean,
+    containingFilePath?: string,
+  ): string | null;
+}
+
+export interface ResolvedSassModuleUseTarget {
+  readonly filePath: string;
+  readonly styleDocument: StyleDocumentHIR;
+  readonly moduleUse: SassModuleUseHIR;
+}
+
+const SASS_MODULE_EXTENSIONS = [".scss", ".sass", ".css"] as const;
+
+export function listSassModuleUseCandidatePaths(
+  styleFilePath: string,
+  moduleUse: SassModuleUseHIR,
+  aliasResolver?: SassModulePathAliasResolver,
+): readonly string[] {
+  const basePath = resolveSassModuleBasePath(styleFilePath, moduleUse.source, aliasResolver);
+  if (!basePath) return [];
+  return expandSassModuleCandidatePaths(basePath);
+}
+
+export function resolveSassModuleUseTarget(
+  styleDocumentForPath: (filePath: string) => StyleDocumentHIR | null,
+  styleFilePath: string,
+  moduleUse: SassModuleUseHIR | null,
+  aliasResolver?: SassModulePathAliasResolver,
+): ResolvedSassModuleUseTarget | null {
+  if (!moduleUse) return null;
+  for (const candidatePath of listSassModuleUseCandidatePaths(
+    styleFilePath,
+    moduleUse,
+    aliasResolver,
+  )) {
+    const styleDocument = styleDocumentForPath(candidatePath);
+    if (!styleDocument) continue;
+    return {
+      filePath: styleDocument.filePath,
+      styleDocument,
+      moduleUse,
+    };
+  }
+  return null;
+}
+
+function resolveSassModuleBasePath(
+  styleFilePath: string,
+  source: string,
+  aliasResolver?: SassModulePathAliasResolver,
+): string | null {
+  const cleanSource = source.split(/[?#]/, 1)[0]!;
+  if (cleanSource.startsWith("sass:")) return null;
+  if (isRelativeSpecifier(cleanSource)) {
+    return path.resolve(path.dirname(styleFilePath), cleanSource);
+  }
+  if (path.isAbsolute(cleanSource)) return cleanSource;
+  return aliasResolver?.resolve(cleanSource, undefined, styleFilePath) ?? null;
+}
+
+function expandSassModuleCandidatePaths(basePath: string): readonly string[] {
+  const parsed = path.parse(basePath);
+  const candidates: string[] = [];
+
+  if (isStyleModuleExtension(parsed.ext)) {
+    candidates.push(basePath, path.join(parsed.dir, `_${parsed.base}`));
+    return uniquePaths(candidates);
+  }
+
+  for (const extension of SASS_MODULE_EXTENSIONS) {
+    candidates.push(
+      `${basePath}${extension}`,
+      path.join(parsed.dir, `_${parsed.base}${extension}`),
+      path.join(basePath, `index${extension}`),
+      path.join(basePath, `_index${extension}`),
+    );
+  }
+
+  return uniquePaths(candidates);
+}
+
+function isStyleModuleExtension(extension: string): boolean {
+  return SASS_MODULE_EXTENSIONS.includes(extension as (typeof SASS_MODULE_EXTENSIONS)[number]);
+}
+
+function isRelativeSpecifier(specifier: string): boolean {
+  return specifier.startsWith("./") || specifier.startsWith("../");
+}
+
+function uniquePaths(paths: readonly string[]): readonly string[] {
+  return [...new Set(paths)];
 }
 
 export function resolveValueImportTarget(
