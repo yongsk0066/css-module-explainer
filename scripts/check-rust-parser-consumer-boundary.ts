@@ -106,6 +106,19 @@ interface ParserConsumerBoundarySummaryV0 {
     readonly missingCandidateNames: readonly string[];
   };
   readonly sassSymbolSeed: ParserSassSeedFactsV0;
+  readonly sassSymbolResolution: ParserConsumerBoundarySassSymbolResolutionV0;
+}
+
+interface ParserConsumerBoundarySassSymbolResolutionV0 {
+  readonly sameFileResolution: ParserSassSeedFactsV0["sameFileResolution"];
+  readonly selectorsWithVariableRefsNames: readonly string[];
+  readonly selectorsWithResolvedVariableRefsNames: readonly string[];
+  readonly selectorsWithUnresolvedVariableRefsNames: readonly string[];
+  readonly selectorsWithMixinIncludesNames: readonly string[];
+  readonly selectorsWithResolvedMixinIncludesNames: readonly string[];
+  readonly selectorsWithUnresolvedMixinIncludesNames: readonly string[];
+  readonly selectorsWithFunctionCallsNames: readonly string[];
+  readonly selectorSymbolFacts: ParserSassSeedFactsV0["selectorSymbolFacts"];
 }
 
 const CORPUS = [
@@ -163,6 +176,22 @@ function rangeContains(outer: Range, inner: Range): boolean {
 
 function uniqueSorted(values: readonly string[]): string[] {
   return [...new Set(values)].toSorted((left, right) => left.localeCompare(right));
+}
+
+function deriveSassSymbolResolution(
+  sass: ParserSassSeedFactsV0,
+): ParserConsumerBoundarySassSymbolResolutionV0 {
+  return {
+    sameFileResolution: sass.sameFileResolution,
+    selectorsWithVariableRefsNames: [...sass.selectorsWithVariableRefsNames],
+    selectorsWithResolvedVariableRefsNames: [...sass.selectorsWithResolvedVariableRefsNames],
+    selectorsWithUnresolvedVariableRefsNames: [...sass.selectorsWithUnresolvedVariableRefsNames],
+    selectorsWithMixinIncludesNames: [...sass.selectorsWithMixinIncludesNames],
+    selectorsWithResolvedMixinIncludesNames: [...sass.selectorsWithResolvedMixinIncludesNames],
+    selectorsWithUnresolvedMixinIncludesNames: [...sass.selectorsWithUnresolvedMixinIncludesNames],
+    selectorsWithFunctionCallsNames: [...sass.selectorsWithFunctionCallsNames],
+    selectorSymbolFacts: [...sass.selectorSymbolFacts],
+  };
 }
 
 function deriveSummaryFromProducer(
@@ -231,6 +260,7 @@ function deriveSummaryFromProducer(
       missingCandidateNames: referencedNames.filter((name) => !declaredKeyframes.has(name)),
     },
     sassSymbolSeed: intermediate.sass,
+    sassSymbolResolution: deriveSassSymbolResolution(intermediate.sass),
   };
 }
 
@@ -240,6 +270,7 @@ function deriveTsSummary(filePath: string, source: string): ParserConsumerBounda
   const importedValueNames = new Set(document.valueImports.map((entry) => entry.name));
   const referencedNames = uniqueSorted(document.animationNameRefs.map((entry) => entry.name));
   const declaredKeyframes = new Set(document.keyframes.map((entry) => entry.name));
+  const sassSummary = deriveSassSummary(source);
 
   return {
     schemaVersion: "0",
@@ -354,7 +385,8 @@ function deriveTsSummary(filePath: string, source: string): ParserConsumerBounda
       referencedNames,
       missingCandidateNames: referencedNames.filter((name) => !declaredKeyframes.has(name)),
     },
-    sassSymbolSeed: deriveSassSummary(source),
+    sassSymbolSeed: sassSummary,
+    sassSymbolResolution: deriveSassSymbolResolution(sassSummary),
   };
 }
 
@@ -425,7 +457,7 @@ void (async () => {
     );
 
     process.stdout.write(
-      `validated parser consumer-boundary: selectors=${actual.selectorUsage.names.length} composes=${actual.composesResolution.totalClassNameCount} valueImports=${actual.valueResolution.importNames.length} sassVars=${actual.sassSymbolSeed.variableDeclNames.length}\n\n`,
+      `validated parser consumer-boundary: selectors=${actual.selectorUsage.names.length} composes=${actual.composesResolution.totalClassNameCount} valueImports=${actual.valueResolution.importNames.length} sassVars=${actual.sassSymbolSeed.variableDeclNames.length} sassSymbols=${actual.sassSymbolResolution.selectorSymbolFacts.length}\n\n`,
     );
   }
 })().catch((error: unknown) => {
