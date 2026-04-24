@@ -22,7 +22,7 @@ import {
   makeBaseDeps,
 } from "../../_fixtures/test-helpers";
 import { buildStyleDocumentFromSelectorMap } from "../../_fixtures/style-documents";
-import { documentFixture, workspace } from "../../../packages/vitest-cme/src";
+import { documentFixture, workspace, type CmeWorkspace } from "../../../packages/vitest-cme/src";
 
 const SOURCE_PATH = "/fake/ws/src/Button.tsx";
 const SOURCE_URI = "file:///fake/ws/src/Button.tsx";
@@ -30,11 +30,14 @@ const TSX_WORKSPACE = workspace({
   [SOURCE_PATH]: `
 import classNames from 'classnames/bind';
 import styles from './Button.module.scss';
-const cx = classNames.bind(styles);
-const a = cx('indicator');
-const b = cx('unknonw');
+const /*<binding>*/cx/*</binding>*/ = classNames.bind(styles);
+const a = cx('/*<indicator>*/indicator/*</indicator>*/');
+const b = cx('/*<missing>*/unknonw/*</missing>*/');
 `,
 });
+const CX_BINDING_RANGE = TSX_WORKSPACE.range("binding", SOURCE_PATH).range;
+const INDICATOR_RANGE = TSX_WORKSPACE.range("indicator", SOURCE_PATH).range;
+const MISSING_CLASS_RANGE = TSX_WORKSPACE.range("missing", SOURCE_PATH).range;
 
 const detectCxBindings = (_sourceFile: ts.SourceFile): CxBinding[] => [
   {
@@ -42,10 +45,7 @@ const detectCxBindings = (_sourceFile: ts.SourceFile): CxBinding[] => [
     stylesVarName: "styles",
     scssModulePath: "/fake/ws/src/Button.module.scss",
     classNamesImportName: "classNames",
-    bindingRange: {
-      start: { line: 3, character: 6 },
-      end: { line: 3, character: 8 },
-    },
+    bindingRange: CX_BINDING_RANGE,
   },
 ];
 
@@ -61,14 +61,14 @@ const parseClassExpressions = (_sf: ts.SourceFile, bindings: readonly ResolvedCx
               kind: "literal",
               origin: "cxCall",
               className: "indicator",
-              range: { start: { line: 4, character: 14 }, end: { line: 4, character: 23 } },
+              range: INDICATOR_RANGE,
               scssModulePath: bindings[0]!.scssModulePath,
             },
             {
               kind: "literal",
               origin: "cxCall",
               className: "unknonw",
-              range: { start: { line: 5, character: 14 }, end: { line: 5, character: 21 } },
+              range: MISSING_CLASS_RANGE,
               scssModulePath: bindings[0]!.scssModulePath,
             },
           ],
@@ -99,12 +99,16 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   });
 }
 
-describe("computeDiagnostics", () => {
-  const baseParams = documentFixture({
-    workspace: TSX_WORKSPACE,
+function diagnosticParams(testWorkspace: CmeWorkspace = TSX_WORKSPACE) {
+  return documentFixture({
+    workspace: testWorkspace,
     filePath: SOURCE_PATH,
     documentUri: SOURCE_URI,
   });
+}
+
+describe("computeDiagnostics", () => {
+  const baseParams = diagnosticParams();
 
   it("returns an empty array when all classes resolve", () => {
     const deps = makeDeps({
@@ -175,6 +179,16 @@ describe("computeDiagnostics", () => {
   });
 
   it("warns on a template-literal call whose prefix matches nothing", () => {
+    const templateWorkspace = workspace({
+      [SOURCE_PATH]: `
+import classNames from 'classnames/bind';
+import styles from './Button.module.scss';
+const cx = classNames.bind(styles);
+const x = "value";
+const a = cx(/*<template>*/\`prefix-\${x}\`/*</template>*/);
+`,
+    });
+    const expressionRange = templateWorkspace.range("template", SOURCE_PATH).range;
     const sourceFileCache = new SourceFileCache({ max: 10 });
     const analysisCache = new DocumentAnalysisCache({
       sourceFileCache,
@@ -197,10 +211,7 @@ describe("computeDiagnostics", () => {
                     origin: "cxCall",
                     rawTemplate: "prefix-${x}",
                     staticPrefix: "prefix-",
-                    range: {
-                      start: { line: 4, character: 14 },
-                      end: { line: 4, character: 28 },
-                    },
+                    range: expressionRange,
                     scssModulePath: bindings[0]!.scssModulePath,
                   },
                 ],
@@ -225,12 +236,22 @@ describe("computeDiagnostics", () => {
       stopIndexer: () => {},
       settings: DEFAULT_SETTINGS,
     };
-    const result = computeDiagnostics(baseParams, deps);
+    const result = computeDiagnostics(diagnosticParams(templateWorkspace), deps);
     expect(result).toHaveLength(1);
     expect(result[0]!.message).toContain("No class starting with 'prefix-'");
   });
 
   it("warns on a variable call whose union has a missing member", () => {
+    const unionWorkspace = workspace({
+      [SOURCE_PATH]: `
+import classNames from 'classnames/bind';
+import styles from './Button.module.scss';
+const cx = classNames.bind(styles);
+const size = chooseSize();
+const a = cx(/*<size>*/size/*</size>*/);
+`,
+    });
+    const expressionRange = unionWorkspace.range("size", SOURCE_PATH).range;
     const sourceFileCache = new SourceFileCache({ max: 10 });
     const analysisCache = new DocumentAnalysisCache({
       sourceFileCache,
@@ -252,10 +273,7 @@ describe("computeDiagnostics", () => {
                     kind: "symbolRef",
                     origin: "cxCall",
                     rawReference: "size",
-                    range: {
-                      start: { line: 4, character: 14 },
-                      end: { line: 4, character: 18 },
-                    },
+                    range: expressionRange,
                     scssModulePath: bindings[0]!.scssModulePath,
                   },
                 ],
@@ -288,7 +306,7 @@ describe("computeDiagnostics", () => {
       stopIndexer: () => {},
       settings: DEFAULT_SETTINGS,
     };
-    const result = computeDiagnostics(baseParams, deps);
+    const result = computeDiagnostics(diagnosticParams(unionWorkspace), deps);
     expect(result).toHaveLength(1);
     expect(result[0]!.message).toContain("Missing class for union member");
     expect(result[0]!.message).toContain("'large'");
@@ -299,12 +317,16 @@ describe("computeDiagnostics", () => {
   });
 
   it("warns on a variable call when local flow resolves a missing value", () => {
-    const flowTsx = `import classNames from 'classnames/bind';
+    const flowWorkspace = workspace({
+      [SOURCE_PATH]: `
+import classNames from 'classnames/bind';
 import styles from './Button.module.scss';
 const cx = classNames.bind(styles);
 const size = enabled ? 'small' : 'large';
-const a = cx(size);
-`;
+const a = cx(/*<size>*/size/*</size>*/);
+`,
+    });
+    const expressionRange = flowWorkspace.range("size", SOURCE_PATH).range;
     const sourceFileCache = new SourceFileCache({ max: 10 });
     const analysisCache = new DocumentAnalysisCache({
       sourceFileCache,
@@ -326,10 +348,7 @@ const a = cx(size);
                     kind: "symbolRef",
                     origin: "cxCall",
                     rawReference: "size",
-                    range: {
-                      start: { line: 4, character: 13 },
-                      end: { line: 4, character: 17 },
-                    },
+                    range: expressionRange,
                     scssModulePath: bindings[0]!.scssModulePath,
                   },
                 ],
@@ -349,7 +368,7 @@ const a = cx(size);
       stopIndexer: () => {},
       settings: DEFAULT_SETTINGS,
     };
-    const result = computeDiagnostics({ ...baseParams, content: flowTsx }, deps);
+    const result = computeDiagnostics(diagnosticParams(flowWorkspace), deps);
     expect(result).toHaveLength(1);
     expect(result[0]!.message).toContain("Missing class for possible value");
     expect(result[0]!.message).toContain("'large'");
@@ -360,6 +379,16 @@ const a = cx(size);
   });
 
   it("skips variable calls with an unresolvable type (ignoreUnresolvableUnions)", () => {
+    const unresolvedWorkspace = workspace({
+      [SOURCE_PATH]: `
+import classNames from 'classnames/bind';
+import styles from './Button.module.scss';
+const cx = classNames.bind(styles);
+const unknown = getClassName();
+const a = cx(/*<unknown>*/unknown/*</unknown>*/);
+`,
+    });
+    const expressionRange = unresolvedWorkspace.range("unknown", SOURCE_PATH).range;
     const sourceFileCache = new SourceFileCache({ max: 10 });
     const analysisCache = new DocumentAnalysisCache({
       sourceFileCache,
@@ -381,10 +410,7 @@ const a = cx(size);
                     kind: "symbolRef",
                     origin: "cxCall",
                     rawReference: "unknown",
-                    range: {
-                      start: { line: 4, character: 14 },
-                      end: { line: 4, character: 21 },
-                    },
+                    range: expressionRange,
                     scssModulePath: bindings[0]!.scssModulePath,
                   },
                 ],
@@ -404,7 +430,7 @@ const a = cx(size);
       stopIndexer: () => {},
       settings: DEFAULT_SETTINGS,
     };
-    const result = computeDiagnostics(baseParams, deps);
+    const result = computeDiagnostics(diagnosticParams(unresolvedWorkspace), deps);
     expect(result).toEqual([]);
   });
 
@@ -476,12 +502,13 @@ describe("missing-module diagnostics", () => {
 
   it("emits one diagnostic per missing import with code 'missing-module'", () => {
     const deps = makeMissingDeps();
+    const missingModuleRange = MISSING_WORKSPACE.range("module", MISSING_SOURCE_PATH).range;
     const result = computeDiagnostics(missingParams, deps);
     expect(result).toHaveLength(1);
     expect(result[0]!.code).toBe("missing-module");
     expect(result[0]!.message).toContain("./typo.module.scss");
-    expect(result[0]!.range.start).toEqual({ line: 0, character: 19 });
-    expect(result[0]!.range.end).toEqual({ line: 0, character: 38 });
+    expect(result[0]!.range.start).toEqual(missingModuleRange.start);
+    expect(result[0]!.range.end).toEqual(missingModuleRange.end);
     expect(result[0]!.data).toEqual({
       createModuleFile: {
         uri: "file:///fake/ws/src/typo.module.scss",
