@@ -1,6 +1,8 @@
 import { spawn } from "node:child_process";
 import { strict as assert } from "node:assert";
 
+import type { ParserSassSeedFactsV0 } from "./rust-parser-sass-facts";
+
 interface ParserParityLiteSummaryV0 {
   readonly schemaVersion: "0";
   readonly language: "css" | "scss" | "less";
@@ -9,6 +11,7 @@ interface ParserParityLiteSummaryV0 {
 interface ParserIndexSummaryV0 {
   readonly schemaVersion: "0";
   readonly language: "css" | "scss" | "less";
+  readonly sass: ParserSassSeedFactsV0;
 }
 
 interface ParserCanonicalCandidateBundleV0 {
@@ -69,6 +72,11 @@ const CORPUS = [
     label: "scss-mixed-composes-parser-canonical-producer",
     filePath: "/f.module.scss",
     source: `@supports (display: grid) { @layer ui { .card { composes: base utility; composes: shell from global; composes: tone from "./base.module.scss"; } } }`,
+  },
+  {
+    label: "scss-sass-symbol-parser-canonical-producer",
+    filePath: "/f.module.scss",
+    source: `@use "./tokens" as tokens;\n@forward "./theme";\n@import "./legacy";\n$gap: 1rem;\n@mixin raised($depth) { box-shadow: 0 0 $depth black; }\n@function tone($value) { @return $value; }\n.btn { color: $gap; @include raised($gap); border-color: tone($gap); }`,
   },
 ] as const;
 
@@ -164,7 +172,7 @@ void (async () => {
     );
 
     process.stdout.write(
-      `validated parser canonical-producer: language=${actual.language} lane=${actual.publicProductGate.includedInParserLane}\n\n`,
+      `validated parser canonical-producer: language=${actual.language} lane=${actual.publicProductGate.includedInParserLane} sassVars=${actual.canonicalCandidate.cssModulesIntermediate.sass.variableDeclNames.length}\n\n`,
     );
   }
 })().catch((error: unknown) => {

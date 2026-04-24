@@ -4,6 +4,7 @@ import { strict as assert } from "node:assert";
 import { parseStyleDocument } from "../server/engine-core-ts/src/core/scss/scss-parser";
 import { parse as postcssParse, type AtRule, type ChildNode, type Root, type Rule } from "postcss";
 import safeParser from "postcss-safe-parser";
+import { deriveSassSummary, type ParserSassSeedFactsV0 } from "./rust-parser-sass-facts";
 
 interface ParserIndexSummaryV0 {
   readonly schemaVersion: "0";
@@ -51,17 +52,7 @@ interface ParserIndexSummaryV0 {
     readonly selectorsWithImportedRefsUnderSupportsNames: readonly string[];
     readonly selectorsWithImportedRefsUnderLayerNames: readonly string[];
   };
-  readonly sass: {
-    readonly variableDeclNames: readonly string[];
-    readonly variableRefNames: readonly string[];
-    readonly mixinDeclNames: readonly string[];
-    readonly mixinIncludeNames: readonly string[];
-    readonly functionDeclNames: readonly string[];
-    readonly functionCallNames: readonly string[];
-    readonly moduleUseSources: readonly string[];
-    readonly moduleForwardSources: readonly string[];
-    readonly moduleImportSources: readonly string[];
-  };
+  readonly sass: ParserSassSeedFactsV0;
   readonly keyframes: {
     readonly names: readonly string[];
     readonly namesUnderMedia: readonly string[];
@@ -350,56 +341,6 @@ function collectWrapperNamesForRanges(
     supports: [...supports].toSorted(),
     layer: [...layer].toSorted(),
   };
-}
-
-function uniqueSorted(values: readonly string[]): string[] {
-  return [...new Set(values)].toSorted((left, right) => left.localeCompare(right));
-}
-
-function deriveSassSummary(source: string): ParserIndexSummaryV0["sass"] {
-  const variableDeclNames = [...source.matchAll(/(^|[{\s;])\$([A-Za-z_-][A-Za-z0-9_-]*)\s*:/g)].map(
-    (match) => match[2]!,
-  );
-  const variableRefNames = [...source.matchAll(/\$([A-Za-z_-][A-Za-z0-9_-]*)/g)]
-    .filter((match) => {
-      const end = match.index + match[0].length;
-      const next = /\S/.exec(source.slice(end))?.[0];
-      return next !== ":";
-    })
-    .map((match) => match[1]!);
-  const mixinDeclNames = [...source.matchAll(/@mixin\s+([A-Za-z_-][A-Za-z0-9_-]*)/g)].map(
-    (match) => match[1]!,
-  );
-  const mixinIncludeNames = [...source.matchAll(/@include\s+([A-Za-z_-][A-Za-z0-9_-]*)/g)].map(
-    (match) => match[1]!,
-  );
-  const functionDeclNames = [...source.matchAll(/@function\s+([A-Za-z_-][A-Za-z0-9_-]*)/g)].map(
-    (match) => match[1]!,
-  );
-  const functionCallNames = functionDeclNames.flatMap((name) => {
-    const callPattern = new RegExp(`\\b${escapeRegExp(name)}\\s*\\(`, "g");
-    return [...source.matchAll(callPattern)].length > 1 ? [name] : [];
-  });
-  const sourceForAtRule = (name: "use" | "forward" | "import") =>
-    [...source.matchAll(new RegExp(`@${name}\\s+([^;{]+)`, "g"))].flatMap((match) =>
-      [...match[1]!.matchAll(/["']([^"']+)["']/g)].map((sourceMatch) => sourceMatch[1]!),
-    );
-
-  return {
-    variableDeclNames: uniqueSorted(variableDeclNames),
-    variableRefNames: uniqueSorted(variableRefNames),
-    mixinDeclNames: uniqueSorted(mixinDeclNames),
-    mixinIncludeNames: uniqueSorted(mixinIncludeNames),
-    functionDeclNames: uniqueSorted(functionDeclNames),
-    functionCallNames: uniqueSorted(functionCallNames),
-    moduleUseSources: uniqueSorted(sourceForAtRule("use")),
-    moduleForwardSources: uniqueSorted(sourceForAtRule("forward")),
-    moduleImportSources: uniqueSorted(sourceForAtRule("import")),
-  };
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[\\^$.*+?()[\]{}|]/g, "\\$&");
 }
 
 function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0 {

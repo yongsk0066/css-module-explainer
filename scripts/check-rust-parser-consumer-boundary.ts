@@ -4,6 +4,7 @@ import { strict as assert } from "node:assert";
 import type { Range } from "@css-module-explainer/shared";
 
 import { parseStyleDocument } from "../server/engine-core-ts/src/core/scss/scss-parser";
+import { deriveSassSummary, type ParserSassSeedFactsV0 } from "./rust-parser-sass-facts";
 
 interface ParserParityLiteSummaryV0 {
   readonly schemaVersion: "0";
@@ -33,6 +34,7 @@ interface ParserIndexSummaryV0 {
     readonly animationRefNames: readonly string[];
     readonly animationNameRefNames: readonly string[];
   };
+  readonly sass: ParserSassSeedFactsV0;
   readonly composes: {
     readonly importSources: readonly string[];
     readonly classNameCount: number;
@@ -103,6 +105,7 @@ interface ParserConsumerBoundarySummaryV0 {
     readonly referencedNames: readonly string[];
     readonly missingCandidateNames: readonly string[];
   };
+  readonly sassSymbolSeed: ParserSassSeedFactsV0;
 }
 
 const CORPUS = [
@@ -130,6 +133,11 @@ const CORPUS = [
     label: "scss-grouped-bem-unsafe-parser-consumer-boundary",
     filePath: "/f.module.scss",
     source: `.a, .b { &__icon { &--small { color: red; } } }`,
+  },
+  {
+    label: "scss-sass-symbol-parser-consumer-boundary",
+    filePath: "/f.module.scss",
+    source: `@use "./tokens" as tokens;\n@forward "./theme";\n@import "./legacy";\n$gap: 1rem;\n@mixin raised($depth) { box-shadow: 0 0 $depth black; }\n@function tone($value) { @return $value; }\n.btn { color: $gap; @include raised($gap); border-color: tone($gap); }`,
   },
 ] as const;
 
@@ -222,6 +230,7 @@ function deriveSummaryFromProducer(
       referencedNames,
       missingCandidateNames: referencedNames.filter((name) => !declaredKeyframes.has(name)),
     },
+    sassSymbolSeed: intermediate.sass,
   };
 }
 
@@ -345,6 +354,7 @@ function deriveTsSummary(filePath: string, source: string): ParserConsumerBounda
       referencedNames,
       missingCandidateNames: referencedNames.filter((name) => !declaredKeyframes.has(name)),
     },
+    sassSymbolSeed: deriveSassSummary(source),
   };
 }
 
@@ -415,7 +425,7 @@ void (async () => {
     );
 
     process.stdout.write(
-      `validated parser consumer-boundary: selectors=${actual.selectorUsage.names.length} composes=${actual.composesResolution.totalClassNameCount} valueImports=${actual.valueResolution.importNames.length}\n\n`,
+      `validated parser consumer-boundary: selectors=${actual.selectorUsage.names.length} composes=${actual.composesResolution.totalClassNameCount} valueImports=${actual.valueResolution.importNames.length} sassVars=${actual.sassSymbolSeed.variableDeclNames.length}\n\n`,
     );
   }
 })().catch((error: unknown) => {
