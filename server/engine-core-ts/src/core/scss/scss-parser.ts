@@ -917,10 +917,13 @@ function parseSassCallableName(raw: string): { name: string; raw: string; offset
   const match = /^\s*([A-Za-z_-][A-Za-z0-9_-]*)/.exec(raw);
   const name = match?.[1];
   if (!name) return null;
+  const offset = raw.indexOf(name);
+  const next = raw.slice(offset + name.length).match(/\S/)?.[0];
+  if (next === ".") return null;
   return {
     name,
     raw: name,
-    offset: raw.indexOf(name),
+    offset,
   };
 }
 
@@ -949,6 +952,7 @@ function findSassVariableMatches(
     const token = match?.[0];
     const name = match?.[1];
     if (!token || !name) continue;
+    if (isSassModuleQualifiedReference(raw, index)) continue;
     matches.push({ name, raw: token, offset: index });
     index += token.length - 1;
   }
@@ -981,6 +985,10 @@ function findSassFunctionCallMatches(
     const match = /^[A-Za-z_-][A-Za-z0-9_-]*/.exec(raw.slice(index));
     const name = match?.[0];
     if (!name) continue;
+    if (isSassModuleQualifiedReference(raw, index)) {
+      index += name.length - 1;
+      continue;
+    }
     const nextNonWhitespace = raw.slice(index + name.length).match(/\S/)?.[0];
     if (functionTargets.has(name) && nextNonWhitespace === "(") {
       matches.push({ name, raw: name, offset: index });
@@ -989,6 +997,12 @@ function findSassFunctionCallMatches(
   }
 
   return matches;
+}
+
+function isSassModuleQualifiedReference(raw: string, start: number): boolean {
+  if (start <= 1 || raw[start - 1] !== ".") return false;
+  const namespaceMatch = /[A-Za-z_-][A-Za-z0-9_-]*$/.exec(raw.slice(0, start - 1));
+  return namespaceMatch !== null;
 }
 
 function looksLikeStyleRequest(value: string): boolean {

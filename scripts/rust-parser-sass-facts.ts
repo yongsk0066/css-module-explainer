@@ -71,25 +71,22 @@ export function deriveSassSummary(
   const variableDeclNames = [...source.matchAll(/(^|[{\s;])\$([A-Za-z_-][A-Za-z0-9_-]*)\s*:/g)].map(
     (match) => match[2]!,
   );
-  const variableRefNames = [...source.matchAll(/\$([A-Za-z_-][A-Za-z0-9_-]*)/g)]
-    .filter((match) => {
-      const end = match.index + match[0].length;
-      const next = /\S/.exec(source.slice(end))?.[0];
-      return next !== ":";
-    })
-    .map((match) => match[1]!);
+  const variableRefNames = findSassVariableReferenceMatches(source).map((match) => match.name);
   const mixinDeclNames = [...source.matchAll(/@mixin\s+([A-Za-z_-][A-Za-z0-9_-]*)/g)].map(
     (match) => match[1]!,
   );
-  const mixinIncludeNames = [...source.matchAll(/@include\s+([A-Za-z_-][A-Za-z0-9_-]*)/g)].map(
-    (match) => match[1]!,
-  );
+  const mixinIncludeNames = [...source.matchAll(/@include\s+([A-Za-z_-][A-Za-z0-9_-]*)/g)]
+    .filter((match) => !isSassModuleQualifiedCallable(source, (match.index ?? 0) + match[0].length))
+    .map((match) => match[1]!);
   const functionDeclNames = [...source.matchAll(/@function\s+([A-Za-z_-][A-Za-z0-9_-]*)/g)].map(
     (match) => match[1]!,
   );
   const functionCallNames = functionDeclNames.flatMap((name) => {
     const callPattern = new RegExp(`\\b${escapeRegExp(name)}\\s*\\(`, "g");
-    return [...source.matchAll(callPattern)].length > 1 ? [name] : [];
+    const sameFileCalls = [...source.matchAll(callPattern)].filter(
+      (match) => !isSassModuleQualifiedReference(source, match.index ?? 0),
+    );
+    return sameFileCalls.length > 1 ? [name] : [];
   });
   const variableParameterNames = [
     ...source.matchAll(/@(mixin|function)\s+[A-Za-z_-][A-Za-z0-9_-]*\(([^)]*)\)/g),
@@ -191,11 +188,16 @@ function deriveSassSelectorAttachments(
         const start = bodyStart + (variableMatch.index ?? 0);
         return {
           name: variableMatch[1]!,
+          codeUnitStart: start,
           codeUnitEnd: start + variableMatch[0].length,
           location: symbolLocation(source, start, start + variableMatch[0].length),
         };
       })
-      .filter((variableMatch) => !isSassVariableDeclarationLike(source, variableMatch.codeUnitEnd));
+      .filter(
+        (variableMatch) =>
+          !isSassVariableDeclarationLike(source, variableMatch.codeUnitEnd) &&
+          !isSassModuleQualifiedReference(source, variableMatch.codeUnitStart),
+      );
     const variableRefs = variableRefMatches.map((variableMatch) => variableMatch.name);
     if (variableRefs.length > 0) {
       selectorsWithVariableRefsNames.push(selectorName);
@@ -228,16 +230,17 @@ function deriveSassSelectorAttachments(
       }
     }
 
-    const mixinIncludeMatches = [...body.matchAll(/@include\s+([A-Za-z_-][A-Za-z0-9_-]*)/g)].map(
-      (includeMatch) => {
+    const mixinIncludeMatches = [...body.matchAll(/@include\s+([A-Za-z_-][A-Za-z0-9_-]*)/g)]
+      .map((includeMatch) => {
         const name = includeMatch[1]!;
         const start = bodyStart + (includeMatch.index ?? 0) + includeMatch[0].indexOf(name);
         return {
           name,
+          codeUnitEnd: start + name.length,
           location: symbolLocation(source, start, start + name.length),
         };
-      },
-    );
+      })
+      .filter((includeMatch) => !isSassModuleQualifiedCallable(source, includeMatch.codeUnitEnd));
     const mixinIncludes = mixinIncludeMatches.map((includeMatch) => includeMatch.name);
     if (mixinIncludes.length > 0) {
       selectorsWithMixinIncludesNames.push(selectorName);
@@ -260,14 +263,17 @@ function deriveSassSelectorAttachments(
     }
 
     const functionCalls = input.functionDeclNames.flatMap((name) =>
-      [...body.matchAll(new RegExp(`\\b(${escapeRegExp(name)})\\s*\\(`, "g"))].map((callMatch) => {
-        const callName = callMatch[1]!;
-        const start = bodyStart + (callMatch.index ?? 0) + callMatch[0].indexOf(callName);
-        return {
-          name: callName,
-          location: symbolLocation(source, start, start + callName.length),
-        };
-      }),
+      [...body.matchAll(new RegExp(`\\b(${escapeRegExp(name)})\\s*\\(`, "g"))]
+        .map((callMatch) => {
+          const callName = callMatch[1]!;
+          const start = bodyStart + (callMatch.index ?? 0) + callMatch[0].indexOf(callName);
+          return {
+            name: callName,
+            codeUnitStart: start,
+            location: symbolLocation(source, start, start + callName.length),
+          };
+        })
+        .filter((callMatch) => !isSassModuleQualifiedReference(source, callMatch.codeUnitStart)),
     );
     if (functionCalls.length > 0) {
       selectorsWithFunctionCallsNames.push(selectorName);
@@ -399,6 +405,7 @@ function deriveSameFileResolution(
 
 function findSassVariableReferenceMatches(source: string): Array<{
   readonly name: string;
+  readonly codeUnitStart: number;
   readonly location: Pick<ParserSassSelectorSymbolFactV0, "byteSpan" | "range">;
 }> {
   return [...source.matchAll(/\$([A-Za-z_-][A-Za-z0-9_-]*)/g)]
@@ -406,11 +413,25 @@ function findSassVariableReferenceMatches(source: string): Array<{
       const start = match.index ?? 0;
       return {
         name: match[1]!,
+        codeUnitStart: start,
         codeUnitEnd: start + match[0].length,
         location: symbolLocation(source, start, start + match[0].length),
       };
     })
-    .filter((match) => !isSassVariableDeclarationLike(source, match.codeUnitEnd));
+    .filter(
+      (match) =>
+        !isSassVariableDeclarationLike(source, match.codeUnitEnd) &&
+        !isSassModuleQualifiedReference(source, match.codeUnitStart),
+    );
+}
+
+function isSassModuleQualifiedReference(source: string, start: number): boolean {
+  if (start <= 1 || source[start - 1] !== ".") return false;
+  return /[A-Za-z_-][A-Za-z0-9_-]*$/.test(source.slice(0, start - 1));
+}
+
+function isSassModuleQualifiedCallable(source: string, end: number): boolean {
+  return source[end] === ".";
 }
 
 function deriveSassUseEdges(source: string): ParserSassModuleUseFactV0[] {

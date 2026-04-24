@@ -494,6 +494,20 @@ describe("parseStyleSelectorMap / edge cases", () => {
         ]),
       ).toEqual([["two", "gap", "unresolved", "$gap"]]);
     });
+
+    it("does not treat module-qualified Sass references as same-file symbols", () => {
+      const source = `@use "./tokens" as tokens;
+@mixin raised { box-shadow: none; }
+@function tone($value) { @return $value; }
+.button {
+  color: tokens.$gap;
+  @include tokens.raised;
+  border-color: tokens.tone(tokens.$gap);
+}`;
+      const document = parseStyleDocument(source, "/fake/a.module.scss");
+
+      expect(document.sassSymbols).toEqual([]);
+    });
   });
 
   describe("@media / @at-root unwrapping", () => {

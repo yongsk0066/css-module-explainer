@@ -2678,6 +2678,9 @@ fn find_sass_variable_ref_spans(raw: &str, base_start: usize) -> Vec<SassNameSpa
         }
 
         if ch == '$' {
+            if is_sass_module_qualified_reference(raw, byte_index) {
+                continue;
+            }
             let name_start = byte_index + ch.len_utf8();
             let mut name_end = name_start;
             let mut name = String::new();
@@ -2738,6 +2741,9 @@ fn find_sass_function_call_spans(
         }
 
         if is_sass_ident_start(ch) {
+            if is_sass_module_qualified_reference(raw, byte_index) {
+                continue;
+            }
             let mut name = String::from(ch);
             let mut name_end = byte_index + ch.len_utf8();
             while let Some(&(next_index, next_ch)) = chars.peek() {
@@ -2767,6 +2773,17 @@ fn find_sass_function_call_spans(
     }
 
     calls
+}
+
+fn is_sass_module_qualified_reference(raw: &str, start: usize) -> bool {
+    if start <= 1 || !raw[..start].ends_with('.') {
+        return false;
+    }
+    let namespace = raw[..start - 1]
+        .rsplit(|ch: char| !is_sass_ident_continue(ch))
+        .next()
+        .unwrap_or("");
+    is_valid_sass_namespace(namespace)
 }
 
 fn find_identifier_matches(raw: &str, known_names: &BTreeSet<String>) -> Vec<String> {
@@ -4145,6 +4162,60 @@ $gap: 1rem;
             }]
         );
         Ok(())
+    }
+
+    #[test]
+    fn index_summary_skips_module_qualified_sass_refs_from_same_file_resolution() {
+        let source = r#"@use "./tokens" as tokens;
+@mixin raised { box-shadow: none; }
+@function tone($value) { @return $value; }
+.button {
+  color: tokens.$gap;
+  @include tokens.raised;
+  border-color: tokens.tone(tokens.$gap);
+}
+"#;
+        let sheet = parse_stylesheet(StyleLanguage::Scss, source);
+        let summary = super::summarize_css_modules_intermediate(&sheet);
+
+        assert_eq!(summary.sass.variable_ref_names, vec!["value"]);
+        assert_eq!(
+            summary
+                .sass
+                .same_file_resolution
+                .resolved_variable_ref_names,
+            vec!["value"]
+        );
+        assert_eq!(
+            summary
+                .sass
+                .same_file_resolution
+                .unresolved_variable_ref_names,
+            Vec::<String>::new()
+        );
+        assert_eq!(summary.sass.mixin_include_names, Vec::<String>::new());
+        assert_eq!(summary.sass.function_call_names, Vec::<String>::new());
+        assert_eq!(
+            summary.sass.selectors_with_variable_refs_names,
+            Vec::<String>::new()
+        );
+        assert_eq!(
+            summary.sass.selectors_with_mixin_includes_names,
+            Vec::<String>::new()
+        );
+        assert_eq!(
+            summary.sass.selectors_with_function_calls_names,
+            Vec::<String>::new()
+        );
+        assert_eq!(summary.sass.selector_symbol_facts, Vec::new());
+        assert_eq!(
+            summary.sass.module_use_edges,
+            vec![ParserIndexSassModuleUseFactV0 {
+                source: "./tokens".to_string(),
+                namespace_kind: "alias",
+                namespace: Some("tokens".to_string()),
+            }]
+        );
     }
 
     #[test]

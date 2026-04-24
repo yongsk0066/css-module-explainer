@@ -276,4 +276,38 @@ describe("checkStyleDocument", () => {
       ]),
     );
   });
+
+  it("does not report module-qualified Sass references as same-file missing symbols", () => {
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    const styleDocumentWithModuleQualifiedRefs = parseStyleDocument(
+      `@use "./tokens" as tokens;
+@mixin raised { box-shadow: none; }
+@function tone($value) { @return $value; }
+.button {
+  color: tokens.$gap;
+  @include tokens.raised;
+  border-color: tokens.tone(tokens.$gap);
+}`,
+      SCSS_PATH,
+    );
+
+    const findings = checkStyleDocument(
+      {
+        scssPath: SCSS_PATH,
+        styleDocument: styleDocumentWithModuleQualifiedRefs,
+      },
+      {
+        semanticReferenceIndex,
+        styleDependencyGraph: new WorkspaceStyleDependencyGraph(),
+      },
+    );
+
+    expect(findings).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "missing-sass-symbol",
+        }),
+      ]),
+    );
+  });
 });

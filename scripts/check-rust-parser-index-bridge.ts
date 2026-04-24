@@ -228,6 +228,11 @@ const CORPUS = [
     filePath: "/f.module.scss",
     source: `.one { $gap: 1rem; }\n.two { color: $gap; }`,
   },
+  {
+    label: "scss-sass-module-qualified-index",
+    filePath: "/f.module.scss",
+    source: `@use "./tokens" as tokens;\n@mixin raised { box-shadow: none; }\n@function tone($value) { @return $value; }\n.button { color: tokens.$gap; @include tokens.raised; border-color: tokens.tone(tokens.$gap); }`,
+  },
 ] as const;
 
 function comparePosition(
