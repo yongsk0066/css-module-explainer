@@ -8,6 +8,13 @@ import { WorkspaceStyleDependencyGraph } from "../../../server/engine-core-ts/sr
 import type { ProviderDeps } from "../../../server/lsp-server/src/providers/cursor-dispatch";
 import { handleReferences } from "../../../server/lsp-server/src/providers/references";
 import {
+  cursorFixture,
+  targetFixture,
+  workspace,
+  type CmeWorkspace,
+  type Range,
+} from "../../../packages/vitest-cme/src";
+import {
   EMPTY_ALIAS_RESOLVER,
   buildTestClassExpressions,
   infoAtLine,
@@ -28,10 +35,22 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   });
 }
 
+const SOURCE_PATH = "/fake/src/App.tsx";
+const SOURCE_URI = "file:///fake/src/App.tsx";
+const STYLE_PATH = "/fake/src/Button.module.scss";
+const SOURCE_WORKSPACE = workspace({
+  [SOURCE_PATH]: `import classNames from 'classnames/bind';
+import styles from './Button.module.scss';
+const cx = classNames.bind(styles);
+const a = cx('/*<class>*/ind/*|*/icator/*</class>*/');
+`,
+});
+const SOURCE_CLASS_RANGE = SOURCE_WORKSPACE.range("class", SOURCE_PATH).range;
+
 const SOURCE_BINDING: CxBinding = {
   cxVarName: "cx",
   stylesVarName: "styles",
-  scssModulePath: "/fake/src/Button.module.scss",
+  scssModulePath: STYLE_PATH,
   classNamesImportName: "classNames",
   bindingRange: {
     start: { line: 2, character: 6 },
@@ -39,17 +58,35 @@ const SOURCE_BINDING: CxBinding = {
   },
 };
 
-function makeSourceDeps(): ProviderDeps {
+function sourceCursor(fixture: CmeWorkspace = SOURCE_WORKSPACE, markerName = "cursor") {
+  return cursorFixture({
+    workspace: fixture,
+    filePath: SOURCE_PATH,
+    documentUri: SOURCE_URI,
+    markerName,
+    version: 1,
+  });
+}
+
+function sourceReferenceParams(cursor = sourceCursor()) {
+  return {
+    textDocument: { uri: cursor.documentUri },
+    position: cursor.position,
+    context: { includeDeclaration: false },
+  };
+}
+
+function styleCursorPosition(fixture: CmeWorkspace, markerName = "cursor") {
+  return targetFixture({ workspace: fixture, markerName }).position;
+}
+
+function makeSourceDeps(expressionRange: Range = SOURCE_CLASS_RANGE): ProviderDeps {
   const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
-  semanticReferenceIndex.record("file:///fake/src/App.tsx", [
-    semanticSiteAt(
-      "file:///fake/src/App.tsx",
-      "indicator",
-      3,
-      "/fake/src/Button.module.scss",
-      "indicator",
-      { start: 14, end: 23 },
-    ),
+  semanticReferenceIndex.record(SOURCE_URI, [
+    semanticSiteAt(SOURCE_URI, "indicator", expressionRange.start.line, STYLE_PATH, "indicator", {
+      start: expressionRange.start.character,
+      end: expressionRange.end.character,
+    }),
   ]);
 
   const sourceFileCache = new SourceFileCache({ max: 10 });
@@ -65,17 +102,14 @@ function makeSourceDeps(): ProviderDeps {
     }),
     parseClassExpressions: (_sf, bindings) =>
       buildTestClassExpressions({
-        filePath: "/fake/src/App.tsx",
+        filePath: SOURCE_PATH,
         bindings,
         expressions: [
           {
             kind: "literal",
             origin: "cxCall",
             className: "indicator",
-            range: {
-              start: { line: 3, character: 14 },
-              end: { line: 3, character: 23 },
-            },
+            range: expressionRange,
             scssModulePath: SOURCE_BINDING.scssModulePath,
           },
         ],
@@ -105,34 +139,17 @@ describe("handleReferences", () => {
   });
 
   it("returns source-side locations when invoked from a TSX class expression cursor", () => {
+    const cursor = sourceCursor();
     const result = handleReferences(
-      {
-        textDocument: { uri: "file:///fake/src/App.tsx" },
-        position: { line: 3, character: 16 },
-        context: { includeDeclaration: false },
-      },
-      makeSourceDeps(),
-      {
-        documentUri: "file:///fake/src/App.tsx",
-        content: `import classNames from 'classnames/bind';
-import styles from './Button.module.scss';
-const cx = classNames.bind(styles);
-const a = cx('indicator');
-`,
-        filePath: "/fake/src/App.tsx",
-        line: 3,
-        character: 16,
-        version: 1,
-      },
+      sourceReferenceParams(cursor),
+      makeSourceDeps(SOURCE_CLASS_RANGE),
+      cursor,
     );
 
     expect(result).toEqual([
       {
-        uri: "file:///fake/src/App.tsx",
-        range: {
-          start: { line: 3, character: 14 },
-          end: { line: 3, character: 23 },
-        },
+        uri: SOURCE_URI,
+        range: SOURCE_CLASS_RANGE,
       },
     ]);
   });
@@ -359,7 +376,10 @@ const a = cx('indicator');
   it("classnameTransform: finds alias-form TSX access from SCSS cursor on original selector", async () => {
     const SCSS_PATH = "/fake/Button.module.scss";
     const SCSS_URI = "file:///fake/Button.module.scss";
-    const base = parseStyleSelectorMap(`.btn-primary { color: red; }`, SCSS_PATH);
+    const fixture = workspace({
+      [SCSS_PATH]: `./*|*/btn-primary { color: red; }`,
+    });
+    const base = parseStyleSelectorMap(fixture.file(SCSS_PATH).content, SCSS_PATH);
     const classMap = expandSelectorMapWithTransform(base, "camelCase");
 
     const idx = new WorkspaceSemanticWorkspaceReferenceIndex();
@@ -375,15 +395,10 @@ const a = cx('indicator');
     // `btnPrimary` (alias) entries. The semantic index stores the
     // alias access under the canonical `btn-primary` selector, so
     // the provider must route through `originalName` to find it.
-    const origInfo = classMap.get("btn-primary")!;
-    const cursor = {
-      line: origInfo.range.start.line,
-      character: origInfo.range.start.character,
-    };
     const result = handleReferences(
       {
         textDocument: { uri: SCSS_URI },
-        position: cursor,
+        position: styleCursorPosition(fixture),
         context: { includeDeclaration: true },
       },
       makeBaseDeps({
@@ -401,7 +416,10 @@ const a = cx('indicator');
   it("classnameTransform (camelCaseOnly): alias-only entry still resolves to the canonical selector bucket", async () => {
     const SCSS_PATH = "/fake/Button.module.scss";
     const SCSS_URI = "file:///fake/Button.module.scss";
-    const base = parseStyleSelectorMap(`.btn-primary { color: red; }`, SCSS_PATH);
+    const fixture = workspace({
+      [SCSS_PATH]: `./*|*/btn-primary { color: red; }`,
+    });
+    const base = parseStyleSelectorMap(fixture.file(SCSS_PATH).content, SCSS_PATH);
     const classMap = expandSelectorMapWithTransform(base, "camelCaseOnly");
     // Under `camelCaseOnly` only the alias entry remains in the map;
     // the cursor falls on the alias entry's range but its
@@ -417,14 +435,10 @@ const a = cx('indicator');
       }),
     ]);
 
-    const aliasInfo = classMap.get("btnPrimary")!;
     const result = handleReferences(
       {
         textDocument: { uri: SCSS_URI },
-        position: {
-          line: aliasInfo.range.start.line,
-          character: aliasInfo.range.start.character,
-        },
+        position: styleCursorPosition(fixture),
         context: { includeDeclaration: true },
       },
       makeBaseDeps({
