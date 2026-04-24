@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { parseStyleDocument } from "../../../server/engine-core-ts/src/core/scss/scss-parser";
 import { WorkspaceStyleDependencyGraph } from "../../../server/engine-core-ts/src/core/semantic/style-dependency-graph";
 import { buildStyleDocumentFromSelectorMap } from "../../_fixtures/style-documents";
 import { infoAtLine as info } from "../../_fixtures/test-helpers";
@@ -50,6 +51,37 @@ describe("WorkspaceStyleDependencyGraph", () => {
         filePath: "/fake/button.module.scss",
         canonicalName: "button",
         reason: "crossFileComposes",
+      },
+    ]);
+  });
+
+  it("records incoming Sass module member references", () => {
+    const graph = new WorkspaceStyleDependencyGraph();
+    const filePath = "/fake/button.module.scss";
+    const targetPath = "/fake/_tokens.module.scss";
+    const styleDocument = parseStyleDocument(
+      `@use "./tokens.module" as tokens;
+
+.button {
+  color: tokens.$gap;
+}`,
+      filePath,
+    );
+
+    graph.record(filePath, styleDocument, {
+      resolveSassModuleUseTargetFilePath: () => targetPath,
+    });
+
+    expect(graph.getIncomingSassModuleMemberRefs(targetPath, "variable", "gap")).toEqual([
+      {
+        filePath,
+        namespace: "tokens",
+        symbolKind: "variable",
+        name: "gap",
+        range: {
+          start: { line: 3, character: 16 },
+          end: { line: 3, character: 20 },
+        },
       },
     ]);
   });

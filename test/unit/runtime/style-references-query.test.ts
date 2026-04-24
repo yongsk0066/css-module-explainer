@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { StyleDocumentHIR } from "../../../server/engine-core-ts/src/core/hir/style-types";
 import { parseStyleDocument } from "../../../server/engine-core-ts/src/core/scss/scss-parser";
+import { WorkspaceStyleDependencyGraph } from "../../../server/engine-core-ts/src/core/semantic/style-dependency-graph";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/engine-core-ts/src/core/semantic/workspace-reference-index";
 import type { ProviderDeps } from "../../../server/lsp-server/src/providers/cursor-dispatch";
 import { resolveStyleReferencesAtCursor } from "../../../server/engine-host-node/src/style-references-query";
@@ -235,6 +236,46 @@ describe("resolveStyleReferencesAtCursor", () => {
         },
       },
     ]);
+  });
+
+  it("returns namespace-qualified Sass member references from the target declaration cursor", () => {
+    const filePath = "/fake/src/Button.module.scss";
+    const tokensPath = "/fake/src/tokens.module.scss";
+    const buttonScss = `@use "./tokens.module" as tokens;
+
+.button {
+  color: tokens.$gap;
+  margin: tokens.$gap;
+}
+`;
+    const tokensScss = `$gap: 1rem;`;
+    const styleDocument = parseStyleDocument(buttonScss, filePath);
+    const targetDocument = parseStyleDocument(tokensScss, tokensPath);
+    const styleDependencyGraph = new WorkspaceStyleDependencyGraph();
+    styleDependencyGraph.record(filePath, styleDocument, {
+      resolveSassModuleUseTargetFilePath: () => tokensPath,
+    });
+
+    const result = resolveStyleReferencesAtCursor(
+      {
+        filePath: tokensPath,
+        line: 0,
+        character: 1,
+        includeDeclaration: true,
+        styleDocument: targetDocument,
+      },
+      makeDeps({
+        styleDocumentForPath: styleDocumentMap([styleDocument, targetDocument]),
+        styleDependencyGraph,
+      }),
+    );
+
+    expect(result.map((location) => location.uri)).toEqual([
+      "file:///fake/src/tokens.module.scss",
+      "file:///fake/src/Button.module.scss",
+      "file:///fake/src/Button.module.scss",
+    ]);
+    expect(result.map((location) => location.range.start.line)).toEqual([0, 3, 4]);
   });
 });
 

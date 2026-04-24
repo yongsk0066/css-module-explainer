@@ -1,5 +1,6 @@
 import path from "node:path";
-import type { StyleDocumentHIR } from "../hir/style-types";
+import type { Range } from "@css-module-explainer/shared";
+import type { SassModuleUseHIR, SassSymbolKind, StyleDocumentHIR } from "../hir/style-types";
 
 export type StyleDependencyReason = "localComposes" | "crossFileComposes";
 
@@ -17,21 +18,63 @@ interface StyleDependencyEdge {
   readonly reason: StyleDependencyReason;
 }
 
+export interface SassModuleMemberDependencyRef {
+  readonly filePath: string;
+  readonly namespace: string;
+  readonly symbolKind: SassSymbolKind;
+  readonly name: string;
+  readonly range: Range;
+}
+
+interface SassModuleMemberDependencyEdge extends SassModuleMemberDependencyRef {
+  readonly toFilePath: string;
+}
+
+export interface StyleDependencyRecordOptions {
+  readonly resolveSassModuleUseTargetFilePath?: (moduleUse: SassModuleUseHIR) => string | null;
+}
+
 export interface StyleDependencyGraph {
-  record(filePath: string, styleDocument: StyleDocumentHIR): void;
+  record(
+    filePath: string,
+    styleDocument: StyleDocumentHIR,
+    options?: StyleDependencyRecordOptions,
+  ): void;
   forget(filePath: string): void;
   forgetWithinRoot(rootPath: string): void;
   getIncoming(filePath: string, canonicalName: string): readonly StyleDependencySelectorRef[];
   getOutgoing(filePath: string, canonicalName: string): readonly StyleDependencySelectorRef[];
+  getIncomingSassModuleMemberRefs(
+    filePath: string,
+    symbolKind: SassSymbolKind,
+    name: string,
+  ): readonly SassModuleMemberDependencyRef[];
 }
 
 export class WorkspaceStyleDependencyGraph implements StyleDependencyGraph {
-  private readonly moduleEdges = new Map<string, readonly StyleDependencyEdge[]>();
+  private readonly moduleEdges = new Map<
+    string,
+    {
+      readonly selectorEdges: readonly StyleDependencyEdge[];
+      readonly sassModuleMemberEdges: readonly SassModuleMemberDependencyEdge[];
+    }
+  >();
   private readonly incoming = new Map<string, readonly StyleDependencySelectorRef[]>();
   private readonly outgoing = new Map<string, readonly StyleDependencySelectorRef[]>();
+  private readonly incomingSassModuleMembers = new Map<
+    string,
+    readonly SassModuleMemberDependencyRef[]
+  >();
 
-  record(filePath: string, styleDocument: StyleDocumentHIR): void {
-    this.moduleEdges.set(filePath, collectEdges(filePath, styleDocument));
+  record(
+    filePath: string,
+    styleDocument: StyleDocumentHIR,
+    options: StyleDependencyRecordOptions = {},
+  ): void {
+    this.moduleEdges.set(filePath, {
+      selectorEdges: collectEdges(filePath, styleDocument),
+      sassModuleMemberEdges: collectSassModuleMemberEdges(filePath, styleDocument, options),
+    });
     this.rebuild();
   }
 
@@ -58,11 +101,20 @@ export class WorkspaceStyleDependencyGraph implements StyleDependencyGraph {
     return this.outgoing.get(selectorKey(filePath, canonicalName)) ?? [];
   }
 
+  getIncomingSassModuleMemberRefs(
+    filePath: string,
+    symbolKind: SassSymbolKind,
+    name: string,
+  ): readonly SassModuleMemberDependencyRef[] {
+    return this.incomingSassModuleMembers.get(sassMemberKey(filePath, symbolKind, name)) ?? [];
+  }
+
   private rebuild(): void {
     this.incoming.clear();
     this.outgoing.clear();
+    this.incomingSassModuleMembers.clear();
     for (const edges of this.moduleEdges.values()) {
-      for (const edge of edges) {
+      for (const edge of edges.selectorEdges) {
         push(this.outgoing, selectorKey(edge.fromFilePath, edge.fromCanonicalName), {
           filePath: edge.toFilePath,
           canonicalName: edge.toCanonicalName,
@@ -73,6 +125,19 @@ export class WorkspaceStyleDependencyGraph implements StyleDependencyGraph {
           canonicalName: edge.fromCanonicalName,
           reason: edge.reason,
         });
+      }
+      for (const edge of edges.sassModuleMemberEdges) {
+        push(
+          this.incomingSassModuleMembers,
+          sassMemberKey(edge.toFilePath, edge.symbolKind, edge.name),
+          {
+            filePath: edge.filePath,
+            namespace: edge.namespace,
+            symbolKind: edge.symbolKind,
+            name: edge.name,
+            range: edge.range,
+          },
+        );
       }
     }
   }
@@ -123,19 +188,51 @@ function collectEdges(
   return edges;
 }
 
+function collectSassModuleMemberEdges(
+  filePath: string,
+  styleDocument: StyleDocumentHIR,
+  options: StyleDependencyRecordOptions,
+): readonly SassModuleMemberDependencyEdge[] {
+  if (!options.resolveSassModuleUseTargetFilePath) return [];
+
+  const moduleUsesByNamespace = new Map(
+    styleDocument.sassModuleUses
+      .filter((moduleUse) => moduleUse.namespaceKind !== "wildcard" && moduleUse.namespace)
+      .map((moduleUse) => [moduleUse.namespace!, moduleUse]),
+  );
+  const edges: SassModuleMemberDependencyEdge[] = [];
+
+  for (const memberRef of styleDocument.sassModuleMemberRefs) {
+    const moduleUse = moduleUsesByNamespace.get(memberRef.namespace);
+    if (!moduleUse) continue;
+    const targetFilePath = options.resolveSassModuleUseTargetFilePath(moduleUse);
+    if (!targetFilePath) continue;
+    edges.push({
+      filePath,
+      toFilePath: targetFilePath,
+      namespace: memberRef.namespace,
+      symbolKind: memberRef.symbolKind,
+      name: memberRef.name,
+      range: memberRef.range,
+    });
+  }
+
+  return edges;
+}
+
 function selectorKey(filePath: string, canonicalName: string): string {
   return `${filePath}\u0000${canonicalName}`;
+}
+
+function sassMemberKey(filePath: string, symbolKind: SassSymbolKind, name: string): string {
+  return `${filePath}\u0000${symbolKind}\u0000${name}`;
 }
 
 function isRelativeSpecifier(specifier: string): boolean {
   return specifier.startsWith("./") || specifier.startsWith("../");
 }
 
-function push(
-  map: Map<string, readonly StyleDependencySelectorRef[]>,
-  key: string,
-  value: StyleDependencySelectorRef,
-): void {
+function push<T>(map: Map<string, readonly T[]>, key: string, value: T): void {
   const existing = map.get(key) ?? [];
   map.set(key, [...existing, value]);
 }

@@ -420,6 +420,26 @@ export function resolveSassModuleUseTarget(
   return null;
 }
 
+export function resolveSassModuleUseTargetFilePath(
+  styleFilePath: string,
+  moduleUse: SassModuleUseHIR | null,
+  aliasResolver: SassModulePathAliasResolver | undefined,
+  fileExists: (candidate: string) => boolean,
+): string | null {
+  if (!moduleUse) return null;
+  const targetExists = (candidatePath: string): boolean =>
+    expandSassModuleCandidatePaths(candidatePath).some(fileExists);
+  for (const candidatePath of listSassModuleUseCandidatePaths(
+    styleFilePath,
+    moduleUse,
+    aliasResolver,
+    targetExists,
+  )) {
+    if (fileExists(candidatePath)) return candidatePath;
+  }
+  return null;
+}
+
 export function resolveSassModuleMemberRefTarget(
   styleDocumentForPath: (filePath: string) => StyleDocumentHIR | null,
   styleFilePath: string,

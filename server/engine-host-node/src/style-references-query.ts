@@ -189,6 +189,18 @@ export function resolveStyleReferencesAtCursor(
       uri: pathToFileUrl(args.filePath),
       range: symbol.range,
     }));
+    locations.push(
+      ...deps.styleDependencyGraph
+        .getIncomingSassModuleMemberRefs(
+          args.filePath,
+          sassSymbolDecl.symbolKind,
+          sassSymbolDecl.name,
+        )
+        .map<StyleReferenceLocation>((memberRef) => ({
+          uri: pathToFileUrl(memberRef.filePath),
+          range: memberRef.range,
+        })),
+    );
     if (args.includeDeclaration) {
       locations.unshift({
         uri: pathToFileUrl(args.filePath),

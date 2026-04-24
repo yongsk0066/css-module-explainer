@@ -144,5 +144,6 @@ function throwingStyleDependencyGraph(): StyleDependencyGraph {
     forgetWithinRoot: () => {},
     getIncoming: () => [],
     getOutgoing: () => [],
+    getIncomingSassModuleMemberRefs: () => [],
   };
 }

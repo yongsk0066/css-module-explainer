@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
+import type { AliasResolver } from "../../../engine-core-ts/src/core/cx/alias-resolver";
 import type { StyleDocumentHIR } from "../../../engine-core-ts/src/core/hir/style-types";
 import type { FileTask } from "../../../engine-core-ts/src/core/indexing/indexer-worker";
+import { resolveSassModuleUseTargetFilePath } from "../../../engine-core-ts/src/core/query";
 import { findLangForPath } from "../../../engine-core-ts/src/core/scss/lang-registry";
 import type { StyleIndexCache } from "../../../engine-core-ts/src/core/scss/scss-index";
 import type { WorkspaceStyleDependencyGraph } from "../../../engine-core-ts/src/core/semantic";
@@ -20,6 +22,8 @@ export interface StyleDocumentLookupArgs {
   readonly styleDependencyGraph: WorkspaceStyleDependencyGraph;
   readonly readOpenDocumentText: (path: string) => string | null;
   readonly readStyleFile: (path: string) => string | null;
+  readonly fileExists: (path: string) => boolean;
+  readonly aliasResolverForPath?: (path: string) => AliasResolver | null;
   readonly getModeForPath: (path: string) => ResourceSettings["scss"]["classnameTransform"];
 }
 
@@ -48,13 +52,29 @@ export function createStyleDocumentLookup(
     const mode = args.getModeForPath(path);
     if (buffered !== null) {
       const styleDocument = args.styleIndexCache.getStyleDocument(path, buffered, mode);
-      args.styleDependencyGraph.record(path, styleDocument);
+      args.styleDependencyGraph.record(path, styleDocument, {
+        resolveSassModuleUseTargetFilePath: (moduleUse) =>
+          resolveSassModuleUseTargetFilePath(
+            path,
+            moduleUse,
+            args.aliasResolverForPath?.(path) ?? undefined,
+            args.fileExists,
+          ),
+      });
       return styleDocument;
     }
     const content = args.readStyleFile(path);
     if (content === null) return null;
     const styleDocument = args.styleIndexCache.getStyleDocument(path, content, mode);
-    args.styleDependencyGraph.record(path, styleDocument);
+    args.styleDependencyGraph.record(path, styleDocument, {
+      resolveSassModuleUseTargetFilePath: (moduleUse) =>
+        resolveSassModuleUseTargetFilePath(
+          path,
+          moduleUse,
+          args.aliasResolverForPath?.(path) ?? undefined,
+          args.fileExists,
+        ),
+    });
     return styleDocument;
   };
 }

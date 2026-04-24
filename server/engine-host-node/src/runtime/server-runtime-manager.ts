@@ -60,6 +60,9 @@ export function createServerRuntimeManager(
     styleDependencyGraph: caches.styleDependencyGraph,
     readOpenDocumentText: args.readOpenDocumentText,
     readStyleFile: args.readStyleFile,
+    fileExists,
+    aliasResolverForPath: (stylePath) =>
+      runtimeManager?.getDepsForFilePath(stylePath)?.aliasResolver ?? null,
     getModeForPath: (stylePath) =>
       runtimeManager?.getDepsForFilePath(stylePath)?.settings.scss.classnameTransform ??
       DEFAULT_RESOURCE_SETTINGS.scss.classnameTransform,

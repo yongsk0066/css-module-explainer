@@ -167,12 +167,19 @@ export function resolveStyleHoverResult(
 
   const sassSymbolDecl = findSassSymbolDeclAtCursor(styleDocument, args.line, args.character);
   if (sassSymbolDecl) {
+    const incomingModuleMemberRefs = deps.styleDependencyGraph.getIncomingSassModuleMemberRefs(
+      args.filePath,
+      sassSymbolDecl.symbolKind,
+      sassSymbolDecl.name,
+    );
     return {
       kind: "sassSymbol",
       sassSymbolDecl,
       range: sassSymbolDecl.range,
       scssModulePath: args.filePath,
-      referenceCount: listSassSymbolsForDecl(styleDocument, sassSymbolDecl).length,
+      referenceCount:
+        listSassSymbolsForDecl(styleDocument, sassSymbolDecl).length +
+        incomingModuleMemberRefs.length,
     };
   }
 
@@ -227,7 +234,12 @@ export function resolveStyleHoverResult(
       headingName: `${sassModuleMemberRef.namespace}.${sassModuleMemberRef.name}`,
       note: `Referenced via Sass module ${sassModuleMemberRef.role}`,
       scssModulePath: target.filePath,
-      referenceCount: listSassModuleMemberRefsForMember(styleDocument, sassModuleMemberRef).length,
+      referenceCount:
+        deps.styleDependencyGraph.getIncomingSassModuleMemberRefs(
+          target.filePath,
+          target.decl.symbolKind,
+          target.decl.name,
+        ).length || listSassModuleMemberRefsForMember(styleDocument, sassModuleMemberRef).length,
     };
   }
 

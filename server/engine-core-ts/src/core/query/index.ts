@@ -39,6 +39,7 @@ export {
   resolveValueTarget,
   resolveComposesTarget,
   resolveSassModuleUseTarget,
+  resolveSassModuleUseTargetFilePath,
   resolveSassModuleMemberRefTarget,
   type ResolvedSassModuleMemberTarget,
   type ResolvedSassModuleUseTarget,

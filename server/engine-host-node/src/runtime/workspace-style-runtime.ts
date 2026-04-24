@@ -1,7 +1,9 @@
+import type { AliasResolver } from "../../../engine-core-ts/src/core/cx/alias-resolver";
 import type { StyleDocumentHIR } from "../../../engine-core-ts/src/core/hir/style-types";
 import { scssFileSupplier } from "../../../engine-core-ts/src/core/indexing/file-supplier";
 import type { FileTask } from "../../../engine-core-ts/src/core/indexing/indexer-worker";
 import { IndexerWorker } from "../../../engine-core-ts/src/core/indexing/indexer-worker";
+import { resolveSassModuleUseTargetFilePath } from "../../../engine-core-ts/src/core/query";
 import type { ResourceSettings } from "../../../engine-core-ts/src/settings";
 import type { SharedRuntimeCaches } from "./shared-runtime-caches";
 import { createScopedRuntimeLogger, type RuntimeSink } from "./runtime-sink";
@@ -18,6 +20,8 @@ export interface WorkspaceStyleRuntimeArgs {
   readonly io: WorkspaceStyleRuntimeIO;
   readonly sink: RuntimeSink;
   readonly serverName: string;
+  readonly fileExists: (path: string) => boolean;
+  readonly aliasResolver: () => AliasResolver;
   readonly getModeForStylePath: (path: string) => ResourceSettings["scss"]["classnameTransform"];
   readonly isOwnedStylePath: (stylePath: string) => boolean;
 }
@@ -55,7 +59,15 @@ export function createWorkspaceStyleRuntime(
         content,
         args.getModeForStylePath(stylePath),
       );
-      args.caches.styleDependencyGraph.record(stylePath, styleDocument);
+      args.caches.styleDependencyGraph.record(stylePath, styleDocument, {
+        resolveSassModuleUseTargetFilePath: (moduleUse) =>
+          resolveSassModuleUseTargetFilePath(
+            stylePath,
+            moduleUse,
+            args.aliasResolver(),
+            args.fileExists,
+          ),
+      });
     },
     logger,
   });

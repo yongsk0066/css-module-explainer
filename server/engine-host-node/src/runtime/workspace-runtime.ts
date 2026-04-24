@@ -51,6 +51,8 @@ export function createWorkspaceRuntime(args: WorkspaceRuntimeFactoryArgs): Works
     io: args.io,
     sink: args.sink,
     serverName: args.serverName,
+    fileExists: args.fileExists,
+    aliasResolver: () => settingsState.aliasResolver,
     getModeForStylePath: args.getModeForStylePath,
     isOwnedStylePath: createOwnedStylePathMatcher(args.workspaceFolders, args.folder.uri),
   });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { StyleDocumentHIR } from "../../../server/engine-core-ts/src/core/hir/style-types";
 import { parseStyleDocument } from "../../../server/engine-core-ts/src/core/scss/scss-parser";
+import { WorkspaceStyleDependencyGraph } from "../../../server/engine-core-ts/src/core/semantic/style-dependency-graph";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/engine-core-ts/src/core/semantic/workspace-reference-index";
 import {
   resolveStyleHoverResult,
@@ -204,6 +205,41 @@ describe("style hover query", () => {
       scssModulePath: TOKENS_PATH,
       headingName: "tokens.gap",
       note: "Referenced via Sass module reference",
+      referenceCount: 2,
+    });
+  });
+
+  it("counts namespace-qualified Sass member references from declaration hover data", () => {
+    const buttonScss = `@use "./tokens.module" as tokens;
+
+.button {
+  color: tokens.$gap;
+  margin: tokens.$gap;
+}
+`;
+    const tokensScss = `$gap: 1rem;`;
+    const styleDocument = parseStyleDocument(buttonScss, SCSS_PATH);
+    const targetDocument = parseStyleDocument(tokensScss, TOKENS_PATH);
+    const styleDependencyGraph = new WorkspaceStyleDependencyGraph();
+    styleDependencyGraph.record(SCSS_PATH, styleDocument, {
+      resolveSassModuleUseTargetFilePath: () => TOKENS_PATH,
+    });
+
+    const result = resolveStyleHoverResult(
+      {
+        filePath: TOKENS_PATH,
+        line: 0,
+        character: 1,
+      },
+      makeBaseDeps({
+        styleDocumentForPath: styleDocumentMap([styleDocument, targetDocument]),
+        styleDependencyGraph,
+      }),
+    );
+
+    expect(result).toMatchObject({
+      kind: "sassSymbol",
+      scssModulePath: TOKENS_PATH,
       referenceCount: 2,
     });
   });
