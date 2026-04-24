@@ -647,7 +647,7 @@ function collectSassSymbolDecls(root: Root): readonly SassSymbolDeclHIR[] {
         symbolKind: "variable",
         name,
         range,
-        ruleRange: rangeForDeclNode(decl),
+        ruleRange: rangeForSassVariableDeclScope(decl),
       }),
     );
   });
@@ -1239,6 +1239,14 @@ function rangeForDeclNode(node: Declaration): Range {
       : { line: 0, character: 0 },
     end: end ? { line: end.line - 1, character: end.column - 1 } : { line: 0, character: 0 },
   };
+}
+
+function rangeForSassVariableDeclScope(node: Declaration): Range {
+  const parent = node.parent;
+  if (parent?.type === "rule" || parent?.type === "atrule") {
+    return rangeForSourceNode(parent);
+  }
+  return rangeForDeclNode(node);
 }
 
 function findAtRuleParamTokenRange(

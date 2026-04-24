@@ -125,6 +125,43 @@ describe("resolveStyleDefinitionTargets", () => {
       },
     });
   });
+
+  it("prefers local Sass variable declarations over same-name file-scope declarations", () => {
+    const scss = `$gap: 1rem;
+.one {
+  $gap: 2rem;
+  color: $gap;
+}
+.two {
+  color: $gap;
+}
+`;
+    const deps = depsForDocuments([parseStyleDocument(scss, BUTTON_PATH)]);
+
+    const localTargets = resolveStyleDefinitionTargets(
+      { filePath: BUTTON_PATH, line: 3, character: 10 },
+      deps,
+    );
+    expect(localTargets).toHaveLength(1);
+    expect(localTargets[0]).toMatchObject({
+      targetSelectionRange: {
+        start: { line: 2, character: 2 },
+        end: { line: 2, character: 6 },
+      },
+    });
+
+    const fileScopeTargets = resolveStyleDefinitionTargets(
+      { filePath: BUTTON_PATH, line: 6, character: 10 },
+      deps,
+    );
+    expect(fileScopeTargets).toHaveLength(1);
+    expect(fileScopeTargets[0]).toMatchObject({
+      targetSelectionRange: {
+        start: { line: 0, character: 0 },
+        end: { line: 0, character: 4 },
+      },
+    });
+  });
 });
 
 function depsForDocuments(documents: readonly StyleDocumentHIR[]) {

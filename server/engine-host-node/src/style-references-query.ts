@@ -6,12 +6,13 @@ import {
   findKeyframesByName,
   findSassSymbolAtCursor,
   findSassSymbolDeclAtCursor,
+  findSassSymbolDeclForSymbol,
   findSelectorAtCursor,
   findValueDeclAtCursor,
   findValueImportAtCursor,
   findValueRefAtCursor,
   listAnimationNameRefs,
-  listSassSymbols,
+  listSassSymbolsForDecl,
   listValueRefs,
   resolveComposesTarget,
   resolveValueImportTarget,
@@ -177,10 +178,9 @@ export function resolveStyleReferencesAtCursor(
 
   const sassSymbolDecl = findSassSymbolDeclAtCursor(args.styleDocument, args.line, args.character);
   if (sassSymbolDecl) {
-    const locations = listSassSymbols(
+    const locations = listSassSymbolsForDecl(
       args.styleDocument,
-      sassSymbolDecl.symbolKind,
-      sassSymbolDecl.name,
+      sassSymbolDecl,
     ).map<StyleReferenceLocation>((symbol) => ({
       uri: pathToFileUrl(args.filePath),
       range: symbol.range,
@@ -196,18 +196,16 @@ export function resolveStyleReferencesAtCursor(
 
   const sassSymbol = findSassSymbolAtCursor(args.styleDocument, args.line, args.character);
   if (sassSymbol) {
-    const locations = listSassSymbols(
+    const matchedSassSymbolDecl = findSassSymbolDeclForSymbol(args.styleDocument, sassSymbol);
+    if (!matchedSassSymbolDecl) return [];
+    const locations = listSassSymbolsForDecl(
       args.styleDocument,
-      sassSymbol.symbolKind,
-      sassSymbol.name,
+      matchedSassSymbolDecl,
     ).map<StyleReferenceLocation>((symbol) => ({
       uri: pathToFileUrl(args.filePath),
       range: symbol.range,
     }));
-    const matchedSassSymbolDecl = args.styleDocument.sassSymbolDecls.find(
-      (decl) => decl.symbolKind === sassSymbol.symbolKind && decl.name === sassSymbol.name,
-    );
-    if (args.includeDeclaration && matchedSassSymbolDecl) {
+    if (args.includeDeclaration) {
       locations.unshift({
         uri: pathToFileUrl(args.filePath),
         range: matchedSassSymbolDecl.range,

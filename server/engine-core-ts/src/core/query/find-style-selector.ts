@@ -247,6 +247,27 @@ export function findSassSymbolDeclByName(
   );
 }
 
+export function findSassSymbolDeclForSymbol(
+  styleDocument: StyleDocumentHIR,
+  symbol: SassSymbolOccurrenceHIR,
+): SassSymbolDeclHIR | null {
+  const candidates = styleDocument.sassSymbolDecls.filter(
+    (decl) => decl.symbolKind === symbol.symbolKind && decl.name === symbol.name,
+  );
+  if (candidates.length === 0) return null;
+  if (symbol.symbolKind !== "variable") return candidates[0] ?? null;
+
+  const localCandidates = candidates
+    .filter((decl) => !isFileScopeSassVariableDecl(decl))
+    .filter((decl) =>
+      rangeContains(decl.ruleRange, symbol.range.start.line, symbol.range.start.character),
+    )
+    .toSorted(compareSassDeclScopeSpecificity);
+  return (
+    localCandidates[0] ?? candidates.find(isFileScopeSassVariableDecl) ?? candidates[0] ?? null
+  );
+}
+
 export function listSassSymbols(
   styleDocument: StyleDocumentHIR,
   symbolKind: SassSymbolDeclHIR["symbolKind"],
@@ -254,6 +275,38 @@ export function listSassSymbols(
 ): readonly SassSymbolOccurrenceHIR[] {
   return styleDocument.sassSymbols.filter(
     (symbol) => symbol.symbolKind === symbolKind && symbol.name === name,
+  );
+}
+
+export function listSassSymbolsForDecl(
+  styleDocument: StyleDocumentHIR,
+  decl: SassSymbolDeclHIR,
+): readonly SassSymbolOccurrenceHIR[] {
+  return styleDocument.sassSymbols.filter((symbol) => {
+    if (symbol.symbolKind !== decl.symbolKind || symbol.name !== decl.name) return false;
+    return findSassSymbolDeclForSymbol(styleDocument, symbol) === decl;
+  });
+}
+
+function isFileScopeSassVariableDecl(decl: SassSymbolDeclHIR): boolean {
+  return (
+    decl.symbolKind === "variable" &&
+    decl.range.start.line === decl.ruleRange.start.line &&
+    decl.range.start.character === decl.ruleRange.start.character
+  );
+}
+
+function compareSassDeclScopeSpecificity(a: SassSymbolDeclHIR, b: SassSymbolDeclHIR): number {
+  const sizeCompare = rangeSize(a.ruleRange) - rangeSize(b.ruleRange);
+  if (sizeCompare !== 0) return sizeCompare;
+  const lineCompare = b.range.start.line - a.range.start.line;
+  if (lineCompare !== 0) return lineCompare;
+  return b.range.start.character - a.range.start.character;
+}
+
+function rangeSize(range: SassSymbolDeclHIR["range"]): number {
+  return (
+    (range.end.line - range.start.line) * 1_000_000 + (range.end.character - range.start.character)
   );
 }
 

@@ -117,6 +117,37 @@ describe("style rename query", () => {
     ]);
   });
 
+  it("renames local Sass variables without touching same-name file-scope variables", () => {
+    const scss = `$gap: 1rem;
+.one {
+  $gap: 2rem;
+  color: $gap;
+}
+.two {
+  color: $gap;
+}
+`;
+    const styleDocument = parseStyleDocument(scss, SCSS_PATH);
+    const deps = makeBaseDeps({
+      styleDocumentForPath: (filePath) => (filePath === SCSS_PATH ? styleDocument : null),
+    });
+
+    const plan = planStyleRenameAtCursor(SCSS_PATH, 3, 10, styleDocument, deps, "space");
+    expect(plan?.kind).toBe("plan");
+    expect(plan?.kind === "plan" ? plan.plan.edits : []).toMatchObject([
+      {
+        uri: "file:///fake/src/Button.module.scss",
+        range: { start: { line: 2, character: 2 }, end: { line: 2, character: 6 } },
+        newText: "$space",
+      },
+      {
+        uri: "file:///fake/src/Button.module.scss",
+        range: { start: { line: 3, character: 9 }, end: { line: 3, character: 13 } },
+        newText: "$space",
+      },
+    ]);
+  });
+
   it("uses rust selector-usage payloads for rename safety blocking", () => {
     const deps = makeBaseDeps({
       selectorMapForPath: () => new Map([["indicator", infoAtLine("indicator", 1)]]),

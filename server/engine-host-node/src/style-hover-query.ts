@@ -7,13 +7,13 @@ import {
   findKeyframesByName,
   findSassSymbolAtCursor,
   findSassSymbolDeclAtCursor,
-  findSassSymbolDeclByName,
+  findSassSymbolDeclForSymbol,
   findSelectorAtCursor,
   findValueDeclAtCursor,
   findValueImportAtCursor,
   findValueRefAtCursor,
   listAnimationNameRefs,
-  listSassSymbols,
+  listSassSymbolsForDecl,
   listValueRefs,
   readSelectorStyleDependencySummary,
   readSelectorUsageSummary,
@@ -168,8 +168,7 @@ export function resolveStyleHoverResult(
       sassSymbolDecl,
       range: sassSymbolDecl.range,
       scssModulePath: args.filePath,
-      referenceCount: listSassSymbols(styleDocument, sassSymbolDecl.symbolKind, sassSymbolDecl.name)
-        .length,
+      referenceCount: listSassSymbolsForDecl(styleDocument, sassSymbolDecl).length,
     };
   }
 
@@ -190,7 +189,7 @@ export function resolveStyleHoverResult(
 
   const sassSymbol = findSassSymbolAtCursor(styleDocument, args.line, args.character);
   if (sassSymbol) {
-    const target = findSassSymbolDeclByName(styleDocument, sassSymbol.symbolKind, sassSymbol.name);
+    const target = findSassSymbolDeclForSymbol(styleDocument, sassSymbol);
     if (!target) return null;
     return {
       kind: "sassSymbol",
@@ -199,7 +198,7 @@ export function resolveStyleHoverResult(
       headingName: sassSymbol.name,
       note: `Referenced via Sass ${sassSymbol.role}`,
       scssModulePath: args.filePath,
-      referenceCount: listSassSymbols(styleDocument, sassSymbol.symbolKind, sassSymbol.name).length,
+      referenceCount: listSassSymbolsForDecl(styleDocument, target).length,
     };
   }
 

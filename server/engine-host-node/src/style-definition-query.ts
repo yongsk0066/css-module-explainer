@@ -5,7 +5,7 @@ import {
   findComposesTokenAtCursor,
   findKeyframesByName,
   findSassSymbolAtCursor,
-  findSassSymbolDeclByName,
+  findSassSymbolDeclForSymbol,
   findValueImportAtCursor,
   findValueRefAtCursor,
   resolveComposesTarget,
@@ -66,7 +66,7 @@ export function resolveStyleDefinitionTargets(
 
   const sassSymbol = findSassSymbolAtCursor(styleDocument, params.line, params.character);
   if (sassSymbol) {
-    const target = findSassSymbolDeclByName(styleDocument, sassSymbol.symbolKind, sassSymbol.name);
+    const target = findSassSymbolDeclForSymbol(styleDocument, sassSymbol);
     return target
       ? [toStyleDefinitionTarget(sassSymbol.range, styleDocument.filePath, target)]
       : [];

@@ -9,9 +9,9 @@ import { readStyleSelectorRewritePolicy } from "../../engine-core-ts/src/core/re
 import {
   findSassSymbolAtCursor,
   findSassSymbolDeclAtCursor,
-  findSassSymbolDeclByName,
+  findSassSymbolDeclForSymbol,
   findSelectorAtCursor,
-  listSassSymbols,
+  listSassSymbolsForDecl,
   readSelectorRewriteSafetySummary,
 } from "../../engine-core-ts/src/core/query";
 import type { ResolvedReferenceSite } from "../../engine-core-ts/src/core/query/find-references";
@@ -47,6 +47,7 @@ export interface SassSymbolRenameTarget {
   readonly styleDocument: StyleDocumentHIR;
   readonly symbolKind: SassSymbolDeclHIR["symbolKind"];
   readonly name: string;
+  readonly targetDecl: SassSymbolDeclHIR;
   readonly placeholder: string;
   readonly placeholderRange: SassSymbolDeclHIR["range"];
 }
@@ -168,6 +169,7 @@ function readSassSymbolRenameTargetAtCursor(
         styleDocument,
         decl.symbolKind,
         decl.name,
+        decl,
         decl.range,
       ),
     };
@@ -175,7 +177,7 @@ function readSassSymbolRenameTargetAtCursor(
 
   const symbol = findSassSymbolAtCursor(styleDocument, line, character);
   if (!symbol) return { kind: "miss" };
-  const targetDecl = findSassSymbolDeclByName(styleDocument, symbol.symbolKind, symbol.name);
+  const targetDecl = findSassSymbolDeclForSymbol(styleDocument, symbol);
   if (!targetDecl) return { kind: "miss" };
   return {
     kind: "target",
@@ -184,6 +186,7 @@ function readSassSymbolRenameTargetAtCursor(
       styleDocument,
       symbol.symbolKind,
       symbol.name,
+      targetDecl,
       symbol.range,
     ),
   };
@@ -227,6 +230,7 @@ function makeSassSymbolRenameTarget(
   styleDocument: StyleDocumentHIR,
   symbolKind: SassSymbolDeclHIR["symbolKind"],
   name: string,
+  targetDecl: SassSymbolDeclHIR,
   placeholderRange: SassSymbolDeclHIR["range"],
 ): SassSymbolRenameTarget {
   return {
@@ -235,6 +239,7 @@ function makeSassSymbolRenameTarget(
     styleDocument,
     symbolKind,
     name,
+    targetDecl,
     placeholder: formatSassSymbolText(symbolKind, name),
     placeholderRange,
   };
@@ -257,15 +262,12 @@ function planSassSymbolRename(
 
   const newText = formatSassSymbolText(target.symbolKind, nextName);
   const edits: PlannedTextEdit[] = [];
-  for (const decl of target.styleDocument.sassSymbolDecls) {
-    if (decl.symbolKind !== target.symbolKind || decl.name !== target.name) continue;
-    edits.push({
-      uri: target.scssUri,
-      range: decl.range,
-      newText,
-    });
-  }
-  for (const symbol of listSassSymbols(target.styleDocument, target.symbolKind, target.name)) {
+  edits.push({
+    uri: target.scssUri,
+    range: target.targetDecl.range,
+    newText,
+  });
+  for (const symbol of listSassSymbolsForDecl(target.styleDocument, target.targetDecl)) {
     edits.push({
       uri: target.scssUri,
       range: symbol.range,
