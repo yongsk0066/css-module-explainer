@@ -22,14 +22,19 @@ import {
   makeBaseDeps,
 } from "../../_fixtures/test-helpers";
 import { buildStyleDocumentFromSelectorMap } from "../../_fixtures/style-documents";
+import { documentFixture, workspace } from "../../../packages/vitest-cme/src";
 
-const TSX = `
+const SOURCE_PATH = "/fake/ws/src/Button.tsx";
+const SOURCE_URI = "file:///fake/ws/src/Button.tsx";
+const TSX_WORKSPACE = workspace({
+  [SOURCE_PATH]: `
 import classNames from 'classnames/bind';
 import styles from './Button.module.scss';
 const cx = classNames.bind(styles);
 const a = cx('indicator');
 const b = cx('unknonw');
-`;
+`,
+});
 
 const detectCxBindings = (_sourceFile: ts.SourceFile): CxBinding[] => [
   {
@@ -46,7 +51,7 @@ const detectCxBindings = (_sourceFile: ts.SourceFile): CxBinding[] => [
 
 const parseClassExpressions = (_sf: ts.SourceFile, bindings: readonly ResolvedCxBinding[]) =>
   buildTestClassExpressions({
-    filePath: "/fake/ws/src/Button.tsx",
+    filePath: SOURCE_PATH,
     bindings,
     expressions:
       bindings.length === 0
@@ -95,12 +100,11 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
 }
 
 describe("computeDiagnostics", () => {
-  const baseParams = {
-    documentUri: "file:///fake/ws/src/Button.tsx",
-    content: TSX,
-    filePath: "/fake/ws/src/Button.tsx",
-    version: 1,
-  };
+  const baseParams = documentFixture({
+    workspace: TSX_WORKSPACE,
+    filePath: SOURCE_PATH,
+    documentUri: SOURCE_URI,
+  });
 
   it("returns an empty array when all classes resolve", () => {
     const deps = makeDeps({
@@ -432,9 +436,20 @@ const a = cx(size);
 // ── missing-module diagnostics ───────────────────────────────
 
 describe("missing-module diagnostics", () => {
-  const MISSING_TSX = `import styles from './typo.module.scss';\nconst a = styles.foo;\n`;
+  const MISSING_SOURCE_PATH = "/fake/ws/src/App.tsx";
+  const MISSING_SOURCE_URI = "file:///fake/ws/src/App.tsx";
+  const MISSING_WORKSPACE = workspace({
+    [MISSING_SOURCE_PATH]:
+      "import styles from /*<module>*/'./typo.module.scss/*</module>*/';\nconst a = styles.foo;\n",
+  });
+  const missingParams = documentFixture({
+    workspace: MISSING_WORKSPACE,
+    filePath: MISSING_SOURCE_PATH,
+    documentUri: MISSING_SOURCE_URI,
+  });
 
   function makeMissingDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
+    const missingModuleRange = MISSING_WORKSPACE.range("module", MISSING_SOURCE_PATH).range;
     const sourceFileCache = new SourceFileCache({ max: 10 });
     const analysisCache = new DocumentAnalysisCache({
       sourceFileCache,
@@ -446,10 +461,7 @@ describe("missing-module diagnostics", () => {
               kind: "missing" as const,
               absolutePath: "/fake/ws/src/typo.module.scss",
               specifier: "./typo.module.scss",
-              range: {
-                start: { line: 0, character: 19 },
-                end: { line: 0, character: 38 },
-              },
+              range: missingModuleRange,
             },
           ],
         ]),
@@ -464,15 +476,7 @@ describe("missing-module diagnostics", () => {
 
   it("emits one diagnostic per missing import with code 'missing-module'", () => {
     const deps = makeMissingDeps();
-    const result = computeDiagnostics(
-      {
-        documentUri: "file:///fake/ws/src/App.tsx",
-        content: MISSING_TSX,
-        filePath: "/fake/ws/src/App.tsx",
-        version: 1,
-      },
-      deps,
-    );
+    const result = computeDiagnostics(missingParams, deps);
     expect(result).toHaveLength(1);
     expect(result[0]!.code).toBe("missing-module");
     expect(result[0]!.message).toContain("./typo.module.scss");
@@ -495,15 +499,7 @@ describe("missing-module diagnostics", () => {
         },
       },
     });
-    const result = computeDiagnostics(
-      {
-        documentUri: "file:///fake/ws/src/App.tsx",
-        content: MISSING_TSX,
-        filePath: "/fake/ws/src/App.tsx",
-        version: 1,
-      },
-      deps,
-    );
+    const result = computeDiagnostics(missingParams, deps);
     expect(result).toEqual([]);
   });
 

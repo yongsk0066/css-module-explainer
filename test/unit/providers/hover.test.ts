@@ -5,6 +5,7 @@ import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/sour
 import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
 import type { ProviderDeps } from "../../../server/lsp-server/src/providers/cursor-dispatch";
 import { handleHover } from "../../../server/lsp-server/src/providers/hover";
+import { cursorFixture, scenario, workspace, type Range } from "../../../packages/vitest-cme/src";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
 import {
   EMPTY_ALIAS_RESOLVER,
@@ -13,18 +14,25 @@ import {
   makeBaseDeps,
 } from "../../_fixtures/test-helpers";
 
-const TSX = `
+const SOURCE_PATH = "/fake/ws/src/Button.tsx";
+const SOURCE_URI = "file:///fake/ws/src/Button.tsx";
+const STYLE_PATH = "/fake/ws/src/Button.module.scss";
+
+const STATIC_HOVER_WORKSPACE = workspace({
+  [SOURCE_PATH]: `
 import classNames from 'classnames/bind';
 import styles from './Button.module.scss';
 const cx = classNames.bind(styles);
-const el = cx('indicator');
-`;
+const el = cx('/*<class>*/ind/*|*/icator/*</class>*/');
+`,
+});
+const STATIC_CLASS_RANGE = STATIC_HOVER_WORKSPACE.range("class", SOURCE_PATH).range;
 
 const detectCxBindings = (_sourceFile: ts.SourceFile): CxBinding[] => [
   {
     cxVarName: "cx",
     stylesVarName: "styles",
-    scssModulePath: "/fake/ws/src/Button.module.scss",
+    scssModulePath: STYLE_PATH,
     classNamesImportName: "classNames",
     bindingRange: {
       start: { line: 3, character: 6 },
@@ -33,7 +41,10 @@ const detectCxBindings = (_sourceFile: ts.SourceFile): CxBinding[] => [
   },
 ];
 
-function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
+function makeDeps(
+  overrides: Partial<ProviderDeps> = {},
+  expressionRange: Range = STATIC_CLASS_RANGE,
+): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
   const analysisCache = new DocumentAnalysisCache({
     sourceFileCache,
@@ -42,7 +53,7 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     scanCxImports: (sf, fp) => ({ stylesBindings: new Map(), bindings: detectCxBindings(sf, fp) }),
     parseClassExpressions: (_sf, bindings) =>
       buildTestClassExpressions({
-        filePath: "/fake/ws/src/Button.tsx",
+        filePath: SOURCE_PATH,
         bindings,
         expressions:
           bindings.length === 0
@@ -52,10 +63,7 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
                   kind: "literal",
                   origin: "cxCall",
                   className: "indicator",
-                  range: {
-                    start: { line: 4, character: 15 },
-                    end: { line: 4, character: 24 },
-                  },
+                  range: expressionRange,
                   scssModulePath: bindings[0]!.scssModulePath,
                 },
               ],
@@ -70,26 +78,37 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
 }
 
 describe("handleHover", () => {
-  const baseParams = {
-    documentUri: "file:///fake/ws/src/Button.tsx",
-    content: TSX,
-    filePath: "/fake/ws/src/Button.tsx",
-    line: 4,
-    character: 18,
+  const baseParams = cursorFixture({
+    workspace: STATIC_HOVER_WORKSPACE,
+    filePath: SOURCE_PATH,
+    documentUri: SOURCE_URI,
     version: 1,
-  };
+  });
 
-  it("returns a Hover with markdown for a static call", () => {
-    const hover = handleHover(baseParams, makeDeps());
+  it("returns a Hover with markdown for a static call", async () => {
+    const spec = scenario({
+      name: "hover/static-cx-literal",
+      workspace: STATIC_HOVER_WORKSPACE,
+      actions: {
+        hover: ({ workspace: testWorkspace, target }) => {
+          const cursor = cursorFixture({
+            workspace: testWorkspace,
+            filePath: SOURCE_PATH,
+            documentUri: SOURCE_URI,
+            markerName: target.name,
+          });
+          return handleHover(cursor, makeDeps({}, testWorkspace.range("class", SOURCE_PATH).range));
+        },
+      },
+    });
+
+    const hover = await spec.hover("cursor", SOURCE_PATH);
     expect(hover).not.toBeNull();
     expect(hover!.contents).toHaveProperty("kind", "markdown");
     const value = (hover!.contents as { value: string }).value;
     expect(value).toContain("`.indicator`");
     expect(value).toContain("Button.module.scss");
-    expect(hover!.range).toEqual({
-      start: { line: 4, character: 15 },
-      end: { line: 4, character: 24 },
-    });
+    expect(hover!.range).toEqual(STATIC_CLASS_RANGE);
   });
 
   it("resolves hover on a continuation line of a multi-line cx() call", () => {

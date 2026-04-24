@@ -1,3 +1,9 @@
+export { cursorFixture, type CmeCursorFixture, type CmeCursorFixtureOptions } from "./cursor";
+export {
+  documentFixture,
+  type CmeDocumentFixture,
+  type CmeDocumentFixtureOptions,
+} from "./document";
 export {
   MarkerParseError,
   workspace,

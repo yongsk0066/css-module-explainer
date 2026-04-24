@@ -1,13 +1,18 @@
 # Vitest CME
 
-Internal Phase 1 test DSL seed for CSS Module Explainer.
+Internal test DSL seed for CSS Module Explainer.
 
-This package intentionally does not move existing `test/_fixtures` ownership and
-does not migrate existing protocol/unit tests. The initial surface is limited to:
+This package is the incremental home for marker-driven test scenarios. Existing
+`test/_fixtures` helpers remain valid; provider and protocol tests can migrate
+one fixture at a time.
 
 - `workspace()` fixture text parser
 - marker syntax: `/*|*/`, `/*at:name*/`, `/*<range>*/.../*</range>*/`
-- `scenario()` wrapper actions: `hover`, `definition`, `prepareRename`
+- `documentFixture()` for provider-style document params from a workspace file
+- `cursorFixture()` for provider-style cursor params from a marker
+- `scenario()` wrapper actions: `hover`, `definition`, `prepareRename`,
+  `codeAction`, `completion`, with action result types preserved
 - `registerCmeMatchers()` with five domain-oriented matchers
 
-The package is self-tested from `test/unit/vitest-cme`.
+The package is self-tested from `test/unit/vitest-cme`; migrated provider
+fixtures use it directly from the relevant provider test.

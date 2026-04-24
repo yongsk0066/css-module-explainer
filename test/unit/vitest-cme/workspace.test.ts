@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { MarkerParseError, workspace } from "../../../packages/vitest-cme/src";
+import {
+  MarkerParseError,
+  cursorFixture,
+  documentFixture,
+  workspace,
+} from "../../../packages/vitest-cme/src";
 
 describe("vitest-cme workspace markers", () => {
   it("strips cursor markers and records zero-based positions", () => {
@@ -61,5 +66,54 @@ describe("vitest-cme workspace markers", () => {
 
     expect(ws.file("Button.tsx").content).toBe('const literal = "/*|*/";');
     expect(() => ws.marker()).toThrow(/Missing marker "cursor"/);
+  });
+
+  it("builds provider cursor params from a marker", () => {
+    const ws = workspace({
+      "Button.tsx": "const cls = cx(/*at:hover*/styles.root);",
+    });
+
+    expect(
+      cursorFixture({
+        workspace: ws,
+        filePath: "Button.tsx",
+        documentUri: "file:///fake/Button.tsx",
+        markerName: "hover",
+        version: 3,
+      }),
+    ).toEqual({
+      documentUri: "file:///fake/Button.tsx",
+      content: "const cls = cx(styles.root);",
+      filePath: "Button.tsx",
+      line: 0,
+      character: 15,
+      position: { line: 0, character: 15 },
+      marker: {
+        name: "hover",
+        filePath: "Button.tsx",
+        position: { line: 0, character: 15 },
+      },
+      version: 3,
+    });
+  });
+
+  it("builds provider document params from a workspace file", () => {
+    const ws = workspace({
+      "Button.tsx": "const cls = cx('indicator');",
+    });
+
+    expect(
+      documentFixture({
+        workspace: ws,
+        filePath: "Button.tsx",
+        documentUri: "file:///fake/Button.tsx",
+        version: 4,
+      }),
+    ).toMatchObject({
+      documentUri: "file:///fake/Button.tsx",
+      content: "const cls = cx('indicator');",
+      filePath: "Button.tsx",
+      version: 4,
+    });
   });
 });

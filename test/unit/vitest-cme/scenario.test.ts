@@ -53,6 +53,34 @@ describe("vitest-cme scenario wrapper", () => {
     });
   });
 
+  it("runs the codeAction action at the default marker", async () => {
+    const spec = scenario({
+      workspace: ws,
+      actions: {
+        codeAction: ({ target }) => ({ request: "codeAction", filePath: target.filePath }),
+      },
+    });
+
+    await expect(spec.codeAction()).resolves.toEqual({
+      request: "codeAction",
+      filePath: "Button.tsx",
+    });
+  });
+
+  it("runs the completion action at the default marker", async () => {
+    const spec = scenario({
+      workspace: ws,
+      actions: {
+        completion: ({ target }) => ({ request: "completion", position: target.position }),
+      },
+    });
+
+    await expect(spec.completion()).resolves.toEqual({
+      request: "completion",
+      position: { line: 0, character: 15 },
+    });
+  });
+
   it("fails clearly when an action is missing", async () => {
     const spec = scenario({
       name: "missing action",

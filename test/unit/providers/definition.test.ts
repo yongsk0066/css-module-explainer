@@ -5,6 +5,7 @@ import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/sour
 import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
 import type { ProviderDeps } from "../../../server/lsp-server/src/providers/cursor-dispatch";
 import { handleDefinition } from "../../../server/lsp-server/src/providers/definition";
+import { cursorFixture, scenario, workspace, type Range } from "../../../packages/vitest-cme/src";
 import {
   EMPTY_ALIAS_RESOLVER,
   buildTestClassExpressions,
@@ -12,18 +13,25 @@ import {
   makeBaseDeps,
 } from "../../_fixtures/test-helpers";
 
-const TSX = `
+const SOURCE_PATH = "/fake/src/Button.tsx";
+const SOURCE_URI = "file:///fake/src/Button.tsx";
+const STYLE_PATH = "/fake/src/Button.module.scss";
+
+const STATIC_DEFINITION_WORKSPACE = workspace({
+  [SOURCE_PATH]: `
 import classNames from 'classnames/bind';
 import styles from './Button.module.scss';
 const cx = classNames.bind(styles);
-const el = cx('indicator');
-`;
+const el = cx('/*<class>*/ind/*|*/icator/*</class>*/');
+`,
+});
+const STATIC_CLASS_RANGE = STATIC_DEFINITION_WORKSPACE.range("class", SOURCE_PATH).range;
 
 const detectCxBindings = (_sourceFile: ts.SourceFile): CxBinding[] => [
   {
     cxVarName: "cx",
     stylesVarName: "styles",
-    scssModulePath: "/fake/src/Button.module.scss",
+    scssModulePath: STYLE_PATH,
     classNamesImportName: "classNames",
     bindingRange: {
       start: { line: 3, character: 6 },
@@ -32,7 +40,10 @@ const detectCxBindings = (_sourceFile: ts.SourceFile): CxBinding[] => [
   },
 ];
 
-function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
+function makeDeps(
+  overrides: Partial<ProviderDeps> = {},
+  expressionRange: Range = STATIC_CLASS_RANGE,
+): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
   const analysisCache = new DocumentAnalysisCache({
     sourceFileCache,
@@ -41,7 +52,7 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     scanCxImports: (sf, fp) => ({ stylesBindings: new Map(), bindings: detectCxBindings(sf, fp) }),
     parseClassExpressions: (_sf, bindings) =>
       buildTestClassExpressions({
-        filePath: "/fake/src/Button.tsx",
+        filePath: SOURCE_PATH,
         bindings,
         expressions:
           bindings.length === 0
@@ -51,10 +62,7 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
                   kind: "literal",
                   origin: "cxCall",
                   className: "indicator",
-                  range: {
-                    start: { line: 4, character: 15 },
-                    end: { line: 4, character: 24 },
-                  },
+                  range: expressionRange,
                   scssModulePath: bindings[0]!.scssModulePath,
                 },
               ],
@@ -70,27 +78,40 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
 }
 
 describe("handleDefinition", () => {
-  const baseParams = {
-    documentUri: "file:///fake/src/Button.tsx",
-    content: TSX,
-    filePath: "/fake/src/Button.tsx",
-    line: 4,
-    character: 18,
+  const baseParams = cursorFixture({
+    workspace: STATIC_DEFINITION_WORKSPACE,
+    filePath: SOURCE_PATH,
+    documentUri: SOURCE_URI,
     version: 1,
-  };
+  });
 
-  it("returns a LocationLink pointing at the SCSS rule for a static call", () => {
-    const deps = makeDeps();
-    const result = handleDefinition(baseParams, deps);
+  it("returns a LocationLink pointing at the SCSS rule for a static call", async () => {
+    const spec = scenario({
+      name: "definition/static-cx-literal",
+      workspace: STATIC_DEFINITION_WORKSPACE,
+      actions: {
+        definition: ({ workspace: testWorkspace, target }) => {
+          const cursor = cursorFixture({
+            workspace: testWorkspace,
+            filePath: SOURCE_PATH,
+            documentUri: SOURCE_URI,
+            markerName: target.name,
+          });
+          return handleDefinition(
+            cursor,
+            makeDeps({}, testWorkspace.range("class", SOURCE_PATH).range),
+          );
+        },
+      },
+    });
+
+    const result = await spec.definition("cursor", SOURCE_PATH);
     expect(result).not.toBeNull();
     expect(result).toHaveLength(1);
     const link = result![0]!;
     expect(link.targetUri).toMatch(/Button\.module\.scss$/);
     expect(link.targetUri.startsWith("file://")).toBe(true);
-    expect(link.originSelectionRange).toEqual({
-      start: { line: 4, character: 15 },
-      end: { line: 4, character: 24 },
-    });
+    expect(link.originSelectionRange).toEqual(STATIC_CLASS_RANGE);
     expect(link.targetRange).toEqual({
       start: { line: 10, character: 0 },
       end: { line: 13, character: 1 },

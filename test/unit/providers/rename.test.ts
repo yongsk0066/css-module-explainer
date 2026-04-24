@@ -11,6 +11,7 @@ import type {
 import { handlePrepareRename, handleRename } from "../../../server/lsp-server/src/providers/rename";
 import { DEFAULT_SETTINGS } from "../../../server/engine-core-ts/src/settings";
 import type { Settings } from "../../../server/engine-core-ts/src/settings";
+import { cursorFixture, scenario, workspace, type Range } from "../../../packages/vitest-cme/src";
 import {
   EMPTY_ALIAS_RESOLVER,
   buildTestClassExpressions,
@@ -263,11 +264,17 @@ it("logs and returns null on exception in rename", () => {
 
 // ── TS/TSX side tests ──
 
-const TSX_CONTENT = `import classNames from 'classnames/bind';
+const TSX_PATH = "/fake/src/App.tsx";
+const TSX_URI = "file:///fake/src/App.tsx";
+const TSX_WORKSPACE = workspace({
+  [TSX_PATH]: `import classNames from 'classnames/bind';
 import styles from './Button.module.scss';
 const cx = classNames.bind(styles);
-const a = cx('indicator');
-`;
+const a = cx('/*<class>*/ind/*|*/icator/*</class>*/');
+`,
+});
+const TSX_CONTENT = TSX_WORKSPACE.file(TSX_PATH).content;
+const TSX_CLASS_RANGE = TSX_WORKSPACE.range("class", TSX_PATH).range;
 
 const BINDING: CxBinding = {
   cxVarName: "cx",
@@ -280,7 +287,10 @@ const BINDING: CxBinding = {
   },
 };
 
-function makeTsxDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
+function makeTsxDeps(
+  overrides: Partial<ProviderDeps> = {},
+  expressionRange: Range = TSX_CLASS_RANGE,
+): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
   const analysisCache = new DocumentAnalysisCache({
     sourceFileCache,
@@ -302,7 +312,7 @@ function makeTsxDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     }),
     parseClassExpressions: (_sf, bindings) =>
       buildTestClassExpressions({
-        filePath: "/fake/src/App.tsx",
+        filePath: TSX_PATH,
         bindings,
         expressions:
           bindings.length === 0
@@ -312,10 +322,7 @@ function makeTsxDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
                   kind: "literal",
                   origin: "cxCall",
                   className: "indicator",
-                  range: {
-                    start: { line: 3, character: 14 },
-                    end: { line: 3, character: 23 },
-                  },
+                  range: expressionRange,
                   scssModulePath: bindings[0]!.scssModulePath,
                 },
               ],
@@ -331,25 +338,35 @@ function makeTsxDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
 }
 
 describe("handlePrepareRename from TS/TSX", () => {
-  it("returns range and placeholder for cursor on cx('indicator')", () => {
-    const cursorParams: CursorParams = {
-      documentUri: "file:///fake/src/App.tsx",
-      content: TSX_CONTENT,
-      filePath: "/fake/src/App.tsx",
-      line: 3,
-      character: 16,
-      version: 1,
-    };
-    const result = handlePrepareRename(
-      {
-        textDocument: { uri: "file:///fake/src/App.tsx" },
-        position: { line: 3, character: 16 },
+  it("returns range and placeholder for cursor on cx('indicator')", async () => {
+    const spec = scenario({
+      name: "prepareRename/static-cx-literal",
+      workspace: TSX_WORKSPACE,
+      actions: {
+        prepareRename: ({ workspace: testWorkspace, target }) => {
+          const cursor = cursorFixture({
+            workspace: testWorkspace,
+            filePath: TSX_PATH,
+            documentUri: TSX_URI,
+            markerName: target.name,
+            version: 1,
+          });
+          return handlePrepareRename(
+            {
+              textDocument: { uri: TSX_URI },
+              position: cursor.position,
+            },
+            makeTsxDeps({}, testWorkspace.range("class", TSX_PATH).range),
+            cursor,
+          );
+        },
       },
-      makeTsxDeps(),
-      cursorParams,
-    );
+    });
+
+    const result = await spec.prepareRename("cursor", TSX_PATH);
     expect(result).not.toBeNull();
     expect(result!.placeholder).toBe("indicator");
+    expect(result!.range).toEqual(TSX_CLASS_RANGE);
   });
 
   it("throws a message when the cursor is on a dynamic class expression", () => {

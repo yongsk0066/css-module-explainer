@@ -7,6 +7,7 @@ import {
 } from "vscode-languageserver-protocol/node";
 import type { ProviderDeps } from "../../../server/lsp-server/src/providers/cursor-dispatch";
 import { handleCodeAction } from "../../../server/lsp-server/src/providers/code-actions";
+import { scenario, workspace } from "../../../packages/vitest-cme/src";
 import { makeBaseDeps } from "../../_fixtures/test-helpers";
 
 function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
@@ -17,13 +18,17 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   });
 }
 
-function diagnostic(suggestion: string | undefined, message = "foo"): Diagnostic {
+function diagnostic(
+  suggestion: string | undefined,
+  message = "foo",
+  range: Diagnostic["range"] = {
+    start: { line: 4, character: 15 },
+    end: { line: 4, character: 24 },
+  },
+): Diagnostic {
   const className = /Class '\.([^']+)'/.exec(message)?.[1] ?? "generated";
   return {
-    range: {
-      start: { line: 4, character: 15 },
-      end: { line: 4, character: 24 },
-    },
+    range,
     severity: DiagnosticSeverity.Warning,
     source: "css-module-explainer",
     message,
@@ -56,9 +61,32 @@ function makeParams(diagnostics: Diagnostic[]): CodeActionParams {
 }
 
 describe("handleCodeAction", () => {
-  it("returns replace and create actions for a diagnostic with a suggestion", () => {
-    const d = diagnostic("indicator", "Class '.indicaror' not found. Did you mean 'indicator'?");
-    const result = handleCodeAction(makeParams([d]), makeDeps());
+  it("returns replace and create actions for a diagnostic with a suggestion", async () => {
+    const ws = workspace({
+      "src/Button.tsx": "const cls = cx('/*<missing>*/indicaror/*</missing>*/');/*|*/",
+    });
+    const d = diagnostic(
+      "indicator",
+      "Class '.indicaror' not found. Did you mean 'indicator'?",
+      ws.range("missing", "src/Button.tsx").range,
+    );
+    const spec = scenario({
+      name: "code action quick fix",
+      workspace: ws,
+      actions: {
+        codeAction: ({ workspace: fixture }) =>
+          handleCodeAction(
+            {
+              textDocument: { uri: "file:///fake/src/Button.tsx" },
+              range: fixture.range("missing", "src/Button.tsx").range,
+              context: { diagnostics: [d], triggerKind: 1 },
+            },
+            makeDeps(),
+          ),
+      },
+    });
+
+    const result = await spec.codeAction();
     expect(result).not.toBeNull();
     expect(result).toHaveLength(2);
     const action = result![0]!;
