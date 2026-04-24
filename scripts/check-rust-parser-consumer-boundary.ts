@@ -179,6 +179,70 @@ function rangeContains(outer: Range, inner: Range): boolean {
   );
 }
 
+function assertSassSymbolProviderRangeInvariants(
+  label: string,
+  filePath: string,
+  source: string,
+  facts: ParserSassSeedFactsV0["selectorSymbolFacts"],
+): void {
+  const document = parseStyleDocument(source, filePath);
+  for (const fact of facts) {
+    const containingSelector = document.selectors.find(
+      (selector) =>
+        selector.name === fact.selectorName && rangeContains(selector.ruleRange, fact.range),
+    );
+    assert.ok(
+      containingSelector,
+      `${label}: Sass ${fact.symbolKind} ${fact.name} range must be contained by selector ${fact.selectorName}`,
+    );
+    assert.equal(
+      sliceRange(source, fact.range),
+      expectedSassSymbolToken(fact),
+      `${label}: Sass ${fact.symbolKind} ${fact.name} range must point at the source token`,
+    );
+  }
+}
+
+function expectedSassSymbolToken(
+  fact: ParserSassSeedFactsV0["selectorSymbolFacts"][number],
+): string {
+  return fact.symbolKind === "variable" ? `$${fact.name}` : fact.name;
+}
+
+function sliceRange(source: string, range: Range): string {
+  return source.slice(
+    codeUnitOffsetForPosition(source, range.start),
+    codeUnitOffsetForPosition(source, range.end),
+  );
+}
+
+function codeUnitOffsetForPosition(
+  source: string,
+  target: { readonly line: number; readonly character: number },
+): number {
+  let line = 0;
+  let character = 0;
+  let offset = 0;
+
+  while (offset < source.length) {
+    if (line === target.line && character === target.character) return offset;
+    const codePoint = source.codePointAt(offset);
+    if (codePoint === undefined) break;
+    const codeUnitLength = codePoint > 0xffff ? 2 : 1;
+    const token = source.slice(offset, offset + codeUnitLength);
+    if (token === "\n") {
+      line += 1;
+      character = 0;
+    } else {
+      character += codeUnitLength;
+    }
+    offset += codeUnitLength;
+  }
+
+  if (line === target.line && character === target.character) return offset;
+  throw new Error(`Could not map position ${target.line}:${target.character} to a source offset`);
+}
+
 function uniqueSorted(values: readonly string[]): string[] {
   return [...new Set(values)].toSorted((left, right) => left.localeCompare(right));
 }
@@ -459,6 +523,12 @@ void (async () => {
         `expected: ${JSON.stringify(expected, null, 2)}`,
         `actual: ${JSON.stringify(actual, null, 2)}`,
       ].join("\n"),
+    );
+    assertSassSymbolProviderRangeInvariants(
+      entry.label,
+      entry.filePath,
+      entry.source,
+      actual.sassSymbolResolution.selectorSymbolFacts,
     );
 
     process.stdout.write(
