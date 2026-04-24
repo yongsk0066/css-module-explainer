@@ -240,6 +240,11 @@ export function styleDocumentSemanticFingerprint(styleDocument: StyleDocumentHIR
     .map((moduleForward) =>
       [
         moduleForward.source,
+        moduleForward.prefix,
+        moduleForward.visibilityKind,
+        moduleForward.visibilityMembers
+          .map((member) => `${member.symbolKind ?? "member"}:${member.name}`)
+          .join(","),
         moduleForward.range.start.line,
         moduleForward.range.start.character,
         moduleForward.range.end.line,

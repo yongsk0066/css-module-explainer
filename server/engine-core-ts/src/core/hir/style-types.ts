@@ -109,9 +109,19 @@ export interface SassModuleUseHIR extends HirNodeBase {
   readonly ruleRange: Range;
 }
 
+export type SassModuleForwardVisibilityKind = "all" | "show" | "hide";
+
+export interface SassModuleForwardMemberHIR {
+  readonly name: string;
+  readonly symbolKind: "variable" | null;
+}
+
 export interface SassModuleForwardHIR extends HirNodeBase {
   readonly kind: "sassModuleForward";
   readonly source: string;
+  readonly prefix: string;
+  readonly visibilityKind: SassModuleForwardVisibilityKind;
+  readonly visibilityMembers: readonly SassModuleForwardMemberHIR[];
   readonly range: Range;
   readonly ruleRange: Range;
 }

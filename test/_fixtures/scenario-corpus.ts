@@ -213,6 +213,9 @@ export function normalizeStyleDocument(doc: StyleDocumentHIR): unknown {
       ? {
           sassModuleForwards: doc.sassModuleForwards.map((moduleForward) => ({
             source: moduleForward.source,
+            prefix: moduleForward.prefix,
+            visibilityKind: moduleForward.visibilityKind,
+            visibilityMembers: moduleForward.visibilityMembers,
             range: normalizeRange(moduleForward.range),
             ruleRange: normalizeRange(moduleForward.ruleRange),
           })),

@@ -411,6 +411,44 @@ describe("resolveStyleReferencesAtCursor", () => {
     ]);
     expect(result.map((location) => location.range.start.line)).toEqual([0, 3, 4]);
   });
+
+  it("returns prefixed forwarded wildcard references from the reference cursor", () => {
+    const filePath = "/fake/src/Button.module.scss";
+    const themePath = "/fake/src/theme.module.scss";
+    const tokensPath = "/fake/src/tokens.module.scss";
+    const buttonScss = `@use "./theme.module" as *;
+
+.button {
+  color: $theme-gap;
+  margin: $theme-gap;
+}
+`;
+    const themeScss = `@forward "./tokens.module" as theme-* show $gap;`;
+    const tokensScss = `$gap: 1rem;`;
+    const styleDocument = parseStyleDocument(buttonScss, filePath);
+    const themeDocument = parseStyleDocument(themeScss, themePath);
+    const targetDocument = parseStyleDocument(tokensScss, tokensPath);
+
+    const result = resolveStyleReferencesAtCursor(
+      {
+        filePath,
+        line: 3,
+        character: 12,
+        includeDeclaration: true,
+        styleDocument,
+      },
+      makeDeps({
+        styleDocumentForPath: styleDocumentMap([styleDocument, themeDocument, targetDocument]),
+      }),
+    );
+
+    expect(result.map((location) => location.uri)).toEqual([
+      "file:///fake/src/tokens.module.scss",
+      "file:///fake/src/Button.module.scss",
+      "file:///fake/src/Button.module.scss",
+    ]);
+    expect(result.map((location) => location.range.start.line)).toEqual([0, 3, 4]);
+  });
 });
 
 function styleDocumentMap(documents: readonly StyleDocumentHIR[]) {

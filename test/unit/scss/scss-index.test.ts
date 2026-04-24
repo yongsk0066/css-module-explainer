@@ -429,18 +429,39 @@ describe("parseStyleSelectorMap / edge cases", () => {
     });
 
     it("records @forward edges with source ranges", () => {
-      const source = `@forward "./tokens";
-@forward "../theme/_spacing.scss?raw";`;
+      const source = `@forward "./tokens" as theme-* show $gap, raised;
+@forward "../theme/_spacing.scss?raw" hide $private, hidden;`;
       const document = parseStyleDocument(source, "/fake/a.module.scss");
 
       expect(
         document.sassModuleForwards.map((moduleForward) => [
           moduleForward.source,
+          moduleForward.prefix,
+          moduleForward.visibilityKind,
+          moduleForward.visibilityMembers,
           sliceRange(source, moduleForward.range),
         ]),
       ).toEqual([
-        ["./tokens", "./tokens"],
-        ["../theme/_spacing.scss?raw", "../theme/_spacing.scss?raw"],
+        [
+          "./tokens",
+          "theme-",
+          "show",
+          [
+            { name: "gap", symbolKind: "variable" },
+            { name: "raised", symbolKind: null },
+          ],
+          "./tokens",
+        ],
+        [
+          "../theme/_spacing.scss?raw",
+          "",
+          "hide",
+          [
+            { name: "private", symbolKind: "variable" },
+            { name: "hidden", symbolKind: null },
+          ],
+          "../theme/_spacing.scss?raw",
+        ],
       ]);
     });
   });

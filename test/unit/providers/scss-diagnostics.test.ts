@@ -700,6 +700,54 @@ describe("computeScssUnusedDiagnostics", () => {
     expect(diagnostics.filter((entry) => entry.message.includes("Sass "))).toEqual([]);
   });
 
+  it("honors prefixed forward hide policies for wildcard Sass diagnostics", () => {
+    const themePath = "/fake/theme.module.scss";
+    const tokensPath = "/fake/tokens.module.scss";
+    const styleDoc = parseStyleDocument(
+      `@use "./theme.module" as *;
+
+.button {
+  color: $theme-gap;
+  border-color: theme-tone($theme-gap);
+  background: theme-hidden($theme-gap);
+  margin: $theme-secret;
+}`,
+      SCSS_PATH,
+    );
+    const themeDoc = parseStyleDocument(
+      `@forward "./tokens.module" as theme-* hide $secret, hidden;`,
+      themePath,
+    );
+    const targetDoc = parseStyleDocument(
+      `$gap: 1rem;
+$secret: 2rem;
+@function tone($value) { @return $value; }
+@function hidden($value) { @return $value; }`,
+      tokensPath,
+    );
+    const byPath = new Map([
+      [SCSS_PATH, styleDoc],
+      [themePath, themeDoc],
+      [tokensPath, targetDoc],
+    ]);
+
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      styleDoc,
+      new WorkspaceSemanticWorkspaceReferenceIndex(),
+      new WorkspaceStyleDependencyGraph(),
+      (filePath) => byPath.get(filePath) ?? null,
+    );
+
+    const sassMessages = diagnostics
+      .map((entry) => entry.message)
+      .filter((message) => message.includes("Sass "));
+    expect(sassMessages).toEqual([
+      "Sass function 'theme-hidden()' not found in this file.",
+      "Sass variable '$theme-secret' not found in this file.",
+    ]);
+  });
+
   it("keeps reporting wildcard Sass symbols that are not exported by the module", () => {
     const tokensPath = "/fake/tokens.module.scss";
     const styleDoc = parseStyleDocument(

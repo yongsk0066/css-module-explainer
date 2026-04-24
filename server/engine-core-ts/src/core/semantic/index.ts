@@ -10,6 +10,7 @@ export {
 } from "./workspace-reference-index";
 export {
   WorkspaceStyleDependencyGraph,
+  type SassModuleExportedSymbolDependencyTarget,
   type StyleDependencyGraph,
   type StyleDependencyReason,
   type StyleDependencySelectorRef,

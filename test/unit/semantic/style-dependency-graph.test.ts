@@ -150,4 +150,39 @@ describe("WorkspaceStyleDependencyGraph", () => {
     ]);
     expect(graph.getIncomingSassModuleMemberRefs(themePath, "variable", "gap")).toEqual([]);
   });
+
+  it("records prefixed forwarded Sass module references against the original target name", () => {
+    const graph = new WorkspaceStyleDependencyGraph();
+    const filePath = "/fake/button.module.scss";
+    const targetPath = "/fake/_tokens.module.scss";
+    const styleDocument = parseStyleDocument(
+      `@use "./theme.module" as *;
+
+.button {
+  color: $theme-gap;
+}`,
+      filePath,
+    );
+
+    graph.record(filePath, styleDocument, {
+      resolveSassModuleExportedSymbolTargets: (_moduleUse, symbolKind, name) =>
+        symbolKind === "variable" && name === "theme-gap"
+          ? [{ filePath: targetPath, name: "gap" }]
+          : [],
+    });
+
+    expect(graph.getIncomingSassModuleMemberRefs(targetPath, "variable", "gap")).toEqual([
+      {
+        filePath,
+        namespace: "*",
+        symbolKind: "variable",
+        name: "gap",
+        range: {
+          start: { line: 3, character: 9 },
+          end: { line: 3, character: 19 },
+        },
+      },
+    ]);
+    expect(graph.getIncomingSassModuleMemberRefs(targetPath, "variable", "theme-gap")).toEqual([]);
+  });
 });

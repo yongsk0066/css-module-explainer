@@ -70,8 +70,8 @@ export function createStyleDocumentLookup(
             args.aliasResolverForPath?.(path) ?? undefined,
             args.fileExists,
           ),
-        resolveSassModuleExportedSymbolTargetFilePaths: (moduleUse, symbolKind, name) =>
-          resolveSassModuleExportedSymbolTargetFilePaths(
+        resolveSassModuleExportedSymbolTargets: (moduleUse, symbolKind, name) =>
+          resolveSassModuleExportedSymbolTargets(
             path,
             moduleUse,
             symbolKind,
@@ -95,8 +95,8 @@ export function createStyleDocumentLookup(
           args.aliasResolverForPath?.(path) ?? undefined,
           args.fileExists,
         ),
-      resolveSassModuleExportedSymbolTargetFilePaths: (moduleUse, symbolKind, name) =>
-        resolveSassModuleExportedSymbolTargetFilePaths(
+      resolveSassModuleExportedSymbolTargets: (moduleUse, symbolKind, name) =>
+        resolveSassModuleExportedSymbolTargets(
           path,
           moduleUse,
           symbolKind,
@@ -126,14 +126,14 @@ function readStyleDocumentForGraph(
   return content === null ? null : args.styleIndexCache.getStyleDocument(targetPath, content, mode);
 }
 
-function resolveSassModuleExportedSymbolTargetFilePaths(
+function resolveSassModuleExportedSymbolTargets(
   stylePath: string,
   moduleUse: SassModuleUseHIR,
   symbolKind: SassSymbolKind,
   name: string,
   styleDocumentForPath: (filePath: string) => StyleDocumentHIR | null,
   aliasResolver: AliasResolver | undefined,
-): readonly string[] {
+): readonly { readonly filePath: string; readonly name: string }[] {
   const target = resolveSassModuleUseTarget(
     styleDocumentForPath,
     stylePath,
@@ -148,7 +148,10 @@ function resolveSassModuleExportedSymbolTargetFilePaths(
     symbolKind,
     name,
     aliasResolver,
-  ).map((exportedTarget) => exportedTarget.filePath);
+  ).map((exportedTarget) => ({
+    filePath: exportedTarget.filePath,
+    name: exportedTarget.decl.name,
+  }));
 }
 
 export function createWorkspaceRuntimeIO(options: WorkspaceRuntimeIOOptions): WorkspaceRuntimeIO {

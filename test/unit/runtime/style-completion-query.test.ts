@@ -173,6 +173,56 @@ describe("resolveStyleCompletionItems", () => {
     ).toEqual(["tone"]);
   });
 
+  it("returns prefixed completions filtered by forwarded wildcard @use targets", () => {
+    const scss = `@use "./theme.module" as *;
+
+.button {
+  color: $theme;
+  @include theme-ra;
+  border-color: theme-to;
+}
+`;
+    const themeScss = `@forward "./tokens.module" as theme-* show $gap, raised, tone;`;
+    const tokensScss = `$gap: 1rem;
+$secret: 2rem;
+@mixin raised() {}
+@function tone($value) { @return $value; }
+@function hidden($value) { @return $value; }
+`;
+    const styleDocument = parseStyleDocument(scss, SCSS_PATH);
+    const themeDocument = parseStyleDocument(themeScss, THEME_PATH);
+    const targetDocument = parseStyleDocument(tokensScss, TOKENS_PATH);
+    const styleDocumentForPath = styleDocumentMap([styleDocument, themeDocument, targetDocument]);
+
+    expect(
+      resolveStyleCompletionItems({
+        content: scss,
+        line: 3,
+        character: 15,
+        styleDocument,
+        styleDocumentForPath,
+      }).map((item) => item.label),
+    ).toEqual(["$theme-gap"]);
+    expect(
+      resolveStyleCompletionItems({
+        content: scss,
+        line: 4,
+        character: 19,
+        styleDocument,
+        styleDocumentForPath,
+      }).map((item) => item.label),
+    ).toEqual(["theme-raised"]);
+    expect(
+      resolveStyleCompletionItems({
+        content: scss,
+        line: 5,
+        character: 24,
+        styleDocument,
+        styleDocumentForPath,
+      }).map((item) => item.label),
+    ).toEqual(["theme-tone"]);
+  });
+
   it("keeps Sass parameter variables local to their callable body", () => {
     const scss = `$gap: 1rem;
 @mixin raised($depth) {

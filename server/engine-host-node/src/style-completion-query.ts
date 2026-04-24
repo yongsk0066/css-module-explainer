@@ -165,10 +165,10 @@ function collectWildcardSassSymbolCompletionDecls(
       target.styleDocument,
       aliasResolver,
     )) {
-      const key = `${exportedTarget.decl.symbolKind}:${exportedTarget.decl.name}`;
+      const key = `${exportedTarget.decl.symbolKind}:${exportedTarget.exportedName}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      decls.push(exportedTarget.decl);
+      decls.push({ ...exportedTarget.decl, name: exportedTarget.exportedName });
     }
   }
   return decls;

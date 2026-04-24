@@ -349,6 +349,40 @@ describe("style hover query", () => {
       referenceCount: 2,
     });
   });
+
+  it("counts prefixed forwarded wildcard references from reference hover data", () => {
+    const buttonScss = `@use "./theme.module" as *;
+
+.button {
+  color: $theme-gap;
+  margin: $theme-gap;
+}
+`;
+    const themeScss = `@forward "./tokens.module" as theme-* show $gap;`;
+    const tokensScss = `$gap: 1rem;`;
+    const themePath = "/fake/ws/src/theme.module.scss";
+    const styleDocument = parseStyleDocument(buttonScss, SCSS_PATH);
+    const themeDocument = parseStyleDocument(themeScss, themePath);
+    const targetDocument = parseStyleDocument(tokensScss, TOKENS_PATH);
+
+    const result = resolveStyleHoverResult(
+      {
+        filePath: SCSS_PATH,
+        line: 3,
+        character: 12,
+      },
+      makeBaseDeps({
+        styleDocumentForPath: styleDocumentMap([styleDocument, themeDocument, targetDocument]),
+      }),
+    );
+
+    expect(result).toMatchObject({
+      kind: "sassSymbol",
+      scssModulePath: TOKENS_PATH,
+      headingName: "theme-gap",
+      referenceCount: 2,
+    });
+  });
 });
 
 function styleDocumentMap(documents: readonly StyleDocumentHIR[]) {

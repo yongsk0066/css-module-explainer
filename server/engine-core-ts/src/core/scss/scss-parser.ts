@@ -18,6 +18,7 @@ import {
   type KeyframesDeclHIR,
   type NestedSelectorSafety,
   type SassModuleForwardHIR,
+  type SassModuleForwardMemberHIR,
   type SassModuleMemberRefHIR,
   type SassModuleUseHIR,
   type SassSymbolDeclHIR,
@@ -697,6 +698,8 @@ function parseSassModuleUses(atrule: AtRule): readonly SassModuleUseHIR[] {
 
 function parseSassModuleForwards(atrule: AtRule): readonly SassModuleForwardHIR[] {
   const ruleRange = rangeForSourceNode(atrule);
+  const prefix = parseSassModuleForwardPrefix(atrule.params);
+  const visibility = parseSassModuleForwardVisibility(atrule.params);
   return [...atrule.params.matchAll(/["']([^"']+)["']/g)].flatMap((match, index) => {
     const source = match[1];
     if (!source) return [];
@@ -708,11 +711,42 @@ function parseSassModuleForwards(atrule: AtRule): readonly SassModuleForwardHIR[
         kind: "sassModuleForward",
         id: `sass-forward:${atrule.source?.start?.line ?? 0}:${index}:${source}`,
         source,
+        prefix,
+        visibilityKind: visibility.visibilityKind,
+        visibilityMembers: visibility.visibilityMembers,
         range,
         ruleRange,
       },
     ];
   });
+}
+
+function parseSassModuleForwardPrefix(params: string): string {
+  const withoutQuotedSource = params.replaceAll(/["'](?:\\.|[^"'])*["']/g, " ");
+  return /\bas\s+([A-Za-z_-][A-Za-z0-9_-]*)\*/.exec(withoutQuotedSource)?.[1] ?? "";
+}
+
+function parseSassModuleForwardVisibility(
+  params: string,
+): Pick<SassModuleForwardHIR, "visibilityKind" | "visibilityMembers"> {
+  const withoutQuotedSource = params.replaceAll(/["'](?:\\.|[^"'])*["']/g, " ");
+  const policyText = withoutQuotedSource.split(/\bwith\s*\(/u, 1)[0]!.trim();
+  const match = /\b(show|hide)\s+(.+)$/u.exec(policyText);
+  if (!match) return { visibilityKind: "all", visibilityMembers: [] };
+  const visibilityKind = match[1] === "hide" ? "hide" : "show";
+  const visibilityMembers = match[2]!
+    .split(",")
+    .map((raw) => parseSassModuleForwardMember(raw.trim()))
+    .filter((member): member is SassModuleForwardMemberHIR => member !== null);
+  return { visibilityKind, visibilityMembers };
+}
+
+function parseSassModuleForwardMember(raw: string): SassModuleForwardMemberHIR | null {
+  if (raw.startsWith("$")) {
+    const name = raw.slice(1);
+    return isValidSassNamespace(name) ? { name, symbolKind: "variable" } : null;
+  }
+  return isValidSassNamespace(raw) ? { name: raw, symbolKind: null } : null;
 }
 
 function parseSassModuleUseAlias(params: string): string | undefined {
