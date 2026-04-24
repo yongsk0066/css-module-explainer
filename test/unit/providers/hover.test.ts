@@ -28,10 +28,11 @@ const STATIC_HOVER_WORKSPACE = workspace({
   [SOURCE_PATH]: `
 import classNames from 'classnames/bind';
 import styles from './Button.module.scss';
-const cx = classNames.bind(styles);
+const /*<binding>*/cx/*</binding>*/ = classNames.bind(styles);
 const el = cx('/*<class>*/ind/*|*/icator/*</class>*/');
 `,
 });
+const STATIC_BINDING_RANGE = STATIC_HOVER_WORKSPACE.range("binding", SOURCE_PATH).range;
 const STATIC_CLASS_RANGE = STATIC_HOVER_WORKSPACE.range("class", SOURCE_PATH).range;
 
 const detectCxBindings = (_sourceFile: ts.SourceFile): CxBinding[] => [
@@ -40,10 +41,7 @@ const detectCxBindings = (_sourceFile: ts.SourceFile): CxBinding[] => [
     stylesVarName: "styles",
     scssModulePath: STYLE_PATH,
     classNamesImportName: "classNames",
-    bindingRange: {
-      start: { line: 3, character: 6 },
-      end: { line: 3, character: 8 },
-    },
+    bindingRange: STATIC_BINDING_RANGE,
   },
 ];
 

@@ -21,10 +21,11 @@ const CX_COMPLETION_WORKSPACE = workspace({
   [SOURCE_PATH]: `
 import classNames from 'classnames/bind';
 import styles from './Button.module.scss';
-const cx = classNames.bind(styles);
+const /*<binding>*/cx/*</binding>*/ = classNames.bind(styles);
 const el = cx('/*|*/
 `,
 });
+const CX_BINDING_RANGE = CX_COMPLETION_WORKSPACE.range("binding", SOURCE_PATH).range;
 
 const detectCxBindings = (sourceFile: ts.SourceFile): CxBinding[] =>
   sourceFile.text.includes("classnames/bind") && sourceFile.text.includes(".module.")
@@ -34,10 +35,7 @@ const detectCxBindings = (sourceFile: ts.SourceFile): CxBinding[] =>
           stylesVarName: "styles",
           scssModulePath: "/fake/ws/src/Button.module.scss",
           classNamesImportName: "classNames",
-          bindingRange: {
-            start: { line: 3, character: 6 },
-            end: { line: 3, character: 8 },
-          },
+          bindingRange: CX_BINDING_RANGE,
         },
       ]
     : [];

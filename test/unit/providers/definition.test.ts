@@ -27,11 +27,13 @@ const STATIC_DEFINITION_WORKSPACE = workspace({
   [SOURCE_PATH]: `
 import classNames from 'classnames/bind';
 import styles from './Button.module.scss';
-const cx = classNames.bind(styles);
+const /*<binding>*/cx/*</binding>*/ = classNames.bind(styles);
 const el = cx('/*<class>*/ind/*|*/icator/*</class>*/');
 `,
 });
+const STATIC_BINDING_RANGE = STATIC_DEFINITION_WORKSPACE.range("binding", SOURCE_PATH).range;
 const STATIC_CLASS_RANGE = STATIC_DEFINITION_WORKSPACE.range("class", SOURCE_PATH).range;
+const INDICATOR_INFO = info("indicator");
 
 const detectCxBindings = (_sourceFile: ts.SourceFile): CxBinding[] => [
   {
@@ -39,10 +41,7 @@ const detectCxBindings = (_sourceFile: ts.SourceFile): CxBinding[] => [
     stylesVarName: "styles",
     scssModulePath: STYLE_PATH,
     classNamesImportName: "classNames",
-    bindingRange: {
-      start: { line: 3, character: 6 },
-      end: { line: 3, character: 8 },
-    },
+    bindingRange: STATIC_BINDING_RANGE,
   },
 ];
 
@@ -77,7 +76,7 @@ function makeDeps(
   });
   return makeBaseDeps({
     analysisCache,
-    selectorMapForPath: () => new Map([["indicator", info("indicator")]]),
+    selectorMapForPath: () => new Map([["indicator", INDICATOR_INFO]]),
     workspaceRoot: "/fake",
     ...overrides,
   });
@@ -121,14 +120,8 @@ describe("handleDefinition", () => {
     expect(link.targetUri).toMatch(/Button\.module\.scss$/);
     expect(link.targetUri.startsWith("file://")).toBe(true);
     expect(link.originSelectionRange).toEqual(STATIC_CLASS_RANGE);
-    expect(link.targetRange).toEqual({
-      start: { line: 10, character: 0 },
-      end: { line: 13, character: 1 },
-    });
-    expect(link.targetSelectionRange).toEqual({
-      start: { line: 11, character: 2 },
-      end: { line: 11, character: 11 },
-    });
+    expect(link.targetRange).toEqual(INDICATOR_INFO.ruleRange);
+    expect(link.targetSelectionRange).toEqual(INDICATOR_INFO.range);
   });
 
   it("returns null when the cursor is not on a cx call", () => {

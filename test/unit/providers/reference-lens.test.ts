@@ -56,21 +56,17 @@ describe("handleCodeLens", () => {
   it("uses semantic reference counts when available", () => {
     const idx = new WorkspaceSemanticWorkspaceReferenceIndex();
     idx.record("file:///a.tsx", [
-      {
-        refId: "class-expr:0",
-        selectorId: "selector:/fake/src/Button.module.scss:indicator",
-        filePath: "/fake/src/App.tsx",
-        uri: "file:///fake/src/App.tsx",
-        range: { start: { line: 10, character: 5 }, end: { line: 10, character: 14 } },
-        origin: "cxCall",
-        scssModulePath: "/fake/src/Button.module.scss",
-        selectorFilePath: "/fake/src/Button.module.scss",
-        canonicalName: "indicator",
-        className: "indicator",
-        certainty: "exact",
-        reason: "literal",
-        expansion: "direct",
-      },
+      semanticSiteAt(
+        "file:///fake/src/App.tsx",
+        "indicator",
+        10,
+        "/fake/src/Button.module.scss",
+        "indicator",
+        {
+          start: 5,
+          end: 14,
+        },
+      ),
     ]);
     const result = handleCodeLens(
       { textDocument: { uri: "file:///fake/src/Button.module.scss" } },
@@ -124,21 +120,19 @@ describe("handleCodeLens", () => {
   it("annotates dynamic references in the code lens title", () => {
     const idx = new WorkspaceSemanticWorkspaceReferenceIndex();
     idx.record("file:///a.tsx", [
-      {
-        refId: "ref:dynamic",
-        selectorId: "selector:/fake/src/Button.module.scss:indicator",
-        filePath: "/fake/src/App.tsx",
-        uri: "file:///fake/src/App.tsx",
-        range: { start: { line: 10, character: 5 }, end: { line: 10, character: 18 } },
-        origin: "cxCall",
-        scssModulePath: "/fake/src/Button.module.scss",
-        selectorFilePath: "/fake/src/Button.module.scss",
-        canonicalName: "indicator",
-        className: "indicator",
-        certainty: "inferred",
-        reason: "templatePrefix",
-        expansion: "expanded",
-      },
+      semanticSiteAt(
+        "file:///fake/src/App.tsx",
+        "indicator",
+        10,
+        "/fake/src/Button.module.scss",
+        "indicator",
+        {
+          start: 5,
+          end: 18,
+          certainty: "inferred",
+          reason: "templatePrefix",
+        },
+      ),
     ]);
 
     const result = handleCodeLens(

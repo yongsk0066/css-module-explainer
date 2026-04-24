@@ -38,13 +38,32 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
 const SOURCE_PATH = "/fake/src/App.tsx";
 const SOURCE_URI = "file:///fake/src/App.tsx";
 const STYLE_PATH = "/fake/src/Button.module.scss";
+const STYLE_URI = "file:///fake/src/Button.module.scss";
+const NON_STYLE_PATH = "/fake/src/Button.tsx";
+const NON_STYLE_URI = "file:///fake/src/Button.tsx";
+const NON_STYLE_WORKSPACE = workspace({
+  [NON_STYLE_PATH]: "/*|*/const value = 1;\n",
+});
 const SOURCE_WORKSPACE = workspace({
   [SOURCE_PATH]: `import classNames from 'classnames/bind';
 import styles from './Button.module.scss';
-const cx = classNames.bind(styles);
+const /*<binding>*/cx/*</binding>*/ = classNames.bind(styles);
 const a = cx('/*<class>*/ind/*|*/icator/*</class>*/');
 `,
 });
+const STYLE_WORKSPACE = workspace({
+  [STYLE_PATH]: `
+.unused {}
+.unused {}
+.unused {}
+.unused {}
+./*|*/indicator {}
+`,
+});
+const NO_SELECTOR_STYLE_WORKSPACE = workspace({
+  [STYLE_PATH]: "/*|*/.unused {}\n",
+});
+const SOURCE_BINDING_RANGE = SOURCE_WORKSPACE.range("binding", SOURCE_PATH).range;
 const SOURCE_CLASS_RANGE = SOURCE_WORKSPACE.range("class", SOURCE_PATH).range;
 
 const SOURCE_BINDING: CxBinding = {
@@ -52,10 +71,7 @@ const SOURCE_BINDING: CxBinding = {
   stylesVarName: "styles",
   scssModulePath: STYLE_PATH,
   classNamesImportName: "classNames",
-  bindingRange: {
-    start: { line: 2, character: 6 },
-    end: { line: 2, character: 8 },
-  },
+  bindingRange: SOURCE_BINDING_RANGE,
 };
 
 function sourceCursor(fixture: CmeWorkspace = SOURCE_WORKSPACE, markerName = "cursor") {
@@ -76,8 +92,12 @@ function sourceReferenceParams(cursor = sourceCursor()) {
   };
 }
 
-function styleCursorPosition(fixture: CmeWorkspace, markerName = "cursor") {
-  return targetFixture({ workspace: fixture, markerName }).position;
+function styleCursorPosition(
+  fixture: CmeWorkspace = STYLE_WORKSPACE,
+  markerName = "cursor",
+  filePath?: string,
+) {
+  return targetFixture({ workspace: fixture, markerName, filePath }).position;
 }
 
 function makeSourceDeps(expressionRange: Range = SOURCE_CLASS_RANGE): ProviderDeps {
@@ -129,8 +149,8 @@ describe("handleReferences", () => {
   it("returns null for non-style files", () => {
     const result = handleReferences(
       {
-        textDocument: { uri: "file:///fake/src/Button.tsx" },
-        position: { line: 0, character: 0 },
+        textDocument: { uri: NON_STYLE_URI },
+        position: targetFixture({ workspace: NON_STYLE_WORKSPACE }).position,
         context: { includeDeclaration: true },
       },
       makeDeps(),
@@ -157,8 +177,8 @@ describe("handleReferences", () => {
   it("returns null when cursor is not on a class selector", () => {
     const result = handleReferences(
       {
-        textDocument: { uri: "file:///fake/src/Button.module.scss" },
-        position: { line: 99, character: 0 },
+        textDocument: { uri: STYLE_URI },
+        position: styleCursorPosition(NO_SELECTOR_STYLE_WORKSPACE),
         context: { includeDeclaration: true },
       },
       makeDeps(),
@@ -173,8 +193,8 @@ describe("handleReferences", () => {
     ]);
     const result = handleReferences(
       {
-        textDocument: { uri: "file:///fake/src/Button.module.scss" },
-        position: { line: 5, character: 3 },
+        textDocument: { uri: STYLE_URI },
+        position: styleCursorPosition(),
         context: { includeDeclaration: true },
       },
       makeDeps({ semanticReferenceIndex: idx }),
@@ -186,27 +206,26 @@ describe("handleReferences", () => {
 
   it("prefers semantic reference sites when available", () => {
     const idx = new WorkspaceSemanticWorkspaceReferenceIndex();
-    idx.record("file:///fake/src/App.tsx", [
+    const semanticWorkspace = workspace({
+      [SOURCE_PATH]: "const a = cx('/*<class>*/indicator/*</class>*/');",
+    });
+    const expectedRange = semanticWorkspace.range("class", SOURCE_PATH).range;
+    const expectedSite = semanticSiteAt(
+      "file:///fake/src/App.tsx",
+      "indicator",
+      expectedRange.start.line,
+      "/fake/src/Button.module.scss",
+      "indicator",
       {
-        refId: "class-expr:0",
-        selectorId: "selector:/fake/src/Button.module.scss:indicator",
-        filePath: "/fake/src/App.tsx",
-        uri: "file:///fake/src/App.tsx",
-        range: { start: { line: 12, character: 8 }, end: { line: 12, character: 17 } },
-        origin: "cxCall",
-        scssModulePath: "/fake/src/Button.module.scss",
-        selectorFilePath: "/fake/src/Button.module.scss",
-        canonicalName: "indicator",
-        className: "indicator",
-        certainty: "exact",
-        reason: "literal",
-        expansion: "direct",
+        start: expectedRange.start.character,
+        end: expectedRange.end.character,
       },
-    ]);
+    );
+    idx.record("file:///fake/src/App.tsx", [expectedSite]);
     const result = handleReferences(
       {
-        textDocument: { uri: "file:///fake/src/Button.module.scss" },
-        position: { line: 5, character: 3 },
+        textDocument: { uri: STYLE_URI },
+        position: styleCursorPosition(),
         context: { includeDeclaration: true },
       },
       makeDeps({ semanticReferenceIndex: idx }),
@@ -216,10 +235,7 @@ describe("handleReferences", () => {
     expect(result).toHaveLength(1);
     expect(result![0]).toEqual({
       uri: "file:///fake/src/App.tsx",
-      range: {
-        start: { line: 12, character: 8 },
-        end: { line: 12, character: 17 },
-      },
+      range: expectedRange,
     });
   });
 
@@ -229,20 +245,20 @@ describe("handleReferences", () => {
     const SCSS_PATH = "/fake/src/Button.module.scss";
     const SCSS_URI = "file:///fake/src/Button.module.scss";
     const TEMPLATE_URI = "file:///fake/src/App.tsx";
-    const TEMPLATE_RANGE = {
-      start: { line: 5, character: 14 },
-      end: { line: 5, character: 30 },
-    };
+    const TEMPLATE_WORKSPACE = workspace({
+      [SOURCE_PATH]: `const a = cx(/*<template>*/\`btn-\${weight}\`/*</template>*/);`,
+    });
+    const TEMPLATE_RANGE = TEMPLATE_WORKSPACE.range("template", SOURCE_PATH).range;
 
     const idx = new WorkspaceSemanticWorkspaceReferenceIndex();
     idx.record(TEMPLATE_URI, [
-      semanticSiteAt(TEMPLATE_URI, "btn-small", 5, SCSS_PATH, "btn-small", {
+      semanticSiteAt(TEMPLATE_URI, "btn-small", TEMPLATE_RANGE.start.line, SCSS_PATH, "btn-small", {
         start: TEMPLATE_RANGE.start.character,
         end: TEMPLATE_RANGE.end.character,
         certainty: "inferred",
         reason: "templatePrefix",
       }),
-      semanticSiteAt(TEMPLATE_URI, "btn-large", 5, SCSS_PATH, "btn-large", {
+      semanticSiteAt(TEMPLATE_URI, "btn-large", TEMPLATE_RANGE.start.line, SCSS_PATH, "btn-large", {
         start: TEMPLATE_RANGE.start.character,
         end: TEMPLATE_RANGE.end.character,
         certainty: "inferred",
@@ -253,7 +269,11 @@ describe("handleReferences", () => {
     const result = handleReferences(
       {
         textDocument: { uri: SCSS_URI },
-        position: { line: 1, character: 3 },
+        position: styleCursorPosition(
+          workspace({ [SCSS_PATH]: "\n./*|*/btn-small {}\n.btn-large {}\n" }),
+          "cursor",
+          SCSS_PATH,
+        ),
         context: { includeDeclaration: true },
       },
       makeBaseDeps({
@@ -302,7 +322,11 @@ describe("handleReferences", () => {
     const result = handleReferences(
       {
         textDocument: { uri: BASE_URI },
-        position: { line: 5, character: 3 },
+        position: styleCursorPosition(
+          workspace({ [BASE_PATH]: "\n\n\n\n\n./*|*/base {}\n" }),
+          "cursor",
+          BASE_PATH,
+        ),
         context: { includeDeclaration: true },
       },
       makeBaseDeps({
@@ -317,12 +341,10 @@ describe("handleReferences", () => {
     );
 
     expect(result).not.toBeNull();
+    const buttonInfo = infoAtLine("button", 5);
     expect(result).toContainEqual({
       uri: "file:///fake/src/button.module.scss",
-      range: {
-        start: { line: 5, character: 1 },
-        end: { line: 5, character: 7 },
-      },
+      range: buttonInfo.range,
     });
   });
 
@@ -330,6 +352,21 @@ describe("handleReferences", () => {
   // Cursor on `&--primary` resolves to the nested class entry that
   // the resolved-name fallback range would miss.
   it("findSelectorAtCursor prefers bemSuffix.rawTokenRange over resolved range", () => {
+    const fixture = workspace({
+      [STYLE_PATH]: `.button {
+  /*<raw>*/&--primary/*</raw>*/ {}
+}
+`,
+    });
+    const rawTokenRange = fixture.range("raw", STYLE_PATH).range;
+    const resolvedName = "button--primary";
+    const resolvedRange: Range = {
+      start: rawTokenRange.start,
+      end: {
+        line: rawTokenRange.start.line,
+        character: rawTokenRange.start.character + resolvedName.length,
+      },
+    };
     // Fixture: `.button { &--primary {} }` on two lines.
     // Line 0: `.button {`
     // Line 1: `  &--primary {}`
@@ -338,16 +375,10 @@ describe("handleReferences", () => {
     // — the cursor on the `&` column (line 1, char 2) falls INSIDE
     // bemSuffix.rawTokenRange {start:{line:1,char:2}, end:{line:1,char:12}}.
     const selector = {
-      ...infoAtLine("button--primary", 1),
-      range: {
-        start: { line: 1, character: 2 },
-        end: { line: 1, character: 17 },
-      },
+      ...infoAtLine(resolvedName, rawTokenRange.start.line),
+      range: resolvedRange,
       bemSuffix: {
-        rawTokenRange: {
-          start: { line: 1, character: 2 },
-          end: { line: 1, character: 12 },
-        },
+        rawTokenRange,
         rawToken: "&--primary",
         parentResolvedName: "button",
       },
@@ -362,14 +393,22 @@ describe("handleReferences", () => {
     // Cursor on the `&` character at (line 1, character 2). The
     // rawTokenRange covers exactly this position; the test locks
     // down that findSelectorAtCursor prefers it.
-    const hit = findSelectorAtCursor(styleDocument, 1, 2);
+    const hit = findSelectorAtCursor(
+      styleDocument,
+      rawTokenRange.start.line,
+      rawTokenRange.start.character,
+    );
     expect(hit).not.toBeNull();
-    expect(hit!.name).toBe("button--primary");
+    expect(hit!.name).toBe(resolvedName);
 
     // Cursor past the rawTokenRange's end (character 11 is the
     // last char `y`; 12 is still INCLUSIVE at the end per the
     // codebase's rangeContains convention). Character 13 is past.
-    const miss = findSelectorAtCursor(styleDocument, 1, 13);
+    const miss = findSelectorAtCursor(
+      styleDocument,
+      rawTokenRange.end.line,
+      rawTokenRange.end.character + 1,
+    );
     expect(miss).toBeNull();
   });
 
@@ -457,8 +496,8 @@ describe("handleReferences", () => {
     const logError = vi.fn();
     const result = handleReferences(
       {
-        textDocument: { uri: "file:///fake/src/Button.module.scss" },
-        position: { line: 5, character: 3 },
+        textDocument: { uri: STYLE_URI },
+        position: styleCursorPosition(),
         context: { includeDeclaration: true },
       },
       makeDeps({
