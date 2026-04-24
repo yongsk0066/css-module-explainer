@@ -8,7 +8,12 @@ import type { ProviderDeps } from "../../../server/lsp-server/src/providers/curs
 import { handleCompletion } from "../../../server/lsp-server/src/providers/completion";
 import { detectClassUtilImports } from "../../../server/engine-core-ts/src/core/cx/binding-detector";
 import { EMPTY_ALIAS_RESOLVER, info, makeBaseDeps } from "../../_fixtures/test-helpers";
-import { cursorFixture, scenario, workspace } from "../../../packages/vitest-cme/src";
+import {
+  cursorFixture,
+  scenario,
+  workspace,
+  type CmeWorkspace,
+} from "../../../packages/vitest-cme/src";
 
 const SOURCE_PATH = "/fake/ws/src/Button.tsx";
 const SOURCE_URI = "file:///fake/ws/src/Button.tsx";
@@ -20,7 +25,6 @@ const cx = classNames.bind(styles);
 const el = cx('/*|*/
 `,
 });
-const TSX = CX_COMPLETION_WORKSPACE.file(SOURCE_PATH).content;
 
 const detectCxBindings = (sourceFile: ts.SourceFile): CxBinding[] =>
   sourceFile.text.includes("classnames/bind") && sourceFile.text.includes(".module.")
@@ -59,6 +63,21 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   });
 }
 
+function completionCursor(
+  fixture: CmeWorkspace,
+  markerName = "cursor",
+  filePath = SOURCE_PATH,
+  documentUri = SOURCE_URI,
+) {
+  return cursorFixture({
+    workspace: fixture,
+    filePath,
+    documentUri,
+    markerName,
+    version: 1,
+  });
+}
+
 describe("handleCompletion", () => {
   it("returns all classes when inside a cx() call", async () => {
     const spec = scenario({
@@ -66,15 +85,7 @@ describe("handleCompletion", () => {
       workspace: CX_COMPLETION_WORKSPACE,
       actions: {
         completion: ({ target, workspace: fixture }) =>
-          handleCompletion(
-            cursorFixture({
-              workspace: fixture,
-              filePath: target.filePath,
-              documentUri: SOURCE_URI,
-              markerName: target.name,
-            }),
-            makeDeps(),
-          ),
+          handleCompletion(completionCursor(fixture, target.name, target.filePath), makeDeps()),
       },
     });
 
@@ -86,30 +97,26 @@ describe("handleCompletion", () => {
   });
 
   it("returns null when not inside a cx call", () => {
-    const result = handleCompletion(
-      {
-        documentUri: SOURCE_URI,
-        content: TSX,
-        filePath: SOURCE_PATH,
-        line: 1, // import line
-        character: 0,
-        version: 1,
-      },
-      makeDeps(),
-    );
+    const notInCallWorkspace = workspace({
+      [SOURCE_PATH]: `
+/*|*/import classNames from 'classnames/bind';
+import styles from './Button.module.scss';
+const cx = classNames.bind(styles);
+const el = cx('
+`,
+    });
+    const result = handleCompletion(completionCursor(notInCallWorkspace), makeDeps());
     expect(result).toBeNull();
   });
 
   it("returns null when file does not import classnames/bind", () => {
+    const plainPath = "/fake/ws/src/Plain.tsx";
+    const plainUri = "file:///fake/ws/src/Plain.tsx";
+    const plainWorkspace = workspace({
+      [plainPath]: "const /*|*/x = 1;\n",
+    });
     const result = handleCompletion(
-      {
-        documentUri: "file:///fake/ws/src/Plain.tsx",
-        content: "const x = 1;\n",
-        filePath: "/fake/ws/src/Plain.tsx",
-        line: 0,
-        character: 5,
-        version: 1,
-      },
+      completionCursor(plainWorkspace, "cursor", plainPath, plainUri),
       makeDeps(),
     );
     expect(result).toBeNull();
@@ -117,14 +124,7 @@ describe("handleCompletion", () => {
 
   it("returns null when classMap is empty", () => {
     const result = handleCompletion(
-      {
-        documentUri: SOURCE_URI,
-        content: TSX,
-        filePath: SOURCE_PATH,
-        line: 4,
-        character: 16,
-        version: 1,
-      },
+      completionCursor(CX_COMPLETION_WORKSPACE),
       makeDeps({ selectorMapForPath: () => new Map() }),
     );
     expect(result).toBeNull();
@@ -133,14 +133,7 @@ describe("handleCompletion", () => {
   it("logs and returns null on exception", () => {
     const logError = vi.fn();
     const result = handleCompletion(
-      {
-        documentUri: SOURCE_URI,
-        content: TSX,
-        filePath: SOURCE_PATH,
-        line: 4,
-        character: 16,
-        version: 1,
-      },
+      completionCursor(CX_COMPLETION_WORKSPACE),
       makeDeps({
         styleDocumentForPath: () => {
           throw new Error("boom");
@@ -233,7 +226,6 @@ import styles from './Button.module.scss';
 const el = clsx(styles./*|*/
 `,
   });
-  const CLSX_TSX = CLSX_COMPLETION_WORKSPACE.file(SOURCE_PATH).content;
 
   function clsxMakeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
     const sourceFileCache = new SourceFileCache({ max: 10 });
@@ -278,15 +270,7 @@ const el = clsx(styles./*|*/
       workspace: CLSX_COMPLETION_WORKSPACE,
       actions: {
         completion: ({ target, workspace: fixture }) =>
-          handleCompletion(
-            cursorFixture({
-              workspace: fixture,
-              filePath: target.filePath,
-              documentUri: SOURCE_URI,
-              markerName: target.name,
-            }),
-            clsxMakeDeps(),
-          ),
+          handleCompletion(completionCursor(fixture, target.name, target.filePath), clsxMakeDeps()),
       },
     });
 
@@ -297,159 +281,101 @@ const el = clsx(styles./*|*/
   });
 
   it("returns null when a local binding shadows the imported clsx identifier", () => {
-    const SHADOWED_TSX = `
+    const shadowedWorkspace = workspace({
+      [SOURCE_PATH]: `
 import clsx from 'clsx';
 import styles from './Button.module.scss';
 function render(clsx: (value: unknown) => string) {
-  return clsx(styles.
+  return clsx(styles./*|*/
 }
-`;
-    const result = handleCompletion(
-      {
-        documentUri: "file:///fake/ws/src/Button.tsx",
-        content: SHADOWED_TSX,
-        filePath: "/fake/ws/src/Button.tsx",
-        line: 4,
-        character: 21,
-        version: 1,
-      },
-      clsxMakeDeps(),
-    );
+`,
+    });
+    const result = handleCompletion(completionCursor(shadowedWorkspace), clsxMakeDeps());
     expect(result).toBeNull();
   });
 
   it("returns class completions with aliased import (cn from 'clsx')", () => {
-    const CN_TSX = `
+    const cnWorkspace = workspace({
+      [SOURCE_PATH]: `
 import cn from 'clsx';
 import styles from './Button.module.scss';
-const el = cn(styles.
-`;
-    const result = handleCompletion(
-      {
-        documentUri: "file:///fake/ws/src/Button.tsx",
-        content: CN_TSX,
-        filePath: "/fake/ws/src/Button.tsx",
-        line: 3,
-        character: 21, // after "styles."
-        version: 1,
-      },
-      clsxMakeDeps(),
-    );
+const el = cn(styles./*|*/
+`,
+    });
+    const result = handleCompletion(completionCursor(cnWorkspace), clsxMakeDeps());
     expect(result).not.toBeNull();
     expect(result!.map((r) => r.label).toSorted()).toEqual(["active", "btn"]);
   });
 
   it("returns class completions with classnames (not /bind)", () => {
-    const CLASSNAMES_TSX = `
+    const classNamesWorkspace = workspace({
+      [SOURCE_PATH]: `
 import classNames from 'classnames';
 import styles from './Button.module.scss';
-const el = classNames(styles.
-`;
-    const result = handleCompletion(
-      {
-        documentUri: "file:///fake/ws/src/Button.tsx",
-        content: CLASSNAMES_TSX,
-        filePath: "/fake/ws/src/Button.tsx",
-        line: 3,
-        character: 29, // after "styles."
-        version: 1,
-      },
-      clsxMakeDeps(),
-    );
+const el = classNames(styles./*|*/
+`,
+    });
+    const result = handleCompletion(completionCursor(classNamesWorkspace), clsxMakeDeps());
     expect(result).not.toBeNull();
     expect(result!.map((r) => r.label).toSorted()).toEqual(["active", "btn"]);
   });
 
   it("returns class completions with partial prefix (styles.ac)", () => {
-    const PARTIAL_TSX = `
+    const partialWorkspace = workspace({
+      [SOURCE_PATH]: `
 import clsx from 'clsx';
 import styles from './Button.module.scss';
-const el = clsx(styles.ac
-`;
-    const result = handleCompletion(
-      {
-        documentUri: "file:///fake/ws/src/Button.tsx",
-        content: PARTIAL_TSX,
-        filePath: "/fake/ws/src/Button.tsx",
-        line: 3,
-        character: 25, // after "styles.ac"
-        version: 1,
-      },
-      clsxMakeDeps(),
-    );
+const el = clsx(styles.ac/*|*/
+`,
+    });
+    const result = handleCompletion(completionCursor(partialWorkspace), clsxMakeDeps());
     // Returns all items; VS Code filters by prefix client-side
     expect(result).not.toBeNull();
     expect(result!.map((r) => r.label).toSorted()).toEqual(["active", "btn"]);
   });
 
   it("returns null when cursor is outside clsx() call", () => {
-    const OUTSIDE_TSX = `
+    const outsideWorkspace = workspace({
+      [SOURCE_PATH]: `
 import clsx from 'clsx';
 import styles from './Button.module.scss';
-const x = styles.
-`;
-    const result = handleCompletion(
-      {
-        documentUri: "file:///fake/ws/src/Button.tsx",
-        content: OUTSIDE_TSX,
-        filePath: "/fake/ws/src/Button.tsx",
-        line: 3,
-        character: 18,
-        version: 1,
-      },
-      clsxMakeDeps(),
-    );
+const x = styles./*|*/
+`,
+    });
+    const result = handleCompletion(completionCursor(outsideWorkspace), clsxMakeDeps());
     expect(result).toBeNull();
   });
 
   it("returns null when no clsx/classnames import exists", () => {
-    const NO_CLSX_TSX = `
+    const noClsxWorkspace = workspace({
+      [SOURCE_PATH]: `
 import styles from './Button.module.scss';
-const el = someFunc(styles.
-`;
-    const result = handleCompletion(
-      {
-        documentUri: "file:///fake/ws/src/Button.tsx",
-        content: NO_CLSX_TSX,
-        filePath: "/fake/ws/src/Button.tsx",
-        line: 2,
-        character: 28,
-        version: 1,
-      },
-      clsxMakeDeps(),
-    );
+const el = someFunc(styles./*|*/
+`,
+    });
+    const result = handleCompletion(completionCursor(noClsxWorkspace), clsxMakeDeps());
     expect(result).toBeNull();
   });
 
   it("returns null when classMap is empty", () => {
     const result = handleCompletion(
-      {
-        documentUri: "file:///fake/ws/src/Button.tsx",
-        content: CLSX_TSX,
-        filePath: "/fake/ws/src/Button.tsx",
-        line: 3,
-        character: 23,
-        version: 1,
-      },
+      completionCursor(CLSX_COMPLETION_WORKSPACE),
       clsxMakeDeps({ selectorMapForPath: () => new Map() }),
     );
     expect(result).toBeNull();
   });
 
   it("returns null for files whose analyzed entry has no relevant bindings", () => {
-    const PLAIN_TSX = `
+    const plainPath = "/fake/ws/src/Plain.tsx";
+    const plainUri = "file:///fake/ws/src/Plain.tsx";
+    const plainWorkspace = workspace({
+      [plainPath]: `
 import React from 'react';
-const el = <div className="foo">
-`;
+const el = <div className="foo/*|*/">
+`,
+    });
     const result = handleCompletion(
-      {
-        documentUri: "file:///fake/ws/src/Plain.tsx",
-        content: PLAIN_TSX,
-        filePath: "/fake/ws/src/Plain.tsx",
-        line: 2,
-        character: 30,
-        version: 1,
-      },
+      completionCursor(plainWorkspace, "cursor", plainPath, plainUri),
       clsxMakeDeps(),
     );
     expect(result).toBeNull();
