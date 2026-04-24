@@ -116,7 +116,7 @@ describe("handlePrepareRename", () => {
     expect(result).toBeNull();
   });
 
-  it("returns a rename target for nested child selectors that parse as standalone classes", () => {
+  it("rejects nested child selectors that parse as standalone classes", () => {
     const styleDocument = buildStyleDocumentFromSelectorMap(
       SCSS_PATH,
       expandSelectorMapWithTransform(
@@ -133,15 +133,15 @@ describe("handlePrepareRename", () => {
         "asIs",
       ),
     );
-    const result = handlePrepareRename(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: { line: 2, character: 4 },
-      },
-      makeDeps({ styleDocumentForPath: () => styleDocument }),
-    );
-    expect(result).not.toBeNull();
-    expect(result).toHaveProperty("placeholder", "child");
+    expect(() =>
+      handlePrepareRename(
+        {
+          textDocument: { uri: SCSS_URI },
+          position: { line: 2, character: 4 },
+        },
+        makeDeps({ styleDocumentForPath: () => styleDocument }),
+      ),
+    ).toThrow("Only flat selectors and safe BEM suffix selectors can be renamed.");
   });
 });
 
