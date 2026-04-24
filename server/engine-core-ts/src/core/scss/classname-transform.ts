@@ -111,5 +111,6 @@ export function expandStyleDocumentWithTransform(
     base.valueDecls,
     base.valueImports,
     base.valueRefs,
+    base.sassSymbols,
   );
 }

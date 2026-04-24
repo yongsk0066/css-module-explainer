@@ -10,6 +10,10 @@ import {
   type AnimationNameRefHIR,
   type KeyframesDeclHIR,
   type NestedSelectorSafety,
+  type SassSymbolKind,
+  type SassSymbolOccurrenceHIR,
+  type SassSymbolResolution,
+  type SassSymbolRole,
   type SelectorDeclHIR,
   type StyleDocumentHIR,
   type ValueDeclHIR,
@@ -111,6 +115,8 @@ export function parseStyleDocument(content: string, filePath: string): StyleDocu
   const valueDecls = collectValueDecls(root, valuePathAliases);
   const valueImports = collectValueImports(root, valuePathAliases);
   const valueRefs = collectValueRefs(root, valueDecls, valueImports);
+  const sassSymbolTargets = collectSassSymbolTargetContext(root);
+  const sassSymbols: SassSymbolOccurrenceHIR[] = [];
 
   walkStyleNodes(
     root.nodes as ChildNode[],
@@ -118,6 +124,8 @@ export function parseStyleDocument(content: string, filePath: string): StyleDocu
     selectors,
     keyframesByName,
     animationNameRefs,
+    sassSymbols,
+    sassSymbolTargets,
   );
   return makeStyleDocumentHIR(
     filePath,
@@ -127,6 +135,7 @@ export function parseStyleDocument(content: string, filePath: string): StyleDocu
     [...valueDecls].toSorted(compareNamedStyleFacts),
     [...valueImports].toSorted(compareNamedStyleFacts),
     [...valueRefs].toSorted(compareNamedStyleFacts),
+    [...sassSymbols].toSorted(compareSassSymbolOccurrences),
   );
 }
 
@@ -141,25 +150,59 @@ function walkStyleNodes(
   selectors: SelectorDeclHIR[],
   keyframesByName: Map<string, KeyframesDeclHIR>,
   animationNameRefs: AnimationNameRefHIR[],
+  sassSymbols: SassSymbolOccurrenceHIR[],
+  sassSymbolTargets: SassSymbolTargetContext,
 ): void {
   if (!nodes) return;
   for (const node of nodes) {
     if (node.type === "rule") {
       if (isGlobalBlockRule(node.selector)) continue;
       if (isLocalBlockRule(node.selector)) {
-        walkStyleNodes(node.nodes, parentCtx, selectors, keyframesByName, animationNameRefs);
+        walkStyleNodes(
+          node.nodes,
+          parentCtx,
+          selectors,
+          keyframesByName,
+          animationNameRefs,
+          sassSymbols,
+          sassSymbolTargets,
+        );
         continue;
       }
-      recordRule(node, parentCtx, selectors, keyframesByName, animationNameRefs);
+      recordRule(
+        node,
+        parentCtx,
+        selectors,
+        keyframesByName,
+        animationNameRefs,
+        sassSymbols,
+        sassSymbolTargets,
+      );
     } else if (node.type === "atrule" && isKeyframesAtRule(node.name)) {
       recordKeyframesAtRule(node, keyframesByName);
     } else if (node.type === "atrule" && isTransparentAtRule(node.name)) {
       if (node.name === "at-root" && isInlineAtRoot(node)) {
-        recordAtRootInlineRule(node, selectors);
+        recordAtRootInlineRule(node, selectors, sassSymbols, sassSymbolTargets);
       } else if (node.name === "at-root") {
-        walkStyleNodes(node.nodes, { selector: "" }, selectors, keyframesByName, animationNameRefs);
+        walkStyleNodes(
+          node.nodes,
+          { selector: "" },
+          selectors,
+          keyframesByName,
+          animationNameRefs,
+          sassSymbols,
+          sassSymbolTargets,
+        );
       } else {
-        walkStyleNodes(node.nodes, parentCtx, selectors, keyframesByName, animationNameRefs);
+        walkStyleNodes(
+          node.nodes,
+          parentCtx,
+          selectors,
+          keyframesByName,
+          animationNameRefs,
+          sassSymbols,
+          sassSymbolTargets,
+        );
       }
     }
   }
@@ -191,6 +234,8 @@ function recordRule(
   selectors: SelectorDeclHIR[],
   keyframesByName: Map<string, KeyframesDeclHIR>,
   animationNameRefs: AnimationNameRefHIR[],
+  sassSymbols: SassSymbolOccurrenceHIR[],
+  sassSymbolTargets: SassSymbolTargetContext,
 ): void {
   const { declarations, composes, animationRefs } = collectDeclarationsAndComposes(rule.nodes);
   const ruleRange = rangeForSourceNode(rule);
@@ -224,6 +269,9 @@ function recordRule(
           bemSuffix,
         }),
       );
+      sassSymbols.push(
+        ...collectDirectSassSymbolOccurrences(rule.nodes, className, ruleRange, sassSymbolTargets),
+      );
     }
   }
 
@@ -235,6 +283,8 @@ function recordRule(
       selectors,
       keyframesByName,
       animationNameRefs,
+      sassSymbols,
+      sassSymbolTargets,
     );
   }
 }
@@ -568,6 +618,262 @@ function collectValueRefs(
   return refs;
 }
 
+interface SassSymbolTargetContext {
+  readonly variableTargets: ReadonlySet<string>;
+  readonly mixinTargets: ReadonlySet<string>;
+  readonly functionTargets: ReadonlySet<string>;
+}
+
+function collectSassSymbolTargetContext(root: Root): SassSymbolTargetContext {
+  const variableTargets = new Set<string>();
+  const mixinTargets = new Set<string>();
+  const functionTargets = new Set<string>();
+
+  root.walkDecls((decl) => {
+    const name = parseSassVariableDeclName(decl.prop);
+    if (name) variableTargets.add(name);
+  });
+
+  root.walkAtRules((atrule) => {
+    if (atrule.name !== "mixin" && atrule.name !== "function") return;
+    const callable = parseSassCallableName(atrule.params);
+    if (callable) {
+      if (atrule.name === "mixin") mixinTargets.add(callable.name);
+      else functionTargets.add(callable.name);
+    }
+    for (const variable of findSassVariableMatches(atrule.params)) {
+      variableTargets.add(variable.name);
+    }
+  });
+
+  return { variableTargets, mixinTargets, functionTargets };
+}
+
+function collectDirectSassSymbolOccurrences(
+  nodes: ChildNode[] | undefined,
+  selectorName: string,
+  ruleRange: Range,
+  targets: SassSymbolTargetContext,
+): readonly SassSymbolOccurrenceHIR[] {
+  if (!nodes) return [];
+
+  const occurrences: SassSymbolOccurrenceHIR[] = [];
+  for (const node of nodes) {
+    if (node.type === "decl") {
+      pushSassDeclarationValueOccurrences(occurrences, node, selectorName, ruleRange, targets);
+      continue;
+    }
+    if (node.type !== "atrule") continue;
+    if (node.name === "mixin" || node.name === "function") continue;
+    pushSassAtRuleParamOccurrences(occurrences, node, selectorName, ruleRange, targets);
+  }
+  return occurrences;
+}
+
+function pushSassDeclarationValueOccurrences(
+  occurrences: SassSymbolOccurrenceHIR[],
+  node: Extract<ChildNode, { type: "decl" }>,
+  selectorName: string,
+  ruleRange: Range,
+  targets: SassSymbolTargetContext,
+): void {
+  for (const match of findSassVariableMatches(node.value)) {
+    const range = findDeclValueTokenRange(node, match.offset, match.raw.length);
+    if (!range) continue;
+    occurrences.push(
+      makeSassSymbolOccurrence({
+        selectorName,
+        symbolKind: "variable",
+        name: match.name,
+        role: "reference",
+        resolution: targets.variableTargets.has(match.name) ? "resolved" : "unresolved",
+        range,
+        ruleRange,
+      }),
+    );
+  }
+
+  for (const match of findSassFunctionCallMatches(node.value, targets.functionTargets)) {
+    const range = findDeclValueTokenRange(node, match.offset, match.raw.length);
+    if (!range) continue;
+    occurrences.push(
+      makeSassSymbolOccurrence({
+        selectorName,
+        symbolKind: "function",
+        name: match.name,
+        role: "call",
+        resolution: "resolved",
+        range,
+        ruleRange,
+      }),
+    );
+  }
+}
+
+function pushSassAtRuleParamOccurrences(
+  occurrences: SassSymbolOccurrenceHIR[],
+  atrule: AtRule,
+  selectorName: string,
+  ruleRange: Range,
+  targets: SassSymbolTargetContext,
+): void {
+  if (atrule.name === "include") {
+    const callable = parseSassCallableName(atrule.params);
+    if (callable) {
+      const range = findAtRuleParamValueTokenRange(atrule, callable.offset, callable.raw.length);
+      if (range) {
+        occurrences.push(
+          makeSassSymbolOccurrence({
+            selectorName,
+            symbolKind: "mixin",
+            name: callable.name,
+            role: "include",
+            resolution: targets.mixinTargets.has(callable.name) ? "resolved" : "unresolved",
+            range,
+            ruleRange,
+          }),
+        );
+      }
+    }
+  }
+
+  for (const match of findSassVariableMatches(atrule.params)) {
+    const range = findAtRuleParamValueTokenRange(atrule, match.offset, match.raw.length);
+    if (!range) continue;
+    occurrences.push(
+      makeSassSymbolOccurrence({
+        selectorName,
+        symbolKind: "variable",
+        name: match.name,
+        role: "reference",
+        resolution: targets.variableTargets.has(match.name) ? "resolved" : "unresolved",
+        range,
+        ruleRange,
+      }),
+    );
+  }
+
+  for (const match of findSassFunctionCallMatches(atrule.params, targets.functionTargets)) {
+    const range = findAtRuleParamValueTokenRange(atrule, match.offset, match.raw.length);
+    if (!range) continue;
+    occurrences.push(
+      makeSassSymbolOccurrence({
+        selectorName,
+        symbolKind: "function",
+        name: match.name,
+        role: "call",
+        resolution: "resolved",
+        range,
+        ruleRange,
+      }),
+    );
+  }
+}
+
+function makeSassSymbolOccurrence(args: {
+  readonly selectorName: string;
+  readonly symbolKind: SassSymbolKind;
+  readonly name: string;
+  readonly role: SassSymbolRole;
+  readonly resolution: SassSymbolResolution;
+  readonly range: Range;
+  readonly ruleRange: Range;
+}): SassSymbolOccurrenceHIR {
+  return {
+    kind: "sassSymbol",
+    id: `sass:${args.selectorName}:${args.symbolKind}:${args.name}:${args.range.start.line}:${args.range.start.character}`,
+    selectorName: args.selectorName,
+    symbolKind: args.symbolKind,
+    name: args.name,
+    role: args.role,
+    resolution: args.resolution,
+    range: args.range,
+    ruleRange: args.ruleRange,
+  };
+}
+
+function parseSassVariableDeclName(property: string): string | null {
+  return /^\$([A-Za-z_-][A-Za-z0-9_-]*)$/.exec(property.trim())?.[1] ?? null;
+}
+
+function parseSassCallableName(raw: string): { name: string; raw: string; offset: number } | null {
+  const match = /^\s*([A-Za-z_-][A-Za-z0-9_-]*)/.exec(raw);
+  const name = match?.[1];
+  if (!name) return null;
+  return {
+    name,
+    raw: name,
+    offset: raw.indexOf(name),
+  };
+}
+
+function findSassVariableMatches(
+  raw: string,
+): Array<{ name: string; raw: string; offset: number }> {
+  const matches: Array<{ name: string; raw: string; offset: number }> = [];
+  let quote: "'" | '"' | null = null;
+
+  for (let index = 0; index < raw.length; index += 1) {
+    const ch = raw[index]!;
+    if (quote) {
+      if (ch === "\\" && index + 1 < raw.length) {
+        index += 1;
+        continue;
+      }
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === "'" || ch === '"') {
+      quote = ch;
+      continue;
+    }
+    if (ch !== "$") continue;
+    const match = /^\$([A-Za-z_-][A-Za-z0-9_-]*)/.exec(raw.slice(index));
+    const token = match?.[0];
+    const name = match?.[1];
+    if (!token || !name) continue;
+    matches.push({ name, raw: token, offset: index });
+    index += token.length - 1;
+  }
+
+  return matches;
+}
+
+function findSassFunctionCallMatches(
+  raw: string,
+  functionTargets: ReadonlySet<string>,
+): Array<{ name: string; raw: string; offset: number }> {
+  const matches: Array<{ name: string; raw: string; offset: number }> = [];
+  let quote: "'" | '"' | null = null;
+
+  for (let index = 0; index < raw.length; index += 1) {
+    const ch = raw[index]!;
+    if (quote) {
+      if (ch === "\\" && index + 1 < raw.length) {
+        index += 1;
+        continue;
+      }
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === "'" || ch === '"') {
+      quote = ch;
+      continue;
+    }
+    if (!/[A-Za-z_-]/.test(ch)) continue;
+    const match = /^[A-Za-z_-][A-Za-z0-9_-]*/.exec(raw.slice(index));
+    const name = match?.[0];
+    if (!name) continue;
+    const nextNonWhitespace = raw.slice(index + name.length).match(/\S/)?.[0];
+    if (functionTargets.has(name) && nextNonWhitespace === "(") {
+      matches.push({ name, raw: name, offset: index });
+    }
+    index += name.length - 1;
+  }
+
+  return matches;
+}
+
 function looksLikeStyleRequest(value: string): boolean {
   return /^\.{0,2}\/.+\.(?:css|scss|sass|less)$/iu.test(value);
 }
@@ -871,7 +1177,12 @@ function findAtRuleParamValueTokenRange(
   };
 }
 
-function recordAtRootInlineRule(atrule: AtRule, selectorDecls: SelectorDeclHIR[]): void {
+function recordAtRootInlineRule(
+  atrule: AtRule,
+  selectorDecls: SelectorDeclHIR[],
+  sassSymbols: SassSymbolOccurrenceHIR[],
+  sassSymbolTargets: SassSymbolTargetContext,
+): void {
   const selector = atrule.params.trim();
   const { declarations } = collectDeclarationsAndComposes(atrule.nodes);
   const ruleRange = rangeForSourceNode(atrule);
@@ -894,6 +1205,14 @@ function recordAtRootInlineRule(atrule: AtRule, selectorDecls: SelectorDeclHIR[]
         composes: [],
         nestedSafety: "flat",
       });
+      sassSymbols.push(
+        ...collectDirectSassSymbolOccurrences(
+          atrule.nodes,
+          className,
+          ruleRange,
+          sassSymbolTargets,
+        ),
+      );
     }
   }
 }
@@ -920,4 +1239,21 @@ function compareNamedStyleFacts(
   const character = a.range.start.character - b.range.start.character;
   if (character !== 0) return character;
   return a.name.localeCompare(b.name);
+}
+
+function compareSassSymbolOccurrences(
+  a: SassSymbolOccurrenceHIR,
+  b: SassSymbolOccurrenceHIR,
+): number {
+  const line = a.range.start.line - b.range.start.line;
+  if (line !== 0) return line;
+  const character = a.range.start.character - b.range.start.character;
+  if (character !== 0) return character;
+  const selectorCompare = a.selectorName.localeCompare(b.selectorName);
+  if (selectorCompare !== 0) return selectorCompare;
+  const kindCompare = a.symbolKind.localeCompare(b.symbolKind);
+  if (kindCompare !== 0) return kindCompare;
+  const nameCompare = a.name.localeCompare(b.name);
+  if (nameCompare !== 0) return nameCompare;
+  return a.role.localeCompare(b.role);
 }

@@ -184,6 +184,25 @@ export function styleDocumentSemanticFingerprint(styleDocument: StyleDocumentHIR
       ].join("::"),
     )
     .join("\n");
+  const sassSymbolFingerprint = styleDocument.sassSymbols
+    .map((symbol) =>
+      [
+        symbol.selectorName,
+        symbol.symbolKind,
+        symbol.name,
+        symbol.role,
+        symbol.resolution,
+        symbol.range.start.line,
+        symbol.range.start.character,
+        symbol.range.end.line,
+        symbol.range.end.character,
+        symbol.ruleRange.start.line,
+        symbol.ruleRange.start.character,
+        symbol.ruleRange.end.line,
+        symbol.ruleRange.end.character,
+      ].join("::"),
+    )
+    .join("\n");
   return [
     selectorFingerprint,
     keyframesFingerprint,
@@ -191,5 +210,6 @@ export function styleDocumentSemanticFingerprint(styleDocument: StyleDocumentHIR
     valueDeclFingerprint,
     valueImportFingerprint,
     valueRefFingerprint,
+    sassSymbolFingerprint,
   ].join("\n---\n");
 }

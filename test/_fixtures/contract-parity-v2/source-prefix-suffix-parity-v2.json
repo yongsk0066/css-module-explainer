@@ -102,6 +102,7 @@
           "filePath": "<workspace>/test/_fixtures/contract-parity/SourcePrefixSuffixParity.module.scss",
           "keyframes": [],
           "kind": "style",
+          "sassSymbols": [],
           "selectors": [
             {
               "canonicalName": "btn-idle-chip",

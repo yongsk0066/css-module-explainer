@@ -403,6 +403,54 @@ describe("parseStyleSelectorMap / edge cases", () => {
     });
   });
 
+  describe("Sass symbol occurrences", () => {
+    it("records selector-scoped same-file Sass symbol references", () => {
+      const source = `$gap: 1rem;
+@mixin raised($depth) { box-shadow: 0 0 $depth black; }
+@function tone($value) { @return $value; }
+.button {
+  color: $gap;
+  @include raised($gap);
+  border-color: tone($gap);
+}
+.ghost {
+  color: $missing;
+  @include absent($gap);
+}`;
+      const document = parseStyleDocument(source, "/fake/a.module.scss");
+
+      expect(
+        document.sassSymbols.map((symbol) => [
+          symbol.selectorName,
+          symbol.symbolKind,
+          symbol.name,
+          symbol.role,
+          symbol.resolution,
+          sliceRange(source, symbol.range),
+        ]),
+      ).toEqual([
+        ["button", "variable", "gap", "reference", "resolved", "$gap"],
+        ["button", "mixin", "raised", "include", "resolved", "raised"],
+        ["button", "variable", "gap", "reference", "resolved", "$gap"],
+        ["button", "function", "tone", "call", "resolved", "tone"],
+        ["button", "variable", "gap", "reference", "resolved", "$gap"],
+        ["ghost", "variable", "missing", "reference", "unresolved", "$missing"],
+        ["ghost", "mixin", "absent", "include", "unresolved", "absent"],
+        ["ghost", "variable", "gap", "reference", "resolved", "$gap"],
+      ]);
+    });
+
+    it("keeps Sass symbol ranges in UTF-16 editor positions", () => {
+      const source = `$gap: 1rem;
+.button { content: "한🙂"; color: $gap; }`;
+      const document = parseStyleDocument(source, "/fake/a.module.scss");
+      const symbol = document.sassSymbols[0]!;
+
+      expect(sliceRange(source, symbol.range)).toBe("$gap");
+      expect(symbol.range.start.character).toBe(source.split("\n")[1]!.indexOf("$gap"));
+    });
+  });
+
   describe("@media / @at-root unwrapping", () => {
     it("indexes classes inside @media", () => {
       const map = parseStyleSelectorMap(
@@ -421,6 +469,24 @@ describe("parseStyleSelectorMap / edge cases", () => {
     });
   });
 });
+
+function sliceRange(
+  source: string,
+  range: {
+    readonly start: { readonly line: number; readonly character: number };
+    readonly end: { readonly line: number; readonly character: number };
+  },
+): string {
+  const lines = source.split("\n");
+  if (range.start.line === range.end.line) {
+    return lines[range.start.line]!.slice(range.start.character, range.end.character);
+  }
+  return [
+    lines[range.start.line]!.slice(range.start.character),
+    ...lines.slice(range.start.line + 1, range.end.line),
+    lines[range.end.line]!.slice(0, range.end.character),
+  ].join("\n");
+}
 
 describe("StyleIndexCache", () => {
   it("returns the same style document for identical content", () => {

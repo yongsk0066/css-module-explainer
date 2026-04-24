@@ -51,6 +51,7 @@
             }
           ],
           "kind": "style",
+          "sassSymbols": [],
           "selectors": [
             {
               "canonicalName": "spinner",

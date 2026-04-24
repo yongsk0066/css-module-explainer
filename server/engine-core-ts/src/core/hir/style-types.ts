@@ -9,11 +9,18 @@ export interface StyleDocumentHIR extends HirDocumentBase {
   readonly valueDecls: readonly ValueDeclHIR[];
   readonly valueImports: readonly ValueImportHIR[];
   readonly valueRefs: readonly ValueRefHIR[];
+  readonly sassSymbols: readonly SassSymbolOccurrenceHIR[];
 }
 
 export type SelectorViewKind = "canonical" | "alias";
 
 export type NestedSelectorSafety = "flat" | "bemSuffixSafe" | "nestedUnsafe";
+
+export type SassSymbolKind = "variable" | "mixin" | "function";
+
+export type SassSymbolRole = "reference" | "include" | "call";
+
+export type SassSymbolResolution = "resolved" | "unresolved";
 
 export interface SelectorDeclHIR extends HirNodeBase {
   readonly kind: "selector";
@@ -68,6 +75,17 @@ export interface ValueRefHIR extends HirNodeBase {
   readonly source: "declaration" | "valueDecl";
 }
 
+export interface SassSymbolOccurrenceHIR extends HirNodeBase {
+  readonly kind: "sassSymbol";
+  readonly selectorName: string;
+  readonly symbolKind: SassSymbolKind;
+  readonly name: string;
+  readonly role: SassSymbolRole;
+  readonly resolution: SassSymbolResolution;
+  readonly range: Range;
+  readonly ruleRange: Range;
+}
+
 export function makeStyleDocumentHIR(
   filePath: string,
   selectors: readonly SelectorDeclHIR[],
@@ -76,6 +94,7 @@ export function makeStyleDocumentHIR(
   valueDecls: readonly ValueDeclHIR[] = [],
   valueImports: readonly ValueImportHIR[] = [],
   valueRefs: readonly ValueRefHIR[] = [],
+  sassSymbols: readonly SassSymbolOccurrenceHIR[] = [],
 ): StyleDocumentHIR {
   return {
     kind: "style",
@@ -86,5 +105,6 @@ export function makeStyleDocumentHIR(
     valueDecls,
     valueImports,
     valueRefs,
+    sassSymbols,
   };
 }

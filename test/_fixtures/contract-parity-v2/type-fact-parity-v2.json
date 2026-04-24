@@ -97,6 +97,7 @@
           "filePath": "<workspace>/test/_fixtures/contract-parity/TypeFactParity.module.scss",
           "keyframes": [],
           "kind": "style",
+          "sassSymbols": [],
           "selectors": [
             {
               "canonicalName": "primary",
