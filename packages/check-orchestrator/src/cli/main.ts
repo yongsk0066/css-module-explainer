@@ -9,6 +9,7 @@ import {
   resolveGateTarget,
   runDoctor,
 } from "../manifest/index";
+import { pnpmExecutable } from "./commands";
 
 interface ParsedArgs {
   readonly command: string;
@@ -111,7 +112,7 @@ function runTarget(parsed: ParsedArgs, bundleOnly: boolean): void {
   }
 
   const command = [
-    "pnpm",
+    pnpmExecutable(),
     "run",
     gate.scriptName,
     ...(parsed.extraArgs.length > 0 ? ["--", ...parsed.extraArgs] : []),
@@ -126,6 +127,9 @@ function runTarget(parsed: ParsedArgs, bundleOnly: boolean): void {
     stdio: "inherit",
     shell: false,
   });
+  if (result.error) {
+    console.error(`Failed to start "${command[0]}": ${result.error.message}`);
+  }
   process.exit(result.status ?? 1);
 }
 
