@@ -21,7 +21,7 @@ importers:
         specifier: ^1.115.0
         version: 1.115.0
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260421.2
+        specifier: beta
         version: 7.0.0-dev.20260421.2
       '@vitest/coverage-v8':
         specifier: ^4.1.4
