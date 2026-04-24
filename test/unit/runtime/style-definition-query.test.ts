@@ -3,6 +3,7 @@ import { AliasResolver } from "../../../server/engine-core-ts/src/core/cx/alias-
 import type { StyleDocumentHIR } from "../../../server/engine-core-ts/src/core/hir/style-types";
 import { parseStyleDocument } from "../../../server/engine-core-ts/src/core/scss/scss-parser";
 import { resolveStyleDefinitionTargets } from "../../../server/engine-host-node/src/style-definition-query";
+import { targetFixture, workspace, type CmeWorkspace } from "../../../packages/vitest-cme/src";
 
 const BUTTON_PATH = "/fake/workspace/src/Button.module.scss";
 const BASE_PATH = "/fake/workspace/src/Base.module.scss";
@@ -13,24 +14,20 @@ const EMPTY_ALIAS_RESOLVER = new AliasResolver("/fake/workspace", {});
 
 describe("resolveStyleDefinitionTargets", () => {
   it("resolves cross-file composes tokens to target selectors", () => {
-    const buttonScss = `
+    const ws = styleWorkspace({
+      [BUTTON_PATH]: `
 .button {
-  composes: base from './Base.module.scss';
+  composes: b/*|*/ase from './Base.module.scss';
   color: red;
 }
-`;
-    const baseScss = `
+`,
+      [BASE_PATH]: `
 .base {
   color: blue;
 }
-`;
-    const targets = resolveStyleDefinitionTargets(
-      { filePath: BUTTON_PATH, line: 2, character: 13 },
-      depsForDocuments([
-        parseStyleDocument(buttonScss, BUTTON_PATH),
-        parseStyleDocument(baseScss, BASE_PATH),
-      ]),
-    );
+`,
+    });
+    const targets = resolveStyleDefinitionTargets(styleTarget(ws), styleDeps(ws));
 
     expect(targets).toHaveLength(1);
     expect(targets[0]).toMatchObject({
@@ -43,19 +40,18 @@ describe("resolveStyleDefinitionTargets", () => {
   });
 
   it("resolves animation-name tokens to same-file keyframes", () => {
-    const scss = `@keyframes fade {
+    const ws = styleWorkspace({
+      [BUTTON_PATH]: `@keyframes fade {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 
 .box {
-  animation: fade 1s linear;
+  animation: f/*|*/ade 1s linear;
 }
-`;
-    const targets = resolveStyleDefinitionTargets(
-      { filePath: BUTTON_PATH, line: 6, character: 15 },
-      depsForDocuments([parseStyleDocument(scss, BUTTON_PATH)]),
-    );
+`,
+    });
+    const targets = resolveStyleDefinitionTargets(styleTarget(ws), styleDeps(ws));
 
     expect(targets).toHaveLength(1);
     expect(targets[0]).toMatchObject({
@@ -68,20 +64,16 @@ describe("resolveStyleDefinitionTargets", () => {
   });
 
   it("resolves imported value references to source value declarations", () => {
-    const buttonScss = `@value primary from "./tokens.module.scss";
+    const ws = styleWorkspace({
+      [BUTTON_PATH]: `@value primary from "./tokens.module.scss";
 
 .button {
-  color: primary;
+  color: p/*|*/rimary;
 }
-`;
-    const tokensScss = `@value primary: #ff3355;`;
-    const targets = resolveStyleDefinitionTargets(
-      { filePath: BUTTON_PATH, line: 3, character: 10 },
-      depsForDocuments([
-        parseStyleDocument(buttonScss, BUTTON_PATH),
-        parseStyleDocument(tokensScss, TOKENS_PATH),
-      ]),
-    );
+`,
+      [TOKENS_PATH]: `@value primary: #ff3355;`,
+    });
+    const targets = resolveStyleDefinitionTargets(styleTarget(ws), styleDeps(ws));
 
     expect(targets).toHaveLength(1);
     expect(targets[0]).toMatchObject({
@@ -94,20 +86,16 @@ describe("resolveStyleDefinitionTargets", () => {
   });
 
   it("resolves Sass @use source tokens to module files with partial candidates", () => {
-    const buttonScss = `@use "./tokens.module";
+    const ws = styleWorkspace({
+      [BUTTON_PATH]: `@use "./t/*|*/okens.module";
 
 .button {
   color: tokens.$gap;
 }
-`;
-    const tokensScss = `$gap: 1rem;`;
-    const targets = resolveStyleDefinitionTargets(
-      { filePath: BUTTON_PATH, line: 0, character: 10 },
-      depsForDocuments([
-        parseStyleDocument(buttonScss, BUTTON_PATH),
-        parseStyleDocument(tokensScss, TOKENS_PARTIAL_PATH),
-      ]),
-    );
+`,
+      [TOKENS_PARTIAL_PATH]: `$gap: 1rem;`,
+    });
+    const targets = resolveStyleDefinitionTargets(styleTarget(ws), styleDeps(ws));
 
     expect(targets).toHaveLength(1);
     expect(targets[0]).toMatchObject({
@@ -124,26 +112,22 @@ describe("resolveStyleDefinitionTargets", () => {
   });
 
   it("resolves Sass @use source tokens through path aliases", () => {
-    const buttonScss = `@use "@styles/tokens.module" as tokens;
+    const ws = styleWorkspace({
+      [BUTTON_PATH]: `@use "@s/*|*/tyles/tokens.module" as tokens;
 
 .button {
   color: tokens.$gap;
 }
-`;
-    const tokensScss = `$gap: 1rem;`;
+`,
+      [TOKENS_PARTIAL_PATH]: `$gap: 1rem;`,
+    });
     const targets = resolveStyleDefinitionTargets(
-      { filePath: BUTTON_PATH, line: 0, character: 10 },
-      depsForDocuments(
-        [
-          parseStyleDocument(buttonScss, BUTTON_PATH),
-          parseStyleDocument(tokensScss, TOKENS_PARTIAL_PATH),
-        ],
-        {
-          aliasResolver: new AliasResolver("/fake/workspace", {
-            "@styles": "src",
-          }),
-        },
-      ),
+      styleTarget(ws),
+      styleDeps(ws, {
+        aliasResolver: new AliasResolver("/fake/workspace", {
+          "@styles": "src",
+        }),
+      }),
     );
 
     expect(targets).toHaveLength(1);
@@ -157,33 +141,29 @@ describe("resolveStyleDefinitionTargets", () => {
   });
 
   it("resolves Sass @use source tokens through the first existing tsconfig path target", () => {
-    const buttonScss = `@use "@styles/tokens.module" as tokens;
+    const ws = styleWorkspace({
+      [BUTTON_PATH]: `@use "@s/*|*/tyles/tokens.module" as tokens;
 
 .button {
   color: tokens.$gap;
 }
-`;
-    const tokensScss = `$gap: 1rem;`;
+`,
+      [TOKENS_PARTIAL_PATH]: `$gap: 1rem;`,
+    });
     const targets = resolveStyleDefinitionTargets(
-      { filePath: BUTTON_PATH, line: 0, character: 10 },
-      depsForDocuments(
-        [
-          parseStyleDocument(buttonScss, BUTTON_PATH),
-          parseStyleDocument(tokensScss, TOKENS_PARTIAL_PATH),
-        ],
-        {
-          aliasResolver: new AliasResolver(
-            "/fake/workspace",
-            {},
-            {
-              basePath: "/fake/workspace",
-              paths: {
-                "@styles/*": ["missing/*", "src/*"],
-              },
+      styleTarget(ws),
+      styleDeps(ws, {
+        aliasResolver: new AliasResolver(
+          "/fake/workspace",
+          {},
+          {
+            basePath: "/fake/workspace",
+            paths: {
+              "@styles/*": ["missing/*", "src/*"],
             },
-          ),
-        },
-      ),
+          },
+        ),
+      }),
     );
 
     expect(targets).toHaveLength(1);
@@ -193,38 +173,33 @@ describe("resolveStyleDefinitionTargets", () => {
   });
 
   it("does not resolve built-in Sass modules as workspace files", () => {
-    const buttonScss = `@use "sass:color";
-`;
-    const targets = resolveStyleDefinitionTargets(
-      { filePath: BUTTON_PATH, line: 0, character: 8 },
-      depsForDocuments([parseStyleDocument(buttonScss, BUTTON_PATH)]),
-    );
+    const ws = styleWorkspace({
+      [BUTTON_PATH]: `@use "s/*|*/ass:color";
+`,
+    });
+    const targets = resolveStyleDefinitionTargets(styleTarget(ws), styleDeps(ws));
 
     expect(targets).toEqual([]);
   });
 
   it("resolves namespace-qualified Sass members to declarations in @use targets", () => {
-    const buttonScss = `@use "./tokens.module" as tokens;
+    const ws = styleWorkspace({
+      [BUTTON_PATH]: `@use "./tokens.module" as tokens;
 
 .button {
-  color: tokens.$gap;
-  @include tokens.raised;
-  border-color: tokens.tone(tokens.$gap);
+  color: tokens.$g/*at:variable*/ap;
+  @include tokens.r/*at:mixin*/aised;
+  border-color: tokens.t/*at:function*/one(tokens.$gap);
 }
-`;
-    const tokensScss = `$gap: 1rem;
+`,
+      [TOKENS_PARTIAL_PATH]: `$gap: 1rem;
 @mixin raised() {}
 @function tone($value) { @return $value; }
-`;
-    const deps = depsForDocuments([
-      parseStyleDocument(buttonScss, BUTTON_PATH),
-      parseStyleDocument(tokensScss, TOKENS_PARTIAL_PATH),
-    ]);
+`,
+    });
+    const deps = styleDeps(ws);
 
-    const variableTargets = resolveStyleDefinitionTargets(
-      { filePath: BUTTON_PATH, line: 3, character: 18 },
-      deps,
-    );
+    const variableTargets = resolveStyleDefinitionTargets(styleTarget(ws, "variable"), deps);
     expect(variableTargets).toHaveLength(1);
     expect(variableTargets[0]).toMatchObject({
       targetFilePath: TOKENS_PARTIAL_PATH,
@@ -234,10 +209,7 @@ describe("resolveStyleDefinitionTargets", () => {
       },
     });
 
-    const mixinTargets = resolveStyleDefinitionTargets(
-      { filePath: BUTTON_PATH, line: 4, character: 20 },
-      deps,
-    );
+    const mixinTargets = resolveStyleDefinitionTargets(styleTarget(ws, "mixin"), deps);
     expect(mixinTargets).toHaveLength(1);
     expect(mixinTargets[0]).toMatchObject({
       targetFilePath: TOKENS_PARTIAL_PATH,
@@ -247,10 +219,7 @@ describe("resolveStyleDefinitionTargets", () => {
       },
     });
 
-    const functionTargets = resolveStyleDefinitionTargets(
-      { filePath: BUTTON_PATH, line: 5, character: 25 },
-      deps,
-    );
+    const functionTargets = resolveStyleDefinitionTargets(styleTarget(ws, "function"), deps);
     expect(functionTargets).toHaveLength(1);
     expect(functionTargets[0]).toMatchObject({
       targetFilePath: TOKENS_PARTIAL_PATH,
@@ -262,27 +231,23 @@ describe("resolveStyleDefinitionTargets", () => {
   });
 
   it("resolves wildcard Sass module members to declarations in @use targets", () => {
-    const buttonScss = `@use "./tokens.module" as *;
+    const ws = styleWorkspace({
+      [BUTTON_PATH]: `@use "./tokens.module" as *;
 
 .button {
-  color: $gap;
-  @include raised;
-  border-color: tone($gap);
+  color: $g/*at:variable*/ap;
+  @include r/*at:mixin*/aised;
+  border-color: t/*at:function*/one($gap);
 }
-`;
-    const tokensScss = `$gap: 1rem;
+`,
+      [TOKENS_PARTIAL_PATH]: `$gap: 1rem;
 @mixin raised() {}
 @function tone($value) { @return $value; }
-`;
-    const deps = depsForDocuments([
-      parseStyleDocument(buttonScss, BUTTON_PATH),
-      parseStyleDocument(tokensScss, TOKENS_PARTIAL_PATH),
-    ]);
+`,
+    });
+    const deps = styleDeps(ws);
 
-    const variableTargets = resolveStyleDefinitionTargets(
-      { filePath: BUTTON_PATH, line: 3, character: 10 },
-      deps,
-    );
+    const variableTargets = resolveStyleDefinitionTargets(styleTarget(ws, "variable"), deps);
     expect(variableTargets).toHaveLength(1);
     expect(variableTargets[0]).toMatchObject({
       targetFilePath: TOKENS_PARTIAL_PATH,
@@ -292,10 +257,7 @@ describe("resolveStyleDefinitionTargets", () => {
       },
     });
 
-    const mixinTargets = resolveStyleDefinitionTargets(
-      { filePath: BUTTON_PATH, line: 4, character: 13 },
-      deps,
-    );
+    const mixinTargets = resolveStyleDefinitionTargets(styleTarget(ws, "mixin"), deps);
     expect(mixinTargets).toHaveLength(1);
     expect(mixinTargets[0]).toMatchObject({
       targetFilePath: TOKENS_PARTIAL_PATH,
@@ -305,10 +267,7 @@ describe("resolveStyleDefinitionTargets", () => {
       },
     });
 
-    const functionTargets = resolveStyleDefinitionTargets(
-      { filePath: BUTTON_PATH, line: 5, character: 18 },
-      deps,
-    );
+    const functionTargets = resolveStyleDefinitionTargets(styleTarget(ws, "function"), deps);
     expect(functionTargets).toHaveLength(1);
     expect(functionTargets[0]).toMatchObject({
       targetFilePath: TOKENS_PARTIAL_PATH,
@@ -320,27 +279,22 @@ describe("resolveStyleDefinitionTargets", () => {
   });
 
   it("resolves Sass members forwarded through @use targets", () => {
-    const buttonScss = `@use "./theme.module" as *;
+    const ws = styleWorkspace({
+      [BUTTON_PATH]: `@use "./theme.module" as *;
 
 .button {
-  color: $gap;
-  border-color: tone($gap);
+  color: $g/*at:variable*/ap;
+  border-color: t/*at:function*/one($gap);
 }
-`;
-    const themeScss = `@forward "./tokens.module";`;
-    const tokensScss = `$gap: 1rem;
+`,
+      [THEME_PATH]: `@forward "./tokens.module";`,
+      [TOKENS_PARTIAL_PATH]: `$gap: 1rem;
 @function tone($value) { @return $value; }
-`;
-    const deps = depsForDocuments([
-      parseStyleDocument(buttonScss, BUTTON_PATH),
-      parseStyleDocument(themeScss, THEME_PATH),
-      parseStyleDocument(tokensScss, TOKENS_PARTIAL_PATH),
-    ]);
+`,
+    });
+    const deps = styleDeps(ws);
 
-    const variableTargets = resolveStyleDefinitionTargets(
-      { filePath: BUTTON_PATH, line: 3, character: 10 },
-      deps,
-    );
+    const variableTargets = resolveStyleDefinitionTargets(styleTarget(ws, "variable"), deps);
     expect(variableTargets).toHaveLength(1);
     expect(variableTargets[0]).toMatchObject({
       targetFilePath: TOKENS_PARTIAL_PATH,
@@ -350,10 +304,7 @@ describe("resolveStyleDefinitionTargets", () => {
       },
     });
 
-    const functionTargets = resolveStyleDefinitionTargets(
-      { filePath: BUTTON_PATH, line: 4, character: 16 },
-      deps,
-    );
+    const functionTargets = resolveStyleDefinitionTargets(styleTarget(ws, "function"), deps);
     expect(functionTargets).toHaveLength(1);
     expect(functionTargets[0]).toMatchObject({
       targetFilePath: TOKENS_PARTIAL_PATH,
@@ -365,24 +316,18 @@ describe("resolveStyleDefinitionTargets", () => {
   });
 
   it("resolves namespace-qualified Sass members forwarded through @use targets", () => {
-    const buttonScss = `@use "./theme.module" as theme;
+    const ws = styleWorkspace({
+      [BUTTON_PATH]: `@use "./theme.module" as theme;
 
 .button {
-  color: theme.$gap;
+  color: theme.$g/*|*/ap;
 }
-`;
-    const themeScss = `@forward "./tokens.module";`;
-    const tokensScss = `$gap: 1rem;`;
-    const deps = depsForDocuments([
-      parseStyleDocument(buttonScss, BUTTON_PATH),
-      parseStyleDocument(themeScss, THEME_PATH),
-      parseStyleDocument(tokensScss, TOKENS_PARTIAL_PATH),
-    ]);
+`,
+      [THEME_PATH]: `@forward "./tokens.module";`,
+      [TOKENS_PARTIAL_PATH]: `$gap: 1rem;`,
+    });
 
-    const targets = resolveStyleDefinitionTargets(
-      { filePath: BUTTON_PATH, line: 3, character: 16 },
-      deps,
-    );
+    const targets = resolveStyleDefinitionTargets(styleTarget(ws), styleDeps(ws));
 
     expect(targets).toHaveLength(1);
     expect(targets[0]).toMatchObject({
@@ -395,29 +340,24 @@ describe("resolveStyleDefinitionTargets", () => {
   });
 
   it("resolves prefixed and filtered Sass members forwarded through @use targets", () => {
-    const buttonScss = `@use "./theme.module" as *;
+    const ws = styleWorkspace({
+      [BUTTON_PATH]: `@use "./theme.module" as *;
 
 .button {
-  color: $theme-gap;
-  border-color: theme-tone($theme-gap);
-  margin: $theme-secret;
+  color: $th/*at:variable*/eme-gap;
+  border-color: theme-t/*at:function*/one($theme-gap);
+  margin: $theme-s/*at:hidden*/ecret;
 }
-`;
-    const themeScss = `@forward "./tokens.module" as theme-* show $gap, tone;`;
-    const tokensScss = `$gap: 1rem;
+`,
+      [THEME_PATH]: `@forward "./tokens.module" as theme-* show $gap, tone;`,
+      [TOKENS_PARTIAL_PATH]: `$gap: 1rem;
 $secret: 2rem;
 @function tone($value) { @return $value; }
-`;
-    const deps = depsForDocuments([
-      parseStyleDocument(buttonScss, BUTTON_PATH),
-      parseStyleDocument(themeScss, THEME_PATH),
-      parseStyleDocument(tokensScss, TOKENS_PARTIAL_PATH),
-    ]);
+`,
+    });
+    const deps = styleDeps(ws);
 
-    const variableTargets = resolveStyleDefinitionTargets(
-      { filePath: BUTTON_PATH, line: 3, character: 12 },
-      deps,
-    );
+    const variableTargets = resolveStyleDefinitionTargets(styleTarget(ws, "variable"), deps);
     expect(variableTargets).toHaveLength(1);
     expect(variableTargets[0]).toMatchObject({
       targetFilePath: TOKENS_PARTIAL_PATH,
@@ -427,10 +367,7 @@ $secret: 2rem;
       },
     });
 
-    const functionTargets = resolveStyleDefinitionTargets(
-      { filePath: BUTTON_PATH, line: 4, character: 20 },
-      deps,
-    );
+    const functionTargets = resolveStyleDefinitionTargets(styleTarget(ws, "function"), deps);
     expect(functionTargets).toHaveLength(1);
     expect(functionTargets[0]).toMatchObject({
       targetFilePath: TOKENS_PARTIAL_PATH,
@@ -440,25 +377,22 @@ $secret: 2rem;
       },
     });
 
-    expect(
-      resolveStyleDefinitionTargets({ filePath: BUTTON_PATH, line: 5, character: 12 }, deps),
-    ).toEqual([]);
+    expect(resolveStyleDefinitionTargets(styleTarget(ws, "hidden"), deps)).toEqual([]);
   });
 
   it("resolves same-file Sass symbol references to declarations", () => {
-    const scss = `$gap: 1rem;
+    const ws = styleWorkspace({
+      [BUTTON_PATH]: `$gap: 1rem;
 @mixin raised() {}
 .button {
-  color: $gap;
-  @include raised();
+  color: $g/*at:variable*/ap;
+  @include r/*at:mixin*/aised();
 }
-`;
-    const deps = depsForDocuments([parseStyleDocument(scss, BUTTON_PATH)]);
+`,
+    });
+    const deps = styleDeps(ws);
 
-    const variableTargets = resolveStyleDefinitionTargets(
-      { filePath: BUTTON_PATH, line: 3, character: 10 },
-      deps,
-    );
+    const variableTargets = resolveStyleDefinitionTargets(styleTarget(ws, "variable"), deps);
     expect(variableTargets).toHaveLength(1);
     expect(variableTargets[0]).toMatchObject({
       targetFilePath: BUTTON_PATH,
@@ -468,10 +402,7 @@ $secret: 2rem;
       },
     });
 
-    const mixinTargets = resolveStyleDefinitionTargets(
-      { filePath: BUTTON_PATH, line: 4, character: 13 },
-      deps,
-    );
+    const mixinTargets = resolveStyleDefinitionTargets(styleTarget(ws, "mixin"), deps);
     expect(mixinTargets).toHaveLength(1);
     expect(mixinTargets[0]).toMatchObject({
       targetFilePath: BUTTON_PATH,
@@ -483,23 +414,21 @@ $secret: 2rem;
   });
 
   it("resolves Less variable references to the nearest scoped declaration", () => {
-    const less = `@gap: 1rem;
+    const lessPath = BUTTON_PATH.replace(".scss", ".less");
+    const ws = styleWorkspace({
+      [lessPath]: `@gap: 1rem;
 .card {
   @gap: 2rem;
-  color: @gap;
+  color: @g/*at:local*/ap;
 }
 .other {
-  color: @gap;
+  color: @g/*at:file*/ap;
 }
-`;
-    const deps = depsForDocuments([
-      parseStyleDocument(less, BUTTON_PATH.replace(".scss", ".less")),
-    ]);
+`,
+    });
+    const deps = styleDeps(ws);
 
-    const localTargets = resolveStyleDefinitionTargets(
-      { filePath: BUTTON_PATH.replace(".scss", ".less"), line: 3, character: 10 },
-      deps,
-    );
+    const localTargets = resolveStyleDefinitionTargets(styleTarget(ws, "local"), deps);
     expect(localTargets).toHaveLength(1);
     expect(localTargets[0]).toMatchObject({
       targetSelectionRange: {
@@ -508,10 +437,7 @@ $secret: 2rem;
       },
     });
 
-    const fileScopeTargets = resolveStyleDefinitionTargets(
-      { filePath: BUTTON_PATH.replace(".scss", ".less"), line: 6, character: 10 },
-      deps,
-    );
+    const fileScopeTargets = resolveStyleDefinitionTargets(styleTarget(ws, "file"), deps);
     expect(fileScopeTargets).toHaveLength(1);
     expect(fileScopeTargets[0]).toMatchObject({
       targetSelectionRange: {
@@ -522,21 +448,20 @@ $secret: 2rem;
   });
 
   it("prefers local Sass variable declarations over same-name file-scope declarations", () => {
-    const scss = `$gap: 1rem;
+    const ws = styleWorkspace({
+      [BUTTON_PATH]: `$gap: 1rem;
 .one {
   $gap: 2rem;
-  color: $gap;
+  color: $g/*at:local*/ap;
 }
 .two {
-  color: $gap;
+  color: $g/*at:file*/ap;
 }
-`;
-    const deps = depsForDocuments([parseStyleDocument(scss, BUTTON_PATH)]);
+`,
+    });
+    const deps = styleDeps(ws);
 
-    const localTargets = resolveStyleDefinitionTargets(
-      { filePath: BUTTON_PATH, line: 3, character: 10 },
-      deps,
-    );
+    const localTargets = resolveStyleDefinitionTargets(styleTarget(ws, "local"), deps);
     expect(localTargets).toHaveLength(1);
     expect(localTargets[0]).toMatchObject({
       targetSelectionRange: {
@@ -545,10 +470,7 @@ $secret: 2rem;
       },
     });
 
-    const fileScopeTargets = resolveStyleDefinitionTargets(
-      { filePath: BUTTON_PATH, line: 6, character: 10 },
-      deps,
-    );
+    const fileScopeTargets = resolveStyleDefinitionTargets(styleTarget(ws, "file"), deps);
     expect(fileScopeTargets).toHaveLength(1);
     expect(fileScopeTargets[0]).toMatchObject({
       targetSelectionRange: {
@@ -559,23 +481,18 @@ $secret: 2rem;
   });
 
   it("prefers local Sass declarations over wildcard module members", () => {
-    const buttonScss = `@use "./tokens.module" as *;
+    const ws = styleWorkspace({
+      [BUTTON_PATH]: `@use "./tokens.module" as *;
 $gap: 2rem;
 
 .button {
-  color: $gap;
+  color: $g/*|*/ap;
 }
-`;
-    const tokensScss = `$gap: 1rem;`;
-    const deps = depsForDocuments([
-      parseStyleDocument(buttonScss, BUTTON_PATH),
-      parseStyleDocument(tokensScss, TOKENS_PARTIAL_PATH),
-    ]);
+`,
+      [TOKENS_PARTIAL_PATH]: `$gap: 1rem;`,
+    });
 
-    const targets = resolveStyleDefinitionTargets(
-      { filePath: BUTTON_PATH, line: 4, character: 10 },
-      deps,
-    );
+    const targets = resolveStyleDefinitionTargets(styleTarget(ws), styleDeps(ws));
 
     expect(targets).toHaveLength(1);
     expect(targets[0]).toMatchObject({
@@ -588,23 +505,36 @@ $gap: 2rem;
   });
 
   it("does not resolve Sass variables to declarations from another local scope", () => {
-    const scss = `.one {
+    const ws = styleWorkspace({
+      [BUTTON_PATH]: `.one {
   $gap: 1rem;
 }
 .two {
-  color: $gap;
+  color: $g/*|*/ap;
 }
-`;
-    const deps = depsForDocuments([parseStyleDocument(scss, BUTTON_PATH)]);
+`,
+    });
 
-    const targets = resolveStyleDefinitionTargets(
-      { filePath: BUTTON_PATH, line: 4, character: 10 },
-      deps,
-    );
+    const targets = resolveStyleDefinitionTargets(styleTarget(ws), styleDeps(ws));
 
     expect(targets).toEqual([]);
   });
 });
+
+function styleWorkspace(files: Record<string, string>): CmeWorkspace {
+  return workspace(files);
+}
+
+function styleTarget(ws: CmeWorkspace, markerName = "cursor", filePath?: string) {
+  return targetFixture({ workspace: ws, markerName, filePath });
+}
+
+function styleDeps(ws: CmeWorkspace, options: { readonly aliasResolver?: AliasResolver } = {}) {
+  return depsForDocuments(
+    ws.filePaths.map((filePath) => parseStyleDocument(ws.file(filePath).content, filePath)),
+    options,
+  );
+}
 
 function depsForDocuments(
   documents: readonly StyleDocumentHIR[],

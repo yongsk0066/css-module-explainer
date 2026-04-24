@@ -10,6 +10,7 @@ one fixture at a time.
 - marker syntax: `/*|*/`, `/*at:name*/`, `/*<range>*/.../*</range>*/`
 - `documentFixture()` for provider-style document params from a workspace file
 - `cursorFixture()` for provider-style cursor params from a marker
+- `targetFixture()` for runtime query targets from a marker
 - `scenario()` wrapper actions: `hover`, `definition`, `prepareRename`,
   `codeAction`, `completion`, with action result types preserved
 - `registerCmeMatchers()` with five domain-oriented matchers

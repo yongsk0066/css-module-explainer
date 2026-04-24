@@ -3,6 +3,7 @@ import {
   MarkerParseError,
   cursorFixture,
   documentFixture,
+  targetFixture,
   workspace,
 } from "../../../packages/vitest-cme/src";
 
@@ -114,6 +115,29 @@ describe("vitest-cme workspace markers", () => {
       content: "const cls = cx('indicator');",
       filePath: "Button.tsx",
       version: 4,
+    });
+  });
+
+  it("builds runtime query targets from a marker", () => {
+    const ws = workspace({
+      "Button.module.scss": ".button { color: /*at:value*/$gap; }",
+    });
+
+    expect(
+      targetFixture({
+        workspace: ws,
+        markerName: "value",
+      }),
+    ).toEqual({
+      filePath: "Button.module.scss",
+      line: 0,
+      character: 17,
+      position: { line: 0, character: 17 },
+      marker: {
+        name: "value",
+        filePath: "Button.module.scss",
+        position: { line: 0, character: 17 },
+      },
     });
   });
 });

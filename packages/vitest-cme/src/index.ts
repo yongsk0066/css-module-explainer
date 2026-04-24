@@ -4,6 +4,7 @@ export {
   type CmeDocumentFixture,
   type CmeDocumentFixtureOptions,
 } from "./document";
+export { targetFixture, type CmeTargetFixture, type CmeTargetFixtureOptions } from "./target";
 export {
   MarkerParseError,
   workspace,
