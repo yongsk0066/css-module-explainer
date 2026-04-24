@@ -7,17 +7,23 @@ import {
   renderHover,
   renderSelectorHover,
 } from "../../../server/lsp-server/src/providers/hover-renderer";
+import { workspace, type Range } from "../../../packages/vitest-cme/src";
 
 const SCSS_PATH = "/fake/ws/src/Button.module.scss";
+const SOURCE_PATH = "/fake/ws/src/Button.tsx";
+const SELECTOR_COLUMN = 2;
+const RULE_START_COLUMN = 0;
+const RULE_END_COLUMN = 1;
+
+function sourceRange(content: string, markerName: string): Range {
+  return workspace({ [SOURCE_PATH]: content }).range(markerName, SOURCE_PATH).range;
+}
 
 const staticExpression: ClassExpressionHIR = {
   kind: "literal",
   id: "expr:literal",
   className: "indicator",
-  range: {
-    start: { line: 4, character: 15 },
-    end: { line: 4, character: 24 },
-  },
+  range: sourceRange("const el = cx('/*<class>*/indicator/*</class>*/');", "class"),
   scssModulePath: SCSS_PATH,
   origin: "cxCall",
 };
@@ -27,10 +33,7 @@ const templateExpression: ClassExpressionHIR = {
   id: "expr:template",
   rawTemplate: "btn-${variant}",
   staticPrefix: "btn-",
-  range: {
-    start: { line: 4, character: 15 },
-    end: { line: 4, character: 28 },
-  },
+  range: sourceRange("const el = cx(/*<template>*/`btn-${variant}`/*</template>*/);", "template"),
   scssModulePath: SCSS_PATH,
   origin: "cxCall",
 };
@@ -41,25 +44,30 @@ const symbolExpression: ClassExpressionHIR = {
   rawReference: "size",
   rootName: "size",
   pathSegments: [],
-  range: {
-    start: { line: 4, character: 15 },
-    end: { line: 4, character: 19 },
-  },
+  range: sourceRange("const el = cx(/*<symbol>*/size/*</symbol>*/);", "symbol"),
   scssModulePath: SCSS_PATH,
   origin: "cxCall",
 };
 
 function selector(name: string, line: number, declarations: string): SelectorDeclHIR {
+  const range: Range = {
+    start: { line, character: SELECTOR_COLUMN },
+    end: { line, character: SELECTOR_COLUMN + name.length },
+  };
+  const ruleRange: Range = {
+    start: { line, character: RULE_START_COLUMN },
+    end: { line: line + 3, character: RULE_END_COLUMN },
+  };
   return {
     kind: "selector",
     id: `selector:${name}:${line}`,
     name,
     canonicalName: name,
     viewKind: "canonical",
-    range: { start: { line, character: 2 }, end: { line, character: 2 + name.length } },
+    range,
     fullSelector: `.${name}`,
     declarations,
-    ruleRange: { start: { line, character: 0 }, end: { line: line + 3, character: 1 } },
+    ruleRange,
     composes: [],
     nestedSafety: "flat",
   };

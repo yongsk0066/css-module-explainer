@@ -4,6 +4,7 @@ import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/engine
 import { WorkspaceStyleDependencyGraph } from "../../../server/engine-core-ts/src/core/semantic/style-dependency-graph";
 import { parseStyleDocument } from "../../../server/engine-core-ts/src/core/scss/scss-parser";
 import { computeScssUnusedDiagnostics } from "../../../server/lsp-server/src/providers/scss-diagnostics";
+import { workspace } from "../../../packages/vitest-cme/src";
 import { infoAtLine as info, semanticSiteAt } from "../../_fixtures/test-helpers";
 import {
   buildStyleDocumentFromSelectorMap,
@@ -13,9 +14,69 @@ import {
 } from "../../_fixtures/style-documents";
 
 const SCSS_PATH = "/fake/Button.module.scss";
+const SOURCE_URI = "file:///a.tsx";
+const SOURCE_PATH = "/a.tsx";
+const SOURCE_WORKSPACE = workspace({
+  [SOURCE_PATH]: "const value = cx(/*<dynamic>*/token/*</dynamic>*/);\n",
+});
+const DYNAMIC_REF_RANGE = SOURCE_WORKSPACE.range("dynamic", SOURCE_PATH).range;
+const COMPOSES_WORKSPACE = workspace({
+  [SCSS_PATH]: `.button {
+  composes: /*<class>*/base/*</class>*/ from "./Base.module.scss";
+}
+`,
+});
+const COMPOSED_CLASS_TOKEN_RANGE = COMPOSES_WORKSPACE.range("class", SCSS_PATH).range;
 
 function styleDocument(selectors: ReadonlyMap<string, ReturnType<typeof info>>) {
   return buildStyleDocumentFromSelectorMap(SCSS_PATH, selectors);
+}
+
+function unresolvedDynamicRef(expressionKind: "symbolRef" | "template", refId: string) {
+  return {
+    refId,
+    uri: SOURCE_URI,
+    filePath: SOURCE_PATH,
+    range: DYNAMIC_REF_RANGE,
+    origin: "cxCall" as const,
+    scssModulePath: SCSS_PATH,
+    expressionKind,
+    hasResolvedTargets: false,
+    isDynamic: true,
+  };
+}
+
+function resolvedDynamicRef(expressionKind: "symbolRef" | "template", refId: string) {
+  return {
+    ...unresolvedDynamicRef(expressionKind, refId),
+    hasResolvedTargets: true,
+  };
+}
+
+function dynamicSemanticSite(
+  className: string,
+  options: Parameters<typeof semanticSiteAt>[5] = {},
+  canonicalName = className,
+) {
+  return semanticSiteAt(
+    SOURCE_URI,
+    className,
+    DYNAMIC_REF_RANGE.start.line,
+    SCSS_PATH,
+    canonicalName,
+    {
+      start: DYNAMIC_REF_RANGE.start.character,
+      end: DYNAMIC_REF_RANGE.end.character,
+      ...options,
+    },
+  );
+}
+
+function composedClassToken() {
+  return {
+    className: "base",
+    range: COMPOSED_CLASS_TOKEN_RANGE,
+  };
 }
 
 describe("computeScssUnusedDiagnostics", () => {
@@ -66,21 +127,9 @@ describe("computeScssUnusedDiagnostics", () => {
     ]);
     const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
     semanticReferenceIndex.record(
-      "file:///a.tsx",
+      SOURCE_URI,
       [],
-      [
-        {
-          refId: "ref:variable",
-          uri: "file:///a.tsx",
-          filePath: "/a.tsx",
-          range: { start: { line: 5, character: 10 }, end: { line: 5, character: 14 } },
-          origin: "cxCall",
-          scssModulePath: SCSS_PATH,
-          expressionKind: "symbolRef",
-          hasResolvedTargets: false,
-          isDynamic: true,
-        },
-      ],
+      [unresolvedDynamicRef("symbolRef", "ref:variable")],
     );
     const diagnostics = computeScssUnusedDiagnostics(
       SCSS_PATH,
@@ -97,21 +146,9 @@ describe("computeScssUnusedDiagnostics", () => {
     ]);
     const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
     semanticReferenceIndex.record(
-      "file:///a.tsx",
+      SOURCE_URI,
       [],
-      [
-        {
-          refId: "ref:template",
-          uri: "file:///a.tsx",
-          filePath: "/a.tsx",
-          range: { start: { line: 5, character: 10 }, end: { line: 5, character: 14 } },
-          origin: "cxCall",
-          scssModulePath: SCSS_PATH,
-          expressionKind: "template",
-          hasResolvedTargets: false,
-          isDynamic: true,
-        },
-      ],
+      [unresolvedDynamicRef("template", "ref:template")],
     );
     const diagnostics = computeScssUnusedDiagnostics(
       SCSS_PATH,
@@ -129,37 +166,14 @@ describe("computeScssUnusedDiagnostics", () => {
     ]);
     const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
     semanticReferenceIndex.record(
-      "file:///a.tsx",
+      SOURCE_URI,
       [
-        {
-          refId: "ref:branch",
-          selectorId: "selector:btn-primary",
-          filePath: "/a.tsx",
-          uri: "file:///a.tsx",
-          range: { start: { line: 5, character: 10 }, end: { line: 5, character: 14 } },
-          origin: "cxCall",
-          scssModulePath: SCSS_PATH,
-          selectorFilePath: SCSS_PATH,
-          canonicalName: "btn-primary",
-          className: "btn-primary",
+        dynamicSemanticSite("btn-primary", {
           certainty: "inferred",
           reason: "flowBranch",
-          expansion: "expanded",
-        },
+        }),
       ],
-      [
-        {
-          refId: "ref:branch",
-          uri: "file:///a.tsx",
-          filePath: "/a.tsx",
-          range: { start: { line: 5, character: 10 }, end: { line: 5, character: 14 } },
-          origin: "cxCall",
-          scssModulePath: SCSS_PATH,
-          expressionKind: "symbolRef",
-          hasResolvedTargets: true,
-          isDynamic: true,
-        },
-      ],
+      [resolvedDynamicRef("symbolRef", "ref:branch")],
     );
     const diagnostics = computeScssUnusedDiagnostics(
       SCSS_PATH,
@@ -343,21 +357,14 @@ describe("computeScssUnusedDiagnostics", () => {
 
     const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
     semanticReferenceIndex.record("file:///a.tsx", [
-      {
-        refId: "ref:file:///a.tsx:5:10",
-        selectorId: `selector:${SCSS_PATH}:btn-primary`,
-        filePath: "/a.tsx",
-        uri: "file:///a.tsx",
-        range: { start: { line: 5, character: 10 }, end: { line: 5, character: 20 } },
-        origin: "styleAccess",
-        scssModulePath: SCSS_PATH,
-        selectorFilePath: SCSS_PATH,
-        canonicalName: "btn-primary",
-        className: "btnPrimary",
-        certainty: "exact",
-        reason: "styleAccess",
-        expansion: "direct",
-      },
+      dynamicSemanticSite(
+        "btnPrimary",
+        {
+          origin: "styleAccess",
+          reason: "styleAccess",
+        },
+        "btn-primary",
+      ),
     ]);
 
     const diagnostics = computeScssUnusedDiagnostics(
@@ -375,21 +382,10 @@ describe("computeScssUnusedDiagnostics", () => {
     ]);
     const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
     semanticReferenceIndex.record("file:///a.tsx", [
-      {
-        refId: "ref:file:///a.tsx:5:10",
-        selectorId: `selector:${SCSS_PATH}:btn-primary`,
-        filePath: "/a.tsx",
-        uri: "file:///a.tsx",
-        range: { start: { line: 5, character: 10 }, end: { line: 5, character: 30 } },
-        origin: "cxCall",
-        scssModulePath: SCSS_PATH,
-        selectorFilePath: SCSS_PATH,
-        canonicalName: "btn-primary",
-        className: "btn-primary",
+      dynamicSemanticSite("btn-primary", {
         certainty: "inferred",
         reason: "templatePrefix",
-        expansion: "expanded",
-      },
+      }),
     ]);
 
     const diagnostics = computeScssUnusedDiagnostics(
@@ -410,15 +406,7 @@ describe("computeScssUnusedDiagnostics", () => {
           composes: [
             {
               classNames: ["base"],
-              classTokens: [
-                {
-                  className: "base",
-                  range: {
-                    start: { line: 1, character: 12 },
-                    end: { line: 1, character: 16 },
-                  },
-                },
-              ],
+              classTokens: [composedClassToken()],
               from: "./Base.module.scss",
             },
           ],
@@ -459,15 +447,7 @@ describe("computeScssUnusedDiagnostics", () => {
           composes: [
             {
               classNames: ["base"],
-              classTokens: [
-                {
-                  className: "base",
-                  range: {
-                    start: { line: 1, character: 12 },
-                    end: { line: 1, character: 16 },
-                  },
-                },
-              ],
+              classTokens: [composedClassToken()],
               from: "./Base.module.scss",
             },
           ],
