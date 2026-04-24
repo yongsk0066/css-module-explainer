@@ -48,13 +48,20 @@ export const SCOPE_DEFINITIONS: readonly ScopeDefinition[] = [
     id: "tsgo",
     matches: (scriptName) =>
       scriptName.startsWith("check:tsgo-") ||
+      scriptName === "check:release-batch-tsgo" ||
+      scriptName === "check:real-project-corpus-tsgo" ||
+      scriptName === "check:lsp-server-smoke-tsgo" ||
       scriptName === "check:operational-lane" ||
       scriptName === "check:operational-shadow" ||
       scriptName === "check:operational-shadow-review",
     toGateId: (scriptName) =>
       scriptName.startsWith("check:operational-")
-        ? `operational/${stripCheckPrefix(scriptName).replace(/^operational-/, "")}`
-        : `tsgo/${stripCheckPrefix(scriptName).replace(/^tsgo-/, "")}`,
+        ? `operational/${toTsgoGatePath(stripCheckPrefix(scriptName).replace(/^operational-/, ""))}`
+        : `tsgo/${toTsgoGatePath(
+            stripCheckPrefix(scriptName)
+              .replace(/^tsgo-/, "")
+              .replace(/-tsgo$/, ""),
+          )}`,
   },
   {
     id: "plugin",
@@ -125,7 +132,10 @@ export const SCOPE_DEFINITIONS: readonly ScopeDefinition[] = [
   {
     id: "tooling",
     matches: (scriptName) =>
-      scriptName === "cme-check" || scriptName === "check:orchestrator-doctor",
+      scriptName === "cme-check" ||
+      scriptName === "check:orchestrator-doctor" ||
+      scriptName === "check:orchestrator-inventory" ||
+      scriptName === "update:check-inventory",
     toGateId: (scriptName) => `tooling/${stripCheckPrefix(scriptName).replace(":", "/")}`,
   },
 ];
@@ -157,6 +167,21 @@ function toTs7GatePath(rest: string): string {
   }
 
   return rest;
+}
+
+function toTsgoGatePath(rest: string): string {
+  switch (rest) {
+    case "release-bundle":
+      return "release/bundle";
+    case "operational-lane":
+      return "operational/lane";
+    case "operational-shadow":
+      return "operational/shadow";
+    case "operational-shadow-review":
+      return "operational/shadow-review";
+    default:
+      return rest;
+  }
 }
 
 function toBackendQualifiedPath(rest: string): string {

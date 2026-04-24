@@ -1,11 +1,22 @@
 import { spawnSync } from "node:child_process";
-import { loadCheckManifest, resolveGateTarget, runDoctor } from "../manifest/index";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import {
+  buildCheckPlan,
+  loadCheckManifest,
+  renderCheckInventory,
+  renderCheckPlan,
+  resolveGateTarget,
+  runDoctor,
+} from "../manifest/index";
 
 interface ParsedArgs {
   readonly command: string;
   readonly target: string | null;
   readonly dryRun: boolean;
   readonly json: boolean;
+  readonly check: boolean;
+  readonly write: boolean;
   readonly extraArgs: readonly string[];
 }
 
@@ -22,8 +33,14 @@ switch (parsedArgs.command) {
   case "bundle":
     runTarget(parsedArgs, true);
     break;
+  case "plan":
+    printPlan(parsedArgs);
+    break;
   case "doctor":
     runDoctorCommand(parsedArgs.json);
+    break;
+  case "inventory":
+    runInventoryCommand(parsedArgs);
     break;
   case "help":
   case "--help":
@@ -46,6 +63,8 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
     target: positionals[1] ?? null,
     dryRun: flags.has("--dry") || flags.has("--dry-run"),
     json: flags.has("--json"),
+    check: flags.has("--check"),
+    write: flags.has("--write"),
     extraArgs,
   };
 }
@@ -86,15 +105,17 @@ function runTarget(parsed: ParsedArgs, bundleOnly: boolean): void {
     fail(`Missing target. Run "pnpm cme-check ${parsed.command} <id-or-script>".`);
   }
 
-  const gate = resolveGateTarget(manifest, parsed.target);
-  if (!gate) {
-    fail(`Unknown target "${parsed.target}". Run "pnpm cme-check list".`);
-  }
+  const gate = resolveTarget(parsed.target);
   if (bundleOnly && gate.kind !== "bundle" && gate.kind !== "alias") {
     fail(`Target "${parsed.target}" is not a bundle. Use "pnpm cme-check run ${gate.id}".`);
   }
 
-  const command = ["pnpm", "run", gate.scriptName, ...parsed.extraArgs];
+  const command = [
+    "pnpm",
+    "run",
+    gate.scriptName,
+    ...(parsed.extraArgs.length > 0 ? ["--", ...parsed.extraArgs] : []),
+  ];
   if (parsed.dryRun) {
     console.log(command.join(" "));
     return;
@@ -106,6 +127,28 @@ function runTarget(parsed: ParsedArgs, bundleOnly: boolean): void {
     shell: false,
   });
   process.exit(result.status ?? 1);
+}
+
+function printPlan(parsed: ParsedArgs): void {
+  if (!parsed.target) {
+    fail('Missing target. Run "pnpm cme-check plan <id-or-script>".');
+  }
+
+  const plan = buildCheckPlan(manifest, resolveTarget(parsed.target));
+  if (parsed.json) {
+    console.log(JSON.stringify(plan, null, 2));
+    return;
+  }
+
+  console.log(renderCheckPlan(plan));
+}
+
+function resolveTarget(target: string) {
+  const gate = resolveGateTarget(manifest, target);
+  if (!gate) {
+    fail(`Unknown target "${target}". Run "pnpm cme-check list".`);
+  }
+  return gate;
 }
 
 function runDoctorCommand(json: boolean): void {
@@ -126,12 +169,39 @@ function runDoctorCommand(json: boolean): void {
   process.exit(errorCount === 0 ? 0 : 1);
 }
 
+function runInventoryCommand(parsed: ParsedArgs): void {
+  if (parsed.check && parsed.write) {
+    fail("Use either --check or --write, not both.");
+  }
+
+  const inventory = renderCheckInventory(manifest);
+  const inventoryPath = path.join(manifest.rootDir, "packages/check-orchestrator/CHECKS.md");
+
+  if (parsed.write) {
+    writeFileSync(inventoryPath, `${inventory}\n`);
+    return;
+  }
+
+  if (parsed.check) {
+    const current = existsSync(inventoryPath) ? readFileSync(inventoryPath, "utf8") : "";
+    if (current !== `${inventory}\n`) {
+      fail("Check inventory is out of date. Run `pnpm cme-check inventory --write`.");
+    }
+    console.log("check-orchestrator inventory: ok");
+    return;
+  }
+
+  console.log(inventory);
+}
+
 function printHelp(): void {
   console.log(`Usage:
   pnpm cme-check list [--json]
   pnpm cme-check run <id-or-script> [--dry] [-- extra args]
   pnpm cme-check bundle <id-or-script> [--dry] [-- extra args]
+  pnpm cme-check plan <id-or-script> [--json]
   pnpm cme-check doctor [--json]
+  pnpm cme-check inventory [--check|--write]
 `);
 }
 

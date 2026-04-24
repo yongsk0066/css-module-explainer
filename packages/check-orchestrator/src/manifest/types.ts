@@ -41,6 +41,22 @@ export interface CheckManifest {
   readonly diagnostics: readonly CheckDiagnostic[];
 }
 
+export interface CheckPlanStep {
+  readonly id: string;
+  readonly scriptName: string;
+  readonly scope: CheckScopeId;
+  readonly kind: CheckGateKind;
+  readonly depth: number;
+  readonly referencedScripts: readonly string[];
+  readonly repeated: boolean;
+  readonly cycle: boolean;
+}
+
+export interface CheckPlan {
+  readonly target: CheckGate;
+  readonly steps: readonly CheckPlanStep[];
+}
+
 export interface RootPackageJson {
   readonly name?: string;
   readonly scripts?: Record<string, string>;

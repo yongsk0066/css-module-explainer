@@ -25,7 +25,7 @@ jobs:
       - run: ./scripts/release.sh
       - id: rust_selected_query_default_candidate
         name: Run rust-selected-query default-candidate
-        run: pnpm check:rust-selected-query-default-candidate
+        run: pnpm cme-check run rust/selected-query/default-candidate
         continue-on-error: true
       - if: always()
         name: Enforce rust-selected-query default-candidate result

@@ -1,10 +1,15 @@
 export {
+  buildCheckPlan,
   loadCheckManifest,
+  renderCheckInventory,
+  renderCheckPlan,
   resolveGateTarget,
   runDoctor,
   type CheckBundle,
   type CheckDiagnostic,
   type CheckGate,
   type CheckManifest,
+  type CheckPlan,
+  type CheckPlanStep,
   type CheckScopeId,
 } from "./manifest/index";

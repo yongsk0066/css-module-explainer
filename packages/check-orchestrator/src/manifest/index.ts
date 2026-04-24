@@ -1,6 +1,9 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { renderCheckInventory } from "./inventory";
+import { buildCheckPlan, renderCheckPlan } from "./plan";
 import { classifyScript } from "./scopes";
+import { findWorkflowBypassDiagnostics } from "./workflows";
 import type {
   CheckBundle,
   CheckDiagnostic,
@@ -9,9 +12,20 @@ import type {
   RootPackageJson,
 } from "./types";
 
-export type { CheckBundle, CheckDiagnostic, CheckGate, CheckManifest, CheckScopeId } from "./types";
+export type {
+  CheckBundle,
+  CheckDiagnostic,
+  CheckGate,
+  CheckManifest,
+  CheckPlan,
+  CheckPlanStep,
+  CheckScopeId,
+} from "./types";
+export { buildCheckPlan, renderCheckInventory, renderCheckPlan };
 
 const PACKAGE_SCRIPT_REF = /\bpnpm\s+(?:run\s+)?([A-Za-z0-9:_-]+)/g;
+const CHECK_ORCHESTRATOR_TARGET_REF =
+  /\bpnpm\s+(?:run\s+)?cme-check\s+(run|bundle)\s+([A-Za-z0-9:_@/.-]+)/g;
 
 export function loadCheckManifest(rootDir = findRepoRoot()): CheckManifest {
   const packageJson = readRootPackageJson(rootDir);
@@ -22,6 +36,8 @@ export function loadCheckManifest(rootDir = findRepoRoot()): CheckManifest {
     .map(([scriptName, command]) => buildGate(scriptName, command, scripts, diagnostics));
 
   diagnostics.push(...findDuplicateGateIds(gates));
+  diagnostics.push(...findCheckOrchestratorTargetDiagnostics(gates));
+  diagnostics.push(...findWorkflowBypassDiagnostics(rootDir, gates));
 
   return {
     rootDir,
@@ -123,13 +139,76 @@ function extractReferencedScripts(
   scripts: Record<string, string>,
 ): readonly string[] {
   const refs = new Set<string>();
+  const cmeTargetMatches = [...command.matchAll(CHECK_ORCHESTRATOR_TARGET_REF)];
+
+  for (const match of cmeTargetMatches) {
+    const target = match[2];
+    const referencedScript = target ? resolveScriptNameFromTarget(target, scripts) : null;
+    if (referencedScript) {
+      refs.add(referencedScript);
+    }
+  }
+
   for (const match of command.matchAll(PACKAGE_SCRIPT_REF)) {
     const scriptName = match[1];
+    if (scriptName === "cme-check" && cmeTargetMatches.length > 0) {
+      continue;
+    }
     if (scriptName && Object.hasOwn(scripts, scriptName)) {
       refs.add(scriptName);
     }
   }
   return [...refs].toSorted();
+}
+
+function findCheckOrchestratorTargetDiagnostics(
+  gates: readonly CheckGate[],
+): readonly CheckDiagnostic[] {
+  const diagnostics: CheckDiagnostic[] = [];
+
+  for (const gate of gates) {
+    for (const match of gate.command.matchAll(CHECK_ORCHESTRATOR_TARGET_REF)) {
+      const command = match[1];
+      const target = match[2];
+      if (!command || !target) continue;
+
+      const resolved = resolveGateTarget({ gates }, target);
+      if (!resolved) {
+        diagnostics.push({
+          severity: "error",
+          code: "unknown-cme-check-target",
+          message: `Script "${gate.scriptName}" references unknown cme-check target "${target}".`,
+        });
+        continue;
+      }
+
+      if (command === "bundle" && resolved.kind !== "bundle" && resolved.kind !== "alias") {
+        diagnostics.push({
+          severity: "error",
+          code: "non-bundle-cme-check-target",
+          message: `Script "${gate.scriptName}" uses cme-check bundle for non-bundle target "${target}".`,
+        });
+      }
+    }
+  }
+
+  return diagnostics;
+}
+
+function resolveScriptNameFromTarget(
+  target: string,
+  scripts: Record<string, string>,
+): string | null {
+  if (Object.hasOwn(scripts, target)) return target;
+
+  for (const scriptName of Object.keys(scripts)) {
+    const scope = classifyScript(scriptName);
+    if (scope?.toGateId(scriptName) === target) {
+      return scriptName;
+    }
+  }
+
+  return null;
 }
 
 function findDuplicateGateIds(gates: readonly CheckGate[]): readonly CheckDiagnostic[] {

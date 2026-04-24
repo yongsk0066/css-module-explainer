@@ -23,18 +23,18 @@ jobs:
       - run: corepack enable && corepack prepare pnpm@10.30.3 --activate
       - run: pnpm install --frozen-lockfile
       - run: ./scripts/release.sh
-      - run: pnpm build
+      - run: pnpm cme-check run build
       - id: ts7_phase_a_readiness
         name: Run ts7-phase-a readiness
-        run: pnpm check:ts7-phase-a-readiness
+        run: pnpm cme-check bundle ts7/phase-a/readiness
         continue-on-error: true
       - id: ts7_phase_a_shadow
         name: Run ts7-phase-a shadow
-        run: pnpm check:ts7-phase-a-shadow
+        run: pnpm cme-check bundle ts7/phase-a/shadow
         continue-on-error: true
       - id: ts7_phase_a_stability
         name: Run ts7-phase-a stability
-        run: pnpm check:ts7-phase-a-stability
+        run: pnpm cme-check run ts7/phase-a/stability
         continue-on-error: true
       - if: always()
         name: Enforce ts7-phase-a shadow result

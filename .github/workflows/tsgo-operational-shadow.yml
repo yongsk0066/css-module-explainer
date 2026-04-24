@@ -23,22 +23,22 @@ jobs:
       - run: corepack enable && corepack prepare pnpm@10.30.3 --activate
       - run: pnpm install --frozen-lockfile
       - run: ./scripts/release.sh
-      - run: pnpm build
+      - run: pnpm cme-check run build
       - id: release_batch_tsgo
         name: Run release-batch-tsgo
-        run: pnpm check:release-batch-tsgo
+        run: pnpm cme-check run tsgo/release-batch
         continue-on-error: true
       - id: real_project_corpus_tsgo
         name: Run real-project-corpus-tsgo
-        run: pnpm check:real-project-corpus-tsgo
+        run: pnpm cme-check run tsgo/real-project-corpus
         continue-on-error: true
       - id: lsp_server_smoke_tsgo
         name: Run lsp-server-smoke-tsgo
-        run: pnpm check:lsp-server-smoke-tsgo
+        run: pnpm cme-check run tsgo/lsp-server-smoke
         continue-on-error: true
       - id: tsgo_operational_lane
         name: Run tsgo-operational-lane
-        run: pnpm check:tsgo-operational-lane
+        run: pnpm cme-check bundle tsgo/operational/lane
         continue-on-error: true
       - if: always()
         name: Enforce tsgo operational shadow result

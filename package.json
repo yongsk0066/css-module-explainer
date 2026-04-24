@@ -40,6 +40,8 @@
     "watch": "rolldown -c rolldown.config.ts --watch",
     "cme-check": "node --import tsx ./packages/check-orchestrator/src/cli/main.ts",
     "check:orchestrator-doctor": "pnpm cme-check doctor",
+    "check:orchestrator-inventory": "pnpm cme-check inventory --check",
+    "update:check-inventory": "pnpm cme-check inventory --write",
     "changeset": "changeset",
     "typecheck": "tsc -b",
     "test": "vitest run",
@@ -193,9 +195,9 @@
     "check": "pnpm lint && pnpm format:check && pnpm typecheck",
     "update:rust-split-consumer-pins": "node --import tsx ./scripts/update-rust-split-consumer-pins.ts",
     "test:coverage": "vitest run --coverage",
-    "package": "rm -f ./*.vsix && pnpm build && node ./scripts/merge-engine-shadow-runner-artifacts.mjs && pnpm check:packaged-engine-shadow-runner-matrix && vsce package --no-dependencies && pnpm check:packaged-selected-query-default",
+    "package": "rm -f ./*.vsix && pnpm cme-check run build && node ./scripts/merge-engine-shadow-runner-artifacts.mjs && pnpm cme-check run release/check/packaged-engine-shadow-runner-matrix && vsce package --no-dependencies && pnpm cme-check run release/check/packaged-selected-query-default",
     "version-packages": "changeset version && ./scripts/release.sh",
-    "release:verify": "./scripts/release.sh && pnpm check && pnpm check:plugin-consumer-example && pnpm check:plugin-consumers && pnpm check:rust-release-bundle && pnpm check:tsgo-release-bundle && pnpm test && pnpm package",
+    "release:verify": "./scripts/release.sh && pnpm cme-check run check && pnpm cme-check run check:plugin-consumer-example && pnpm cme-check bundle plugin/consumers && pnpm cme-check bundle rust/release/bundle && pnpm cme-check bundle tsgo/release/bundle && pnpm cme-check run test && pnpm cme-check run package",
     "release:publish": "./scripts/publish-extension.sh"
   },
   "devDependencies": {
