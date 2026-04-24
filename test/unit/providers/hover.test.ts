@@ -5,7 +5,13 @@ import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/sour
 import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
 import type { ProviderDeps } from "../../../server/lsp-server/src/providers/cursor-dispatch";
 import { handleHover } from "../../../server/lsp-server/src/providers/hover";
-import { cursorFixture, scenario, workspace, type Range } from "../../../packages/vitest-cme/src";
+import {
+  cursorFixture,
+  scenario,
+  workspace,
+  type CmeWorkspace,
+  type Range,
+} from "../../../packages/vitest-cme/src";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
 import {
   EMPTY_ALIAS_RESOLVER,
@@ -77,13 +83,18 @@ function makeDeps(
   });
 }
 
-describe("handleHover", () => {
-  const baseParams = cursorFixture({
-    workspace: STATIC_HOVER_WORKSPACE,
+function hoverCursor(fixture: CmeWorkspace = STATIC_HOVER_WORKSPACE, markerName = "cursor") {
+  return cursorFixture({
+    workspace: fixture,
     filePath: SOURCE_PATH,
     documentUri: SOURCE_URI,
+    markerName,
     version: 1,
   });
+}
+
+describe("handleHover", () => {
+  const baseParams = hoverCursor();
 
   it("returns a Hover with markdown for a static call", async () => {
     const spec = scenario({
@@ -91,12 +102,7 @@ describe("handleHover", () => {
       workspace: STATIC_HOVER_WORKSPACE,
       actions: {
         hover: ({ workspace: testWorkspace, target }) => {
-          const cursor = cursorFixture({
-            workspace: testWorkspace,
-            filePath: SOURCE_PATH,
-            documentUri: SOURCE_URI,
-            markerName: target.name,
-          });
+          const cursor = hoverCursor(testWorkspace, target.name);
           return handleHover(cursor, makeDeps({}, testWorkspace.range("class", SOURCE_PATH).range));
         },
       },
@@ -112,15 +118,18 @@ describe("handleHover", () => {
   });
 
   it("resolves hover on a continuation line of a multi-line cx() call", () => {
-    const multiLineTsx = `
+    const multiLineWorkspace = workspace({
+      [SOURCE_PATH]: `
 import classNames from 'classnames/bind';
 import styles from './Button.module.scss';
 const cx = classNames.bind(styles);
 const el = cx(
-  'indicator',
+  '/*<class>*/ind/*|*/icator/*</class>*/',
   { active: true },
 );
-`;
+`,
+    });
+    const expressionRange = multiLineWorkspace.range("class", SOURCE_PATH).range;
     const deps = makeDeps({
       analysisCache: new DocumentAnalysisCache({
         sourceFileCache: new SourceFileCache({ max: 10 }),
@@ -142,10 +151,7 @@ const el = cx(
                       kind: "literal",
                       origin: "cxCall",
                       className: "indicator",
-                      range: {
-                        start: { line: 5, character: 2 },
-                        end: { line: 5, character: 13 },
-                      },
+                      range: expressionRange,
                       scssModulePath: bindings[0]!.scssModulePath,
                     },
                   ],
@@ -154,10 +160,7 @@ const el = cx(
       }),
     });
     // Cursor on line 5 (the 'indicator' line) — no "(" on this line
-    const hover = handleHover(
-      { ...baseParams, content: multiLineTsx, line: 5, character: 5, version: 2 },
-      deps,
-    );
+    const hover = handleHover(hoverCursor(multiLineWorkspace), deps);
     expect(hover).not.toBeNull();
     expect((hover!.contents as { value: string }).value).toContain("`.indicator`");
   });
@@ -168,13 +171,16 @@ const el = cx(
   });
 
   it("includes dynamic hover explanation for symbol refs resolved from type unions", () => {
-    const unionTsx = `
+    const unionWorkspace = workspace({
+      [SOURCE_PATH]: `
 import classNames from 'classnames/bind';
 import styles from './Button.module.scss';
 const cx = classNames.bind(styles);
 const size = choose();
-const el = cx(size);
-`;
+const el = cx(/*<expr>*/si/*|*/ze/*</expr>*/);
+`,
+    });
+    const expressionRange = unionWorkspace.range("expr", SOURCE_PATH).range;
     const deps = makeDeps({
       analysisCache: new DocumentAnalysisCache({
         sourceFileCache: new SourceFileCache({ max: 10 }),
@@ -198,10 +204,7 @@ const el = cx(size);
                       rawReference: "size",
                       rootName: "size",
                       pathSegments: [],
-                      range: {
-                        start: { line: 5, character: 14 },
-                        end: { line: 5, character: 18 },
-                      },
+                      range: expressionRange,
                       scssModulePath: bindings[0]!.scssModulePath,
                     },
                   ],
@@ -216,16 +219,7 @@ const el = cx(size);
       typeResolver: new FakeTypeResolver(["indicator", "active"]),
     });
 
-    const hover = handleHover(
-      {
-        ...baseParams,
-        content: unionTsx,
-        line: 5,
-        character: 16,
-        version: 2,
-      },
-      deps,
-    );
+    const hover = handleHover(hoverCursor(unionWorkspace), deps);
 
     expect(hover).not.toBeNull();
     const value = (hover!.contents as { value: string }).value;
@@ -259,11 +253,14 @@ const el = cx(size);
 
 describe("handleHover / styles.x without classnames/bind (L8 fix)", () => {
   it("returns hover for styles.indicator in a clsx-only file", () => {
-    const clsxTsx = `
+    const clsxWorkspace = workspace({
+      [SOURCE_PATH]: `
 import clsx from 'clsx';
 import styles from './Button.module.scss';
-const el = <div className={clsx(styles.indicator)} />;
-`;
+const el = <div className={clsx(styles./*<class>*/ind/*|*/icator/*</class>*/)} />;
+`,
+    });
+    const expressionRange = clsxWorkspace.range("class", SOURCE_PATH).range;
     const sourceFileCache = new SourceFileCache({ max: 10 });
     const indicatorInfo = info("indicator");
     const analysisCache = new DocumentAnalysisCache({
@@ -290,10 +287,7 @@ const el = <div className={clsx(styles.indicator)} />;
                   kind: "styleAccess",
                   className: "indicator",
                   scssModulePath: "/fake/ws/src/Button.module.scss",
-                  range: {
-                    start: { line: 3, character: 39 },
-                    end: { line: 3, character: 48 },
-                  },
+                  range: expressionRange,
                 },
               ]
             : [],
@@ -310,17 +304,7 @@ const el = <div className={clsx(styles.indicator)} />;
       },
     });
 
-    const hover = handleHover(
-      {
-        documentUri: "file:///fake/ws/src/Button.tsx",
-        content: clsxTsx,
-        filePath: "/fake/ws/src/Button.tsx",
-        line: 3,
-        character: 42,
-        version: 1,
-      },
-      deps,
-    );
+    const hover = handleHover(hoverCursor(clsxWorkspace), deps);
 
     expect(hover).not.toBeNull();
     expect((hover!.contents as { value: string }).value).toContain("`.indicator`");
@@ -331,10 +315,12 @@ const el = <div className={clsx(styles.indicator)} />;
       await import("../../../server/engine-core-ts/src/core/cx/class-ref-parser");
     const { scanCxImports } =
       await import("../../../server/engine-core-ts/src/core/cx/binding-detector");
-    const bracketTsx = `
+    const bracketWorkspace = workspace({
+      [SOURCE_PATH]: `
 import styles from './Button.module.scss';
-const el = <div className={styles['btn-primary']} />;
-`;
+const el = <div className={styles['btn-/*|*/primary']} />;
+`,
+    });
     const sourceFileCache = new SourceFileCache({ max: 10 });
     const btnInfo = info("btn-primary");
     const analysisCache = new DocumentAnalysisCache({
@@ -355,17 +341,7 @@ const el = <div className={styles['btn-primary']} />;
       },
     });
 
-    const hover = handleHover(
-      {
-        documentUri: "file:///fake/ws/src/Button.tsx",
-        content: bracketTsx,
-        filePath: "/fake/ws/src/Button.tsx",
-        line: 2,
-        character: 35,
-        version: 1,
-      },
-      deps,
-    );
+    const hover = handleHover(hoverCursor(bracketWorkspace), deps);
 
     expect(hover).not.toBeNull();
     expect((hover!.contents as { value: string }).value).toContain("`.btn-primary`");
