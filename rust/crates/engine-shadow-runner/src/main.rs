@@ -887,6 +887,7 @@ fn summarize_checker_style_recovery_canonical_candidate(
                 | "missing-value-module"
                 | "missing-imported-value"
                 | "missing-keyframes"
+                | "missing-sass-symbol"
         ) {
             continue;
         }

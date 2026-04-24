@@ -194,4 +194,49 @@ describe("checkStyleDocument", () => {
       ]),
     );
   });
+
+  it("returns missing Sass symbol findings for unresolved same-file symbols", () => {
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    const styleDocumentWithSassSymbols = parseStyleDocument(
+      `$known: 1rem;
+@mixin raised() {}
+.button {
+  color: $missing;
+  @include absent($known);
+}`,
+      SCSS_PATH,
+    );
+
+    const findings = checkStyleDocument(
+      {
+        scssPath: SCSS_PATH,
+        styleDocument: styleDocumentWithSassSymbols,
+      },
+      {
+        semanticReferenceIndex,
+        styleDependencyGraph: new WorkspaceStyleDependencyGraph(),
+      },
+    );
+
+    expect(findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          category: "style",
+          code: "missing-sass-symbol",
+          selectorName: "button",
+          symbolKind: "variable",
+          symbolName: "missing",
+          symbolRole: "reference",
+        }),
+        expect.objectContaining({
+          category: "style",
+          code: "missing-sass-symbol",
+          selectorName: "button",
+          symbolKind: "mixin",
+          symbolName: "absent",
+          symbolRole: "include",
+        }),
+      ]),
+    );
+  });
 });

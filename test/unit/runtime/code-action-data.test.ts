@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCreateKeyframesActionData,
+  buildCreateSassSymbolActionData,
   buildCreateSelectorActionData,
   buildCreateValueActionData,
 } from "../../../server/engine-host-node/src/code-action-data";
@@ -88,6 +89,38 @@ describe("code-action recovery data", () => {
         end: { line: 3, character: 1 },
       },
       newText: "\n\n@keyframes spin {\n}\n",
+    });
+  });
+
+  it("builds Sass variable creation edits at the top of an existing stylesheet", () => {
+    const styleDocument = makeStyleDocumentFixture(scssPath, [makeTestSelector("button", 2)]);
+
+    expect(buildCreateSassSymbolActionData("variable", "gap", scssPath, styleDocument)).toEqual({
+      uri: "file:///fake/ws/src/Button.module.scss",
+      range: {
+        start: { line: 0, character: 0 },
+        end: { line: 0, character: 0 },
+      },
+      newText: "$gap: ;\n\n",
+    });
+  });
+
+  it("builds Sass mixin creation edits after existing @value facts", () => {
+    const styleDocument = makeStyleDocumentFixture(
+      scssPath,
+      [],
+      [],
+      [],
+      [valueDecl("primary", 0, 0, 20)],
+    );
+
+    expect(buildCreateSassSymbolActionData("mixin", "raised", scssPath, styleDocument)).toEqual({
+      uri: "file:///fake/ws/src/Button.module.scss",
+      range: {
+        start: { line: 0, character: 20 },
+        end: { line: 0, character: 20 },
+      },
+      newText: "\n\n@mixin raised() {\n}",
     });
   });
 });

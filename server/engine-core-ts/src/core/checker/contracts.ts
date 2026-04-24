@@ -115,4 +115,15 @@ export type StyleCheckerFinding =
       readonly range: Range;
       readonly selectorFilePath: string;
       readonly animationName: string;
+    }
+  | {
+      readonly category: "style";
+      readonly code: "missing-sass-symbol";
+      readonly severity: "warning";
+      readonly range: Range;
+      readonly selectorFilePath: string;
+      readonly selectorName: string;
+      readonly symbolKind: "variable" | "mixin" | "function";
+      readonly symbolName: string;
+      readonly symbolRole: "reference" | "include" | "call";
     };

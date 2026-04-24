@@ -5,6 +5,7 @@ import type { StyleDocumentHIR } from "../../../engine-core-ts/src/core/hir/styl
 import { pathToFileUrl } from "../../../engine-core-ts/src/core/util/text-utils";
 import {
   buildCreateKeyframesActionData,
+  buildCreateSassSymbolActionData,
   buildCreateSelectorActionData,
   buildCreateValueActionData,
 } from "../../../engine-host-node/src/code-action-data";
@@ -131,6 +132,21 @@ function toDiagnostic(
         data: {
           createKeyframes: buildCreateKeyframesActionData(
             finding.animationName,
+            finding.selectorFilePath,
+            styleDocument,
+          ),
+        },
+      };
+    case "missing-sass-symbol":
+      return {
+        range: toLspRange(finding.range),
+        severity: DiagnosticSeverity.Warning,
+        source: "css-module-explainer",
+        message: formatCheckerFinding(finding, ""),
+        data: {
+          createSassSymbol: buildCreateSassSymbolActionData(
+            finding.symbolKind,
+            finding.symbolName,
             finding.selectorFilePath,
             styleDocument,
           ),

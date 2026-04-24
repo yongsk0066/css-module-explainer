@@ -584,4 +584,48 @@ describe("computeScssUnusedDiagnostics", () => {
       },
     });
   });
+
+  it("reports missing Sass symbols with create-symbol data", () => {
+    const styleDoc = parseStyleDocument(
+      `.button {
+  color: $missing;
+  @include absent();
+}`,
+      SCSS_PATH,
+    );
+
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      styleDoc,
+      new WorkspaceSemanticWorkspaceReferenceIndex(),
+    );
+
+    const variableDiagnostic = diagnostics.find((entry) =>
+      entry.message.includes("Sass variable '$missing' not found in this file."),
+    );
+    expect(variableDiagnostic).toBeDefined();
+    expect(variableDiagnostic).toMatchObject({
+      severity: DiagnosticSeverity.Warning,
+      data: {
+        createSassSymbol: {
+          uri: "file:///fake/Button.module.scss",
+          newText: "$missing: ;\n\n",
+        },
+      },
+    });
+
+    const mixinDiagnostic = diagnostics.find((entry) =>
+      entry.message.includes("Sass mixin '@mixin absent' not found in this file."),
+    );
+    expect(mixinDiagnostic).toBeDefined();
+    expect(mixinDiagnostic).toMatchObject({
+      severity: DiagnosticSeverity.Warning,
+      data: {
+        createSassSymbol: {
+          uri: "file:///fake/Button.module.scss",
+          newText: "@mixin absent() {\n}\n\n",
+        },
+      },
+    });
+  });
 });

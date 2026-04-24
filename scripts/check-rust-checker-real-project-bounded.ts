@@ -24,6 +24,7 @@ const STYLE_RECOVERY_CODES = new Set([
   "missing-value-module",
   "missing-imported-value",
   "missing-keyframes",
+  "missing-sass-symbol",
 ]);
 
 const SOURCE_MISSING_CODES = new Set([

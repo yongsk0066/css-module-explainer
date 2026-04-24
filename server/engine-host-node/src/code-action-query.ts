@@ -108,6 +108,19 @@ export function planCodeActions(
       });
     }
 
+    const createSassSymbol = extractCreateSassSymbol(diagnostic);
+    if (createSassSymbol) {
+      const label = extractCreateSassSymbolLabel(diagnostic.message, createSassSymbol.newText);
+      plans.push({
+        kind: "textEdit",
+        title: `Add '${label}' to ${fileLabel(createSassSymbol.uri)}`,
+        diagnosticIndex,
+        uri: createSassSymbol.uri,
+        range: createSassSymbol.range,
+        newText: createSassSymbol.newText,
+      });
+    }
+
     diagnosticIndex += 1;
   }
 
@@ -208,6 +221,21 @@ function extractCreateKeyframes(diagnostic: CodeActionDiagnosticInput): {
   return { uri: payload.uri, range, newText: payload.newText };
 }
 
+function extractCreateSassSymbol(diagnostic: CodeActionDiagnosticInput): {
+  readonly uri: string;
+  readonly range: Range;
+  readonly newText: string;
+} | null {
+  const data = diagnostic.data;
+  if (!isRecord(data)) return null;
+  const payload = data.createSassSymbol;
+  if (!isRecord(payload)) return null;
+  if (typeof payload.uri !== "string" || typeof payload.newText !== "string") return null;
+  const range = payload.range;
+  if (!isRange(range)) return null;
+  return { uri: payload.uri, range, newText: payload.newText };
+}
+
 function isRange(value: unknown): value is Range {
   if (!isRecord(value)) return false;
   return isPosition(value.start) && isPosition(value.end);
@@ -237,6 +265,23 @@ function extractCreateKeyframesName(message: string, newText: string): string {
   const fromMessage = /@keyframes '([^']+)' not found/.exec(message)?.[1];
   if (fromMessage) return fromMessage;
   return /^\s*@keyframes\s+([^{\s]+)\s*\{/u.exec(newText)?.[1] ?? "keyframes";
+}
+
+function extractCreateSassSymbolLabel(message: string, newText: string): string {
+  const variableFromMessage = /Sass variable '\$([^']+)' not found/.exec(message)?.[1];
+  if (variableFromMessage) return `$${variableFromMessage}`;
+  const mixinFromMessage = /Sass mixin '@mixin ([^']+)' not found/.exec(message)?.[1];
+  if (mixinFromMessage) return `@mixin ${mixinFromMessage}`;
+  const functionFromMessage = /Sass function '([^']+)\(\)' not found/.exec(message)?.[1];
+  if (functionFromMessage) return `@function ${functionFromMessage}`;
+
+  const variableFromText = /^\s*\$([A-Za-z_-][A-Za-z0-9_-]*)\s*:/u.exec(newText)?.[1];
+  if (variableFromText) return `$${variableFromText}`;
+  const mixinFromText = /^\s*@mixin\s+([A-Za-z_-][A-Za-z0-9_-]*)/u.exec(newText)?.[1];
+  if (mixinFromText) return `@mixin ${mixinFromText}`;
+  const functionFromText = /^\s*@function\s+([A-Za-z_-][A-Za-z0-9_-]*)/u.exec(newText)?.[1];
+  if (functionFromText) return `@function ${functionFromText}`;
+  return "Sass symbol";
 }
 
 function fileLabel(uri: string): string {

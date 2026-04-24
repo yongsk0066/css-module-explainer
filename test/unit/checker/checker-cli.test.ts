@@ -302,6 +302,7 @@ describe("runCheckerCli", () => {
         "missing-value-module",
         "missing-imported-value",
         "missing-keyframes",
+        "missing-sass-symbol",
       ],
       excludeCodes: [],
     });

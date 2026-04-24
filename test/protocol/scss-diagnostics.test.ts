@@ -367,4 +367,43 @@ export function App(enabled: boolean) {
       diagnostics.find((d) => d.message.includes("@keyframes 'fade' not found in this file.")),
     ).toBeDefined();
   });
+
+  it("reports unresolved Sass symbols from the SCSS buffer", async () => {
+    const SASS_SCSS = `
+.button {
+  color: $missing;
+  @include absent();
+}
+`;
+    client = createInProcessServer({
+      readStyleFile: (filePath) => (filePath.endsWith("Button.module.scss") ? SASS_SCSS : null),
+      typeResolver: new FakeTypeResolver(),
+      fileSupplier: emptySupplier,
+    });
+    await client.initialize();
+    client.initialized();
+
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/Button.module.scss",
+        languageId: "scss",
+        version: 1,
+        text: SASS_SCSS,
+      },
+    });
+
+    const diagnostics = await client.waitForDiagnostics(
+      "file:///fake/workspace/src/Button.module.scss",
+    );
+    expect(
+      diagnostics.find((d) =>
+        d.message.includes("Sass variable '$missing' not found in this file."),
+      ),
+    ).toBeDefined();
+    expect(
+      diagnostics.find((d) =>
+        d.message.includes("Sass mixin '@mixin absent' not found in this file."),
+      ),
+    ).toBeDefined();
+  });
 });

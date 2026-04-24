@@ -14,6 +14,7 @@ const CHECKER_CODE_BUNDLES: Record<CheckerCodeBundle, readonly CheckerFinding["c
     "missing-value-module",
     "missing-imported-value",
     "missing-keyframes",
+    "missing-sass-symbol",
   ],
   "source-missing": [
     "missing-module",
@@ -28,6 +29,7 @@ const CHECKER_CODE_BUNDLES: Record<CheckerCodeBundle, readonly CheckerFinding["c
     "missing-value-module",
     "missing-imported-value",
     "missing-keyframes",
+    "missing-sass-symbol",
   ],
   "style-unused": ["unused-selector"],
 };

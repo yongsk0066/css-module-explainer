@@ -21,6 +21,7 @@ export interface StyleDocumentCheckOptions {
   readonly includeUnusedSelectors?: boolean;
   readonly includeComposesResolution?: boolean;
   readonly includeKeyframesResolution?: boolean;
+  readonly includeSassSymbolResolution?: boolean;
 }
 
 export function checkStyleDocument(
@@ -40,6 +41,7 @@ const STYLE_DOCUMENT_RULES: readonly CheckerRule<
   checkUnusedSelectorsRule,
   checkComposesResolutionRule,
   checkImportedValuesRule,
+  checkSassSymbolResolutionRule,
   checkMissingKeyframesRule,
 ];
 
@@ -192,6 +194,47 @@ function checkMissingKeyframesRule({
 }): readonly StyleCheckerFinding[] {
   if (!(options.includeKeyframesResolution ?? true)) return [];
   return findMissingKeyframes(params);
+}
+
+function checkSassSymbolResolutionRule({
+  params,
+  options,
+}: {
+  readonly params: StyleDocumentCheckParams;
+  readonly env: StyleDocumentCheckEnv;
+  readonly options: StyleDocumentCheckOptions;
+}): readonly StyleCheckerFinding[] {
+  if (!(options.includeSassSymbolResolution ?? true)) return [];
+  const findings: StyleCheckerFinding[] = [];
+  const reported = new Set<string>();
+
+  for (const symbol of params.styleDocument.sassSymbols) {
+    if (symbol.resolution !== "unresolved") continue;
+    const key = [
+      symbol.symbolKind,
+      symbol.name,
+      symbol.role,
+      symbol.range.start.line,
+      symbol.range.start.character,
+      symbol.range.end.line,
+      symbol.range.end.character,
+    ].join(":");
+    if (reported.has(key)) continue;
+    reported.add(key);
+    findings.push({
+      category: "style",
+      code: "missing-sass-symbol",
+      severity: "warning",
+      range: symbol.range,
+      selectorFilePath: params.styleDocument.filePath,
+      selectorName: symbol.selectorName,
+      symbolKind: symbol.symbolKind,
+      symbolName: symbol.name,
+      symbolRole: symbol.role,
+    });
+  }
+
+  return findings;
 }
 
 function findMissingKeyframes(

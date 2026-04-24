@@ -56,9 +56,22 @@ export function formatCheckerFinding(finding: CheckerFinding, workspaceRoot: str
       return `@value '${finding.importedName}' not found in '${finding.fromSpecifier}' for local binding '${finding.localName}'.`;
     case "missing-keyframes":
       return `@keyframes '${finding.animationName}' not found in this file.`;
+    case "missing-sass-symbol":
+      return `${formatSassSymbolLabel(finding.symbolKind, finding.symbolName)} not found in this file.`;
     default:
       finding satisfies never;
       return "";
+  }
+}
+
+function formatSassSymbolLabel(kind: "variable" | "mixin" | "function", name: string): string {
+  switch (kind) {
+    case "variable":
+      return `Sass variable '$${name}'`;
+    case "mixin":
+      return `Sass mixin '@mixin ${name}'`;
+    case "function":
+      return `Sass function '${name}()'`;
   }
 }
 

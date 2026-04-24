@@ -13,6 +13,7 @@ const STYLE_RECOVERY_CODES = new Set([
   "missing-value-module",
   "missing-imported-value",
   "missing-keyframes",
+  "missing-sass-symbol",
 ]);
 
 const REPO_ROOT = process.cwd();

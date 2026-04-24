@@ -191,6 +191,40 @@ describe("handleCodeAction", () => {
     ]);
   });
 
+  it("returns a create-Sass-symbol quick fix for style diagnostics", () => {
+    const d: Diagnostic = {
+      range: {
+        start: { line: 2, character: 9 },
+        end: { line: 2, character: 17 },
+      },
+      severity: DiagnosticSeverity.Warning,
+      source: "css-module-explainer",
+      message: "Sass variable '$missing' not found in this file.",
+      data: {
+        createSassSymbol: {
+          uri: "file:///fake/src/Button.module.scss",
+          range: {
+            start: { line: 0, character: 0 },
+            end: { line: 0, character: 0 },
+          },
+          newText: "$missing: ;\n\n",
+        },
+      },
+    };
+    const result = handleCodeAction(makeParams([d]), makeDeps());
+    expect(result).toHaveLength(1);
+    expect(result![0]!.title).toBe("Add '$missing' to Button.module.scss");
+    expect(result![0]!.edit?.changes?.["file:///fake/src/Button.module.scss"]).toEqual([
+      {
+        range: {
+          start: { line: 0, character: 0 },
+          end: { line: 0, character: 0 },
+        },
+        newText: "$missing: ;\n\n",
+      },
+    ]);
+  });
+
   it("returns sibling module creation actions for a TSX file without an existing sibling module", () => {
     const result = handleCodeAction(makeParams([]), makeDeps({ fileExists: () => false }));
     expect(result).toHaveLength(3);

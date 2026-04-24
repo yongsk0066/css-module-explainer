@@ -442,4 +442,59 @@ export const Button = () => <div className={styles.root}>hi</div>;
       },
     ]);
   });
+
+  it("returns an add-Sass-symbol action for an unresolved Sass variable", async () => {
+    const SASS_SCSS = `
+.button {
+  color: $missing;
+}
+`;
+    client = createInProcessServer({
+      readStyleFile: (filePath) => (filePath.endsWith("Button.module.scss") ? SASS_SCSS : null),
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/Button.module.scss",
+        languageId: "scss",
+        version: 1,
+        text: SASS_SCSS,
+      },
+    });
+
+    const diagnostics = await client.waitForDiagnostics(
+      "file:///fake/workspace/src/Button.module.scss",
+    );
+    const missingVariable = diagnostics.find((diagnostic) =>
+      diagnostic.message.includes("Sass variable '$missing' not found in this file."),
+    );
+    expect(missingVariable).toBeDefined();
+
+    const actions = await client.codeAction({
+      textDocument: { uri: "file:///fake/workspace/src/Button.module.scss" },
+      range: missingVariable!.range,
+      context: {
+        diagnostics,
+        triggerKind: 1,
+      },
+    });
+    expect(actions).not.toBeNull();
+    expect(actions).toHaveLength(1);
+    const action = actions![0] as {
+      title: string;
+      edit?: { changes?: Record<string, Array<{ newText: string }>> };
+    };
+    expect(action.title).toBe("Add '$missing' to Button.module.scss");
+    expect(action.edit?.changes?.["file:///fake/workspace/src/Button.module.scss"]).toEqual([
+      {
+        range: {
+          start: { line: 0, character: 0 },
+          end: { line: 0, character: 0 },
+        },
+        newText: "$missing: ;\n\n",
+      },
+    ]);
+  });
 });
