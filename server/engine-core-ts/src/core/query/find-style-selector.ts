@@ -278,7 +278,10 @@ export function findSassSymbolDeclForSymbol(
   symbol: SassSymbolOccurrenceHIR,
 ): SassSymbolDeclHIR | null {
   const candidates = styleDocument.sassSymbolDecls.filter(
-    (decl) => decl.symbolKind === symbol.symbolKind && decl.name === symbol.name,
+    (decl) =>
+      decl.symbolKind === symbol.symbolKind &&
+      decl.name === symbol.name &&
+      sassSymbolSyntax(decl) === sassSymbolSyntax(symbol),
   );
   if (candidates.length === 0) return null;
   if (symbol.symbolKind !== "variable") return candidates[0] ?? null;
@@ -307,7 +310,13 @@ export function listSassSymbolsForDecl(
   decl: SassSymbolDeclHIR,
 ): readonly SassSymbolOccurrenceHIR[] {
   return styleDocument.sassSymbols.filter((symbol) => {
-    if (symbol.symbolKind !== decl.symbolKind || symbol.name !== decl.name) return false;
+    if (
+      symbol.symbolKind !== decl.symbolKind ||
+      symbol.name !== decl.name ||
+      sassSymbolSyntax(symbol) !== sassSymbolSyntax(decl)
+    ) {
+      return false;
+    }
     return findSassSymbolDeclForSymbol(styleDocument, symbol) === decl;
   });
 }
@@ -333,7 +342,14 @@ function isFileScopeSassVariableDecl(decl: SassSymbolDeclHIR): boolean {
 }
 
 function isExportedSassSymbolDecl(decl: SassSymbolDeclHIR): boolean {
+  if (sassSymbolSyntax(decl) !== "sass") return false;
   return decl.symbolKind !== "variable" || isFileScopeSassVariableDecl(decl);
+}
+
+function sassSymbolSyntax(
+  symbol: Pick<SassSymbolDeclHIR | SassSymbolOccurrenceHIR, "syntax">,
+): "sass" | "less" {
+  return symbol.syntax ?? "sass";
 }
 
 function dedupeSassModuleExportedSymbolTargets(

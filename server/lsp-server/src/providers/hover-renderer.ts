@@ -157,11 +157,14 @@ export function renderSassSymbolHover(args: RenderSassSymbolHoverArgs): string {
   );
   const note = args.note ? `\n\n_${args.note}_` : "";
   const headingName = args.headingName ?? args.sassSymbolDecl.name;
+  const syntax = args.sassSymbolDecl.syntax ?? "sass";
+  const symbolLabel = syntax === "less" ? "Less variable" : "Sass symbol";
+  const codeFence = syntax === "less" ? "less" : "scss";
   const referenceLabel =
     args.referenceCount === 1
-      ? "1 Sass symbol reference"
-      : `${args.referenceCount} Sass symbol references`;
-  return `**\`${formatSassSymbolHeading(args.sassSymbolDecl.symbolKind, headingName)}\`** — _${location}_${note}\n\n_${referenceLabel}._\n\n\`\`\`scss\n${buildSassSymbolSnippet(args.sassSymbolDecl)}\n\`\`\``;
+      ? `1 ${symbolLabel} reference`
+      : `${args.referenceCount} ${symbolLabel} references`;
+  return `**\`${formatSassSymbolHeading(args.sassSymbolDecl, headingName)}\`** — _${location}_${note}\n\n_${referenceLabel}._\n\n\`\`\`${codeFence}\n${buildSassSymbolSnippet(args.sassSymbolDecl)}\n\`\`\``;
 }
 
 function renderSingle(args: RenderArgs, selector: SelectorDeclHIR): string {
@@ -179,11 +182,9 @@ function renderSingle(args: RenderArgs, selector: SelectorDeclHIR): string {
   return `**\`.${selector.name}\`** — _${location}_${explanation}\n\n\`\`\`scss\n${body}\n\`\`\`${dependencyNote}`;
 }
 
-function formatSassSymbolHeading(
-  symbolKind: SassSymbolDeclHIR["symbolKind"],
-  name: string,
-): string {
-  switch (symbolKind) {
+function formatSassSymbolHeading(decl: SassSymbolDeclHIR, name: string): string {
+  if (decl.syntax === "less") return `@${name}`;
+  switch (decl.symbolKind) {
     case "variable":
       return `$${name}`;
     case "mixin":
@@ -194,6 +195,7 @@ function formatSassSymbolHeading(
 }
 
 function buildSassSymbolSnippet(decl: SassSymbolDeclHIR): string {
+  if (decl.syntax === "less") return `@${decl.name}: …;`;
   switch (decl.symbolKind) {
     case "variable":
       return `$${decl.name}: …;`;

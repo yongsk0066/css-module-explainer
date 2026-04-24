@@ -629,6 +629,36 @@ describe("computeScssUnusedDiagnostics", () => {
     });
   });
 
+  it("reports missing Less variables with create-symbol data", () => {
+    const lessPath = "/fake/Button.module.less";
+    const styleDoc = parseStyleDocument(
+      `.button {
+  color: @missing;
+}`,
+      lessPath,
+    );
+
+    const diagnostics = computeScssUnusedDiagnostics(
+      lessPath,
+      styleDoc,
+      new WorkspaceSemanticWorkspaceReferenceIndex(),
+    );
+
+    const variableDiagnostic = diagnostics.find((entry) =>
+      entry.message.includes("Less variable '@missing' not found in this file."),
+    );
+    expect(variableDiagnostic).toBeDefined();
+    expect(variableDiagnostic).toMatchObject({
+      severity: DiagnosticSeverity.Warning,
+      data: {
+        createSassSymbol: {
+          uri: "file:///fake/Button.module.less",
+          newText: "@missing: ;\n\n",
+        },
+      },
+    });
+  });
+
   it("does not report Sass symbols resolved through wildcard module imports", () => {
     const tokensPath = "/fake/tokens.module.scss";
     const styleDoc = parseStyleDocument(

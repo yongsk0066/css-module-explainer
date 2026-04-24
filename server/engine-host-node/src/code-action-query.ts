@@ -268,6 +268,8 @@ function extractCreateKeyframesName(message: string, newText: string): string {
 }
 
 function extractCreateSassSymbolLabel(message: string, newText: string): string {
+  const lessVariableFromMessage = /Less variable '@([^']+)' not found/.exec(message)?.[1];
+  if (lessVariableFromMessage) return `@${lessVariableFromMessage}`;
   const variableFromMessage = /Sass variable '\$([^']+)' not found/.exec(message)?.[1];
   if (variableFromMessage) return `$${variableFromMessage}`;
   const mixinFromMessage = /Sass mixin '@mixin ([^']+)' not found/.exec(message)?.[1];
@@ -277,6 +279,8 @@ function extractCreateSassSymbolLabel(message: string, newText: string): string 
 
   const variableFromText = /^\s*\$([A-Za-z_-][A-Za-z0-9_-]*)\s*:/u.exec(newText)?.[1];
   if (variableFromText) return `$${variableFromText}`;
+  const lessVariableFromText = /^\s*@([A-Za-z_-][A-Za-z0-9_-]*)\s*:/u.exec(newText)?.[1];
+  if (lessVariableFromText) return `@${lessVariableFromText}`;
   const mixinFromText = /^\s*@mixin\s+([A-Za-z_-][A-Za-z0-9_-]*)/u.exec(newText)?.[1];
   if (mixinFromText) return `@mixin ${mixinFromText}`;
   const functionFromText = /^\s*@function\s+([A-Za-z_-][A-Za-z0-9_-]*)/u.exec(newText)?.[1];

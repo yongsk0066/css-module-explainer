@@ -33,6 +33,31 @@ describe("resolveStyleCompletionItems", () => {
     });
   });
 
+  it("returns same-file Less variable completions after `@` in values", () => {
+    const less = `@gap: 1rem;
+@tone: #fff;
+.button {
+  color: @
+}
+`;
+    const result = resolveStyleCompletionItems({
+      content: less,
+      line: 3,
+      character: 10,
+      styleDocument: parseStyleDocument(less, SCSS_PATH.replace(".scss", ".less")),
+    });
+
+    expect(result.map((item) => item.label)).toEqual(["@gap", "@tone"]);
+    expect(result[0]).toMatchObject({
+      detail: "Less variable",
+      insertText: "@gap",
+      replacementRange: {
+        start: { line: 3, character: 9 },
+        end: { line: 3, character: 10 },
+      },
+    });
+  });
+
   it("returns same-file Sass mixin completions after `@include`", () => {
     const scss = `@mixin raised() {}
 .button {

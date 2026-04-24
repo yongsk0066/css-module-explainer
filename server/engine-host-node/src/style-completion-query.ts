@@ -1,6 +1,7 @@
 import type { Range } from "@css-module-explainer/shared";
 import type {
   SassSymbolDeclHIR,
+  StylePreprocessorSymbolSyntax,
   StyleDocumentHIR,
 } from "../../engine-core-ts/src/core/hir/style-types";
 import {
@@ -16,22 +17,26 @@ export interface StyleCompletionItem {
   readonly insertText: string;
   readonly filterText: string;
   readonly replacementRange: Range;
+  readonly symbolSyntax?: StylePreprocessorSymbolSyntax;
   readonly symbolKind: SassSymbolDeclHIR["symbolKind"];
 }
 
 type StyleCompletionContext =
   | {
       readonly symbolKind: "variable";
+      readonly symbolSyntax?: StylePreprocessorSymbolSyntax;
       readonly prefix: string;
       readonly replacementStartCharacter: number;
     }
   | {
       readonly symbolKind: "mixin" | "function";
+      readonly symbolSyntax?: undefined;
       readonly prefix: string;
       readonly replacementStartCharacter: number;
     };
 
 interface SassSymbolCompletionDecl {
+  readonly syntax?: StylePreprocessorSymbolSyntax;
   readonly symbolKind: SassSymbolDeclHIR["symbolKind"];
   readonly name: string;
   readonly range: Range;
@@ -58,6 +63,7 @@ export function resolveStyleCompletionItems(args: {
   const candidates = collectSassSymbolCompletionDecls(
     readSassSymbolCompletionDecls(args),
     context.symbolKind,
+    context.symbolSyntax,
     args.line,
     args.character,
   );
@@ -72,8 +78,19 @@ function readStyleCompletionContext(linePrefix: string): StyleCompletionContext 
   if (variable) {
     return {
       symbolKind: "variable",
+      symbolSyntax: "sass",
       prefix: variable[1]!.slice(1),
       replacementStartCharacter: linePrefix.length - variable[1]!.length,
+    };
+  }
+
+  const lessVariable = /(@[A-Za-z0-9_-]*)$/u.exec(linePrefix);
+  if (lessVariable && isSassFunctionValueContext(linePrefix)) {
+    return {
+      symbolKind: "variable",
+      symbolSyntax: "less",
+      prefix: lessVariable[1]!.slice(1),
+      replacementStartCharacter: linePrefix.length - lessVariable[1]!.length,
     };
   }
 
@@ -106,6 +123,7 @@ function isSassFunctionValueContext(linePrefix: string): boolean {
 function collectSassSymbolCompletionDecls(
   decls: readonly SassSymbolCompletionDecl[],
   symbolKind: SassSymbolDeclHIR["symbolKind"],
+  symbolSyntax: StylePreprocessorSymbolSyntax | undefined,
   line: number,
   character: number,
 ): readonly SassSymbolCompletionDecl[] {
@@ -113,6 +131,7 @@ function collectSassSymbolCompletionDecls(
   const results: SassSymbolCompletionDecl[] = [];
   for (const decl of decls) {
     if (decl.symbolKind !== symbolKind) continue;
+    if ((decl.syntax ?? "sass") !== (symbolSyntax ?? "sass")) continue;
     if (decl.symbolKind === "variable" && !isVariableDeclVisible(decl, line, character)) continue;
     if (seen.has(decl.name)) continue;
     seen.add(decl.name);
@@ -165,7 +184,9 @@ function collectWildcardSassSymbolCompletionDecls(
       target.styleDocument,
       aliasResolver,
     )) {
-      const key = `${exportedTarget.decl.symbolKind}:${exportedTarget.exportedName}`;
+      const key = `${exportedTarget.decl.syntax ?? "sass"}:${exportedTarget.decl.symbolKind}:${
+        exportedTarget.exportedName
+      }`;
       if (seen.has(key)) continue;
       seen.add(key);
       decls.push({ ...exportedTarget.decl, name: exportedTarget.exportedName });
@@ -186,6 +207,14 @@ function collectFallbackSassSymbolCompletionDecls(
       continue;
     }
 
+    const lessVariable = /^(\s*)@([A-Za-z_-][A-Za-z0-9_-]*)\s*:/u.exec(text);
+    if (lessVariable) {
+      decls.push(
+        makeFallbackDecl("variable", lessVariable[2]!, line, lessVariable[1]!.length, "less"),
+      );
+      continue;
+    }
+
     const callable = /^(\s*)@(mixin|function)\s+([A-Za-z_-][A-Za-z0-9_-]*)/u.exec(text);
     if (!callable) continue;
     const symbolKind = callable[2] === "mixin" ? "mixin" : "function";
@@ -200,6 +229,7 @@ function makeFallbackDecl(
   name: string,
   line: number,
   character: number,
+  syntax?: StylePreprocessorSymbolSyntax,
 ): SassSymbolCompletionDecl {
   const range = {
     start: { line, character },
@@ -208,7 +238,7 @@ function makeFallbackDecl(
       character: character + (symbolKind === "variable" ? name.length + 1 : name.length),
     },
   };
-  return { symbolKind, name, range, ruleRange: range };
+  return { ...(syntax ? { syntax } : {}), symbolKind, name, range, ruleRange: range };
 }
 
 function isVariableDeclVisible(
@@ -234,11 +264,13 @@ function toStyleCompletionItem(
     insertText: completionInsertText(decl),
     filterText: completionFilterText(decl),
     replacementRange,
+    ...(decl.syntax ? { symbolSyntax: decl.syntax } : {}),
     symbolKind: decl.symbolKind,
   };
 }
 
 function completionLabel(decl: SassSymbolCompletionDecl): string {
+  if (decl.syntax === "less") return `@${decl.name}`;
   return decl.symbolKind === "variable" ? `$${decl.name}` : decl.name;
 }
 
@@ -253,7 +285,7 @@ function completionFilterText(decl: SassSymbolCompletionDecl): string {
 function completionDetail(decl: SassSymbolCompletionDecl): string {
   switch (decl.symbolKind) {
     case "variable":
-      return "Sass variable";
+      return decl.syntax === "less" ? "Less variable" : "Sass variable";
     case "mixin":
       return "Sass mixin";
     case "function":

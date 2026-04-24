@@ -240,6 +240,43 @@ describe("checkStyleDocument", () => {
     );
   });
 
+  it("returns missing Less variable findings for unresolved same-file variables", () => {
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    const styleDocumentWithLessVariables = parseStyleDocument(
+      `@known: 1rem;
+.button {
+  color: @missing;
+  margin: @known;
+}`,
+      "/fake/src/Button.module.less",
+    );
+
+    const findings = checkStyleDocument(
+      {
+        scssPath: "/fake/src/Button.module.less",
+        styleDocument: styleDocumentWithLessVariables,
+      },
+      {
+        semanticReferenceIndex,
+        styleDependencyGraph: new WorkspaceStyleDependencyGraph(),
+      },
+    );
+
+    expect(findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          category: "style",
+          code: "missing-sass-symbol",
+          selectorName: "button",
+          symbolSyntax: "less",
+          symbolKind: "variable",
+          symbolName: "missing",
+          symbolRole: "reference",
+        }),
+      ]),
+    );
+  });
+
   it("reports Sass variables that only exist in another local scope as missing", () => {
     const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
     const styleDocumentWithScopedVariables = parseStyleDocument(

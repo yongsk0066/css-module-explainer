@@ -28,6 +28,7 @@ import {
   type SassSymbolRole,
   type SelectorDeclHIR,
   type StyleDocumentHIR,
+  type StylePreprocessorSymbolSyntax,
   type ValueDeclHIR,
   type ValueImportHIR,
   type ValueRefHIR,
@@ -130,8 +131,14 @@ export function parseStyleDocument(content: string, filePath: string): StyleDocu
   const valueRefs = collectValueRefs(root, valueDecls, valueImports);
   const sassModuleUses = collectSassModuleUses(root);
   const sassModuleForwards = collectSassModuleForwards(root);
-  const sassSymbolDecls = collectSassSymbolDecls(root);
-  const sassSymbolTargets = collectSassSymbolTargetContext(root, sassSymbolDecls, sassModuleUses);
+  const symbolSyntax = lang?.id === "less" ? "less" : undefined;
+  const sassSymbolDecls = collectSassSymbolDecls(root, symbolSyntax);
+  const sassSymbolTargets = collectSassSymbolTargetContext(
+    root,
+    sassSymbolDecls,
+    sassModuleUses,
+    symbolSyntax,
+  );
   const sassSymbols: SassSymbolOccurrenceHIR[] = [];
   const sassModuleMemberRefs: SassModuleMemberRefHIR[] = [];
 
@@ -786,13 +793,19 @@ function isValidSassNamespace(value: string): boolean {
 }
 
 interface SassSymbolTargetContext {
+  readonly syntax?: StylePreprocessorSymbolSyntax;
   readonly variableDecls: readonly SassSymbolDeclHIR[];
   readonly mixinTargets: ReadonlySet<string>;
   readonly functionTargets: ReadonlySet<string>;
   readonly allowUnresolvedFunctionCalls: boolean;
 }
 
-function collectSassSymbolDecls(root: Root): readonly SassSymbolDeclHIR[] {
+function collectSassSymbolDecls(
+  root: Root,
+  syntax?: StylePreprocessorSymbolSyntax,
+): readonly SassSymbolDeclHIR[] {
+  if (syntax === "less") return collectLessVariableDecls(root);
+
   const decls: SassSymbolDeclHIR[] = [];
 
   root.walkDecls((decl) => {
@@ -844,25 +857,50 @@ function collectSassSymbolDecls(root: Root): readonly SassSymbolDeclHIR[] {
   return decls;
 }
 
+function collectLessVariableDecls(root: Root): readonly SassSymbolDeclHIR[] {
+  const decls: SassSymbolDeclHIR[] = [];
+  root.walkAtRules((atrule) => {
+    if (!isLessVariableDeclAtRule(atrule)) return;
+    const range = findLessVariableDeclNameRange(atrule);
+    if (!range) return;
+    decls.push(
+      makeSassSymbolDecl({
+        syntax: "less",
+        symbolKind: "variable",
+        name: atrule.name,
+        range,
+        ruleRange: rangeForLessVariableDeclScope(atrule),
+      }),
+    );
+  });
+  return decls;
+}
+
 function collectSassSymbolTargetContext(
   root: Root,
   sassSymbolDecls: readonly SassSymbolDeclHIR[],
   sassModuleUses: readonly SassModuleUseHIR[],
+  syntax?: StylePreprocessorSymbolSyntax,
 ): SassSymbolTargetContext {
   const mixinTargets = new Set<string>();
   const functionTargets = new Set<string>();
 
-  root.walkAtRules((atrule) => {
-    if (atrule.name !== "mixin" && atrule.name !== "function") return;
-    const callable = parseSassCallableName(atrule.params);
-    if (callable) {
-      if (atrule.name === "mixin") mixinTargets.add(callable.name);
-      else functionTargets.add(callable.name);
-    }
-  });
+  if (syntax !== "less") {
+    root.walkAtRules((atrule) => {
+      if (atrule.name !== "mixin" && atrule.name !== "function") return;
+      const callable = parseSassCallableName(atrule.params);
+      if (callable) {
+        if (atrule.name === "mixin") mixinTargets.add(callable.name);
+        else functionTargets.add(callable.name);
+      }
+    });
+  }
 
   return {
-    variableDecls: sassSymbolDecls.filter((decl) => decl.symbolKind === "variable"),
+    ...(syntax ? { syntax } : {}),
+    variableDecls: sassSymbolDecls.filter(
+      (decl) => decl.symbolKind === "variable" && (decl.syntax ?? "sass") === (syntax ?? "sass"),
+    ),
     mixinTargets,
     functionTargets,
     allowUnresolvedFunctionCalls: sassModuleUses.some(
@@ -872,6 +910,7 @@ function collectSassSymbolTargetContext(
 }
 
 function makeSassSymbolDecl(args: {
+  readonly syntax?: StylePreprocessorSymbolSyntax;
   readonly symbolKind: SassSymbolKind;
   readonly name: string;
   readonly range: Range;
@@ -880,6 +919,7 @@ function makeSassSymbolDecl(args: {
   return {
     kind: "sassSymbolDecl",
     id: `sass-decl:${args.symbolKind}:${args.name}:${args.range.start.line}:${args.range.start.character}`,
+    ...(args.syntax ? { syntax: args.syntax } : {}),
     symbolKind: args.symbolKind,
     name: args.name,
     range: args.range,
@@ -898,10 +938,18 @@ function collectDirectSassSymbolOccurrences(
   const occurrences: SassSymbolOccurrenceHIR[] = [];
   for (const node of nodes) {
     if (node.type === "decl") {
+      if (targets.syntax === "less") {
+        pushLessDeclarationValueOccurrences(occurrences, node, selectorName, ruleRange, targets);
+        continue;
+      }
       pushSassDeclarationValueOccurrences(occurrences, node, selectorName, ruleRange, targets);
       continue;
     }
     if (node.type !== "atrule") continue;
+    if (targets.syntax === "less") {
+      pushLessAtRuleParamOccurrences(occurrences, node, selectorName, ruleRange, targets);
+      continue;
+    }
     if (node.name === "mixin" || node.name === "function") continue;
     pushSassAtRuleParamOccurrences(occurrences, node, selectorName, ruleRange, targets);
   }
@@ -965,6 +1013,31 @@ function pushSassDeclarationValueOccurrences(
         name: match.name,
         role: "call",
         resolution: targets.functionTargets.has(match.name) ? "resolved" : "unresolved",
+        range,
+        ruleRange,
+      }),
+    );
+  }
+}
+
+function pushLessDeclarationValueOccurrences(
+  occurrences: SassSymbolOccurrenceHIR[],
+  node: Extract<ChildNode, { type: "decl" }>,
+  selectorName: string,
+  ruleRange: Range,
+  targets: SassSymbolTargetContext,
+): void {
+  for (const match of findLessVariableMatches(node.value)) {
+    const range = findDeclValueTokenRange(node, match.offset, match.raw.length);
+    if (!range) continue;
+    occurrences.push(
+      makeSassSymbolOccurrence({
+        syntax: "less",
+        selectorName,
+        symbolKind: "variable",
+        name: match.name,
+        role: "reference",
+        resolution: resolveSassVariableReference(targets, match.name, range),
         range,
         ruleRange,
       }),
@@ -1079,6 +1152,31 @@ function pushSassAtRuleParamOccurrences(
   }
 }
 
+function pushLessAtRuleParamOccurrences(
+  occurrences: SassSymbolOccurrenceHIR[],
+  atrule: AtRule,
+  selectorName: string,
+  ruleRange: Range,
+  targets: SassSymbolTargetContext,
+): void {
+  for (const match of findLessVariableMatches(atrule.params)) {
+    const range = findAtRuleParamValueTokenRange(atrule, match.offset, match.raw.length);
+    if (!range) continue;
+    occurrences.push(
+      makeSassSymbolOccurrence({
+        syntax: "less",
+        selectorName,
+        symbolKind: "variable",
+        name: match.name,
+        role: "reference",
+        resolution: resolveSassVariableReference(targets, match.name, range),
+        range,
+        ruleRange,
+      }),
+    );
+  }
+}
+
 function pushSassAtRuleParamModuleMemberRefs(
   refs: SassModuleMemberRefHIR[],
   atrule: AtRule,
@@ -1142,6 +1240,7 @@ function pushSassAtRuleParamModuleMemberRefs(
 }
 
 function makeSassSymbolOccurrence(args: {
+  readonly syntax?: StylePreprocessorSymbolSyntax;
   readonly selectorName: string;
   readonly symbolKind: SassSymbolKind;
   readonly name: string;
@@ -1154,6 +1253,7 @@ function makeSassSymbolOccurrence(args: {
     kind: "sassSymbol",
     id: `sass:${args.selectorName}:${args.symbolKind}:${args.name}:${args.range.start.line}:${args.range.start.character}`,
     selectorName: args.selectorName,
+    ...(args.syntax ? { syntax: args.syntax } : {}),
     symbolKind: args.symbolKind,
     name: args.name,
     role: args.role,
@@ -1229,6 +1329,12 @@ function parseSassVariableDeclName(property: string): string | null {
   return /^\$([A-Za-z_-][A-Za-z0-9_-]*)$/.exec(property.trim())?.[1] ?? null;
 }
 
+function isLessVariableDeclAtRule(atrule: AtRule): boolean {
+  return (
+    /^[A-Za-z_-][A-Za-z0-9_-]*$/.test(atrule.name) && (atrule.raws.afterName ?? "").includes(":")
+  );
+}
+
 function parseSassCallableName(raw: string): { name: string; raw: string; offset: number } | null {
   const match = /^\s*([A-Za-z_-][A-Za-z0-9_-]*)/.exec(raw);
   const name = match?.[1];
@@ -1285,6 +1391,39 @@ function findSassVariableMatches(
     const name = match?.[1];
     if (!token || !name) continue;
     if (isSassModuleQualifiedReference(raw, index)) continue;
+    matches.push({ name, raw: token, offset: index });
+    index += token.length - 1;
+  }
+
+  return matches;
+}
+
+function findLessVariableMatches(
+  raw: string,
+): Array<{ name: string; raw: string; offset: number }> {
+  const matches: Array<{ name: string; raw: string; offset: number }> = [];
+  let quote: "'" | '"' | null = null;
+
+  for (let index = 0; index < raw.length; index += 1) {
+    const ch = raw[index]!;
+    if (quote) {
+      if (ch === "\\" && index + 1 < raw.length) {
+        index += 1;
+        continue;
+      }
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === "'" || ch === '"') {
+      quote = ch;
+      continue;
+    }
+    if (ch !== "@") continue;
+    if (raw[index - 1] === "@") continue;
+    const match = /^@([A-Za-z_-][A-Za-z0-9_-]*)/.exec(raw.slice(index));
+    const token = match?.[0];
+    const name = match?.[1];
+    if (!token || !name) continue;
     matches.push({ name, raw: token, offset: index });
     index += token.length - 1;
   }
@@ -1706,6 +1845,28 @@ function rangeForSassVariableDeclScope(node: Declaration): Range {
     return rangeForSourceNode(parent);
   }
   return rangeForDeclNode(node);
+}
+
+function rangeForLessVariableDeclScope(atrule: AtRule): Range {
+  const parent = atrule.parent;
+  if (parent?.type === "rule" || parent?.type === "atrule") {
+    return rangeForSourceNode(parent);
+  }
+  return rangeForSourceNode(atrule);
+}
+
+function findLessVariableDeclNameRange(atrule: AtRule): Range | null {
+  const source = atrule.source;
+  if (!source?.start) return null;
+  const startOffset = source.start.offset;
+  const endOffset = startOffset + atrule.name.length + 1;
+  const startPos = source.input.fromOffset(startOffset);
+  const endPos = source.input.fromOffset(endOffset);
+  if (!startPos || !endPos) return null;
+  return {
+    start: { line: startPos.line - 1, character: startPos.col - 1 },
+    end: { line: endPos.line - 1, character: endPos.col - 1 },
+  };
 }
 
 function findAtRuleParamTokenRange(

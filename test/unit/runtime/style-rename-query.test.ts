@@ -71,6 +71,32 @@ describe("style rename query", () => {
     ]);
   });
 
+  it("reads and plans same-file Less variable rename edits", () => {
+    const lessPath = "/fake/src/Button.module.less";
+    const less = `@gap: 1rem;
+.button {
+  color: @gap;
+  margin: @gap;
+}
+`;
+    const styleDocument = parseStyleDocument(less, lessPath);
+    const deps = makeBaseDeps({
+      styleDocumentForPath: (filePath) => (filePath === lessPath ? styleDocument : null),
+    });
+
+    const target = readStyleRenameTargetAtCursor(lessPath, 2, 10, styleDocument, deps);
+    expect(target.kind).toBe("target");
+    expect(target.kind === "target" ? target.target.placeholder : null).toBe("@gap");
+
+    const plan = planStyleRenameAtCursor(lessPath, 2, 10, styleDocument, deps, "space");
+    expect(plan?.kind).toBe("plan");
+    expect(plan?.kind === "plan" ? plan.plan.edits : []).toMatchObject([
+      { uri: "file:///fake/src/Button.module.less", newText: "@space" },
+      { uri: "file:///fake/src/Button.module.less", newText: "@space" },
+      { uri: "file:///fake/src/Button.module.less", newText: "@space" },
+    ]);
+  });
+
   it("reads and plans same-file Sass mixin rename edits", () => {
     const scss = `@mixin raised() {}
 .button {

@@ -1,6 +1,7 @@
 import type { Range } from "@css-module-explainer/shared";
 import type {
   SassSymbolKind,
+  StylePreprocessorSymbolSyntax,
   StyleDocumentHIR,
 } from "../../engine-core-ts/src/core/hir/style-types";
 import { pathToFileUrl } from "../../engine-core-ts/src/core/util/text-utils";
@@ -77,9 +78,10 @@ export function buildCreateSassSymbolActionData(
   symbolName: string,
   scssModulePath: string,
   styleDocument: StyleDocumentHIR,
+  syntax: StylePreprocessorSymbolSyntax = "sass",
 ): RecoveryEditActionData {
   const insertionRange = findSassSymbolInsertionRange(styleDocument);
-  const stub = sassSymbolStub(symbolKind, symbolName);
+  const stub = sassSymbolStub(symbolKind, symbolName, syntax);
   const insertsAtTop =
     insertionRange.start.line === 0 &&
     insertionRange.start.character === 0 &&
@@ -166,7 +168,12 @@ function findSassSymbolInsertionRange(styleDocument: StyleDocumentHIR): Range {
   };
 }
 
-function sassSymbolStub(symbolKind: SassSymbolKind, symbolName: string): string {
+function sassSymbolStub(
+  symbolKind: SassSymbolKind,
+  symbolName: string,
+  syntax: StylePreprocessorSymbolSyntax,
+): string {
+  if (syntax === "less") return `@${symbolName}: ;`;
   switch (symbolKind) {
     case "variable":
       return `$${symbolName}: ;`;

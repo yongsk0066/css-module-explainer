@@ -22,6 +22,8 @@ export type NestedSelectorSafety = "flat" | "bemSuffixSafe" | "nestedUnsafe";
 
 export type SassSymbolKind = "variable" | "mixin" | "function";
 
+export type StylePreprocessorSymbolSyntax = "sass" | "less";
+
 export type SassSymbolRole = "reference" | "include" | "call";
 
 export type SassSymbolResolution = "resolved" | "unresolved";
@@ -84,6 +86,7 @@ export interface ValueRefHIR extends HirNodeBase {
 export interface SassSymbolOccurrenceHIR extends HirNodeBase {
   readonly kind: "sassSymbol";
   readonly selectorName: string;
+  readonly syntax?: StylePreprocessorSymbolSyntax;
   readonly symbolKind: SassSymbolKind;
   readonly name: string;
   readonly role: SassSymbolRole;
@@ -94,6 +97,7 @@ export interface SassSymbolOccurrenceHIR extends HirNodeBase {
 
 export interface SassSymbolDeclHIR extends HirNodeBase {
   readonly kind: "sassSymbolDecl";
+  readonly syntax?: StylePreprocessorSymbolSyntax;
   readonly symbolKind: SassSymbolKind;
   readonly name: string;
   readonly range: Range;

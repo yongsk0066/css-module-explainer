@@ -18,6 +18,7 @@ import type { ResolvedReferenceSite } from "../../engine-core-ts/src/core/query/
 import type { SelectorReferenceRewritePolicy } from "../../engine-core-ts/src/core/query/read-selector-rewrite-safety";
 import type {
   SassSymbolDeclHIR,
+  StylePreprocessorSymbolSyntax,
   StyleDocumentHIR,
 } from "../../engine-core-ts/src/core/hir/style-types";
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
@@ -45,6 +46,7 @@ export interface SassSymbolRenameTarget {
   readonly scssPath: string;
   readonly scssUri: string;
   readonly styleDocument: StyleDocumentHIR;
+  readonly symbolSyntax?: StylePreprocessorSymbolSyntax;
   readonly symbolKind: SassSymbolDeclHIR["symbolKind"];
   readonly name: string;
   readonly targetDecl: SassSymbolDeclHIR;
@@ -167,6 +169,7 @@ function readSassSymbolRenameTargetAtCursor(
       target: makeSassSymbolRenameTarget(
         filePath,
         styleDocument,
+        decl.syntax,
         decl.symbolKind,
         decl.name,
         decl,
@@ -184,6 +187,7 @@ function readSassSymbolRenameTargetAtCursor(
     target: makeSassSymbolRenameTarget(
       filePath,
       styleDocument,
+      targetDecl.syntax,
       symbol.symbolKind,
       symbol.name,
       targetDecl,
@@ -228,6 +232,7 @@ export function planStyleRenameAtCursor(
 function makeSassSymbolRenameTarget(
   filePath: string,
   styleDocument: StyleDocumentHIR,
+  symbolSyntax: StylePreprocessorSymbolSyntax | undefined,
   symbolKind: SassSymbolDeclHIR["symbolKind"],
   name: string,
   targetDecl: SassSymbolDeclHIR,
@@ -237,10 +242,11 @@ function makeSassSymbolRenameTarget(
     scssPath: filePath,
     scssUri: pathToFileUrl(filePath),
     styleDocument,
+    ...(symbolSyntax ? { symbolSyntax } : {}),
     symbolKind,
     name,
     targetDecl,
-    placeholder: formatSassSymbolText(symbolKind, name),
+    placeholder: formatSassSymbolText(symbolKind, name, symbolSyntax),
     placeholderRange,
   };
 }
@@ -257,10 +263,10 @@ function planSassSymbolRename(
   target: SassSymbolRenameTarget,
   newName: string,
 ): SassSymbolRenamePlanResult {
-  const nextName = normalizeSassSymbolNewName(target.symbolKind, newName);
+  const nextName = normalizeSassSymbolNewName(target.symbolKind, newName, target.symbolSyntax);
   if (!nextName) return { kind: "blocked", reason: "invalidNewName" };
 
-  const newText = formatSassSymbolText(target.symbolKind, nextName);
+  const newText = formatSassSymbolText(target.symbolKind, nextName, target.symbolSyntax);
   const edits: PlannedTextEdit[] = [];
   edits.push({
     uri: target.scssUri,
@@ -281,8 +287,13 @@ function planSassSymbolRename(
 function normalizeSassSymbolNewName(
   symbolKind: SassSymbolDeclHIR["symbolKind"],
   newName: string,
+  symbolSyntax: StylePreprocessorSymbolSyntax | undefined,
 ): string | null {
   const trimmed = newName.trim();
+  if (symbolSyntax === "less") {
+    const name = trimmed.startsWith("@") ? trimmed.slice(1) : trimmed;
+    return SASS_IDENTIFIER_RE.test(name) ? name : null;
+  }
   if (symbolKind === "variable") {
     const name = trimmed.startsWith("$") ? trimmed.slice(1) : trimmed;
     return SASS_IDENTIFIER_RE.test(name) ? name : null;
@@ -291,7 +302,12 @@ function normalizeSassSymbolNewName(
   return SASS_IDENTIFIER_RE.test(trimmed) ? trimmed : null;
 }
 
-function formatSassSymbolText(symbolKind: SassSymbolDeclHIR["symbolKind"], name: string): string {
+function formatSassSymbolText(
+  symbolKind: SassSymbolDeclHIR["symbolKind"],
+  name: string,
+  symbolSyntax: StylePreprocessorSymbolSyntax | undefined,
+): string {
+  if (symbolSyntax === "less") return `@${name}`;
   return symbolKind === "variable" ? `$${name}` : name;
 }
 

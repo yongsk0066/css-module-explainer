@@ -188,6 +188,7 @@ export function styleDocumentSemanticFingerprint(styleDocument: StyleDocumentHIR
     .map((symbol) =>
       [
         symbol.selectorName,
+        symbol.syntax ?? "sass",
         symbol.symbolKind,
         symbol.name,
         symbol.role,
@@ -207,6 +208,7 @@ export function styleDocumentSemanticFingerprint(styleDocument: StyleDocumentHIR
     .map((decl) =>
       [
         decl.symbolKind,
+        decl.syntax ?? "sass",
         decl.name,
         decl.range.start.line,
         decl.range.start.character,

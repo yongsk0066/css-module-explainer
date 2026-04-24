@@ -57,14 +57,23 @@ export function formatCheckerFinding(finding: CheckerFinding, workspaceRoot: str
     case "missing-keyframes":
       return `@keyframes '${finding.animationName}' not found in this file.`;
     case "missing-sass-symbol":
-      return `${formatSassSymbolLabel(finding.symbolKind, finding.symbolName)} not found in this file.`;
+      return `${formatSassSymbolLabel(
+        finding.symbolKind,
+        finding.symbolName,
+        finding.symbolSyntax,
+      )} not found in this file.`;
     default:
       finding satisfies never;
       return "";
   }
 }
 
-function formatSassSymbolLabel(kind: "variable" | "mixin" | "function", name: string): string {
+function formatSassSymbolLabel(
+  kind: "variable" | "mixin" | "function",
+  name: string,
+  syntax: "sass" | "less" = "sass",
+): string {
+  if (syntax === "less") return `Less variable '@${name}'`;
   switch (kind) {
     case "variable":
       return `Sass variable '$${name}'`;

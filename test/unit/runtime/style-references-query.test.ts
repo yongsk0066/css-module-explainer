@@ -188,6 +188,44 @@ describe("resolveStyleReferencesAtCursor", () => {
     expect(fileScopeResult.map((location) => location.range.start.line)).toEqual([0, 6]);
   });
 
+  it("keeps local Less variable references separate from same-name file-scope variables", () => {
+    const filePath = "/fake/src/Button.module.less";
+    const less = `@gap: 1rem;
+.one {
+  @gap: 2rem;
+  color: @gap;
+}
+.two {
+  color: @gap;
+}
+`;
+    const styleDocument = parseStyleDocument(less, filePath);
+
+    const localResult = resolveStyleReferencesAtCursor(
+      {
+        filePath,
+        line: 2,
+        character: 3,
+        includeDeclaration: true,
+        styleDocument,
+      },
+      makeDeps({ styleDocumentForPath: styleDocumentMap([styleDocument]) }),
+    );
+    expect(localResult.map((location) => location.range.start.line)).toEqual([2, 3]);
+
+    const fileScopeResult = resolveStyleReferencesAtCursor(
+      {
+        filePath,
+        line: 0,
+        character: 1,
+        includeDeclaration: true,
+        styleDocument,
+      },
+      makeDeps({ styleDocumentForPath: styleDocumentMap([styleDocument]) }),
+    );
+    expect(fileScopeResult.map((location) => location.range.start.line)).toEqual([0, 6]);
+  });
+
   it("returns namespace-qualified Sass member references with the target declaration", () => {
     const filePath = "/fake/src/Button.module.scss";
     const tokensPath = "/fake/src/tokens.module.scss";

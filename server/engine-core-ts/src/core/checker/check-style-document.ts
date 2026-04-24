@@ -246,6 +246,7 @@ function checkSassSymbolResolutionRule({
       range: symbol.range,
       selectorFilePath: params.styleDocument.filePath,
       selectorName: symbol.selectorName,
+      ...(symbol.syntax ? { symbolSyntax: symbol.syntax } : {}),
       symbolKind: symbol.symbolKind,
       symbolName: symbol.name,
       symbolRole: symbol.role,

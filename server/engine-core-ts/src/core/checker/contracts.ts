@@ -123,6 +123,7 @@ export type StyleCheckerFinding =
       readonly range: Range;
       readonly selectorFilePath: string;
       readonly selectorName: string;
+      readonly symbolSyntax?: "sass" | "less";
       readonly symbolKind: "variable" | "mixin" | "function";
       readonly symbolName: string;
       readonly symbolRole: "reference" | "include" | "call";

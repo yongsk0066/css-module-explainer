@@ -227,7 +227,7 @@ export function resolveStyleHoverResult(
       sassSymbolDecl: target,
       range: sassSymbol.range,
       headingName: sassSymbol.name,
-      note: `Referenced via Sass ${sassSymbol.role}`,
+      note: `Referenced via ${styleSymbolLanguageName(target)} ${sassSymbol.role}`,
       scssModulePath: args.filePath,
       referenceCount: listSassSymbolsForDecl(styleDocument, target).length,
     };
@@ -425,4 +425,8 @@ function resolveStyleSelectorUsageSummary(
     canonicalName,
   );
   return usage;
+}
+
+function styleSymbolLanguageName(decl: SassSymbolDeclHIR): "Sass" | "Less" {
+  return decl.syntax === "less" ? "Less" : "Sass";
 }

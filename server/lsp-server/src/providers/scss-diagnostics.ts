@@ -150,6 +150,7 @@ function toDiagnostic(
             finding.symbolName,
             finding.selectorFilePath,
             styleDocument,
+            finding.symbolSyntax,
           ),
         },
       };

@@ -177,6 +177,33 @@ describe("style hover query", () => {
     });
   });
 
+  it("resolves Less variable references to declaration hover data", () => {
+    const less = `@gap: 1rem;
+.button {
+  color: @gap;
+}
+`;
+    const filePath = "/fake/ws/src/Button.module.less";
+    const result = resolveStyleHoverResult(
+      {
+        filePath,
+        line: 2,
+        character: 10,
+      },
+      makeBaseDeps({
+        styleDocumentForPath: styleDocumentMap([parseStyleDocument(less, filePath)]),
+      }),
+    );
+
+    expect(result).toMatchObject({
+      kind: "sassSymbol",
+      scssModulePath: filePath,
+      headingName: "gap",
+      note: "Referenced via Less reference",
+      referenceCount: 1,
+    });
+  });
+
   it("resolves namespace-qualified Sass member references to target module hover data", () => {
     const buttonScss = `@use "./tokens.module" as tokens;
 

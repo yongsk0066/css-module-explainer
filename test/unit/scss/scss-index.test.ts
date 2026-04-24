@@ -572,6 +572,44 @@ describe("parseStyleSelectorMap / edge cases", () => {
       expect(document.sassSymbols).toEqual([]);
     });
 
+    it("records scoped Less variable declarations and references", () => {
+      const source = `@gap: 1rem;
+.card {
+  @gap: 2rem;
+  color: @gap;
+}
+.other {
+  color: @gap;
+  margin: @missing;
+}`;
+      const document = parseStyleDocument(source, "/fake/a.module.less");
+
+      expect(
+        document.sassSymbolDecls.map((decl) => [
+          decl.syntax,
+          decl.symbolKind,
+          decl.name,
+          sliceRange(source, decl.range),
+        ]),
+      ).toEqual([
+        ["less", "variable", "gap", "@gap"],
+        ["less", "variable", "gap", "@gap"],
+      ]);
+      expect(
+        document.sassSymbols.map((symbol) => [
+          symbol.syntax,
+          symbol.selectorName,
+          symbol.name,
+          symbol.resolution,
+          sliceRange(source, symbol.range),
+        ]),
+      ).toEqual([
+        ["less", "card", "gap", "resolved", "@gap"],
+        ["less", "other", "gap", "resolved", "@gap"],
+        ["less", "other", "missing", "unresolved", "@missing"],
+      ]);
+    });
+
     it("records unresolved function calls when wildcard Sass modules may provide them", () => {
       const source = `@use "./tokens" as *;
 .button {
