@@ -314,7 +314,6 @@ const cx = classNames.bind(styles);
 const a = cx('/*<class>*/ind/*|*/icator/*</class>*/');
 `,
 });
-const TSX_CONTENT = TSX_WORKSPACE.file(TSX_PATH).content;
 const TSX_CLASS_RANGE = TSX_WORKSPACE.range("class", TSX_PATH).range;
 
 const BINDING: CxBinding = {
@@ -378,6 +377,35 @@ function makeTsxDeps(
   });
 }
 
+function sourceCursorParams(
+  fixture: CmeWorkspace,
+  markerName = "cursor",
+  filePath = TSX_PATH,
+  documentUri = TSX_URI,
+): CursorParams {
+  return cursorFixture({
+    workspace: fixture,
+    filePath,
+    documentUri,
+    markerName,
+    version: 1,
+  });
+}
+
+function sourcePositionParams(cursor: CursorParams) {
+  return {
+    textDocument: { uri: cursor.documentUri },
+    position: { line: cursor.line, character: cursor.character },
+  };
+}
+
+function sourceRenameParams(cursor: CursorParams, newName: string) {
+  return {
+    ...sourcePositionParams(cursor),
+    newName,
+  };
+}
+
 describe("handlePrepareRename from TS/TSX", () => {
   it("returns range and placeholder for cursor on cx('indicator')", async () => {
     const spec = scenario({
@@ -411,6 +439,14 @@ describe("handlePrepareRename from TS/TSX", () => {
   });
 
   it("throws a message when the cursor is on a dynamic class expression", () => {
+    const dynamicWorkspace = workspace({
+      [TSX_PATH]: `import classNames from 'classnames/bind';
+import styles from './Button.module.scss';
+const cx = classNames.bind(styles);
+const a = cx(/*<expr>*/si/*|*/ze/*</expr>*/);
+`,
+    });
+    const expressionRange = dynamicWorkspace.range("expr", TSX_PATH).range;
     const sourceFileCache = new SourceFileCache({ max: 10 });
     const analysisCache = new DocumentAnalysisCache({
       sourceFileCache,
@@ -439,10 +475,7 @@ describe("handlePrepareRename from TS/TSX", () => {
               kind: "symbolRef",
               origin: "cxCall",
               rawReference: "size",
-              range: {
-                start: { line: 3, character: 13 },
-                end: { line: 3, character: 17 },
-              },
+              range: expressionRange,
               scssModulePath: bindings[0]!.scssModulePath,
             },
           ],
@@ -454,24 +487,10 @@ describe("handlePrepareRename from TS/TSX", () => {
       selectorMapForPath: () => new Map([["indicator", info("indicator")]]),
       workspaceRoot: "/fake",
     });
-    const cursorParams: CursorParams = {
-      documentUri: "file:///fake/src/App.tsx",
-      content: TSX_CONTENT.replace("cx('indicator')", "cx(size)"),
-      filePath: "/fake/src/App.tsx",
-      line: 3,
-      character: 14,
-      version: 1,
-    };
+    const cursorParams = sourceCursorParams(dynamicWorkspace);
 
     expect(() =>
-      handlePrepareRename(
-        {
-          textDocument: { uri: "file:///fake/src/App.tsx" },
-          position: { line: 3, character: 14 },
-        },
-        deps,
-        cursorParams,
-      ),
+      handlePrepareRename(sourcePositionParams(cursorParams), deps, cursorParams),
     ).toThrow("Dynamic class expressions cannot be renamed safely.");
   });
 });
@@ -483,9 +502,9 @@ describe("handleRename from TS/TSX", () => {
       semanticSite({
         uri: "file:///fake/src/App.tsx",
         canonicalName: "indicator",
-        line: 3,
-        start: 14,
-        end: 23,
+        line: TSX_CLASS_RANGE.start.line,
+        start: TSX_CLASS_RANGE.start.character,
+        end: TSX_CLASS_RANGE.end.character,
       }),
     ]);
     semanticReferenceIndex.record("file:///fake/src/Other.tsx", [
@@ -495,20 +514,9 @@ describe("handleRename from TS/TSX", () => {
         line: 20,
       }),
     ]);
-    const cursorParams: CursorParams = {
-      documentUri: "file:///fake/src/App.tsx",
-      content: TSX_CONTENT,
-      filePath: "/fake/src/App.tsx",
-      line: 3,
-      character: 16,
-      version: 1,
-    };
+    const cursorParams = sourceCursorParams(TSX_WORKSPACE);
     const result = handleRename(
-      {
-        textDocument: { uri: "file:///fake/src/App.tsx" },
-        position: { line: 3, character: 16 },
-        newName: "status",
-      },
+      sourceRenameParams(cursorParams, "status"),
       makeTsxDeps({ semanticReferenceIndex }),
       cursorParams,
     );
@@ -666,6 +674,14 @@ describe("rename template corruption guard", () => {
   });
 
   it("source-side prepareRename rejects classes with expanded semantic references", () => {
+    const fixture = workspace({
+      [TSX_PATH]: `import classNames from 'classnames/bind';
+import styles from './Button.module.scss';
+const cx = classNames.bind(styles);
+const a = cx('/*<class>*/btn-/*|*/small/*</class>*/');
+`,
+    });
+    const classRange = fixture.range("class", TSX_PATH).range;
     const semanticReferenceIndex = buildTemplateSemanticIndex();
     const sourceFileCache = new SourceFileCache({ max: 10 });
     const analysisCache = new DocumentAnalysisCache({
@@ -687,31 +703,18 @@ describe("rename template corruption guard", () => {
               kind: "literal",
               origin: "cxCall",
               className: "btn-small",
-              range: {
-                start: { line: 3, character: 14 },
-                end: { line: 3, character: 23 },
-              },
+              range: classRange,
               scssModulePath: bindings[0]!.scssModulePath,
             },
           ],
         }),
       max: 10,
     });
-    const cursorParams: CursorParams = {
-      documentUri: "file:///fake/src/App.tsx",
-      content: TSX_CONTENT.replace("indicator", "btn-small"),
-      filePath: "/fake/src/App.tsx",
-      line: 3,
-      character: 16,
-      version: 1,
-    };
+    const cursorParams = sourceCursorParams(fixture);
     expectPrepareRenameBlocked(
       () =>
         handlePrepareRename(
-          {
-            textDocument: { uri: "file:///fake/src/App.tsx" },
-            position: { line: 3, character: 16 },
-          },
+          sourcePositionParams(cursorParams),
           makeBaseDeps({
             analysisCache,
             semanticReferenceIndex,
