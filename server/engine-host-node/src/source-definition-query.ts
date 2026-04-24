@@ -6,6 +6,7 @@ import type {
 } from "../../engine-core-ts/src/core/hir/style-types";
 import {
   findCanonicalSelector,
+  findCanonicalSelectorsByName,
   readSourceExpressionResolution,
   type SourceExpressionContext,
 } from "../../engine-core-ts/src/core/query";
@@ -102,12 +103,13 @@ function resolveSourceDefinitionTargetsFromRust(
   const styleDocument = deps.styleDocumentForPath(match.styleFilePath);
   if (!styleDocument || match.selectorNames.length === 0) return [];
   return match.selectorNames
-    .map((name) => {
+    .flatMap((name) => {
+      const selectors = findCanonicalSelectorsByName(styleDocument, name);
+      if (selectors.length > 0) return selectors;
       const selector =
         styleDocument.selectors.find((candidate) => candidate.canonicalName === name) ?? null;
-      return selector ? findCanonicalSelector(styleDocument, selector) : null;
+      return selector ? [findCanonicalSelector(styleDocument, selector)] : [];
     })
-    .filter((selector): selector is SelectorDeclHIR => selector !== null)
     .map((selector) =>
       toSourceDefinitionTarget(ctx.expression.range, match.styleFilePath, selector),
     );

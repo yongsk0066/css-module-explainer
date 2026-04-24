@@ -67,11 +67,11 @@ function findWorkspaceConfigPath(
   workspaceRoot: string,
   sys: Pick<typeof ts.sys, "fileExists">,
 ): string | null {
-  return (
-    ts.findConfigFile(workspaceRoot, sys.fileExists, "tsconfig.json") ??
-    ts.findConfigFile(workspaceRoot, sys.fileExists, "jsconfig.json") ??
-    null
-  );
+  const tsconfig = path.join(workspaceRoot, "tsconfig.json");
+  if (sys.fileExists(tsconfig)) return tsconfig;
+  const jsconfig = path.join(workspaceRoot, "jsconfig.json");
+  if (sys.fileExists(jsconfig)) return jsconfig;
+  return null;
 }
 
 export function loadWorkspaceTsconfigPathAliases(
@@ -87,24 +87,56 @@ export function loadWorkspaceTsconfigPathAliases(
   try {
     const configPath = findWorkspaceConfigPath(workspaceRoot, system);
     if (!configPath) return null;
-
-    const parsed = ts.getParsedCommandLineOfConfigFile(configPath, undefined, {
-      ...ts.sys,
-      ...system,
-      onUnRecoverableConfigFileDiagnostic: system.onUnRecoverableConfigFileDiagnostic ?? (() => {}),
-    });
-    if (!parsed || !parsed.options.paths) return null;
-    const baseUrl = typeof parsed.options.baseUrl === "string" ? parsed.options.baseUrl : undefined;
-    const pathsBasePath =
-      typeof parsed.options.pathsBasePath === "string" ? parsed.options.pathsBasePath : undefined;
-
-    return {
-      basePath: baseUrl ?? pathsBasePath ?? path.dirname(configPath),
-      paths: parsed.options.paths,
-    };
+    return loadTsconfigPathAliasesFromConfig(configPath, system);
   } catch {
     return null;
   }
+}
+
+function loadTsconfigPathAliasesFromConfig(
+  configPath: string,
+  system: TsconfigPathAliasSystem,
+): TsconfigPathAliases | null {
+  const parsed = ts.getParsedCommandLineOfConfigFile(configPath, undefined, {
+    ...ts.sys,
+    ...system,
+    onUnRecoverableConfigFileDiagnostic: system.onUnRecoverableConfigFileDiagnostic ?? (() => {}),
+  });
+  if (!parsed || !parsed.options.paths) return null;
+  const baseUrl = typeof parsed.options.baseUrl === "string" ? parsed.options.baseUrl : undefined;
+  const pathsBasePath =
+    typeof parsed.options.pathsBasePath === "string" ? parsed.options.pathsBasePath : undefined;
+
+  return {
+    basePath: baseUrl ?? pathsBasePath ?? path.dirname(configPath),
+    paths: parsed.options.paths,
+  };
+}
+
+function findNearestConfigPath(
+  filePath: string,
+  workspaceRoot: string,
+  sys: Pick<typeof ts.sys, "fileExists">,
+): string | null {
+  const root = path.resolve(workspaceRoot);
+  let current = path.dirname(path.resolve(filePath));
+
+  while (isWithinOrEqual(current, root)) {
+    const tsconfig = path.join(current, "tsconfig.json");
+    if (sys.fileExists(tsconfig)) return tsconfig;
+    const jsconfig = path.join(current, "jsconfig.json");
+    if (sys.fileExists(jsconfig)) return jsconfig;
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+
+  return null;
+}
+
+function isWithinOrEqual(candidate: string, root: string): boolean {
+  const relative = path.relative(root, candidate);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }
 /**
  * Mutable holder for the workspace-scoped `AliasResolver`. The
@@ -145,12 +177,20 @@ export class AliasResolverHolder {
 
 export class AliasResolver {
   private readonly settingsEntries: readonly AliasEntry[];
-  private readonly tsconfigEntries: readonly AliasEntry[];
+  private readonly defaultTsconfigEntries: readonly AliasEntry[];
+  private readonly tsconfigEntriesByConfigPath = new Map<string, readonly AliasEntry[]>();
 
   constructor(
     private readonly workspaceRoot: string,
     pathAlias: Readonly<Record<string, string>>,
     tsconfigPaths: TsconfigPathAliases | null = null,
+    private readonly system: TsconfigPathAliasSystem = {
+      fileExists: ts.sys.fileExists,
+      readFile: ts.sys.readFile,
+      readDirectory: ts.sys.readDirectory,
+      useCaseSensitiveFileNames: ts.sys.useCaseSensitiveFileNames,
+      onUnRecoverableConfigFileDiagnostic: () => {},
+    },
   ) {
     this.settingsEntries = Object.entries(pathAlias)
       .map<AliasEntry>(([pattern, target]) => ({
@@ -160,7 +200,7 @@ export class AliasResolver {
         target: this.substituteWorkspace(target),
       }))
       .toSorted(compareAliasEntries);
-    this.tsconfigEntries = tsconfigPaths ? this.buildTsconfigEntries(tsconfigPaths) : [];
+    this.defaultTsconfigEntries = tsconfigPaths ? this.buildTsconfigEntries(tsconfigPaths) : [];
   }
 
   /**
@@ -169,14 +209,34 @@ export class AliasResolver {
    * back to relative resolution before accepting the specifier as
    * unresolved.
    */
-  resolve(specifier: string, fileExists?: (candidate: string) => boolean): string | null {
+  resolve(
+    specifier: string,
+    fileExists?: (candidate: string) => boolean,
+    containingFilePath?: string,
+  ): string | null {
     const resolvedFromSettings = this.resolveFromEntries(
       this.settingsEntries,
       specifier,
       fileExists,
     );
     if (resolvedFromSettings) return resolvedFromSettings;
-    return this.resolveFromEntries(this.tsconfigEntries, specifier, fileExists);
+    return this.resolveFromEntries(
+      this.resolveTsconfigEntries(containingFilePath),
+      specifier,
+      fileExists,
+    );
+  }
+
+  private resolveTsconfigEntries(containingFilePath: string | undefined): readonly AliasEntry[] {
+    if (!containingFilePath) return this.defaultTsconfigEntries;
+    const configPath = findNearestConfigPath(containingFilePath, this.workspaceRoot, this.system);
+    if (!configPath) return this.defaultTsconfigEntries;
+    const cached = this.tsconfigEntriesByConfigPath.get(configPath);
+    if (cached) return cached;
+    const tsconfigPaths = loadTsconfigPathAliasesFromConfig(configPath, this.system);
+    const entries = tsconfigPaths ? this.buildTsconfigEntries(tsconfigPaths) : [];
+    this.tsconfigEntriesByConfigPath.set(configPath, entries);
+    return entries;
   }
 
   private resolveFromEntries(

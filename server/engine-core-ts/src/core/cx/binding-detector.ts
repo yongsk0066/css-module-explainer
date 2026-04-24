@@ -165,7 +165,7 @@ function tryResolveImportStatement(
   if (specifier.startsWith(".")) {
     absolutePath = path.resolve(path.dirname(filePath), specifier);
   } else {
-    absolutePath = aliasResolver.resolve(specifier, fileExists);
+    absolutePath = aliasResolver.resolve(specifier, fileExists, filePath);
     if (!absolutePath) return null;
   }
 

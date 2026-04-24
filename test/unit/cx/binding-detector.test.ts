@@ -1,8 +1,14 @@
 import { describe, it, expect } from "vitest";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 import ts from "typescript";
 import type { StyleImport } from "@css-module-explainer/shared";
 import { scanCxImports } from "../../../server/engine-core-ts/src/core/cx/binding-detector";
-import { AliasResolver } from "../../../server/engine-core-ts/src/core/cx/alias-resolver";
+import {
+  AliasResolver,
+  loadWorkspaceTsconfigPathAliases,
+} from "../../../server/engine-core-ts/src/core/cx/alias-resolver";
 import type { CxBinding } from "../../../server/engine-core-ts/src/core/cx/cx-types";
 
 const EMPTY_ALIAS_RESOLVER = new AliasResolver("/fake", {});
@@ -537,6 +543,39 @@ describe("collectStyleImports", () => {
     expect(result.get("s")?.kind).toBe("resolved");
     if (result.get("s")?.kind === "resolved") {
       expect(result.get("s")!.absolutePath).toBe("/fake/src/components/button.module.scss");
+    }
+  });
+
+  it("resolves package-level tsconfig aliases from the source file path", () => {
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "cme-monorepo-bindings-"));
+    const packageRoot = path.join(workspace, "packages/core");
+    const sourcePath = path.join(packageRoot, "src/App.tsx");
+    fs.mkdirSync(packageRoot, { recursive: true });
+    fs.writeFileSync(
+      path.join(packageRoot, "tsconfig.json"),
+      JSON.stringify(
+        {
+          compilerOptions: {
+            baseUrl: ".",
+            paths: {
+              "$components/*": ["src/components/*"],
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+    const src = parse(`import s from '$components/button.module.scss';`, sourcePath);
+    const resolver = new AliasResolver(workspace, {}, loadWorkspaceTsconfigPathAliases(workspace));
+
+    const result = collectStyleImports(src, sourcePath, () => true, resolver);
+
+    expect(result.get("s")?.kind).toBe("resolved");
+    if (result.get("s")?.kind === "resolved") {
+      expect(result.get("s")!.absolutePath).toBe(
+        path.join(packageRoot, "src/components/button.module.scss"),
+      );
     }
   });
 

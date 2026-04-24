@@ -104,7 +104,7 @@ function extractFromArgument(
   }
 
   if (ts.isObjectLiteralExpression(value)) {
-    extractObjectLiteral(value, binding, sourceFile, out, allocateId);
+    extractObjectLiteral(value, binding, binder, sourceFile, out, allocateId);
     return;
   }
 
@@ -193,6 +193,7 @@ function extractFromArgument(
 function extractObjectLiteral(
   arg: ts.ObjectLiteralExpression,
   binding: ResolvedCxBinding,
+  binder: SourceBinderResult,
   sourceFile: ts.SourceFile,
   out: ClassExpressionHIR[],
   allocateId: () => string,
@@ -225,6 +226,8 @@ function extractObjectLiteral(
           innerStringRange(name, sourceFile),
         ),
       );
+    } else if (ts.isComputedPropertyName(name)) {
+      extractFromArgument(name.expression, binding, binder, sourceFile, out, allocateId);
     }
   }
 }

@@ -29,15 +29,12 @@ export function resolveAbstractValueSelectors(
   switch (value.kind) {
     case "bottom":
       return [];
-    case "exact": {
-      const selector = findCanonicalSelector(styleDocument, value.value);
-      return selector ? [selector] : [];
-    }
+    case "exact":
+      return findCanonicalSelectors(styleDocument, value.value);
     case "finiteSet":
-      return value.values.flatMap((candidate) => {
-        const selector = findCanonicalSelector(styleDocument, candidate);
-        return selector ? [selector] : [];
-      });
+      return uniqueSelectorsById(
+        value.values.flatMap((candidate) => findCanonicalSelectors(styleDocument, candidate)),
+      );
     case "prefix":
       return findCanonicalSelectorsByPrefix(styleDocument, value.prefix);
     case "suffix":
@@ -78,10 +75,11 @@ function findCanonicalSelectorsByPrefix(
 
   for (const selector of styleDocument.selectors) {
     if (!selector.name.startsWith(prefix)) continue;
-    const canonical = findCanonicalSelector(styleDocument, selector.name);
-    if (!canonical || emitted.has(canonical.canonicalName)) continue;
-    emitted.add(canonical.canonicalName);
-    resolved.push(canonical);
+    for (const canonical of findCanonicalSelectors(styleDocument, selector.name)) {
+      if (emitted.has(canonical.id)) continue;
+      emitted.add(canonical.id);
+      resolved.push(canonical);
+    }
   }
 
   return resolved;
@@ -96,10 +94,11 @@ function findCanonicalSelectorsBySuffix(
 
   for (const selector of styleDocument.selectors) {
     if (!selector.name.endsWith(suffix)) continue;
-    const canonical = findCanonicalSelector(styleDocument, selector.name);
-    if (!canonical || emitted.has(canonical.canonicalName)) continue;
-    emitted.add(canonical.canonicalName);
-    resolved.push(canonical);
+    for (const canonical of findCanonicalSelectors(styleDocument, selector.name)) {
+      if (emitted.has(canonical.id)) continue;
+      emitted.add(canonical.id);
+      resolved.push(canonical);
+    }
   }
 
   return resolved;
@@ -115,10 +114,11 @@ function findCanonicalSelectorsByPrefixSuffix(
 
   for (const selector of styleDocument.selectors) {
     if (!selector.name.startsWith(prefix) || !selector.name.endsWith(suffix)) continue;
-    const canonical = findCanonicalSelector(styleDocument, selector.name);
-    if (!canonical || emitted.has(canonical.canonicalName)) continue;
-    emitted.add(canonical.canonicalName);
-    resolved.push(canonical);
+    for (const canonical of findCanonicalSelectors(styleDocument, selector.name)) {
+      if (emitted.has(canonical.id)) continue;
+      emitted.add(canonical.id);
+      resolved.push(canonical);
+    }
   }
 
   return resolved;
@@ -139,10 +139,11 @@ function findCanonicalSelectorsByCharInclusion(
     const charSet = new Set(Array.from(selector.name));
     if (Array.from(mustSet).some((char) => !charSet.has(char))) continue;
     if (!mayIncludeOtherChars && Array.from(charSet).some((char) => !maySet.has(char))) continue;
-    const canonical = findCanonicalSelector(styleDocument, selector.name);
-    if (!canonical || emitted.has(canonical.canonicalName)) continue;
-    emitted.add(canonical.canonicalName);
-    resolved.push(canonical);
+    for (const canonical of findCanonicalSelectors(styleDocument, selector.name)) {
+      if (emitted.has(canonical.id)) continue;
+      emitted.add(canonical.id);
+      resolved.push(canonical);
+    }
   }
 
   return resolved;
@@ -169,27 +170,38 @@ function findCanonicalSelectorsByComposite(
     const charSet = new Set(Array.from(selector.name));
     if (Array.from(mustSet).some((char) => !charSet.has(char))) continue;
     if (!mayIncludeOtherChars && Array.from(charSet).some((char) => !maySet.has(char))) continue;
-    const canonical = findCanonicalSelector(styleDocument, selector.name);
-    if (!canonical || emitted.has(canonical.canonicalName)) continue;
-    emitted.add(canonical.canonicalName);
-    resolved.push(canonical);
+    for (const canonical of findCanonicalSelectors(styleDocument, selector.name)) {
+      if (emitted.has(canonical.id)) continue;
+      emitted.add(canonical.id);
+      resolved.push(canonical);
+    }
   }
 
   return resolved;
 }
 
-function findCanonicalSelector(
+function findCanonicalSelectors(
   styleDocument: StyleDocumentHIR,
   viewName: string,
-): SelectorDeclHIR | null {
-  const match = styleDocument.selectors.find((selector) => selector.name === viewName);
-  if (!match) return null;
-  return (
-    styleDocument.selectors.find(
-      (selector) =>
-        selector.canonicalName === match.canonicalName && selector.viewKind === "canonical",
-    ) ?? match
+): readonly SelectorDeclHIR[] {
+  const matches = styleDocument.selectors.filter((selector) => selector.name === viewName);
+  if (matches.length === 0) return [];
+  const canonicalNames = new Set(matches.map((selector) => selector.canonicalName));
+  const canonicalSelectors = styleDocument.selectors.filter(
+    (selector) => selector.viewKind === "canonical" && canonicalNames.has(selector.canonicalName),
   );
+  return canonicalSelectors.length > 0 ? canonicalSelectors : matches;
+}
+
+function uniqueSelectorsById(selectors: readonly SelectorDeclHIR[]): readonly SelectorDeclHIR[] {
+  const emitted = new Set<string>();
+  const result: SelectorDeclHIR[] = [];
+  for (const selector of selectors) {
+    if (emitted.has(selector.id)) continue;
+    emitted.add(selector.id);
+    result.push(selector);
+  }
+  return result;
 }
 
 function countCanonicalSelectors(styleDocument: StyleDocumentHIR): number {

@@ -202,6 +202,47 @@ describe("definition protocol", () => {
     expect(links[0]!.originSelectionRange).toBeDefined();
   });
 
+  it("returns all definitions when the same class appears under multiple nested parents", async () => {
+    const TSX = `import classNames from 'classnames/bind';
+import styles from './Actions.module.scss';
+const cx = classNames.bind(styles);
+export function Actions() {
+  return <div className={cx('action')}>hi</div>;
+}
+`;
+    const SCSS = `.panel {
+  .action { color: red; }
+  button.action { color: blue; }
+}
+.drawer {
+  .action { color: green; }
+}
+`;
+    client = createInProcessServer({
+      readStyleFile: (path) => (path.endsWith("Actions.module.scss") ? SCSS : null),
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/Actions.tsx",
+        languageId: "typescriptreact",
+        version: 1,
+        text: TSX,
+      },
+    });
+
+    const result = await client.definition({
+      textDocument: { uri: "file:///fake/workspace/src/Actions.tsx" },
+      position: { line: 4, character: 31 },
+    });
+
+    expect(result).not.toBeNull();
+    const links = result as Array<{ targetSelectionRange: { start: { line: number } } }>;
+    expect(links.map((link) => link.targetSelectionRange.start.line)).toEqual([1, 2, 5]);
+  });
+
   it("returns definition links for same-file helper derived class candidates", async () => {
     client = createInProcessServer({
       readStyleFile: (path) => (path.endsWith("Status.module.scss") ? FUNCTION_DYNAMIC_SCSS : null),

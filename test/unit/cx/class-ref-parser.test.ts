@@ -114,6 +114,67 @@ describe("parseClassExpressions", () => {
     });
   });
 
+  it("emits template expressions for computed object keys", () => {
+    const sourceFile = parse(`
+      import classNames from 'classnames/bind';
+      import styles from './Button.module.scss';
+      const cx = classNames.bind(styles);
+      const tone = 'info';
+      const el = cx({ [\`tone-\${tone}\`]: tone });
+    `);
+    const binder = buildSourceBinder(sourceFile);
+    const { stylesBindings, bindings } = scanCxImports(
+      sourceFile,
+      "/fake/src/Button.tsx",
+      () => true,
+      EMPTY_ALIAS_RESOLVER,
+    );
+    const expressions = parseClassExpressions(
+      sourceFile,
+      resolveCxBindings(bindings, binder, sourceFile),
+      stylesBindings,
+      binder,
+    );
+
+    expect(expressions).toHaveLength(1);
+    expect(expressions[0]).toMatchObject({
+      kind: "template",
+      rawTemplate: "`tone-${tone}`",
+      staticPrefix: "tone-",
+    });
+  });
+
+  it("emits symbol references for computed object key identifiers", () => {
+    const sourceFile = parse(`
+      import classNames from 'classnames/bind';
+      import styles from './Button.module.scss';
+      const cx = classNames.bind(styles);
+      const className = 'button';
+      const el = cx({ [className]: true });
+    `);
+    const binder = buildSourceBinder(sourceFile);
+    const { stylesBindings, bindings } = scanCxImports(
+      sourceFile,
+      "/fake/src/Button.tsx",
+      () => true,
+      EMPTY_ALIAS_RESOLVER,
+    );
+    const expressions = parseClassExpressions(
+      sourceFile,
+      resolveCxBindings(bindings, binder, sourceFile),
+      stylesBindings,
+      binder,
+    );
+
+    expect(expressions).toHaveLength(1);
+    expect(expressions[0]).toMatchObject({
+      kind: "symbolRef",
+      rawReference: "className",
+      rootName: "className",
+      pathSegments: [],
+    });
+  });
+
   it("records binder-linked styleAccess expressions for imported styles", () => {
     const sourceFile = parse(`
       import styles from './Button.module.scss';

@@ -135,6 +135,37 @@ describe("AliasResolver", () => {
     );
   });
 
+  it("uses the nearest package tsconfig when the workspace root has no tsconfig", () => {
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "monorepo-path-alias-"));
+    const packageRoot = path.join(workspace, "packages/core");
+    fs.mkdirSync(packageRoot, { recursive: true });
+    fs.writeFileSync(
+      path.join(packageRoot, "tsconfig.json"),
+      JSON.stringify(
+        {
+          compilerOptions: {
+            baseUrl: ".",
+            paths: {
+              "$components/*": ["src/components/*"],
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    const resolver = new AliasResolver(workspace, {}, loadWorkspaceTsconfigPathAliases(workspace));
+    expect(loadWorkspaceTsconfigPathAliases(workspace)).toBeNull();
+    expect(
+      resolver.resolve(
+        "$components/Button.module.scss",
+        undefined,
+        path.join(packageRoot, "src/App.tsx"),
+      ),
+    ).toBe(path.join(packageRoot, "src/components/Button.module.scss"));
+  });
+
   it("prefers explicit settings aliases over equal tsconfig patterns", () => {
     const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "settings-overrides-"));
     fs.writeFileSync(

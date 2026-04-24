@@ -491,7 +491,6 @@ pub fn summarize_parity_lite(sheet: &Stylesheet) -> ParserParityLiteSummaryV0 {
     let mut acc = ParityLiteAcc::default();
     collect_parity_names(&sheet.nodes, &mut acc);
     acc.selector_names.sort();
-    acc.selector_names.dedup();
     acc.keyframes_names.sort();
     acc.keyframes_names.dedup();
     acc.value_decl_names.sort();
@@ -545,43 +544,24 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
     );
 
     acc.selector_names.sort();
-    acc.selector_names.dedup();
     acc.bem_suffix_parent_names.sort();
-    acc.bem_suffix_parent_names.dedup();
     acc.bem_suffix_safe_selector_names.sort();
-    acc.bem_suffix_safe_selector_names.dedup();
     acc.selectors_with_composes_names.sort();
-    acc.selectors_with_composes_names.dedup();
     acc.selectors_with_composes_under_media_names.sort();
-    acc.selectors_with_composes_under_media_names.dedup();
     acc.selectors_with_composes_under_supports_names.sort();
-    acc.selectors_with_composes_under_supports_names.dedup();
     acc.selectors_with_composes_under_layer_names.sort();
-    acc.selectors_with_composes_under_layer_names.dedup();
     acc.local_composes_selector_names.sort();
-    acc.local_composes_selector_names.dedup();
     acc.imported_composes_selector_names.sort();
-    acc.imported_composes_selector_names.dedup();
     acc.global_composes_selector_names.sort();
-    acc.global_composes_selector_names.dedup();
     acc.local_composes_selector_names_under_media.sort();
-    acc.local_composes_selector_names_under_media.dedup();
     acc.local_composes_selector_names_under_supports.sort();
-    acc.local_composes_selector_names_under_supports.dedup();
     acc.local_composes_selector_names_under_layer.sort();
-    acc.local_composes_selector_names_under_layer.dedup();
     acc.imported_composes_selector_names_under_media.sort();
-    acc.imported_composes_selector_names_under_media.dedup();
     acc.imported_composes_selector_names_under_supports.sort();
-    acc.imported_composes_selector_names_under_supports.dedup();
     acc.imported_composes_selector_names_under_layer.sort();
-    acc.imported_composes_selector_names_under_layer.dedup();
     acc.global_composes_selector_names_under_media.sort();
-    acc.global_composes_selector_names_under_media.dedup();
     acc.global_composes_selector_names_under_supports.sort();
-    acc.global_composes_selector_names_under_supports.dedup();
     acc.global_composes_selector_names_under_layer.sort();
-    acc.global_composes_selector_names_under_layer.dedup();
     acc.composes_import_sources.sort();
     acc.composes_import_sources_under_media.sort();
     acc.composes_import_sources_under_supports.sort();
@@ -589,7 +569,6 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
     acc.keyframes_names.sort();
     acc.keyframes_names.dedup();
     acc.nested_unsafe_selector_names.sort();
-    acc.nested_unsafe_selector_names.dedup();
     acc.value_decl_names.sort();
     acc.value_decl_names.dedup();
     acc.value_decl_names_with_local_refs.sort();
@@ -613,69 +592,36 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
     acc.value_decl_ref_names.dedup();
     acc.value_decl_imported_value_ref_sources.sort();
     acc.selectors_with_value_refs_names.sort();
-    acc.selectors_with_value_refs_names.dedup();
     acc.selectors_with_local_value_refs_names.sort();
-    acc.selectors_with_local_value_refs_names.dedup();
     acc.selectors_with_imported_value_refs_names.sort();
-    acc.selectors_with_imported_value_refs_names.dedup();
     acc.selectors_with_value_refs_under_media_names.sort();
-    acc.selectors_with_value_refs_under_media_names.dedup();
     acc.selectors_with_value_refs_under_supports_names.sort();
-    acc.selectors_with_value_refs_under_supports_names.dedup();
     acc.selectors_with_value_refs_under_layer_names.sort();
-    acc.selectors_with_value_refs_under_layer_names.dedup();
     acc.selectors_with_local_value_refs_under_media_names.sort();
-    acc.selectors_with_local_value_refs_under_media_names
-        .dedup();
     acc.selectors_with_local_value_refs_under_supports_names
         .sort();
-    acc.selectors_with_local_value_refs_under_supports_names
-        .dedup();
     acc.selectors_with_local_value_refs_under_layer_names.sort();
-    acc.selectors_with_local_value_refs_under_layer_names
-        .dedup();
     acc.selectors_with_imported_value_refs_under_media_names
         .sort();
-    acc.selectors_with_imported_value_refs_under_media_names
-        .dedup();
     acc.selectors_with_imported_value_refs_under_supports_names
         .sort();
-    acc.selectors_with_imported_value_refs_under_supports_names
-        .dedup();
     acc.selectors_with_imported_value_refs_under_layer_names
         .sort();
-    acc.selectors_with_imported_value_refs_under_layer_names
-        .dedup();
     acc.selectors_with_animation_ref_names.sort();
-    acc.selectors_with_animation_ref_names.dedup();
     acc.selectors_with_animation_refs_under_media_names.sort();
-    acc.selectors_with_animation_refs_under_media_names.dedup();
     acc.selectors_with_animation_refs_under_supports_names
         .sort();
-    acc.selectors_with_animation_refs_under_supports_names
-        .dedup();
     acc.selectors_with_animation_refs_under_layer_names.sort();
-    acc.selectors_with_animation_refs_under_layer_names.dedup();
     acc.selectors_with_animation_name_ref_names.sort();
-    acc.selectors_with_animation_name_ref_names.dedup();
     acc.selectors_with_animation_name_refs_under_media_names
         .sort();
-    acc.selectors_with_animation_name_refs_under_media_names
-        .dedup();
     acc.selectors_with_animation_name_refs_under_supports_names
         .sort();
-    acc.selectors_with_animation_name_refs_under_supports_names
-        .dedup();
     acc.selectors_with_animation_name_refs_under_layer_names
         .sort();
-    acc.selectors_with_animation_name_refs_under_layer_names
-        .dedup();
     acc.selectors_under_media_names.sort();
-    acc.selectors_under_media_names.dedup();
     acc.selectors_under_supports_names.sort();
-    acc.selectors_under_supports_names.dedup();
     acc.selectors_under_layer_names.sort();
-    acc.selectors_under_layer_names.dedup();
     acc.animation_ref_names.sort();
     acc.animation_ref_names.dedup();
     acc.animation_name_ref_names.sort();
@@ -1953,13 +1899,33 @@ fn resolve_rule_selector_names(
         if !resolved.is_empty() {
             names.extend(resolved);
         } else if let Some(local_names) = extract_local_function_selector_names(&group.raw) {
-            names.extend(local_names);
+            names.extend(repeat_names_for_parent_branches(
+                local_names,
+                parent_selector_names,
+            ));
         } else if let Some(name) = extract_simple_selector_name(&group.raw) {
-            names.push(name);
+            names.extend(repeat_names_for_parent_branches(
+                vec![name],
+                parent_selector_names,
+            ));
         }
     }
 
     names
+}
+
+fn repeat_names_for_parent_branches(
+    names: Vec<String>,
+    parent_selector_names: &[String],
+) -> Vec<String> {
+    if parent_selector_names.len() <= 1 || names.is_empty() {
+        return names;
+    }
+    let mut repeated = Vec::with_capacity(names.len() * parent_selector_names.len());
+    for _ in parent_selector_names {
+        repeated.extend(names.iter().cloned());
+    }
+    repeated
 }
 
 fn extract_group_selector_names(
@@ -1967,7 +1933,9 @@ fn extract_group_selector_names(
     parent_selector_names: &[String],
 ) -> Vec<String> {
     match group.segments.as_slice() {
-        [SelectorSegment::ClassName(name)] => vec![name.clone()],
+        [SelectorSegment::ClassName(name)] => {
+            repeat_names_for_parent_branches(vec![name.clone()], parent_selector_names)
+        }
         [
             SelectorSegment::Ampersand,
             SelectorSegment::BemSuffix(suffix),
@@ -1975,7 +1943,9 @@ fn extract_group_selector_names(
             .iter()
             .map(|parent| format!("{parent}{suffix}"))
             .collect(),
-        [SelectorSegment::Ampersand, SelectorSegment::ClassName(name)] => vec![name.clone()],
+        [SelectorSegment::Ampersand, SelectorSegment::ClassName(name)] => {
+            repeat_names_for_parent_branches(vec![name.clone()], parent_selector_names)
+        }
         segments => {
             let last_combinator = segments
                 .iter()
@@ -1994,7 +1964,7 @@ fn extract_group_selector_names(
                     _ => None,
                 })
                 .collect();
-            if names.is_empty() { Vec::new() } else { names }
+            repeat_names_for_parent_branches(names, parent_selector_names)
         }
     }
 }
@@ -2836,7 +2806,7 @@ mod tests {
         let source = ".a, .b { &.active { color: red; } }";
         let sheet = parse_stylesheet(StyleLanguage::Scss, source);
         let summary = super::summarize_parity_lite(&sheet);
-        assert_eq!(summary.selector_names, vec!["a", "active", "b"]);
+        assert_eq!(summary.selector_names, vec!["a", "active", "active", "b"]);
     }
 
     #[test]

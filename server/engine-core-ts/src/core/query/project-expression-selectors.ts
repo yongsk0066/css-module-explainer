@@ -49,9 +49,8 @@ export function projectExpressionSelectors(
   switch (expression.kind) {
     case "literal":
     case "styleAccess": {
-      const selector = findCanonicalSelector(styleDocument, expression.className);
       return {
-        selectors: selector ? [selector] : [],
+        selectors: findCanonicalSelectors(styleDocument, expression.className),
         selectorCertainty: "exact",
       };
     }
@@ -107,16 +106,15 @@ function projectSymbolRefSelectors(
   };
 }
 
-function findCanonicalSelector(
+function findCanonicalSelectors(
   styleDocument: StyleDocumentHIR,
   viewName: string,
-): SelectorDeclHIR | null {
-  const match = styleDocument.selectors.find((selector) => selector.name === viewName);
-  if (!match) return null;
-  return (
-    styleDocument.selectors.find(
-      (selector) =>
-        selector.canonicalName === match.canonicalName && selector.viewKind === "canonical",
-    ) ?? match
+): readonly SelectorDeclHIR[] {
+  const matches = styleDocument.selectors.filter((selector) => selector.name === viewName);
+  if (matches.length === 0) return [];
+  const canonicalNames = new Set(matches.map((selector) => selector.canonicalName));
+  const canonicalSelectors = styleDocument.selectors.filter(
+    (selector) => selector.viewKind === "canonical" && canonicalNames.has(selector.canonicalName),
   );
+  return canonicalSelectors.length > 0 ? canonicalSelectors : matches;
 }

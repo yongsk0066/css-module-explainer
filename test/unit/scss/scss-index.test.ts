@@ -117,6 +117,25 @@ describe("parseStyleSelectorMap / edge cases", () => {
       );
       // Only 'inner' is exposed on the styles object (last class wins).
       expect(map.has("inner")).toBe(true);
+      expect(map.get("inner")!.nestedSafety).toBe("nestedUnsafe");
+    });
+
+    it("preserves repeated nested definitions for the same class name", () => {
+      const document = parseStyleDocument(
+        `.panel {
+  .action { color: red; }
+  button.action { color: blue; }
+}
+.drawer {
+  .action { color: green; }
+}`,
+        "/fake/a.module.scss",
+      );
+      expect(document.selectors.filter((selector) => selector.name === "action")).toMatchObject([
+        { fullSelector: ".panel .action", nestedSafety: "nestedUnsafe" },
+        { fullSelector: ".panel button.action", nestedSafety: "nestedUnsafe" },
+        { fullSelector: ".drawer .action", nestedSafety: "nestedUnsafe" },
+      ]);
     });
 
     it("keeps the flat parent in flat nested-safety when nested is '&:hover'", () => {

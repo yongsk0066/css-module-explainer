@@ -62,7 +62,7 @@ function resolveSourceDependencyCandidates(
     return expandSourceCandidates(resolvedBase);
   }
 
-  const aliasedBase = aliasResolver?.resolve(specifier);
+  const aliasedBase = aliasResolver?.resolve(specifier, undefined, containingFilePath);
   if (!aliasedBase) return [];
   return expandSourceCandidates(path.normalize(aliasedBase));
 }

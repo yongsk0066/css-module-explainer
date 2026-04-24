@@ -27,12 +27,26 @@ export function findCanonicalSelector(
   styleDocument: StyleDocumentHIR,
   selector: SelectorDeclHIR,
 ): SelectorDeclHIR {
+  if (selector.viewKind === "canonical") return selector;
   return (
     styleDocument.selectors.find(
       (candidate) =>
         candidate.canonicalName === selector.canonicalName && candidate.viewKind === "canonical",
     ) ?? selector
   );
+}
+
+export function findCanonicalSelectorsByName(
+  styleDocument: StyleDocumentHIR,
+  viewName: string,
+): readonly SelectorDeclHIR[] {
+  const matches = styleDocument.selectors.filter((selector) => selector.name === viewName);
+  if (matches.length === 0) return [];
+  const canonicalNames = new Set(matches.map((selector) => selector.canonicalName));
+  const canonicalSelectors = styleDocument.selectors.filter(
+    (selector) => selector.viewKind === "canonical" && canonicalNames.has(selector.canonicalName),
+  );
+  return canonicalSelectors.length > 0 ? canonicalSelectors : matches;
 }
 
 export function listCanonicalSelectors(

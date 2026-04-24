@@ -12,6 +12,7 @@ export {
 export {
   findAnimationNameRefAtCursor,
   findCanonicalSelector,
+  findCanonicalSelectorsByName,
   findComposesTokenAtCursor,
   findKeyframesAtCursor,
   findKeyframesByName,

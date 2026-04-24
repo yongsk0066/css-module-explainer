@@ -6,6 +6,7 @@ import type {
 import {
   buildDynamicExpressionExplanation,
   findCanonicalSelector,
+  findCanonicalSelectorsByName,
   readSelectorStyleDependencySummary,
   resolveRefDetails,
 } from "../../engine-core-ts/src/core/query";
@@ -119,16 +120,13 @@ function resolveHoverFromRustExpressionSemantics(
   const styleDocument = deps.styleDocumentForPath(payload.styleFilePath);
   if (!styleDocument) return null;
 
-  const selectors = payload.selectorNames
-    .map((name) => {
-      const selector =
-        styleDocument.selectors.find((candidate) => candidate.canonicalName === name) ?? null;
-      return selector ? findCanonicalSelector(styleDocument, selector) : null;
-    })
-    .filter(
-      (selector): selector is ReturnType<typeof resolveRefDetails>["selectors"][number] =>
-        selector !== null,
-    );
+  const selectors = payload.selectorNames.flatMap((name) => {
+    const selectorsForName = findCanonicalSelectorsByName(styleDocument, name);
+    if (selectorsForName.length > 0) return selectorsForName;
+    const selector =
+      styleDocument.selectors.find((candidate) => candidate.canonicalName === name) ?? null;
+    return selector ? [findCanonicalSelector(styleDocument, selector)] : [];
+  });
   const semantics = buildExpressionSemanticsSummaryFromRustPayload(
     ctx.expression,
     styleDocument,
@@ -176,14 +174,11 @@ function resolveSelectorsFromRustSourceResolution(
   const styleDocument = deps.styleDocumentForPath(match.styleFilePath);
   if (!styleDocument || match.selectorNames.length === 0) return null;
 
-  return match.selectorNames
-    .map((name) => {
-      const selector =
-        styleDocument.selectors.find((candidate) => candidate.canonicalName === name) ?? null;
-      return selector ? findCanonicalSelector(styleDocument, selector) : null;
-    })
-    .filter(
-      (selector): selector is ReturnType<typeof resolveRefDetails>["selectors"][number] =>
-        selector !== null,
-    );
+  return match.selectorNames.flatMap((name) => {
+    const selectorsForName = findCanonicalSelectorsByName(styleDocument, name);
+    if (selectorsForName.length > 0) return selectorsForName;
+    const selector =
+      styleDocument.selectors.find((candidate) => candidate.canonicalName === name) ?? null;
+    return selector ? [findCanonicalSelector(styleDocument, selector)] : [];
+  });
 }

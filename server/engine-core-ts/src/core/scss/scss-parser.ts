@@ -82,7 +82,7 @@ export function buildChildContext(
  * running even when one file is broken.
  */
 export function parseStyleDocument(content: string, filePath: string): StyleDocumentHIR {
-  const selectorsByName = new Map<string, SelectorDeclHIR>();
+  const selectors: SelectorDeclHIR[] = [];
   const keyframesByName = new Map<string, KeyframesDeclHIR>();
   const animationNameRefs: AnimationNameRefHIR[] = [];
 
@@ -115,13 +115,13 @@ export function parseStyleDocument(content: string, filePath: string): StyleDocu
   walkStyleNodes(
     root.nodes as ChildNode[],
     { selector: "" },
-    selectorsByName,
+    selectors,
     keyframesByName,
     animationNameRefs,
   );
   return makeStyleDocumentHIR(
     filePath,
-    Array.from(selectorsByName.values()).toSorted(compareSelectors),
+    [...selectors].toSorted(compareSelectors),
     Array.from(keyframesByName.values()).toSorted(compareNamedStyleFacts),
     [...animationNameRefs].toSorted(compareNamedStyleFacts),
     [...valueDecls].toSorted(compareNamedStyleFacts),
@@ -138,7 +138,7 @@ export function parseStyleDocument(content: string, filePath: string): StyleDocu
 function walkStyleNodes(
   nodes: ChildNode[] | undefined,
   parentCtx: ParentContext,
-  selectorsByName: Map<string, SelectorDeclHIR>,
+  selectors: SelectorDeclHIR[],
   keyframesByName: Map<string, KeyframesDeclHIR>,
   animationNameRefs: AnimationNameRefHIR[],
 ): void {
@@ -147,25 +147,19 @@ function walkStyleNodes(
     if (node.type === "rule") {
       if (isGlobalBlockRule(node.selector)) continue;
       if (isLocalBlockRule(node.selector)) {
-        walkStyleNodes(node.nodes, parentCtx, selectorsByName, keyframesByName, animationNameRefs);
+        walkStyleNodes(node.nodes, parentCtx, selectors, keyframesByName, animationNameRefs);
         continue;
       }
-      recordRule(node, parentCtx, selectorsByName, keyframesByName, animationNameRefs);
+      recordRule(node, parentCtx, selectors, keyframesByName, animationNameRefs);
     } else if (node.type === "atrule" && isKeyframesAtRule(node.name)) {
       recordKeyframesAtRule(node, keyframesByName);
     } else if (node.type === "atrule" && isTransparentAtRule(node.name)) {
       if (node.name === "at-root" && isInlineAtRoot(node)) {
-        recordAtRootInlineRule(node, selectorsByName);
+        recordAtRootInlineRule(node, selectors);
       } else if (node.name === "at-root") {
-        walkStyleNodes(
-          node.nodes,
-          { selector: "" },
-          selectorsByName,
-          keyframesByName,
-          animationNameRefs,
-        );
+        walkStyleNodes(node.nodes, { selector: "" }, selectors, keyframesByName, animationNameRefs);
       } else {
-        walkStyleNodes(node.nodes, parentCtx, selectorsByName, keyframesByName, animationNameRefs);
+        walkStyleNodes(node.nodes, parentCtx, selectors, keyframesByName, animationNameRefs);
       }
     }
   }
@@ -194,7 +188,7 @@ function isInlineAtRoot(atrule: AtRule): boolean {
 function recordRule(
   rule: Rule,
   parentCtx: ParentContext,
-  selectorsByName: Map<string, SelectorDeclHIR>,
+  selectors: SelectorDeclHIR[],
   keyframesByName: Map<string, KeyframesDeclHIR>,
   animationNameRefs: AnimationNameRefHIR[],
 ): void {
@@ -210,14 +204,14 @@ function recordRule(
     const resolved = resolveSelector(raw, parentCtx.selector);
     resolvedSelectors.push(resolved);
     const bemSuffix = classifyBemSuffixSite(rule, raw, offset, parentCtx, groups.length);
-    const isNested = raw.includes("&");
+    const isNested = parentCtx.selector !== "" || raw.includes("&");
 
     for (const className of extractIntroducedClassNames(raw, resolved)) {
-      const existing = selectorsByName.get(className);
-      if (existing && existing.nestedSafety === "flat" && isNested) continue;
-
-      selectorsByName.set(
-        className,
+      const existing = selectors.find(
+        (selector) => selector.name === className && selector.viewKind === "canonical",
+      );
+      if (existing?.nestedSafety === "flat" && isNested && raw.includes("&")) continue;
+      selectors.push(
         buildSelectorDecl({
           className,
           resolved,
@@ -238,7 +232,7 @@ function recordRule(
     walkStyleNodes(
       rule.nodes,
       buildChildContext(resolvedSelectors, nextResolved),
-      selectorsByName,
+      selectors,
       keyframesByName,
       animationNameRefs,
     );
@@ -877,20 +871,17 @@ function findAtRuleParamValueTokenRange(
   };
 }
 
-function recordAtRootInlineRule(
-  atrule: AtRule,
-  selectorsByName: Map<string, SelectorDeclHIR>,
-): void {
+function recordAtRootInlineRule(atrule: AtRule, selectorDecls: SelectorDeclHIR[]): void {
   const selector = atrule.params.trim();
   const { declarations } = collectDeclarationsAndComposes(atrule.nodes);
   const ruleRange = rangeForSourceNode(atrule);
-  const selectors = selector.split(",").map((s) => s.trim());
+  const groups = selector.split(",").map((s) => s.trim());
 
-  for (const raw of selectors) {
+  for (const raw of groups) {
     for (const className of extractClassNames(raw)) {
       const start = atrule.source?.start;
       const baseColumn = (start?.column ?? 1) - 1 + "@at-root ".length;
-      selectorsByName.set(className, {
+      selectorDecls.push({
         kind: "selector",
         id: `selector:${className}:${start?.line ?? 1}:${baseColumn}`,
         name: className,
