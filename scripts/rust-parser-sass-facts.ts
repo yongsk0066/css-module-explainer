@@ -1,3 +1,7 @@
+import type { Range } from "@css-module-explainer/shared";
+import type { SassSymbolDeclHIR } from "../server/engine-core-ts/src/core/hir/style-types";
+import { parseStyleDocument } from "../server/engine-core-ts/src/core/scss/scss-parser";
+
 export interface ParserSassSeedFactsV0 {
   readonly variableDeclNames: readonly string[];
   readonly variableParameterNames: readonly string[];
@@ -60,7 +64,10 @@ export interface ParserSassSelectorSymbolFactV0 {
   readonly range: ParserRangeV0;
 }
 
-export function deriveSassSummary(source: string): ParserSassSeedFactsV0 {
+export function deriveSassSummary(
+  source: string,
+  filePath = "/f.module.scss",
+): ParserSassSeedFactsV0 {
   const variableDeclNames = [...source.matchAll(/(^|[{\s;])\$([A-Za-z_-][A-Za-z0-9_-]*)\s*:/g)].map(
     (match) => match[2]!,
   );
@@ -100,7 +107,7 @@ export function deriveSassSummary(source: string): ParserSassSeedFactsV0 {
   const sortedMixinIncludeNames = uniqueSorted(mixinIncludeNames);
   const sortedFunctionDeclNames = uniqueSorted(functionDeclNames);
   const sortedFunctionCallNames = uniqueSorted(functionCallNames);
-  const selectorAttachments = deriveSassSelectorAttachments(source, {
+  const selectorAttachments = deriveSassSelectorAttachments(source, filePath, {
     variableDeclNames: sortedVariableDeclNames,
     variableParameterNames: sortedVariableParameterNames,
     mixinDeclNames: sortedMixinDeclNames,
@@ -145,6 +152,7 @@ export function deriveSassSummary(source: string): ParserSassSeedFactsV0 {
 
 function deriveSassSelectorAttachments(
   source: string,
+  filePath: string,
   input: {
     readonly variableDeclNames: readonly string[];
     readonly variableParameterNames: readonly string[];
@@ -162,7 +170,9 @@ function deriveSassSelectorAttachments(
   | "selectorsWithFunctionCallsNames"
   | "selectorSymbolFacts"
 > {
-  const variableTargets = new Set([...input.variableDeclNames, ...input.variableParameterNames]);
+  const sassVariableDecls = parseStyleDocument(source, filePath).sassSymbolDecls.filter(
+    (decl) => decl.symbolKind === "variable",
+  );
   const mixinTargets = new Set(input.mixinDeclNames);
   const selectorsWithVariableRefsNames: string[] = [];
   const selectorsWithResolvedVariableRefsNames: string[] = [];
@@ -178,31 +188,45 @@ function deriveSassSelectorAttachments(
     const body = match[2]!;
     const ruleStart = match.index ?? 0;
     const bodyStart = ruleStart + match[0].indexOf("{") + 1;
-    const variableRefMatches = [...body.matchAll(/\$([A-Za-z_-][A-Za-z0-9_-]*)/g)].map(
-      (variableMatch) => {
+    const variableRefMatches = [...body.matchAll(/\$([A-Za-z_-][A-Za-z0-9_-]*)/g)]
+      .map((variableMatch) => {
         const start = bodyStart + (variableMatch.index ?? 0);
         return {
           name: variableMatch[1]!,
           location: symbolLocation(source, start, start + variableMatch[0].length),
         };
-      },
-    );
+      })
+      .filter(
+        (variableMatch) =>
+          !isSassVariableDeclarationLike(source, variableMatch.location.byteSpan.end),
+      );
     const variableRefs = variableRefMatches.map((variableMatch) => variableMatch.name);
     if (variableRefs.length > 0) {
       selectorsWithVariableRefsNames.push(selectorName);
-      if (variableRefs.some((name) => variableTargets.has(name))) {
+      if (
+        variableRefMatches.some(
+          ({ name, location }) =>
+            resolveSassVariableReference(sassVariableDecls, name, location.range) === "resolved",
+        )
+      ) {
         selectorsWithResolvedVariableRefsNames.push(selectorName);
       }
-      if (variableRefs.some((name) => !variableTargets.has(name))) {
+      if (
+        variableRefMatches.some(
+          ({ name, location }) =>
+            resolveSassVariableReference(sassVariableDecls, name, location.range) === "unresolved",
+        )
+      ) {
         selectorsWithUnresolvedVariableRefsNames.push(selectorName);
       }
       for (const { name, location } of variableRefMatches) {
+        const resolution = resolveSassVariableReference(sassVariableDecls, name, location.range);
         selectorSymbolFacts.push({
           selectorName,
           symbolKind: "variable",
           name,
           role: "reference",
-          resolution: variableTargets.has(name) ? "resolved" : "unresolved",
+          resolution,
           ...location,
         });
       }
@@ -279,6 +303,61 @@ function deriveSassSelectorAttachments(
     selectorsWithFunctionCallsNames: uniqueSorted(selectorsWithFunctionCallsNames),
     selectorSymbolFacts: uniqueSortedSelectorSymbolFacts(selectorSymbolFacts),
   };
+}
+
+function resolveSassVariableReference(
+  decls: readonly SassSymbolDeclHIR[],
+  name: string,
+  range: ParserRangeV0,
+): "resolved" | "unresolved" {
+  const matchingDecls = decls.filter((decl) => decl.name === name);
+  if (matchingDecls.length === 0) return "unresolved";
+
+  const localDecl = matchingDecls
+    .filter((decl) => !isFileScopeSassVariableDecl(decl))
+    .filter((decl) => rangeContains(decl.ruleRange, range))
+    .toSorted(compareSassDeclScopeSpecificity)[0];
+  if (localDecl) return "resolved";
+  return matchingDecls.some(isFileScopeSassVariableDecl) ? "resolved" : "unresolved";
+}
+
+function isSassVariableDeclarationLike(source: string, end: number): boolean {
+  return /\S/.exec(source.slice(end))?.[0] === ":";
+}
+
+function isFileScopeSassVariableDecl(decl: SassSymbolDeclHIR): boolean {
+  return (
+    decl.range.start.line === decl.ruleRange.start.line &&
+    decl.range.start.character === decl.ruleRange.start.character
+  );
+}
+
+function compareSassDeclScopeSpecificity(a: SassSymbolDeclHIR, b: SassSymbolDeclHIR): number {
+  const sizeCompare = rangeSize(a.ruleRange) - rangeSize(b.ruleRange);
+  if (sizeCompare !== 0) return sizeCompare;
+  const lineCompare = b.range.start.line - a.range.start.line;
+  if (lineCompare !== 0) return lineCompare;
+  return b.range.start.character - a.range.start.character;
+}
+
+function rangeSize(range: Range): number {
+  return (
+    (range.end.line - range.start.line) * 1_000_000 + (range.end.character - range.start.character)
+  );
+}
+
+function comparePosition(
+  left: { readonly line: number; readonly character: number },
+  right: { readonly line: number; readonly character: number },
+): number {
+  if (left.line !== right.line) return left.line - right.line;
+  return left.character - right.character;
+}
+
+function rangeContains(outer: Range, inner: ParserRangeV0): boolean {
+  return (
+    comparePosition(outer.start, inner.start) <= 0 && comparePosition(outer.end, inner.end) >= 0
+  );
 }
 
 function deriveSameFileResolution(input: {

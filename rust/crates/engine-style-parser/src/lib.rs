@@ -527,6 +527,7 @@ struct IndexSummaryAcc {
     value_decl_ref_names: Vec<String>,
     value_decl_imported_value_ref_sources: Vec<String>,
     sass_variable_decl_names: Vec<String>,
+    sass_variable_decl_facts: Vec<SassVariableDeclFact>,
     sass_variable_parameter_names: Vec<String>,
     sass_variable_ref_names: Vec<String>,
     sass_selectors_with_variable_refs_names: Vec<String>,
@@ -631,7 +632,7 @@ pub fn summarize_parity_lite(sheet: &Stylesheet) -> ParserParityLiteSummaryV0 {
 
 pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSummaryV0 {
     let mut acc = IndexSummaryAcc::default();
-    collect_index_names(&sheet.nodes, &mut acc, &[], false);
+    collect_index_names(&sheet.nodes, &mut acc, &[], false, None);
     let local_value_names: BTreeSet<String> = acc.value_decl_names.iter().cloned().collect();
     let imported_value_names: BTreeSet<String> = acc.value_import_names.iter().cloned().collect();
     let known_value_names: BTreeSet<String> = acc
@@ -650,15 +651,10 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
     let known_sass_function_names: BTreeSet<String> =
         acc.sass_function_decl_names.iter().cloned().collect();
     collect_sass_ref_facts(&sheet.nodes, &known_sass_function_names, &mut acc);
-    let sass_variable_targets: BTreeSet<String> = acc
-        .sass_variable_decl_names
-        .iter()
-        .chain(acc.sass_variable_parameter_names.iter())
-        .cloned()
-        .collect();
+    let sass_variable_decl_facts = acc.sass_variable_decl_facts.clone();
     let sass_mixin_targets: BTreeSet<String> = acc.sass_mixin_decl_names.iter().cloned().collect();
     let sass_ref_ctx = SassRefContext {
-        variable_targets: &sass_variable_targets,
+        variable_decls: &sass_variable_decl_facts,
         mixin_targets: &sass_mixin_targets,
         function_targets: &known_sass_function_names,
     };
@@ -1269,6 +1265,18 @@ struct SassNameSpan {
     byte_span: ParserByteSpanV0,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SassVariableDeclFact {
+    name: String,
+    scope: SassVariableScope,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SassVariableScope {
+    File,
+    Span(TextSpan),
+}
+
 #[derive(Debug, Clone, Copy, Default)]
 struct WrapperContext {
     under_media: bool,
@@ -1285,7 +1293,7 @@ struct ValueRefContext<'a> {
 
 #[derive(Debug, Clone, Copy)]
 struct SassRefContext<'a> {
-    variable_targets: &'a BTreeSet<String>,
+    variable_decls: &'a [SassVariableDeclFact],
     mixin_targets: &'a BTreeSet<String>,
     function_targets: &'a BTreeSet<String>,
 }
@@ -1579,13 +1587,14 @@ fn extend_rule_sass_value_ref_facts(
     if !variable_refs.is_empty() {
         facts.has_sass_variable_refs = true;
         for name_span in variable_refs {
-            let resolution = if sass_ref_ctx.variable_targets.contains(&name_span.name) {
-                facts.has_resolved_sass_variable_refs = true;
-                "resolved"
-            } else {
-                facts.has_unresolved_sass_variable_refs = true;
-                "unresolved"
-            };
+            let resolution =
+                if resolve_sass_variable_ref(&name_span.name, name_span.byte_span, sass_ref_ctx) {
+                    facts.has_resolved_sass_variable_refs = true;
+                    "resolved"
+                } else {
+                    facts.has_unresolved_sass_variable_refs = true;
+                    "unresolved"
+                };
             facts.sass_symbol_facts.push(RuleSassSymbolFact {
                 symbol_kind: "variable",
                 name: name_span.name,
@@ -1616,18 +1625,41 @@ fn extend_rule_sass_value_ref_facts(
     }
 }
 
+fn resolve_sass_variable_ref(
+    name: &str,
+    byte_span: ParserByteSpanV0,
+    sass_ref_ctx: SassRefContext<'_>,
+) -> bool {
+    sass_ref_ctx
+        .variable_decls
+        .iter()
+        .any(|decl| decl.name == name && sass_variable_scope_contains(decl.scope, byte_span))
+}
+
+fn sass_variable_scope_contains(scope: SassVariableScope, byte_span: ParserByteSpanV0) -> bool {
+    match scope {
+        SassVariableScope::File => true,
+        SassVariableScope::Span(scope_span) => {
+            scope_span.start <= byte_span.start && scope_span.end >= byte_span.end
+        }
+    }
+}
+
 fn collect_index_names(
     nodes: &[SyntaxNode],
     acc: &mut IndexSummaryAcc,
     parent_selector_names: &[String],
     parent_is_grouped: bool,
+    current_sass_scope: Option<TextSpan>,
 ) {
     for node in nodes {
         let mut next_parent_names = parent_selector_names.to_vec();
         let mut next_parent_is_grouped = false;
         let mut split_child_branches = false;
+        let mut next_sass_scope = current_sass_scope;
         match &node.payload {
             Some(SyntaxNodePayload::Rule(rule)) => {
+                next_sass_scope = Some(node.span);
                 let resolved = resolve_rule_selector_names(rule, parent_selector_names);
                 if !resolved.is_empty() {
                     let selector_facts = classify_rule_selector_facts(
@@ -1698,6 +1730,27 @@ fn collect_index_names(
                 }
             }
             Some(SyntaxNodePayload::AtRule(at_rule)) => match at_rule.kind {
+                AtRuleKind::Media
+                | AtRuleKind::Supports
+                | AtRuleKind::Layer
+                | AtRuleKind::AtRoot
+                | AtRuleKind::Mixin
+                | AtRuleKind::Function
+                | AtRuleKind::Generic => {
+                    next_sass_scope = Some(node.span);
+                }
+                AtRuleKind::Keyframes
+                | AtRuleKind::Value
+                | AtRuleKind::Include
+                | AtRuleKind::Use
+                | AtRuleKind::Forward
+                | AtRuleKind::Import => {}
+            },
+            _ => {}
+        }
+
+        match &node.payload {
+            Some(SyntaxNodePayload::AtRule(at_rule)) => match at_rule.kind {
                 AtRuleKind::Keyframes if !at_rule.params.is_empty() => {
                     acc.keyframes_names.push(at_rule.params.clone());
                 }
@@ -1726,8 +1779,13 @@ fn collect_index_names(
                     if let Some(name) = parse_sass_callable_name(&at_rule.params) {
                         acc.sass_mixin_decl_names.push(name);
                     }
-                    acc.sass_variable_parameter_names
-                        .extend(parse_sass_parameter_names(&at_rule.params));
+                    let parameter_names = parse_sass_parameter_names(&at_rule.params);
+                    acc.sass_variable_decl_facts
+                        .extend(parameter_names.iter().map(|name| SassVariableDeclFact {
+                            name: name.clone(),
+                            scope: SassVariableScope::Span(node.span),
+                        }));
+                    acc.sass_variable_parameter_names.extend(parameter_names);
                 }
                 AtRuleKind::Include => {
                     if let Some(name) = parse_sass_callable_name(&at_rule.params) {
@@ -1738,8 +1796,13 @@ fn collect_index_names(
                     if let Some(name) = parse_sass_callable_name(&at_rule.params) {
                         acc.sass_function_decl_names.push(name);
                     }
-                    acc.sass_variable_parameter_names
-                        .extend(parse_sass_parameter_names(&at_rule.params));
+                    let parameter_names = parse_sass_parameter_names(&at_rule.params);
+                    acc.sass_variable_decl_facts
+                        .extend(parameter_names.iter().map(|name| SassVariableDeclFact {
+                            name: name.clone(),
+                            scope: SassVariableScope::Span(node.span),
+                        }));
+                    acc.sass_variable_parameter_names.extend(parameter_names);
                 }
                 AtRuleKind::Use => {
                     acc.sass_module_use_sources
@@ -1759,6 +1822,12 @@ fn collect_index_names(
             },
             Some(SyntaxNodePayload::Declaration(declaration)) => {
                 if let Some(name) = parse_sass_variable_decl_name(&declaration.property) {
+                    acc.sass_variable_decl_facts.push(SassVariableDeclFact {
+                        name: name.clone(),
+                        scope: current_sass_scope
+                            .map(SassVariableScope::Span)
+                            .unwrap_or(SassVariableScope::File),
+                    });
                     acc.sass_variable_decl_names.push(name);
                 }
             }
@@ -1771,6 +1840,7 @@ fn collect_index_names(
                     acc,
                     std::slice::from_ref(parent_name),
                     next_parent_is_grouped,
+                    next_sass_scope,
                 );
             }
         } else {
@@ -1779,6 +1849,7 @@ fn collect_index_names(
                 acc,
                 &next_parent_names,
                 next_parent_is_grouped,
+                next_sass_scope,
             );
         }
     }
@@ -3999,6 +4070,36 @@ $gap: 1rem;
                 .same_file_resolution
                 .resolved_function_call_names,
             vec!["tone"]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn index_summary_does_not_resolve_sass_variables_from_another_local_scope() -> Result<(), String>
+    {
+        let source = ".one { $gap: 1rem; }\n.two { color: $gap; }\n";
+        let sheet = parse_stylesheet(StyleLanguage::Scss, source);
+        let summary = super::summarize_css_modules_intermediate(&sheet);
+
+        assert_eq!(
+            summary.sass.selectors_with_resolved_variable_refs_names,
+            Vec::<String>::new()
+        );
+        assert_eq!(
+            summary.sass.selectors_with_unresolved_variable_refs_names,
+            vec!["two"]
+        );
+        assert_eq!(
+            summary.sass.selector_symbol_facts,
+            vec![ParserIndexSassSelectorSymbolFactV0 {
+                selector_name: "two".to_string(),
+                symbol_kind: "variable",
+                name: "gap".to_string(),
+                role: "reference",
+                resolution: "unresolved",
+                byte_span: span_after(source, ".two", "$gap")?,
+                range: range_after(source, ".two", "$gap")?,
+            }]
         );
         Ok(())
     }
