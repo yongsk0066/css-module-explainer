@@ -1074,7 +1074,8 @@ function withTransformMode(mode: Settings["scss"]["classnameTransform"]): Settin
 
 describe("classnameTransform alias-aware rename", () => {
   it("camelCase: alias cursor rewrites SCSS via original entry's range", async () => {
-    const base = parseStyleSelectorMap(`.btn-primary { color: red; }`, SCSS_PATH);
+    const fixture = styleWorkspace(SCSS_PATH, `./*|*/btn-primary { color: red; }`);
+    const base = styleClassMap(fixture, SCSS_PATH);
     const classMap = aliasFirstCamelCaseMap(base);
     // sanity: alias iterates first
     const firstKey = classMap.keys().next().value;
@@ -1086,17 +1087,7 @@ describe("classnameTransform alias-aware rename", () => {
       workspaceRoot: "/fake",
       settings: withTransformMode("camelCase"),
     });
-    const result = handleRename(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: {
-          line: original.range.start.line,
-          character: original.range.start.character + 1,
-        },
-        newName: "btn-hero",
-      },
-      deps,
-    );
+    const result = handleRename(styleRenameParams(fixture, SCSS_URI, "btn-hero"), deps);
     expect(result).not.toBeNull();
     const scssEdits = result!.changes![SCSS_URI]!;
     expect(scssEdits).toHaveLength(1);
@@ -1110,27 +1101,20 @@ describe("classnameTransform alias-aware rename", () => {
   });
 
   it("camelCase: alias cursor on deep-nested BEM edits only the suffix slice", async () => {
-    const base = parseStyleSelectorMap(`.btn-primary {\n  &--xl {}\n}`, SCSS_PATH);
+    const fixture = styleWorkspace(SCSS_PATH, `.btn-primary {\n  &/*|*/--xl {}\n}`);
+    const base = styleClassMap(fixture, SCSS_PATH);
     const classMap = aliasFirstCamelCaseMap(base);
     // sanity: alias entries exist
     expect(classMap.has("btnPrimaryXl")).toBe(true);
     expect(classMap.get("btnPrimaryXl")!.originalName).toBe("btn-primary--xl");
-    const originalNested = base.get("btn-primary--xl")!;
-    const rawRange = originalNested.bemSuffix!.rawTokenRange;
+    const target = targetFixture({ workspace: fixture });
 
     const deps = makeBaseDeps({
       selectorMapForPath: () => classMap,
       workspaceRoot: "/fake",
       settings: withTransformMode("camelCase"),
     });
-    const result = handleRename(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: { line: rawRange.start.line, character: rawRange.start.character + 1 },
-        newName: "btn-primary--huge",
-      },
-      deps,
-    );
+    const result = handleRename(styleRenameParams(fixture, SCSS_URI, "btn-primary--huge"), deps);
     expect(result).not.toBeNull();
     const scssEdits = result!.changes![SCSS_URI]!;
     expect(scssEdits).toHaveLength(1);
@@ -1138,17 +1122,18 @@ describe("classnameTransform alias-aware rename", () => {
     // stays untouched; the edit length is the original suffix length.
     expect(scssEdits[0]!.newText).toBe("--huge");
     expect(scssEdits[0]!.range.start).toEqual({
-      line: rawRange.start.line,
-      character: rawRange.start.character + 1,
+      line: target.line,
+      character: target.character,
     });
     expect(scssEdits[0]!.range.end).toEqual({
-      line: rawRange.start.line,
-      character: rawRange.start.character + 1 + "--xl".length,
+      line: target.line,
+      character: target.character + "--xl".length,
     });
   });
 
   it("camelCase: original-name cursor (non-alias path) edits same range", async () => {
-    const base = parseStyleSelectorMap(`.btn-primary { color: red; }`, SCSS_PATH);
+    const fixture = styleWorkspace(SCSS_PATH, `./*|*/btn-primary { color: red; }`);
+    const base = styleClassMap(fixture, SCSS_PATH);
     // Production expansion (original-first) — findSelectorAtCursor
     // returns the non-alias entry.
     const classMap = expandSelectorMapWithTransform(base, "camelCase");
@@ -1159,17 +1144,7 @@ describe("classnameTransform alias-aware rename", () => {
       workspaceRoot: "/fake",
       settings: withTransformMode("camelCase"),
     });
-    const result = handleRename(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: {
-          line: original.range.start.line,
-          character: original.range.start.character + 1,
-        },
-        newName: "btn-hero",
-      },
-      deps,
-    );
+    const result = handleRename(styleRenameParams(fixture, SCSS_URI, "btn-hero"), deps);
     expect(result).not.toBeNull();
     const scssEdits = result!.changes![SCSS_URI]!;
     expect(scssEdits).toHaveLength(1);
@@ -1181,12 +1156,12 @@ describe("classnameTransform alias-aware rename", () => {
   });
 
   it("camelCaseOnly: alias rename is rejected at prepareRename", async () => {
-    const base = parseStyleSelectorMap(`.btn-primary { color: red; }`, SCSS_PATH);
+    const fixture = styleWorkspace(SCSS_PATH, `./*|*/btn-primary { color: red; }`);
+    const base = styleClassMap(fixture, SCSS_PATH);
     // camelCaseOnly drops the original; only `btnPrimary` alias remains.
     const classMap = expandSelectorMapWithTransform(base, "camelCaseOnly");
     expect(classMap.has("btn-primary")).toBe(false);
     expect(classMap.get("btnPrimary")!.originalName).toBe("btn-primary");
-    const alias = classMap.get("btnPrimary")!;
 
     const deps = makeBaseDeps({
       selectorMapForPath: () => classMap,
@@ -1194,26 +1169,16 @@ describe("classnameTransform alias-aware rename", () => {
       settings: withTransformMode("camelCaseOnly"),
     });
     expectPrepareRenameBlocked(
-      () =>
-        handlePrepareRename(
-          {
-            textDocument: { uri: SCSS_URI },
-            position: {
-              line: alias.range.start.line,
-              character: alias.range.start.character + 1,
-            },
-          },
-          deps,
-        ),
+      () => handlePrepareRename(stylePositionParams(fixture, SCSS_URI), deps),
       "Alias selector views cannot be renamed under the current classnameTransform mode.",
     );
   });
 
   it("dashesOnly: alias rename is rejected at prepareRename", async () => {
-    const base = parseStyleSelectorMap(`.btn-primary { color: red; }`, SCSS_PATH);
+    const fixture = styleWorkspace(SCSS_PATH, `./*|*/btn-primary { color: red; }`);
+    const base = styleClassMap(fixture, SCSS_PATH);
     const classMap = expandSelectorMapWithTransform(base, "dashesOnly");
     expect(classMap.get("btnPrimary")!.originalName).toBe("btn-primary");
-    const alias = classMap.get("btnPrimary")!;
 
     const deps = makeBaseDeps({
       selectorMapForPath: () => classMap,
@@ -1221,25 +1186,15 @@ describe("classnameTransform alias-aware rename", () => {
       settings: withTransformMode("dashesOnly"),
     });
     expectPrepareRenameBlocked(
-      () =>
-        handlePrepareRename(
-          {
-            textDocument: { uri: SCSS_URI },
-            position: {
-              line: alias.range.start.line,
-              character: alias.range.start.character + 1,
-            },
-          },
-          deps,
-        ),
+      () => handlePrepareRename(stylePositionParams(fixture, SCSS_URI), deps),
       "Alias selector views cannot be renamed under the current classnameTransform mode.",
     );
   });
 
   it("camelCase: canonical-form and alias-form sites both rewrite with per-site format", async () => {
-    const base = parseStyleSelectorMap(`.btn-primary { color: red; }`, SCSS_PATH);
+    const fixture = styleWorkspace(SCSS_PATH, `./*|*/btn-primary { color: red; }`);
+    const base = styleClassMap(fixture, SCSS_PATH);
     const classMap = expandSelectorMapWithTransform(base, "camelCase");
-    const original = base.get("btn-primary")!;
 
     // Two real-world access patterns against the same SCSS class:
     //   - `cx('btn-primary')` in App.tsx — canonical form
@@ -1271,17 +1226,7 @@ describe("classnameTransform alias-aware rename", () => {
       semanticReferenceIndex,
       settings: withTransformMode("camelCase"),
     });
-    const result = handleRename(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: {
-          line: original.range.start.line,
-          character: original.range.start.character + 1,
-        },
-        newName: "btn-hero",
-      },
-      deps,
-    );
+    const result = handleRename(styleRenameParams(fixture, SCSS_URI, "btn-hero"), deps);
     expect(result).not.toBeNull();
     const changes = result!.changes!;
     // Canonical-form site writes the raw dashed name.
@@ -1295,9 +1240,9 @@ describe("classnameTransform alias-aware rename", () => {
   });
 
   it("camelCase: semantic direct sites rewrite with per-site format", async () => {
-    const base = parseStyleSelectorMap(`.btn-primary { color: red; }`, SCSS_PATH);
+    const fixture = styleWorkspace(SCSS_PATH, `./*|*/btn-primary { color: red; }`);
+    const base = styleClassMap(fixture, SCSS_PATH);
     const classMap = expandSelectorMapWithTransform(base, "camelCase");
-    const original = base.get("btn-primary")!;
 
     const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
     semanticReferenceIndex.record("file:///fake/src/App.tsx", [
@@ -1325,17 +1270,7 @@ describe("classnameTransform alias-aware rename", () => {
       semanticReferenceIndex,
       settings: withTransformMode("camelCase"),
     });
-    const result = handleRename(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: {
-          line: original.range.start.line,
-          character: original.range.start.character + 1,
-        },
-        newName: "btn-hero",
-      },
-      deps,
-    );
+    const result = handleRename(styleRenameParams(fixture, SCSS_URI, "btn-hero"), deps);
     expect(result).not.toBeNull();
     const changes = result!.changes!;
     expect(changes["file:///fake/src/App.tsx"]).toHaveLength(1);
@@ -1345,9 +1280,9 @@ describe("classnameTransform alias-aware rename", () => {
   });
 
   it("camelCase: SCSS cursor on original still finds alias-form TSX sites via canonical key", async () => {
-    const base = parseStyleSelectorMap(`.btn-primary { color: red; }`, SCSS_PATH);
+    const fixture = styleWorkspace(SCSS_PATH, `./*|*/btn-primary { color: red; }`);
+    const base = styleClassMap(fixture, SCSS_PATH);
     const classMap = expandSelectorMapWithTransform(base, "camelCase");
-    const original = base.get("btn-primary")!;
 
     // Only an alias-form TSX site exists — no direct `cx('btn-primary')`.
     // SCSS cursor rename on the original must still rewrite the
@@ -1371,17 +1306,7 @@ describe("classnameTransform alias-aware rename", () => {
       semanticReferenceIndex,
       settings: withTransformMode("camelCase"),
     });
-    const result = handleRename(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: {
-          line: original.range.start.line,
-          character: original.range.start.character + 1,
-        },
-        newName: "btn-hero",
-      },
-      deps,
-    );
+    const result = handleRename(styleRenameParams(fixture, SCSS_URI, "btn-hero"), deps);
     expect(result).not.toBeNull();
     const tsxEdits = result!.changes!["file:///fake/src/App.tsx"]!;
     expect(tsxEdits).toHaveLength(1);
@@ -1389,17 +1314,18 @@ describe("classnameTransform alias-aware rename", () => {
   });
 
   it("camelCase: SCSS cursor on original-first expansion returns the non-alias entry", async () => {
-    const base = parseStyleSelectorMap(`.btn-primary { color: red; }`, SCSS_PATH);
+    const fixture = styleWorkspace(SCSS_PATH, `./*|*/btn-primary { color: red; }`);
+    const base = styleClassMap(fixture, SCSS_PATH);
     const classMap = expandSelectorMapWithTransform(base, "camelCase");
     // Both keys present.
     expect(classMap.has("btn-primary")).toBe(true);
     expect(classMap.has("btnPrimary")).toBe(true);
-    const original = base.get("btn-primary")!;
+    const target = targetFixture({ workspace: fixture });
 
     const hit = findSelectorAtCursor(
       buildStyleDocumentFromSelectorMap(SCSS_PATH, classMap),
-      original.range.start.line,
-      original.range.start.character + 1,
+      target.line,
+      target.character,
     );
     expect(hit).not.toBeNull();
     // Locks in that cursoring through the SCSS source still lands
@@ -1410,9 +1336,9 @@ describe("classnameTransform alias-aware rename", () => {
   });
 
   it("regression: expanded site on original key rejects rename via alias cursor", async () => {
-    const base = parseStyleSelectorMap(`.btn-primary { color: red; }`, SCSS_PATH);
+    const fixture = styleWorkspace(SCSS_PATH, `./*|*/btn-primary { color: red; }`);
+    const base = styleClassMap(fixture, SCSS_PATH);
     const classMap = aliasFirstCamelCaseMap(base);
-    const original = base.get("btn-primary")!;
 
     const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
     semanticReferenceIndex.record("file:///fake/src/App.tsx", [
@@ -1439,25 +1365,15 @@ describe("classnameTransform alias-aware rename", () => {
     // miss the expanded site keyed on `btn-primary` and allow the
     // rename — rewriting the template and destroying the source.
     expectPrepareRenameBlocked(
-      () =>
-        handlePrepareRename(
-          {
-            textDocument: { uri: SCSS_URI },
-            position: {
-              line: original.range.start.line,
-              character: original.range.start.character + 1,
-            },
-          },
-          deps,
-        ),
+      () => handlePrepareRename(stylePositionParams(fixture, SCSS_URI), deps),
       "Rename is blocked because inferred or expanded references would make the edit unsafe.",
     );
   });
 
   it("regression: semantic expanded site on original key rejects rename via alias cursor", async () => {
-    const base = parseStyleSelectorMap(`.btn-primary { color: red; }`, SCSS_PATH);
+    const fixture = styleWorkspace(SCSS_PATH, `./*|*/btn-primary { color: red; }`);
+    const base = styleClassMap(fixture, SCSS_PATH);
     const classMap = aliasFirstCamelCaseMap(base);
-    const original = base.get("btn-primary")!;
 
     const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
     semanticReferenceIndex.record("file:///fake/src/App.tsx", [
@@ -1480,17 +1396,7 @@ describe("classnameTransform alias-aware rename", () => {
       settings: withTransformMode("camelCase"),
     });
     expectPrepareRenameBlocked(
-      () =>
-        handlePrepareRename(
-          {
-            textDocument: { uri: SCSS_URI },
-            position: {
-              line: original.range.start.line,
-              character: original.range.start.character + 1,
-            },
-          },
-          deps,
-        ),
+      () => handlePrepareRename(stylePositionParams(fixture, SCSS_URI), deps),
       "Rename is blocked because inferred or expanded references would make the edit unsafe.",
     );
   });
