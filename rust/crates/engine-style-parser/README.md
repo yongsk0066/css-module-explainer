@@ -12,7 +12,8 @@ Current scope:
 - bounded Rust-vs-TS parity and CSS Modules intermediate producer binaries
 - parser canonical-candidate / canonical-producer artifacts over those bounded outputs
 - Sass symbol seed facts in the CSS Modules intermediate producer for variables,
-  mixins, functions, and static `@use` / `@forward` / `@import` module edges
+  mixins, functions, static `@use` / `@forward` / `@import` module edges, and
+  `@use` namespace seeds
 
 Non-goals in this first scaffold:
 

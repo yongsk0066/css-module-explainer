@@ -311,8 +311,17 @@ pub struct ParserIndexSassFactsV0 {
     pub function_decl_names: Vec<String>,
     pub function_call_names: Vec<String>,
     pub module_use_sources: Vec<String>,
+    pub module_use_edges: Vec<ParserIndexSassModuleUseFactV0>,
     pub module_forward_sources: Vec<String>,
     pub module_import_sources: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParserIndexSassModuleUseFactV0 {
+    pub source: String,
+    pub namespace_kind: &'static str,
+    pub namespace: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
@@ -461,6 +470,7 @@ struct IndexSummaryAcc {
     sass_function_decl_names: Vec<String>,
     sass_function_call_names: Vec<String>,
     sass_module_use_sources: Vec<String>,
+    sass_module_use_edges: Vec<ParserIndexSassModuleUseFactV0>,
     sass_module_forward_sources: Vec<String>,
     sass_module_import_sources: Vec<String>,
     selectors_with_value_refs_names: Vec<String>,
@@ -638,6 +648,8 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
     acc.sass_function_call_names.dedup();
     acc.sass_module_use_sources.sort();
     acc.sass_module_use_sources.dedup();
+    acc.sass_module_use_edges.sort();
+    acc.sass_module_use_edges.dedup();
     acc.sass_module_forward_sources.sort();
     acc.sass_module_forward_sources.dedup();
     acc.sass_module_import_sources.sort();
@@ -749,6 +761,7 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
             function_decl_names: acc.sass_function_decl_names,
             function_call_names: acc.sass_function_call_names,
             module_use_sources: acc.sass_module_use_sources,
+            module_use_edges: acc.sass_module_use_edges,
             module_forward_sources: acc.sass_module_forward_sources,
             module_import_sources: acc.sass_module_import_sources,
         },
@@ -1415,6 +1428,8 @@ fn collect_index_names(
                 AtRuleKind::Use => {
                     acc.sass_module_use_sources
                         .extend(parse_sass_module_sources(&at_rule.params));
+                    acc.sass_module_use_edges
+                        .extend(parse_sass_module_use_edges(&at_rule.params));
                 }
                 AtRuleKind::Forward => {
                     acc.sass_module_forward_sources
@@ -1995,6 +2010,108 @@ fn parse_sass_module_sources(params: &str) -> Vec<String> {
     }
 
     sources
+}
+
+fn parse_sass_module_use_edges(params: &str) -> Vec<ParserIndexSassModuleUseFactV0> {
+    let alias = parse_sass_use_alias(params);
+    parse_sass_module_sources(params)
+        .into_iter()
+        .map(|source| match alias.as_deref() {
+            Some("*") => ParserIndexSassModuleUseFactV0 {
+                source,
+                namespace_kind: "wildcard",
+                namespace: None,
+            },
+            Some(namespace) if is_valid_sass_namespace(namespace) => {
+                ParserIndexSassModuleUseFactV0 {
+                    source,
+                    namespace_kind: "alias",
+                    namespace: Some(namespace.to_string()),
+                }
+            }
+            _ => ParserIndexSassModuleUseFactV0 {
+                namespace: default_sass_namespace_for_source(&source),
+                source,
+                namespace_kind: "default",
+            },
+        })
+        .collect()
+}
+
+fn parse_sass_use_alias(params: &str) -> Option<String> {
+    let chars: Vec<char> = params.chars().collect();
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+    let mut index = 0usize;
+    let mut quote: Option<char> = None;
+
+    while index < chars.len() {
+        let ch = chars[index];
+        if let Some(active_quote) = quote {
+            if ch == '\\' && index + 1 < chars.len() {
+                index += 2;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            index += 1;
+            continue;
+        }
+
+        if ch == '"' || ch == '\'' {
+            if !current.is_empty() {
+                tokens.push(std::mem::take(&mut current));
+            }
+            quote = Some(ch);
+            index += 1;
+            continue;
+        }
+
+        if ch.is_whitespace() || ch == ';' || ch == ',' {
+            if !current.is_empty() {
+                tokens.push(std::mem::take(&mut current));
+            }
+            index += 1;
+            continue;
+        }
+
+        current.push(ch);
+        index += 1;
+    }
+
+    if !current.is_empty() {
+        tokens.push(current);
+    }
+
+    tokens
+        .windows(2)
+        .find_map(|window| (window[0].eq_ignore_ascii_case("as")).then(|| window[1].clone()))
+}
+
+fn default_sass_namespace_for_source(source: &str) -> Option<String> {
+    let clean = source
+        .split(['?', '#'])
+        .next()
+        .unwrap_or(source)
+        .trim_end_matches('/');
+    let segment = clean.rsplit('/').next().unwrap_or(clean);
+    let package_segment = segment.rsplit(':').next().unwrap_or(segment);
+    let stem = package_segment
+        .rsplit_once('.')
+        .map(|(stem, _)| stem)
+        .unwrap_or(package_segment);
+    let stem = stem.strip_prefix('_').unwrap_or(stem);
+
+    is_valid_sass_namespace(stem).then(|| stem.to_string())
+}
+
+fn is_valid_sass_namespace(value: &str) -> bool {
+    let mut chars = value.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    is_sass_ident_start(first) && chars.all(is_sass_ident_continue)
 }
 
 fn find_sass_variable_refs(raw: &str) -> Vec<String> {
@@ -2851,8 +2968,9 @@ fn classify_at_rule_kind(name: &str) -> AtRuleKind {
 #[cfg(test)]
 mod tests {
     use super::{
-        AtRuleKind, AtRulePayload, DeclarationPayload, RulePayload, SelectorGroup, SelectorSegment,
-        StyleLanguage, SyntaxNodeKind, SyntaxNodePayload, TextSpan, TokenKind, parse_stylesheet,
+        AtRuleKind, AtRulePayload, DeclarationPayload, ParserIndexSassModuleUseFactV0, RulePayload,
+        SelectorGroup, SelectorSegment, StyleLanguage, SyntaxNodeKind, SyntaxNodePayload, TextSpan,
+        TokenKind, parse_stylesheet,
     };
 
     fn token_texts<'a>(source: &'a str, sheet: &super::Stylesheet) -> Vec<(TokenKind, &'a str)> {
@@ -3200,7 +3318,10 @@ mod tests {
 
     #[test]
     fn index_summary_collects_sass_symbol_seed_facts() {
-        let source = r#"@use "./tokens" as tokens;
+        let source = r#"@use "./plain";
+@use "./reset" as *;
+@use "./tokens" as tokens;
+@use "sass:color";
 @forward "./theme";
 @import "./legacy";
 $gap: 1rem;
@@ -3220,7 +3341,35 @@ $gap: 1rem;
         assert_eq!(summary.sass.mixin_include_names, vec!["raised"]);
         assert_eq!(summary.sass.function_decl_names, vec!["tone"]);
         assert_eq!(summary.sass.function_call_names, vec!["tone"]);
-        assert_eq!(summary.sass.module_use_sources, vec!["./tokens"]);
+        assert_eq!(
+            summary.sass.module_use_sources,
+            vec!["./plain", "./reset", "./tokens", "sass:color"]
+        );
+        assert_eq!(
+            summary.sass.module_use_edges,
+            vec![
+                ParserIndexSassModuleUseFactV0 {
+                    source: "./plain".to_string(),
+                    namespace_kind: "default",
+                    namespace: Some("plain".to_string()),
+                },
+                ParserIndexSassModuleUseFactV0 {
+                    source: "./reset".to_string(),
+                    namespace_kind: "wildcard",
+                    namespace: None,
+                },
+                ParserIndexSassModuleUseFactV0 {
+                    source: "./tokens".to_string(),
+                    namespace_kind: "alias",
+                    namespace: Some("tokens".to_string()),
+                },
+                ParserIndexSassModuleUseFactV0 {
+                    source: "sass:color".to_string(),
+                    namespace_kind: "default",
+                    namespace: Some("color".to_string()),
+                },
+            ]
+        );
         assert_eq!(summary.sass.module_forward_sources, vec!["./theme"]);
         assert_eq!(summary.sass.module_import_sources, vec!["./legacy"]);
     }
