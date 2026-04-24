@@ -3,6 +3,7 @@ import { parseStyleDocument } from "../../../server/engine-core-ts/src/core/scss
 import { resolveStyleCompletionItems } from "../../../server/engine-host-node/src/style-completion-query";
 
 const SCSS_PATH = "/fake/src/Button.module.scss";
+const TOKENS_PATH = "/fake/src/tokens.module.scss";
 
 describe("resolveStyleCompletionItems", () => {
   it("returns same-file Sass variable completions after `$`", () => {
@@ -77,6 +78,52 @@ describe("resolveStyleCompletionItems", () => {
     });
   });
 
+  it("returns wildcard Sass module completions from @use targets", () => {
+    const scss = `@use "./tokens.module" as *;
+
+.button {
+  color: $;
+  @include ra;
+  border-color: to;
+}
+`;
+    const tokensScss = `$gap: 1rem;
+@mixin raised() {}
+@function tone($value) { @return $value; }
+`;
+    const styleDocument = parseStyleDocument(scss, SCSS_PATH);
+    const targetDocument = parseStyleDocument(tokensScss, TOKENS_PATH);
+    const styleDocumentForPath = styleDocumentMap([styleDocument, targetDocument]);
+
+    expect(
+      resolveStyleCompletionItems({
+        content: scss,
+        line: 3,
+        character: 10,
+        styleDocument,
+        styleDocumentForPath,
+      }).map((item) => item.label),
+    ).toEqual(["$gap"]);
+    expect(
+      resolveStyleCompletionItems({
+        content: scss,
+        line: 4,
+        character: 13,
+        styleDocument,
+        styleDocumentForPath,
+      }).map((item) => item.label),
+    ).toEqual(["raised"]);
+    expect(
+      resolveStyleCompletionItems({
+        content: scss,
+        line: 5,
+        character: 18,
+        styleDocument,
+        styleDocumentForPath,
+      }).map((item) => item.label),
+    ).toEqual(["tone"]);
+  });
+
   it("keeps Sass parameter variables local to their callable body", () => {
     const scss = `$gap: 1rem;
 @mixin raised($depth) {
@@ -143,3 +190,8 @@ describe("resolveStyleCompletionItems", () => {
     ).toEqual(["tone"]);
   });
 });
+
+function styleDocumentMap(documents: readonly ReturnType<typeof parseStyleDocument>[]) {
+  const byPath = new Map(documents.map((document) => [document.filePath, document]));
+  return (filePath: string) => byPath.get(filePath) ?? null;
+}

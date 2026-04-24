@@ -36,6 +36,20 @@ const INVALID_SASS_SYMBOL_SCSS = `$gap: 1rem;
 }
 `;
 
+const WILDCARD_SASS_SYMBOL_SCSS = `@use "./tokens.module" as *;
+
+.button {
+  color: $;
+  @include ra;
+  border-color: to;
+}
+`;
+
+const WILDCARD_TOKENS_SCSS = `$gap: 1rem;
+@mixin raised() {}
+@function tone($value) { @return $value; }
+`;
+
 describe("completion protocol / clsx", () => {
   let client: LspTestClient | null = null;
 
@@ -208,6 +222,48 @@ describe("completion protocol", () => {
     const functionResult = await client.completion({
       textDocument: { uri: "file:///fake/workspace/src/Button.module.scss" },
       position: { line: 6, character: 18 },
+    });
+    const functionItems = Array.isArray(functionResult) ? functionResult : functionResult!.items;
+    expect(functionItems.map((item) => item.label)).toEqual(["tone"]);
+  });
+
+  it("returns wildcard Sass module completions inside SCSS files", async () => {
+    client = createInProcessServer({
+      readStyleFile: (filePath) => {
+        if (filePath.endsWith("Button.module.scss")) return WILDCARD_SASS_SYMBOL_SCSS;
+        if (filePath.endsWith("tokens.module.scss")) return WILDCARD_TOKENS_SCSS;
+        return null;
+      },
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/Button.module.scss",
+        languageId: "scss",
+        version: 1,
+        text: WILDCARD_SASS_SYMBOL_SCSS,
+      },
+    });
+
+    const variableResult = await client.completion({
+      textDocument: { uri: "file:///fake/workspace/src/Button.module.scss" },
+      position: { line: 3, character: 10 },
+    });
+    const variableItems = Array.isArray(variableResult) ? variableResult : variableResult!.items;
+    expect(variableItems.map((item) => item.label)).toEqual(["$gap"]);
+
+    const mixinResult = await client.completion({
+      textDocument: { uri: "file:///fake/workspace/src/Button.module.scss" },
+      position: { line: 4, character: 13 },
+    });
+    const mixinItems = Array.isArray(mixinResult) ? mixinResult : mixinResult!.items;
+    expect(mixinItems.map((item) => item.label)).toEqual(["raised"]);
+
+    const functionResult = await client.completion({
+      textDocument: { uri: "file:///fake/workspace/src/Button.module.scss" },
+      position: { line: 5, character: 18 },
     });
     const functionItems = Array.isArray(functionResult) ? functionResult : functionResult!.items;
     expect(functionItems.map((item) => item.label)).toEqual(["tone"]);

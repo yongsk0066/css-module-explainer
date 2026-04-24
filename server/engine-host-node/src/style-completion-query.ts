@@ -3,6 +3,10 @@ import type {
   SassSymbolDeclHIR,
   StyleDocumentHIR,
 } from "../../engine-core-ts/src/core/hir/style-types";
+import {
+  resolveSassModuleUseTarget,
+  type SassModulePathAliasResolver,
+} from "../../engine-core-ts/src/core/query";
 import { rangeContains } from "../../engine-core-ts/src/core/util/range-utils";
 
 export interface StyleCompletionItem {
@@ -38,6 +42,8 @@ export function resolveStyleCompletionItems(args: {
   readonly line: number;
   readonly character: number;
   readonly styleDocument: StyleDocumentHIR;
+  readonly styleDocumentForPath?: (filePath: string) => StyleDocumentHIR | null;
+  readonly aliasResolver?: SassModulePathAliasResolver;
 }): readonly StyleCompletionItem[] {
   const lineText = readLine(args.content, args.line);
   const linePrefix = lineText.slice(0, args.character);
@@ -49,7 +55,7 @@ export function resolveStyleCompletionItems(args: {
     end: { line: args.line, character: args.character },
   };
   const candidates = collectSassSymbolCompletionDecls(
-    readSassSymbolCompletionDecls(args.styleDocument, args.content),
+    readSassSymbolCompletionDecls(args),
     context.symbolKind,
     args.line,
     args.character,
@@ -114,12 +120,58 @@ function collectSassSymbolCompletionDecls(
   return results;
 }
 
-function readSassSymbolCompletionDecls(
+function readSassSymbolCompletionDecls(args: {
+  readonly content: string;
+  readonly styleDocument: StyleDocumentHIR;
+  readonly styleDocumentForPath?: (filePath: string) => StyleDocumentHIR | null;
+  readonly aliasResolver?: SassModulePathAliasResolver;
+}): readonly SassSymbolCompletionDecl[] {
+  const { styleDocument, content } = args;
+  const localDecls =
+    styleDocument.sassSymbolDecls.length > 0
+      ? styleDocument.sassSymbolDecls
+      : collectFallbackSassSymbolCompletionDecls(content);
+  if (!args.styleDocumentForPath) return localDecls;
+  return [
+    ...localDecls,
+    ...collectWildcardSassSymbolCompletionDecls(
+      styleDocument,
+      args.styleDocumentForPath,
+      args.aliasResolver,
+    ),
+  ];
+}
+
+function collectWildcardSassSymbolCompletionDecls(
   styleDocument: StyleDocumentHIR,
-  content: string,
+  styleDocumentForPath: (filePath: string) => StyleDocumentHIR | null,
+  aliasResolver?: SassModulePathAliasResolver,
 ): readonly SassSymbolCompletionDecl[] {
-  if (styleDocument.sassSymbolDecls.length > 0) return styleDocument.sassSymbolDecls;
-  return collectFallbackSassSymbolCompletionDecls(content);
+  const decls: SassSymbolCompletionDecl[] = [];
+  const seen = new Set<string>();
+  for (const moduleUse of styleDocument.sassModuleUses) {
+    if (moduleUse.namespaceKind !== "wildcard") continue;
+    const target = resolveSassModuleUseTarget(
+      styleDocumentForPath,
+      styleDocument.filePath,
+      moduleUse,
+      aliasResolver,
+    );
+    if (!target) continue;
+    for (const decl of target.styleDocument.sassSymbolDecls) {
+      if (!isExportedSassCompletionDecl(decl)) continue;
+      const key = `${decl.symbolKind}:${decl.name}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      decls.push(decl);
+    }
+  }
+  return decls;
+}
+
+function isExportedSassCompletionDecl(decl: SassSymbolCompletionDecl): boolean {
+  if (decl.symbolKind !== "variable") return true;
+  return startsAtSamePosition(decl.range, decl.ruleRange);
 }
 
 function collectFallbackSassSymbolCompletionDecls(

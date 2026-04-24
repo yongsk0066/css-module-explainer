@@ -39,6 +39,8 @@ function computeCompletion(params: CursorParams, deps: ProviderDeps): Completion
       line: params.line,
       character: params.character,
       styleDocument,
+      styleDocumentForPath: deps.styleDocumentForPath,
+      aliasResolver: deps.aliasResolver,
     });
     return items.length > 0 ? items.map(toStyleCompletionItem) : null;
   }
