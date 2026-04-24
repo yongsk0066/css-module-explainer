@@ -138,9 +138,7 @@ export function deriveSassSummary(
     moduleUseEdges: uniqueSortedUseEdges(deriveSassUseEdges(source)),
     moduleForwardSources: uniqueSorted(sourceForAtRule("forward")),
     moduleImportSources: uniqueSorted(sourceForAtRule("import")),
-    sameFileResolution: deriveSameFileResolution({
-      variableDeclNames: sortedVariableDeclNames,
-      variableParameterNames: sortedVariableParameterNames,
+    sameFileResolution: deriveSameFileResolution(source, filePath, {
       variableRefNames: sortedVariableRefNames,
       mixinDeclNames: sortedMixinDeclNames,
       mixinIncludeNames: sortedMixinIncludeNames,
@@ -193,13 +191,11 @@ function deriveSassSelectorAttachments(
         const start = bodyStart + (variableMatch.index ?? 0);
         return {
           name: variableMatch[1]!,
+          codeUnitEnd: start + variableMatch[0].length,
           location: symbolLocation(source, start, start + variableMatch[0].length),
         };
       })
-      .filter(
-        (variableMatch) =>
-          !isSassVariableDeclarationLike(source, variableMatch.location.byteSpan.end),
-      );
+      .filter((variableMatch) => !isSassVariableDeclarationLike(source, variableMatch.codeUnitEnd));
     const variableRefs = variableRefMatches.map((variableMatch) => variableMatch.name);
     if (variableRefs.length > 0) {
       selectorsWithVariableRefsNames.push(selectorName);
@@ -360,26 +356,61 @@ function rangeContains(outer: Range, inner: ParserRangeV0): boolean {
   );
 }
 
-function deriveSameFileResolution(input: {
-  readonly variableDeclNames: readonly string[];
-  readonly variableParameterNames: readonly string[];
-  readonly variableRefNames: readonly string[];
-  readonly mixinDeclNames: readonly string[];
-  readonly mixinIncludeNames: readonly string[];
-  readonly functionDeclNames: readonly string[];
-  readonly functionCallNames: readonly string[];
-}): ParserSassSameFileResolutionFactsV0 {
-  const variableTargets = new Set([...input.variableDeclNames, ...input.variableParameterNames]);
+function deriveSameFileResolution(
+  source: string,
+  filePath: string,
+  input: {
+    readonly variableRefNames: readonly string[];
+    readonly mixinDeclNames: readonly string[];
+    readonly mixinIncludeNames: readonly string[];
+    readonly functionDeclNames: readonly string[];
+    readonly functionCallNames: readonly string[];
+  },
+): ParserSassSameFileResolutionFactsV0 {
+  const sassVariableDecls = parseStyleDocument(source, filePath).sassSymbolDecls.filter(
+    (decl) => decl.symbolKind === "variable",
+  );
+  const variableRefMatches = findSassVariableReferenceMatches(source);
   const mixinTargets = new Set(input.mixinDeclNames);
   const functionTargets = new Set(input.functionDeclNames);
 
   return {
-    resolvedVariableRefNames: input.variableRefNames.filter((name) => variableTargets.has(name)),
-    unresolvedVariableRefNames: input.variableRefNames.filter((name) => !variableTargets.has(name)),
+    resolvedVariableRefNames: uniqueSorted(
+      variableRefMatches
+        .filter(
+          ({ name, location }) =>
+            resolveSassVariableReference(sassVariableDecls, name, location.range) === "resolved",
+        )
+        .map((match) => match.name),
+    ),
+    unresolvedVariableRefNames: uniqueSorted(
+      variableRefMatches
+        .filter(
+          ({ name, location }) =>
+            resolveSassVariableReference(sassVariableDecls, name, location.range) === "unresolved",
+        )
+        .map((match) => match.name),
+    ),
     resolvedMixinIncludeNames: input.mixinIncludeNames.filter((name) => mixinTargets.has(name)),
     unresolvedMixinIncludeNames: input.mixinIncludeNames.filter((name) => !mixinTargets.has(name)),
     resolvedFunctionCallNames: input.functionCallNames.filter((name) => functionTargets.has(name)),
   };
+}
+
+function findSassVariableReferenceMatches(source: string): Array<{
+  readonly name: string;
+  readonly location: Pick<ParserSassSelectorSymbolFactV0, "byteSpan" | "range">;
+}> {
+  return [...source.matchAll(/\$([A-Za-z_-][A-Za-z0-9_-]*)/g)]
+    .map((match) => {
+      const start = match.index ?? 0;
+      return {
+        name: match[1]!,
+        codeUnitEnd: start + match[0].length,
+        location: symbolLocation(source, start, start + match[0].length),
+      };
+    })
+    .filter((match) => !isSassVariableDeclarationLike(source, match.codeUnitEnd));
 }
 
 function deriveSassUseEdges(source: string): ParserSassModuleUseFactV0[] {

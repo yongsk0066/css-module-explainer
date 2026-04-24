@@ -530,6 +530,7 @@ struct IndexSummaryAcc {
     sass_variable_decl_facts: Vec<SassVariableDeclFact>,
     sass_variable_parameter_names: Vec<String>,
     sass_variable_ref_names: Vec<String>,
+    sass_variable_ref_facts: Vec<SassVariableRefFact>,
     sass_selectors_with_variable_refs_names: Vec<String>,
     sass_selectors_with_resolved_variable_refs_names: Vec<String>,
     sass_selectors_with_unresolved_variable_refs_names: Vec<String>,
@@ -650,7 +651,12 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
     collect_index_refs_and_counts(&sheet.nodes, value_ref_ctx, &known_keyframe_names, &mut acc);
     let known_sass_function_names: BTreeSet<String> =
         acc.sass_function_decl_names.iter().cloned().collect();
-    collect_sass_ref_facts(&sheet.nodes, &known_sass_function_names, &mut acc);
+    collect_sass_ref_facts(
+        &sheet.nodes,
+        &sheet.source,
+        &known_sass_function_names,
+        &mut acc,
+    );
     let sass_variable_decl_facts = acc.sass_variable_decl_facts.clone();
     let sass_mixin_targets: BTreeSet<String> = acc.sass_mixin_decl_names.iter().cloned().collect();
     let sass_ref_ctx = SassRefContext {
@@ -1271,6 +1277,12 @@ struct SassVariableDeclFact {
     scope: SassVariableScope,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SassVariableRefFact {
+    name: String,
+    byte_span: ParserByteSpanV0,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SassVariableScope {
     File,
@@ -1587,14 +1599,17 @@ fn extend_rule_sass_value_ref_facts(
     if !variable_refs.is_empty() {
         facts.has_sass_variable_refs = true;
         for name_span in variable_refs {
-            let resolution =
-                if resolve_sass_variable_ref(&name_span.name, name_span.byte_span, sass_ref_ctx) {
-                    facts.has_resolved_sass_variable_refs = true;
-                    "resolved"
-                } else {
-                    facts.has_unresolved_sass_variable_refs = true;
-                    "unresolved"
-                };
+            let resolution = if resolve_sass_variable_ref(
+                &name_span.name,
+                name_span.byte_span,
+                sass_ref_ctx.variable_decls,
+            ) {
+                facts.has_resolved_sass_variable_refs = true;
+                "resolved"
+            } else {
+                facts.has_unresolved_sass_variable_refs = true;
+                "unresolved"
+            };
             facts.sass_symbol_facts.push(RuleSassSymbolFact {
                 symbol_kind: "variable",
                 name: name_span.name,
@@ -1628,10 +1643,9 @@ fn extend_rule_sass_value_ref_facts(
 fn resolve_sass_variable_ref(
     name: &str,
     byte_span: ParserByteSpanV0,
-    sass_ref_ctx: SassRefContext<'_>,
+    variable_decls: &[SassVariableDeclFact],
 ) -> bool {
-    sass_ref_ctx
-        .variable_decls
+    variable_decls
         .iter()
         .any(|decl| decl.name == name && sass_variable_scope_contains(decl.scope, byte_span))
 }
@@ -1936,14 +1950,23 @@ fn collect_index_refs_and_counts(
 
 fn collect_sass_ref_facts(
     nodes: &[SyntaxNode],
+    source: &str,
     known_function_names: &BTreeSet<String>,
     acc: &mut IndexSummaryAcc,
 ) {
     for node in nodes {
         match &node.payload {
             Some(SyntaxNodePayload::Declaration(declaration)) => {
+                let value_span = declaration_value_span(source, node);
+                let variable_refs =
+                    find_sass_variable_ref_spans(&declaration.value, value_span.start);
                 acc.sass_variable_ref_names
-                    .extend(find_sass_variable_refs(&declaration.value));
+                    .extend(variable_refs.iter().map(|span| span.name.clone()));
+                acc.sass_variable_ref_facts
+                    .extend(variable_refs.into_iter().map(|span| SassVariableRefFact {
+                        name: span.name,
+                        byte_span: span.byte_span,
+                    }));
                 acc.sass_function_call_names
                     .extend(find_sass_function_calls(
                         &declaration.value,
@@ -1953,8 +1976,16 @@ fn collect_sass_ref_facts(
             Some(SyntaxNodePayload::AtRule(at_rule)) => match at_rule.kind {
                 AtRuleKind::Mixin | AtRuleKind::Function => {}
                 _ => {
+                    let params_span = at_rule_params_span(source, node, at_rule);
+                    let variable_refs =
+                        find_sass_variable_ref_spans(&at_rule.params, params_span.start);
                     acc.sass_variable_ref_names
-                        .extend(find_sass_variable_refs(&at_rule.params));
+                        .extend(variable_refs.iter().map(|span| span.name.clone()));
+                    acc.sass_variable_ref_facts
+                        .extend(variable_refs.into_iter().map(|span| SassVariableRefFact {
+                            name: span.name,
+                            byte_span: span.byte_span,
+                        }));
                     acc.sass_function_call_names
                         .extend(find_sass_function_calls(
                             &at_rule.params,
@@ -1964,19 +1995,13 @@ fn collect_sass_ref_facts(
             },
             _ => {}
         }
-        collect_sass_ref_facts(&node.children, known_function_names, acc);
+        collect_sass_ref_facts(&node.children, source, known_function_names, acc);
     }
 }
 
 fn summarize_sass_same_file_resolution(
     acc: &IndexSummaryAcc,
 ) -> ParserIndexSassSameFileResolutionFactsV0 {
-    let variable_targets: BTreeSet<&str> = acc
-        .sass_variable_decl_names
-        .iter()
-        .chain(acc.sass_variable_parameter_names.iter())
-        .map(String::as_str)
-        .collect();
     let mixin_targets: BTreeSet<&str> = acc
         .sass_mixin_decl_names
         .iter()
@@ -1988,15 +2013,19 @@ fn summarize_sass_same_file_resolution(
         .map(String::as_str)
         .collect();
 
+    let mut resolved_variable_ref_names = BTreeSet::new();
+    let mut unresolved_variable_ref_names = BTreeSet::new();
+    for fact in &acc.sass_variable_ref_facts {
+        if resolve_sass_variable_ref(&fact.name, fact.byte_span, &acc.sass_variable_decl_facts) {
+            resolved_variable_ref_names.insert(fact.name.clone());
+        } else {
+            unresolved_variable_ref_names.insert(fact.name.clone());
+        }
+    }
+
     ParserIndexSassSameFileResolutionFactsV0 {
-        resolved_variable_ref_names: names_matching(
-            &acc.sass_variable_ref_names,
-            &variable_targets,
-        ),
-        unresolved_variable_ref_names: names_not_matching(
-            &acc.sass_variable_ref_names,
-            &variable_targets,
-        ),
+        resolved_variable_ref_names: resolved_variable_ref_names.into_iter().collect(),
+        unresolved_variable_ref_names: unresolved_variable_ref_names.into_iter().collect(),
         resolved_mixin_include_names: names_matching(&acc.sass_mixin_include_names, &mixin_targets),
         unresolved_mixin_include_names: names_not_matching(
             &acc.sass_mixin_include_names,
@@ -4088,6 +4117,20 @@ $gap: 1rem;
         assert_eq!(
             summary.sass.selectors_with_unresolved_variable_refs_names,
             vec!["two"]
+        );
+        assert_eq!(
+            summary
+                .sass
+                .same_file_resolution
+                .resolved_variable_ref_names,
+            Vec::<String>::new()
+        );
+        assert_eq!(
+            summary
+                .sass
+                .same_file_resolution
+                .unresolved_variable_ref_names,
+            vec!["gap"]
         );
         assert_eq!(
             summary.sass.selector_symbol_facts,
