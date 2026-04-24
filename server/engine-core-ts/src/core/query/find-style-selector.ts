@@ -374,6 +374,14 @@ export interface ResolvedSassModuleMemberTarget {
   readonly decl: SassSymbolDeclHIR;
 }
 
+export interface ResolvedSassWildcardSymbolTarget {
+  readonly filePath: string;
+  readonly styleDocument: StyleDocumentHIR;
+  readonly moduleUse: SassModuleUseHIR;
+  readonly symbol: SassSymbolOccurrenceHIR;
+  readonly decl: SassSymbolDeclHIR;
+}
+
 const SASS_MODULE_EXTENSIONS = [".scss", ".sass", ".css"] as const;
 
 export function listSassModuleUseCandidatePaths(
@@ -473,6 +481,55 @@ export function resolveSassModuleMemberRefTarget(
   return null;
 }
 
+export function resolveSassWildcardSymbolTarget(
+  styleDocumentForPath: (filePath: string) => StyleDocumentHIR | null,
+  styleFilePath: string,
+  styleDocument: StyleDocumentHIR,
+  symbol: SassSymbolOccurrenceHIR | null,
+  aliasResolver?: SassModulePathAliasResolver,
+): ResolvedSassWildcardSymbolTarget | null {
+  if (!symbol) return null;
+  if (findSassSymbolDeclForSymbol(styleDocument, symbol)) return null;
+
+  const matches = new Map<string, ResolvedSassWildcardSymbolTarget>();
+  for (const moduleUse of findSassWildcardModuleUses(styleDocument)) {
+    const moduleTarget = resolveSassModuleUseTarget(
+      styleDocumentForPath,
+      styleFilePath,
+      moduleUse,
+      aliasResolver,
+    );
+    if (!moduleTarget) continue;
+    const decl = findSassSymbolDeclByName(
+      moduleTarget.styleDocument,
+      symbol.symbolKind,
+      symbol.name,
+    );
+    if (!decl) continue;
+    matches.set(sassWildcardTargetKey(moduleTarget.filePath, decl), {
+      filePath: moduleTarget.filePath,
+      styleDocument: moduleTarget.styleDocument,
+      moduleUse,
+      symbol,
+      decl,
+    });
+  }
+
+  return matches.size === 1 ? [...matches.values()][0]! : null;
+}
+
+export function listSassWildcardSymbolsForTarget(
+  styleDocument: StyleDocumentHIR,
+  target: Pick<ResolvedSassWildcardSymbolTarget, "decl">,
+): readonly SassSymbolOccurrenceHIR[] {
+  return styleDocument.sassSymbols.filter(
+    (symbol) =>
+      symbol.symbolKind === target.decl.symbolKind &&
+      symbol.name === target.decl.name &&
+      findSassSymbolDeclForSymbol(styleDocument, symbol) === null,
+  );
+}
+
 function findSassModuleUsesForNamespace(
   styleDocument: StyleDocumentHIR,
   namespace: string,
@@ -480,6 +537,22 @@ function findSassModuleUsesForNamespace(
   return styleDocument.sassModuleUses.filter(
     (moduleUse) => moduleUse.namespaceKind !== "wildcard" && moduleUse.namespace === namespace,
   );
+}
+
+function findSassWildcardModuleUses(styleDocument: StyleDocumentHIR): readonly SassModuleUseHIR[] {
+  return styleDocument.sassModuleUses.filter((moduleUse) => moduleUse.namespaceKind === "wildcard");
+}
+
+function sassWildcardTargetKey(filePath: string, decl: SassSymbolDeclHIR): string {
+  return [
+    filePath,
+    decl.symbolKind,
+    decl.name,
+    decl.range.start.line,
+    decl.range.start.character,
+    decl.range.end.line,
+    decl.range.end.character,
+  ].join("\u0000");
 }
 
 function resolveSassModuleBasePath(

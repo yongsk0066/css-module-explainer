@@ -32,6 +32,7 @@ export {
   listCanonicalSelectors,
   listSassSymbols,
   listSassSymbolsForDecl,
+  listSassWildcardSymbolsForTarget,
   listValueRefs,
   listSassModuleUseCandidatePaths,
   listSassModuleMemberRefsForMember,
@@ -41,8 +42,10 @@ export {
   resolveSassModuleUseTarget,
   resolveSassModuleUseTargetFilePath,
   resolveSassModuleMemberRefTarget,
+  resolveSassWildcardSymbolTarget,
   type ResolvedSassModuleMemberTarget,
   type ResolvedSassModuleUseTarget,
+  type ResolvedSassWildcardSymbolTarget,
   type SassModulePathAliasResolver,
 } from "./find-style-selector";
 export { findInvalidClassReference } from "./find-invalid-class-references";

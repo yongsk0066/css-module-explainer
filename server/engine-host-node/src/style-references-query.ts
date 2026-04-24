@@ -15,9 +15,11 @@ import {
   listAnimationNameRefs,
   listSassModuleMemberRefsForMember,
   listSassSymbolsForDecl,
+  listSassWildcardSymbolsForTarget,
   listValueRefs,
   resolveComposesTarget,
   resolveSassModuleMemberRefTarget,
+  resolveSassWildcardSymbolTarget,
   resolveValueImportTarget,
   resolveValueTarget,
 } from "../../engine-core-ts/src/core/query";
@@ -213,7 +215,30 @@ export function resolveStyleReferencesAtCursor(
   const sassSymbol = findSassSymbolAtCursor(args.styleDocument, args.line, args.character);
   if (sassSymbol) {
     const matchedSassSymbolDecl = findSassSymbolDeclForSymbol(args.styleDocument, sassSymbol);
-    if (!matchedSassSymbolDecl) return [];
+    if (!matchedSassSymbolDecl) {
+      const wildcardTarget = resolveSassWildcardSymbolTarget(
+        deps.styleDocumentForPath,
+        args.styleDocument.filePath,
+        args.styleDocument,
+        sassSymbol,
+        deps.aliasResolver,
+      );
+      if (!wildcardTarget) return [];
+      const locations = listSassWildcardSymbolsForTarget(
+        args.styleDocument,
+        wildcardTarget,
+      ).map<StyleReferenceLocation>((symbol) => ({
+        uri: pathToFileUrl(args.filePath),
+        range: symbol.range,
+      }));
+      if (args.includeDeclaration) {
+        locations.unshift({
+          uri: pathToFileUrl(wildcardTarget.filePath),
+          range: wildcardTarget.decl.range,
+        });
+      }
+      return dedupeLocations(locations);
+    }
     const locations = listSassSymbolsForDecl(
       args.styleDocument,
       matchedSassSymbolDecl,

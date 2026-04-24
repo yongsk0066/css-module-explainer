@@ -1,6 +1,7 @@
 import path from "node:path";
 import type { Range } from "@css-module-explainer/shared";
 import type { SassModuleUseHIR, SassSymbolKind, StyleDocumentHIR } from "../hir/style-types";
+import { findSassSymbolDeclForSymbol } from "../query/find-style-selector";
 
 export type StyleDependencyReason = "localComposes" | "crossFileComposes";
 
@@ -217,7 +218,45 @@ function collectSassModuleMemberEdges(
     });
   }
 
+  const wildcardModuleUses = styleDocument.sassModuleUses.filter(
+    (moduleUse) => moduleUse.namespaceKind === "wildcard",
+  );
+  for (const symbol of styleDocument.sassSymbols) {
+    if (findSassSymbolDeclForSymbol(styleDocument, symbol)) continue;
+    for (const moduleUse of wildcardModuleUses) {
+      const targetFilePath = options.resolveSassModuleUseTargetFilePath(moduleUse);
+      if (!targetFilePath) continue;
+      const edge = {
+        filePath,
+        toFilePath: targetFilePath,
+        namespace: "*",
+        symbolKind: symbol.symbolKind,
+        name: symbol.name,
+        range: symbol.range,
+      };
+      if (edges.some((candidate) => sassModuleMemberEdgeEquals(candidate, edge))) continue;
+      edges.push(edge);
+    }
+  }
+
   return edges;
+}
+
+function sassModuleMemberEdgeEquals(
+  a: SassModuleMemberDependencyEdge,
+  b: SassModuleMemberDependencyEdge,
+): boolean {
+  return (
+    a.filePath === b.filePath &&
+    a.toFilePath === b.toFilePath &&
+    a.namespace === b.namespace &&
+    a.symbolKind === b.symbolKind &&
+    a.name === b.name &&
+    a.range.start.line === b.range.start.line &&
+    a.range.start.character === b.range.start.character &&
+    a.range.end.line === b.range.end.line &&
+    a.range.end.character === b.range.end.character
+  );
 }
 
 function selectorKey(filePath: string, canonicalName: string): string {

@@ -16,11 +16,13 @@ import {
   listAnimationNameRefs,
   listSassModuleMemberRefsForMember,
   listSassSymbolsForDecl,
+  listSassWildcardSymbolsForTarget,
   listValueRefs,
   readSelectorStyleDependencySummary,
   readSelectorUsageSummary,
   resolveComposesTarget,
   resolveSassModuleMemberRefTarget,
+  resolveSassWildcardSymbolTarget,
   resolveValueImportTarget,
   resolveValueTarget,
 } from "../../engine-core-ts/src/core/query";
@@ -201,7 +203,25 @@ export function resolveStyleHoverResult(
   const sassSymbol = findSassSymbolAtCursor(styleDocument, args.line, args.character);
   if (sassSymbol) {
     const target = findSassSymbolDeclForSymbol(styleDocument, sassSymbol);
-    if (!target) return null;
+    if (!target) {
+      const wildcardTarget = resolveSassWildcardSymbolTarget(
+        deps.styleDocumentForPath,
+        styleDocument.filePath,
+        styleDocument,
+        sassSymbol,
+        deps.aliasResolver,
+      );
+      if (!wildcardTarget) return null;
+      return {
+        kind: "sassSymbol",
+        sassSymbolDecl: wildcardTarget.decl,
+        range: sassSymbol.range,
+        headingName: sassSymbol.name,
+        note: `Referenced via Sass wildcard ${sassSymbol.role}`,
+        scssModulePath: wildcardTarget.filePath,
+        referenceCount: listSassWildcardSymbolsForTarget(styleDocument, wildcardTarget).length,
+      };
+    }
     return {
       kind: "sassSymbol",
       sassSymbolDecl: target,

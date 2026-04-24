@@ -535,6 +535,28 @@ describe("parseStyleSelectorMap / edge cases", () => {
       expect(document.sassSymbols).toEqual([]);
     });
 
+    it("records unresolved function calls when wildcard Sass modules may provide them", () => {
+      const source = `@use "./tokens" as *;
+.button {
+  border-color: tone($gap);
+}`;
+      const document = parseStyleDocument(source, "/fake/a.module.scss");
+
+      expect(
+        document.sassSymbols.map((symbol) => [
+          symbol.selectorName,
+          symbol.symbolKind,
+          symbol.name,
+          symbol.role,
+          symbol.resolution,
+          sliceRange(source, symbol.range),
+        ]),
+      ).toEqual([
+        ["button", "function", "tone", "call", "unresolved", "tone"],
+        ["button", "variable", "gap", "reference", "unresolved", "$gap"],
+      ]);
+    });
+
     it("records module-qualified Sass member references separately", () => {
       const source = `@use "./tokens" as tokens;
 @mixin raised { box-shadow: none; }

@@ -128,7 +128,7 @@ export function parseStyleDocument(content: string, filePath: string): StyleDocu
   const valueRefs = collectValueRefs(root, valueDecls, valueImports);
   const sassModuleUses = collectSassModuleUses(root);
   const sassSymbolDecls = collectSassSymbolDecls(root);
-  const sassSymbolTargets = collectSassSymbolTargetContext(root, sassSymbolDecls);
+  const sassSymbolTargets = collectSassSymbolTargetContext(root, sassSymbolDecls, sassModuleUses);
   const sassSymbols: SassSymbolOccurrenceHIR[] = [];
   const sassModuleMemberRefs: SassModuleMemberRefHIR[] = [];
 
@@ -724,6 +724,7 @@ interface SassSymbolTargetContext {
   readonly variableDecls: readonly SassSymbolDeclHIR[];
   readonly mixinTargets: ReadonlySet<string>;
   readonly functionTargets: ReadonlySet<string>;
+  readonly allowUnresolvedFunctionCalls: boolean;
 }
 
 function collectSassSymbolDecls(root: Root): readonly SassSymbolDeclHIR[] {
@@ -781,6 +782,7 @@ function collectSassSymbolDecls(root: Root): readonly SassSymbolDeclHIR[] {
 function collectSassSymbolTargetContext(
   root: Root,
   sassSymbolDecls: readonly SassSymbolDeclHIR[],
+  sassModuleUses: readonly SassModuleUseHIR[],
 ): SassSymbolTargetContext {
   const mixinTargets = new Set<string>();
   const functionTargets = new Set<string>();
@@ -798,6 +800,9 @@ function collectSassSymbolTargetContext(
     variableDecls: sassSymbolDecls.filter((decl) => decl.symbolKind === "variable"),
     mixinTargets,
     functionTargets,
+    allowUnresolvedFunctionCalls: sassModuleUses.some(
+      (moduleUse) => moduleUse.namespaceKind === "wildcard",
+    ),
   };
 }
 
@@ -881,7 +886,11 @@ function pushSassDeclarationValueOccurrences(
     );
   }
 
-  for (const match of findSassFunctionCallMatches(node.value, targets.functionTargets)) {
+  for (const match of findSassFunctionCallMatches(
+    node.value,
+    targets.functionTargets,
+    targets.allowUnresolvedFunctionCalls,
+  )) {
     const range = findDeclValueTokenRange(node, match.offset, match.raw.length);
     if (!range) continue;
     occurrences.push(
@@ -890,7 +899,7 @@ function pushSassDeclarationValueOccurrences(
         symbolKind: "function",
         name: match.name,
         role: "call",
-        resolution: "resolved",
+        resolution: targets.functionTargets.has(match.name) ? "resolved" : "unresolved",
         range,
         ruleRange,
       }),
@@ -980,7 +989,11 @@ function pushSassAtRuleParamOccurrences(
     );
   }
 
-  for (const match of findSassFunctionCallMatches(atrule.params, targets.functionTargets)) {
+  for (const match of findSassFunctionCallMatches(
+    atrule.params,
+    targets.functionTargets,
+    targets.allowUnresolvedFunctionCalls,
+  )) {
     const range = findAtRuleParamValueTokenRange(atrule, match.offset, match.raw.length);
     if (!range) continue;
     occurrences.push(
@@ -989,7 +1002,7 @@ function pushSassAtRuleParamOccurrences(
         symbolKind: "function",
         name: match.name,
         role: "call",
-        resolution: "resolved",
+        resolution: targets.functionTargets.has(match.name) ? "resolved" : "unresolved",
         range,
         ruleRange,
       }),
@@ -1247,6 +1260,7 @@ function findSassModuleVariableMatches(
 function findSassFunctionCallMatches(
   raw: string,
   functionTargets: ReadonlySet<string>,
+  allowUnresolvedFunctionCalls = false,
 ): Array<{ name: string; raw: string; offset: number }> {
   const matches: Array<{ name: string; raw: string; offset: number }> = [];
   let quote: "'" | '"' | null = null;
@@ -1274,7 +1288,7 @@ function findSassFunctionCallMatches(
       continue;
     }
     const nextNonWhitespace = raw.slice(index + name.length).match(/\S/)?.[0];
-    if (functionTargets.has(name) && nextNonWhitespace === "(") {
+    if ((functionTargets.has(name) || allowUnresolvedFunctionCalls) && nextNonWhitespace === "(") {
       matches.push({ name, raw: name, offset: index });
     }
     index += name.length - 1;

@@ -209,12 +209,79 @@ describe("style hover query", () => {
     });
   });
 
+  it("resolves wildcard Sass module member references to target module hover data", () => {
+    const buttonScss = `@use "./tokens.module" as *;
+
+.button {
+  color: $gap;
+  margin: $gap;
+}
+`;
+    const tokensScss = `$gap: 1rem;`;
+    const result = resolveStyleHoverResult(
+      {
+        filePath: SCSS_PATH,
+        line: 3,
+        character: 10,
+      },
+      makeBaseDeps({
+        styleDocumentForPath: styleDocumentMap([
+          parseStyleDocument(buttonScss, SCSS_PATH),
+          parseStyleDocument(tokensScss, TOKENS_PATH),
+        ]),
+      }),
+    );
+
+    expect(result).toMatchObject({
+      kind: "sassSymbol",
+      scssModulePath: TOKENS_PATH,
+      headingName: "gap",
+      note: "Referenced via Sass wildcard reference",
+      referenceCount: 2,
+    });
+  });
+
   it("counts namespace-qualified Sass member references from declaration hover data", () => {
     const buttonScss = `@use "./tokens.module" as tokens;
 
 .button {
   color: tokens.$gap;
   margin: tokens.$gap;
+}
+`;
+    const tokensScss = `$gap: 1rem;`;
+    const styleDocument = parseStyleDocument(buttonScss, SCSS_PATH);
+    const targetDocument = parseStyleDocument(tokensScss, TOKENS_PATH);
+    const styleDependencyGraph = new WorkspaceStyleDependencyGraph();
+    styleDependencyGraph.record(SCSS_PATH, styleDocument, {
+      resolveSassModuleUseTargetFilePath: () => TOKENS_PATH,
+    });
+
+    const result = resolveStyleHoverResult(
+      {
+        filePath: TOKENS_PATH,
+        line: 0,
+        character: 1,
+      },
+      makeBaseDeps({
+        styleDocumentForPath: styleDocumentMap([styleDocument, targetDocument]),
+        styleDependencyGraph,
+      }),
+    );
+
+    expect(result).toMatchObject({
+      kind: "sassSymbol",
+      scssModulePath: TOKENS_PATH,
+      referenceCount: 2,
+    });
+  });
+
+  it("counts wildcard Sass module member references from declaration hover data", () => {
+    const buttonScss = `@use "./tokens.module" as *;
+
+.button {
+  color: $gap;
+  margin: $gap;
 }
 `;
     const tokensScss = `$gap: 1rem;`;

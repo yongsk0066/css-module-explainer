@@ -260,6 +260,64 @@ describe("resolveStyleDefinitionTargets", () => {
     });
   });
 
+  it("resolves wildcard Sass module members to declarations in @use targets", () => {
+    const buttonScss = `@use "./tokens.module" as *;
+
+.button {
+  color: $gap;
+  @include raised;
+  border-color: tone($gap);
+}
+`;
+    const tokensScss = `$gap: 1rem;
+@mixin raised() {}
+@function tone($value) { @return $value; }
+`;
+    const deps = depsForDocuments([
+      parseStyleDocument(buttonScss, BUTTON_PATH),
+      parseStyleDocument(tokensScss, TOKENS_PARTIAL_PATH),
+    ]);
+
+    const variableTargets = resolveStyleDefinitionTargets(
+      { filePath: BUTTON_PATH, line: 3, character: 10 },
+      deps,
+    );
+    expect(variableTargets).toHaveLength(1);
+    expect(variableTargets[0]).toMatchObject({
+      targetFilePath: TOKENS_PARTIAL_PATH,
+      targetSelectionRange: {
+        start: { line: 0, character: 0 },
+        end: { line: 0, character: 4 },
+      },
+    });
+
+    const mixinTargets = resolveStyleDefinitionTargets(
+      { filePath: BUTTON_PATH, line: 4, character: 13 },
+      deps,
+    );
+    expect(mixinTargets).toHaveLength(1);
+    expect(mixinTargets[0]).toMatchObject({
+      targetFilePath: TOKENS_PARTIAL_PATH,
+      targetSelectionRange: {
+        start: { line: 1, character: 7 },
+        end: { line: 1, character: 13 },
+      },
+    });
+
+    const functionTargets = resolveStyleDefinitionTargets(
+      { filePath: BUTTON_PATH, line: 5, character: 18 },
+      deps,
+    );
+    expect(functionTargets).toHaveLength(1);
+    expect(functionTargets[0]).toMatchObject({
+      targetFilePath: TOKENS_PARTIAL_PATH,
+      targetSelectionRange: {
+        start: { line: 2, character: 10 },
+        end: { line: 2, character: 14 },
+      },
+    });
+  });
+
   it("resolves same-file Sass symbol references to declarations", () => {
     const scss = `$gap: 1rem;
 @mixin raised() {}
@@ -330,6 +388,35 @@ describe("resolveStyleDefinitionTargets", () => {
       targetSelectionRange: {
         start: { line: 0, character: 0 },
         end: { line: 0, character: 4 },
+      },
+    });
+  });
+
+  it("prefers local Sass declarations over wildcard module members", () => {
+    const buttonScss = `@use "./tokens.module" as *;
+$gap: 2rem;
+
+.button {
+  color: $gap;
+}
+`;
+    const tokensScss = `$gap: 1rem;`;
+    const deps = depsForDocuments([
+      parseStyleDocument(buttonScss, BUTTON_PATH),
+      parseStyleDocument(tokensScss, TOKENS_PARTIAL_PATH),
+    ]);
+
+    const targets = resolveStyleDefinitionTargets(
+      { filePath: BUTTON_PATH, line: 4, character: 10 },
+      deps,
+    );
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0]).toMatchObject({
+      targetFilePath: BUTTON_PATH,
+      targetSelectionRange: {
+        start: { line: 1, character: 0 },
+        end: { line: 1, character: 4 },
       },
     });
   });

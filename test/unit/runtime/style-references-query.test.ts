@@ -238,6 +238,56 @@ describe("resolveStyleReferencesAtCursor", () => {
     ]);
   });
 
+  it("returns wildcard Sass module member references with the target declaration", () => {
+    const filePath = "/fake/src/Button.module.scss";
+    const tokensPath = "/fake/src/tokens.module.scss";
+    const buttonScss = `@use "./tokens.module" as *;
+
+.button {
+  color: $gap;
+  margin: $gap;
+}
+`;
+    const tokensScss = `$gap: 1rem;`;
+    const styleDocument = parseStyleDocument(buttonScss, filePath);
+    const targetDocument = parseStyleDocument(tokensScss, tokensPath);
+
+    const result = resolveStyleReferencesAtCursor(
+      {
+        filePath,
+        line: 3,
+        character: 10,
+        includeDeclaration: true,
+        styleDocument,
+      },
+      makeDeps({ styleDocumentForPath: styleDocumentMap([styleDocument, targetDocument]) }),
+    );
+
+    expect(result).toEqual([
+      {
+        uri: "file:///fake/src/tokens.module.scss",
+        range: {
+          start: { line: 0, character: 0 },
+          end: { line: 0, character: 4 },
+        },
+      },
+      {
+        uri: "file:///fake/src/Button.module.scss",
+        range: {
+          start: { line: 3, character: 9 },
+          end: { line: 3, character: 13 },
+        },
+      },
+      {
+        uri: "file:///fake/src/Button.module.scss",
+        range: {
+          start: { line: 4, character: 10 },
+          end: { line: 4, character: 14 },
+        },
+      },
+    ]);
+  });
+
   it("returns namespace-qualified Sass member references from the target declaration cursor", () => {
     const filePath = "/fake/src/Button.module.scss";
     const tokensPath = "/fake/src/tokens.module.scss";
@@ -246,6 +296,46 @@ describe("resolveStyleReferencesAtCursor", () => {
 .button {
   color: tokens.$gap;
   margin: tokens.$gap;
+}
+`;
+    const tokensScss = `$gap: 1rem;`;
+    const styleDocument = parseStyleDocument(buttonScss, filePath);
+    const targetDocument = parseStyleDocument(tokensScss, tokensPath);
+    const styleDependencyGraph = new WorkspaceStyleDependencyGraph();
+    styleDependencyGraph.record(filePath, styleDocument, {
+      resolveSassModuleUseTargetFilePath: () => tokensPath,
+    });
+
+    const result = resolveStyleReferencesAtCursor(
+      {
+        filePath: tokensPath,
+        line: 0,
+        character: 1,
+        includeDeclaration: true,
+        styleDocument: targetDocument,
+      },
+      makeDeps({
+        styleDocumentForPath: styleDocumentMap([styleDocument, targetDocument]),
+        styleDependencyGraph,
+      }),
+    );
+
+    expect(result.map((location) => location.uri)).toEqual([
+      "file:///fake/src/tokens.module.scss",
+      "file:///fake/src/Button.module.scss",
+      "file:///fake/src/Button.module.scss",
+    ]);
+    expect(result.map((location) => location.range.start.line)).toEqual([0, 3, 4]);
+  });
+
+  it("returns wildcard Sass module member references from the target declaration cursor", () => {
+    const filePath = "/fake/src/Button.module.scss";
+    const tokensPath = "/fake/src/tokens.module.scss";
+    const buttonScss = `@use "./tokens.module" as *;
+
+.button {
+  color: $gap;
+  margin: $gap;
 }
 `;
     const tokensScss = `$gap: 1rem;`;

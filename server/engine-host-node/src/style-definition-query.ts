@@ -13,6 +13,7 @@ import {
   resolveComposesTarget,
   resolveSassModuleMemberRefTarget,
   resolveSassModuleUseTarget,
+  resolveSassWildcardSymbolTarget,
   resolveValueImportTarget,
   resolveValueTarget,
 } from "../../engine-core-ts/src/core/query";
@@ -109,8 +110,18 @@ export function resolveStyleDefinitionTargets(
   const sassSymbol = findSassSymbolAtCursor(styleDocument, params.line, params.character);
   if (sassSymbol) {
     const target = findSassSymbolDeclForSymbol(styleDocument, sassSymbol);
-    return target
-      ? [toStyleDefinitionTarget(sassSymbol.range, styleDocument.filePath, target)]
+    if (target) {
+      return [toStyleDefinitionTarget(sassSymbol.range, styleDocument.filePath, target)];
+    }
+    const wildcardTarget = resolveSassWildcardSymbolTarget(
+      deps.styleDocumentForPath,
+      styleDocument.filePath,
+      styleDocument,
+      sassSymbol,
+      deps.aliasResolver,
+    );
+    return wildcardTarget
+      ? [toStyleDefinitionTarget(sassSymbol.range, wildcardTarget.filePath, wildcardTarget.decl)]
       : [];
   }
 

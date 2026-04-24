@@ -85,4 +85,35 @@ describe("WorkspaceStyleDependencyGraph", () => {
       },
     ]);
   });
+
+  it("records incoming wildcard Sass module member references", () => {
+    const graph = new WorkspaceStyleDependencyGraph();
+    const filePath = "/fake/button.module.scss";
+    const targetPath = "/fake/_tokens.module.scss";
+    const styleDocument = parseStyleDocument(
+      `@use "./tokens.module" as *;
+
+.button {
+  color: $gap;
+}`,
+      filePath,
+    );
+
+    graph.record(filePath, styleDocument, {
+      resolveSassModuleUseTargetFilePath: () => targetPath,
+    });
+
+    expect(graph.getIncomingSassModuleMemberRefs(targetPath, "variable", "gap")).toEqual([
+      {
+        filePath,
+        namespace: "*",
+        symbolKind: "variable",
+        name: "gap",
+        range: {
+          start: { line: 3, character: 9 },
+          end: { line: 3, character: 13 },
+        },
+      },
+    ]);
+  });
 });
