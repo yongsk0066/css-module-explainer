@@ -161,6 +161,7 @@ pub struct CommentPayload {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Stylesheet {
     pub language: StyleLanguage,
+    pub source: String,
     pub tokens: Vec<Token>,
     pub nodes: Vec<SyntaxNode>,
     pub diagnostics: Vec<ParseDiagnostic>,
@@ -344,6 +345,22 @@ pub struct ParserIndexSassSameFileResolutionFactsV0 {
     pub resolved_function_call_names: Vec<String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParserByteSpanV0 {
+    pub start: usize,
+    pub end: usize,
+}
+
+impl From<TextSpan> for ParserByteSpanV0 {
+    fn from(span: TextSpan) -> Self {
+        Self {
+            start: span.start,
+            end: span.end,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ParserIndexSassSelectorSymbolFactV0 {
@@ -352,6 +369,7 @@ pub struct ParserIndexSassSelectorSymbolFactV0 {
     pub name: String,
     pub role: &'static str,
     pub resolution: &'static str,
+    pub byte_span: ParserByteSpanV0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
@@ -560,6 +578,7 @@ pub fn parse_stylesheet(language: StyleLanguage, source: &str) -> Stylesheet {
     let nodes = parser.parse_root();
     Stylesheet {
         language,
+        source: source.to_string(),
         tokens,
         nodes,
         diagnostics,
@@ -628,11 +647,15 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
         mixin_targets: &sass_mixin_targets,
         function_targets: &known_sass_function_names,
     };
+    let selector_attachment_ctx = SelectorAttachmentContext {
+        source: &sheet.source,
+        value_ref_ctx,
+        known_keyframe_names: &known_keyframe_names,
+        sass_ref_ctx,
+    };
     collect_index_selector_attachment_facts(
         &sheet.nodes,
-        value_ref_ctx,
-        &known_keyframe_names,
-        sass_ref_ctx,
+        selector_attachment_ctx,
         &mut acc,
         &[],
         false,
@@ -1222,6 +1245,13 @@ struct RuleSassSymbolFact {
     name: String,
     role: &'static str,
     resolution: &'static str,
+    byte_span: ParserByteSpanV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SassNameSpan {
+    name: String,
+    byte_span: ParserByteSpanV0,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -1243,6 +1273,14 @@ struct SassRefContext<'a> {
     variable_targets: &'a BTreeSet<String>,
     mixin_targets: &'a BTreeSet<String>,
     function_targets: &'a BTreeSet<String>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct SelectorAttachmentContext<'a> {
+    source: &'a str,
+    value_ref_ctx: ValueRefContext<'a>,
+    known_keyframe_names: &'a BTreeSet<String>,
+    sass_ref_ctx: SassRefContext<'a>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1354,8 +1392,40 @@ fn collect_rule_composes_facts(children: &[SyntaxNode]) -> RuleComposesFacts {
     facts
 }
 
+fn declaration_value_span(source: &str, node: &SyntaxNode) -> TextSpan {
+    let header_span = node.header_span.unwrap_or(node.span);
+    let raw = &source[header_span.start..header_span.end];
+    let Some(colon_index) = raw.find(':') else {
+        return TextSpan::new(header_span.end, header_span.end);
+    };
+    trim_source_span(
+        source,
+        TextSpan::new(header_span.start + colon_index + 1, header_span.end),
+    )
+}
+
+fn at_rule_params_span(source: &str, node: &SyntaxNode, at_rule: &AtRulePayload) -> TextSpan {
+    let header_span = node.header_span.unwrap_or(node.span);
+    let raw = &source[header_span.start..header_span.end];
+    let search_start = raw.find('@').map_or(0, |index| index + 1);
+    let Some(name_index) = raw[search_start..].find(&at_rule.name) else {
+        return TextSpan::new(header_span.end, header_span.end);
+    };
+    let params_start = header_span.start + search_start + name_index + at_rule.name.len();
+    trim_source_span(source, TextSpan::new(params_start, header_span.end))
+}
+
+fn trim_source_span(source: &str, span: TextSpan) -> TextSpan {
+    let raw = &source[span.start..span.end];
+    let trimmed_start = raw.len() - raw.trim_start().len();
+    let trimmed_len = raw.trim().len();
+    let start = span.start + trimmed_start;
+    TextSpan::new(start, start + trimmed_len)
+}
+
 fn collect_rule_reference_facts(
     children: &[SyntaxNode],
+    source: &str,
     value_ref_ctx: ValueRefContext<'_>,
     known_keyframe_names: &BTreeSet<String>,
     sass_ref_ctx: SassRefContext<'_>,
@@ -1364,6 +1434,7 @@ fn collect_rule_reference_facts(
     for child in children {
         match &child.payload {
             Some(SyntaxNodePayload::Declaration(declaration)) => {
+                let value_span = declaration_value_span(source, child);
                 match classify_declaration_kind(&declaration.property) {
                     DeclarationKind::Composes => {}
                     DeclarationKind::Animation => {
@@ -1386,15 +1457,28 @@ fn collect_rule_reference_facts(
                         extend_rule_value_ref_facts(&mut facts, &declaration.value, value_ref_ctx);
                     }
                 }
-                extend_rule_sass_value_ref_facts(&mut facts, &declaration.value, sass_ref_ctx);
+                extend_rule_sass_value_ref_facts(
+                    &mut facts,
+                    &declaration.value,
+                    value_span,
+                    sass_ref_ctx,
+                );
             }
             Some(SyntaxNodePayload::AtRule(at_rule)) => match at_rule.kind {
                 AtRuleKind::Mixin | AtRuleKind::Function => {}
                 AtRuleKind::Include => {
-                    extend_rule_sass_value_ref_facts(&mut facts, &at_rule.params, sass_ref_ctx);
-                    if let Some(name) = parse_sass_callable_name(&at_rule.params) {
+                    let params_span = at_rule_params_span(source, child, at_rule);
+                    extend_rule_sass_value_ref_facts(
+                        &mut facts,
+                        &at_rule.params,
+                        params_span,
+                        sass_ref_ctx,
+                    );
+                    if let Some(name_span) =
+                        parse_sass_callable_name_with_span(&at_rule.params, params_span.start)
+                    {
                         facts.has_sass_mixin_includes = true;
-                        let resolution = if sass_ref_ctx.mixin_targets.contains(&name) {
+                        let resolution = if sass_ref_ctx.mixin_targets.contains(&name_span.name) {
                             facts.has_resolved_sass_mixin_includes = true;
                             "resolved"
                         } else {
@@ -1403,14 +1487,21 @@ fn collect_rule_reference_facts(
                         };
                         facts.sass_symbol_facts.push(RuleSassSymbolFact {
                             symbol_kind: "mixin",
-                            name,
+                            name: name_span.name,
                             role: "include",
                             resolution,
+                            byte_span: name_span.byte_span,
                         });
                     }
                 }
                 _ => {
-                    extend_rule_sass_value_ref_facts(&mut facts, &at_rule.params, sass_ref_ctx);
+                    let params_span = at_rule_params_span(source, child, at_rule);
+                    extend_rule_sass_value_ref_facts(
+                        &mut facts,
+                        &at_rule.params,
+                        params_span,
+                        sass_ref_ctx,
+                    );
                 }
             },
             _ => {}
@@ -1439,14 +1530,14 @@ fn extend_rule_value_ref_facts(
 fn extend_rule_sass_value_ref_facts(
     facts: &mut RuleReferenceFacts,
     value: &str,
+    value_span: TextSpan,
     sass_ref_ctx: SassRefContext<'_>,
 ) {
-    let variable_refs = find_sass_variable_refs(value);
-    let variable_refs = sorted_dedup(variable_refs);
+    let variable_refs = find_sass_variable_ref_spans(value, value_span.start);
     if !variable_refs.is_empty() {
         facts.has_sass_variable_refs = true;
-        for name in variable_refs {
-            let resolution = if sass_ref_ctx.variable_targets.contains(&name) {
+        for name_span in variable_refs {
+            let resolution = if sass_ref_ctx.variable_targets.contains(&name_span.name) {
                 facts.has_resolved_sass_variable_refs = true;
                 "resolved"
             } else {
@@ -1455,34 +1546,32 @@ fn extend_rule_sass_value_ref_facts(
             };
             facts.sass_symbol_facts.push(RuleSassSymbolFact {
                 symbol_kind: "variable",
-                name,
+                name: name_span.name,
                 role: "reference",
                 resolution,
+                byte_span: name_span.byte_span,
             });
         }
     }
 
-    let function_calls = sorted_dedup(find_sass_function_calls(
-        value,
-        sass_ref_ctx.function_targets,
-    ));
+    let function_calls =
+        find_sass_function_call_spans(value, value_span.start, sass_ref_ctx.function_targets);
     if !function_calls.is_empty() {
         facts.has_sass_function_calls = true;
         facts
             .sass_symbol_facts
-            .extend(function_calls.into_iter().map(|name| RuleSassSymbolFact {
-                symbol_kind: "function",
-                name,
-                role: "call",
-                resolution: "resolved",
-            }));
+            .extend(
+                function_calls
+                    .into_iter()
+                    .map(|name_span| RuleSassSymbolFact {
+                        symbol_kind: "function",
+                        name: name_span.name,
+                        role: "call",
+                        resolution: "resolved",
+                        byte_span: name_span.byte_span,
+                    }),
+            );
     }
-}
-
-fn sorted_dedup(mut names: Vec<String>) -> Vec<String> {
-    names.sort();
-    names.dedup();
-    names
 }
 
 fn collect_index_names(
@@ -1870,18 +1959,14 @@ fn extend_value_ref_facts(
 
 fn collect_index_selector_attachment_facts(
     nodes: &[SyntaxNode],
-    value_ref_ctx: ValueRefContext<'_>,
-    known_keyframe_names: &BTreeSet<String>,
-    sass_ref_ctx: SassRefContext<'_>,
+    ctx: SelectorAttachmentContext<'_>,
     acc: &mut IndexSummaryAcc,
     parent_selector_names: &[String],
     _parent_is_grouped: bool,
 ) {
     collect_index_selector_attachment_facts_with_context(
         nodes,
-        value_ref_ctx,
-        known_keyframe_names,
-        sass_ref_ctx,
+        ctx,
         acc,
         parent_selector_names,
         WrapperContext::default(),
@@ -1890,9 +1975,7 @@ fn collect_index_selector_attachment_facts(
 
 fn collect_index_selector_attachment_facts_with_context(
     nodes: &[SyntaxNode],
-    value_ref_ctx: ValueRefContext<'_>,
-    known_keyframe_names: &BTreeSet<String>,
-    sass_ref_ctx: SassRefContext<'_>,
+    ctx: SelectorAttachmentContext<'_>,
     acc: &mut IndexSummaryAcc,
     parent_selector_names: &[String],
     wrapper_ctx: WrapperContext,
@@ -1906,9 +1989,10 @@ fn collect_index_selector_attachment_facts_with_context(
             if !resolved.is_empty() {
                 let ref_facts = collect_rule_reference_facts(
                     &node.children,
-                    value_ref_ctx,
-                    known_keyframe_names,
-                    sass_ref_ctx,
+                    ctx.source,
+                    ctx.value_ref_ctx,
+                    ctx.known_keyframe_names,
+                    ctx.sass_ref_ctx,
                 );
                 if ref_facts.has_value_refs {
                     acc.selectors_with_value_refs_names
@@ -2027,6 +2111,7 @@ fn collect_index_selector_attachment_facts_with_context(
                                 name: fact.name.clone(),
                                 role: fact.role,
                                 resolution: fact.resolution,
+                                byte_span: fact.byte_span,
                             }
                         }));
                 }
@@ -2145,9 +2230,7 @@ fn collect_index_selector_attachment_facts_with_context(
             for parent_name in &next_parent_names {
                 collect_index_selector_attachment_facts_with_context(
                     &node.children,
-                    value_ref_ctx,
-                    known_keyframe_names,
-                    sass_ref_ctx,
+                    ctx,
                     acc,
                     std::slice::from_ref(parent_name),
                     child_wrapper_ctx,
@@ -2156,9 +2239,7 @@ fn collect_index_selector_attachment_facts_with_context(
         } else {
             collect_index_selector_attachment_facts_with_context(
                 &node.children,
-                value_ref_ctx,
-                known_keyframe_names,
-                sass_ref_ctx,
+                ctx,
                 acc,
                 &next_parent_names,
                 child_wrapper_ctx,
@@ -2260,12 +2341,23 @@ fn parse_sass_variable_decl_name(property: &str) -> Option<String> {
 }
 
 fn parse_sass_callable_name(params: &str) -> Option<String> {
-    let trimmed = params.trim();
+    parse_sass_callable_name_with_span(params, 0).map(|span| span.name)
+}
+
+fn parse_sass_callable_name_with_span(params: &str, base_start: usize) -> Option<SassNameSpan> {
+    let trimmed_start = params.find(|ch: char| !ch.is_whitespace())?;
+    let trimmed = &params[trimmed_start..];
     let end = trimmed
         .find(|ch: char| ch.is_whitespace() || ch == '(')
         .unwrap_or(trimmed.len());
     let name = &trimmed[..end];
-    (!name.is_empty() && name.chars().all(is_sass_ident_continue)).then(|| name.to_string())
+    (!name.is_empty() && name.chars().all(is_sass_ident_continue)).then(|| SassNameSpan {
+        name: name.to_string(),
+        byte_span: ParserByteSpanV0 {
+            start: base_start + trimmed_start,
+            end: base_start + trimmed_start + end,
+        },
+    })
 }
 
 fn parse_sass_parameter_names(params: &str) -> Vec<String> {
@@ -2414,92 +2506,121 @@ fn is_valid_sass_namespace(value: &str) -> bool {
 }
 
 fn find_sass_variable_refs(raw: &str) -> Vec<String> {
+    find_sass_variable_ref_spans(raw, 0)
+        .into_iter()
+        .map(|span| span.name)
+        .collect()
+}
+
+fn find_sass_variable_ref_spans(raw: &str, base_start: usize) -> Vec<SassNameSpan> {
     let mut refs = Vec::new();
-    let chars: Vec<char> = raw.chars().collect();
-    let mut index = 0usize;
+    let mut chars = raw.char_indices().peekable();
     let mut quote: Option<char> = None;
 
-    while index < chars.len() {
-        let ch = chars[index];
+    while let Some((byte_index, ch)) = chars.next() {
         if let Some(active_quote) = quote {
-            if ch == '\\' && index + 1 < chars.len() {
-                index += 2;
+            if ch == '\\' {
+                chars.next();
                 continue;
             }
             if ch == active_quote {
                 quote = None;
             }
-            index += 1;
             continue;
         }
 
         if ch == '"' || ch == '\'' {
             quote = Some(ch);
-            index += 1;
             continue;
         }
 
         if ch == '$' {
-            index += 1;
-            let start = index;
-            while index < chars.len() && is_sass_ident_continue(chars[index]) {
-                index += 1;
+            let name_start = byte_index + ch.len_utf8();
+            let mut name_end = name_start;
+            let mut name = String::new();
+            while let Some(&(next_index, next_ch)) = chars.peek() {
+                if !is_sass_ident_continue(next_ch) {
+                    break;
+                }
+                name.push(next_ch);
+                name_end = next_index + next_ch.len_utf8();
+                chars.next();
             }
-            if start < index {
-                refs.push(chars[start..index].iter().collect());
+            if !name.is_empty() {
+                refs.push(SassNameSpan {
+                    name,
+                    byte_span: ParserByteSpanV0 {
+                        start: base_start + byte_index,
+                        end: base_start + name_end,
+                    },
+                });
             }
-            continue;
         }
-
-        index += 1;
     }
 
     refs
 }
 
 fn find_sass_function_calls(raw: &str, known_function_names: &BTreeSet<String>) -> Vec<String> {
+    find_sass_function_call_spans(raw, 0, known_function_names)
+        .into_iter()
+        .map(|span| span.name)
+        .collect()
+}
+
+fn find_sass_function_call_spans(
+    raw: &str,
+    base_start: usize,
+    known_function_names: &BTreeSet<String>,
+) -> Vec<SassNameSpan> {
     let mut calls = Vec::new();
-    let chars: Vec<char> = raw.chars().collect();
-    let mut index = 0usize;
+    let mut chars = raw.char_indices().peekable();
     let mut quote: Option<char> = None;
 
-    while index < chars.len() {
-        let ch = chars[index];
+    while let Some((byte_index, ch)) = chars.next() {
         if let Some(active_quote) = quote {
-            if ch == '\\' && index + 1 < chars.len() {
-                index += 2;
+            if ch == '\\' {
+                chars.next();
                 continue;
             }
             if ch == active_quote {
                 quote = None;
             }
-            index += 1;
             continue;
         }
 
         if ch == '"' || ch == '\'' {
             quote = Some(ch);
-            index += 1;
             continue;
         }
 
         if is_sass_ident_start(ch) {
-            let start = index;
-            index += 1;
-            while index < chars.len() && is_sass_ident_continue(chars[index]) {
-                index += 1;
+            let mut name = String::from(ch);
+            let mut name_end = byte_index + ch.len_utf8();
+            while let Some(&(next_index, next_ch)) = chars.peek() {
+                if !is_sass_ident_continue(next_ch) {
+                    break;
+                }
+                name.push(next_ch);
+                name_end = next_index + next_ch.len_utf8();
+                chars.next();
             }
-            let name: String = chars[start..index].iter().collect();
-            while index < chars.len() && chars[index].is_whitespace() {
-                index += 1;
+            while let Some(&(_, next_ch)) = chars.peek() {
+                if !next_ch.is_whitespace() {
+                    break;
+                }
+                chars.next();
             }
-            if chars.get(index) == Some(&'(') && known_function_names.contains(&name) {
-                calls.push(name);
+            if matches!(chars.peek(), Some(&(_, '('))) && known_function_names.contains(&name) {
+                calls.push(SassNameSpan {
+                    name,
+                    byte_span: ParserByteSpanV0 {
+                        start: base_start + byte_index,
+                        end: base_start + name_end,
+                    },
+                });
             }
-            continue;
         }
-
-        index += 1;
     }
 
     calls
@@ -3267,9 +3388,10 @@ fn classify_at_rule_kind(name: &str) -> AtRuleKind {
 #[cfg(test)]
 mod tests {
     use super::{
-        AtRuleKind, AtRulePayload, DeclarationPayload, ParserIndexSassModuleUseFactV0,
-        ParserIndexSassSelectorSymbolFactV0, RulePayload, SelectorGroup, SelectorSegment,
-        StyleLanguage, SyntaxNodeKind, SyntaxNodePayload, TextSpan, TokenKind, parse_stylesheet,
+        AtRuleKind, AtRulePayload, DeclarationPayload, ParserByteSpanV0,
+        ParserIndexSassModuleUseFactV0, ParserIndexSassSelectorSymbolFactV0, RulePayload,
+        SelectorGroup, SelectorSegment, StyleLanguage, SyntaxNodeKind, SyntaxNodePayload, TextSpan,
+        TokenKind, parse_stylesheet,
     };
 
     fn token_texts<'a>(source: &'a str, sheet: &super::Stylesheet) -> Vec<(TokenKind, &'a str)> {
@@ -3278,6 +3400,20 @@ mod tests {
             .iter()
             .map(|token| (token.kind, &source[token.span.start..token.span.end]))
             .collect()
+    }
+
+    fn span_after(source: &str, anchor: &str, needle: &str) -> Result<ParserByteSpanV0, String> {
+        let anchor_start = source
+            .find(anchor)
+            .ok_or_else(|| format!("missing anchor {anchor:?}"))?;
+        let relative_start = source[anchor_start..]
+            .find(needle)
+            .ok_or_else(|| format!("missing needle {needle:?} after {anchor:?}"))?;
+        let start = anchor_start + relative_start;
+        Ok(ParserByteSpanV0 {
+            start,
+            end: start + needle.len(),
+        })
     }
 
     #[test]
@@ -3616,7 +3752,7 @@ mod tests {
     }
 
     #[test]
-    fn index_summary_collects_sass_symbol_seed_facts() {
+    fn index_summary_collects_sass_symbol_seed_facts() -> Result<(), String> {
         let source = r#"@use "./plain";
 @use "./reset" as *;
 @use "./tokens" as tokens;
@@ -3682,6 +3818,7 @@ $gap: 1rem;
                     name: "tone".to_string(),
                     role: "call",
                     resolution: "resolved",
+                    byte_span: span_after(source, "border-color:", "tone")?,
                 },
                 ParserIndexSassSelectorSymbolFactV0 {
                     selector_name: "btn".to_string(),
@@ -3689,6 +3826,7 @@ $gap: 1rem;
                     name: "raised".to_string(),
                     role: "include",
                     resolution: "resolved",
+                    byte_span: span_after(source, "@include", "raised")?,
                 },
                 ParserIndexSassSelectorSymbolFactV0 {
                     selector_name: "btn".to_string(),
@@ -3696,6 +3834,23 @@ $gap: 1rem;
                     name: "gap".to_string(),
                     role: "reference",
                     resolution: "resolved",
+                    byte_span: span_after(source, ".btn { color", "$gap")?,
+                },
+                ParserIndexSassSelectorSymbolFactV0 {
+                    selector_name: "btn".to_string(),
+                    symbol_kind: "variable",
+                    name: "gap".to_string(),
+                    role: "reference",
+                    resolution: "resolved",
+                    byte_span: span_after(source, "@include raised(", "$gap")?,
+                },
+                ParserIndexSassSelectorSymbolFactV0 {
+                    selector_name: "btn".to_string(),
+                    symbol_kind: "variable",
+                    name: "gap".to_string(),
+                    role: "reference",
+                    resolution: "resolved",
+                    byte_span: span_after(source, "border-color: tone(", "$gap")?,
                 },
                 ParserIndexSassSelectorSymbolFactV0 {
                     selector_name: "ghost".to_string(),
@@ -3703,6 +3858,7 @@ $gap: 1rem;
                     name: "absent".to_string(),
                     role: "include",
                     resolution: "unresolved",
+                    byte_span: span_after(source, ".ghost", "absent")?,
                 },
                 ParserIndexSassSelectorSymbolFactV0 {
                     selector_name: "ghost".to_string(),
@@ -3710,6 +3866,7 @@ $gap: 1rem;
                     name: "gap".to_string(),
                     role: "reference",
                     resolution: "resolved",
+                    byte_span: span_after(source, "absent(", "$gap")?,
                 },
                 ParserIndexSassSelectorSymbolFactV0 {
                     selector_name: "ghost".to_string(),
@@ -3717,6 +3874,7 @@ $gap: 1rem;
                     name: "missing".to_string(),
                     role: "reference",
                     resolution: "unresolved",
+                    byte_span: span_after(source, ".ghost { color", "$missing")?,
                 },
             ]
         );
@@ -3786,5 +3944,6 @@ $gap: 1rem;
                 .resolved_function_call_names,
             vec!["tone"]
         );
+        Ok(())
     }
 }

@@ -35,12 +35,18 @@ export interface ParserSassSameFileResolutionFactsV0 {
   readonly resolvedFunctionCallNames: readonly string[];
 }
 
+export interface ParserByteSpanV0 {
+  readonly start: number;
+  readonly end: number;
+}
+
 export interface ParserSassSelectorSymbolFactV0 {
   readonly selectorName: string;
   readonly symbolKind: "variable" | "mixin" | "function";
   readonly name: string;
   readonly role: "reference" | "include" | "call";
   readonly resolution: "resolved" | "unresolved";
+  readonly byteSpan: ParserByteSpanV0;
 }
 
 export function deriveSassSummary(source: string): ParserSassSeedFactsV0 {
@@ -159,9 +165,18 @@ function deriveSassSelectorAttachments(
   for (const match of source.matchAll(/\.([A-Za-z_-][A-Za-z0-9_-]*)[^{]*\{([^{}]*)\}/g)) {
     const selectorName = match[1]!;
     const body = match[2]!;
-    const variableRefs = [...body.matchAll(/\$([A-Za-z_-][A-Za-z0-9_-]*)/g)].map(
-      (variableMatch) => variableMatch[1]!,
+    const ruleStart = match.index ?? 0;
+    const bodyStart = ruleStart + match[0].indexOf("{") + 1;
+    const variableRefMatches = [...body.matchAll(/\$([A-Za-z_-][A-Za-z0-9_-]*)/g)].map(
+      (variableMatch) => {
+        const start = bodyStart + (variableMatch.index ?? 0);
+        return {
+          name: variableMatch[1]!,
+          byteSpan: { start, end: start + variableMatch[0].length },
+        };
+      },
     );
+    const variableRefs = variableRefMatches.map((variableMatch) => variableMatch.name);
     if (variableRefs.length > 0) {
       selectorsWithVariableRefsNames.push(selectorName);
       if (variableRefs.some((name) => variableTargets.has(name))) {
@@ -170,20 +185,29 @@ function deriveSassSelectorAttachments(
       if (variableRefs.some((name) => !variableTargets.has(name))) {
         selectorsWithUnresolvedVariableRefsNames.push(selectorName);
       }
-      for (const name of uniqueSorted(variableRefs)) {
+      for (const { name, byteSpan } of variableRefMatches) {
         selectorSymbolFacts.push({
           selectorName,
           symbolKind: "variable",
           name,
           role: "reference",
           resolution: variableTargets.has(name) ? "resolved" : "unresolved",
+          byteSpan,
         });
       }
     }
 
-    const mixinIncludes = [...body.matchAll(/@include\s+([A-Za-z_-][A-Za-z0-9_-]*)/g)].map(
-      (includeMatch) => includeMatch[1]!,
+    const mixinIncludeMatches = [...body.matchAll(/@include\s+([A-Za-z_-][A-Za-z0-9_-]*)/g)].map(
+      (includeMatch) => {
+        const name = includeMatch[1]!;
+        const start = bodyStart + (includeMatch.index ?? 0) + includeMatch[0].indexOf(name);
+        return {
+          name,
+          byteSpan: { start, end: start + name.length },
+        };
+      },
     );
+    const mixinIncludes = mixinIncludeMatches.map((includeMatch) => includeMatch.name);
     if (mixinIncludes.length > 0) {
       selectorsWithMixinIncludesNames.push(selectorName);
       if (mixinIncludes.some((name) => mixinTargets.has(name))) {
@@ -192,29 +216,38 @@ function deriveSassSelectorAttachments(
       if (mixinIncludes.some((name) => !mixinTargets.has(name))) {
         selectorsWithUnresolvedMixinIncludesNames.push(selectorName);
       }
-      for (const name of uniqueSorted(mixinIncludes)) {
+      for (const { name, byteSpan } of mixinIncludeMatches) {
         selectorSymbolFacts.push({
           selectorName,
           symbolKind: "mixin",
           name,
           role: "include",
           resolution: mixinTargets.has(name) ? "resolved" : "unresolved",
+          byteSpan,
         });
       }
     }
 
-    const functionCalls = input.functionDeclNames.filter((name) =>
-      new RegExp(`\\b${escapeRegExp(name)}\\s*\\(`).test(body),
+    const functionCalls = input.functionDeclNames.flatMap((name) =>
+      [...body.matchAll(new RegExp(`\\b(${escapeRegExp(name)})\\s*\\(`, "g"))].map((callMatch) => {
+        const callName = callMatch[1]!;
+        const start = bodyStart + (callMatch.index ?? 0) + callMatch[0].indexOf(callName);
+        return {
+          name: callName,
+          byteSpan: { start, end: start + callName.length },
+        };
+      }),
     );
     if (functionCalls.length > 0) {
       selectorsWithFunctionCallsNames.push(selectorName);
       selectorSymbolFacts.push(
-        ...functionCalls.map((name) => ({
+        ...functionCalls.map(({ name, byteSpan }) => ({
           selectorName,
           symbolKind: "function" as const,
           name,
           role: "call" as const,
           resolution: "resolved" as const,
+          byteSpan,
         })),
       );
     }
@@ -333,7 +366,11 @@ function uniqueSortedSelectorSymbolFacts(
     if (nameCompare !== 0) return nameCompare;
     const roleCompare = left.role.localeCompare(right.role);
     if (roleCompare !== 0) return roleCompare;
-    return left.resolution.localeCompare(right.resolution);
+    const resolutionCompare = left.resolution.localeCompare(right.resolution);
+    if (resolutionCompare !== 0) return resolutionCompare;
+    const spanStartCompare = left.byteSpan.start - right.byteSpan.start;
+    if (spanStartCompare !== 0) return spanStartCompare;
+    return left.byteSpan.end - right.byteSpan.end;
   });
 }
 

@@ -19,6 +19,7 @@ Current scope:
 - selector attachment seeds for Sass variable refs, mixin includes, and
   declared function calls
 - selector-scoped Sass symbol occurrence facts with same-file resolution status
+  and byte spans
 
 Non-goals in this first scaffold:
 
