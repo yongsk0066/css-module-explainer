@@ -355,6 +355,12 @@ function collectWrapperNamesForRanges(
 
 function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0 {
   const document = parseStyleDocument(source, filePath);
+  const sass = deriveSassSummary(source, filePath);
+  assert.deepEqual(
+    sassModuleUseEdgesFromDocument(document),
+    sass.moduleUseEdges,
+    `${filePath}: TS HIR Sass module-use edges must match parser seed facts`,
+  );
   const wrapperSelectorNames = collectWrapperNamesForRanges(
     filePath,
     source,
@@ -640,7 +646,7 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
         .map((selector) => selector.name)
         .toSorted(),
     },
-    sass: deriveSassSummary(source, filePath),
+    sass,
     keyframes: {
       names: [...document.keyframes].map((entry) => entry.name).toSorted(),
       namesUnderMedia: wrapperKeyframesNames.media,
@@ -784,6 +790,29 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
       selectorsUnderLayerNames: wrapperSelectorNames.layer,
     },
   };
+}
+
+function sassModuleUseEdgesFromDocument(
+  document: ReturnType<typeof parseStyleDocument>,
+): ParserSassSeedFactsV0["moduleUseEdges"] {
+  return document.sassModuleUses
+    .map((moduleUse) => ({
+      source: moduleUse.source,
+      namespaceKind: moduleUse.namespaceKind,
+      namespace: moduleUse.namespace,
+    }))
+    .toSorted(compareSassModuleUseEdges);
+}
+
+function compareSassModuleUseEdges(
+  left: ParserSassSeedFactsV0["moduleUseEdges"][number],
+  right: ParserSassSeedFactsV0["moduleUseEdges"][number],
+): number {
+  const sourceCompare = left.source.localeCompare(right.source);
+  if (sourceCompare !== 0) return sourceCompare;
+  const kindCompare = left.namespaceKind.localeCompare(right.namespaceKind);
+  if (kindCompare !== 0) return kindCompare;
+  return (left.namespace ?? "").localeCompare(right.namespace ?? "");
 }
 
 async function runRustSummary(filePath: string, source: string): Promise<ParserIndexSummaryV0> {

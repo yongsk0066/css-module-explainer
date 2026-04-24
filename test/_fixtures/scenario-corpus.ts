@@ -198,6 +198,17 @@ export function normalizeStyleDocument(doc: StyleDocumentHIR): unknown {
         : {}),
       ...(selector.composes.length > 0 ? { composes: selector.composes } : {}),
     })),
+    ...(doc.sassModuleUses.length > 0
+      ? {
+          sassModuleUses: doc.sassModuleUses.map((moduleUse) => ({
+            source: moduleUse.source,
+            namespaceKind: moduleUse.namespaceKind,
+            namespace: moduleUse.namespace,
+            range: normalizeRange(moduleUse.range),
+            ruleRange: normalizeRange(moduleUse.ruleRange),
+          })),
+        }
+      : {}),
   };
 }
 

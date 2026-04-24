@@ -17,6 +17,7 @@ import {
   type AnimationNameRefHIR,
   type KeyframesDeclHIR,
   type NestedSelectorSafety,
+  type SassModuleUseHIR,
   type SassSymbolDeclHIR,
   type SassSymbolKind,
   type SassSymbolOccurrenceHIR,
@@ -124,6 +125,7 @@ export function parseStyleDocument(content: string, filePath: string): StyleDocu
   const valueDecls = collectValueDecls(root, valuePathAliases);
   const valueImports = collectValueImports(root, valuePathAliases);
   const valueRefs = collectValueRefs(root, valueDecls, valueImports);
+  const sassModuleUses = collectSassModuleUses(root);
   const sassSymbolDecls = collectSassSymbolDecls(root);
   const sassSymbolTargets = collectSassSymbolTargetContext(root, sassSymbolDecls);
   const sassSymbols: SassSymbolOccurrenceHIR[] = [];
@@ -147,6 +149,7 @@ export function parseStyleDocument(content: string, filePath: string): StyleDocu
     [...valueRefs].toSorted(compareNamedStyleFacts),
     [...sassSymbols].toSorted(compareSassSymbolOccurrences),
     [...sassSymbolDecls].toSorted(compareSassSymbolDecls),
+    [...sassModuleUses].toSorted(compareSassModuleUses),
   );
 }
 
@@ -627,6 +630,74 @@ function collectValueRefs(
   });
 
   return refs;
+}
+
+function collectSassModuleUses(root: Root): readonly SassModuleUseHIR[] {
+  const moduleUses: SassModuleUseHIR[] = [];
+  root.walkAtRules("use", (atrule) => {
+    moduleUses.push(...parseSassModuleUses(atrule));
+  });
+  return moduleUses;
+}
+
+function parseSassModuleUses(atrule: AtRule): readonly SassModuleUseHIR[] {
+  const alias = parseSassModuleUseAlias(atrule.params);
+  const ruleRange = rangeForSourceNode(atrule);
+  return [...atrule.params.matchAll(/["']([^"']+)["']/g)].flatMap((match, index) => {
+    const source = match[1];
+    if (!source) return [];
+    const sourceOffset = (match.index ?? 0) + 1;
+    const range = findAtRuleParamValueTokenRange(atrule, sourceOffset, source.length);
+    if (!range) return [];
+    const namespace = resolveSassModuleUseNamespace(source, alias);
+    return [
+      {
+        kind: "sassModuleUse",
+        id: `sass-use:${atrule.source?.start?.line ?? 0}:${index}:${source}`,
+        source,
+        namespaceKind: namespace.namespaceKind,
+        namespace: namespace.namespace,
+        range,
+        ruleRange,
+      },
+    ];
+  });
+}
+
+function parseSassModuleUseAlias(params: string): string | undefined {
+  const withoutQuotedSource = params.replaceAll(/["'](?:\\.|[^"'])*["']/g, " ");
+  return /\bas\s+(\*|[A-Za-z_-][A-Za-z0-9_-]*)/.exec(withoutQuotedSource)?.[1];
+}
+
+function resolveSassModuleUseNamespace(
+  source: string,
+  alias: string | undefined,
+): Pick<SassModuleUseHIR, "namespaceKind" | "namespace"> {
+  if (alias === "*") {
+    return { namespaceKind: "wildcard", namespace: null };
+  }
+  if (alias !== undefined && isValidSassNamespace(alias)) {
+    return { namespaceKind: "alias", namespace: alias };
+  }
+  return {
+    namespaceKind: "default",
+    namespace: defaultSassNamespaceForSource(source),
+  };
+}
+
+function defaultSassNamespaceForSource(source: string): string | null {
+  const clean = source.split(/[?#]/, 1)[0]!.replace(/\/+$/g, "");
+  const segment = clean.split("/").at(-1) ?? clean;
+  const packageSegment = segment.split(":").at(-1) ?? segment;
+  const stem = packageSegment.includes(".")
+    ? packageSegment.slice(0, packageSegment.lastIndexOf("."))
+    : packageSegment;
+  const namespace = stem.startsWith("_") ? stem.slice(1) : stem;
+  return isValidSassNamespace(namespace) ? namespace : null;
+}
+
+function isValidSassNamespace(value: string): boolean {
+  return /^[A-Za-z_-][A-Za-z0-9_-]*$/.test(value);
 }
 
 interface SassSymbolTargetContext {
@@ -1432,4 +1503,16 @@ function compareSassSymbolDecls(a: SassSymbolDeclHIR, b: SassSymbolDeclHIR): num
   const kindCompare = a.symbolKind.localeCompare(b.symbolKind);
   if (kindCompare !== 0) return kindCompare;
   return a.name.localeCompare(b.name);
+}
+
+function compareSassModuleUses(a: SassModuleUseHIR, b: SassModuleUseHIR): number {
+  const line = a.range.start.line - b.range.start.line;
+  if (line !== 0) return line;
+  const character = a.range.start.character - b.range.start.character;
+  if (character !== 0) return character;
+  const sourceCompare = a.source.localeCompare(b.source);
+  if (sourceCompare !== 0) return sourceCompare;
+  const kindCompare = a.namespaceKind.localeCompare(b.namespaceKind);
+  if (kindCompare !== 0) return kindCompare;
+  return (a.namespace ?? "").localeCompare(b.namespace ?? "");
 }

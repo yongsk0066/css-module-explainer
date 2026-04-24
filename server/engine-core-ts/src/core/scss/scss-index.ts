@@ -219,6 +219,23 @@ export function styleDocumentSemanticFingerprint(styleDocument: StyleDocumentHIR
       ].join("::"),
     )
     .join("\n");
+  const sassModuleUseFingerprint = styleDocument.sassModuleUses
+    .map((moduleUse) =>
+      [
+        moduleUse.source,
+        moduleUse.namespaceKind,
+        moduleUse.namespace ?? "",
+        moduleUse.range.start.line,
+        moduleUse.range.start.character,
+        moduleUse.range.end.line,
+        moduleUse.range.end.character,
+        moduleUse.ruleRange.start.line,
+        moduleUse.ruleRange.start.character,
+        moduleUse.ruleRange.end.line,
+        moduleUse.ruleRange.end.character,
+      ].join("::"),
+    )
+    .join("\n");
   return [
     selectorFingerprint,
     keyframesFingerprint,
@@ -228,5 +245,6 @@ export function styleDocumentSemanticFingerprint(styleDocument: StyleDocumentHIR
     valueRefFingerprint,
     sassSymbolFingerprint,
     sassSymbolDeclFingerprint,
+    sassModuleUseFingerprint,
   ].join("\n---\n");
 }

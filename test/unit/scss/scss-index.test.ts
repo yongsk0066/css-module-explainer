@@ -403,6 +403,32 @@ describe("parseStyleSelectorMap / edge cases", () => {
     });
   });
 
+  describe("Sass module uses", () => {
+    it("records @use namespace edges with source ranges", () => {
+      const source = `@use "./plain";
+@use "./reset" as *;
+@use "./tokens" as tokens;
+@use "sass:color";
+@use "../theme/_spacing.scss?raw";`;
+      const document = parseStyleDocument(source, "/fake/a.module.scss");
+
+      expect(
+        document.sassModuleUses.map((moduleUse) => [
+          moduleUse.source,
+          moduleUse.namespaceKind,
+          moduleUse.namespace,
+          sliceRange(source, moduleUse.range),
+        ]),
+      ).toEqual([
+        ["./plain", "default", "plain", "./plain"],
+        ["./reset", "wildcard", null, "./reset"],
+        ["./tokens", "alias", "tokens", "./tokens"],
+        ["sass:color", "default", "color", "sass:color"],
+        ["../theme/_spacing.scss?raw", "default", "spacing", "../theme/_spacing.scss?raw"],
+      ]);
+    });
+  });
+
   describe("Sass symbol occurrences", () => {
     it("records selector-scoped same-file Sass symbol references", () => {
       const source = `$gap: 1rem;
