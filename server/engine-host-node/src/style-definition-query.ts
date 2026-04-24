@@ -25,7 +25,7 @@ export interface StyleDefinitionTarget {
 
 export function resolveStyleDefinitionTargets(
   params: Pick<CursorParams, "filePath" | "line" | "character">,
-  deps: Pick<ProviderDeps, "styleDocumentForPath">,
+  deps: Pick<ProviderDeps, "styleDocumentForPath" | "aliasResolver">,
 ): readonly StyleDefinitionTarget[] {
   const styleDocument = deps.styleDocumentForPath(params.filePath);
   if (!styleDocument) return [];
@@ -72,6 +72,7 @@ export function resolveStyleDefinitionTargets(
       deps.styleDocumentForPath,
       styleDocument.filePath,
       sassModuleUse,
+      deps.aliasResolver,
     );
     return target
       ? [

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { AliasResolver } from "../../../server/engine-core-ts/src/core/cx/alias-resolver";
 import type { StyleDocumentHIR } from "../../../server/engine-core-ts/src/core/hir/style-types";
 import { parseStyleDocument } from "../../../server/engine-core-ts/src/core/scss/scss-parser";
 import { resolveStyleDefinitionTargets } from "../../../server/engine-host-node/src/style-definition-query";
@@ -7,6 +8,7 @@ const BUTTON_PATH = "/fake/workspace/src/Button.module.scss";
 const BASE_PATH = "/fake/workspace/src/Base.module.scss";
 const TOKENS_PATH = "/fake/workspace/src/tokens.module.scss";
 const TOKENS_PARTIAL_PATH = "/fake/workspace/src/_tokens.module.scss";
+const EMPTY_ALIAS_RESOLVER = new AliasResolver("/fake/workspace", {});
 
 describe("resolveStyleDefinitionTargets", () => {
   it("resolves cross-file composes tokens to target selectors", () => {
@@ -120,6 +122,86 @@ describe("resolveStyleDefinitionTargets", () => {
     });
   });
 
+  it("resolves Sass @use source tokens through path aliases", () => {
+    const buttonScss = `@use "@styles/tokens.module" as tokens;
+
+.button {
+  color: tokens.$gap;
+}
+`;
+    const tokensScss = `$gap: 1rem;`;
+    const targets = resolveStyleDefinitionTargets(
+      { filePath: BUTTON_PATH, line: 0, character: 10 },
+      depsForDocuments(
+        [
+          parseStyleDocument(buttonScss, BUTTON_PATH),
+          parseStyleDocument(tokensScss, TOKENS_PARTIAL_PATH),
+        ],
+        {
+          aliasResolver: new AliasResolver("/fake/workspace", {
+            "@styles": "src",
+          }),
+        },
+      ),
+    );
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0]).toMatchObject({
+      originRange: {
+        start: { line: 0, character: 6 },
+        end: { line: 0, character: 27 },
+      },
+      targetFilePath: TOKENS_PARTIAL_PATH,
+    });
+  });
+
+  it("resolves Sass @use source tokens through the first existing tsconfig path target", () => {
+    const buttonScss = `@use "@styles/tokens.module" as tokens;
+
+.button {
+  color: tokens.$gap;
+}
+`;
+    const tokensScss = `$gap: 1rem;`;
+    const targets = resolveStyleDefinitionTargets(
+      { filePath: BUTTON_PATH, line: 0, character: 10 },
+      depsForDocuments(
+        [
+          parseStyleDocument(buttonScss, BUTTON_PATH),
+          parseStyleDocument(tokensScss, TOKENS_PARTIAL_PATH),
+        ],
+        {
+          aliasResolver: new AliasResolver(
+            "/fake/workspace",
+            {},
+            {
+              basePath: "/fake/workspace",
+              paths: {
+                "@styles/*": ["missing/*", "src/*"],
+              },
+            },
+          ),
+        },
+      ),
+    );
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0]).toMatchObject({
+      targetFilePath: TOKENS_PARTIAL_PATH,
+    });
+  });
+
+  it("does not resolve built-in Sass modules as workspace files", () => {
+    const buttonScss = `@use "sass:color";
+`;
+    const targets = resolveStyleDefinitionTargets(
+      { filePath: BUTTON_PATH, line: 0, character: 8 },
+      depsForDocuments([parseStyleDocument(buttonScss, BUTTON_PATH)]),
+    );
+
+    expect(targets).toEqual([]);
+  });
+
   it("resolves same-file Sass symbol references to declarations", () => {
     const scss = `$gap: 1rem;
 @mixin raised() {}
@@ -213,9 +295,13 @@ describe("resolveStyleDefinitionTargets", () => {
   });
 });
 
-function depsForDocuments(documents: readonly StyleDocumentHIR[]) {
+function depsForDocuments(
+  documents: readonly StyleDocumentHIR[],
+  options: { readonly aliasResolver?: AliasResolver } = {},
+) {
   const byPath = new Map(documents.map((document) => [document.filePath, document]));
   return {
+    aliasResolver: options.aliasResolver ?? EMPTY_ALIAS_RESOLVER,
     styleDocumentForPath: (filePath: string) => byPath.get(filePath) ?? null,
   };
 }

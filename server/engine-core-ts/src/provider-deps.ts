@@ -1,4 +1,5 @@
 import type { DocumentAnalysisCache } from "./core/indexing/document-analysis-cache";
+import type { AliasResolver } from "./core/cx/alias-resolver";
 import type { StyleDocumentHIR } from "./core/hir/style-types";
 import type { SemanticWorkspaceReferenceIndex, StyleDependencyGraph } from "./core/semantic";
 import type { TypeResolver } from "./core/ts/type-resolver";
@@ -36,6 +37,12 @@ export interface CursorParams extends DocumentParams {
  */
 export interface ProviderDeps {
   readonly analysisCache: DocumentAnalysisCache;
+  /**
+   * Current workspace-scoped import-path resolver. Source analysis
+   * reads the same resolver through `analysisCache`; path-only style
+   * features use this direct surface to avoid re-parsing settings.
+   */
+  readonly aliasResolver: AliasResolver;
   /**
    * Look up the style-document HIR for a style module file path.
    */

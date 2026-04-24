@@ -348,8 +348,14 @@ export function listSassModuleUseCandidatePaths(
   styleFilePath: string,
   moduleUse: SassModuleUseHIR,
   aliasResolver?: SassModulePathAliasResolver,
+  fileExists?: (candidate: string) => boolean,
 ): readonly string[] {
-  const basePath = resolveSassModuleBasePath(styleFilePath, moduleUse.source, aliasResolver);
+  const basePath = resolveSassModuleBasePath(
+    styleFilePath,
+    moduleUse.source,
+    aliasResolver,
+    fileExists,
+  );
   if (!basePath) return [];
   return expandSassModuleCandidatePaths(basePath);
 }
@@ -361,10 +367,15 @@ export function resolveSassModuleUseTarget(
   aliasResolver?: SassModulePathAliasResolver,
 ): ResolvedSassModuleUseTarget | null {
   if (!moduleUse) return null;
+  const fileExists = (candidatePath: string): boolean =>
+    expandSassModuleCandidatePaths(candidatePath).some(
+      (expandedPath) => styleDocumentForPath(expandedPath) !== null,
+    );
   for (const candidatePath of listSassModuleUseCandidatePaths(
     styleFilePath,
     moduleUse,
     aliasResolver,
+    fileExists,
   )) {
     const styleDocument = styleDocumentForPath(candidatePath);
     if (!styleDocument) continue;
@@ -381,6 +392,7 @@ function resolveSassModuleBasePath(
   styleFilePath: string,
   source: string,
   aliasResolver?: SassModulePathAliasResolver,
+  fileExists?: (candidate: string) => boolean,
 ): string | null {
   const cleanSource = source.split(/[?#]/, 1)[0]!;
   if (cleanSource.startsWith("sass:")) return null;
@@ -388,7 +400,7 @@ function resolveSassModuleBasePath(
     return path.resolve(path.dirname(styleFilePath), cleanSource);
   }
   if (path.isAbsolute(cleanSource)) return cleanSource;
-  return aliasResolver?.resolve(cleanSource, undefined, styleFilePath) ?? null;
+  return aliasResolver?.resolve(cleanSource, fileExists, styleFilePath) ?? null;
 }
 
 function expandSassModuleCandidatePaths(basePath: string): readonly string[] {

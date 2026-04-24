@@ -141,6 +141,7 @@ export function makeBaseDeps(overrides: BaseDepsOverrides = {}): ProviderDeps {
   const { selectorMapForPath = () => null, styleDocumentForPath, ...providerOverrides } = overrides;
   return {
     analysisCache,
+    aliasResolver: EMPTY_ALIAS_RESOLVER,
     styleDocumentForPath:
       styleDocumentForPath ??
       ((path: string) => {

@@ -34,6 +34,9 @@ export function createWorkspaceProviderDeps(args: WorkspaceRuntimeDepsArgs): Wor
 
   return {
     analysisCache,
+    get aliasResolver() {
+      return args.settingsState.aliasResolver;
+    },
     styleDocumentForPath: args.styleDocumentForPath,
     typeResolver: args.typeResolver,
     semanticReferenceIndex: args.caches.semanticReferenceIndex,
