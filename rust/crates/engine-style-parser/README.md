@@ -16,6 +16,8 @@ Current scope:
   `@use` namespace seeds
 - same-file Sass resolution seeds for variables, mixin includes, and declared
   function calls
+- selector attachment seeds for Sass variable refs, mixin includes, and
+  declared function calls
 
 Non-goals in this first scaffold:
 

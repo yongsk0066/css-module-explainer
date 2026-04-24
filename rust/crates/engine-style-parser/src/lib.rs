@@ -307,10 +307,17 @@ pub struct ParserIndexSassFactsV0 {
     pub variable_decl_names: Vec<String>,
     pub variable_parameter_names: Vec<String>,
     pub variable_ref_names: Vec<String>,
+    pub selectors_with_variable_refs_names: Vec<String>,
+    pub selectors_with_resolved_variable_refs_names: Vec<String>,
+    pub selectors_with_unresolved_variable_refs_names: Vec<String>,
     pub mixin_decl_names: Vec<String>,
     pub mixin_include_names: Vec<String>,
+    pub selectors_with_mixin_includes_names: Vec<String>,
+    pub selectors_with_resolved_mixin_includes_names: Vec<String>,
+    pub selectors_with_unresolved_mixin_includes_names: Vec<String>,
     pub function_decl_names: Vec<String>,
     pub function_call_names: Vec<String>,
+    pub selectors_with_function_calls_names: Vec<String>,
     pub module_use_sources: Vec<String>,
     pub module_use_edges: Vec<ParserIndexSassModuleUseFactV0>,
     pub module_forward_sources: Vec<String>,
@@ -478,10 +485,17 @@ struct IndexSummaryAcc {
     sass_variable_decl_names: Vec<String>,
     sass_variable_parameter_names: Vec<String>,
     sass_variable_ref_names: Vec<String>,
+    sass_selectors_with_variable_refs_names: Vec<String>,
+    sass_selectors_with_resolved_variable_refs_names: Vec<String>,
+    sass_selectors_with_unresolved_variable_refs_names: Vec<String>,
     sass_mixin_decl_names: Vec<String>,
     sass_mixin_include_names: Vec<String>,
+    sass_selectors_with_mixin_includes_names: Vec<String>,
+    sass_selectors_with_resolved_mixin_includes_names: Vec<String>,
+    sass_selectors_with_unresolved_mixin_includes_names: Vec<String>,
     sass_function_decl_names: Vec<String>,
     sass_function_call_names: Vec<String>,
+    sass_selectors_with_function_calls_names: Vec<String>,
     sass_module_use_sources: Vec<String>,
     sass_module_use_edges: Vec<ParserIndexSassModuleUseFactV0>,
     sass_module_forward_sources: Vec<String>,
@@ -590,10 +604,23 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
     let known_sass_function_names: BTreeSet<String> =
         acc.sass_function_decl_names.iter().cloned().collect();
     collect_sass_ref_facts(&sheet.nodes, &known_sass_function_names, &mut acc);
+    let sass_variable_targets: BTreeSet<String> = acc
+        .sass_variable_decl_names
+        .iter()
+        .chain(acc.sass_variable_parameter_names.iter())
+        .cloned()
+        .collect();
+    let sass_mixin_targets: BTreeSet<String> = acc.sass_mixin_decl_names.iter().cloned().collect();
+    let sass_ref_ctx = SassRefContext {
+        variable_targets: &sass_variable_targets,
+        mixin_targets: &sass_mixin_targets,
+        function_targets: &known_sass_function_names,
+    };
     collect_index_selector_attachment_facts(
         &sheet.nodes,
         value_ref_ctx,
         &known_keyframe_names,
+        sass_ref_ctx,
         &mut acc,
         &[],
         false,
@@ -653,14 +680,33 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
     acc.sass_variable_parameter_names.dedup();
     acc.sass_variable_ref_names.sort();
     acc.sass_variable_ref_names.dedup();
+    acc.sass_selectors_with_variable_refs_names.sort();
+    acc.sass_selectors_with_variable_refs_names.dedup();
+    acc.sass_selectors_with_resolved_variable_refs_names.sort();
+    acc.sass_selectors_with_resolved_variable_refs_names.dedup();
+    acc.sass_selectors_with_unresolved_variable_refs_names
+        .sort();
+    acc.sass_selectors_with_unresolved_variable_refs_names
+        .dedup();
     acc.sass_mixin_decl_names.sort();
     acc.sass_mixin_decl_names.dedup();
     acc.sass_mixin_include_names.sort();
     acc.sass_mixin_include_names.dedup();
+    acc.sass_selectors_with_mixin_includes_names.sort();
+    acc.sass_selectors_with_mixin_includes_names.dedup();
+    acc.sass_selectors_with_resolved_mixin_includes_names.sort();
+    acc.sass_selectors_with_resolved_mixin_includes_names
+        .dedup();
+    acc.sass_selectors_with_unresolved_mixin_includes_names
+        .sort();
+    acc.sass_selectors_with_unresolved_mixin_includes_names
+        .dedup();
     acc.sass_function_decl_names.sort();
     acc.sass_function_decl_names.dedup();
     acc.sass_function_call_names.sort();
     acc.sass_function_call_names.dedup();
+    acc.sass_selectors_with_function_calls_names.sort();
+    acc.sass_selectors_with_function_calls_names.dedup();
     acc.sass_module_use_sources.sort();
     acc.sass_module_use_sources.dedup();
     acc.sass_module_use_edges.sort();
@@ -773,10 +819,21 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
             variable_decl_names: acc.sass_variable_decl_names,
             variable_parameter_names: acc.sass_variable_parameter_names,
             variable_ref_names: acc.sass_variable_ref_names,
+            selectors_with_variable_refs_names: acc.sass_selectors_with_variable_refs_names,
+            selectors_with_resolved_variable_refs_names: acc
+                .sass_selectors_with_resolved_variable_refs_names,
+            selectors_with_unresolved_variable_refs_names: acc
+                .sass_selectors_with_unresolved_variable_refs_names,
             mixin_decl_names: acc.sass_mixin_decl_names,
             mixin_include_names: acc.sass_mixin_include_names,
+            selectors_with_mixin_includes_names: acc.sass_selectors_with_mixin_includes_names,
+            selectors_with_resolved_mixin_includes_names: acc
+                .sass_selectors_with_resolved_mixin_includes_names,
+            selectors_with_unresolved_mixin_includes_names: acc
+                .sass_selectors_with_unresolved_mixin_includes_names,
             function_decl_names: acc.sass_function_decl_names,
             function_call_names: acc.sass_function_call_names,
+            selectors_with_function_calls_names: acc.sass_selectors_with_function_calls_names,
             module_use_sources: acc.sass_module_use_sources,
             module_use_edges: acc.sass_module_use_edges,
             module_forward_sources: acc.sass_module_forward_sources,
@@ -1134,6 +1191,13 @@ struct RuleReferenceFacts {
     has_imported_value_refs: bool,
     has_animation_refs: bool,
     has_animation_name_refs: bool,
+    has_sass_variable_refs: bool,
+    has_resolved_sass_variable_refs: bool,
+    has_unresolved_sass_variable_refs: bool,
+    has_sass_mixin_includes: bool,
+    has_resolved_sass_mixin_includes: bool,
+    has_unresolved_sass_mixin_includes: bool,
+    has_sass_function_calls: bool,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -1148,6 +1212,13 @@ struct ValueRefContext<'a> {
     known: &'a BTreeSet<String>,
     local: &'a BTreeSet<String>,
     imported: &'a BTreeSet<String>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct SassRefContext<'a> {
+    variable_targets: &'a BTreeSet<String>,
+    mixin_targets: &'a BTreeSet<String>,
+    function_targets: &'a BTreeSet<String>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1263,63 +1334,101 @@ fn collect_rule_reference_facts(
     children: &[SyntaxNode],
     value_ref_ctx: ValueRefContext<'_>,
     known_keyframe_names: &BTreeSet<String>,
+    sass_ref_ctx: SassRefContext<'_>,
 ) -> RuleReferenceFacts {
     let mut facts = RuleReferenceFacts::default();
     for child in children {
-        if let Some(SyntaxNodePayload::Declaration(declaration)) = &child.payload {
-            match classify_declaration_kind(&declaration.property) {
-                DeclarationKind::Composes => {}
-                DeclarationKind::Animation => {
-                    if !find_identifier_matches(&declaration.value, known_keyframe_names).is_empty()
-                    {
-                        facts.has_animation_refs = true;
+        match &child.payload {
+            Some(SyntaxNodePayload::Declaration(declaration)) => {
+                match classify_declaration_kind(&declaration.property) {
+                    DeclarationKind::Composes => {}
+                    DeclarationKind::Animation => {
+                        if !find_identifier_matches(&declaration.value, known_keyframe_names)
+                            .is_empty()
+                        {
+                            facts.has_animation_refs = true;
+                        }
+                        extend_rule_value_ref_facts(&mut facts, &declaration.value, value_ref_ctx);
                     }
-                    let value_refs =
-                        find_identifier_matches(&declaration.value, value_ref_ctx.known);
-                    if !value_refs.is_empty() {
-                        facts.has_value_refs = true;
-                        facts.has_local_value_refs |= value_refs
-                            .iter()
-                            .any(|name| value_ref_ctx.local.contains(name));
-                        facts.has_imported_value_refs |= value_refs
-                            .iter()
-                            .any(|name| value_ref_ctx.imported.contains(name));
+                    DeclarationKind::AnimationName => {
+                        if !find_identifier_matches(&declaration.value, known_keyframe_names)
+                            .is_empty()
+                        {
+                            facts.has_animation_name_refs = true;
+                        }
+                        extend_rule_value_ref_facts(&mut facts, &declaration.value, value_ref_ctx);
                     }
-                }
-                DeclarationKind::AnimationName => {
-                    if !find_identifier_matches(&declaration.value, known_keyframe_names).is_empty()
-                    {
-                        facts.has_animation_name_refs = true;
-                    }
-                    let value_refs =
-                        find_identifier_matches(&declaration.value, value_ref_ctx.known);
-                    if !value_refs.is_empty() {
-                        facts.has_value_refs = true;
-                        facts.has_local_value_refs |= value_refs
-                            .iter()
-                            .any(|name| value_ref_ctx.local.contains(name));
-                        facts.has_imported_value_refs |= value_refs
-                            .iter()
-                            .any(|name| value_ref_ctx.imported.contains(name));
+                    DeclarationKind::Generic => {
+                        extend_rule_value_ref_facts(&mut facts, &declaration.value, value_ref_ctx);
                     }
                 }
-                DeclarationKind::Generic => {
-                    let value_refs =
-                        find_identifier_matches(&declaration.value, value_ref_ctx.known);
-                    if !value_refs.is_empty() {
-                        facts.has_value_refs = true;
-                        facts.has_local_value_refs |= value_refs
-                            .iter()
-                            .any(|name| value_ref_ctx.local.contains(name));
-                        facts.has_imported_value_refs |= value_refs
-                            .iter()
-                            .any(|name| value_ref_ctx.imported.contains(name));
-                    }
-                }
+                extend_rule_sass_value_ref_facts(&mut facts, &declaration.value, sass_ref_ctx);
             }
+            Some(SyntaxNodePayload::AtRule(at_rule)) => match at_rule.kind {
+                AtRuleKind::Mixin | AtRuleKind::Function => {}
+                AtRuleKind::Include => {
+                    extend_rule_sass_value_ref_facts(&mut facts, &at_rule.params, sass_ref_ctx);
+                    if let Some(name) = parse_sass_callable_name(&at_rule.params) {
+                        facts.has_sass_mixin_includes = true;
+                        if sass_ref_ctx.mixin_targets.contains(&name) {
+                            facts.has_resolved_sass_mixin_includes = true;
+                        } else {
+                            facts.has_unresolved_sass_mixin_includes = true;
+                        }
+                    }
+                }
+                _ => {
+                    extend_rule_sass_value_ref_facts(&mut facts, &at_rule.params, sass_ref_ctx);
+                }
+            },
+            _ => {}
         }
     }
     facts
+}
+
+fn extend_rule_value_ref_facts(
+    facts: &mut RuleReferenceFacts,
+    value: &str,
+    value_ref_ctx: ValueRefContext<'_>,
+) {
+    let value_refs = find_identifier_matches(value, value_ref_ctx.known);
+    if !value_refs.is_empty() {
+        facts.has_value_refs = true;
+        facts.has_local_value_refs |= value_refs
+            .iter()
+            .any(|name| value_ref_ctx.local.contains(name));
+        facts.has_imported_value_refs |= value_refs
+            .iter()
+            .any(|name| value_ref_ctx.imported.contains(name));
+    }
+}
+
+fn extend_rule_sass_value_ref_facts(
+    facts: &mut RuleReferenceFacts,
+    value: &str,
+    sass_ref_ctx: SassRefContext<'_>,
+) {
+    let variable_refs = find_sass_variable_refs(value);
+    if !variable_refs.is_empty() {
+        facts.has_sass_variable_refs = true;
+        if variable_refs
+            .iter()
+            .any(|name| sass_ref_ctx.variable_targets.contains(name))
+        {
+            facts.has_resolved_sass_variable_refs = true;
+        }
+        if variable_refs
+            .iter()
+            .any(|name| !sass_ref_ctx.variable_targets.contains(name))
+        {
+            facts.has_unresolved_sass_variable_refs = true;
+        }
+    }
+
+    if !find_sass_function_calls(value, sass_ref_ctx.function_targets).is_empty() {
+        facts.has_sass_function_calls = true;
+    }
 }
 
 fn collect_index_names(
@@ -1709,6 +1818,7 @@ fn collect_index_selector_attachment_facts(
     nodes: &[SyntaxNode],
     value_ref_ctx: ValueRefContext<'_>,
     known_keyframe_names: &BTreeSet<String>,
+    sass_ref_ctx: SassRefContext<'_>,
     acc: &mut IndexSummaryAcc,
     parent_selector_names: &[String],
     _parent_is_grouped: bool,
@@ -1717,6 +1827,7 @@ fn collect_index_selector_attachment_facts(
         nodes,
         value_ref_ctx,
         known_keyframe_names,
+        sass_ref_ctx,
         acc,
         parent_selector_names,
         WrapperContext::default(),
@@ -1727,6 +1838,7 @@ fn collect_index_selector_attachment_facts_with_context(
     nodes: &[SyntaxNode],
     value_ref_ctx: ValueRefContext<'_>,
     known_keyframe_names: &BTreeSet<String>,
+    sass_ref_ctx: SassRefContext<'_>,
     acc: &mut IndexSummaryAcc,
     parent_selector_names: &[String],
     wrapper_ctx: WrapperContext,
@@ -1742,6 +1854,7 @@ fn collect_index_selector_attachment_facts_with_context(
                     &node.children,
                     value_ref_ctx,
                     known_keyframe_names,
+                    sass_ref_ctx,
                 );
                 if ref_facts.has_value_refs {
                     acc.selectors_with_value_refs_names
@@ -1822,6 +1935,34 @@ fn collect_index_selector_attachment_facts_with_context(
                         acc.selectors_with_animation_name_refs_under_layer_names
                             .extend(resolved.iter().cloned());
                     }
+                }
+                if ref_facts.has_sass_variable_refs {
+                    acc.sass_selectors_with_variable_refs_names
+                        .extend(resolved.iter().cloned());
+                }
+                if ref_facts.has_resolved_sass_variable_refs {
+                    acc.sass_selectors_with_resolved_variable_refs_names
+                        .extend(resolved.iter().cloned());
+                }
+                if ref_facts.has_unresolved_sass_variable_refs {
+                    acc.sass_selectors_with_unresolved_variable_refs_names
+                        .extend(resolved.iter().cloned());
+                }
+                if ref_facts.has_sass_mixin_includes {
+                    acc.sass_selectors_with_mixin_includes_names
+                        .extend(resolved.iter().cloned());
+                }
+                if ref_facts.has_resolved_sass_mixin_includes {
+                    acc.sass_selectors_with_resolved_mixin_includes_names
+                        .extend(resolved.iter().cloned());
+                }
+                if ref_facts.has_unresolved_sass_mixin_includes {
+                    acc.sass_selectors_with_unresolved_mixin_includes_names
+                        .extend(resolved.iter().cloned());
+                }
+                if ref_facts.has_sass_function_calls {
+                    acc.sass_selectors_with_function_calls_names
+                        .extend(resolved.iter().cloned());
                 }
                 let composes_facts = collect_rule_composes_facts(&node.children);
                 if composes_facts.local_class_name_count > 0
@@ -1940,6 +2081,7 @@ fn collect_index_selector_attachment_facts_with_context(
                     &node.children,
                     value_ref_ctx,
                     known_keyframe_names,
+                    sass_ref_ctx,
                     acc,
                     std::slice::from_ref(parent_name),
                     child_wrapper_ctx,
@@ -1950,6 +2092,7 @@ fn collect_index_selector_attachment_facts_with_context(
                 &node.children,
                 value_ref_ctx,
                 known_keyframe_names,
+                sass_ref_ctx,
                 acc,
                 &next_parent_names,
                 child_wrapper_ctx,
@@ -3432,10 +3575,38 @@ $gap: 1rem;
             summary.sass.variable_ref_names,
             vec!["depth", "gap", "missing", "value"]
         );
+        assert_eq!(
+            summary.sass.selectors_with_variable_refs_names,
+            vec!["btn", "ghost"]
+        );
+        assert_eq!(
+            summary.sass.selectors_with_resolved_variable_refs_names,
+            vec!["btn", "ghost"]
+        );
+        assert_eq!(
+            summary.sass.selectors_with_unresolved_variable_refs_names,
+            vec!["ghost"]
+        );
         assert_eq!(summary.sass.mixin_decl_names, vec!["raised"]);
         assert_eq!(summary.sass.mixin_include_names, vec!["absent", "raised"]);
+        assert_eq!(
+            summary.sass.selectors_with_mixin_includes_names,
+            vec!["btn", "ghost"]
+        );
+        assert_eq!(
+            summary.sass.selectors_with_resolved_mixin_includes_names,
+            vec!["btn"]
+        );
+        assert_eq!(
+            summary.sass.selectors_with_unresolved_mixin_includes_names,
+            vec!["ghost"]
+        );
         assert_eq!(summary.sass.function_decl_names, vec!["tone"]);
         assert_eq!(summary.sass.function_call_names, vec!["tone"]);
+        assert_eq!(
+            summary.sass.selectors_with_function_calls_names,
+            vec!["btn"]
+        );
         assert_eq!(
             summary.sass.module_use_sources,
             vec!["./plain", "./reset", "./tokens", "sass:color"]

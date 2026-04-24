@@ -2,10 +2,17 @@ export interface ParserSassSeedFactsV0 {
   readonly variableDeclNames: readonly string[];
   readonly variableParameterNames: readonly string[];
   readonly variableRefNames: readonly string[];
+  readonly selectorsWithVariableRefsNames: readonly string[];
+  readonly selectorsWithResolvedVariableRefsNames: readonly string[];
+  readonly selectorsWithUnresolvedVariableRefsNames: readonly string[];
   readonly mixinDeclNames: readonly string[];
   readonly mixinIncludeNames: readonly string[];
+  readonly selectorsWithMixinIncludesNames: readonly string[];
+  readonly selectorsWithResolvedMixinIncludesNames: readonly string[];
+  readonly selectorsWithUnresolvedMixinIncludesNames: readonly string[];
   readonly functionDeclNames: readonly string[];
   readonly functionCallNames: readonly string[];
+  readonly selectorsWithFunctionCallsNames: readonly string[];
   readonly moduleUseSources: readonly string[];
   readonly moduleUseEdges: readonly ParserSassModuleUseFactV0[];
   readonly moduleForwardSources: readonly string[];
@@ -67,15 +74,32 @@ export function deriveSassSummary(source: string): ParserSassSeedFactsV0 {
   const sortedMixinIncludeNames = uniqueSorted(mixinIncludeNames);
   const sortedFunctionDeclNames = uniqueSorted(functionDeclNames);
   const sortedFunctionCallNames = uniqueSorted(functionCallNames);
+  const selectorAttachments = deriveSassSelectorAttachments(source, {
+    variableDeclNames: sortedVariableDeclNames,
+    variableParameterNames: sortedVariableParameterNames,
+    mixinDeclNames: sortedMixinDeclNames,
+    functionDeclNames: sortedFunctionDeclNames,
+  });
 
   return {
     variableDeclNames: sortedVariableDeclNames,
     variableParameterNames: sortedVariableParameterNames,
     variableRefNames: sortedVariableRefNames,
+    selectorsWithVariableRefsNames: selectorAttachments.selectorsWithVariableRefsNames,
+    selectorsWithResolvedVariableRefsNames:
+      selectorAttachments.selectorsWithResolvedVariableRefsNames,
+    selectorsWithUnresolvedVariableRefsNames:
+      selectorAttachments.selectorsWithUnresolvedVariableRefsNames,
     mixinDeclNames: sortedMixinDeclNames,
     mixinIncludeNames: sortedMixinIncludeNames,
+    selectorsWithMixinIncludesNames: selectorAttachments.selectorsWithMixinIncludesNames,
+    selectorsWithResolvedMixinIncludesNames:
+      selectorAttachments.selectorsWithResolvedMixinIncludesNames,
+    selectorsWithUnresolvedMixinIncludesNames:
+      selectorAttachments.selectorsWithUnresolvedMixinIncludesNames,
     functionDeclNames: sortedFunctionDeclNames,
     functionCallNames: sortedFunctionCallNames,
+    selectorsWithFunctionCallsNames: selectorAttachments.selectorsWithFunctionCallsNames,
     moduleUseSources: uniqueSorted(sourceForAtRule("use")),
     moduleUseEdges: uniqueSortedUseEdges(deriveSassUseEdges(source)),
     moduleForwardSources: uniqueSorted(sourceForAtRule("forward")),
@@ -89,6 +113,87 @@ export function deriveSassSummary(source: string): ParserSassSeedFactsV0 {
       functionDeclNames: sortedFunctionDeclNames,
       functionCallNames: sortedFunctionCallNames,
     }),
+  };
+}
+
+function deriveSassSelectorAttachments(
+  source: string,
+  input: {
+    readonly variableDeclNames: readonly string[];
+    readonly variableParameterNames: readonly string[];
+    readonly mixinDeclNames: readonly string[];
+    readonly functionDeclNames: readonly string[];
+  },
+): Pick<
+  ParserSassSeedFactsV0,
+  | "selectorsWithVariableRefsNames"
+  | "selectorsWithResolvedVariableRefsNames"
+  | "selectorsWithUnresolvedVariableRefsNames"
+  | "selectorsWithMixinIncludesNames"
+  | "selectorsWithResolvedMixinIncludesNames"
+  | "selectorsWithUnresolvedMixinIncludesNames"
+  | "selectorsWithFunctionCallsNames"
+> {
+  const variableTargets = new Set([...input.variableDeclNames, ...input.variableParameterNames]);
+  const mixinTargets = new Set(input.mixinDeclNames);
+  const selectorsWithVariableRefsNames: string[] = [];
+  const selectorsWithResolvedVariableRefsNames: string[] = [];
+  const selectorsWithUnresolvedVariableRefsNames: string[] = [];
+  const selectorsWithMixinIncludesNames: string[] = [];
+  const selectorsWithResolvedMixinIncludesNames: string[] = [];
+  const selectorsWithUnresolvedMixinIncludesNames: string[] = [];
+  const selectorsWithFunctionCallsNames: string[] = [];
+
+  for (const match of source.matchAll(/\.([A-Za-z_-][A-Za-z0-9_-]*)[^{]*\{([^{}]*)\}/g)) {
+    const selectorName = match[1]!;
+    const body = match[2]!;
+    const variableRefs = [...body.matchAll(/\$([A-Za-z_-][A-Za-z0-9_-]*)/g)].map(
+      (variableMatch) => variableMatch[1]!,
+    );
+    if (variableRefs.length > 0) {
+      selectorsWithVariableRefsNames.push(selectorName);
+      if (variableRefs.some((name) => variableTargets.has(name))) {
+        selectorsWithResolvedVariableRefsNames.push(selectorName);
+      }
+      if (variableRefs.some((name) => !variableTargets.has(name))) {
+        selectorsWithUnresolvedVariableRefsNames.push(selectorName);
+      }
+    }
+
+    const mixinIncludes = [...body.matchAll(/@include\s+([A-Za-z_-][A-Za-z0-9_-]*)/g)].map(
+      (includeMatch) => includeMatch[1]!,
+    );
+    if (mixinIncludes.length > 0) {
+      selectorsWithMixinIncludesNames.push(selectorName);
+      if (mixinIncludes.some((name) => mixinTargets.has(name))) {
+        selectorsWithResolvedMixinIncludesNames.push(selectorName);
+      }
+      if (mixinIncludes.some((name) => !mixinTargets.has(name))) {
+        selectorsWithUnresolvedMixinIncludesNames.push(selectorName);
+      }
+    }
+
+    if (
+      input.functionDeclNames.some((name) =>
+        new RegExp(`\\b${escapeRegExp(name)}\\s*\\(`).test(body),
+      )
+    ) {
+      selectorsWithFunctionCallsNames.push(selectorName);
+    }
+  }
+
+  return {
+    selectorsWithVariableRefsNames: uniqueSorted(selectorsWithVariableRefsNames),
+    selectorsWithResolvedVariableRefsNames: uniqueSorted(selectorsWithResolvedVariableRefsNames),
+    selectorsWithUnresolvedVariableRefsNames: uniqueSorted(
+      selectorsWithUnresolvedVariableRefsNames,
+    ),
+    selectorsWithMixinIncludesNames: uniqueSorted(selectorsWithMixinIncludesNames),
+    selectorsWithResolvedMixinIncludesNames: uniqueSorted(selectorsWithResolvedMixinIncludesNames),
+    selectorsWithUnresolvedMixinIncludesNames: uniqueSorted(
+      selectorsWithUnresolvedMixinIncludesNames,
+    ),
+    selectorsWithFunctionCallsNames: uniqueSorted(selectorsWithFunctionCallsNames),
   };
 }
 
