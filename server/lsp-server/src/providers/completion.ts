@@ -1,7 +1,16 @@
 import { CompletionItemKind, type CompletionItem } from "vscode-languageserver/node";
-import type { SelectorDeclHIR } from "../../../engine-core-ts/src/core/hir/style-types";
+import type {
+  SassSymbolDeclHIR,
+  SelectorDeclHIR,
+} from "../../../engine-core-ts/src/core/hir/style-types";
+import { findLangForPath } from "../../../engine-core-ts/src/core/scss/lang-registry";
 import { resolveSourceCompletionSelectors } from "../../../engine-host-node/src/source-completion-query";
+import {
+  resolveStyleCompletionItems,
+  type StyleCompletionItem,
+} from "../../../engine-host-node/src/style-completion-query";
 import type { CursorParams, ProviderDeps } from "./provider-deps";
+import { toLspRange } from "./lsp-adapters";
 import { wrapHandler } from "./_wrap-handler";
 
 /**
@@ -22,9 +31,48 @@ export const handleCompletion = wrapHandler<CursorParams, [], CompletionItem[] |
 );
 
 function computeCompletion(params: CursorParams, deps: ProviderDeps): CompletionItem[] | null {
+  if (findLangForPath(params.filePath)) {
+    const styleDocument = deps.styleDocumentForPath(params.filePath);
+    if (!styleDocument) return null;
+    const items = resolveStyleCompletionItems({
+      content: params.content,
+      line: params.line,
+      character: params.character,
+      styleDocument,
+    });
+    return items.length > 0 ? items.map(toStyleCompletionItem) : null;
+  }
+
   const selectors = resolveSourceCompletionSelectors(params, deps);
   if (selectors.length === 0) return null;
   return selectors.map(toCompletionItem);
+}
+
+function toStyleCompletionItem(item: StyleCompletionItem): CompletionItem {
+  return {
+    label: item.label,
+    kind: toSassSymbolCompletionKind(item.symbolKind),
+    detail: item.detail,
+    sortText: item.filterText,
+    filterText: item.filterText,
+    insertText: item.insertText,
+    textEdit: {
+      range: toLspRange(item.replacementRange),
+      newText: item.insertText,
+    },
+  };
+}
+
+function toSassSymbolCompletionKind(
+  symbolKind: SassSymbolDeclHIR["symbolKind"],
+): CompletionItemKind {
+  switch (symbolKind) {
+    case "variable":
+      return CompletionItemKind.Variable;
+    case "mixin":
+    case "function":
+      return CompletionItemKind.Function;
+  }
 }
 
 function toCompletionItem(selector: SelectorDeclHIR): CompletionItem {
@@ -45,12 +93,14 @@ function toCompletionItem(selector: SelectorDeclHIR): CompletionItem {
 
 /**
  * Trigger characters for the completion provider: `'`, `"`,
- * `` ` ``, `,`, and `.`.
+ * `` ` ``, `,`, `.`, `$`, and `@`.
  *
  * The `.` trigger is needed for `styles.` inside clsx/classnames
  * calls where completion must fire on the dot.
+ * `$` and `@` trigger Sass variable and directive completions in
+ * style files.
  */
-export const COMPLETION_TRIGGER_CHARACTERS = ["'", '"', "`", ",", "."] as const;
+export const COMPLETION_TRIGGER_CHARACTERS = ["'", '"', "`", ",", ".", "$", "@"] as const;
 
 /**
  * Return true when the last `<name>(` on `textBefore` is still

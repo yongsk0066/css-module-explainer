@@ -13,7 +13,7 @@ test("advertises completionProvider with every trigger character", async ({ make
   const result = await client.initialize();
   const provider = result.capabilities.completionProvider;
   expect(provider).toBeDefined();
-  expect(provider?.triggerCharacters).toEqual(["'", '"', "`", ",", "."]);
+  expect(provider?.triggerCharacters).toEqual(["'", '"', "`", ",", ".", "$", "@"]);
   expect(provider?.resolveProvider).toBe(false);
 });
 
