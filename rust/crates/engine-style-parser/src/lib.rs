@@ -305,6 +305,7 @@ pub struct ParserIndexValueFactsV0 {
 #[serde(rename_all = "camelCase")]
 pub struct ParserIndexSassFactsV0 {
     pub variable_decl_names: Vec<String>,
+    pub variable_parameter_names: Vec<String>,
     pub variable_ref_names: Vec<String>,
     pub mixin_decl_names: Vec<String>,
     pub mixin_include_names: Vec<String>,
@@ -314,6 +315,7 @@ pub struct ParserIndexSassFactsV0 {
     pub module_use_edges: Vec<ParserIndexSassModuleUseFactV0>,
     pub module_forward_sources: Vec<String>,
     pub module_import_sources: Vec<String>,
+    pub same_file_resolution: ParserIndexSassSameFileResolutionFactsV0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -322,6 +324,16 @@ pub struct ParserIndexSassModuleUseFactV0 {
     pub source: String,
     pub namespace_kind: &'static str,
     pub namespace: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ParserIndexSassSameFileResolutionFactsV0 {
+    pub resolved_variable_ref_names: Vec<String>,
+    pub unresolved_variable_ref_names: Vec<String>,
+    pub resolved_mixin_include_names: Vec<String>,
+    pub unresolved_mixin_include_names: Vec<String>,
+    pub resolved_function_call_names: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
@@ -464,6 +476,7 @@ struct IndexSummaryAcc {
     value_decl_ref_names: Vec<String>,
     value_decl_imported_value_ref_sources: Vec<String>,
     sass_variable_decl_names: Vec<String>,
+    sass_variable_parameter_names: Vec<String>,
     sass_variable_ref_names: Vec<String>,
     sass_mixin_decl_names: Vec<String>,
     sass_mixin_include_names: Vec<String>,
@@ -636,6 +649,8 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
     acc.value_decl_imported_value_ref_sources.sort();
     acc.sass_variable_decl_names.sort();
     acc.sass_variable_decl_names.dedup();
+    acc.sass_variable_parameter_names.sort();
+    acc.sass_variable_parameter_names.dedup();
     acc.sass_variable_ref_names.sort();
     acc.sass_variable_ref_names.dedup();
     acc.sass_mixin_decl_names.sort();
@@ -699,6 +714,7 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
     let selectors_with_animation_ref_names = acc.selectors_with_animation_ref_names.clone();
     let selectors_with_animation_name_ref_names =
         acc.selectors_with_animation_name_ref_names.clone();
+    let sass_same_file_resolution = summarize_sass_same_file_resolution(&acc);
 
     ParserIndexSummaryV0 {
         schema_version: "0",
@@ -755,6 +771,7 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
         },
         sass: ParserIndexSassFactsV0 {
             variable_decl_names: acc.sass_variable_decl_names,
+            variable_parameter_names: acc.sass_variable_parameter_names,
             variable_ref_names: acc.sass_variable_ref_names,
             mixin_decl_names: acc.sass_mixin_decl_names,
             mixin_include_names: acc.sass_mixin_include_names,
@@ -764,6 +781,7 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
             module_use_edges: acc.sass_module_use_edges,
             module_forward_sources: acc.sass_module_forward_sources,
             module_import_sources: acc.sass_module_import_sources,
+            same_file_resolution: sass_same_file_resolution,
         },
         keyframes: ParserIndexKeyframesFactsV0 {
             names: acc.keyframes_names,
@@ -1414,6 +1432,8 @@ fn collect_index_names(
                     if let Some(name) = parse_sass_callable_name(&at_rule.params) {
                         acc.sass_mixin_decl_names.push(name);
                     }
+                    acc.sass_variable_parameter_names
+                        .extend(parse_sass_parameter_names(&at_rule.params));
                 }
                 AtRuleKind::Include => {
                     if let Some(name) = parse_sass_callable_name(&at_rule.params) {
@@ -1424,6 +1444,8 @@ fn collect_index_names(
                     if let Some(name) = parse_sass_callable_name(&at_rule.params) {
                         acc.sass_function_decl_names.push(name);
                     }
+                    acc.sass_variable_parameter_names
+                        .extend(parse_sass_parameter_names(&at_rule.params));
                 }
                 AtRuleKind::Use => {
                     acc.sass_module_use_sources
@@ -1579,6 +1601,63 @@ fn collect_sass_ref_facts(
         }
         collect_sass_ref_facts(&node.children, known_function_names, acc);
     }
+}
+
+fn summarize_sass_same_file_resolution(
+    acc: &IndexSummaryAcc,
+) -> ParserIndexSassSameFileResolutionFactsV0 {
+    let variable_targets: BTreeSet<&str> = acc
+        .sass_variable_decl_names
+        .iter()
+        .chain(acc.sass_variable_parameter_names.iter())
+        .map(String::as_str)
+        .collect();
+    let mixin_targets: BTreeSet<&str> = acc
+        .sass_mixin_decl_names
+        .iter()
+        .map(String::as_str)
+        .collect();
+    let function_targets: BTreeSet<&str> = acc
+        .sass_function_decl_names
+        .iter()
+        .map(String::as_str)
+        .collect();
+
+    ParserIndexSassSameFileResolutionFactsV0 {
+        resolved_variable_ref_names: names_matching(
+            &acc.sass_variable_ref_names,
+            &variable_targets,
+        ),
+        unresolved_variable_ref_names: names_not_matching(
+            &acc.sass_variable_ref_names,
+            &variable_targets,
+        ),
+        resolved_mixin_include_names: names_matching(&acc.sass_mixin_include_names, &mixin_targets),
+        unresolved_mixin_include_names: names_not_matching(
+            &acc.sass_mixin_include_names,
+            &mixin_targets,
+        ),
+        resolved_function_call_names: names_matching(
+            &acc.sass_function_call_names,
+            &function_targets,
+        ),
+    }
+}
+
+fn names_matching(names: &[String], targets: &BTreeSet<&str>) -> Vec<String> {
+    names
+        .iter()
+        .filter(|name| targets.contains(name.as_str()))
+        .cloned()
+        .collect()
+}
+
+fn names_not_matching(names: &[String], targets: &BTreeSet<&str>) -> Vec<String> {
+    names
+        .iter()
+        .filter(|name| !targets.contains(name.as_str()))
+        .cloned()
+        .collect()
 }
 
 fn extend_value_ref_facts(
@@ -1978,6 +2057,17 @@ fn parse_sass_callable_name(params: &str) -> Option<String> {
         .unwrap_or(trimmed.len());
     let name = &trimmed[..end];
     (!name.is_empty() && name.chars().all(is_sass_ident_continue)).then(|| name.to_string())
+}
+
+fn parse_sass_parameter_names(params: &str) -> Vec<String> {
+    let Some(open_index) = params.find('(') else {
+        return Vec::new();
+    };
+    let close_index = params[open_index + 1..]
+        .find(')')
+        .map(|index| open_index + 1 + index)
+        .unwrap_or(params.len());
+    find_sass_variable_refs(&params[open_index + 1..close_index])
 }
 
 fn parse_sass_module_sources(params: &str) -> Vec<String> {
@@ -3328,17 +3418,22 @@ $gap: 1rem;
 @mixin raised($depth) { box-shadow: 0 0 $depth black; }
 @function tone($value) { @return $value; }
 .btn { color: $gap; @include raised($gap); border-color: tone($gap); }
+.ghost { color: $missing; @include absent($gap); }
 "#;
         let sheet = parse_stylesheet(StyleLanguage::Scss, source);
         let summary = super::summarize_css_modules_intermediate(&sheet);
 
         assert_eq!(summary.sass.variable_decl_names, vec!["gap"]);
         assert_eq!(
+            summary.sass.variable_parameter_names,
+            vec!["depth", "value"]
+        );
+        assert_eq!(
             summary.sass.variable_ref_names,
-            vec!["depth", "gap", "value"]
+            vec!["depth", "gap", "missing", "value"]
         );
         assert_eq!(summary.sass.mixin_decl_names, vec!["raised"]);
-        assert_eq!(summary.sass.mixin_include_names, vec!["raised"]);
+        assert_eq!(summary.sass.mixin_include_names, vec!["absent", "raised"]);
         assert_eq!(summary.sass.function_decl_names, vec!["tone"]);
         assert_eq!(summary.sass.function_call_names, vec!["tone"]);
         assert_eq!(
@@ -3372,5 +3467,40 @@ $gap: 1rem;
         );
         assert_eq!(summary.sass.module_forward_sources, vec!["./theme"]);
         assert_eq!(summary.sass.module_import_sources, vec!["./legacy"]);
+        assert_eq!(
+            summary
+                .sass
+                .same_file_resolution
+                .resolved_variable_ref_names,
+            vec!["depth", "gap", "value"]
+        );
+        assert_eq!(
+            summary
+                .sass
+                .same_file_resolution
+                .unresolved_variable_ref_names,
+            vec!["missing"]
+        );
+        assert_eq!(
+            summary
+                .sass
+                .same_file_resolution
+                .resolved_mixin_include_names,
+            vec!["raised"]
+        );
+        assert_eq!(
+            summary
+                .sass
+                .same_file_resolution
+                .unresolved_mixin_include_names,
+            vec!["absent"]
+        );
+        assert_eq!(
+            summary
+                .sass
+                .same_file_resolution
+                .resolved_function_call_names,
+            vec!["tone"]
+        );
     }
 }

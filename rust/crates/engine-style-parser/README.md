@@ -14,12 +14,15 @@ Current scope:
 - Sass symbol seed facts in the CSS Modules intermediate producer for variables,
   mixins, functions, static `@use` / `@forward` / `@import` module edges, and
   `@use` namespace seeds
+- same-file Sass resolution seeds for variables, mixin includes, and declared
+  function calls
 
 Non-goals in this first scaffold:
 
 - no TS/runtime integration yet
 - no public package commitment
 - no provider-facing Sass symbol feature yet
+- no cross-file Sass module resolution yet
 
 Primary check:
 

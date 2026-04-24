@@ -1,5 +1,6 @@
 export interface ParserSassSeedFactsV0 {
   readonly variableDeclNames: readonly string[];
+  readonly variableParameterNames: readonly string[];
   readonly variableRefNames: readonly string[];
   readonly mixinDeclNames: readonly string[];
   readonly mixinIncludeNames: readonly string[];
@@ -9,12 +10,21 @@ export interface ParserSassSeedFactsV0 {
   readonly moduleUseEdges: readonly ParserSassModuleUseFactV0[];
   readonly moduleForwardSources: readonly string[];
   readonly moduleImportSources: readonly string[];
+  readonly sameFileResolution: ParserSassSameFileResolutionFactsV0;
 }
 
 export interface ParserSassModuleUseFactV0 {
   readonly source: string;
   readonly namespaceKind: "default" | "alias" | "wildcard";
   readonly namespace: string | null;
+}
+
+export interface ParserSassSameFileResolutionFactsV0 {
+  readonly resolvedVariableRefNames: readonly string[];
+  readonly unresolvedVariableRefNames: readonly string[];
+  readonly resolvedMixinIncludeNames: readonly string[];
+  readonly unresolvedMixinIncludeNames: readonly string[];
+  readonly resolvedFunctionCallNames: readonly string[];
 }
 
 export function deriveSassSummary(source: string): ParserSassSeedFactsV0 {
@@ -41,22 +51,66 @@ export function deriveSassSummary(source: string): ParserSassSeedFactsV0 {
     const callPattern = new RegExp(`\\b${escapeRegExp(name)}\\s*\\(`, "g");
     return [...source.matchAll(callPattern)].length > 1 ? [name] : [];
   });
+  const variableParameterNames = [
+    ...source.matchAll(/@(mixin|function)\s+[A-Za-z_-][A-Za-z0-9_-]*\(([^)]*)\)/g),
+  ].flatMap((match) =>
+    [...match[2]!.matchAll(/\$([A-Za-z_-][A-Za-z0-9_-]*)/g)].map((paramMatch) => paramMatch[1]!),
+  );
   const sourceForAtRule = (name: "use" | "forward" | "import") =>
     [...source.matchAll(new RegExp(`@${name}\\s+([^;{]+)`, "g"))].flatMap((match) =>
       [...match[1]!.matchAll(/["']([^"']+)["']/g)].map((sourceMatch) => sourceMatch[1]!),
     );
+  const sortedVariableDeclNames = uniqueSorted(variableDeclNames);
+  const sortedVariableParameterNames = uniqueSorted(variableParameterNames);
+  const sortedVariableRefNames = uniqueSorted(variableRefNames);
+  const sortedMixinDeclNames = uniqueSorted(mixinDeclNames);
+  const sortedMixinIncludeNames = uniqueSorted(mixinIncludeNames);
+  const sortedFunctionDeclNames = uniqueSorted(functionDeclNames);
+  const sortedFunctionCallNames = uniqueSorted(functionCallNames);
 
   return {
-    variableDeclNames: uniqueSorted(variableDeclNames),
-    variableRefNames: uniqueSorted(variableRefNames),
-    mixinDeclNames: uniqueSorted(mixinDeclNames),
-    mixinIncludeNames: uniqueSorted(mixinIncludeNames),
-    functionDeclNames: uniqueSorted(functionDeclNames),
-    functionCallNames: uniqueSorted(functionCallNames),
+    variableDeclNames: sortedVariableDeclNames,
+    variableParameterNames: sortedVariableParameterNames,
+    variableRefNames: sortedVariableRefNames,
+    mixinDeclNames: sortedMixinDeclNames,
+    mixinIncludeNames: sortedMixinIncludeNames,
+    functionDeclNames: sortedFunctionDeclNames,
+    functionCallNames: sortedFunctionCallNames,
     moduleUseSources: uniqueSorted(sourceForAtRule("use")),
     moduleUseEdges: uniqueSortedUseEdges(deriveSassUseEdges(source)),
     moduleForwardSources: uniqueSorted(sourceForAtRule("forward")),
     moduleImportSources: uniqueSorted(sourceForAtRule("import")),
+    sameFileResolution: deriveSameFileResolution({
+      variableDeclNames: sortedVariableDeclNames,
+      variableParameterNames: sortedVariableParameterNames,
+      variableRefNames: sortedVariableRefNames,
+      mixinDeclNames: sortedMixinDeclNames,
+      mixinIncludeNames: sortedMixinIncludeNames,
+      functionDeclNames: sortedFunctionDeclNames,
+      functionCallNames: sortedFunctionCallNames,
+    }),
+  };
+}
+
+function deriveSameFileResolution(input: {
+  readonly variableDeclNames: readonly string[];
+  readonly variableParameterNames: readonly string[];
+  readonly variableRefNames: readonly string[];
+  readonly mixinDeclNames: readonly string[];
+  readonly mixinIncludeNames: readonly string[];
+  readonly functionDeclNames: readonly string[];
+  readonly functionCallNames: readonly string[];
+}): ParserSassSameFileResolutionFactsV0 {
+  const variableTargets = new Set([...input.variableDeclNames, ...input.variableParameterNames]);
+  const mixinTargets = new Set(input.mixinDeclNames);
+  const functionTargets = new Set(input.functionDeclNames);
+
+  return {
+    resolvedVariableRefNames: input.variableRefNames.filter((name) => variableTargets.has(name)),
+    unresolvedVariableRefNames: input.variableRefNames.filter((name) => !variableTargets.has(name)),
+    resolvedMixinIncludeNames: input.mixinIncludeNames.filter((name) => mixinTargets.has(name)),
+    unresolvedMixinIncludeNames: input.mixinIncludeNames.filter((name) => !mixinTargets.has(name)),
+    resolvedFunctionCallNames: input.functionCallNames.filter((name) => functionTargets.has(name)),
   };
 }
 
