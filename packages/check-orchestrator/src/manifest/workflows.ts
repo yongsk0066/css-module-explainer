@@ -38,6 +38,14 @@ export function findWorkflowBypassDiagnostics(
           continue;
         }
 
+        if (target !== gate.id) {
+          diagnostics.push({
+            severity: "error",
+            code: "workflow-non-canonical-cme-check-target",
+            message: `${relativePath}:${index + 1} references cme-check target "${target}"; use canonical gate id "${gate.id}".`,
+          });
+        }
+
         if (command === "bundle" && gate.kind !== "bundle" && gate.kind !== "alias") {
           diagnostics.push({
             severity: "error",

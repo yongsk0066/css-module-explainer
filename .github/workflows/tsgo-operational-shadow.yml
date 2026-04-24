@@ -23,7 +23,7 @@ jobs:
       - run: corepack enable && corepack prepare pnpm@10.30.3 --activate
       - run: pnpm install --frozen-lockfile
       - run: ./scripts/release.sh
-      - run: pnpm cme-check run build
+      - run: pnpm cme-check run core/build
       - id: release_batch_tsgo
         name: Run release-batch-tsgo
         run: pnpm cme-check run tsgo/release-batch

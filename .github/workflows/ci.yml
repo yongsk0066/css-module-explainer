@@ -25,11 +25,11 @@ jobs:
       - run: corepack enable && corepack prepare pnpm@10.30.3 --activate
       - run: pnpm install --frozen-lockfile
       - run: ./scripts/release.sh
-      - run: pnpm cme-check run check
+      - run: pnpm cme-check run core/check
       - run: pnpm cme-check doctor
       - run: pnpm cme-check run tooling/orchestrator-inventory
-      - run: pnpm cme-check run test
-      - run: pnpm cme-check run build
+      - run: pnpm cme-check run test/test
+      - run: pnpm cme-check run core/build
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: build-output
@@ -52,7 +52,7 @@ jobs:
       - run: corepack enable && corepack prepare pnpm@10.30.3 --activate
       - run: pnpm install --frozen-lockfile
       - run: ./scripts/release.sh
-      - run: pnpm cme-check run test:protocol
+      - run: pnpm cme-check run test/protocol
 
   runner-matrix:
     needs: verify
@@ -95,7 +95,7 @@ jobs:
         with:
           name: build-output
           path: dist/
-      - run: xvfb-run -a pnpm cme-check run test:extension-host
+      - run: xvfb-run -a pnpm cme-check run test/extension-host
 
   package:
     runs-on: ubuntu-latest

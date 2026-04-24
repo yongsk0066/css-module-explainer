@@ -23,7 +23,7 @@ jobs:
       - run: corepack enable && corepack prepare pnpm@10.30.3 --activate
       - run: pnpm install --frozen-lockfile
       - run: ./scripts/release.sh
-      - run: pnpm cme-check run build
+      - run: pnpm cme-check run core/build
       - run: pnpm exec tsc -b server/engine-core-ts
       - run: pnpm exec tsc -b server/engine-host-node
       - id: rust_workspace

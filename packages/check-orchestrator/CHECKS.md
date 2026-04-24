@@ -11,7 +11,7 @@ Total gates: 165
 | core      |    10 |       0 |       0 |        9 |
 | release   |    10 |       1 |       0 |        4 |
 | tsgo      |    10 |       1 |       5 |        0 |
-| ts7       |    16 |       5 |       0 |        0 |
+| ts7       |    16 |       7 |       0 |        0 |
 | rust      |    86 |      12 |       4 |        1 |
 | plugin    |     4 |       1 |       0 |        0 |
 | contract  |    10 |       0 |       3 |        2 |
@@ -69,8 +69,8 @@ Total gates: 165
 
 | ID                                 | Kind   | Script                                   | References                                                                                                                                                                        |
 | ---------------------------------- | ------ | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ts7/decision-ready`               | gate   | `check:ts7-decision-ready`               | `check:ts7-phase-a-decision-ready`, `check:ts7-phase-b-readiness`, `check:ts7-phase-c-readiness`                                                                                  |
-| `ts7/phase-a/decision-ready`       | gate   | `check:ts7-phase-a-decision-ready`       | `check:ts7-phase-a-shadow-review`, `check:ts7-phase-a-tsgo-lane`                                                                                                                  |
+| `ts7/decision-ready`               | bundle | `check:ts7-decision-ready`               | `check:ts7-phase-a-decision-ready`, `check:ts7-phase-b-readiness`, `check:ts7-phase-c-readiness`                                                                                  |
+| `ts7/phase-a/decision-ready`       | bundle | `check:ts7-phase-a-decision-ready`       | `check:ts7-phase-a-shadow-review`, `check:ts7-phase-a-tsgo-lane`                                                                                                                  |
 | `ts7/phase-a/readiness`            | bundle | `check:ts7-phase-a-readiness`            | `check:backend-typecheck-smoke`, `check:rust-gate-evidence`, `check:type-fact-backend-parity`                                                                                     |
 | `ts7/phase-a/shadow`               | bundle | `check:ts7-phase-a-shadow`               | `check:lsp-server-smoke-tsgo`, `check:real-project-corpus-tsgo`, `check:release-batch-tsgo`                                                                                       |
 | `ts7/phase-a/shadow-review`        | gate   | `check:ts7-phase-a-shadow-review`        |                                                                                                                                                                                   |

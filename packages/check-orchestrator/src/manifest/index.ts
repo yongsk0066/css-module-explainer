@@ -119,7 +119,7 @@ function detectGateKind(
   if (isAliasScript(command, referencedScripts)) return "alias";
   if (
     referencedScripts.length > 0 &&
-    /(?:bundle|lane|readiness|shadow|verify|consumers|boundary)$/.test(scriptName)
+    /(?:bundle|lane|readiness|decision-ready|shadow|verify|consumers|boundary)$/.test(scriptName)
   ) {
     return "bundle";
   }
@@ -131,7 +131,11 @@ function detectGateKind(
 
 function isAliasScript(command: string, referencedScripts: readonly string[]): boolean {
   if (referencedScripts.length !== 1) return false;
-  return /^pnpm\s+(?:run\s+)?[A-Za-z0-9:_-]+\s*$/.test(command.trim());
+  const trimmedCommand = command.trim();
+  return (
+    /^pnpm\s+(?:run\s+)?[A-Za-z0-9:_-]+\s*$/.test(trimmedCommand) ||
+    /^pnpm\s+(?:run\s+)?cme-check\s+(?:run|bundle)\s+[A-Za-z0-9:_@/.-]+\s*$/.test(trimmedCommand)
+  );
 }
 
 function extractReferencedScripts(
@@ -180,6 +184,14 @@ function findCheckOrchestratorTargetDiagnostics(
           message: `Script "${gate.scriptName}" references unknown cme-check target "${target}".`,
         });
         continue;
+      }
+
+      if (target !== resolved.id) {
+        diagnostics.push({
+          severity: "error",
+          code: "non-canonical-cme-check-target",
+          message: `Script "${gate.scriptName}" references cme-check target "${target}"; use canonical gate id "${resolved.id}".`,
+        });
       }
 
       if (command === "bundle" && resolved.kind !== "bundle" && resolved.kind !== "alias") {

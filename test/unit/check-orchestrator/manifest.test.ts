@@ -64,6 +64,16 @@ describe("check orchestrator manifest", () => {
     expect(releaseBundle?.referencedScripts).toContain("check:rust-workspace");
     expect(releaseBundle?.referencedScripts).toContain("check:rust-producer-boundary");
 
+    const phaseADecisionReady = resolveGateTarget(manifest, "ts7/phase-a/decision-ready");
+    expect(phaseADecisionReady?.kind).toBe("bundle");
+    expect(phaseADecisionReady?.referencedScripts).toEqual(
+      expect.arrayContaining(["check:ts7-phase-a-shadow-review", "check:ts7-phase-a-tsgo-lane"]),
+    );
+
+    const tsgoReleaseBundle = resolveGateTarget(manifest, "tsgo/release/bundle");
+    expect(tsgoReleaseBundle?.kind).toBe("alias");
+    expect(tsgoReleaseBundle?.referencedScripts).toEqual(["check:tsgo-operational-lane"]);
+
     const releaseVerify = resolveGateTarget(manifest, "release/release/verify");
     expect(releaseVerify?.kind).toBe("bundle");
     expect(releaseVerify?.referencedScripts).toEqual(
@@ -146,7 +156,7 @@ describe("check orchestrator manifest", () => {
         "  direct:",
         "    steps:",
         "      - run: pnpm check",
-        "      - run: pnpm cme-check run test",
+        "      - run: pnpm cme-check run test/test",
       ].join("\n"),
     );
 
@@ -205,6 +215,55 @@ describe("check orchestrator manifest", () => {
           code: "workflow-unknown-cme-check-target",
           message: expect.stringContaining(
             '.github/workflows/ci.yml:5 references unknown cme-check target "missing-target".',
+          ),
+        }),
+      ]),
+    );
+  });
+
+  it("reports non-canonical cme-check targets in checked surfaces", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "cme-check-orchestrator-"));
+    mkdirSync(path.join(root, ".github/workflows"), { recursive: true });
+    writeFileSync(
+      path.join(root, "package.json"),
+      JSON.stringify(
+        {
+          name: "css-module-explainer",
+          scripts: {
+            "cme-check": "node ./check.js",
+            "release:verify": "pnpm cme-check run test",
+            test: "echo test",
+          },
+        },
+        null,
+        2,
+      ),
+    );
+    writeFileSync(
+      path.join(root, ".github/workflows/ci.yml"),
+      [
+        "name: CI",
+        "jobs:",
+        "  invalid:",
+        "    steps:",
+        "      - run: pnpm cme-check run test",
+      ].join("\n"),
+    );
+
+    const diagnostics = runDoctor(loadCheckManifest(root));
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: "error",
+          code: "non-canonical-cme-check-target",
+          message:
+            'Script "release:verify" references cme-check target "test"; use canonical gate id "test/test".',
+        }),
+        expect.objectContaining({
+          severity: "error",
+          code: "workflow-non-canonical-cme-check-target",
+          message: expect.stringContaining(
+            '.github/workflows/ci.yml:5 references cme-check target "test"; use canonical gate id "test/test".',
           ),
         }),
       ]),
