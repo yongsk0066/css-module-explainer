@@ -5,7 +5,13 @@ import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/sour
 import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
 import type { ProviderDeps } from "../../../server/lsp-server/src/providers/cursor-dispatch";
 import { handleDefinition } from "../../../server/lsp-server/src/providers/definition";
-import { cursorFixture, scenario, workspace, type Range } from "../../../packages/vitest-cme/src";
+import {
+  cursorFixture,
+  scenario,
+  workspace,
+  type CmeWorkspace,
+  type Range,
+} from "../../../packages/vitest-cme/src";
 import {
   EMPTY_ALIAS_RESOLVER,
   buildTestClassExpressions,
@@ -77,13 +83,21 @@ function makeDeps(
   });
 }
 
-describe("handleDefinition", () => {
-  const baseParams = cursorFixture({
-    workspace: STATIC_DEFINITION_WORKSPACE,
+function definitionCursor(
+  fixture: CmeWorkspace = STATIC_DEFINITION_WORKSPACE,
+  markerName = "cursor",
+) {
+  return cursorFixture({
+    workspace: fixture,
     filePath: SOURCE_PATH,
     documentUri: SOURCE_URI,
+    markerName,
     version: 1,
   });
+}
+
+describe("handleDefinition", () => {
+  const baseParams = definitionCursor();
 
   it("returns a LocationLink pointing at the SCSS rule for a static call", async () => {
     const spec = scenario({
@@ -91,12 +105,7 @@ describe("handleDefinition", () => {
       workspace: STATIC_DEFINITION_WORKSPACE,
       actions: {
         definition: ({ workspace: testWorkspace, target }) => {
-          const cursor = cursorFixture({
-            workspace: testWorkspace,
-            filePath: SOURCE_PATH,
-            documentUri: SOURCE_URI,
-            markerName: target.name,
-          });
+          const cursor = definitionCursor(testWorkspace, target.name);
           return handleDefinition(
             cursor,
             makeDeps({}, testWorkspace.range("class", SOURCE_PATH).range),
@@ -123,8 +132,16 @@ describe("handleDefinition", () => {
   });
 
   it("returns null when the cursor is not on a cx call", () => {
+    const notOnCallWorkspace = workspace({
+      [SOURCE_PATH]: `
+/*|*/import classNames from 'classnames/bind';
+import styles from './Button.module.scss';
+const cx = classNames.bind(styles);
+const el = cx('/*<class>*/indicator/*</class>*/');
+`,
+    });
     const deps = makeDeps();
-    const result = handleDefinition({ ...baseParams, line: 1, character: 0 }, deps);
+    const result = handleDefinition(definitionCursor(notOnCallWorkspace), deps);
     expect(result).toBeNull();
   });
 
@@ -137,6 +154,15 @@ describe("handleDefinition", () => {
   });
 
   it("returns all LocationLinks for a template-literal prefix match", () => {
+    const templateWorkspace = workspace({
+      [SOURCE_PATH]: `
+import classNames from 'classnames/bind';
+import styles from './Button.module.scss';
+const cx = classNames.bind(styles);
+const el = cx(/*<class>*/\`btn-/*|*/\${variant}\`/*</class>*/);
+`,
+    });
+    const expressionRange = templateWorkspace.range("class", SOURCE_PATH).range;
     const sourceFileCache = new SourceFileCache({ max: 10 });
     const analysisCache = new DocumentAnalysisCache({
       sourceFileCache,
@@ -159,10 +185,7 @@ describe("handleDefinition", () => {
                     origin: "cxCall",
                     rawTemplate: "btn-${variant}",
                     staticPrefix: "btn-",
-                    range: {
-                      start: { line: 4, character: 15 },
-                      end: { line: 4, character: 28 },
-                    },
+                    range: expressionRange,
                     scssModulePath: bindings[0]!.scssModulePath,
                   },
                 ],
@@ -180,7 +203,7 @@ describe("handleDefinition", () => {
         ]),
       workspaceRoot: "/fake",
     });
-    const result = handleDefinition(baseParams, deps);
+    const result = handleDefinition(definitionCursor(templateWorkspace), deps);
     expect(result).not.toBeNull();
     expect(result).toHaveLength(2);
     expect(result!.every((l) => l.targetUri.startsWith("file://"))).toBe(true);
