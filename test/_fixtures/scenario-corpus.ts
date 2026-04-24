@@ -209,6 +209,19 @@ export function normalizeStyleDocument(doc: StyleDocumentHIR): unknown {
           })),
         }
       : {}),
+    ...(doc.sassModuleMemberRefs.length > 0
+      ? {
+          sassModuleMemberRefs: doc.sassModuleMemberRefs.map((memberRef) => ({
+            selectorName: memberRef.selectorName,
+            namespace: memberRef.namespace,
+            symbolKind: memberRef.symbolKind,
+            name: memberRef.name,
+            role: memberRef.role,
+            range: normalizeRange(memberRef.range),
+            ruleRange: normalizeRange(memberRef.ruleRange),
+          })),
+        }
+      : {}),
   };
 }
 

@@ -4,12 +4,14 @@ import {
   findCanonicalSelector,
   findComposesTokenAtCursor,
   findKeyframesByName,
+  findSassModuleMemberRefAtCursor,
   findSassModuleUseAtCursor,
   findSassSymbolAtCursor,
   findSassSymbolDeclForSymbol,
   findValueImportAtCursor,
   findValueRefAtCursor,
   resolveComposesTarget,
+  resolveSassModuleMemberRefTarget,
   resolveSassModuleUseTarget,
   resolveValueImportTarget,
   resolveValueTarget,
@@ -83,6 +85,24 @@ export function resolveStyleDefinitionTargets(
             targetSelectionRange: fileStartRange(),
           },
         ]
+      : [];
+  }
+
+  const sassModuleMemberRef = findSassModuleMemberRefAtCursor(
+    styleDocument,
+    params.line,
+    params.character,
+  );
+  if (sassModuleMemberRef) {
+    const target = resolveSassModuleMemberRefTarget(
+      deps.styleDocumentForPath,
+      styleDocument.filePath,
+      styleDocument,
+      sassModuleMemberRef,
+      deps.aliasResolver,
+    );
+    return target
+      ? [toStyleDefinitionTarget(sassModuleMemberRef.range, target.filePath, target.decl)]
       : [];
   }
 

@@ -17,6 +17,7 @@ import {
   type AnimationNameRefHIR,
   type KeyframesDeclHIR,
   type NestedSelectorSafety,
+  type SassModuleMemberRefHIR,
   type SassModuleUseHIR,
   type SassSymbolDeclHIR,
   type SassSymbolKind,
@@ -129,6 +130,7 @@ export function parseStyleDocument(content: string, filePath: string): StyleDocu
   const sassSymbolDecls = collectSassSymbolDecls(root);
   const sassSymbolTargets = collectSassSymbolTargetContext(root, sassSymbolDecls);
   const sassSymbols: SassSymbolOccurrenceHIR[] = [];
+  const sassModuleMemberRefs: SassModuleMemberRefHIR[] = [];
 
   walkStyleNodes(
     root.nodes as ChildNode[],
@@ -137,6 +139,7 @@ export function parseStyleDocument(content: string, filePath: string): StyleDocu
     keyframesByName,
     animationNameRefs,
     sassSymbols,
+    sassModuleMemberRefs,
     sassSymbolTargets,
   );
   return makeStyleDocumentHIR(
@@ -150,6 +153,7 @@ export function parseStyleDocument(content: string, filePath: string): StyleDocu
     [...sassSymbols].toSorted(compareSassSymbolOccurrences),
     [...sassSymbolDecls].toSorted(compareSassSymbolDecls),
     [...sassModuleUses].toSorted(compareSassModuleUses),
+    [...sassModuleMemberRefs].toSorted(compareSassModuleMemberRefs),
   );
 }
 
@@ -165,6 +169,7 @@ function walkStyleNodes(
   keyframesByName: Map<string, KeyframesDeclHIR>,
   animationNameRefs: AnimationNameRefHIR[],
   sassSymbols: SassSymbolOccurrenceHIR[],
+  sassModuleMemberRefs: SassModuleMemberRefHIR[],
   sassSymbolTargets: SassSymbolTargetContext,
 ): void {
   if (!nodes) return;
@@ -179,6 +184,7 @@ function walkStyleNodes(
           keyframesByName,
           animationNameRefs,
           sassSymbols,
+          sassModuleMemberRefs,
           sassSymbolTargets,
         );
         continue;
@@ -190,13 +196,20 @@ function walkStyleNodes(
         keyframesByName,
         animationNameRefs,
         sassSymbols,
+        sassModuleMemberRefs,
         sassSymbolTargets,
       );
     } else if (node.type === "atrule" && isKeyframesAtRule(node.name)) {
       recordKeyframesAtRule(node, keyframesByName);
     } else if (node.type === "atrule" && isTransparentAtRule(node.name)) {
       if (node.name === "at-root" && isInlineAtRoot(node)) {
-        recordAtRootInlineRule(node, selectors, sassSymbols, sassSymbolTargets);
+        recordAtRootInlineRule(
+          node,
+          selectors,
+          sassSymbols,
+          sassModuleMemberRefs,
+          sassSymbolTargets,
+        );
       } else if (node.name === "at-root") {
         walkStyleNodes(
           node.nodes,
@@ -205,6 +218,7 @@ function walkStyleNodes(
           keyframesByName,
           animationNameRefs,
           sassSymbols,
+          sassModuleMemberRefs,
           sassSymbolTargets,
         );
       } else {
@@ -215,6 +229,7 @@ function walkStyleNodes(
           keyframesByName,
           animationNameRefs,
           sassSymbols,
+          sassModuleMemberRefs,
           sassSymbolTargets,
         );
       }
@@ -249,6 +264,7 @@ function recordRule(
   keyframesByName: Map<string, KeyframesDeclHIR>,
   animationNameRefs: AnimationNameRefHIR[],
   sassSymbols: SassSymbolOccurrenceHIR[],
+  sassModuleMemberRefs: SassModuleMemberRefHIR[],
   sassSymbolTargets: SassSymbolTargetContext,
 ): void {
   const { declarations, composes, animationRefs } = collectDeclarationsAndComposes(rule.nodes);
@@ -286,6 +302,9 @@ function recordRule(
       sassSymbols.push(
         ...collectDirectSassSymbolOccurrences(rule.nodes, className, ruleRange, sassSymbolTargets),
       );
+      sassModuleMemberRefs.push(
+        ...collectDirectSassModuleMemberRefs(rule.nodes, className, ruleRange),
+      );
     }
   }
 
@@ -298,6 +317,7 @@ function recordRule(
       keyframesByName,
       animationNameRefs,
       sassSymbols,
+      sassModuleMemberRefs,
       sassSymbolTargets,
     );
   }
@@ -818,6 +838,26 @@ function collectDirectSassSymbolOccurrences(
   return occurrences;
 }
 
+function collectDirectSassModuleMemberRefs(
+  nodes: ChildNode[] | undefined,
+  selectorName: string,
+  ruleRange: Range,
+): readonly SassModuleMemberRefHIR[] {
+  if (!nodes) return [];
+
+  const refs: SassModuleMemberRefHIR[] = [];
+  for (const node of nodes) {
+    if (node.type === "decl") {
+      pushSassDeclarationValueModuleMemberRefs(refs, node, selectorName, ruleRange);
+      continue;
+    }
+    if (node.type !== "atrule") continue;
+    if (node.name === "mixin" || node.name === "function") continue;
+    pushSassAtRuleParamModuleMemberRefs(refs, node, selectorName, ruleRange);
+  }
+  return refs;
+}
+
 function pushSassDeclarationValueOccurrences(
   occurrences: SassSymbolOccurrenceHIR[],
   node: Extract<ChildNode, { type: "decl" }>,
@@ -851,6 +891,45 @@ function pushSassDeclarationValueOccurrences(
         name: match.name,
         role: "call",
         resolution: "resolved",
+        range,
+        ruleRange,
+      }),
+    );
+  }
+}
+
+function pushSassDeclarationValueModuleMemberRefs(
+  refs: SassModuleMemberRefHIR[],
+  node: Extract<ChildNode, { type: "decl" }>,
+  selectorName: string,
+  ruleRange: Range,
+): void {
+  for (const match of findSassModuleVariableMatches(node.value)) {
+    const range = findDeclValueTokenRange(node, match.offset, match.raw.length);
+    if (!range) continue;
+    refs.push(
+      makeSassModuleMemberRef({
+        selectorName,
+        namespace: match.namespace,
+        symbolKind: "variable",
+        name: match.name,
+        role: "reference",
+        range,
+        ruleRange,
+      }),
+    );
+  }
+
+  for (const match of findSassModuleFunctionCallMatches(node.value)) {
+    const range = findDeclValueTokenRange(node, match.offset, match.raw.length);
+    if (!range) continue;
+    refs.push(
+      makeSassModuleMemberRef({
+        selectorName,
+        namespace: match.namespace,
+        symbolKind: "function",
+        name: match.name,
+        role: "call",
         range,
         ruleRange,
       }),
@@ -918,6 +997,68 @@ function pushSassAtRuleParamOccurrences(
   }
 }
 
+function pushSassAtRuleParamModuleMemberRefs(
+  refs: SassModuleMemberRefHIR[],
+  atrule: AtRule,
+  selectorName: string,
+  ruleRange: Range,
+): void {
+  const includeMemberOffsets = new Set<number>();
+  if (atrule.name === "include") {
+    const callable = parseSassModuleCallableName(atrule.params);
+    if (callable) {
+      includeMemberOffsets.add(callable.offset);
+      const range = findAtRuleParamValueTokenRange(atrule, callable.offset, callable.raw.length);
+      if (range) {
+        refs.push(
+          makeSassModuleMemberRef({
+            selectorName,
+            namespace: callable.namespace,
+            symbolKind: "mixin",
+            name: callable.name,
+            role: "include",
+            range,
+            ruleRange,
+          }),
+        );
+      }
+    }
+  }
+
+  for (const match of findSassModuleVariableMatches(atrule.params)) {
+    const range = findAtRuleParamValueTokenRange(atrule, match.offset, match.raw.length);
+    if (!range) continue;
+    refs.push(
+      makeSassModuleMemberRef({
+        selectorName,
+        namespace: match.namespace,
+        symbolKind: "variable",
+        name: match.name,
+        role: "reference",
+        range,
+        ruleRange,
+      }),
+    );
+  }
+
+  for (const match of findSassModuleFunctionCallMatches(atrule.params)) {
+    if (includeMemberOffsets.has(match.offset)) continue;
+    const range = findAtRuleParamValueTokenRange(atrule, match.offset, match.raw.length);
+    if (!range) continue;
+    refs.push(
+      makeSassModuleMemberRef({
+        selectorName,
+        namespace: match.namespace,
+        symbolKind: "function",
+        name: match.name,
+        role: "call",
+        range,
+        ruleRange,
+      }),
+    );
+  }
+}
+
 function makeSassSymbolOccurrence(args: {
   readonly selectorName: string;
   readonly symbolKind: SassSymbolKind;
@@ -935,6 +1076,28 @@ function makeSassSymbolOccurrence(args: {
     name: args.name,
     role: args.role,
     resolution: args.resolution,
+    range: args.range,
+    ruleRange: args.ruleRange,
+  };
+}
+
+function makeSassModuleMemberRef(args: {
+  readonly selectorName: string;
+  readonly namespace: string;
+  readonly symbolKind: SassSymbolKind;
+  readonly name: string;
+  readonly role: SassSymbolRole;
+  readonly range: Range;
+  readonly ruleRange: Range;
+}): SassModuleMemberRefHIR {
+  return {
+    kind: "sassModuleMemberRef",
+    id: `sass-module:${args.selectorName}:${args.namespace}:${args.symbolKind}:${args.name}:${args.range.start.line}:${args.range.start.character}`,
+    selectorName: args.selectorName,
+    namespace: args.namespace,
+    symbolKind: args.symbolKind,
+    name: args.name,
+    role: args.role,
     range: args.range,
     ruleRange: args.ruleRange,
   };
@@ -998,6 +1161,22 @@ function parseSassCallableName(raw: string): { name: string; raw: string; offset
   };
 }
 
+function parseSassModuleCallableName(
+  raw: string,
+): { namespace: string; name: string; raw: string; offset: number } | null {
+  const match = /^\s*([A-Za-z_-][A-Za-z0-9_-]*)\.([A-Za-z_-][A-Za-z0-9_-]*)/.exec(raw);
+  const namespace = match?.[1];
+  const name = match?.[2];
+  if (!namespace || !name) return null;
+  const offset = raw.indexOf(`${namespace}.${name}`) + namespace.length + 1;
+  return {
+    namespace,
+    name,
+    raw: name,
+    offset,
+  };
+}
+
 function findSassVariableMatches(
   raw: string,
 ): Array<{ name: string; raw: string; offset: number }> {
@@ -1025,6 +1204,40 @@ function findSassVariableMatches(
     if (!token || !name) continue;
     if (isSassModuleQualifiedReference(raw, index)) continue;
     matches.push({ name, raw: token, offset: index });
+    index += token.length - 1;
+  }
+
+  return matches;
+}
+
+function findSassModuleVariableMatches(
+  raw: string,
+): Array<{ namespace: string; name: string; raw: string; offset: number }> {
+  const matches: Array<{ namespace: string; name: string; raw: string; offset: number }> = [];
+  let quote: "'" | '"' | null = null;
+
+  for (let index = 0; index < raw.length; index += 1) {
+    const ch = raw[index]!;
+    if (quote) {
+      if (ch === "\\" && index + 1 < raw.length) {
+        index += 1;
+        continue;
+      }
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === "'" || ch === '"') {
+      quote = ch;
+      continue;
+    }
+    if (ch !== "$") continue;
+    const namespace = readSassModuleQualifier(raw, index);
+    if (!namespace) continue;
+    const match = /^\$([A-Za-z_-][A-Za-z0-9_-]*)/.exec(raw.slice(index));
+    const token = match?.[0];
+    const name = match?.[1];
+    if (!token || !name) continue;
+    matches.push({ namespace, name, raw: token, offset: index });
     index += token.length - 1;
   }
 
@@ -1070,10 +1283,49 @@ function findSassFunctionCallMatches(
   return matches;
 }
 
+function findSassModuleFunctionCallMatches(
+  raw: string,
+): Array<{ namespace: string; name: string; raw: string; offset: number }> {
+  const matches: Array<{ namespace: string; name: string; raw: string; offset: number }> = [];
+  let quote: "'" | '"' | null = null;
+
+  for (let index = 0; index < raw.length; index += 1) {
+    const ch = raw[index]!;
+    if (quote) {
+      if (ch === "\\" && index + 1 < raw.length) {
+        index += 1;
+        continue;
+      }
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === "'" || ch === '"') {
+      quote = ch;
+      continue;
+    }
+    if (!/[A-Za-z_-]/.test(ch)) continue;
+    const match = /^[A-Za-z_-][A-Za-z0-9_-]*/.exec(raw.slice(index));
+    const name = match?.[0];
+    if (!name) continue;
+    const namespace = readSassModuleQualifier(raw, index);
+    const nextNonWhitespace = raw.slice(index + name.length).match(/\S/)?.[0];
+    if (namespace && nextNonWhitespace === "(") {
+      matches.push({ namespace, name, raw: name, offset: index });
+    }
+    index += name.length - 1;
+  }
+
+  return matches;
+}
+
 function isSassModuleQualifiedReference(raw: string, start: number): boolean {
-  if (start <= 1 || raw[start - 1] !== ".") return false;
+  return readSassModuleQualifier(raw, start) !== null;
+}
+
+function readSassModuleQualifier(raw: string, start: number): string | null {
+  if (start <= 1 || raw[start - 1] !== ".") return null;
   const namespaceMatch = /[A-Za-z_-][A-Za-z0-9_-]*$/.exec(raw.slice(0, start - 1));
-  return namespaceMatch !== null;
+  return namespaceMatch?.[0] ?? null;
 }
 
 function looksLikeStyleRequest(value: string): boolean {
@@ -1418,6 +1670,7 @@ function recordAtRootInlineRule(
   atrule: AtRule,
   selectorDecls: SelectorDeclHIR[],
   sassSymbols: SassSymbolOccurrenceHIR[],
+  sassModuleMemberRefs: SassModuleMemberRefHIR[],
   sassSymbolTargets: SassSymbolTargetContext,
 ): void {
   const selector = atrule.params.trim();
@@ -1449,6 +1702,9 @@ function recordAtRootInlineRule(
           ruleRange,
           sassSymbolTargets,
         ),
+      );
+      sassModuleMemberRefs.push(
+        ...collectDirectSassModuleMemberRefs(atrule.nodes, className, ruleRange),
       );
     }
   }
@@ -1515,4 +1771,20 @@ function compareSassModuleUses(a: SassModuleUseHIR, b: SassModuleUseHIR): number
   const kindCompare = a.namespaceKind.localeCompare(b.namespaceKind);
   if (kindCompare !== 0) return kindCompare;
   return (a.namespace ?? "").localeCompare(b.namespace ?? "");
+}
+
+function compareSassModuleMemberRefs(a: SassModuleMemberRefHIR, b: SassModuleMemberRefHIR): number {
+  const line = a.range.start.line - b.range.start.line;
+  if (line !== 0) return line;
+  const character = a.range.start.character - b.range.start.character;
+  if (character !== 0) return character;
+  const selectorCompare = a.selectorName.localeCompare(b.selectorName);
+  if (selectorCompare !== 0) return selectorCompare;
+  const namespaceCompare = a.namespace.localeCompare(b.namespace);
+  if (namespaceCompare !== 0) return namespaceCompare;
+  const kindCompare = a.symbolKind.localeCompare(b.symbolKind);
+  if (kindCompare !== 0) return kindCompare;
+  const nameCompare = a.name.localeCompare(b.name);
+  if (nameCompare !== 0) return nameCompare;
+  return a.role.localeCompare(b.role);
 }

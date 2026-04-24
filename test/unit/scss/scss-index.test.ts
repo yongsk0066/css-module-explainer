@@ -534,6 +534,34 @@ describe("parseStyleSelectorMap / edge cases", () => {
 
       expect(document.sassSymbols).toEqual([]);
     });
+
+    it("records module-qualified Sass member references separately", () => {
+      const source = `@use "./tokens" as tokens;
+@mixin raised { box-shadow: none; }
+@function tone($value) { @return $value; }
+.button {
+  color: tokens.$gap;
+  @include tokens.raised;
+  border-color: tokens.tone(tokens.$gap);
+}`;
+      const document = parseStyleDocument(source, "/fake/a.module.scss");
+
+      expect(
+        document.sassModuleMemberRefs.map((memberRef) => [
+          memberRef.selectorName,
+          memberRef.namespace,
+          memberRef.symbolKind,
+          memberRef.name,
+          memberRef.role,
+          sliceRange(source, memberRef.range),
+        ]),
+      ).toEqual([
+        ["button", "tokens", "variable", "gap", "reference", "$gap"],
+        ["button", "tokens", "mixin", "raised", "include", "raised"],
+        ["button", "tokens", "function", "tone", "call", "tone"],
+        ["button", "tokens", "variable", "gap", "reference", "$gap"],
+      ]);
+    });
   });
 
   describe("@media / @at-root unwrapping", () => {

@@ -2,6 +2,7 @@ import path from "node:path";
 import type {
   AnimationNameRefHIR,
   KeyframesDeclHIR,
+  SassModuleMemberRefHIR,
   SassModuleUseHIR,
   SassSymbolDeclHIR,
   SassSymbolOccurrenceHIR,
@@ -204,6 +205,17 @@ export function findSassModuleUseAtCursor(
   return null;
 }
 
+export function findSassModuleMemberRefAtCursor(
+  styleDocument: StyleDocumentHIR,
+  line: number,
+  character: number,
+): SassModuleMemberRefHIR | null {
+  for (const memberRef of styleDocument.sassModuleMemberRefs) {
+    if (rangeContains(memberRef.range, line, character)) return memberRef;
+  }
+  return null;
+}
+
 export function findValueDeclByName(
   styleDocument: StyleDocumentHIR,
   name: string,
@@ -342,6 +354,14 @@ export interface ResolvedSassModuleUseTarget {
   readonly moduleUse: SassModuleUseHIR;
 }
 
+export interface ResolvedSassModuleMemberTarget {
+  readonly filePath: string;
+  readonly styleDocument: StyleDocumentHIR;
+  readonly moduleUse: SassModuleUseHIR;
+  readonly memberRef: SassModuleMemberRefHIR;
+  readonly decl: SassSymbolDeclHIR;
+}
+
 const SASS_MODULE_EXTENSIONS = [".scss", ".sass", ".css"] as const;
 
 export function listSassModuleUseCandidatePaths(
@@ -386,6 +406,48 @@ export function resolveSassModuleUseTarget(
     };
   }
   return null;
+}
+
+export function resolveSassModuleMemberRefTarget(
+  styleDocumentForPath: (filePath: string) => StyleDocumentHIR | null,
+  styleFilePath: string,
+  styleDocument: StyleDocumentHIR,
+  memberRef: SassModuleMemberRefHIR | null,
+  aliasResolver?: SassModulePathAliasResolver,
+): ResolvedSassModuleMemberTarget | null {
+  if (!memberRef) return null;
+  for (const moduleUse of findSassModuleUsesForNamespace(styleDocument, memberRef.namespace)) {
+    const moduleTarget = resolveSassModuleUseTarget(
+      styleDocumentForPath,
+      styleFilePath,
+      moduleUse,
+      aliasResolver,
+    );
+    if (!moduleTarget) continue;
+    const decl = findSassSymbolDeclByName(
+      moduleTarget.styleDocument,
+      memberRef.symbolKind,
+      memberRef.name,
+    );
+    if (!decl) continue;
+    return {
+      filePath: moduleTarget.filePath,
+      styleDocument: moduleTarget.styleDocument,
+      moduleUse,
+      memberRef,
+      decl,
+    };
+  }
+  return null;
+}
+
+function findSassModuleUsesForNamespace(
+  styleDocument: StyleDocumentHIR,
+  namespace: string,
+): readonly SassModuleUseHIR[] {
+  return styleDocument.sassModuleUses.filter(
+    (moduleUse) => moduleUse.namespaceKind !== "wildcard" && moduleUse.namespace === namespace,
+  );
 }
 
 function resolveSassModuleBasePath(

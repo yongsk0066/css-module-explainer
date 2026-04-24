@@ -21,6 +21,7 @@ export {
   findSassSymbolDeclByName,
   findSassSymbolDeclForSymbol,
   findSassModuleUseAtCursor,
+  findSassModuleMemberRefAtCursor,
   findSelectorAtCursor,
   findValueDeclAtCursor,
   findValueDeclByName,
@@ -37,6 +38,8 @@ export {
   resolveValueTarget,
   resolveComposesTarget,
   resolveSassModuleUseTarget,
+  resolveSassModuleMemberRefTarget,
+  type ResolvedSassModuleMemberTarget,
   type ResolvedSassModuleUseTarget,
   type SassModulePathAliasResolver,
 } from "./find-style-selector";
