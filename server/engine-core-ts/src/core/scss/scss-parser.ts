@@ -17,6 +17,7 @@ import {
   type AnimationNameRefHIR,
   type KeyframesDeclHIR,
   type NestedSelectorSafety,
+  type SassModuleForwardHIR,
   type SassModuleMemberRefHIR,
   type SassModuleUseHIR,
   type SassSymbolDeclHIR,
@@ -127,6 +128,7 @@ export function parseStyleDocument(content: string, filePath: string): StyleDocu
   const valueImports = collectValueImports(root, valuePathAliases);
   const valueRefs = collectValueRefs(root, valueDecls, valueImports);
   const sassModuleUses = collectSassModuleUses(root);
+  const sassModuleForwards = collectSassModuleForwards(root);
   const sassSymbolDecls = collectSassSymbolDecls(root);
   const sassSymbolTargets = collectSassSymbolTargetContext(root, sassSymbolDecls, sassModuleUses);
   const sassSymbols: SassSymbolOccurrenceHIR[] = [];
@@ -154,6 +156,7 @@ export function parseStyleDocument(content: string, filePath: string): StyleDocu
     [...sassSymbolDecls].toSorted(compareSassSymbolDecls),
     [...sassModuleUses].toSorted(compareSassModuleUses),
     [...sassModuleMemberRefs].toSorted(compareSassModuleMemberRefs),
+    [...sassModuleForwards].toSorted(compareSassModuleForwards),
   );
 }
 
@@ -660,6 +663,14 @@ function collectSassModuleUses(root: Root): readonly SassModuleUseHIR[] {
   return moduleUses;
 }
 
+function collectSassModuleForwards(root: Root): readonly SassModuleForwardHIR[] {
+  const moduleForwards: SassModuleForwardHIR[] = [];
+  root.walkAtRules("forward", (atrule) => {
+    moduleForwards.push(...parseSassModuleForwards(atrule));
+  });
+  return moduleForwards;
+}
+
 function parseSassModuleUses(atrule: AtRule): readonly SassModuleUseHIR[] {
   const alias = parseSassModuleUseAlias(atrule.params);
   const ruleRange = rangeForSourceNode(atrule);
@@ -677,6 +688,26 @@ function parseSassModuleUses(atrule: AtRule): readonly SassModuleUseHIR[] {
         source,
         namespaceKind: namespace.namespaceKind,
         namespace: namespace.namespace,
+        range,
+        ruleRange,
+      },
+    ];
+  });
+}
+
+function parseSassModuleForwards(atrule: AtRule): readonly SassModuleForwardHIR[] {
+  const ruleRange = rangeForSourceNode(atrule);
+  return [...atrule.params.matchAll(/["']([^"']+)["']/g)].flatMap((match, index) => {
+    const source = match[1];
+    if (!source) return [];
+    const sourceOffset = (match.index ?? 0) + 1;
+    const range = findAtRuleParamValueTokenRange(atrule, sourceOffset, source.length);
+    if (!range) return [];
+    return [
+      {
+        kind: "sassModuleForward",
+        id: `sass-forward:${atrule.source?.start?.line ?? 0}:${index}:${source}`,
+        source,
         range,
         ruleRange,
       },
@@ -1789,6 +1820,14 @@ function compareSassModuleUses(a: SassModuleUseHIR, b: SassModuleUseHIR): number
   const kindCompare = a.namespaceKind.localeCompare(b.namespaceKind);
   if (kindCompare !== 0) return kindCompare;
   return (a.namespace ?? "").localeCompare(b.namespace ?? "");
+}
+
+function compareSassModuleForwards(a: SassModuleForwardHIR, b: SassModuleForwardHIR): number {
+  const line = a.range.start.line - b.range.start.line;
+  if (line !== 0) return line;
+  const character = a.range.start.character - b.range.start.character;
+  if (character !== 0) return character;
+  return a.source.localeCompare(b.source);
 }
 
 function compareSassModuleMemberRefs(a: SassModuleMemberRefHIR, b: SassModuleMemberRefHIR): number {

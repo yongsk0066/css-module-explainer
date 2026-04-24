@@ -427,6 +427,22 @@ describe("parseStyleSelectorMap / edge cases", () => {
         ["../theme/_spacing.scss?raw", "default", "spacing", "../theme/_spacing.scss?raw"],
       ]);
     });
+
+    it("records @forward edges with source ranges", () => {
+      const source = `@forward "./tokens";
+@forward "../theme/_spacing.scss?raw";`;
+      const document = parseStyleDocument(source, "/fake/a.module.scss");
+
+      expect(
+        document.sassModuleForwards.map((moduleForward) => [
+          moduleForward.source,
+          sliceRange(source, moduleForward.range),
+        ]),
+      ).toEqual([
+        ["./tokens", "./tokens"],
+        ["../theme/_spacing.scss?raw", "../theme/_spacing.scss?raw"],
+      ]);
+    });
   });
 
   describe("Sass symbol occurrences", () => {

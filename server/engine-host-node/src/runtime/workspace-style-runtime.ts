@@ -3,7 +3,15 @@ import type { StyleDocumentHIR } from "../../../engine-core-ts/src/core/hir/styl
 import { scssFileSupplier } from "../../../engine-core-ts/src/core/indexing/file-supplier";
 import type { FileTask } from "../../../engine-core-ts/src/core/indexing/indexer-worker";
 import { IndexerWorker } from "../../../engine-core-ts/src/core/indexing/indexer-worker";
-import { resolveSassModuleUseTargetFilePath } from "../../../engine-core-ts/src/core/query";
+import {
+  listSassModuleExportedSymbolTargets,
+  resolveSassModuleUseTarget,
+  resolveSassModuleUseTargetFilePath,
+} from "../../../engine-core-ts/src/core/query";
+import type {
+  SassModuleUseHIR,
+  SassSymbolKind,
+} from "../../../engine-core-ts/src/core/hir/style-types";
 import type { ResourceSettings } from "../../../engine-core-ts/src/settings";
 import type { SharedRuntimeCaches } from "./shared-runtime-caches";
 import { createScopedRuntimeLogger, type RuntimeSink } from "./runtime-sink";
@@ -67,6 +75,15 @@ export function createWorkspaceStyleRuntime(
             args.aliasResolver(),
             args.fileExists,
           ),
+        resolveSassModuleExportedSymbolTargetFilePaths: (moduleUse, symbolKind, name) =>
+          resolveSassModuleExportedSymbolTargetFilePaths(
+            stylePath,
+            moduleUse,
+            symbolKind,
+            name,
+            (targetPath) => readIndexedStyleDocument(args, targetPath),
+            args.aliasResolver(),
+          ),
       });
     },
     logger,
@@ -114,4 +131,43 @@ async function defaultReadStyleFileAsync(stylePath: string): Promise<string | nu
   } catch {
     return null;
   }
+}
+
+function readIndexedStyleDocument(
+  args: WorkspaceStyleRuntimeArgs,
+  stylePath: string,
+): StyleDocumentHIR | null {
+  if (!args.fileExists(stylePath)) return null;
+  const mode = args.getModeForStylePath(stylePath);
+  const cached = args.caches.styleIndexCache.peekEntry(stylePath, mode)?.styleDocument;
+  if (cached) return cached;
+  const content = args.io.readStyleFile(stylePath);
+  return content === null
+    ? null
+    : args.caches.styleIndexCache.getStyleDocument(stylePath, content, mode);
+}
+
+function resolveSassModuleExportedSymbolTargetFilePaths(
+  stylePath: string,
+  moduleUse: SassModuleUseHIR,
+  symbolKind: SassSymbolKind,
+  name: string,
+  styleDocumentForPath: (filePath: string) => StyleDocumentHIR | null,
+  aliasResolver: AliasResolver,
+): readonly string[] {
+  const target = resolveSassModuleUseTarget(
+    styleDocumentForPath,
+    stylePath,
+    moduleUse,
+    aliasResolver,
+  );
+  if (!target) return [];
+  return listSassModuleExportedSymbolTargets(
+    styleDocumentForPath,
+    target.filePath,
+    target.styleDocument,
+    symbolKind,
+    name,
+    aliasResolver,
+  ).map((exportedTarget) => exportedTarget.filePath);
 }

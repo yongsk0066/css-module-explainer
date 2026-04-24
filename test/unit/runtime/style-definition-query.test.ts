@@ -6,6 +6,7 @@ import { resolveStyleDefinitionTargets } from "../../../server/engine-host-node/
 
 const BUTTON_PATH = "/fake/workspace/src/Button.module.scss";
 const BASE_PATH = "/fake/workspace/src/Base.module.scss";
+const THEME_PATH = "/fake/workspace/src/theme.module.scss";
 const TOKENS_PATH = "/fake/workspace/src/tokens.module.scss";
 const TOKENS_PARTIAL_PATH = "/fake/workspace/src/_tokens.module.scss";
 const EMPTY_ALIAS_RESOLVER = new AliasResolver("/fake/workspace", {});
@@ -314,6 +315,81 @@ describe("resolveStyleDefinitionTargets", () => {
       targetSelectionRange: {
         start: { line: 2, character: 10 },
         end: { line: 2, character: 14 },
+      },
+    });
+  });
+
+  it("resolves Sass members forwarded through @use targets", () => {
+    const buttonScss = `@use "./theme.module" as *;
+
+.button {
+  color: $gap;
+  border-color: tone($gap);
+}
+`;
+    const themeScss = `@forward "./tokens.module";`;
+    const tokensScss = `$gap: 1rem;
+@function tone($value) { @return $value; }
+`;
+    const deps = depsForDocuments([
+      parseStyleDocument(buttonScss, BUTTON_PATH),
+      parseStyleDocument(themeScss, THEME_PATH),
+      parseStyleDocument(tokensScss, TOKENS_PARTIAL_PATH),
+    ]);
+
+    const variableTargets = resolveStyleDefinitionTargets(
+      { filePath: BUTTON_PATH, line: 3, character: 10 },
+      deps,
+    );
+    expect(variableTargets).toHaveLength(1);
+    expect(variableTargets[0]).toMatchObject({
+      targetFilePath: TOKENS_PARTIAL_PATH,
+      targetSelectionRange: {
+        start: { line: 0, character: 0 },
+        end: { line: 0, character: 4 },
+      },
+    });
+
+    const functionTargets = resolveStyleDefinitionTargets(
+      { filePath: BUTTON_PATH, line: 4, character: 16 },
+      deps,
+    );
+    expect(functionTargets).toHaveLength(1);
+    expect(functionTargets[0]).toMatchObject({
+      targetFilePath: TOKENS_PARTIAL_PATH,
+      targetSelectionRange: {
+        start: { line: 1, character: 10 },
+        end: { line: 1, character: 14 },
+      },
+    });
+  });
+
+  it("resolves namespace-qualified Sass members forwarded through @use targets", () => {
+    const buttonScss = `@use "./theme.module" as theme;
+
+.button {
+  color: theme.$gap;
+}
+`;
+    const themeScss = `@forward "./tokens.module";`;
+    const tokensScss = `$gap: 1rem;`;
+    const deps = depsForDocuments([
+      parseStyleDocument(buttonScss, BUTTON_PATH),
+      parseStyleDocument(themeScss, THEME_PATH),
+      parseStyleDocument(tokensScss, TOKENS_PARTIAL_PATH),
+    ]);
+
+    const targets = resolveStyleDefinitionTargets(
+      { filePath: BUTTON_PATH, line: 3, character: 16 },
+      deps,
+    );
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0]).toMatchObject({
+      targetFilePath: TOKENS_PARTIAL_PATH,
+      targetSelectionRange: {
+        start: { line: 0, character: 0 },
+        end: { line: 0, character: 4 },
       },
     });
   });

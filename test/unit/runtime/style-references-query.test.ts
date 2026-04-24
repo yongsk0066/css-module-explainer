@@ -367,6 +367,50 @@ describe("resolveStyleReferencesAtCursor", () => {
     ]);
     expect(result.map((location) => location.range.start.line)).toEqual([0, 3, 4]);
   });
+
+  it("returns forwarded Sass module member references from the target declaration cursor", () => {
+    const filePath = "/fake/src/Button.module.scss";
+    const themePath = "/fake/src/theme.module.scss";
+    const tokensPath = "/fake/src/tokens.module.scss";
+    const buttonScss = `@use "./theme.module" as *;
+
+.button {
+  color: $gap;
+  margin: $gap;
+}
+`;
+    const themeScss = `@forward "./tokens.module";`;
+    const tokensScss = `$gap: 1rem;`;
+    const styleDocument = parseStyleDocument(buttonScss, filePath);
+    const themeDocument = parseStyleDocument(themeScss, themePath);
+    const targetDocument = parseStyleDocument(tokensScss, tokensPath);
+    const styleDependencyGraph = new WorkspaceStyleDependencyGraph();
+    styleDependencyGraph.record(filePath, styleDocument, {
+      resolveSassModuleUseTargetFilePath: () => themePath,
+      resolveSassModuleExportedSymbolTargetFilePaths: () => [tokensPath],
+    });
+
+    const result = resolveStyleReferencesAtCursor(
+      {
+        filePath: tokensPath,
+        line: 0,
+        character: 1,
+        includeDeclaration: true,
+        styleDocument: targetDocument,
+      },
+      makeDeps({
+        styleDocumentForPath: styleDocumentMap([styleDocument, themeDocument, targetDocument]),
+        styleDependencyGraph,
+      }),
+    );
+
+    expect(result.map((location) => location.uri)).toEqual([
+      "file:///fake/src/tokens.module.scss",
+      "file:///fake/src/Button.module.scss",
+      "file:///fake/src/Button.module.scss",
+    ]);
+    expect(result.map((location) => location.range.start.line)).toEqual([0, 3, 4]);
+  });
 });
 
 function styleDocumentMap(documents: readonly StyleDocumentHIR[]) {

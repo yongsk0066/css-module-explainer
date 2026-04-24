@@ -3,6 +3,7 @@ import { parseStyleDocument } from "../../../server/engine-core-ts/src/core/scss
 import { resolveStyleCompletionItems } from "../../../server/engine-host-node/src/style-completion-query";
 
 const SCSS_PATH = "/fake/src/Button.module.scss";
+const THEME_PATH = "/fake/src/theme.module.scss";
 const TOKENS_PATH = "/fake/src/tokens.module.scss";
 
 describe("resolveStyleCompletionItems", () => {
@@ -94,6 +95,54 @@ describe("resolveStyleCompletionItems", () => {
     const styleDocument = parseStyleDocument(scss, SCSS_PATH);
     const targetDocument = parseStyleDocument(tokensScss, TOKENS_PATH);
     const styleDocumentForPath = styleDocumentMap([styleDocument, targetDocument]);
+
+    expect(
+      resolveStyleCompletionItems({
+        content: scss,
+        line: 3,
+        character: 10,
+        styleDocument,
+        styleDocumentForPath,
+      }).map((item) => item.label),
+    ).toEqual(["$gap"]);
+    expect(
+      resolveStyleCompletionItems({
+        content: scss,
+        line: 4,
+        character: 13,
+        styleDocument,
+        styleDocumentForPath,
+      }).map((item) => item.label),
+    ).toEqual(["raised"]);
+    expect(
+      resolveStyleCompletionItems({
+        content: scss,
+        line: 5,
+        character: 18,
+        styleDocument,
+        styleDocumentForPath,
+      }).map((item) => item.label),
+    ).toEqual(["tone"]);
+  });
+
+  it("returns completions forwarded through wildcard @use targets", () => {
+    const scss = `@use "./theme.module" as *;
+
+.button {
+  color: $;
+  @include ra;
+  border-color: to;
+}
+`;
+    const themeScss = `@forward "./tokens.module";`;
+    const tokensScss = `$gap: 1rem;
+@mixin raised() {}
+@function tone($value) { @return $value; }
+`;
+    const styleDocument = parseStyleDocument(scss, SCSS_PATH);
+    const themeDocument = parseStyleDocument(themeScss, THEME_PATH);
+    const targetDocument = parseStyleDocument(tokensScss, TOKENS_PATH);
+    const styleDocumentForPath = styleDocumentMap([styleDocument, themeDocument, targetDocument]);
 
     expect(
       resolveStyleCompletionItems({

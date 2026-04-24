@@ -209,6 +209,15 @@ export function normalizeStyleDocument(doc: StyleDocumentHIR): unknown {
           })),
         }
       : {}),
+    ...(doc.sassModuleForwards.length > 0
+      ? {
+          sassModuleForwards: doc.sassModuleForwards.map((moduleForward) => ({
+            source: moduleForward.source,
+            range: normalizeRange(moduleForward.range),
+            ruleRange: normalizeRange(moduleForward.ruleRange),
+          })),
+        }
+      : {}),
     ...(doc.sassModuleMemberRefs.length > 0
       ? {
           sassModuleMemberRefs: doc.sassModuleMemberRefs.map((memberRef) => ({

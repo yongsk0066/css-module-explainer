@@ -12,6 +12,7 @@ export interface StyleDocumentHIR extends HirDocumentBase {
   readonly sassSymbols: readonly SassSymbolOccurrenceHIR[];
   readonly sassSymbolDecls: readonly SassSymbolDeclHIR[];
   readonly sassModuleUses: readonly SassModuleUseHIR[];
+  readonly sassModuleForwards: readonly SassModuleForwardHIR[];
   readonly sassModuleMemberRefs: readonly SassModuleMemberRefHIR[];
 }
 
@@ -108,6 +109,13 @@ export interface SassModuleUseHIR extends HirNodeBase {
   readonly ruleRange: Range;
 }
 
+export interface SassModuleForwardHIR extends HirNodeBase {
+  readonly kind: "sassModuleForward";
+  readonly source: string;
+  readonly range: Range;
+  readonly ruleRange: Range;
+}
+
 export interface SassModuleMemberRefHIR extends HirNodeBase {
   readonly kind: "sassModuleMemberRef";
   readonly selectorName: string;
@@ -131,6 +139,7 @@ export function makeStyleDocumentHIR(
   sassSymbolDecls: readonly SassSymbolDeclHIR[] = [],
   sassModuleUses: readonly SassModuleUseHIR[] = [],
   sassModuleMemberRefs: readonly SassModuleMemberRefHIR[] = [],
+  sassModuleForwards: readonly SassModuleForwardHIR[] = [],
 ): StyleDocumentHIR {
   return {
     kind: "style",
@@ -144,6 +153,7 @@ export function makeStyleDocumentHIR(
     sassSymbols,
     sassSymbolDecls,
     sassModuleUses,
+    sassModuleForwards,
     sassModuleMemberRefs,
   };
 }

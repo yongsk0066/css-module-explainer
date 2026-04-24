@@ -663,6 +663,43 @@ describe("computeScssUnusedDiagnostics", () => {
     expect(diagnostics.filter((entry) => entry.message.includes("Sass "))).toEqual([]);
   });
 
+  it("does not report Sass symbols resolved through forwarded wildcard imports", () => {
+    const themePath = "/fake/theme.module.scss";
+    const tokensPath = "/fake/tokens.module.scss";
+    const styleDoc = parseStyleDocument(
+      `@use "./theme.module" as *;
+
+.button {
+  color: $gap;
+  @include raised();
+  border-color: tone($gap);
+}`,
+      SCSS_PATH,
+    );
+    const themeDoc = parseStyleDocument(`@forward "./tokens.module";`, themePath);
+    const targetDoc = parseStyleDocument(
+      `$gap: 1rem;
+@mixin raised() {}
+@function tone($value) { @return $value; }`,
+      tokensPath,
+    );
+    const byPath = new Map([
+      [SCSS_PATH, styleDoc],
+      [themePath, themeDoc],
+      [tokensPath, targetDoc],
+    ]);
+
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      styleDoc,
+      new WorkspaceSemanticWorkspaceReferenceIndex(),
+      new WorkspaceStyleDependencyGraph(),
+      (filePath) => byPath.get(filePath) ?? null,
+    );
+
+    expect(diagnostics.filter((entry) => entry.message.includes("Sass "))).toEqual([]);
+  });
+
   it("keeps reporting wildcard Sass symbols that are not exported by the module", () => {
     const tokensPath = "/fake/tokens.module.scss";
     const styleDoc = parseStyleDocument(

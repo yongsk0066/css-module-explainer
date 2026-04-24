@@ -33,6 +33,11 @@ interface SassModuleMemberDependencyEdge extends SassModuleMemberDependencyRef {
 
 export interface StyleDependencyRecordOptions {
   readonly resolveSassModuleUseTargetFilePath?: (moduleUse: SassModuleUseHIR) => string | null;
+  readonly resolveSassModuleExportedSymbolTargetFilePaths?: (
+    moduleUse: SassModuleUseHIR,
+    symbolKind: SassSymbolKind,
+    name: string,
+  ) => readonly string[];
 }
 
 export interface StyleDependencyGraph {
@@ -194,7 +199,12 @@ function collectSassModuleMemberEdges(
   styleDocument: StyleDocumentHIR,
   options: StyleDependencyRecordOptions,
 ): readonly SassModuleMemberDependencyEdge[] {
-  if (!options.resolveSassModuleUseTargetFilePath) return [];
+  if (
+    !options.resolveSassModuleUseTargetFilePath &&
+    !options.resolveSassModuleExportedSymbolTargetFilePaths
+  ) {
+    return [];
+  }
 
   const moduleUsesByNamespace = new Map(
     styleDocument.sassModuleUses
@@ -206,16 +216,22 @@ function collectSassModuleMemberEdges(
   for (const memberRef of styleDocument.sassModuleMemberRefs) {
     const moduleUse = moduleUsesByNamespace.get(memberRef.namespace);
     if (!moduleUse) continue;
-    const targetFilePath = options.resolveSassModuleUseTargetFilePath(moduleUse);
-    if (!targetFilePath) continue;
-    edges.push({
-      filePath,
-      toFilePath: targetFilePath,
-      namespace: memberRef.namespace,
-      symbolKind: memberRef.symbolKind,
-      name: memberRef.name,
-      range: memberRef.range,
-    });
+    const targetFilePaths = resolveSassModuleMemberTargetFilePaths(
+      moduleUse,
+      memberRef.symbolKind,
+      memberRef.name,
+      options,
+    );
+    for (const targetFilePath of targetFilePaths) {
+      edges.push({
+        filePath,
+        toFilePath: targetFilePath,
+        namespace: memberRef.namespace,
+        symbolKind: memberRef.symbolKind,
+        name: memberRef.name,
+        range: memberRef.range,
+      });
+    }
   }
 
   const wildcardModuleUses = styleDocument.sassModuleUses.filter(
@@ -224,22 +240,41 @@ function collectSassModuleMemberEdges(
   for (const symbol of styleDocument.sassSymbols) {
     if (findSassSymbolDeclForSymbol(styleDocument, symbol)) continue;
     for (const moduleUse of wildcardModuleUses) {
-      const targetFilePath = options.resolveSassModuleUseTargetFilePath(moduleUse);
-      if (!targetFilePath) continue;
-      const edge = {
-        filePath,
-        toFilePath: targetFilePath,
-        namespace: "*",
-        symbolKind: symbol.symbolKind,
-        name: symbol.name,
-        range: symbol.range,
-      };
-      if (edges.some((candidate) => sassModuleMemberEdgeEquals(candidate, edge))) continue;
-      edges.push(edge);
+      const targetFilePaths = resolveSassModuleMemberTargetFilePaths(
+        moduleUse,
+        symbol.symbolKind,
+        symbol.name,
+        options,
+      );
+      for (const targetFilePath of targetFilePaths) {
+        const edge = {
+          filePath,
+          toFilePath: targetFilePath,
+          namespace: "*",
+          symbolKind: symbol.symbolKind,
+          name: symbol.name,
+          range: symbol.range,
+        };
+        if (edges.some((candidate) => sassModuleMemberEdgeEquals(candidate, edge))) continue;
+        edges.push(edge);
+      }
     }
   }
 
   return edges;
+}
+
+function resolveSassModuleMemberTargetFilePaths(
+  moduleUse: SassModuleUseHIR,
+  symbolKind: SassSymbolKind,
+  name: string,
+  options: StyleDependencyRecordOptions,
+): readonly string[] {
+  if (options.resolveSassModuleExportedSymbolTargetFilePaths) {
+    return options.resolveSassModuleExportedSymbolTargetFilePaths(moduleUse, symbolKind, name);
+  }
+  const targetFilePath = options.resolveSassModuleUseTargetFilePath?.(moduleUse);
+  return targetFilePath ? [targetFilePath] : [];
 }
 
 function sassModuleMemberEdgeEquals(

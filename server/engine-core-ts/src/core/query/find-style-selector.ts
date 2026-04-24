@@ -2,6 +2,7 @@ import path from "node:path";
 import type {
   AnimationNameRefHIR,
   KeyframesDeclHIR,
+  SassModuleForwardHIR,
   SassModuleMemberRefHIR,
   SassModuleUseHIR,
   SassSymbolDeclHIR,
@@ -330,6 +331,33 @@ function isFileScopeSassVariableDecl(decl: SassSymbolDeclHIR): boolean {
   );
 }
 
+function isExportedSassSymbolDecl(decl: SassSymbolDeclHIR): boolean {
+  return decl.symbolKind !== "variable" || isFileScopeSassVariableDecl(decl);
+}
+
+function dedupeSassModuleExportedSymbolTargets(
+  targets: readonly ResolvedSassModuleExportedSymbolTarget[],
+): readonly ResolvedSassModuleExportedSymbolTarget[] {
+  const byKey = new Map<string, ResolvedSassModuleExportedSymbolTarget>();
+  for (const target of targets) {
+    const key = sassExportedSymbolTargetKey(target.filePath, target.decl);
+    if (!byKey.has(key)) byKey.set(key, target);
+  }
+  return [...byKey.values()];
+}
+
+function sassExportedSymbolTargetKey(filePath: string, decl: SassSymbolDeclHIR): string {
+  return [
+    filePath,
+    decl.symbolKind,
+    decl.name,
+    decl.range.start.line,
+    decl.range.start.character,
+    decl.range.end.line,
+    decl.range.end.character,
+  ].join("\u0000");
+}
+
 function compareSassDeclScopeSpecificity(a: SassSymbolDeclHIR, b: SassSymbolDeclHIR): number {
   const sizeCompare = rangeSize(a.ruleRange) - rangeSize(b.ruleRange);
   if (sizeCompare !== 0) return sizeCompare;
@@ -366,6 +394,18 @@ export interface ResolvedSassModuleUseTarget {
   readonly moduleUse: SassModuleUseHIR;
 }
 
+export interface ResolvedSassModuleForwardTarget {
+  readonly filePath: string;
+  readonly styleDocument: StyleDocumentHIR;
+  readonly moduleForward: SassModuleForwardHIR;
+}
+
+export interface ResolvedSassModuleExportedSymbolTarget {
+  readonly filePath: string;
+  readonly styleDocument: StyleDocumentHIR;
+  readonly decl: SassSymbolDeclHIR;
+}
+
 export interface ResolvedSassModuleMemberTarget {
   readonly filePath: string;
   readonly styleDocument: StyleDocumentHIR;
@@ -386,7 +426,7 @@ const SASS_MODULE_EXTENSIONS = [".scss", ".sass", ".css"] as const;
 
 export function listSassModuleUseCandidatePaths(
   styleFilePath: string,
-  moduleUse: SassModuleUseHIR,
+  moduleUse: Pick<SassModuleUseHIR, "source">,
   aliasResolver?: SassModulePathAliasResolver,
   fileExists?: (candidate: string) => boolean,
 ): readonly string[] {
@@ -428,6 +468,34 @@ export function resolveSassModuleUseTarget(
   return null;
 }
 
+export function resolveSassModuleForwardTarget(
+  styleDocumentForPath: (filePath: string) => StyleDocumentHIR | null,
+  styleFilePath: string,
+  moduleForward: SassModuleForwardHIR | null,
+  aliasResolver?: SassModulePathAliasResolver,
+): ResolvedSassModuleForwardTarget | null {
+  if (!moduleForward) return null;
+  const fileExists = (candidatePath: string): boolean =>
+    expandSassModuleCandidatePaths(candidatePath).some(
+      (expandedPath) => styleDocumentForPath(expandedPath) !== null,
+    );
+  for (const candidatePath of listSassModuleUseCandidatePaths(
+    styleFilePath,
+    moduleForward,
+    aliasResolver,
+    fileExists,
+  )) {
+    const styleDocument = styleDocumentForPath(candidatePath);
+    if (!styleDocument) continue;
+    return {
+      filePath: styleDocument.filePath,
+      styleDocument,
+      moduleForward,
+    };
+  }
+  return null;
+}
+
 export function resolveSassModuleUseTargetFilePath(
   styleFilePath: string,
   moduleUse: SassModuleUseHIR | null,
@@ -448,6 +516,98 @@ export function resolveSassModuleUseTargetFilePath(
   return null;
 }
 
+export function listSassModuleExportedSymbolTargets(
+  styleDocumentForPath: (filePath: string) => StyleDocumentHIR | null,
+  styleFilePath: string,
+  styleDocument: StyleDocumentHIR,
+  symbolKind: SassSymbolDeclHIR["symbolKind"],
+  name: string,
+  aliasResolver?: SassModulePathAliasResolver,
+  visited: ReadonlySet<string> = new Set(),
+): readonly ResolvedSassModuleExportedSymbolTarget[] {
+  const visitKey = `${styleFilePath}\u0000${symbolKind}\u0000${name}`;
+  if (visited.has(visitKey)) return [];
+  const nextVisited = new Set(visited);
+  nextVisited.add(visitKey);
+
+  const directTargets = styleDocument.sassSymbolDecls
+    .filter(
+      (decl) =>
+        decl.symbolKind === symbolKind && decl.name === name && isExportedSassSymbolDecl(decl),
+    )
+    .map<ResolvedSassModuleExportedSymbolTarget>((decl) => ({
+      filePath: styleFilePath,
+      styleDocument,
+      decl,
+    }));
+  if (directTargets.length > 0) return dedupeSassModuleExportedSymbolTargets(directTargets);
+
+  const forwardedTargets: ResolvedSassModuleExportedSymbolTarget[] = [];
+  for (const moduleForward of styleDocument.sassModuleForwards) {
+    const forwardTarget = resolveSassModuleForwardTarget(
+      styleDocumentForPath,
+      styleFilePath,
+      moduleForward,
+      aliasResolver,
+    );
+    if (!forwardTarget) continue;
+    forwardedTargets.push(
+      ...listSassModuleExportedSymbolTargets(
+        styleDocumentForPath,
+        forwardTarget.filePath,
+        forwardTarget.styleDocument,
+        symbolKind,
+        name,
+        aliasResolver,
+        nextVisited,
+      ),
+    );
+  }
+
+  return dedupeSassModuleExportedSymbolTargets(forwardedTargets);
+}
+
+export function listSassModuleExportedSymbols(
+  styleDocumentForPath: (filePath: string) => StyleDocumentHIR | null,
+  styleFilePath: string,
+  styleDocument: StyleDocumentHIR,
+  aliasResolver?: SassModulePathAliasResolver,
+  visited: ReadonlySet<string> = new Set(),
+): readonly ResolvedSassModuleExportedSymbolTarget[] {
+  if (visited.has(styleFilePath)) return [];
+  const nextVisited = new Set(visited);
+  nextVisited.add(styleFilePath);
+
+  const targets: ResolvedSassModuleExportedSymbolTarget[] = styleDocument.sassSymbolDecls
+    .filter(isExportedSassSymbolDecl)
+    .map((decl) => ({
+      filePath: styleFilePath,
+      styleDocument,
+      decl,
+    }));
+
+  for (const moduleForward of styleDocument.sassModuleForwards) {
+    const forwardTarget = resolveSassModuleForwardTarget(
+      styleDocumentForPath,
+      styleFilePath,
+      moduleForward,
+      aliasResolver,
+    );
+    if (!forwardTarget) continue;
+    targets.push(
+      ...listSassModuleExportedSymbols(
+        styleDocumentForPath,
+        forwardTarget.filePath,
+        forwardTarget.styleDocument,
+        aliasResolver,
+        nextVisited,
+      ),
+    );
+  }
+
+  return dedupeSassModuleExportedSymbolTargets(targets);
+}
+
 export function resolveSassModuleMemberRefTarget(
   styleDocumentForPath: (filePath: string) => StyleDocumentHIR | null,
   styleFilePath: string,
@@ -464,18 +624,22 @@ export function resolveSassModuleMemberRefTarget(
       aliasResolver,
     );
     if (!moduleTarget) continue;
-    const decl = findSassSymbolDeclByName(
+    const targets = listSassModuleExportedSymbolTargets(
+      styleDocumentForPath,
+      moduleTarget.filePath,
       moduleTarget.styleDocument,
       memberRef.symbolKind,
       memberRef.name,
+      aliasResolver,
     );
-    if (!decl) continue;
+    if (targets.length !== 1) continue;
+    const target = targets[0]!;
     return {
-      filePath: moduleTarget.filePath,
-      styleDocument: moduleTarget.styleDocument,
+      filePath: target.filePath,
+      styleDocument: target.styleDocument,
       moduleUse,
       memberRef,
-      decl,
+      decl: target.decl,
     };
   }
   return null;
@@ -500,18 +664,22 @@ export function resolveSassWildcardSymbolTarget(
       aliasResolver,
     );
     if (!moduleTarget) continue;
-    const decl = findSassSymbolDeclByName(
+    const targets = listSassModuleExportedSymbolTargets(
+      styleDocumentForPath,
+      moduleTarget.filePath,
       moduleTarget.styleDocument,
       symbol.symbolKind,
       symbol.name,
+      aliasResolver,
     );
-    if (!decl) continue;
-    matches.set(sassWildcardTargetKey(moduleTarget.filePath, decl), {
-      filePath: moduleTarget.filePath,
-      styleDocument: moduleTarget.styleDocument,
+    if (targets.length !== 1) continue;
+    const target = targets[0]!;
+    matches.set(sassWildcardTargetKey(target.filePath, target.decl), {
+      filePath: target.filePath,
+      styleDocument: target.styleDocument,
       moduleUse,
       symbol,
-      decl,
+      decl: target.decl,
     });
   }
 

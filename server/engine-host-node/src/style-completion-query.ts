@@ -4,6 +4,7 @@ import type {
   StyleDocumentHIR,
 } from "../../engine-core-ts/src/core/hir/style-types";
 import {
+  listSassModuleExportedSymbols,
   resolveSassModuleUseTarget,
   type SassModulePathAliasResolver,
 } from "../../engine-core-ts/src/core/query";
@@ -158,20 +159,19 @@ function collectWildcardSassSymbolCompletionDecls(
       aliasResolver,
     );
     if (!target) continue;
-    for (const decl of target.styleDocument.sassSymbolDecls) {
-      if (!isExportedSassCompletionDecl(decl)) continue;
-      const key = `${decl.symbolKind}:${decl.name}`;
+    for (const exportedTarget of listSassModuleExportedSymbols(
+      styleDocumentForPath,
+      target.filePath,
+      target.styleDocument,
+      aliasResolver,
+    )) {
+      const key = `${exportedTarget.decl.symbolKind}:${exportedTarget.decl.name}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      decls.push(decl);
+      decls.push(exportedTarget.decl);
     }
   }
   return decls;
-}
-
-function isExportedSassCompletionDecl(decl: SassSymbolCompletionDecl): boolean {
-  if (decl.symbolKind !== "variable") return true;
-  return startsAtSamePosition(decl.range, decl.ruleRange);
 }
 
 function collectFallbackSassSymbolCompletionDecls(

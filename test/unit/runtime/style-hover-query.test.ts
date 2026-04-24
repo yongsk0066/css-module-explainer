@@ -310,6 +310,45 @@ describe("style hover query", () => {
       referenceCount: 2,
     });
   });
+
+  it("counts forwarded Sass module member references from declaration hover data", () => {
+    const buttonScss = `@use "./theme.module" as *;
+
+.button {
+  color: $gap;
+  margin: $gap;
+}
+`;
+    const themeScss = `@forward "./tokens.module";`;
+    const tokensScss = `$gap: 1rem;`;
+    const themePath = "/fake/ws/src/theme.module.scss";
+    const styleDocument = parseStyleDocument(buttonScss, SCSS_PATH);
+    const themeDocument = parseStyleDocument(themeScss, themePath);
+    const targetDocument = parseStyleDocument(tokensScss, TOKENS_PATH);
+    const styleDependencyGraph = new WorkspaceStyleDependencyGraph();
+    styleDependencyGraph.record(SCSS_PATH, styleDocument, {
+      resolveSassModuleUseTargetFilePath: () => themePath,
+      resolveSassModuleExportedSymbolTargetFilePaths: () => [TOKENS_PATH],
+    });
+
+    const result = resolveStyleHoverResult(
+      {
+        filePath: TOKENS_PATH,
+        line: 0,
+        character: 1,
+      },
+      makeBaseDeps({
+        styleDocumentForPath: styleDocumentMap([styleDocument, themeDocument, targetDocument]),
+        styleDependencyGraph,
+      }),
+    );
+
+    expect(result).toMatchObject({
+      kind: "sassSymbol",
+      scssModulePath: TOKENS_PATH,
+      referenceCount: 2,
+    });
+  });
 });
 
 function styleDocumentMap(documents: readonly StyleDocumentHIR[]) {
