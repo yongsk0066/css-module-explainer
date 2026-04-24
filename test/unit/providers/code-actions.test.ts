@@ -10,6 +10,19 @@ import { handleCodeAction } from "../../../server/lsp-server/src/providers/code-
 import { scenario, workspace } from "../../../packages/vitest-cme/src";
 import { makeBaseDeps } from "../../_fixtures/test-helpers";
 
+const SOURCE_PATH = "src/Button.tsx";
+const SOURCE_URI = "file:///fake/src/Button.tsx";
+const STYLE_PATH = "src/Button.module.scss";
+const STYLE_URI = "file:///fake/src/Button.module.scss";
+const DEFAULT_WORKSPACE = workspace({
+  [SOURCE_PATH]: "const cls = cx('/*<missing>*/missing/*</missing>*/');\n",
+});
+const DEFAULT_DIAGNOSTIC_RANGE = DEFAULT_WORKSPACE.range("missing", SOURCE_PATH).range;
+const ZERO_RANGE: Diagnostic["range"] = {
+  start: { line: 0, character: 0 },
+  end: { line: 0, character: 0 },
+};
+
 function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   return makeBaseDeps({
     selectorMapForPath: () => new Map(),
@@ -21,10 +34,7 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
 function diagnostic(
   suggestion: string | undefined,
   message = "foo",
-  range: Diagnostic["range"] = {
-    start: { line: 4, character: 15 },
-    end: { line: 4, character: 24 },
-  },
+  range: Diagnostic["range"] = DEFAULT_DIAGNOSTIC_RANGE,
 ): Diagnostic {
   const className = /Class '\.([^']+)'/.exec(message)?.[1] ?? "generated";
   return {
@@ -38,11 +48,8 @@ function diagnostic(
         : {
             suggestion,
             createSelector: {
-              uri: "file:///fake/src/Button.module.scss",
-              range: {
-                start: { line: 1, character: 0 },
-                end: { line: 1, character: 0 },
-              },
+              uri: STYLE_URI,
+              range: ZERO_RANGE,
               newText: `\n\n.${className} {\n}\n`,
             },
           },
@@ -51,11 +58,8 @@ function diagnostic(
 
 function makeParams(diagnostics: Diagnostic[]): CodeActionParams {
   return {
-    textDocument: { uri: "file:///fake/src/Button.tsx" },
-    range: diagnostics[0]?.range ?? {
-      start: { line: 0, character: 0 },
-      end: { line: 0, character: 0 },
-    },
+    textDocument: { uri: SOURCE_URI },
+    range: diagnostics[0]?.range ?? ZERO_RANGE,
     context: { diagnostics, triggerKind: 1 },
   };
 }
@@ -63,12 +67,12 @@ function makeParams(diagnostics: Diagnostic[]): CodeActionParams {
 describe("handleCodeAction", () => {
   it("returns replace and create actions for a diagnostic with a suggestion", async () => {
     const ws = workspace({
-      "src/Button.tsx": "const cls = cx('/*<missing>*/indicaror/*</missing>*/');/*|*/",
+      [SOURCE_PATH]: "const cls = cx('/*<missing>*/indicaror/*</missing>*/');/*|*/",
     });
     const d = diagnostic(
       "indicator",
       "Class '.indicaror' not found. Did you mean 'indicator'?",
-      ws.range("missing", "src/Button.tsx").range,
+      ws.range("missing", SOURCE_PATH).range,
     );
     const spec = scenario({
       name: "code action quick fix",
@@ -77,8 +81,8 @@ describe("handleCodeAction", () => {
         codeAction: ({ workspace: fixture }) =>
           handleCodeAction(
             {
-              textDocument: { uri: "file:///fake/src/Button.tsx" },
-              range: fixture.range("missing", "src/Button.tsx").range,
+              textDocument: { uri: SOURCE_URI },
+              range: fixture.range("missing", SOURCE_PATH).range,
               context: { diagnostics: [d], triggerKind: 1 },
             },
             makeDeps(),
@@ -94,14 +98,14 @@ describe("handleCodeAction", () => {
     expect(action.kind).toBe(CodeActionKind.QuickFix);
     expect(action.isPreferred).toBe(true);
     expect(action.diagnostics).toEqual([d]);
-    const edits = action.edit?.changes?.["file:///fake/src/Button.tsx"];
+    const edits = action.edit?.changes?.[SOURCE_URI];
     expect(edits).toHaveLength(1);
     expect(edits![0]!.newText).toBe("indicator");
     expect(edits![0]!.range).toEqual(d.range);
 
     const createAction = result![1]!;
     expect(createAction.title).toBe("Add '.indicaror' to Button.module.scss");
-    const createEdits = createAction.edit?.changes?.["file:///fake/src/Button.module.scss"];
+    const createEdits = createAction.edit?.changes?.[STYLE_URI];
     expect(createEdits).toHaveLength(1);
     expect(createEdits![0]!.newText).toBe("\n\n.indicaror {\n}\n");
   });
@@ -110,10 +114,7 @@ describe("handleCodeAction", () => {
     const result = handleCodeAction(
       makeParams([
         {
-          range: {
-            start: { line: 0, character: 0 },
-            end: { line: 0, character: 4 },
-          },
+          range: DEFAULT_DIAGNOSTIC_RANGE,
           severity: DiagnosticSeverity.Warning,
           source: "css-module-explainer",
           message: "whatever",
@@ -138,20 +139,14 @@ describe("handleCodeAction", () => {
 
   it("returns a create-selector quick fix even when there is no typo suggestion", () => {
     const d: Diagnostic = {
-      range: {
-        start: { line: 4, character: 15 },
-        end: { line: 4, character: 24 },
-      },
+      range: DEFAULT_DIAGNOSTIC_RANGE,
       severity: DiagnosticSeverity.Warning,
       source: "css-module-explainer",
       message: "Class '.missing' not found in Button.module.scss.",
       data: {
         createSelector: {
-          uri: "file:///fake/src/Button.module.scss",
-          range: {
-            start: { line: 1, character: 0 },
-            end: { line: 1, character: 0 },
-          },
+          uri: STYLE_URI,
+          range: ZERO_RANGE,
           newText: "\n\n.missing {\n}\n",
         },
       },
@@ -162,18 +157,18 @@ describe("handleCodeAction", () => {
   });
 
   it("returns a create-module quick fix for a missing-module diagnostic", () => {
+    const moduleWorkspace = workspace({
+      [SOURCE_PATH]: "import styles from /*<module>*/'./Button.module.scss'/*</module>*/;\n",
+    });
     const d: Diagnostic = {
-      range: {
-        start: { line: 0, character: 19 },
-        end: { line: 0, character: 38 },
-      },
+      range: moduleWorkspace.range("module", SOURCE_PATH).range,
       severity: DiagnosticSeverity.Warning,
       source: "css-module-explainer",
       message: "Cannot resolve CSS Module './Button.module.scss'. The file does not exist.",
       code: "missing-module",
       data: {
         createModuleFile: {
-          uri: "file:///fake/src/Button.module.scss",
+          uri: STYLE_URI,
         },
       },
     };
@@ -185,28 +180,25 @@ describe("handleCodeAction", () => {
     expect(result![0]!.edit?.documentChanges).toEqual([
       {
         kind: "create",
-        uri: "file:///fake/src/Button.module.scss",
+        uri: STYLE_URI,
         options: { overwrite: false, ignoreIfExists: true },
       },
     ]);
   });
 
   it("returns a create-Sass-symbol quick fix for style diagnostics", () => {
+    const styleWorkspace = workspace({
+      [STYLE_PATH]: "/*<variable>*/$missing/*</variable>*/: ;\n",
+    });
     const d: Diagnostic = {
-      range: {
-        start: { line: 2, character: 9 },
-        end: { line: 2, character: 17 },
-      },
+      range: styleWorkspace.range("variable", STYLE_PATH).range,
       severity: DiagnosticSeverity.Warning,
       source: "css-module-explainer",
       message: "Sass variable '$missing' not found in this file.",
       data: {
         createSassSymbol: {
-          uri: "file:///fake/src/Button.module.scss",
-          range: {
-            start: { line: 0, character: 0 },
-            end: { line: 0, character: 0 },
-          },
+          uri: STYLE_URI,
+          range: ZERO_RANGE,
           newText: "$missing: ;\n\n",
         },
       },
@@ -214,12 +206,9 @@ describe("handleCodeAction", () => {
     const result = handleCodeAction(makeParams([d]), makeDeps());
     expect(result).toHaveLength(1);
     expect(result![0]!.title).toBe("Add '$missing' to Button.module.scss");
-    expect(result![0]!.edit?.changes?.["file:///fake/src/Button.module.scss"]).toEqual([
+    expect(result![0]!.edit?.changes?.[STYLE_URI]).toEqual([
       {
-        range: {
-          start: { line: 0, character: 0 },
-          end: { line: 0, character: 0 },
-        },
+        range: ZERO_RANGE,
         newText: "$missing: ;\n\n",
       },
     ]);
@@ -237,7 +226,7 @@ describe("handleCodeAction", () => {
     expect(result?.[0]?.edit?.documentChanges).toEqual([
       {
         kind: "create",
-        uri: "file:///fake/src/Button.module.scss",
+        uri: STYLE_URI,
         options: { overwrite: false, ignoreIfExists: true },
       },
     ]);
@@ -257,8 +246,8 @@ describe("handleCodeAction", () => {
     const logError = vi.fn();
     // Poison the diagnostics iterable so for-of throws.
     const poisonedParams = {
-      textDocument: { uri: "file:///fake/src/Button.tsx" },
-      range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+      textDocument: { uri: SOURCE_URI },
+      range: DEFAULT_DIAGNOSTIC_RANGE,
       context: {
         diagnostics: new Proxy([diagnostic("x")], {
           get(target, prop) {
