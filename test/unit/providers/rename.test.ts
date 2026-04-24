@@ -33,12 +33,34 @@ import {
 
 const SCSS_PATH = "/fake/src/Button.module.scss";
 const SCSS_URI = "file:///fake/src/Button.module.scss";
+const DEFAULT_STYLE_WORKSPACE = workspace({
+  [SCSS_PATH]: `
+./*|*/indicator {}
+
+.active {}
+`,
+});
+const NO_SELECTOR_STYLE_WORKSPACE = workspace({
+  [SCSS_PATH]: "/*|*/.unused {}\n",
+});
+const NON_STYLE_PATH = "/fake/src/Button.tsx";
+const NON_STYLE_URI = "file:///fake/src/Button.tsx";
+const NON_STYLE_WORKSPACE = workspace({
+  [NON_STYLE_PATH]: "/*|*/const value = 1;\n",
+});
+const SEMANTIC_SOURCE_PATH = "/fake/src/SemanticSite.tsx";
+
+function semanticSourceRange(sourceToken: string): Range {
+  return workspace({
+    [SEMANTIC_SOURCE_PATH]: `const value = cx('/*<class>*/${sourceToken}/*</class>*/');\n`,
+  }).range("class", SEMANTIC_SOURCE_PATH).range;
+}
 
 function semanticSite(args: {
   uri: string;
   canonicalName: string;
   className?: string;
-  line: number;
+  line?: number;
   start?: number;
   end?: number;
   certainty?: "exact" | "inferred" | "possible";
@@ -47,17 +69,21 @@ function semanticSite(args: {
   expansion?: "direct" | "expanded";
 }) {
   const certainty = args.certainty ?? "exact";
-  const start = args.start ?? 10;
+  const sourceToken = args.className ?? args.canonicalName;
+  const fallbackRange = semanticSourceRange(sourceToken);
+  const line = args.line ?? fallbackRange.start.line;
+  const start = args.start ?? fallbackRange.start.character;
+  const range: Range = {
+    start: { line, character: start },
+    end: { line, character: args.end ?? fallbackRange.end.character },
+  };
   const expansion = args.expansion ?? (certainty === "exact" ? "direct" : "expanded");
   return {
-    refId: `ref:${args.uri}:${args.line}:${start}`,
+    refId: `ref:${args.uri}:${line}:${start}`,
     selectorId: `selector:${SCSS_PATH}:${args.canonicalName}`,
     filePath: args.uri.replace("file://", ""),
     uri: args.uri,
-    range: {
-      start: { line: args.line, character: start },
-      end: { line: args.line, character: args.end ?? start + args.canonicalName.length },
-    },
+    range,
     origin: args.origin ?? "cxCall",
     scssModulePath: SCSS_PATH,
     selectorFilePath: SCSS_PATH,
@@ -125,10 +151,7 @@ function styleRenameParams(
 describe("handlePrepareRename", () => {
   it("returns range and placeholder for a selector at cursor in SCSS file", () => {
     const result = handlePrepareRename(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: { line: 1, character: 3 },
-      },
+      stylePositionParams(DEFAULT_STYLE_WORKSPACE, SCSS_URI),
       makeDeps(),
     );
     expect(result).not.toBeNull();
@@ -138,10 +161,7 @@ describe("handlePrepareRename", () => {
 
   it("returns null when cursor is not on a selector", () => {
     const result = handlePrepareRename(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: { line: 99, character: 0 },
-      },
+      stylePositionParams(NO_SELECTOR_STYLE_WORKSPACE, SCSS_URI),
       makeDeps(),
     );
     expect(result).toBeNull();
@@ -150,8 +170,8 @@ describe("handlePrepareRename", () => {
   it("returns null for non-style files", () => {
     const result = handlePrepareRename(
       {
-        textDocument: { uri: "file:///fake/src/Button.tsx" },
-        position: { line: 0, character: 0 },
+        textDocument: { uri: NON_STYLE_URI },
+        position: targetFixture({ workspace: NON_STYLE_WORKSPACE }).position,
       },
       makeDeps(),
     );
@@ -159,28 +179,26 @@ describe("handlePrepareRename", () => {
   });
 
   it("rejects nested child selectors that parse as standalone classes", () => {
-    const styleDocument = buildStyleDocumentFromSelectorMap(
+    const fixture = styleWorkspace(
       SCSS_PATH,
-      expandSelectorMapWithTransform(
-        parseStyleSelectorMap(
-          `
+      `
 .button {
-  .child {
+  .c/*|*/hild {
     color: red;
   }
 }
 `,
-          SCSS_PATH,
-        ),
+    );
+    const styleDocument = buildStyleDocumentFromSelectorMap(
+      SCSS_PATH,
+      expandSelectorMapWithTransform(
+        parseStyleSelectorMap(fixture.file(SCSS_PATH).content, SCSS_PATH),
         "asIs",
       ),
     );
     expect(() =>
       handlePrepareRename(
-        {
-          textDocument: { uri: SCSS_URI },
-          position: { line: 2, character: 4 },
-        },
+        stylePositionParams(fixture, SCSS_URI),
         makeDeps({ styleDocumentForPath: () => styleDocument }),
       ),
     ).toThrow("Only flat selectors and safe BEM suffix selectors can be renamed.");
@@ -194,22 +212,16 @@ describe("handleRename", () => {
       semanticSite({
         uri: "file:///fake/src/App.tsx",
         canonicalName: "indicator",
-        line: 10,
       }),
     ]);
     semanticReferenceIndex.record("file:///fake/src/Other.tsx", [
       semanticSite({
         uri: "file:///fake/src/Other.tsx",
         canonicalName: "indicator",
-        line: 20,
       }),
     ]);
     const result = handleRename(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: { line: 1, character: 3 },
-        newName: "status",
-      },
+      styleRenameParams(DEFAULT_STYLE_WORKSPACE, SCSS_URI, "status"),
       makeDeps({ semanticReferenceIndex }),
     );
     expect(result).not.toBeNull();
@@ -228,11 +240,7 @@ describe("handleRename", () => {
 
   it("returns WorkspaceEdit with only SCSS edit when no references exist", () => {
     const result = handleRename(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: { line: 1, character: 3 },
-        newName: "status",
-      },
+      styleRenameParams(DEFAULT_STYLE_WORKSPACE, SCSS_URI, "status"),
       makeDeps(),
     );
     expect(result).not.toBeNull();
@@ -243,11 +251,7 @@ describe("handleRename", () => {
 
   it("returns null when cursor is not on a selector", () => {
     const result = handleRename(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: { line: 99, character: 0 },
-        newName: "status",
-      },
+      styleRenameParams(NO_SELECTOR_STYLE_WORKSPACE, SCSS_URI, "status"),
       makeDeps(),
     );
     expect(result).toBeNull();
@@ -256,8 +260,8 @@ describe("handleRename", () => {
   it("returns null for non-style files (TS/TSX side not yet wired)", () => {
     const result = handleRename(
       {
-        textDocument: { uri: "file:///fake/src/App.tsx" },
-        position: { line: 0, character: 0 },
+        textDocument: { uri: NON_STYLE_URI },
+        position: targetFixture({ workspace: NON_STYLE_WORKSPACE }).position,
         newName: "status",
       },
       makeDeps(),
@@ -269,10 +273,7 @@ describe("handleRename", () => {
 it("logs and returns null on exception in prepareRename", () => {
   const logError = vi.fn();
   const result = handlePrepareRename(
-    {
-      textDocument: { uri: SCSS_URI },
-      position: { line: 1, character: 3 },
-    },
+    stylePositionParams(DEFAULT_STYLE_WORKSPACE, SCSS_URI),
     makeDeps({
       selectorMapForPath: () => {
         throw new Error("boom");
@@ -287,11 +288,7 @@ it("logs and returns null on exception in prepareRename", () => {
 it("logs and returns null on exception in rename", () => {
   const logError = vi.fn();
   const result = handleRename(
-    {
-      textDocument: { uri: SCSS_URI },
-      position: { line: 1, character: 3 },
-      newName: "status",
-    },
+    styleRenameParams(DEFAULT_STYLE_WORKSPACE, SCSS_URI, "status"),
     makeDeps({
       selectorMapForPath: () => {
         throw new Error("boom");
@@ -310,10 +307,11 @@ const TSX_URI = "file:///fake/src/App.tsx";
 const TSX_WORKSPACE = workspace({
   [TSX_PATH]: `import classNames from 'classnames/bind';
 import styles from './Button.module.scss';
-const cx = classNames.bind(styles);
+const /*<binding>*/cx/*</binding>*/ = classNames.bind(styles);
 const a = cx('/*<class>*/ind/*|*/icator/*</class>*/');
 `,
 });
+const TSX_BINDING_RANGE = TSX_WORKSPACE.range("binding", TSX_PATH).range;
 const TSX_CLASS_RANGE = TSX_WORKSPACE.range("class", TSX_PATH).range;
 
 const BINDING: CxBinding = {
@@ -321,10 +319,7 @@ const BINDING: CxBinding = {
   stylesVarName: "styles",
   scssModulePath: "/fake/src/Button.module.scss",
   classNamesImportName: "classNames",
-  bindingRange: {
-    start: { line: 2, character: 6 },
-    end: { line: 2, character: 8 },
-  },
+  bindingRange: TSX_BINDING_RANGE,
 };
 
 function makeTsxDeps(
@@ -343,10 +338,7 @@ function makeTsxDeps(
       bindings: [
         {
           ...BINDING,
-          bindingRange: {
-            start: { line: 2, character: 6 },
-            end: { line: 2, character: 8 },
-          },
+          bindingRange: TSX_BINDING_RANGE,
         },
       ],
     }),
@@ -459,10 +451,7 @@ const a = cx(/*<expr>*/si/*|*/ze/*</expr>*/);
         bindings: [
           {
             ...BINDING,
-            bindingRange: {
-              start: { line: 2, character: 6 },
-              end: { line: 2, character: 8 },
-            },
+            bindingRange: TSX_BINDING_RANGE,
           },
         ],
       }),
@@ -511,7 +500,6 @@ describe("handleRename from TS/TSX", () => {
       semanticSite({
         uri: "file:///fake/src/Other.tsx",
         canonicalName: "indicator",
-        line: 20,
       }),
     ]);
     const cursorParams = sourceCursorParams(TSX_WORKSPACE);
@@ -548,10 +536,18 @@ describe("rename template corruption guard", () => {
   // This is exactly the shape `collectCallSites` emits with a
   // CallSiteResolverContext available.
   const TEMPLATE_URI = "file:///fake/src/App.tsx";
-  const TEMPLATE_RANGE = {
-    start: { line: 5, character: 14 },
-    end: { line: 5, character: 30 },
-  };
+  const TEMPLATE_WORKSPACE = workspace({
+    [TSX_PATH]: "const a = cx(/*<template>*/`btn-${weight}`/*</template>*/);\n",
+  });
+  const TEMPLATE_RANGE = TEMPLATE_WORKSPACE.range("template", TSX_PATH).range;
+  const BTN_STYLE_WORKSPACE = styleWorkspace(
+    SCSS_PATH,
+    `
+./*|*/btn-small {}
+
+.btn-large {}
+`,
+  );
 
   function buildTemplateSemanticIndex(): WorkspaceSemanticWorkspaceReferenceIndex {
     const idx = new WorkspaceSemanticWorkspaceReferenceIndex();
@@ -595,11 +591,7 @@ describe("rename template corruption guard", () => {
   it("rename template-literal class is blocked when expanded references exist", () => {
     const semanticReferenceIndex = buildTemplateSemanticIndex();
     const result = handleRename(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: { line: 1, character: 3 },
-        newName: "btn-tiny",
-      },
+      styleRenameParams(BTN_STYLE_WORKSPACE, SCSS_URI, "btn-tiny"),
       btnScssDeps({ semanticReferenceIndex }),
     );
     expect(result).toBeNull();
@@ -610,10 +602,7 @@ describe("rename template corruption guard", () => {
     expectPrepareRenameBlocked(
       () =>
         handlePrepareRename(
-          {
-            textDocument: { uri: SCSS_URI },
-            position: { line: 1, character: 3 },
-          },
+          stylePositionParams(BTN_STYLE_WORKSPACE, SCSS_URI),
           btnScssDeps({ semanticReferenceIndex }),
         ),
       "Rename is blocked because inferred or expanded references would make the edit unsafe.",
@@ -626,9 +615,9 @@ describe("rename template corruption guard", () => {
       semanticSite({
         uri: "file:///fake/src/App.tsx",
         canonicalName: "btn-small",
-        line: 5,
-        start: 10,
-        end: 30,
+        line: TEMPLATE_RANGE.start.line,
+        start: TEMPLATE_RANGE.start.character,
+        end: TEMPLATE_RANGE.end.character,
         certainty: "inferred",
         reason: "templatePrefix",
       }),
@@ -636,10 +625,7 @@ describe("rename template corruption guard", () => {
     expectPrepareRenameBlocked(
       () =>
         handlePrepareRename(
-          {
-            textDocument: { uri: SCSS_URI },
-            position: { line: 1, character: 3 },
-          },
+          stylePositionParams(BTN_STYLE_WORKSPACE, SCSS_URI),
           btnScssDeps({ semanticReferenceIndex }),
         ),
       "Rename is blocked because inferred or expanded references would make the edit unsafe.",
@@ -652,9 +638,9 @@ describe("rename template corruption guard", () => {
       semanticSite({
         uri: "file:///fake/src/App.tsx",
         canonicalName: "btn-small",
-        line: 5,
-        start: 10,
-        end: 30,
+        line: TEMPLATE_RANGE.start.line,
+        start: TEMPLATE_RANGE.start.character,
+        end: TEMPLATE_RANGE.end.character,
         certainty: "exact",
         reason: "templatePrefix",
         expansion: "expanded",
@@ -663,10 +649,7 @@ describe("rename template corruption guard", () => {
     expectPrepareRenameBlocked(
       () =>
         handlePrepareRename(
-          {
-            textDocument: { uri: SCSS_URI },
-            position: { line: 1, character: 3 },
-          },
+          stylePositionParams(BTN_STYLE_WORKSPACE, SCSS_URI),
           btnScssDeps({ semanticReferenceIndex }),
         ),
       "Rename is blocked because inferred or expanded references would make the edit unsafe.",
@@ -774,7 +757,7 @@ describe("prepareRename through real parseStyleSelectorMap (regression)", () => 
     const nested = handlePrepareRename(stylePositionParams(fixture, SCSS_URI, "nested"), deps);
     expect(nested).not.toBeNull();
     expect(nested).toHaveProperty("placeholder", "button--primary");
-    expect((nested as { range: { end: { character: number } } }).range.end.character).toBe(
+    expect((nested as { range: Range }).range.end.character).toBe(
       targetFixture({ workspace: fixture, markerName: "nested" }).character + 9,
     );
   });
@@ -792,9 +775,7 @@ describe("&-nested BEM suffix rename", () => {
     const result = handlePrepareRename(stylePositionParams(fixture, SCSS_URI), deps);
     expect(result).not.toBeNull();
     expect(result).toHaveProperty("placeholder", "button--primary");
-    const range = (
-      result as { range: { start: { character: number }; end: { character: number } } }
-    ).range;
+    const range = (result as { range: Range }).range;
     expect(range.end.character - range.start.character).toBe(10);
   });
 
@@ -807,9 +788,6 @@ describe("&-nested BEM suffix rename", () => {
         uri: "file:///fake/src/App.tsx",
         canonicalName: "button--primary",
         className: "button--primary",
-        line: 3,
-        start: 10,
-        end: 25,
       }),
     ]);
     const deps = makeBaseDeps({
@@ -824,7 +802,7 @@ describe("&-nested BEM suffix rename", () => {
         changes: Record<
           string,
           Array<{
-            range: { start: { character: number }; end: { character: number } };
+            range: Range;
             newText: string;
           }>
         >;
@@ -907,28 +885,40 @@ describe("&-nested BEM suffix rename", () => {
   it("rejects interpolated rawToken (guard test — synthetic selector)", () => {
     // Parser cannot produce this shape, but the guard is load-bearing
     // if a future parser change weakens interpolation filtering.
+    const fixture = styleWorkspace(
+      SCSS_PATH,
+      `.btn {
+  /*<raw>*/&/*|*/--#{$mod}/*</raw>*/ {}
+}
+`,
+    );
+    const rawTokenRange = fixture.range("raw", SCSS_PATH).range;
+    const resolvedName = "btn--primary";
+    const resolvedRange: Range = {
+      start: rawTokenRange.start,
+      end: {
+        line: rawTokenRange.start.line,
+        character: rawTokenRange.start.character + resolvedName.length,
+      },
+    };
     const synthetic = {
-      ...info("btn--primary", 1),
-      range: { start: { line: 1, character: 2 }, end: { line: 1, character: 16 } },
+      ...info(resolvedName, rawTokenRange.start.line),
+      range: resolvedRange,
       bemSuffix: {
-        rawTokenRange: { start: { line: 1, character: 2 }, end: { line: 1, character: 14 } },
+        rawTokenRange,
         rawToken: "&--#{$mod}",
         parentResolvedName: "btn",
       },
       nestedSafety: "bemSuffixSafe" as const,
       declarations: "",
-      ruleRange: { start: { line: 1, character: 0 }, end: { line: 1, character: 16 } },
+      ruleRange: resolvedRange,
     };
     const deps = makeBaseDeps({
       selectorMapForPath: () => new Map([["btn--primary", synthetic]]),
       workspaceRoot: "/fake",
     });
     expectPrepareRenameBlocked(
-      () =>
-        handlePrepareRename(
-          { textDocument: { uri: SCSS_URI }, position: { line: 1, character: 3 } },
-          deps,
-        ),
+      () => handlePrepareRename(stylePositionParams(fixture, SCSS_URI), deps),
       "Selectors containing interpolation cannot be renamed safely.",
     );
   });
@@ -1018,9 +1008,6 @@ describe("&-nested BEM suffix rename", () => {
         uri: "file:///fake/src/App.tsx",
         canonicalName: "button--primary",
         className: "button--primary",
-        line: 5,
-        start: 10,
-        end: 30,
         certainty: "inferred",
         reason: "templatePrefix",
       }),
@@ -1209,7 +1196,6 @@ describe("classnameTransform alias-aware rename", () => {
         uri: "file:///fake/src/App.tsx",
         canonicalName: "btn-primary",
         className: "btn-primary",
-        line: 10,
       }),
     ]);
     semanticReferenceIndex.record("file:///fake/src/Other.tsx", [
@@ -1217,7 +1203,6 @@ describe("classnameTransform alias-aware rename", () => {
         uri: "file:///fake/src/Other.tsx",
         canonicalName: "btn-primary",
         className: "btnPrimary",
-        line: 20,
         reason: "styleAccess",
         origin: "styleAccess",
       }),
@@ -1253,7 +1238,6 @@ describe("classnameTransform alias-aware rename", () => {
         uri: "file:///fake/src/App.tsx",
         canonicalName: "btn-primary",
         className: "btn-primary",
-        line: 10,
       }),
     ]);
     semanticReferenceIndex.record("file:///fake/src/Other.tsx", [
@@ -1261,7 +1245,6 @@ describe("classnameTransform alias-aware rename", () => {
         uri: "file:///fake/src/Other.tsx",
         canonicalName: "btn-primary",
         className: "btnPrimary",
-        line: 20,
         reason: "styleAccess",
         origin: "styleAccess",
       }),
@@ -1297,7 +1280,6 @@ describe("classnameTransform alias-aware rename", () => {
         uri: "file:///fake/src/App.tsx",
         canonicalName: "btn-primary",
         className: "btnPrimary",
-        line: 15,
         reason: "styleAccess",
         origin: "styleAccess",
       }),
@@ -1349,9 +1331,6 @@ describe("classnameTransform alias-aware rename", () => {
         uri: "file:///fake/src/App.tsx",
         canonicalName: "btn-primary",
         className: "btn-primary",
-        line: 5,
-        start: 10,
-        end: 30,
         certainty: "inferred",
         reason: "templatePrefix",
       }),
@@ -1384,9 +1363,6 @@ describe("classnameTransform alias-aware rename", () => {
         uri: "file:///fake/src/App.tsx",
         canonicalName: "btn-primary",
         className: "btn-primary",
-        line: 5,
-        start: 10,
-        end: 30,
         certainty: "inferred",
         reason: "templatePrefix",
       }),
