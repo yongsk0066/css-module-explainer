@@ -152,6 +152,11 @@ const CORPUS = [
     filePath: "/f.module.scss",
     source: `@use "./plain";\n@use "./reset" as *;\n@use "./tokens" as tokens;\n@use "sass:color";\n@forward "./theme";\n@import "./legacy";\n$gap: 1rem;\n@mixin raised($depth) { box-shadow: 0 0 $depth black; }\n@function tone($value) { @return $value; }\n.btn { color: $gap; @include raised($gap); border-color: tone($gap); }\n.ghost { color: $missing; @include absent($gap); }`,
   },
+  {
+    label: "scss-sass-symbol-unicode-range-parser-consumer-boundary",
+    filePath: "/f.module.scss",
+    source: `$gap: 1rem;\n.btn { content: "한🙂"; color: $gap; }`,
+  },
 ] as const;
 
 function findLangForPath(filePath: string): "scss" | "less" | "css" {

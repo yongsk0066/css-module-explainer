@@ -3432,8 +3432,8 @@ fn classify_at_rule_kind(name: &str) -> AtRuleKind {
 mod tests {
     use super::{
         AtRuleKind, AtRulePayload, DeclarationPayload, ParserByteSpanV0,
-        ParserIndexSassModuleUseFactV0, ParserIndexSassSelectorSymbolFactV0, ParserRangeV0,
-        RulePayload, SelectorGroup, SelectorSegment, StyleLanguage, SyntaxNodeKind,
+        ParserIndexSassModuleUseFactV0, ParserIndexSassSelectorSymbolFactV0, ParserPositionV0,
+        ParserRangeV0, RulePayload, SelectorGroup, SelectorSegment, StyleLanguage, SyntaxNodeKind,
         SyntaxNodePayload, TextSpan, TokenKind, parse_stylesheet,
     };
 
@@ -4000,6 +4000,37 @@ $gap: 1rem;
                 .resolved_function_call_names,
             vec!["tone"]
         );
+        Ok(())
+    }
+
+    #[test]
+    fn index_summary_reports_sass_symbol_ranges_after_non_ascii_text() -> Result<(), String> {
+        let source = "$gap: 1rem;\n.btn { content: \"한🙂\"; color: $gap; }\n";
+        let sheet = parse_stylesheet(StyleLanguage::Scss, source);
+        let summary = super::summarize_css_modules_intermediate(&sheet);
+
+        assert_eq!(
+            summary.sass.selector_symbol_facts,
+            vec![ParserIndexSassSelectorSymbolFactV0 {
+                selector_name: "btn".to_string(),
+                symbol_kind: "variable",
+                name: "gap".to_string(),
+                role: "reference",
+                resolution: "resolved",
+                byte_span: ParserByteSpanV0 { start: 46, end: 50 },
+                range: ParserRangeV0 {
+                    start: ParserPositionV0 {
+                        line: 1,
+                        character: 30,
+                    },
+                    end: ParserPositionV0 {
+                        line: 1,
+                        character: 34,
+                    },
+                },
+            }]
+        );
+
         Ok(())
     }
 }
