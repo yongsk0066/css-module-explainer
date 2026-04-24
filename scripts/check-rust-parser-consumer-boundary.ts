@@ -17,6 +17,9 @@ interface ParserIndexSummaryV0 {
   readonly selectors: {
     readonly names: readonly string[];
     readonly bemSuffixParentNames: readonly string[];
+    readonly bemSuffixSafeNames: readonly string[];
+    readonly nestedUnsafeNames: readonly string[];
+    readonly bemSuffixCount: number;
     readonly nestedSafetyCounts: {
       readonly flat: number;
       readonly bemSuffixSafe: number;
@@ -77,6 +80,9 @@ interface ParserConsumerBoundarySummaryV0 {
   readonly selectorUsage: {
     readonly names: readonly string[];
     readonly bemSuffixParentNames: readonly string[];
+    readonly bemSuffixSafeNames: readonly string[];
+    readonly nestedUnsafeNames: readonly string[];
+    readonly bemSuffixCount: number;
     readonly nestedSafetyCounts: {
       readonly flat: number;
       readonly bemSuffixSafe: number;
@@ -146,6 +152,26 @@ const CORPUS = [
     label: "scss-grouped-bem-unsafe-parser-consumer-boundary",
     filePath: "/f.module.scss",
     source: `.a, .b { &__icon { &--small { color: red; } } }`,
+  },
+  {
+    label: "scss-nested-bem-safety-matrix-parser-consumer-boundary",
+    filePath: "/f.module.scss",
+    source: `.btn { &--primary {} &__icon {} &.active {} &-legacy {} &_legacy {} & + &--paired {} }`,
+  },
+  {
+    label: "scss-non-bare-parent-bem-suffix-parser-consumer-boundary",
+    filePath: "/f.module.scss",
+    source: `.card:hover { &--primary {} }`,
+  },
+  {
+    label: "scss-descendant-parent-bem-suffix-parser-consumer-boundary",
+    filePath: "/f.module.scss",
+    source: `.wrapper { .inner { &--mod {} } }`,
+  },
+  {
+    label: "scss-unsafe-suffix-can-become-deep-bem-base-parser-consumer-boundary",
+    filePath: "/f.module.scss",
+    source: `.btn { &-legacy { &--x {} } }`,
   },
   {
     label: "scss-sass-symbol-parser-consumer-boundary",
@@ -280,6 +306,9 @@ function deriveSummaryFromProducer(
     selectorUsage: {
       names: [...intermediate.selectors.names],
       bemSuffixParentNames: [...intermediate.selectors.bemSuffixParentNames],
+      bemSuffixSafeNames: [...intermediate.selectors.bemSuffixSafeNames],
+      nestedUnsafeNames: [...intermediate.selectors.nestedUnsafeNames],
+      bemSuffixCount: intermediate.selectors.bemSuffixCount,
       nestedSafetyCounts: intermediate.selectors.nestedSafetyCounts,
     },
     composesResolution: {
@@ -346,11 +375,19 @@ function deriveTsSummary(filePath: string, source: string): ParserConsumerBounda
     language: findLangForPath(filePath),
     selectorUsage: {
       names: document.selectors.map((selector) => selector.name).toSorted(),
-      bemSuffixParentNames: uniqueSorted(
-        document.selectors
-          .map((selector) => selector.bemSuffix?.parentResolvedName)
-          .filter((value): value is string => value !== undefined),
-      ),
+      bemSuffixParentNames: document.selectors
+        .map((selector) => selector.bemSuffix?.parentResolvedName)
+        .filter((value): value is string => value !== undefined)
+        .toSorted(),
+      bemSuffixSafeNames: document.selectors
+        .filter((selector) => selector.nestedSafety === "bemSuffixSafe")
+        .map((selector) => selector.name)
+        .toSorted(),
+      nestedUnsafeNames: document.selectors
+        .filter((selector) => selector.nestedSafety === "nestedUnsafe")
+        .map((selector) => selector.name)
+        .toSorted(),
+      bemSuffixCount: document.selectors.filter((selector) => selector.bemSuffix).length,
       nestedSafetyCounts: {
         flat: document.selectors.filter((selector) => selector.nestedSafety === "flat").length,
         bemSuffixSafe: document.selectors.filter(

@@ -118,6 +118,7 @@ pub enum SelectorSegment {
     ClassName(String),
     Ampersand,
     BemSuffix(String),
+    AmpersandSuffix(String),
     Pseudo(String),
     Combinator(String),
     Other(String),
@@ -584,6 +585,12 @@ struct IndexSummaryAcc {
     nested_safety_counts: NestedSafetyCountsV0,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ResolvedSelectorBranch {
+    name: String,
+    bare_suffix_base: bool,
+}
+
 pub fn parse_style_module(path: &str, source: &str) -> Option<Stylesheet> {
     let language = StyleLanguage::from_module_path(path)?;
     Some(parse_stylesheet(language, source))
@@ -670,13 +677,7 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
         known_keyframe_names: &known_keyframe_names,
         sass_ref_ctx,
     };
-    collect_index_selector_attachment_facts(
-        &sheet.nodes,
-        selector_attachment_ctx,
-        &mut acc,
-        &[],
-        false,
-    );
+    collect_index_selector_attachment_facts(&sheet.nodes, selector_attachment_ctx, &mut acc, &[]);
 
     acc.selector_names.sort();
     acc.bem_suffix_parent_names.sort();
@@ -1140,11 +1141,11 @@ fn collect_parity_names(nodes: &[SyntaxNode], acc: &mut ParityLiteAcc) {
 fn collect_parity_names_with_parent(
     nodes: &[SyntaxNode],
     acc: &mut ParityLiteAcc,
-    parent_selector_names: &[String],
+    parent_branches: &[ResolvedSelectorBranch],
     depth: usize,
 ) {
     for node in nodes {
-        let mut next_parent_names = parent_selector_names.to_vec();
+        let mut next_parent_branches = parent_branches.to_vec();
         let mut next_depth = depth;
         match &node.payload {
             Some(SyntaxNodePayload::Rule(rule)) => {
@@ -1154,10 +1155,11 @@ fn collect_parity_names_with_parent(
                 if rule.selector_groups.len() > 1 {
                     acc.grouped_selector_count += rule.selector_groups.len();
                 }
-                let resolved = resolve_rule_selector_names(rule, parent_selector_names);
+                let resolved = resolve_rule_selector_branches(rule, parent_branches);
                 if !resolved.is_empty() {
-                    acc.selector_names.extend(resolved.iter().cloned());
-                    next_parent_names = resolved;
+                    acc.selector_names
+                        .extend(resolved.iter().map(|branch| branch.name.clone()));
+                    next_parent_branches = resolved;
                 }
             }
             Some(SyntaxNodePayload::AtRule(at_rule)) => {
@@ -1189,7 +1191,7 @@ fn collect_parity_names_with_parent(
             }
             _ => {}
         }
-        collect_parity_names_with_parent(&node.children, acc, &next_parent_names, next_depth);
+        collect_parity_names_with_parent(&node.children, acc, &next_parent_branches, next_depth);
     }
 }
 
@@ -1358,13 +1360,14 @@ fn increment_declaration_kind_count(counts: &mut DeclarationKindCountsV0, kind: 
 
 fn classify_rule_selector_facts(
     rule: &RulePayload,
-    parent_selector_names: &[String],
+    parent_branches: &[ResolvedSelectorBranch],
     parent_is_grouped: bool,
 ) -> RuleSelectorFacts {
-    let is_nested = rule
-        .selector_groups
-        .iter()
-        .any(|group| group.raw.contains('&'));
+    let is_nested = !parent_branches.is_empty()
+        || rule
+            .selector_groups
+            .iter()
+            .any(|group| group.raw.contains('&'));
     if !is_nested {
         return RuleSelectorFacts {
             nested_safety: NestedSafetyKind::Flat,
@@ -1373,7 +1376,8 @@ fn classify_rule_selector_facts(
     }
 
     let bem_suffix_safe = rule.selector_groups.len() == 1
-        && parent_selector_names.len() == 1
+        && parent_branches.len() == 1
+        && parent_branches[0].bare_suffix_base
         && !parent_is_grouped
         && matches!(
             rule.selector_groups[0].segments.as_slice(),
@@ -1662,25 +1666,26 @@ fn sass_variable_scope_contains(scope: SassVariableScope, byte_span: ParserByteS
 fn collect_index_names(
     nodes: &[SyntaxNode],
     acc: &mut IndexSummaryAcc,
-    parent_selector_names: &[String],
+    parent_branches: &[ResolvedSelectorBranch],
     parent_is_grouped: bool,
     current_sass_scope: Option<TextSpan>,
 ) {
     for node in nodes {
-        let mut next_parent_names = parent_selector_names.to_vec();
+        let mut next_parent_branches = parent_branches.to_vec();
         let mut next_parent_is_grouped = false;
         let mut split_child_branches = false;
         let mut next_sass_scope = current_sass_scope;
         match &node.payload {
             Some(SyntaxNodePayload::Rule(rule)) => {
                 next_sass_scope = Some(node.span);
-                let resolved = resolve_rule_selector_names(rule, parent_selector_names);
-                if !resolved.is_empty() {
-                    let selector_facts = classify_rule_selector_facts(
-                        rule,
-                        parent_selector_names,
-                        parent_is_grouped,
-                    );
+                let resolved_branches = resolve_rule_selector_branches(rule, parent_branches);
+                if !resolved_branches.is_empty() {
+                    let resolved: Vec<String> = resolved_branches
+                        .iter()
+                        .map(|branch| branch.name.clone())
+                        .collect();
+                    let selector_facts =
+                        classify_rule_selector_facts(rule, parent_branches, parent_is_grouped);
                     acc.bem_suffix_count += selector_facts.bem_suffix_count;
                     increment_nested_safety_count(
                         &mut acc.nested_safety_counts,
@@ -1728,8 +1733,8 @@ fn collect_index_names(
                         NestedSafetyKind::BemSuffixSafe => {
                             acc.bem_suffix_safe_selector_names
                                 .extend(resolved.iter().cloned());
-                            if let Some(parent_name) = parent_selector_names.first() {
-                                acc.bem_suffix_parent_names.push(parent_name.clone());
+                            if let Some(parent) = parent_branches.first() {
+                                acc.bem_suffix_parent_names.push(parent.name.clone());
                             }
                         }
                         NestedSafetyKind::NestedUnsafe => {
@@ -1739,7 +1744,7 @@ fn collect_index_names(
                         NestedSafetyKind::Flat => {}
                     }
                     next_parent_is_grouped = resolved.len() > 1;
-                    next_parent_names = resolved;
+                    next_parent_branches = resolved_branches;
                     split_child_branches = true;
                 }
             }
@@ -1848,11 +1853,11 @@ fn collect_index_names(
             _ => {}
         }
         if split_child_branches {
-            for parent_name in &next_parent_names {
+            for parent_branch in &next_parent_branches {
                 collect_index_names(
                     &node.children,
                     acc,
-                    std::slice::from_ref(parent_name),
+                    std::slice::from_ref(parent_branch),
                     next_parent_is_grouped,
                     next_sass_scope,
                 );
@@ -1861,7 +1866,7 @@ fn collect_index_names(
             collect_index_names(
                 &node.children,
                 acc,
-                &next_parent_names,
+                &next_parent_branches,
                 next_parent_is_grouped,
                 next_sass_scope,
             );
@@ -2103,14 +2108,13 @@ fn collect_index_selector_attachment_facts(
     nodes: &[SyntaxNode],
     ctx: SelectorAttachmentContext<'_>,
     acc: &mut IndexSummaryAcc,
-    parent_selector_names: &[String],
-    _parent_is_grouped: bool,
+    parent_branches: &[ResolvedSelectorBranch],
 ) {
     collect_index_selector_attachment_facts_with_context(
         nodes,
         ctx,
         acc,
-        parent_selector_names,
+        parent_branches,
         WrapperContext::default(),
     );
 }
@@ -2119,16 +2123,20 @@ fn collect_index_selector_attachment_facts_with_context(
     nodes: &[SyntaxNode],
     ctx: SelectorAttachmentContext<'_>,
     acc: &mut IndexSummaryAcc,
-    parent_selector_names: &[String],
+    parent_branches: &[ResolvedSelectorBranch],
     wrapper_ctx: WrapperContext,
 ) {
     for node in nodes {
-        let mut next_parent_names = parent_selector_names.to_vec();
+        let mut next_parent_branches = parent_branches.to_vec();
         let mut split_child_branches = false;
         let mut child_wrapper_ctx = wrapper_ctx;
         if let Some(SyntaxNodePayload::Rule(rule)) = &node.payload {
-            let resolved = resolve_rule_selector_names(rule, parent_selector_names);
-            if !resolved.is_empty() {
+            let resolved_branches = resolve_rule_selector_branches(rule, parent_branches);
+            if !resolved_branches.is_empty() {
+                let resolved: Vec<String> = resolved_branches
+                    .iter()
+                    .map(|branch| branch.name.clone())
+                    .collect();
                 let ref_facts = collect_rule_reference_facts(
                     &node.children,
                     ctx.source,
@@ -2345,7 +2353,7 @@ fn collect_index_selector_attachment_facts_with_context(
                     acc.selectors_under_layer_names
                         .extend(resolved.iter().cloned());
                 }
-                next_parent_names = resolved;
+                next_parent_branches = resolved_branches;
                 split_child_branches = true;
             }
         } else if let Some(SyntaxNodePayload::AtRule(at_rule)) = &node.payload {
@@ -2370,12 +2378,12 @@ fn collect_index_selector_attachment_facts_with_context(
         }
 
         if split_child_branches {
-            for parent_name in &next_parent_names {
+            for parent_branch in &next_parent_branches {
                 collect_index_selector_attachment_facts_with_context(
                     &node.children,
                     ctx,
                     acc,
-                    std::slice::from_ref(parent_name),
+                    std::slice::from_ref(parent_branch),
                     child_wrapper_ctx,
                 );
             }
@@ -2384,7 +2392,7 @@ fn collect_index_selector_attachment_facts_with_context(
                 &node.children,
                 ctx,
                 acc,
-                &next_parent_names,
+                &next_parent_branches,
                 child_wrapper_ctx,
             );
         }
@@ -2865,63 +2873,103 @@ fn extract_simple_selector_name(prelude: &str) -> Option<String> {
     Some(rest.to_string())
 }
 
-fn resolve_rule_selector_names(
+fn resolve_rule_selector_branches(
     rule: &RulePayload,
-    parent_selector_names: &[String],
-) -> Vec<String> {
-    let mut names = Vec::new();
+    parent_branches: &[ResolvedSelectorBranch],
+) -> Vec<ResolvedSelectorBranch> {
+    let mut branches = Vec::new();
 
     for group in &rule.selector_groups {
-        let resolved = extract_group_selector_names(group, parent_selector_names);
+        let resolved = extract_group_selector_branches(group, parent_branches);
         if !resolved.is_empty() {
-            names.extend(resolved);
+            branches.extend(resolved);
         } else if let Some(local_names) = extract_local_function_selector_names(&group.raw) {
-            names.extend(repeat_names_for_parent_branches(
+            branches.extend(repeat_names_for_parent_branches(
                 local_names,
-                parent_selector_names,
+                parent_branches,
+                false,
             ));
         } else if let Some(name) = extract_simple_selector_name(&group.raw) {
-            names.extend(repeat_names_for_parent_branches(
+            branches.extend(repeat_names_for_parent_branches(
                 vec![name],
-                parent_selector_names,
+                parent_branches,
+                true,
             ));
         }
     }
 
-    names
+    branches
 }
 
 fn repeat_names_for_parent_branches(
     names: Vec<String>,
-    parent_selector_names: &[String],
-) -> Vec<String> {
-    if parent_selector_names.len() <= 1 || names.is_empty() {
-        return names;
+    parent_branches: &[ResolvedSelectorBranch],
+    bare_when_top_level_single: bool,
+) -> Vec<ResolvedSelectorBranch> {
+    if names.is_empty() {
+        return Vec::new();
     }
-    let mut repeated = Vec::with_capacity(names.len() * parent_selector_names.len());
-    for _ in parent_selector_names {
-        repeated.extend(names.iter().cloned());
+    if parent_branches.is_empty() {
+        let bare_suffix_base = bare_when_top_level_single && names.len() == 1;
+        return names
+            .into_iter()
+            .map(|name| ResolvedSelectorBranch {
+                name,
+                bare_suffix_base,
+            })
+            .collect();
+    }
+    if parent_branches.len() == 1 {
+        return names
+            .into_iter()
+            .map(|name| ResolvedSelectorBranch {
+                name,
+                bare_suffix_base: false,
+            })
+            .collect();
+    }
+    let mut repeated = Vec::with_capacity(names.len() * parent_branches.len());
+    for _ in parent_branches {
+        repeated.extend(names.iter().cloned().map(|name| ResolvedSelectorBranch {
+            name,
+            bare_suffix_base: false,
+        }));
     }
     repeated
 }
 
-fn extract_group_selector_names(
+fn extract_group_selector_branches(
     group: &SelectorGroup,
-    parent_selector_names: &[String],
-) -> Vec<String> {
+    parent_branches: &[ResolvedSelectorBranch],
+) -> Vec<ResolvedSelectorBranch> {
     match group.segments.as_slice() {
         [SelectorSegment::ClassName(name)] => {
-            repeat_names_for_parent_branches(vec![name.clone()], parent_selector_names)
+            repeat_names_for_parent_branches(vec![name.clone()], parent_branches, true)
         }
         [
             SelectorSegment::Ampersand,
             SelectorSegment::BemSuffix(suffix),
-        ] => parent_selector_names
+        ] => parent_branches
             .iter()
-            .map(|parent| format!("{parent}{suffix}"))
+            .filter(|parent| parent.bare_suffix_base)
+            .map(|parent| ResolvedSelectorBranch {
+                name: format!("{}{}", parent.name, suffix),
+                bare_suffix_base: true,
+            })
+            .collect(),
+        [
+            SelectorSegment::Ampersand,
+            SelectorSegment::AmpersandSuffix(suffix),
+        ] => parent_branches
+            .iter()
+            .filter(|parent| parent.bare_suffix_base)
+            .map(|parent| ResolvedSelectorBranch {
+                name: format!("{}{}", parent.name, suffix),
+                bare_suffix_base: true,
+            })
             .collect(),
         [SelectorSegment::Ampersand, SelectorSegment::ClassName(name)] => {
-            repeat_names_for_parent_branches(vec![name.clone()], parent_selector_names)
+            repeat_names_for_parent_branches(vec![name.clone()], parent_branches, false)
         }
         segments => {
             let last_combinator = segments
@@ -2934,6 +2982,20 @@ fn extract_group_selector_names(
             let tail = last_combinator
                 .map(|index| &segments[index + 1..])
                 .unwrap_or(segments);
+            if let [
+                SelectorSegment::Ampersand,
+                SelectorSegment::BemSuffix(suffix) | SelectorSegment::AmpersandSuffix(suffix),
+            ] = tail
+            {
+                return parent_branches
+                    .iter()
+                    .filter(|parent| parent.bare_suffix_base)
+                    .map(|parent| ResolvedSelectorBranch {
+                        name: format!("{}{}", parent.name, suffix),
+                        bare_suffix_base: false,
+                    })
+                    .collect();
+            }
             let names: Vec<String> = tail
                 .iter()
                 .filter_map(|segment| match segment {
@@ -2941,7 +3003,7 @@ fn extract_group_selector_names(
                     _ => None,
                 })
                 .collect();
-            repeat_names_for_parent_branches(names, parent_selector_names)
+            repeat_names_for_parent_branches(names, parent_branches, false)
         }
     }
 }
@@ -3062,6 +3124,18 @@ fn parse_selector_segments(raw: &str) -> Vec<SelectorSegment> {
                     segments.push(SelectorSegment::BemSuffix(
                         chars[start..index].iter().collect(),
                     ));
+                } else if index < chars.len()
+                    && !starts_selector_component_after_ampersand(chars[index])
+                {
+                    let start = index;
+                    while index < chars.len() && is_selector_ident_continue(chars[index]) {
+                        index += 1;
+                    }
+                    if start < index {
+                        segments.push(SelectorSegment::AmpersandSuffix(
+                            chars[start..index].iter().collect(),
+                        ));
+                    }
                 }
             }
             ':' => {
@@ -3123,6 +3197,13 @@ fn parse_selector_segments(raw: &str) -> Vec<SelectorSegment> {
 
 fn is_selector_ident_continue(ch: char) -> bool {
     ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-') || !ch.is_ascii()
+}
+
+fn starts_selector_component_after_ampersand(ch: char) -> bool {
+    matches!(
+        ch,
+        ':' | '.' | '[' | '#' | '>' | '+' | '~' | ',' | '*' | ')' | '}' | ']'
+    ) || ch.is_whitespace()
 }
 
 fn tokenize(language: StyleLanguage, source: &str) -> (Vec<Token>, Vec<ParseDiagnostic>) {
@@ -3842,6 +3923,69 @@ mod tests {
         let sheet = parse_stylesheet(StyleLanguage::Scss, source);
         let summary = super::summarize_parity_lite(&sheet);
         assert_eq!(summary.selector_names, vec!["a", "active", "active", "b"]);
+    }
+
+    #[test]
+    fn index_summary_matches_nested_bem_safety_matrix() {
+        let source = ".btn { &--primary {} &__icon {} &.active {} &-legacy {} &_legacy {} & + &--paired {} }";
+        let sheet = parse_stylesheet(StyleLanguage::Scss, source);
+        let summary = super::summarize_css_modules_intermediate(&sheet);
+        assert_eq!(
+            summary.selectors.names,
+            vec![
+                "active",
+                "btn",
+                "btn--paired",
+                "btn--primary",
+                "btn-legacy",
+                "btn__icon",
+                "btn_legacy"
+            ]
+        );
+        assert_eq!(
+            summary.selectors.bem_suffix_safe_names,
+            vec!["btn--primary", "btn__icon"]
+        );
+        assert_eq!(
+            summary.selectors.nested_unsafe_names,
+            vec!["active", "btn--paired", "btn-legacy", "btn_legacy"]
+        );
+    }
+
+    #[test]
+    fn index_summary_does_not_bem_expand_non_bare_parent_suffixes() {
+        let source = ".card:hover { &--primary {} }";
+        let sheet = parse_stylesheet(StyleLanguage::Scss, source);
+        let summary = super::summarize_css_modules_intermediate(&sheet);
+        assert_eq!(summary.selectors.names, vec!["card"]);
+        assert_eq!(summary.selectors.bem_suffix_count, 0);
+    }
+
+    #[test]
+    fn index_summary_marks_plain_nested_selectors_unsafe() {
+        let source = ".wrapper { .inner { &--mod {} } }";
+        let sheet = parse_stylesheet(StyleLanguage::Scss, source);
+        let summary = super::summarize_css_modules_intermediate(&sheet);
+        assert_eq!(summary.selectors.names, vec!["inner", "wrapper"]);
+        assert_eq!(summary.selectors.nested_unsafe_names, vec!["inner"]);
+        assert_eq!(summary.selectors.nested_safety_counts.flat, 1);
+        assert_eq!(summary.selectors.nested_safety_counts.nested_unsafe, 1);
+    }
+
+    #[test]
+    fn index_summary_allows_unsafe_suffix_to_become_deep_bem_base() {
+        let source = ".btn { &-legacy { &--x {} } }";
+        let sheet = parse_stylesheet(StyleLanguage::Scss, source);
+        let summary = super::summarize_css_modules_intermediate(&sheet);
+        assert_eq!(
+            summary.selectors.names,
+            vec!["btn", "btn-legacy", "btn-legacy--x"]
+        );
+        assert_eq!(
+            summary.selectors.bem_suffix_safe_names,
+            vec!["btn-legacy--x"]
+        );
+        assert_eq!(summary.selectors.nested_unsafe_names, vec!["btn-legacy"]);
     }
 
     #[test]

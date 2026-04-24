@@ -194,6 +194,20 @@ describe("parseStyleSelectorMap / edge cases", () => {
       expect(map.get("statussuffix")?.bemSuffix).toBeUndefined();
     });
 
+    it("keeps nested suffix continuations as future bare BEM bases only after direct ampersand expansion", () => {
+      const map = parseStyleSelectorMap(`.btn { &-legacy { &--x {} } }`, "/fake/a.module.scss");
+      expect(map.get("btn-legacy")?.nestedSafety).toBe("nestedUnsafe");
+      expect(map.get("btn-legacy")?.bemSuffix).toBeUndefined();
+      expect(map.get("btn-legacy--x")?.nestedSafety).toBe("bemSuffixSafe");
+      expect(map.get("btn-legacy--x")?.bemSuffix?.parentResolvedName).toBe("btn-legacy");
+    });
+
+    it("does not expand BEM suffixes from descendant-nested parents", () => {
+      const map = parseStyleSelectorMap(`.wrapper { .inner { &--mod {} } }`, "/fake/a.module.scss");
+      expect(map.has("inner--mod")).toBe(false);
+      expect(map.get("inner")?.nestedSafety).toBe("nestedUnsafe");
+    });
+
     it("does not treat selector syntax after `&` as a class suffix continuation", () => {
       const map = parseStyleSelectorMap(
         `.status { &:hover {} &[aria-current] {} & + .peer {} }`,
