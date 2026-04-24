@@ -628,4 +628,69 @@ describe("computeScssUnusedDiagnostics", () => {
       },
     });
   });
+
+  it("does not report Sass symbols resolved through wildcard module imports", () => {
+    const tokensPath = "/fake/tokens.module.scss";
+    const styleDoc = parseStyleDocument(
+      `@use "./tokens.module" as *;
+
+.button {
+  color: $gap;
+  @include raised();
+  border-color: tone($gap);
+}`,
+      SCSS_PATH,
+    );
+    const targetDoc = parseStyleDocument(
+      `$gap: 1rem;
+@mixin raised() {}
+@function tone($value) { @return $value; }`,
+      tokensPath,
+    );
+    const byPath = new Map([
+      [SCSS_PATH, styleDoc],
+      [tokensPath, targetDoc],
+    ]);
+
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      styleDoc,
+      new WorkspaceSemanticWorkspaceReferenceIndex(),
+      new WorkspaceStyleDependencyGraph(),
+      (filePath) => byPath.get(filePath) ?? null,
+    );
+
+    expect(diagnostics.filter((entry) => entry.message.includes("Sass "))).toEqual([]);
+  });
+
+  it("keeps reporting wildcard Sass symbols that are not exported by the module", () => {
+    const tokensPath = "/fake/tokens.module.scss";
+    const styleDoc = parseStyleDocument(
+      `@use "./tokens.module" as *;
+
+.button {
+  color: $missing;
+}`,
+      SCSS_PATH,
+    );
+    const targetDoc = parseStyleDocument(`$gap: 1rem;`, tokensPath);
+    const byPath = new Map([
+      [SCSS_PATH, styleDoc],
+      [tokensPath, targetDoc],
+    ]);
+
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      styleDoc,
+      new WorkspaceSemanticWorkspaceReferenceIndex(),
+      new WorkspaceStyleDependencyGraph(),
+      (filePath) => byPath.get(filePath) ?? null,
+    );
+
+    expect(
+      diagnostics.find((entry) =>
+        entry.message.includes("Sass variable '$missing' not found in this file."),
+      ),
+    ).toBeDefined();
+  });
 });

@@ -28,7 +28,7 @@ export function computeScssUnusedDiagnostics(
   styleDocumentForPath?: (filePath: string) => StyleDocumentHIR | null,
   runtimeDeps?: Pick<
     ProviderDeps,
-    "analysisCache" | "typeResolver" | "workspaceRoot" | "settings"
+    "analysisCache" | "typeResolver" | "workspaceRoot" | "settings" | "aliasResolver"
   > & {
     readonly env?: NodeJS.ProcessEnv;
   },
@@ -43,6 +43,7 @@ export function computeScssUnusedDiagnostics(
       ...(runtimeDeps?.typeResolver ? { typeResolver: runtimeDeps.typeResolver } : {}),
       ...(runtimeDeps?.workspaceRoot ? { workspaceRoot: runtimeDeps.workspaceRoot } : {}),
       ...(runtimeDeps?.settings ? { settings: runtimeDeps.settings } : {}),
+      ...(runtimeDeps?.aliasResolver ? { aliasResolver: runtimeDeps.aliasResolver } : {}),
     },
     runtimeDeps?.env ? { env: runtimeDeps.env } : undefined,
   ).map((finding) => toDiagnostic(finding, styleDocument, styleDocumentForPath));

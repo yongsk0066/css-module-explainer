@@ -368,6 +368,56 @@ export function App(enabled: boolean) {
     ).toBeDefined();
   });
 
+  it("does not report Sass symbols resolved through wildcard module imports", async () => {
+    const SASS_SCSS = `@use "./tokens.module" as *;
+
+.button {
+  color: $gap;
+  @include raised();
+  border-color: tone($gap);
+}
+`;
+    const TOKENS_SCSS = `$gap: 1rem;
+@mixin raised() {}
+@function tone($value) { @return $value; }
+`;
+    client = createInProcessServer({
+      readStyleFile: (filePath) => {
+        if (filePath.endsWith("Button.module.scss")) return SASS_SCSS;
+        if (filePath.endsWith("tokens.module.scss")) return TOKENS_SCSS;
+        return null;
+      },
+      typeResolver: new FakeTypeResolver(),
+      fileSupplier: emptySupplier,
+    });
+    await client.initialize();
+    client.initialized();
+
+    client.didOpen({
+      textDocument: {
+        uri: "file:///fake/workspace/src/Button.module.scss",
+        languageId: "scss",
+        version: 1,
+        text: SASS_SCSS,
+      },
+    });
+
+    const diagnostics = await client.waitForDiagnostics(
+      "file:///fake/workspace/src/Button.module.scss",
+    );
+    expect(
+      diagnostics.find((d) => d.message.includes("Sass variable '$gap' not found in this file.")),
+    ).toBeUndefined();
+    expect(
+      diagnostics.find((d) =>
+        d.message.includes("Sass mixin '@mixin raised' not found in this file."),
+      ),
+    ).toBeUndefined();
+    expect(
+      diagnostics.find((d) => d.message.includes("Sass function 'tone()' not found in this file.")),
+    ).toBeUndefined();
+  });
+
   it("reports unresolved Sass symbols from the SCSS buffer", async () => {
     const SASS_SCSS = `
 .button {

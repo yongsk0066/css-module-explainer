@@ -1,7 +1,11 @@
 import path from "node:path";
 import type { ComposesRef, Range } from "@css-module-explainer/shared";
 import type { StyleDocumentHIR } from "../hir/style-types";
-import { readStyleModuleUsageSummary } from "../query";
+import {
+  readStyleModuleUsageSummary,
+  resolveSassWildcardSymbolTarget,
+  type SassModulePathAliasResolver,
+} from "../query";
 import type { SemanticWorkspaceReferenceIndex, StyleDependencyGraph } from "../semantic";
 import type { StyleCheckerFinding } from "./contracts";
 import { runCheckerRules, type CheckerRule } from "./rule-template";
@@ -15,6 +19,7 @@ export interface StyleDocumentCheckEnv {
   readonly semanticReferenceIndex: SemanticWorkspaceReferenceIndex;
   readonly styleDependencyGraph?: StyleDependencyGraph;
   readonly styleDocumentForPath?: (filePath: string) => StyleDocumentHIR | null;
+  readonly aliasResolver?: SassModulePathAliasResolver;
 }
 
 export interface StyleDocumentCheckOptions {
@@ -198,6 +203,7 @@ function checkMissingKeyframesRule({
 
 function checkSassSymbolResolutionRule({
   params,
+  env,
   options,
 }: {
   readonly params: StyleDocumentCheckParams;
@@ -210,6 +216,18 @@ function checkSassSymbolResolutionRule({
 
   for (const symbol of params.styleDocument.sassSymbols) {
     if (symbol.resolution !== "unresolved") continue;
+    if (
+      env.styleDocumentForPath &&
+      resolveSassWildcardSymbolTarget(
+        env.styleDocumentForPath,
+        params.styleDocument.filePath,
+        params.styleDocument,
+        symbol,
+        env.aliasResolver,
+      )
+    ) {
+      continue;
+    }
     const key = [
       symbol.symbolKind,
       symbol.name,

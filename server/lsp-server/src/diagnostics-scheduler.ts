@@ -169,6 +169,7 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
         typeResolver: providerDeps.typeResolver,
         workspaceRoot: providerDeps.workspaceRoot,
         settings: providerDeps.settings,
+        aliasResolver: providerDeps.aliasResolver,
         env: process.env,
       },
     );

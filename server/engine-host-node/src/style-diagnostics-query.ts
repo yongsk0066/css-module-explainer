@@ -27,6 +27,7 @@ export function resolveStyleDiagnosticFindings(
     readonly typeResolver?: ProviderDeps["typeResolver"];
     readonly workspaceRoot?: ProviderDeps["workspaceRoot"];
     readonly settings?: ProviderDeps["settings"];
+    readonly aliasResolver?: ProviderDeps["aliasResolver"];
   },
   options: StyleDiagnosticsQueryOptions = {},
 ): readonly StyleCheckerFinding[] {
@@ -41,6 +42,7 @@ export function resolveStyleDiagnosticFindings(
       typeResolver: deps.typeResolver,
       workspaceRoot: deps.workspaceRoot,
       settings: deps.settings,
+      ...(deps.aliasResolver ? { aliasResolver: deps.aliasResolver } : {}),
     } satisfies Pick<
       ProviderDeps,
       | "analysisCache"
@@ -50,7 +52,7 @@ export function resolveStyleDiagnosticFindings(
       | "typeResolver"
       | "workspaceRoot"
       | "settings"
-    >;
+    > & { readonly aliasResolver?: ProviderDeps["aliasResolver"] };
     const unusedSelectors = resolveUnusedStyleSelectors(args, rustDeps, options);
     const otherFindings = checkStyleDocument(
       args,
@@ -58,6 +60,7 @@ export function resolveStyleDiagnosticFindings(
         semanticReferenceIndex: rustDeps.semanticReferenceIndex,
         styleDependencyGraph: rustDeps.styleDependencyGraph,
         styleDocumentForPath: rustDeps.styleDocumentForPath,
+        ...(rustDeps.aliasResolver ? { aliasResolver: rustDeps.aliasResolver } : {}),
       },
       { includeUnusedSelectors: false },
     );
@@ -85,6 +88,7 @@ function hasRustStyleDiagnosticsDeps(
     readonly typeResolver?: ProviderDeps["typeResolver"];
     readonly workspaceRoot?: ProviderDeps["workspaceRoot"];
     readonly settings?: ProviderDeps["settings"];
+    readonly aliasResolver?: ProviderDeps["aliasResolver"];
   },
 ): deps is Pick<
   ProviderDeps,
@@ -95,7 +99,7 @@ function hasRustStyleDiagnosticsDeps(
   | "typeResolver"
   | "workspaceRoot"
   | "settings"
-> {
+> & { readonly aliasResolver?: ProviderDeps["aliasResolver"] } {
   return Boolean(
     deps.analysisCache &&
     deps.styleDependencyGraph &&
@@ -114,6 +118,7 @@ function checkCurrentStyleDocument(
   deps: Pick<ProviderDeps, "semanticReferenceIndex"> & {
     readonly styleDependencyGraph?: ProviderDeps["styleDependencyGraph"];
     readonly styleDocumentForPath?: ProviderDeps["styleDocumentForPath"];
+    readonly aliasResolver?: ProviderDeps["aliasResolver"];
   },
   options: { readonly includeUnusedSelectors: boolean },
 ): readonly StyleCheckerFinding[] {
@@ -123,6 +128,7 @@ function checkCurrentStyleDocument(
       semanticReferenceIndex: deps.semanticReferenceIndex,
       ...(deps.styleDependencyGraph ? { styleDependencyGraph: deps.styleDependencyGraph } : {}),
       ...(deps.styleDocumentForPath ? { styleDocumentForPath: deps.styleDocumentForPath } : {}),
+      ...(deps.aliasResolver ? { aliasResolver: deps.aliasResolver } : {}),
     },
     options,
   );

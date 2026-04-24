@@ -953,9 +953,12 @@ function pushSassAtRuleParamOccurrences(
   ruleRange: Range,
   targets: SassSymbolTargetContext,
 ): void {
+  const ignoredFunctionCallOffsets = new Set<number>();
+
   if (atrule.name === "include") {
     const callable = parseSassCallableName(atrule.params);
     if (callable) {
+      ignoredFunctionCallOffsets.add(callable.offset);
       const range = findAtRuleParamValueTokenRange(atrule, callable.offset, callable.raw.length);
       if (range) {
         occurrences.push(
@@ -994,6 +997,7 @@ function pushSassAtRuleParamOccurrences(
     targets.functionTargets,
     targets.allowUnresolvedFunctionCalls,
   )) {
+    if (ignoredFunctionCallOffsets.has(match.offset)) continue;
     const range = findAtRuleParamValueTokenRange(atrule, match.offset, match.raw.length);
     if (!range) continue;
     occurrences.push(
