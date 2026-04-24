@@ -40,6 +40,16 @@ export interface ParserByteSpanV0 {
   readonly end: number;
 }
 
+export interface ParserPositionV0 {
+  readonly line: number;
+  readonly character: number;
+}
+
+export interface ParserRangeV0 {
+  readonly start: ParserPositionV0;
+  readonly end: ParserPositionV0;
+}
+
 export interface ParserSassSelectorSymbolFactV0 {
   readonly selectorName: string;
   readonly symbolKind: "variable" | "mixin" | "function";
@@ -47,6 +57,7 @@ export interface ParserSassSelectorSymbolFactV0 {
   readonly role: "reference" | "include" | "call";
   readonly resolution: "resolved" | "unresolved";
   readonly byteSpan: ParserByteSpanV0;
+  readonly range: ParserRangeV0;
 }
 
 export function deriveSassSummary(source: string): ParserSassSeedFactsV0 {
@@ -172,7 +183,7 @@ function deriveSassSelectorAttachments(
         const start = bodyStart + (variableMatch.index ?? 0);
         return {
           name: variableMatch[1]!,
-          byteSpan: { start, end: start + variableMatch[0].length },
+          location: symbolLocation(source, start, start + variableMatch[0].length),
         };
       },
     );
@@ -185,14 +196,14 @@ function deriveSassSelectorAttachments(
       if (variableRefs.some((name) => !variableTargets.has(name))) {
         selectorsWithUnresolvedVariableRefsNames.push(selectorName);
       }
-      for (const { name, byteSpan } of variableRefMatches) {
+      for (const { name, location } of variableRefMatches) {
         selectorSymbolFacts.push({
           selectorName,
           symbolKind: "variable",
           name,
           role: "reference",
           resolution: variableTargets.has(name) ? "resolved" : "unresolved",
-          byteSpan,
+          ...location,
         });
       }
     }
@@ -203,7 +214,7 @@ function deriveSassSelectorAttachments(
         const start = bodyStart + (includeMatch.index ?? 0) + includeMatch[0].indexOf(name);
         return {
           name,
-          byteSpan: { start, end: start + name.length },
+          location: symbolLocation(source, start, start + name.length),
         };
       },
     );
@@ -216,14 +227,14 @@ function deriveSassSelectorAttachments(
       if (mixinIncludes.some((name) => !mixinTargets.has(name))) {
         selectorsWithUnresolvedMixinIncludesNames.push(selectorName);
       }
-      for (const { name, byteSpan } of mixinIncludeMatches) {
+      for (const { name, location } of mixinIncludeMatches) {
         selectorSymbolFacts.push({
           selectorName,
           symbolKind: "mixin",
           name,
           role: "include",
           resolution: mixinTargets.has(name) ? "resolved" : "unresolved",
-          byteSpan,
+          ...location,
         });
       }
     }
@@ -234,20 +245,21 @@ function deriveSassSelectorAttachments(
         const start = bodyStart + (callMatch.index ?? 0) + callMatch[0].indexOf(callName);
         return {
           name: callName,
-          byteSpan: { start, end: start + callName.length },
+          location: symbolLocation(source, start, start + callName.length),
         };
       }),
     );
     if (functionCalls.length > 0) {
       selectorsWithFunctionCallsNames.push(selectorName);
       selectorSymbolFacts.push(
-        ...functionCalls.map(({ name, byteSpan }) => ({
+        ...functionCalls.map(({ name, location }) => ({
           selectorName,
           symbolKind: "function" as const,
           name,
           role: "call" as const,
           resolution: "resolved" as const,
-          byteSpan,
+          byteSpan: location.byteSpan,
+          range: location.range,
         })),
       );
     }
@@ -372,6 +384,49 @@ function uniqueSortedSelectorSymbolFacts(
     if (spanStartCompare !== 0) return spanStartCompare;
     return left.byteSpan.end - right.byteSpan.end;
   });
+}
+
+function symbolLocation(
+  source: string,
+  startCodeUnitOffset: number,
+  endCodeUnitOffset: number,
+): Pick<ParserSassSelectorSymbolFactV0, "byteSpan" | "range"> {
+  return {
+    byteSpan: {
+      start: utf8ByteOffsetForCodeUnitOffset(source, startCodeUnitOffset),
+      end: utf8ByteOffsetForCodeUnitOffset(source, endCodeUnitOffset),
+    },
+    range: {
+      start: positionAtCodeUnitOffset(source, startCodeUnitOffset),
+      end: positionAtCodeUnitOffset(source, endCodeUnitOffset),
+    },
+  };
+}
+
+function utf8ByteOffsetForCodeUnitOffset(source: string, codeUnitOffset: number): number {
+  return new TextEncoder().encode(source.slice(0, codeUnitOffset)).length;
+}
+
+function positionAtCodeUnitOffset(source: string, codeUnitOffset: number): ParserPositionV0 {
+  let line = 0;
+  let character = 0;
+  let index = 0;
+
+  while (index < codeUnitOffset) {
+    const codePoint = source.codePointAt(index);
+    if (codePoint === undefined) break;
+    const codeUnitLength = codePoint > 0xffff ? 2 : 1;
+    const value = source.slice(index, index + codeUnitLength);
+    if (value === "\n") {
+      line += 1;
+      character = 0;
+    } else {
+      character += codeUnitLength;
+    }
+    index += codeUnitLength;
+  }
+
+  return { line, character };
 }
 
 function escapeRegExp(value: string): string {

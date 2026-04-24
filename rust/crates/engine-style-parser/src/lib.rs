@@ -361,6 +361,20 @@ impl From<TextSpan> for ParserByteSpanV0 {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParserPositionV0 {
+    pub line: usize,
+    pub character: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParserRangeV0 {
+    pub start: ParserPositionV0,
+    pub end: ParserPositionV0,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ParserIndexSassSelectorSymbolFactV0 {
@@ -370,6 +384,7 @@ pub struct ParserIndexSassSelectorSymbolFactV0 {
     pub role: &'static str,
     pub resolution: &'static str,
     pub byte_span: ParserByteSpanV0,
+    pub range: ParserRangeV0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
@@ -1423,6 +1438,33 @@ fn trim_source_span(source: &str, span: TextSpan) -> TextSpan {
     TextSpan::new(start, start + trimmed_len)
 }
 
+fn source_range_for_byte_span(source: &str, span: ParserByteSpanV0) -> ParserRangeV0 {
+    ParserRangeV0 {
+        start: source_position_for_byte_offset(source, span.start),
+        end: source_position_for_byte_offset(source, span.end),
+    }
+}
+
+fn source_position_for_byte_offset(source: &str, offset: usize) -> ParserPositionV0 {
+    let clamped_offset = offset.min(source.len());
+    let mut line = 0usize;
+    let mut character = 0usize;
+
+    for (byte_index, ch) in source.char_indices() {
+        if byte_index >= clamped_offset {
+            break;
+        }
+        if ch == '\n' {
+            line += 1;
+            character = 0;
+        } else {
+            character += ch.len_utf16();
+        }
+    }
+
+    ParserPositionV0 { line, character }
+}
+
 fn collect_rule_reference_facts(
     children: &[SyntaxNode],
     source: &str,
@@ -2112,6 +2154,7 @@ fn collect_index_selector_attachment_facts_with_context(
                                 role: fact.role,
                                 resolution: fact.resolution,
                                 byte_span: fact.byte_span,
+                                range: source_range_for_byte_span(ctx.source, fact.byte_span),
                             }
                         }));
                 }
@@ -3389,9 +3432,9 @@ fn classify_at_rule_kind(name: &str) -> AtRuleKind {
 mod tests {
     use super::{
         AtRuleKind, AtRulePayload, DeclarationPayload, ParserByteSpanV0,
-        ParserIndexSassModuleUseFactV0, ParserIndexSassSelectorSymbolFactV0, RulePayload,
-        SelectorGroup, SelectorSegment, StyleLanguage, SyntaxNodeKind, SyntaxNodePayload, TextSpan,
-        TokenKind, parse_stylesheet,
+        ParserIndexSassModuleUseFactV0, ParserIndexSassSelectorSymbolFactV0, ParserRangeV0,
+        RulePayload, SelectorGroup, SelectorSegment, StyleLanguage, SyntaxNodeKind,
+        SyntaxNodePayload, TextSpan, TokenKind, parse_stylesheet,
     };
 
     fn token_texts<'a>(source: &'a str, sheet: &super::Stylesheet) -> Vec<(TokenKind, &'a str)> {
@@ -3414,6 +3457,11 @@ mod tests {
             start,
             end: start + needle.len(),
         })
+    }
+
+    fn range_after(source: &str, anchor: &str, needle: &str) -> Result<ParserRangeV0, String> {
+        span_after(source, anchor, needle)
+            .map(|span| super::source_range_for_byte_span(source, span))
     }
 
     #[test]
@@ -3819,6 +3867,7 @@ $gap: 1rem;
                     role: "call",
                     resolution: "resolved",
                     byte_span: span_after(source, "border-color:", "tone")?,
+                    range: range_after(source, "border-color:", "tone")?,
                 },
                 ParserIndexSassSelectorSymbolFactV0 {
                     selector_name: "btn".to_string(),
@@ -3827,6 +3876,7 @@ $gap: 1rem;
                     role: "include",
                     resolution: "resolved",
                     byte_span: span_after(source, "@include", "raised")?,
+                    range: range_after(source, "@include", "raised")?,
                 },
                 ParserIndexSassSelectorSymbolFactV0 {
                     selector_name: "btn".to_string(),
@@ -3835,6 +3885,7 @@ $gap: 1rem;
                     role: "reference",
                     resolution: "resolved",
                     byte_span: span_after(source, ".btn { color", "$gap")?,
+                    range: range_after(source, ".btn { color", "$gap")?,
                 },
                 ParserIndexSassSelectorSymbolFactV0 {
                     selector_name: "btn".to_string(),
@@ -3843,6 +3894,7 @@ $gap: 1rem;
                     role: "reference",
                     resolution: "resolved",
                     byte_span: span_after(source, "@include raised(", "$gap")?,
+                    range: range_after(source, "@include raised(", "$gap")?,
                 },
                 ParserIndexSassSelectorSymbolFactV0 {
                     selector_name: "btn".to_string(),
@@ -3851,6 +3903,7 @@ $gap: 1rem;
                     role: "reference",
                     resolution: "resolved",
                     byte_span: span_after(source, "border-color: tone(", "$gap")?,
+                    range: range_after(source, "border-color: tone(", "$gap")?,
                 },
                 ParserIndexSassSelectorSymbolFactV0 {
                     selector_name: "ghost".to_string(),
@@ -3859,6 +3912,7 @@ $gap: 1rem;
                     role: "include",
                     resolution: "unresolved",
                     byte_span: span_after(source, ".ghost", "absent")?,
+                    range: range_after(source, ".ghost", "absent")?,
                 },
                 ParserIndexSassSelectorSymbolFactV0 {
                     selector_name: "ghost".to_string(),
@@ -3867,6 +3921,7 @@ $gap: 1rem;
                     role: "reference",
                     resolution: "resolved",
                     byte_span: span_after(source, "absent(", "$gap")?,
+                    range: range_after(source, "absent(", "$gap")?,
                 },
                 ParserIndexSassSelectorSymbolFactV0 {
                     selector_name: "ghost".to_string(),
@@ -3875,6 +3930,7 @@ $gap: 1rem;
                     role: "reference",
                     resolution: "unresolved",
                     byte_span: span_after(source, ".ghost { color", "$missing")?,
+                    range: range_after(source, ".ghost { color", "$missing")?,
                 },
             ]
         );

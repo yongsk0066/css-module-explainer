@@ -18,8 +18,8 @@ Current scope:
   function calls
 - selector attachment seeds for Sass variable refs, mixin includes, and
   declared function calls
-- selector-scoped Sass symbol occurrence facts with same-file resolution status
-  and byte spans
+- selector-scoped Sass symbol occurrence facts with same-file resolution status,
+  byte spans, and shared-style text ranges
 
 Non-goals in this first scaffold:
 
