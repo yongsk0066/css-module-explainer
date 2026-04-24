@@ -318,6 +318,7 @@ pub struct ParserIndexSassFactsV0 {
     pub function_decl_names: Vec<String>,
     pub function_call_names: Vec<String>,
     pub selectors_with_function_calls_names: Vec<String>,
+    pub selector_symbol_facts: Vec<ParserIndexSassSelectorSymbolFactV0>,
     pub module_use_sources: Vec<String>,
     pub module_use_edges: Vec<ParserIndexSassModuleUseFactV0>,
     pub module_forward_sources: Vec<String>,
@@ -341,6 +342,16 @@ pub struct ParserIndexSassSameFileResolutionFactsV0 {
     pub resolved_mixin_include_names: Vec<String>,
     pub unresolved_mixin_include_names: Vec<String>,
     pub resolved_function_call_names: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParserIndexSassSelectorSymbolFactV0 {
+    pub selector_name: String,
+    pub symbol_kind: &'static str,
+    pub name: String,
+    pub role: &'static str,
+    pub resolution: &'static str,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
@@ -496,6 +507,7 @@ struct IndexSummaryAcc {
     sass_function_decl_names: Vec<String>,
     sass_function_call_names: Vec<String>,
     sass_selectors_with_function_calls_names: Vec<String>,
+    sass_selector_symbol_facts: Vec<ParserIndexSassSelectorSymbolFactV0>,
     sass_module_use_sources: Vec<String>,
     sass_module_use_edges: Vec<ParserIndexSassModuleUseFactV0>,
     sass_module_forward_sources: Vec<String>,
@@ -707,6 +719,8 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
     acc.sass_function_call_names.dedup();
     acc.sass_selectors_with_function_calls_names.sort();
     acc.sass_selectors_with_function_calls_names.dedup();
+    acc.sass_selector_symbol_facts.sort();
+    acc.sass_selector_symbol_facts.dedup();
     acc.sass_module_use_sources.sort();
     acc.sass_module_use_sources.dedup();
     acc.sass_module_use_edges.sort();
@@ -834,6 +848,7 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
             function_decl_names: acc.sass_function_decl_names,
             function_call_names: acc.sass_function_call_names,
             selectors_with_function_calls_names: acc.sass_selectors_with_function_calls_names,
+            selector_symbol_facts: acc.sass_selector_symbol_facts,
             module_use_sources: acc.sass_module_use_sources,
             module_use_edges: acc.sass_module_use_edges,
             module_forward_sources: acc.sass_module_forward_sources,
@@ -1198,6 +1213,15 @@ struct RuleReferenceFacts {
     has_resolved_sass_mixin_includes: bool,
     has_unresolved_sass_mixin_includes: bool,
     has_sass_function_calls: bool,
+    sass_symbol_facts: Vec<RuleSassSymbolFact>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct RuleSassSymbolFact {
+    symbol_kind: &'static str,
+    name: String,
+    role: &'static str,
+    resolution: &'static str,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -1370,11 +1394,19 @@ fn collect_rule_reference_facts(
                     extend_rule_sass_value_ref_facts(&mut facts, &at_rule.params, sass_ref_ctx);
                     if let Some(name) = parse_sass_callable_name(&at_rule.params) {
                         facts.has_sass_mixin_includes = true;
-                        if sass_ref_ctx.mixin_targets.contains(&name) {
+                        let resolution = if sass_ref_ctx.mixin_targets.contains(&name) {
                             facts.has_resolved_sass_mixin_includes = true;
+                            "resolved"
                         } else {
                             facts.has_unresolved_sass_mixin_includes = true;
-                        }
+                            "unresolved"
+                        };
+                        facts.sass_symbol_facts.push(RuleSassSymbolFact {
+                            symbol_kind: "mixin",
+                            name,
+                            role: "include",
+                            resolution,
+                        });
                     }
                 }
                 _ => {
@@ -1410,25 +1442,47 @@ fn extend_rule_sass_value_ref_facts(
     sass_ref_ctx: SassRefContext<'_>,
 ) {
     let variable_refs = find_sass_variable_refs(value);
+    let variable_refs = sorted_dedup(variable_refs);
     if !variable_refs.is_empty() {
         facts.has_sass_variable_refs = true;
-        if variable_refs
-            .iter()
-            .any(|name| sass_ref_ctx.variable_targets.contains(name))
-        {
-            facts.has_resolved_sass_variable_refs = true;
-        }
-        if variable_refs
-            .iter()
-            .any(|name| !sass_ref_ctx.variable_targets.contains(name))
-        {
-            facts.has_unresolved_sass_variable_refs = true;
+        for name in variable_refs {
+            let resolution = if sass_ref_ctx.variable_targets.contains(&name) {
+                facts.has_resolved_sass_variable_refs = true;
+                "resolved"
+            } else {
+                facts.has_unresolved_sass_variable_refs = true;
+                "unresolved"
+            };
+            facts.sass_symbol_facts.push(RuleSassSymbolFact {
+                symbol_kind: "variable",
+                name,
+                role: "reference",
+                resolution,
+            });
         }
     }
 
-    if !find_sass_function_calls(value, sass_ref_ctx.function_targets).is_empty() {
+    let function_calls = sorted_dedup(find_sass_function_calls(
+        value,
+        sass_ref_ctx.function_targets,
+    ));
+    if !function_calls.is_empty() {
         facts.has_sass_function_calls = true;
+        facts
+            .sass_symbol_facts
+            .extend(function_calls.into_iter().map(|name| RuleSassSymbolFact {
+                symbol_kind: "function",
+                name,
+                role: "call",
+                resolution: "resolved",
+            }));
     }
+}
+
+fn sorted_dedup(mut names: Vec<String>) -> Vec<String> {
+    names.sort();
+    names.dedup();
+    names
 }
 
 fn collect_index_names(
@@ -1963,6 +2017,18 @@ fn collect_index_selector_attachment_facts_with_context(
                 if ref_facts.has_sass_function_calls {
                     acc.sass_selectors_with_function_calls_names
                         .extend(resolved.iter().cloned());
+                }
+                for selector_name in &resolved {
+                    acc.sass_selector_symbol_facts
+                        .extend(ref_facts.sass_symbol_facts.iter().map(|fact| {
+                            ParserIndexSassSelectorSymbolFactV0 {
+                                selector_name: selector_name.clone(),
+                                symbol_kind: fact.symbol_kind,
+                                name: fact.name.clone(),
+                                role: fact.role,
+                                resolution: fact.resolution,
+                            }
+                        }));
                 }
                 let composes_facts = collect_rule_composes_facts(&node.children);
                 if composes_facts.local_class_name_count > 0
@@ -3201,9 +3267,9 @@ fn classify_at_rule_kind(name: &str) -> AtRuleKind {
 #[cfg(test)]
 mod tests {
     use super::{
-        AtRuleKind, AtRulePayload, DeclarationPayload, ParserIndexSassModuleUseFactV0, RulePayload,
-        SelectorGroup, SelectorSegment, StyleLanguage, SyntaxNodeKind, SyntaxNodePayload, TextSpan,
-        TokenKind, parse_stylesheet,
+        AtRuleKind, AtRulePayload, DeclarationPayload, ParserIndexSassModuleUseFactV0,
+        ParserIndexSassSelectorSymbolFactV0, RulePayload, SelectorGroup, SelectorSegment,
+        StyleLanguage, SyntaxNodeKind, SyntaxNodePayload, TextSpan, TokenKind, parse_stylesheet,
     };
 
     fn token_texts<'a>(source: &'a str, sheet: &super::Stylesheet) -> Vec<(TokenKind, &'a str)> {
@@ -3606,6 +3672,53 @@ $gap: 1rem;
         assert_eq!(
             summary.sass.selectors_with_function_calls_names,
             vec!["btn"]
+        );
+        assert_eq!(
+            summary.sass.selector_symbol_facts,
+            vec![
+                ParserIndexSassSelectorSymbolFactV0 {
+                    selector_name: "btn".to_string(),
+                    symbol_kind: "function",
+                    name: "tone".to_string(),
+                    role: "call",
+                    resolution: "resolved",
+                },
+                ParserIndexSassSelectorSymbolFactV0 {
+                    selector_name: "btn".to_string(),
+                    symbol_kind: "mixin",
+                    name: "raised".to_string(),
+                    role: "include",
+                    resolution: "resolved",
+                },
+                ParserIndexSassSelectorSymbolFactV0 {
+                    selector_name: "btn".to_string(),
+                    symbol_kind: "variable",
+                    name: "gap".to_string(),
+                    role: "reference",
+                    resolution: "resolved",
+                },
+                ParserIndexSassSelectorSymbolFactV0 {
+                    selector_name: "ghost".to_string(),
+                    symbol_kind: "mixin",
+                    name: "absent".to_string(),
+                    role: "include",
+                    resolution: "unresolved",
+                },
+                ParserIndexSassSelectorSymbolFactV0 {
+                    selector_name: "ghost".to_string(),
+                    symbol_kind: "variable",
+                    name: "gap".to_string(),
+                    role: "reference",
+                    resolution: "resolved",
+                },
+                ParserIndexSassSelectorSymbolFactV0 {
+                    selector_name: "ghost".to_string(),
+                    symbol_kind: "variable",
+                    name: "missing".to_string(),
+                    role: "reference",
+                    resolution: "unresolved",
+                },
+            ]
         );
         assert_eq!(
             summary.sass.module_use_sources,

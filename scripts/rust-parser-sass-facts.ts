@@ -13,6 +13,7 @@ export interface ParserSassSeedFactsV0 {
   readonly functionDeclNames: readonly string[];
   readonly functionCallNames: readonly string[];
   readonly selectorsWithFunctionCallsNames: readonly string[];
+  readonly selectorSymbolFacts: readonly ParserSassSelectorSymbolFactV0[];
   readonly moduleUseSources: readonly string[];
   readonly moduleUseEdges: readonly ParserSassModuleUseFactV0[];
   readonly moduleForwardSources: readonly string[];
@@ -32,6 +33,14 @@ export interface ParserSassSameFileResolutionFactsV0 {
   readonly resolvedMixinIncludeNames: readonly string[];
   readonly unresolvedMixinIncludeNames: readonly string[];
   readonly resolvedFunctionCallNames: readonly string[];
+}
+
+export interface ParserSassSelectorSymbolFactV0 {
+  readonly selectorName: string;
+  readonly symbolKind: "variable" | "mixin" | "function";
+  readonly name: string;
+  readonly role: "reference" | "include" | "call";
+  readonly resolution: "resolved" | "unresolved";
 }
 
 export function deriveSassSummary(source: string): ParserSassSeedFactsV0 {
@@ -100,6 +109,7 @@ export function deriveSassSummary(source: string): ParserSassSeedFactsV0 {
     functionDeclNames: sortedFunctionDeclNames,
     functionCallNames: sortedFunctionCallNames,
     selectorsWithFunctionCallsNames: selectorAttachments.selectorsWithFunctionCallsNames,
+    selectorSymbolFacts: selectorAttachments.selectorSymbolFacts,
     moduleUseSources: uniqueSorted(sourceForAtRule("use")),
     moduleUseEdges: uniqueSortedUseEdges(deriveSassUseEdges(source)),
     moduleForwardSources: uniqueSorted(sourceForAtRule("forward")),
@@ -133,6 +143,7 @@ function deriveSassSelectorAttachments(
   | "selectorsWithResolvedMixinIncludesNames"
   | "selectorsWithUnresolvedMixinIncludesNames"
   | "selectorsWithFunctionCallsNames"
+  | "selectorSymbolFacts"
 > {
   const variableTargets = new Set([...input.variableDeclNames, ...input.variableParameterNames]);
   const mixinTargets = new Set(input.mixinDeclNames);
@@ -143,6 +154,7 @@ function deriveSassSelectorAttachments(
   const selectorsWithResolvedMixinIncludesNames: string[] = [];
   const selectorsWithUnresolvedMixinIncludesNames: string[] = [];
   const selectorsWithFunctionCallsNames: string[] = [];
+  const selectorSymbolFacts: ParserSassSelectorSymbolFactV0[] = [];
 
   for (const match of source.matchAll(/\.([A-Za-z_-][A-Za-z0-9_-]*)[^{]*\{([^{}]*)\}/g)) {
     const selectorName = match[1]!;
@@ -158,6 +170,15 @@ function deriveSassSelectorAttachments(
       if (variableRefs.some((name) => !variableTargets.has(name))) {
         selectorsWithUnresolvedVariableRefsNames.push(selectorName);
       }
+      for (const name of uniqueSorted(variableRefs)) {
+        selectorSymbolFacts.push({
+          selectorName,
+          symbolKind: "variable",
+          name,
+          role: "reference",
+          resolution: variableTargets.has(name) ? "resolved" : "unresolved",
+        });
+      }
     }
 
     const mixinIncludes = [...body.matchAll(/@include\s+([A-Za-z_-][A-Za-z0-9_-]*)/g)].map(
@@ -171,14 +192,31 @@ function deriveSassSelectorAttachments(
       if (mixinIncludes.some((name) => !mixinTargets.has(name))) {
         selectorsWithUnresolvedMixinIncludesNames.push(selectorName);
       }
+      for (const name of uniqueSorted(mixinIncludes)) {
+        selectorSymbolFacts.push({
+          selectorName,
+          symbolKind: "mixin",
+          name,
+          role: "include",
+          resolution: mixinTargets.has(name) ? "resolved" : "unresolved",
+        });
+      }
     }
 
-    if (
-      input.functionDeclNames.some((name) =>
-        new RegExp(`\\b${escapeRegExp(name)}\\s*\\(`).test(body),
-      )
-    ) {
+    const functionCalls = input.functionDeclNames.filter((name) =>
+      new RegExp(`\\b${escapeRegExp(name)}\\s*\\(`).test(body),
+    );
+    if (functionCalls.length > 0) {
       selectorsWithFunctionCallsNames.push(selectorName);
+      selectorSymbolFacts.push(
+        ...functionCalls.map((name) => ({
+          selectorName,
+          symbolKind: "function" as const,
+          name,
+          role: "call" as const,
+          resolution: "resolved" as const,
+        })),
+      );
     }
   }
 
@@ -194,6 +232,7 @@ function deriveSassSelectorAttachments(
       selectorsWithUnresolvedMixinIncludesNames,
     ),
     selectorsWithFunctionCallsNames: uniqueSorted(selectorsWithFunctionCallsNames),
+    selectorSymbolFacts: uniqueSortedSelectorSymbolFacts(selectorSymbolFacts),
   };
 }
 
@@ -278,6 +317,23 @@ function uniqueSortedUseEdges(
     const kindCompare = left.namespaceKind.localeCompare(right.namespaceKind);
     if (kindCompare !== 0) return kindCompare;
     return (left.namespace ?? "").localeCompare(right.namespace ?? "");
+  });
+}
+
+function uniqueSortedSelectorSymbolFacts(
+  values: readonly ParserSassSelectorSymbolFactV0[],
+): ParserSassSelectorSymbolFactV0[] {
+  const byKey = new Map(values.map((value) => [JSON.stringify(value), value]));
+  return [...byKey.values()].toSorted((left, right) => {
+    const selectorCompare = left.selectorName.localeCompare(right.selectorName);
+    if (selectorCompare !== 0) return selectorCompare;
+    const kindCompare = left.symbolKind.localeCompare(right.symbolKind);
+    if (kindCompare !== 0) return kindCompare;
+    const nameCompare = left.name.localeCompare(right.name);
+    if (nameCompare !== 0) return nameCompare;
+    const roleCompare = left.role.localeCompare(right.role);
+    if (roleCompare !== 0) return roleCompare;
+    return left.resolution.localeCompare(right.resolution);
   });
 }
 
