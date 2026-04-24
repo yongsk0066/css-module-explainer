@@ -9,7 +9,7 @@ import {
   resolveGateTarget,
   runDoctor,
 } from "../manifest/index";
-import { pnpmExecutable } from "./commands";
+import { pnpmRunCommand } from "./commands";
 
 interface ParsedArgs {
   readonly command: string;
@@ -111,24 +111,19 @@ function runTarget(parsed: ParsedArgs, bundleOnly: boolean): void {
     fail(`Target "${parsed.target}" is not a bundle. Use "pnpm cme-check run ${gate.id}".`);
   }
 
-  const command = [
-    pnpmExecutable(),
-    "run",
-    gate.scriptName,
-    ...(parsed.extraArgs.length > 0 ? ["--", ...parsed.extraArgs] : []),
-  ];
+  const command = pnpmRunCommand(gate.scriptName, parsed.extraArgs);
   if (parsed.dryRun) {
-    console.log(command.join(" "));
+    console.log(command.display.join(" "));
     return;
   }
 
-  const result = spawnSync(command[0]!, command.slice(1), {
+  const result = spawnSync(command.executable, command.args, {
     cwd: manifest.rootDir,
     stdio: "inherit",
     shell: false,
   });
   if (result.error) {
-    console.error(`Failed to start "${command[0]}": ${result.error.message}`);
+    console.error(`Failed to start "${command.display[0]}": ${result.error.message}`);
   }
   process.exit(result.status ?? 1);
 }
