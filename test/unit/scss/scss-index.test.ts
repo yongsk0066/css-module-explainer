@@ -475,6 +475,25 @@ describe("parseStyleSelectorMap / edge cases", () => {
       expect(sliceRange(source, symbol.range)).toBe("$gap");
       expect(symbol.range.start.character).toBe(source.split("\n")[1]!.indexOf("$gap"));
     });
+
+    it("does not resolve Sass variables from another local scope", () => {
+      const source = `.one {
+  $gap: 1rem;
+}
+.two {
+  color: $gap;
+}`;
+      const document = parseStyleDocument(source, "/fake/a.module.scss");
+
+      expect(
+        document.sassSymbols.map((symbol) => [
+          symbol.selectorName,
+          symbol.name,
+          symbol.resolution,
+          sliceRange(source, symbol.range),
+        ]),
+      ).toEqual([["two", "gap", "unresolved", "$gap"]]);
+    });
   });
 
   describe("@media / @at-root unwrapping", () => {

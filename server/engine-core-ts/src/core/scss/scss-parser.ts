@@ -28,6 +28,7 @@ import {
   type ValueImportHIR,
   type ValueRefHIR,
 } from "../hir/style-types";
+import { rangeContains } from "../util/range-utils";
 import { classifyBemSuffixSite } from "./bem-suffix";
 import { findLangForPath, getRuntimeSyntax } from "./lang-registry";
 import {
@@ -124,7 +125,7 @@ export function parseStyleDocument(content: string, filePath: string): StyleDocu
   const valueImports = collectValueImports(root, valuePathAliases);
   const valueRefs = collectValueRefs(root, valueDecls, valueImports);
   const sassSymbolDecls = collectSassSymbolDecls(root);
-  const sassSymbolTargets = collectSassSymbolTargetContext(root);
+  const sassSymbolTargets = collectSassSymbolTargetContext(root, sassSymbolDecls);
   const sassSymbols: SassSymbolOccurrenceHIR[] = [];
 
   walkStyleNodes(
@@ -629,7 +630,7 @@ function collectValueRefs(
 }
 
 interface SassSymbolTargetContext {
-  readonly variableTargets: ReadonlySet<string>;
+  readonly variableDecls: readonly SassSymbolDeclHIR[];
   readonly mixinTargets: ReadonlySet<string>;
   readonly functionTargets: ReadonlySet<string>;
 }
@@ -686,15 +687,12 @@ function collectSassSymbolDecls(root: Root): readonly SassSymbolDeclHIR[] {
   return decls;
 }
 
-function collectSassSymbolTargetContext(root: Root): SassSymbolTargetContext {
-  const variableTargets = new Set<string>();
+function collectSassSymbolTargetContext(
+  root: Root,
+  sassSymbolDecls: readonly SassSymbolDeclHIR[],
+): SassSymbolTargetContext {
   const mixinTargets = new Set<string>();
   const functionTargets = new Set<string>();
-
-  root.walkDecls((decl) => {
-    const name = parseSassVariableDeclName(decl.prop);
-    if (name) variableTargets.add(name);
-  });
 
   root.walkAtRules((atrule) => {
     if (atrule.name !== "mixin" && atrule.name !== "function") return;
@@ -703,12 +701,13 @@ function collectSassSymbolTargetContext(root: Root): SassSymbolTargetContext {
       if (atrule.name === "mixin") mixinTargets.add(callable.name);
       else functionTargets.add(callable.name);
     }
-    for (const variable of findSassVariableMatches(atrule.params)) {
-      variableTargets.add(variable.name);
-    }
   });
 
-  return { variableTargets, mixinTargets, functionTargets };
+  return {
+    variableDecls: sassSymbolDecls.filter((decl) => decl.symbolKind === "variable"),
+    mixinTargets,
+    functionTargets,
+  };
 }
 
 function makeSassSymbolDecl(args: {
@@ -764,7 +763,7 @@ function pushSassDeclarationValueOccurrences(
         symbolKind: "variable",
         name: match.name,
         role: "reference",
-        resolution: targets.variableTargets.has(match.name) ? "resolved" : "unresolved",
+        resolution: resolveSassVariableReference(targets, match.name, range),
         range,
         ruleRange,
       }),
@@ -824,7 +823,7 @@ function pushSassAtRuleParamOccurrences(
         symbolKind: "variable",
         name: match.name,
         role: "reference",
-        resolution: targets.variableTargets.has(match.name) ? "resolved" : "unresolved",
+        resolution: resolveSassVariableReference(targets, match.name, range),
         range,
         ruleRange,
       }),
@@ -868,6 +867,46 @@ function makeSassSymbolOccurrence(args: {
     range: args.range,
     ruleRange: args.ruleRange,
   };
+}
+
+function resolveSassVariableReference(
+  targets: SassSymbolTargetContext,
+  name: string,
+  range: Range,
+): SassSymbolResolution {
+  const matchingDecls = targets.variableDecls.filter((decl) => decl.name === name);
+  if (matchingDecls.length === 0) return "unresolved";
+
+  const localDecl = matchingDecls
+    .filter((decl) => !isFileScopeSassVariableDecl(decl))
+    .filter((decl) => rangeContains(decl.ruleRange, range.start.line, range.start.character))
+    .toSorted(compareSassVariableDeclScopeSpecificity)[0];
+  if (localDecl) return "resolved";
+  return matchingDecls.some(isFileScopeSassVariableDecl) ? "resolved" : "unresolved";
+}
+
+function isFileScopeSassVariableDecl(decl: SassSymbolDeclHIR): boolean {
+  return (
+    decl.range.start.line === decl.ruleRange.start.line &&
+    decl.range.start.character === decl.ruleRange.start.character
+  );
+}
+
+function compareSassVariableDeclScopeSpecificity(
+  a: SassSymbolDeclHIR,
+  b: SassSymbolDeclHIR,
+): number {
+  const sizeCompare = rangeSize(a.ruleRange) - rangeSize(b.ruleRange);
+  if (sizeCompare !== 0) return sizeCompare;
+  const lineCompare = b.range.start.line - a.range.start.line;
+  if (lineCompare !== 0) return lineCompare;
+  return b.range.start.character - a.range.start.character;
+}
+
+function rangeSize(range: Range): number {
+  return (
+    (range.end.line - range.start.line) * 1_000_000 + (range.end.character - range.start.character)
+  );
 }
 
 function parseSassVariableDeclName(property: string): string | null {

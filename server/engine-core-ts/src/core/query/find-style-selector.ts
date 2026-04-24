@@ -263,9 +263,7 @@ export function findSassSymbolDeclForSymbol(
       rangeContains(decl.ruleRange, symbol.range.start.line, symbol.range.start.character),
     )
     .toSorted(compareSassDeclScopeSpecificity);
-  return (
-    localCandidates[0] ?? candidates.find(isFileScopeSassVariableDecl) ?? candidates[0] ?? null
-  );
+  return localCandidates[0] ?? candidates.find(isFileScopeSassVariableDecl) ?? null;
 }
 
 export function listSassSymbols(

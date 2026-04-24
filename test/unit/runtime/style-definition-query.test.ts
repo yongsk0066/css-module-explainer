@@ -162,6 +162,24 @@ describe("resolveStyleDefinitionTargets", () => {
       },
     });
   });
+
+  it("does not resolve Sass variables to declarations from another local scope", () => {
+    const scss = `.one {
+  $gap: 1rem;
+}
+.two {
+  color: $gap;
+}
+`;
+    const deps = depsForDocuments([parseStyleDocument(scss, BUTTON_PATH)]);
+
+    const targets = resolveStyleDefinitionTargets(
+      { filePath: BUTTON_PATH, line: 4, character: 10 },
+      deps,
+    );
+
+    expect(targets).toEqual([]);
+  });
 });
 
 function depsForDocuments(documents: readonly StyleDocumentHIR[]) {

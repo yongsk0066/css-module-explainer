@@ -239,4 +239,41 @@ describe("checkStyleDocument", () => {
       ]),
     );
   });
+
+  it("reports Sass variables that only exist in another local scope as missing", () => {
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    const styleDocumentWithScopedVariables = parseStyleDocument(
+      `.one {
+  $gap: 1rem;
+}
+.two {
+  color: $gap;
+}`,
+      SCSS_PATH,
+    );
+
+    const findings = checkStyleDocument(
+      {
+        scssPath: SCSS_PATH,
+        styleDocument: styleDocumentWithScopedVariables,
+      },
+      {
+        semanticReferenceIndex,
+        styleDependencyGraph: new WorkspaceStyleDependencyGraph(),
+      },
+    );
+
+    expect(findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          category: "style",
+          code: "missing-sass-symbol",
+          selectorName: "two",
+          symbolKind: "variable",
+          symbolName: "gap",
+          symbolRole: "reference",
+        }),
+      ]),
+    );
+  });
 });
