@@ -11,7 +11,14 @@ import type {
 import { handlePrepareRename, handleRename } from "../../../server/lsp-server/src/providers/rename";
 import { DEFAULT_SETTINGS } from "../../../server/engine-core-ts/src/settings";
 import type { Settings } from "../../../server/engine-core-ts/src/settings";
-import { cursorFixture, scenario, workspace, type Range } from "../../../packages/vitest-cme/src";
+import {
+  cursorFixture,
+  scenario,
+  targetFixture,
+  workspace,
+  type CmeWorkspace,
+  type Range,
+} from "../../../packages/vitest-cme/src";
 import {
   EMPTY_ALIAS_RESOLVER,
   buildTestClassExpressions,
@@ -79,6 +86,40 @@ function expectPrepareRenameBlocked(
   message: string,
 ): void {
   expect(run).toThrow(message);
+}
+
+function styleWorkspace(filePath: string, content: string): CmeWorkspace {
+  return workspace({ [filePath]: content });
+}
+
+function styleClassMap(fixture: CmeWorkspace, filePath: string) {
+  return parseStyleSelectorMap(fixture.file(filePath).content, filePath);
+}
+
+function stylePositionParams(
+  fixture: CmeWorkspace,
+  uri: string,
+  markerName = "cursor",
+  filePath?: string,
+) {
+  const target = targetFixture({ workspace: fixture, markerName, filePath });
+  return {
+    textDocument: { uri },
+    position: target.position,
+  };
+}
+
+function styleRenameParams(
+  fixture: CmeWorkspace,
+  uri: string,
+  newName: string,
+  markerName = "cursor",
+  filePath?: string,
+) {
+  return {
+    ...stylePositionParams(fixture, uri, markerName, filePath),
+    newName,
+  };
 }
 
 describe("handlePrepareRename", () => {
@@ -694,42 +735,32 @@ describe("prepareRename through real parseStyleSelectorMap (regression)", () => 
   // a nested rule silently changes a flat parent's nested-safety state and
   // causes rename to be rejected on the flat parent.
   it("`.button { &:hover {} }` — rename is accepted on the flat .button", async () => {
-    const classMap = parseStyleSelectorMap(
-      `.button {\n  color: red;\n  &:hover { color: blue; }\n}`,
-      "/fake/src/Button.module.scss",
+    const fixture = styleWorkspace(
+      SCSS_PATH,
+      `./*|*/button {\n  color: red;\n  &:hover { color: blue; }\n}`,
     );
+    const classMap = styleClassMap(fixture, SCSS_PATH);
     const deps = makeBaseDeps({
       selectorMapForPath: () => classMap,
       workspaceRoot: "/fake",
     });
-    const result = handlePrepareRename(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: { line: 0, character: 3 },
-      },
-      deps,
-    );
+    const result = handlePrepareRename(stylePositionParams(fixture, SCSS_URI), deps);
     expect(result).not.toBeNull();
     expect(result).toHaveProperty("placeholder", "button");
   });
 
   it("`.button { &--primary {} }` — both flat .button and nested &--primary are renameable", async () => {
-    const classMap = parseStyleSelectorMap(
-      `.button {\n  color: red;\n  &--primary { background: blue; }\n}`,
-      "/fake/src/Button.module.scss",
+    const fixture = styleWorkspace(
+      SCSS_PATH,
+      `./*at:flat*/button {\n  color: red;\n  &/*at:nested*/--primary { background: blue; }\n}`,
     );
+    const classMap = styleClassMap(fixture, SCSS_PATH);
     const deps = makeBaseDeps({
       selectorMapForPath: () => classMap,
       workspaceRoot: "/fake",
     });
     // Cursor on `.button` at the flat rule — accepted.
-    const flat = handlePrepareRename(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: { line: 0, character: 3 },
-      },
-      deps,
-    );
+    const flat = handlePrepareRename(stylePositionParams(fixture, SCSS_URI, "flat"), deps);
     expect(flat).not.toBeNull();
     expect(flat).toHaveProperty("placeholder", "button");
 
@@ -737,22 +768,11 @@ describe("prepareRename through real parseStyleSelectorMap (regression)", () => 
     // rename. Placeholder is the resolved class name
     // `"button--primary"`; range covers the `&--primary` slice
     // (10 chars) on its line.
-    const nestedInfo = classMap.get("button--primary")!;
-    const rawRange = nestedInfo.bemSuffix!.rawTokenRange;
-    const nested = handlePrepareRename(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: {
-          line: rawRange.start.line,
-          character: rawRange.start.character + 1,
-        },
-      },
-      deps,
-    );
+    const nested = handlePrepareRename(stylePositionParams(fixture, SCSS_URI, "nested"), deps);
     expect(nested).not.toBeNull();
     expect(nested).toHaveProperty("placeholder", "button--primary");
     expect((nested as { range: { end: { character: number } } }).range.end.character).toBe(
-      rawRange.start.character + 10,
+      targetFixture({ workspace: fixture, markerName: "nested" }).character + 9,
     );
   });
 });
@@ -760,22 +780,13 @@ describe("prepareRename through real parseStyleSelectorMap (regression)", () => 
 describe("&-nested BEM suffix rename", () => {
   // Positive cases (4): strict red→green for BEM-safe shapes.
   it("prepareRename on `&--primary` returns range covering only `&--primary` (10 chars)", async () => {
-    const classMap = parseStyleSelectorMap(
-      `.button {\n  &--primary { color: white; }\n}`,
-      "/fake/src/Button.module.scss",
-    );
+    const fixture = styleWorkspace(SCSS_PATH, `.button {\n  &/*|*/--primary { color: white; }\n}`);
+    const classMap = styleClassMap(fixture, SCSS_PATH);
     const deps = makeBaseDeps({
       selectorMapForPath: () => classMap,
       workspaceRoot: "/fake",
     });
-    const rawRange = classMap.get("button--primary")!.bemSuffix!.rawTokenRange;
-    const result = handlePrepareRename(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: { line: rawRange.start.line, character: rawRange.start.character + 1 },
-      },
-      deps,
-    );
+    const result = handlePrepareRename(stylePositionParams(fixture, SCSS_URI), deps);
     expect(result).not.toBeNull();
     expect(result).toHaveProperty("placeholder", "button--primary");
     const range = (
@@ -785,10 +796,8 @@ describe("&-nested BEM suffix rename", () => {
   });
 
   it("rename `button--primary → button--tiny`: SCSS edits only `--primary` slice, TSX full", async () => {
-    const classMap = parseStyleSelectorMap(
-      `.button {\n  &--primary { color: white; }\n}`,
-      "/fake/src/Button.module.scss",
-    );
+    const fixture = styleWorkspace(SCSS_PATH, `.button {\n  &/*|*/--primary { color: white; }\n}`);
+    const classMap = styleClassMap(fixture, SCSS_PATH);
     const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
     semanticReferenceIndex.record("file:///fake/src/App.tsx", [
       semanticSite({
@@ -805,15 +814,7 @@ describe("&-nested BEM suffix rename", () => {
       workspaceRoot: "/fake",
       semanticReferenceIndex,
     });
-    const rawRange = classMap.get("button--primary")!.bemSuffix!.rawTokenRange;
-    const result = handleRename(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: { line: rawRange.start.line, character: rawRange.start.character + 1 },
-        newName: "button--tiny",
-      },
-      deps,
-    );
+    const result = handleRename(styleRenameParams(fixture, SCSS_URI, "button--tiny"), deps);
     expect(result).not.toBeNull();
     const edits = (
       result as {
@@ -830,8 +831,9 @@ describe("&-nested BEM suffix rename", () => {
     const scssEdits = edits[SCSS_URI]!;
     expect(scssEdits).toHaveLength(1);
     expect(scssEdits[0]!.newText).toBe("--tiny");
-    expect(scssEdits[0]!.range.start.character).toBe(rawRange.start.character + 1);
-    expect(scssEdits[0]!.range.end.character).toBe(rawRange.start.character + 1 + 9);
+    const target = targetFixture({ workspace: fixture });
+    expect(scssEdits[0]!.range.start.character).toBe(target.character);
+    expect(scssEdits[0]!.range.end.character).toBe(target.character + 9);
     // TSX: full `button--primary` → `button--tiny`.
     const tsxEdits = edits["file:///fake/src/App.tsx"]!;
     expect(tsxEdits).toHaveLength(1);
@@ -839,100 +841,63 @@ describe("&-nested BEM suffix rename", () => {
   });
 
   it("rename `&__icon`: edits only the `__icon` slice", async () => {
-    const classMap = parseStyleSelectorMap(
-      `.card {\n  &__icon { width: 16px; }\n}`,
-      "/fake/src/Card.module.scss",
-    );
+    const cardPath = "/fake/src/Card.module.scss";
+    const cardUri = "file:///fake/src/Card.module.scss";
+    const fixture = styleWorkspace(cardPath, `.card {\n  &/*|*/__icon { width: 16px; }\n}`);
+    const classMap = styleClassMap(fixture, cardPath);
     const deps = makeBaseDeps({
       selectorMapForPath: () => classMap,
       workspaceRoot: "/fake",
     });
-    const rawRange = classMap.get("card__icon")!.bemSuffix!.rawTokenRange;
-    const result = handleRename(
-      {
-        textDocument: { uri: "file:///fake/src/Card.module.scss" },
-        position: { line: rawRange.start.line, character: rawRange.start.character + 1 },
-        newName: "card__glyph",
-      },
-      deps,
-    );
+    const result = handleRename(styleRenameParams(fixture, cardUri, "card__glyph"), deps);
     expect(result).not.toBeNull();
     const edits = (result as { changes: Record<string, Array<{ newText: string }>> }).changes;
-    const scssEdits = edits["file:///fake/src/Card.module.scss"]!;
+    const scssEdits = edits[cardUri]!;
     expect(scssEdits[0]!.newText).toBe("__glyph");
   });
 
   it("double-nested `.card { &__icon { &--small {} } }` edits only innermost `--small`", async () => {
-    const classMap = parseStyleSelectorMap(
-      `.card {\n  &__icon {\n    &--small { font-size: 12px; }\n  }\n}`,
-      "/fake/src/Card.module.scss",
+    const cardPath = "/fake/src/Card.module.scss";
+    const cardUri = "file:///fake/src/Card.module.scss";
+    const fixture = styleWorkspace(
+      cardPath,
+      `.card {\n  &__icon {\n    &/*|*/--small { font-size: 12px; }\n  }\n}`,
     );
+    const classMap = styleClassMap(fixture, cardPath);
     const deps = makeBaseDeps({
       selectorMapForPath: () => classMap,
       workspaceRoot: "/fake",
     });
-    const rawRange = classMap.get("card__icon--small")!.bemSuffix!.rawTokenRange;
-    const result = handleRename(
-      {
-        textDocument: { uri: "file:///fake/src/Card.module.scss" },
-        position: { line: rawRange.start.line, character: rawRange.start.character + 1 },
-        newName: "card__icon--xs",
-      },
-      deps,
-    );
+    const result = handleRename(styleRenameParams(fixture, cardUri, "card__icon--xs"), deps);
     expect(result).not.toBeNull();
     const edits = (result as { changes: Record<string, Array<{ newText: string }>> }).changes;
-    const scssEdits = edits["file:///fake/src/Card.module.scss"]!;
+    const scssEdits = edits[cardUri]!;
     expect(scssEdits).toHaveLength(1);
     expect(scssEdits[0]!.newText).toBe("--xs");
   });
 
   // Negative cases (12): new guards in Commit 4.
   it("rejects cross-parent rename `button--primary → banner--tiny`", async () => {
-    const classMap = parseStyleSelectorMap(
-      `.button {\n  &--primary {}\n}`,
-      "/fake/src/Button.module.scss",
-    );
+    const fixture = styleWorkspace(SCSS_PATH, `.button {\n  &/*|*/--primary {}\n}`);
+    const classMap = styleClassMap(fixture, SCSS_PATH);
     const deps = makeBaseDeps({ selectorMapForPath: () => classMap, workspaceRoot: "/fake" });
-    const rawRange = classMap.get("button--primary")!.bemSuffix!.rawTokenRange;
-    const result = handleRename(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: { line: rawRange.start.line, character: rawRange.start.character + 1 },
-        newName: "banner--tiny",
-      },
-      deps,
-    );
+    const result = handleRename(styleRenameParams(fixture, SCSS_URI, "banner--tiny"), deps);
     expect(result).toBeNull();
   });
 
   it("rejects empty-suffix rename `button--primary → button`", async () => {
-    const classMap = parseStyleSelectorMap(`.button {\n  &--primary {}\n}`, "/f.module.scss");
+    const fixture = styleWorkspace(SCSS_PATH, `.button {\n  &/*|*/--primary {}\n}`);
+    const classMap = styleClassMap(fixture, SCSS_PATH);
     const deps = makeBaseDeps({ selectorMapForPath: () => classMap, workspaceRoot: "/fake" });
-    const rawRange = classMap.get("button--primary")!.bemSuffix!.rawTokenRange;
-    const result = handleRename(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: { line: rawRange.start.line, character: rawRange.start.character + 1 },
-        newName: "button",
-      },
-      deps,
-    );
+    const result = handleRename(styleRenameParams(fixture, SCSS_URI, "button"), deps);
     expect(result).toBeNull();
   });
 
   it("rejects no-op rename `button--primary → button--primary`", async () => {
-    const classMap = parseStyleSelectorMap(`.button {\n  &--primary {}\n}`, "/f.module.scss");
+    const fixture = styleWorkspace(SCSS_PATH, `.button {\n  &/*|*/--primary {}\n}`);
+    const classMap = styleClassMap(fixture, SCSS_PATH);
     const deps = makeBaseDeps({ selectorMapForPath: () => classMap, workspaceRoot: "/fake" });
-    const rawRange = classMap.get("button--primary")!.bemSuffix!.rawTokenRange;
-    const result = handleRename(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: { line: rawRange.start.line, character: rawRange.start.character + 1 },
-        newName: "button--primary",
-      },
-      deps,
-    );
+    const result = handleRename(styleRenameParams(fixture, SCSS_URI, "button--primary"), deps);
     expect(result).toBeNull();
   });
 
@@ -973,7 +938,8 @@ describe("&-nested BEM suffix rename", () => {
   });
 
   it("rejects grouped parent `.a, .b { &--c {} }`", async () => {
-    const classMap = parseStyleSelectorMap(`.a, .b {\n  &--c {}\n}`, "/f.module.scss");
+    const fixture = styleWorkspace(SCSS_PATH, `.a, .b {\n  &/*|*/--c {}\n}`);
+    const classMap = styleClassMap(fixture, SCSS_PATH);
     const entry = classMap.get("a--c") ?? classMap.get("b--c");
     expect(entry).toBeDefined();
     // bemSuffix undefined because parentCtx.isGrouped === true
@@ -981,96 +947,68 @@ describe("&-nested BEM suffix rename", () => {
     // prepareRename must refuse
     const deps = makeBaseDeps({ selectorMapForPath: () => classMap, workspaceRoot: "/fake" });
     expectPrepareRenameBlocked(
-      () =>
-        handlePrepareRename(
-          { textDocument: { uri: SCSS_URI }, position: { line: 1, character: 3 } },
-          deps,
-        ),
+      () => handlePrepareRename(stylePositionParams(fixture, SCSS_URI), deps),
       "Only flat selectors and safe BEM suffix selectors can be renamed.",
     );
   });
 
   it("rejects grouped-nested child `.btn { &--a, &--b {} }`", async () => {
-    const classMap = parseStyleSelectorMap(`.btn {\n  &--a, &--b {}\n}`, "/f.module.scss");
+    const fixture = styleWorkspace(SCSS_PATH, `.btn {\n  &/*|*/--a, &--b {}\n}`);
+    const classMap = styleClassMap(fixture, SCSS_PATH);
     const a = classMap.get("btn--a");
     expect(a).toBeDefined();
     expect(a!.bemSuffix).toBeUndefined();
     const deps = makeBaseDeps({ selectorMapForPath: () => classMap, workspaceRoot: "/fake" });
     expectPrepareRenameBlocked(
-      () =>
-        handlePrepareRename(
-          { textDocument: { uri: SCSS_URI }, position: { line: 1, character: 3 } },
-          deps,
-        ),
+      () => handlePrepareRename(stylePositionParams(fixture, SCSS_URI), deps),
       "Only flat selectors and safe BEM suffix selectors can be renamed.",
     );
   });
 
   it("rejects multi-`&` `.btn { & + &--x {} }`", async () => {
-    const classMap = parseStyleSelectorMap(`.btn {\n  & + &--x {}\n}`, "/f.module.scss");
+    const fixture = styleWorkspace(SCSS_PATH, `.btn {\n  & + &/*|*/--x {}\n}`);
+    const classMap = styleClassMap(fixture, SCSS_PATH);
     const entry = classMap.get("btn--x");
     if (entry !== undefined) {
       expect(entry.bemSuffix).toBeUndefined();
       const deps = makeBaseDeps({ selectorMapForPath: () => classMap, workspaceRoot: "/fake" });
       expectPrepareRenameBlocked(
-        () =>
-          handlePrepareRename(
-            { textDocument: { uri: SCSS_URI }, position: { line: 1, character: 3 } },
-            deps,
-          ),
+        () => handlePrepareRename(stylePositionParams(fixture, SCSS_URI), deps),
         "Only flat selectors and safe BEM suffix selectors can be renamed.",
       );
     }
   });
 
   it("rejects compound `.button { &.active {} }` (active entry has no trio)", async () => {
-    const classMap = parseStyleSelectorMap(`.button {\n  &.active {}\n}`, "/f.module.scss");
+    const fixture = styleWorkspace(SCSS_PATH, `.button {\n  &/*|*/.active {}\n}`);
+    const classMap = styleClassMap(fixture, SCSS_PATH);
     const active = classMap.get("active")!;
     expect(active.nestedSafety).toBe("nestedUnsafe");
     expect(active.bemSuffix).toBeUndefined();
     const deps = makeBaseDeps({ selectorMapForPath: () => classMap, workspaceRoot: "/fake" });
-    const result = handlePrepareRename(
-      { textDocument: { uri: SCSS_URI }, position: { line: 1, character: 3 } },
-      deps,
-    );
+    const result = handlePrepareRename(stylePositionParams(fixture, SCSS_URI), deps);
     expect(result).toBeNull();
   });
 
   it("rejects invalid newName (empty string)", async () => {
-    const classMap = parseStyleSelectorMap(`.button {\n  &--primary {}\n}`, "/f.module.scss");
+    const fixture = styleWorkspace(SCSS_PATH, `.button {\n  &/*|*/--primary {}\n}`);
+    const classMap = styleClassMap(fixture, SCSS_PATH);
     const deps = makeBaseDeps({ selectorMapForPath: () => classMap, workspaceRoot: "/fake" });
-    const rawRange = classMap.get("button--primary")!.bemSuffix!.rawTokenRange;
-    const result = handleRename(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: { line: rawRange.start.line, character: rawRange.start.character + 1 },
-        newName: "",
-      },
-      deps,
-    );
+    const result = handleRename(styleRenameParams(fixture, SCSS_URI, ""), deps);
     expect(result).toBeNull();
   });
 
   it("rejects invalid newName (numeric start)", async () => {
-    const classMap = parseStyleSelectorMap(`.button {\n  &--primary {}\n}`, "/f.module.scss");
+    const fixture = styleWorkspace(SCSS_PATH, `.button {\n  &/*|*/--primary {}\n}`);
+    const classMap = styleClassMap(fixture, SCSS_PATH);
     const deps = makeBaseDeps({ selectorMapForPath: () => classMap, workspaceRoot: "/fake" });
-    const rawRange = classMap.get("button--primary")!.bemSuffix!.rawTokenRange;
-    const result = handleRename(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: { line: rawRange.start.line, character: rawRange.start.character + 1 },
-        newName: "123xyz",
-      },
-      deps,
-    );
+    const result = handleRename(styleRenameParams(fixture, SCSS_URI, "123xyz"), deps);
     expect(result).toBeNull();
   });
 
   it("regression: nested `&--primary` + template `cx(\\`button--${x}\\`)` still rejects via expanded-sites", async () => {
-    const classMap = parseStyleSelectorMap(
-      `.button {\n  &--primary {}\n}`,
-      "/fake/src/Button.module.scss",
-    );
+    const fixture = styleWorkspace(SCSS_PATH, `.button {\n  &/*|*/--primary {}\n}`);
+    const classMap = styleClassMap(fixture, SCSS_PATH);
     const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
     semanticReferenceIndex.record("file:///fake/src/App.tsx", [
       semanticSite({
@@ -1089,16 +1027,8 @@ describe("&-nested BEM suffix rename", () => {
       workspaceRoot: "/fake",
       semanticReferenceIndex,
     });
-    const rawRange = classMap.get("button--primary")!.bemSuffix!.rawTokenRange;
     expectPrepareRenameBlocked(
-      () =>
-        handlePrepareRename(
-          {
-            textDocument: { uri: SCSS_URI },
-            position: { line: rawRange.start.line, character: rawRange.start.character + 1 },
-          },
-          deps,
-        ),
+      () => handlePrepareRename(stylePositionParams(fixture, SCSS_URI), deps),
       "Rename is blocked because inferred or expanded references would make the edit unsafe.",
     );
   });
