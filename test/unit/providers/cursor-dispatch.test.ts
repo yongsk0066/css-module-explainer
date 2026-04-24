@@ -8,21 +8,35 @@ import {
   type ProviderDeps,
 } from "../../../server/lsp-server/src/providers/cursor-dispatch";
 import {
+  cursorFixture,
+  workspace,
+  type CmeWorkspace,
+  type Range,
+} from "../../../packages/vitest-cme/src";
+import {
   EMPTY_ALIAS_RESOLVER,
   buildTestClassExpressions,
   info,
   makeBaseDeps,
 } from "../../_fixtures/test-helpers";
 
-const TSX = `
-import classNames from 'classnames/bind';
-import styles from './Button.module.scss';
-const cx = classNames.bind(styles);
-const el = cx('indicator');
-const el2 = <div className={styles.active} />;
-`;
-
+const SOURCE_PATH = "/fake/a.tsx";
+const SOURCE_URI = "file:///fake/a.tsx";
 const SCSS_PATH = "/fake/src/Button.module.scss";
+
+const SOURCE_WORKSPACE = workspace({
+  [SOURCE_PATH]: `/*at:outside*/import classNames from 'classnames/bind';
+import styles from './Button.module.scss';
+const /*<binding>*/cx/*</binding>*/ = classNames.bind(styles);
+const el = cx('/*<literal>*/ind/*|*/icator/*</literal>*/');
+const el2 = <div className={styles./*<active>*/ac/*at:styleCursor*/tive/*</active>*/} />;
+`,
+});
+
+const TSX = SOURCE_WORKSPACE.file(SOURCE_PATH).content;
+const CX_BINDING_RANGE = SOURCE_WORKSPACE.range("binding", SOURCE_PATH).range;
+const LITERAL_RANGE = SOURCE_WORKSPACE.range("literal", SOURCE_PATH).range;
+const ACTIVE_RANGE = SOURCE_WORKSPACE.range("active", SOURCE_PATH).range;
 
 const detectCxBindings = (sourceFile: ts.SourceFile): CxBinding[] =>
   sourceFile.text.includes("classnames/bind") && sourceFile.text.includes(".module.")
@@ -32,15 +46,26 @@ const detectCxBindings = (sourceFile: ts.SourceFile): CxBinding[] =>
           stylesVarName: "styles",
           scssModulePath: SCSS_PATH,
           classNamesImportName: "classNames",
-          bindingRange: {
-            start: { line: 3, character: 6 },
-            end: { line: 3, character: 8 },
-          },
+          bindingRange: CX_BINDING_RANGE,
         },
       ]
     : [];
 
-function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
+function sourceCursor(fixture: CmeWorkspace = SOURCE_WORKSPACE, markerName = "cursor") {
+  return cursorFixture({
+    workspace: fixture,
+    filePath: SOURCE_PATH,
+    documentUri: SOURCE_URI,
+    markerName,
+    version: 1,
+  });
+}
+
+function makeDeps(
+  overrides: Partial<ProviderDeps> = {},
+  literalRange: Range = LITERAL_RANGE,
+  activeRange: Range = ACTIVE_RANGE,
+): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
   const analysisCache = new DocumentAnalysisCache({
     sourceFileCache,
@@ -60,19 +85,13 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
             kind: "literal",
             origin: "cxCall",
             className: "indicator",
-            range: {
-              start: { line: 4, character: 15 },
-              end: { line: 4, character: 24 },
-            },
+            range: literalRange,
             scssModulePath: SCSS_PATH,
           },
           {
             kind: "styleAccess",
             className: "active",
-            range: {
-              start: { line: 5, character: 28 },
-              end: { line: 5, character: 34 },
-            },
+            range: activeRange,
             scssModulePath: SCSS_PATH,
           },
         ],
@@ -93,15 +112,19 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
 
 describe("withSourceExpressionAtCursor / entry gating", () => {
   it("returns null when the analyzed entry has no class expressions", () => {
+    const emptyWorkspace = workspace({
+      [SOURCE_PATH]: "/*|*/const x = 1;",
+    });
+    const cursor = sourceCursor(emptyWorkspace);
     const deps = makeDeps();
     const transform = vi.fn();
     const result = withSourceExpressionAtCursor(
       {
-        documentUri: "file:///fake/a.tsx",
-        content: "const x = 1;",
-        filePath: "/fake/a.tsx",
-        line: 0,
-        character: 0,
+        documentUri: SOURCE_URI,
+        content: cursor.content,
+        filePath: SOURCE_PATH,
+        line: cursor.line,
+        character: cursor.character,
         version: 1,
       },
       deps,
@@ -127,13 +150,14 @@ describe("withSourceExpressionAtCursor / entry gating", () => {
       workspaceRoot: "/fake",
     });
     const transform = vi.fn();
+    const cursor = sourceCursor();
     const result = withSourceExpressionAtCursor(
       {
-        documentUri: "file:///fake/a.tsx",
+        documentUri: SOURCE_URI,
         content: TSX,
-        filePath: "/fake/a.tsx",
-        line: 4,
-        character: 18,
+        filePath: SOURCE_PATH,
+        line: cursor.line,
+        character: cursor.character,
         version: 1,
       },
       deps,
@@ -146,13 +170,14 @@ describe("withSourceExpressionAtCursor / entry gating", () => {
   it("returns null when the cursor is outside every class expression range", () => {
     const deps = makeDeps();
     const transform = vi.fn();
+    const cursor = sourceCursor(SOURCE_WORKSPACE, "outside");
     const result = withSourceExpressionAtCursor(
       {
-        documentUri: "file:///fake/a.tsx",
+        documentUri: SOURCE_URI,
         content: TSX,
-        filePath: "/fake/a.tsx",
-        line: 1, // import line — no ref there
-        character: 0,
+        filePath: SOURCE_PATH,
+        line: cursor.line,
+        character: cursor.character,
         version: 1,
       },
       deps,
@@ -165,13 +190,14 @@ describe("withSourceExpressionAtCursor / entry gating", () => {
   it("returns null when the style document cannot be resolved for the expression path", () => {
     const deps = makeDeps({ selectorMapForPath: () => null });
     const transform = vi.fn();
+    const cursor = sourceCursor();
     const result = withSourceExpressionAtCursor(
       {
-        documentUri: "file:///fake/a.tsx",
+        documentUri: SOURCE_URI,
         content: TSX,
-        filePath: "/fake/a.tsx",
-        line: 4,
-        character: 18,
+        filePath: SOURCE_PATH,
+        line: cursor.line,
+        character: cursor.character,
         version: 1,
       },
       deps,
@@ -186,13 +212,14 @@ describe("withSourceExpressionAtCursor / dispatch", () => {
   it("passes a literal cx expression when cursor lies inside it", () => {
     const deps = makeDeps();
     const spy = vi.fn((ctx) => ({ kind: ctx.expression.kind, origin: ctx.expression.origin }));
+    const cursor = sourceCursor();
     const result = withSourceExpressionAtCursor(
       {
-        documentUri: "file:///fake/a.tsx",
+        documentUri: SOURCE_URI,
         content: TSX,
-        filePath: "/fake/a.tsx",
-        line: 4,
-        character: 18,
+        filePath: SOURCE_PATH,
+        line: cursor.line,
+        character: cursor.character,
         version: 1,
       },
       deps,
@@ -205,13 +232,14 @@ describe("withSourceExpressionAtCursor / dispatch", () => {
   it("passes a styleAccess expression when cursor is on a styles.x access", () => {
     const deps = makeDeps();
     const spy = vi.fn((ctx) => ({ kind: ctx.expression.kind, origin: ctx.expression.origin }));
+    const cursor = sourceCursor(SOURCE_WORKSPACE, "styleCursor");
     const result = withSourceExpressionAtCursor(
       {
-        documentUri: "file:///fake/a.tsx",
+        documentUri: SOURCE_URI,
         content: TSX,
-        filePath: "/fake/a.tsx",
-        line: 5,
-        character: 30, // middle of `active`
+        filePath: SOURCE_PATH,
+        line: cursor.line,
+        character: cursor.character,
         version: 1,
       },
       deps,
@@ -224,13 +252,14 @@ describe("withSourceExpressionAtCursor / dispatch", () => {
   it("passes the AnalysisEntry so providers can skip a second cache lookup", () => {
     const deps = makeDeps();
     const spy = vi.fn((ctx) => ctx.entry);
+    const cursor = sourceCursor();
     const result = withSourceExpressionAtCursor(
       {
-        documentUri: "file:///fake/a.tsx",
+        documentUri: SOURCE_URI,
         content: TSX,
-        filePath: "/fake/a.tsx",
-        line: 4,
-        character: 18,
+        filePath: SOURCE_PATH,
+        line: cursor.line,
+        character: cursor.character,
         version: 1,
       },
       deps,
@@ -244,6 +273,15 @@ describe("withSourceExpressionAtCursor / dispatch", () => {
   });
 
   it("chooses the most specific expression when ranges overlap", () => {
+    const overlapWorkspace = workspace({
+      [SOURCE_PATH]: `import classNames from 'classnames/bind';
+import styles from './Button.module.scss';
+const /*<binding>*/cx/*</binding>*/ = classNames.bind(styles);
+const el = cx(/*<outer>*/'/*<inner>*/ind/*|*/icator/*</inner>*/'/*</outer>*/);
+`,
+    });
+    const outerRange = overlapWorkspace.range("outer", SOURCE_PATH).range;
+    const innerRange = overlapWorkspace.range("inner", SOURCE_PATH).range;
     const sourceFileCache = new SourceFileCache({ max: 10 });
     const analysisCache = new DocumentAnalysisCache({
       sourceFileCache,
@@ -257,7 +295,7 @@ describe("withSourceExpressionAtCursor / dispatch", () => {
       aliasResolver: EMPTY_ALIAS_RESOLVER,
       parseClassExpressions: (_sf, bindings, stylesBindings) =>
         buildTestClassExpressions({
-          filePath: "/fake/a.tsx",
+          filePath: SOURCE_PATH,
           bindings,
           stylesBindings,
           expressions: [
@@ -265,20 +303,14 @@ describe("withSourceExpressionAtCursor / dispatch", () => {
               kind: "symbolRef",
               origin: "cxCall",
               rawReference: "size",
-              range: {
-                start: { line: 4, character: 12 },
-                end: { line: 4, character: 24 },
-              },
+              range: outerRange,
               scssModulePath: SCSS_PATH,
             },
             {
               kind: "literal",
               origin: "cxCall",
               className: "indicator",
-              range: {
-                start: { line: 4, character: 15 },
-                end: { line: 4, character: 24 },
-              },
+              range: innerRange,
               scssModulePath: SCSS_PATH,
             },
           ],
@@ -291,13 +323,14 @@ describe("withSourceExpressionAtCursor / dispatch", () => {
       workspaceRoot: "/fake",
     });
     const spy = vi.fn((ctx) => ({ kind: ctx.expression.kind }));
+    const cursor = sourceCursor(overlapWorkspace);
     const result = withSourceExpressionAtCursor(
       {
-        documentUri: "file:///fake/a.tsx",
-        content: TSX,
-        filePath: "/fake/a.tsx",
-        line: 4,
-        character: 18,
+        documentUri: SOURCE_URI,
+        content: overlapWorkspace.file(SOURCE_PATH).content,
+        filePath: SOURCE_PATH,
+        line: cursor.line,
+        character: cursor.character,
         version: 1,
       },
       deps,
