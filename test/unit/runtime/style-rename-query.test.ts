@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { parseStyleDocument } from "../../../server/engine-core-ts/src/core/scss/scss-parser";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/engine-core-ts/src/core/semantic/workspace-reference-index";
 import { infoAtLine, makeBaseDeps, semanticSiteAt } from "../../_fixtures/test-helpers";
 import {
@@ -43,6 +44,54 @@ describe("style rename query", () => {
 
     expect(styleDocument).not.toBeNull();
     expect(planStyleRenameAtCursor(SCSS_PATH, 99, 0, styleDocument!, deps, "status")).toBeNull();
+  });
+
+  it("reads and plans same-file Sass variable rename edits", () => {
+    const scss = `$gap: 1rem;
+.button {
+  color: $gap;
+  margin: $gap;
+}
+`;
+    const styleDocument = parseStyleDocument(scss, SCSS_PATH);
+    const deps = makeBaseDeps({
+      styleDocumentForPath: (filePath) => (filePath === SCSS_PATH ? styleDocument : null),
+    });
+
+    const target = readStyleRenameTargetAtCursor(SCSS_PATH, 2, 10, styleDocument, deps);
+    expect(target.kind).toBe("target");
+    expect(target.kind === "target" ? target.target.placeholder : null).toBe("$gap");
+
+    const plan = planStyleRenameAtCursor(SCSS_PATH, 2, 10, styleDocument, deps, "space");
+    expect(plan?.kind).toBe("plan");
+    expect(plan?.kind === "plan" ? plan.plan.edits : []).toMatchObject([
+      { uri: "file:///fake/src/Button.module.scss", newText: "$space" },
+      { uri: "file:///fake/src/Button.module.scss", newText: "$space" },
+      { uri: "file:///fake/src/Button.module.scss", newText: "$space" },
+    ]);
+  });
+
+  it("reads and plans same-file Sass mixin rename edits", () => {
+    const scss = `@mixin raised() {}
+.button {
+  @include raised();
+}
+`;
+    const styleDocument = parseStyleDocument(scss, SCSS_PATH);
+    const deps = makeBaseDeps({
+      styleDocumentForPath: (filePath) => (filePath === SCSS_PATH ? styleDocument : null),
+    });
+
+    const target = readStyleRenameTargetAtCursor(SCSS_PATH, 2, 13, styleDocument, deps);
+    expect(target.kind).toBe("target");
+    expect(target.kind === "target" ? target.target.placeholder : null).toBe("raised");
+
+    const plan = planStyleRenameAtCursor(SCSS_PATH, 2, 13, styleDocument, deps, "elevated");
+    expect(plan?.kind).toBe("plan");
+    expect(plan?.kind === "plan" ? plan.plan.edits : []).toMatchObject([
+      { uri: "file:///fake/src/Button.module.scss", newText: "elevated" },
+      { uri: "file:///fake/src/Button.module.scss", newText: "elevated" },
+    ]);
   });
 
   it("uses rust selector-usage payloads for rename safety blocking", () => {

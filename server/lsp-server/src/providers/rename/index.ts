@@ -132,7 +132,10 @@ function toPrepareRenameResult(
 }
 
 function toWorkspaceEdit(
-  plan: ReturnType<typeof planSourceExpressionRename> | null,
+  plan:
+    | ReturnType<typeof planSourceExpressionRename>
+    | ReturnType<typeof planStyleRenameAtCursor>
+    | null,
 ): WorkspaceEdit | null {
   if (!plan || plan.kind !== "plan") return null;
 
