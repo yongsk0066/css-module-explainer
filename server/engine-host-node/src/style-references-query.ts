@@ -4,6 +4,7 @@ import {
   findComposesTokenAtCursor,
   findKeyframesAtCursor,
   findKeyframesByName,
+  findSassModuleMemberRefAtCursor,
   findSassSymbolAtCursor,
   findSassSymbolDeclAtCursor,
   findSassSymbolDeclForSymbol,
@@ -12,9 +13,11 @@ import {
   findValueImportAtCursor,
   findValueRefAtCursor,
   listAnimationNameRefs,
+  listSassModuleMemberRefsForMember,
   listSassSymbolsForDecl,
   listValueRefs,
   resolveComposesTarget,
+  resolveSassModuleMemberRefTarget,
   resolveValueImportTarget,
   resolveValueTarget,
 } from "../../engine-core-ts/src/core/query";
@@ -58,6 +61,7 @@ export function resolveStyleReferencesAtCursor(
     | "styleDocumentForPath"
     | "typeResolver"
     | "workspaceRoot"
+    | "aliasResolver"
   >,
   options: StyleReferenceQueryOptions = {},
 ): readonly StyleReferenceLocation[] {
@@ -209,6 +213,36 @@ export function resolveStyleReferencesAtCursor(
       locations.unshift({
         uri: pathToFileUrl(args.filePath),
         range: matchedSassSymbolDecl.range,
+      });
+    }
+    return dedupeLocations(locations);
+  }
+
+  const sassModuleMemberRef = findSassModuleMemberRefAtCursor(
+    args.styleDocument,
+    args.line,
+    args.character,
+  );
+  if (sassModuleMemberRef) {
+    const moduleMemberTarget = resolveSassModuleMemberRefTarget(
+      deps.styleDocumentForPath,
+      args.styleDocument.filePath,
+      args.styleDocument,
+      sassModuleMemberRef,
+      deps.aliasResolver,
+    );
+    if (!moduleMemberTarget) return [];
+    const locations = listSassModuleMemberRefsForMember(
+      args.styleDocument,
+      sassModuleMemberRef,
+    ).map<StyleReferenceLocation>((memberRef) => ({
+      uri: pathToFileUrl(args.filePath),
+      range: memberRef.range,
+    }));
+    if (args.includeDeclaration) {
+      locations.unshift({
+        uri: pathToFileUrl(moduleMemberTarget.filePath),
+        range: moduleMemberTarget.decl.range,
       });
     }
     return dedupeLocations(locations);

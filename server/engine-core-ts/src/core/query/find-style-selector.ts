@@ -310,6 +310,18 @@ export function listSassSymbolsForDecl(
   });
 }
 
+export function listSassModuleMemberRefsForMember(
+  styleDocument: StyleDocumentHIR,
+  memberRef: SassModuleMemberRefHIR,
+): readonly SassModuleMemberRefHIR[] {
+  return styleDocument.sassModuleMemberRefs.filter(
+    (candidate) =>
+      candidate.namespace === memberRef.namespace &&
+      candidate.symbolKind === memberRef.symbolKind &&
+      candidate.name === memberRef.name,
+  );
+}
+
 function isFileScopeSassVariableDecl(decl: SassSymbolDeclHIR): boolean {
   return (
     decl.symbolKind === "variable" &&

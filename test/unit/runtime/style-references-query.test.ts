@@ -186,6 +186,56 @@ describe("resolveStyleReferencesAtCursor", () => {
     );
     expect(fileScopeResult.map((location) => location.range.start.line)).toEqual([0, 6]);
   });
+
+  it("returns namespace-qualified Sass member references with the target declaration", () => {
+    const filePath = "/fake/src/Button.module.scss";
+    const tokensPath = "/fake/src/tokens.module.scss";
+    const buttonScss = `@use "./tokens.module" as tokens;
+
+.button {
+  color: tokens.$gap;
+  margin: tokens.$gap;
+}
+`;
+    const tokensScss = `$gap: 1rem;`;
+    const styleDocument = parseStyleDocument(buttonScss, filePath);
+    const targetDocument = parseStyleDocument(tokensScss, tokensPath);
+
+    const result = resolveStyleReferencesAtCursor(
+      {
+        filePath,
+        line: 3,
+        character: 18,
+        includeDeclaration: true,
+        styleDocument,
+      },
+      makeDeps({ styleDocumentForPath: styleDocumentMap([styleDocument, targetDocument]) }),
+    );
+
+    expect(result).toEqual([
+      {
+        uri: "file:///fake/src/tokens.module.scss",
+        range: {
+          start: { line: 0, character: 0 },
+          end: { line: 0, character: 4 },
+        },
+      },
+      {
+        uri: "file:///fake/src/Button.module.scss",
+        range: {
+          start: { line: 3, character: 16 },
+          end: { line: 3, character: 20 },
+        },
+      },
+      {
+        uri: "file:///fake/src/Button.module.scss",
+        range: {
+          start: { line: 4, character: 17 },
+          end: { line: 4, character: 21 },
+        },
+      },
+    ]);
+  });
 });
 
 function styleDocumentMap(documents: readonly StyleDocumentHIR[]) {

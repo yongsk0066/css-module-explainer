@@ -175,6 +175,38 @@ describe("style hover query", () => {
       referenceCount: 1,
     });
   });
+
+  it("resolves namespace-qualified Sass member references to target module hover data", () => {
+    const buttonScss = `@use "./tokens.module" as tokens;
+
+.button {
+  color: tokens.$gap;
+  margin: tokens.$gap;
+}
+`;
+    const tokensScss = `$gap: 1rem;`;
+    const result = resolveStyleHoverResult(
+      {
+        filePath: SCSS_PATH,
+        line: 3,
+        character: 18,
+      },
+      makeBaseDeps({
+        styleDocumentForPath: styleDocumentMap([
+          parseStyleDocument(buttonScss, SCSS_PATH),
+          parseStyleDocument(tokensScss, TOKENS_PATH),
+        ]),
+      }),
+    );
+
+    expect(result).toMatchObject({
+      kind: "sassSymbol",
+      scssModulePath: TOKENS_PATH,
+      headingName: "tokens.gap",
+      note: "Referenced via Sass module reference",
+      referenceCount: 2,
+    });
+  });
 });
 
 function styleDocumentMap(documents: readonly StyleDocumentHIR[]) {

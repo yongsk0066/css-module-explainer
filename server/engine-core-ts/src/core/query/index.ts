@@ -34,6 +34,7 @@ export {
   listSassSymbolsForDecl,
   listValueRefs,
   listSassModuleUseCandidatePaths,
+  listSassModuleMemberRefsForMember,
   resolveValueImportTarget,
   resolveValueTarget,
   resolveComposesTarget,

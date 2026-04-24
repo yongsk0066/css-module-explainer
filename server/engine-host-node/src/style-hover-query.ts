@@ -5,6 +5,7 @@ import {
   findComposesTokenAtCursor,
   findKeyframesAtCursor,
   findKeyframesByName,
+  findSassModuleMemberRefAtCursor,
   findSassSymbolAtCursor,
   findSassSymbolDeclAtCursor,
   findSassSymbolDeclForSymbol,
@@ -13,11 +14,13 @@ import {
   findValueImportAtCursor,
   findValueRefAtCursor,
   listAnimationNameRefs,
+  listSassModuleMemberRefsForMember,
   listSassSymbolsForDecl,
   listValueRefs,
   readSelectorStyleDependencySummary,
   readSelectorUsageSummary,
   resolveComposesTarget,
+  resolveSassModuleMemberRefTarget,
   resolveValueImportTarget,
   resolveValueTarget,
 } from "../../engine-core-ts/src/core/query";
@@ -106,6 +109,7 @@ export function resolveStyleHoverResult(
     | "styleDependencyGraph"
     | "workspaceRoot"
     | "settings"
+    | "aliasResolver"
   >,
   options: StyleHoverQueryOptions = {},
 ): StyleHoverResult | null {
@@ -199,6 +203,31 @@ export function resolveStyleHoverResult(
       note: `Referenced via Sass ${sassSymbol.role}`,
       scssModulePath: args.filePath,
       referenceCount: listSassSymbolsForDecl(styleDocument, target).length,
+    };
+  }
+
+  const sassModuleMemberRef = findSassModuleMemberRefAtCursor(
+    styleDocument,
+    args.line,
+    args.character,
+  );
+  if (sassModuleMemberRef) {
+    const target = resolveSassModuleMemberRefTarget(
+      deps.styleDocumentForPath,
+      styleDocument.filePath,
+      styleDocument,
+      sassModuleMemberRef,
+      deps.aliasResolver,
+    );
+    if (!target) return null;
+    return {
+      kind: "sassSymbol",
+      sassSymbolDecl: target.decl,
+      range: sassModuleMemberRef.range,
+      headingName: `${sassModuleMemberRef.namespace}.${sassModuleMemberRef.name}`,
+      note: `Referenced via Sass module ${sassModuleMemberRef.role}`,
+      scssModulePath: target.filePath,
+      referenceCount: listSassModuleMemberRefsForMember(styleDocument, sassModuleMemberRef).length,
     };
   }
 
