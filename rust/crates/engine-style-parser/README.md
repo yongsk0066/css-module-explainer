@@ -11,11 +11,14 @@ Current scope:
 - parser diagnostics for unterminated comments, strings, and blocks
 - bounded Rust-vs-TS parity and CSS Modules intermediate producer binaries
 - parser canonical-candidate / canonical-producer artifacts over those bounded outputs
+- Sass symbol seed facts in the CSS Modules intermediate producer for variables,
+  mixins, functions, and static `@use` / `@forward` / `@import` module edges
 
 Non-goals in this first scaffold:
 
 - no TS/runtime integration yet
 - no public package commitment
+- no provider-facing Sass symbol feature yet
 
 Primary check:
 

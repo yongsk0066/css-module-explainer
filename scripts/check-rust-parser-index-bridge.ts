@@ -51,6 +51,17 @@ interface ParserIndexSummaryV0 {
     readonly selectorsWithImportedRefsUnderSupportsNames: readonly string[];
     readonly selectorsWithImportedRefsUnderLayerNames: readonly string[];
   };
+  readonly sass: {
+    readonly variableDeclNames: readonly string[];
+    readonly variableRefNames: readonly string[];
+    readonly mixinDeclNames: readonly string[];
+    readonly mixinIncludeNames: readonly string[];
+    readonly functionDeclNames: readonly string[];
+    readonly functionCallNames: readonly string[];
+    readonly moduleUseSources: readonly string[];
+    readonly moduleForwardSources: readonly string[];
+    readonly moduleImportSources: readonly string[];
+  };
   readonly keyframes: {
     readonly names: readonly string[];
     readonly namesUnderMedia: readonly string[];
@@ -216,6 +227,11 @@ const CORPUS = [
     filePath: "/f.module.scss",
     source: `@supports (display: grid) { @layer ui { .card { composes: base utility; composes: shell from global; composes: tone from "./base.module.scss"; } } }`,
   },
+  {
+    label: "scss-sass-symbol-seed-index",
+    filePath: "/f.module.scss",
+    source: `@use "./tokens" as tokens;\n@forward "./theme";\n@import "./legacy";\n$gap: 1rem;\n@mixin raised($depth) { box-shadow: 0 0 $depth black; }\n@function tone($value) { @return $value; }\n.btn { color: $gap; @include raised($gap); border-color: tone($gap); }`,
+  },
 ] as const;
 
 function comparePosition(
@@ -334,6 +350,56 @@ function collectWrapperNamesForRanges(
     supports: [...supports].toSorted(),
     layer: [...layer].toSorted(),
   };
+}
+
+function uniqueSorted(values: readonly string[]): string[] {
+  return [...new Set(values)].toSorted((left, right) => left.localeCompare(right));
+}
+
+function deriveSassSummary(source: string): ParserIndexSummaryV0["sass"] {
+  const variableDeclNames = [...source.matchAll(/(^|[{\s;])\$([A-Za-z_-][A-Za-z0-9_-]*)\s*:/g)].map(
+    (match) => match[2]!,
+  );
+  const variableRefNames = [...source.matchAll(/\$([A-Za-z_-][A-Za-z0-9_-]*)/g)]
+    .filter((match) => {
+      const end = match.index + match[0].length;
+      const next = /\S/.exec(source.slice(end))?.[0];
+      return next !== ":";
+    })
+    .map((match) => match[1]!);
+  const mixinDeclNames = [...source.matchAll(/@mixin\s+([A-Za-z_-][A-Za-z0-9_-]*)/g)].map(
+    (match) => match[1]!,
+  );
+  const mixinIncludeNames = [...source.matchAll(/@include\s+([A-Za-z_-][A-Za-z0-9_-]*)/g)].map(
+    (match) => match[1]!,
+  );
+  const functionDeclNames = [...source.matchAll(/@function\s+([A-Za-z_-][A-Za-z0-9_-]*)/g)].map(
+    (match) => match[1]!,
+  );
+  const functionCallNames = functionDeclNames.flatMap((name) => {
+    const callPattern = new RegExp(`\\b${escapeRegExp(name)}\\s*\\(`, "g");
+    return [...source.matchAll(callPattern)].length > 1 ? [name] : [];
+  });
+  const sourceForAtRule = (name: "use" | "forward" | "import") =>
+    [...source.matchAll(new RegExp(`@${name}\\s+([^;{]+)`, "g"))].flatMap((match) =>
+      [...match[1]!.matchAll(/["']([^"']+)["']/g)].map((sourceMatch) => sourceMatch[1]!),
+    );
+
+  return {
+    variableDeclNames: uniqueSorted(variableDeclNames),
+    variableRefNames: uniqueSorted(variableRefNames),
+    mixinDeclNames: uniqueSorted(mixinDeclNames),
+    mixinIncludeNames: uniqueSorted(mixinIncludeNames),
+    functionDeclNames: uniqueSorted(functionDeclNames),
+    functionCallNames: uniqueSorted(functionCallNames),
+    moduleUseSources: uniqueSorted(sourceForAtRule("use")),
+    moduleForwardSources: uniqueSorted(sourceForAtRule("forward")),
+    moduleImportSources: uniqueSorted(sourceForAtRule("import")),
+  };
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[\\^$.*+?()[\]{}|]/g, "\\$&");
 }
 
 function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0 {
@@ -623,6 +689,7 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
         .map((selector) => selector.name)
         .toSorted(),
     },
+    sass: deriveSassSummary(source),
     keyframes: {
       names: [...document.keyframes].map((entry) => entry.name).toSorted(),
       namesUnderMedia: wrapperKeyframesNames.media,
