@@ -47,6 +47,12 @@ const IMPORTED_VALUE_SCSS = `@value primary from "./tokens.module.scss";
 
 const TOKENS_SCSS = `@value primary: #ff3355;`;
 
+const SASS_SYMBOL_SCSS = `$gap: 1rem;
+.button {
+  color: $gap;
+}
+`;
+
 const FUNCTION_DYNAMIC_TSX = `import classNames from 'classnames/bind';
 import styles from './Status.module.scss';
 const cx = classNames.bind(styles);
@@ -492,6 +498,33 @@ export function Base() {
     const value = (hover!.contents as { value: string }).value;
     expect(value).toContain("`@value primary`");
     expect(value).toContain("imported from `./tokens.module.scss` as `primary`");
+  });
+
+  it("returns a Sass symbol hover for same-file references", async () => {
+    const scssUri = "file:///fake/workspace/src/Button.module.scss";
+    client = createInProcessServer({
+      readStyleFile: (path) => (path.endsWith("Button.module.scss") ? SASS_SYMBOL_SCSS : null),
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    client.didOpen({
+      textDocument: {
+        uri: scssUri,
+        languageId: "scss",
+        version: 1,
+        text: SASS_SYMBOL_SCSS,
+      },
+    });
+
+    const hover = await client.hover({
+      textDocument: { uri: scssUri },
+      position: { line: 2, character: 10 },
+    });
+    expect(hover).not.toBeNull();
+    const value = (hover!.contents as { value: string }).value;
+    expect(value).toContain("`$gap`");
+    expect(value).toContain("1 Sass symbol reference");
   });
 
   it("includes dynamic explanation for a flow-resolved symbol ref", async () => {

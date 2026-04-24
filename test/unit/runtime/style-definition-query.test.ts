@@ -88,6 +88,43 @@ describe("resolveStyleDefinitionTargets", () => {
       },
     });
   });
+
+  it("resolves same-file Sass symbol references to declarations", () => {
+    const scss = `$gap: 1rem;
+@mixin raised() {}
+.button {
+  color: $gap;
+  @include raised();
+}
+`;
+    const deps = depsForDocuments([parseStyleDocument(scss, BUTTON_PATH)]);
+
+    const variableTargets = resolveStyleDefinitionTargets(
+      { filePath: BUTTON_PATH, line: 3, character: 10 },
+      deps,
+    );
+    expect(variableTargets).toHaveLength(1);
+    expect(variableTargets[0]).toMatchObject({
+      targetFilePath: BUTTON_PATH,
+      targetSelectionRange: {
+        start: { line: 0, character: 0 },
+        end: { line: 0, character: 4 },
+      },
+    });
+
+    const mixinTargets = resolveStyleDefinitionTargets(
+      { filePath: BUTTON_PATH, line: 4, character: 13 },
+      deps,
+    );
+    expect(mixinTargets).toHaveLength(1);
+    expect(mixinTargets[0]).toMatchObject({
+      targetFilePath: BUTTON_PATH,
+      targetSelectionRange: {
+        start: { line: 1, character: 7 },
+        end: { line: 1, character: 13 },
+      },
+    });
+  });
 });
 
 function depsForDocuments(documents: readonly StyleDocumentHIR[]) {

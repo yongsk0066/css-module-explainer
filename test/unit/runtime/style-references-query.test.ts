@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import type { StyleDocumentHIR } from "../../../server/engine-core-ts/src/core/hir/style-types";
+import { parseStyleDocument } from "../../../server/engine-core-ts/src/core/scss/scss-parser";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/engine-core-ts/src/core/semantic/workspace-reference-index";
 import type { ProviderDeps } from "../../../server/lsp-server/src/providers/cursor-dispatch";
 import { resolveStyleReferencesAtCursor } from "../../../server/engine-host-node/src/style-references-query";
@@ -118,4 +120,37 @@ describe("resolveStyleReferencesAtCursor", () => {
       },
     ]);
   });
+
+  it("returns same-file Sass symbol references from a declaration cursor", () => {
+    const filePath = "/fake/src/Button.module.scss";
+    const scss = `$gap: 1rem;
+.button {
+  color: $gap;
+  margin: $gap;
+}
+`;
+    const styleDocument = parseStyleDocument(scss, filePath);
+
+    const result = resolveStyleReferencesAtCursor(
+      {
+        filePath,
+        line: 0,
+        character: 1,
+        includeDeclaration: true,
+        styleDocument,
+      },
+      makeDeps({ styleDocumentForPath: styleDocumentMap([styleDocument]) }),
+    );
+
+    expect(result).toHaveLength(3);
+    expect(result.every((location) => location.uri === "file:///fake/src/Button.module.scss")).toBe(
+      true,
+    );
+    expect(result.map((location) => location.range.start.line)).toEqual([0, 2, 3]);
+  });
 });
+
+function styleDocumentMap(documents: readonly StyleDocumentHIR[]) {
+  const byPath = new Map(documents.map((document) => [document.filePath, document]));
+  return (filePath: string) => byPath.get(filePath) ?? null;
+}

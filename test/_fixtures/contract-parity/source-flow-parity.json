@@ -102,6 +102,7 @@
           "filePath": "<workspace>/test/_fixtures/contract-parity/SourceFlowParity.module.scss",
           "keyframes": [],
           "kind": "style",
+          "sassSymbolDecls": [],
           "sassSymbols": [],
           "selectors": [
             {

@@ -51,6 +51,7 @@
             }
           ],
           "kind": "style",
+          "sassSymbolDecls": [],
           "sassSymbols": [],
           "selectors": [
             {

@@ -149,6 +149,32 @@ describe("style hover query", () => {
       referenceCount: 1,
     });
   });
+
+  it("resolves same-file Sass symbol references to declaration hover data", () => {
+    const scss = `$gap: 1rem;
+.button {
+  color: $gap;
+}
+`;
+    const result = resolveStyleHoverResult(
+      {
+        filePath: SCSS_PATH,
+        line: 2,
+        character: 10,
+      },
+      makeBaseDeps({
+        styleDocumentForPath: styleDocumentMap([parseStyleDocument(scss, SCSS_PATH)]),
+      }),
+    );
+
+    expect(result).toMatchObject({
+      kind: "sassSymbol",
+      scssModulePath: SCSS_PATH,
+      headingName: "gap",
+      note: "Referenced via Sass reference",
+      referenceCount: 1,
+    });
+  });
 });
 
 function styleDocumentMap(documents: readonly StyleDocumentHIR[]) {

@@ -4,6 +4,8 @@ import {
   findCanonicalSelector,
   findComposesTokenAtCursor,
   findKeyframesByName,
+  findSassSymbolAtCursor,
+  findSassSymbolDeclByName,
   findValueImportAtCursor,
   findValueRefAtCursor,
   resolveComposesTarget,
@@ -59,6 +61,14 @@ export function resolveStyleDefinitionTargets(
     );
     return valueTarget
       ? [toStyleDefinitionTarget(valueImport.range, valueTarget.filePath, valueTarget.valueDecl)]
+      : [];
+  }
+
+  const sassSymbol = findSassSymbolAtCursor(styleDocument, params.line, params.character);
+  if (sassSymbol) {
+    const target = findSassSymbolDeclByName(styleDocument, sassSymbol.symbolKind, sassSymbol.name);
+    return target
+      ? [toStyleDefinitionTarget(sassSymbol.range, styleDocument.filePath, target)]
       : [];
   }
 

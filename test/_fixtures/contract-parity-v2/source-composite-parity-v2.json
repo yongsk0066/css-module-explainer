@@ -112,6 +112,7 @@
           "filePath": "<workspace>/test/_fixtures/contract-parity/SourceCompositeParity.module.scss",
           "keyframes": [],
           "kind": "style",
+          "sassSymbolDecls": [],
           "sassSymbols": [],
           "selectors": [
             {

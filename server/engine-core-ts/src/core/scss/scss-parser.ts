@@ -4,12 +4,20 @@ import type {
   ComposesRef,
   Range,
 } from "@css-module-explainer/shared";
-import { parse as postcssParse, type AtRule, type ChildNode, type Root, type Rule } from "postcss";
+import {
+  parse as postcssParse,
+  type AtRule,
+  type ChildNode,
+  type Declaration,
+  type Root,
+  type Rule,
+} from "postcss";
 import {
   makeStyleDocumentHIR,
   type AnimationNameRefHIR,
   type KeyframesDeclHIR,
   type NestedSelectorSafety,
+  type SassSymbolDeclHIR,
   type SassSymbolKind,
   type SassSymbolOccurrenceHIR,
   type SassSymbolResolution,
@@ -115,6 +123,7 @@ export function parseStyleDocument(content: string, filePath: string): StyleDocu
   const valueDecls = collectValueDecls(root, valuePathAliases);
   const valueImports = collectValueImports(root, valuePathAliases);
   const valueRefs = collectValueRefs(root, valueDecls, valueImports);
+  const sassSymbolDecls = collectSassSymbolDecls(root);
   const sassSymbolTargets = collectSassSymbolTargetContext(root);
   const sassSymbols: SassSymbolOccurrenceHIR[] = [];
 
@@ -136,6 +145,7 @@ export function parseStyleDocument(content: string, filePath: string): StyleDocu
     [...valueImports].toSorted(compareNamedStyleFacts),
     [...valueRefs].toSorted(compareNamedStyleFacts),
     [...sassSymbols].toSorted(compareSassSymbolOccurrences),
+    [...sassSymbolDecls].toSorted(compareSassSymbolDecls),
   );
 }
 
@@ -624,6 +634,58 @@ interface SassSymbolTargetContext {
   readonly functionTargets: ReadonlySet<string>;
 }
 
+function collectSassSymbolDecls(root: Root): readonly SassSymbolDeclHIR[] {
+  const decls: SassSymbolDeclHIR[] = [];
+
+  root.walkDecls((decl) => {
+    const name = parseSassVariableDeclName(decl.prop);
+    if (!name) return;
+    const range = findDeclPropTokenRange(decl, decl.prop.length);
+    if (!range) return;
+    decls.push(
+      makeSassSymbolDecl({
+        symbolKind: "variable",
+        name,
+        range,
+        ruleRange: rangeForDeclNode(decl),
+      }),
+    );
+  });
+
+  root.walkAtRules((atrule) => {
+    if (atrule.name !== "mixin" && atrule.name !== "function") return;
+    const callable = parseSassCallableName(atrule.params);
+    const ruleRange = rangeForSourceNode(atrule);
+    if (callable) {
+      const range = findAtRuleParamValueTokenRange(atrule, callable.offset, callable.raw.length);
+      if (range) {
+        decls.push(
+          makeSassSymbolDecl({
+            symbolKind: atrule.name === "mixin" ? "mixin" : "function",
+            name: callable.name,
+            range,
+            ruleRange,
+          }),
+        );
+      }
+    }
+    for (const variable of findSassVariableMatches(atrule.params)) {
+      const range = findAtRuleParamValueTokenRange(atrule, variable.offset, variable.raw.length);
+      if (!range) continue;
+      decls.push(
+        makeSassSymbolDecl({
+          symbolKind: "variable",
+          name: variable.name,
+          range,
+          ruleRange,
+        }),
+      );
+    }
+  });
+
+  return decls;
+}
+
 function collectSassSymbolTargetContext(root: Root): SassSymbolTargetContext {
   const variableTargets = new Set<string>();
   const mixinTargets = new Set<string>();
@@ -647,6 +709,22 @@ function collectSassSymbolTargetContext(root: Root): SassSymbolTargetContext {
   });
 
   return { variableTargets, mixinTargets, functionTargets };
+}
+
+function makeSassSymbolDecl(args: {
+  readonly symbolKind: SassSymbolKind;
+  readonly name: string;
+  readonly range: Range;
+  readonly ruleRange: Range;
+}): SassSymbolDeclHIR {
+  return {
+    kind: "sassSymbolDecl",
+    id: `sass-decl:${args.symbolKind}:${args.name}:${args.range.start.line}:${args.range.start.character}`,
+    symbolKind: args.symbolKind,
+    name: args.name,
+    range: args.range,
+    ruleRange: args.ruleRange,
+  };
 }
 
 function collectDirectSassSymbolOccurrences(
@@ -1136,6 +1214,33 @@ function findDeclValueTokenRange(
   };
 }
 
+function findDeclPropTokenRange(node: Declaration, tokenLength: number): Range | null {
+  const source = node.source;
+  if (!source?.start) return null;
+  const propIndex = node.toString().indexOf(node.prop);
+  if (propIndex < 0) return null;
+  const startOffset = source.start.offset + propIndex;
+  const endOffset = startOffset + tokenLength;
+  const startPos = source.input.fromOffset(startOffset);
+  const endPos = source.input.fromOffset(endOffset);
+  if (!startPos || !endPos) return null;
+  return {
+    start: { line: startPos.line - 1, character: startPos.col - 1 },
+    end: { line: endPos.line - 1, character: endPos.col - 1 },
+  };
+}
+
+function rangeForDeclNode(node: Declaration): Range {
+  const start = node.source?.start;
+  const end = node.source?.end;
+  return {
+    start: start
+      ? { line: start.line - 1, character: start.column - 1 }
+      : { line: 0, character: 0 },
+    end: end ? { line: end.line - 1, character: end.column - 1 } : { line: 0, character: 0 },
+  };
+}
+
 function findAtRuleParamTokenRange(
   atrule: AtRule,
   token: string,
@@ -1256,4 +1361,14 @@ function compareSassSymbolOccurrences(
   const nameCompare = a.name.localeCompare(b.name);
   if (nameCompare !== 0) return nameCompare;
   return a.role.localeCompare(b.role);
+}
+
+function compareSassSymbolDecls(a: SassSymbolDeclHIR, b: SassSymbolDeclHIR): number {
+  const line = a.range.start.line - b.range.start.line;
+  if (line !== 0) return line;
+  const character = a.range.start.character - b.range.start.character;
+  if (character !== 0) return character;
+  const kindCompare = a.symbolKind.localeCompare(b.symbolKind);
+  if (kindCompare !== 0) return kindCompare;
+  return a.name.localeCompare(b.name);
 }

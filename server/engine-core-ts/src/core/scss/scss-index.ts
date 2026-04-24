@@ -203,6 +203,22 @@ export function styleDocumentSemanticFingerprint(styleDocument: StyleDocumentHIR
       ].join("::"),
     )
     .join("\n");
+  const sassSymbolDeclFingerprint = styleDocument.sassSymbolDecls
+    .map((decl) =>
+      [
+        decl.symbolKind,
+        decl.name,
+        decl.range.start.line,
+        decl.range.start.character,
+        decl.range.end.line,
+        decl.range.end.character,
+        decl.ruleRange.start.line,
+        decl.ruleRange.start.character,
+        decl.ruleRange.end.line,
+        decl.ruleRange.end.character,
+      ].join("::"),
+    )
+    .join("\n");
   return [
     selectorFingerprint,
     keyframesFingerprint,
@@ -211,5 +227,6 @@ export function styleDocumentSemanticFingerprint(styleDocument: StyleDocumentHIR
     valueImportFingerprint,
     valueRefFingerprint,
     sassSymbolFingerprint,
+    sassSymbolDeclFingerprint,
   ].join("\n---\n");
 }

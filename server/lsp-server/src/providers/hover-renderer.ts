@@ -2,6 +2,7 @@ import { relative } from "node:path";
 import type { ClassExpressionHIR } from "../../../engine-core-ts/src/core/hir/source-types";
 import type {
   KeyframesDeclHIR,
+  SassSymbolDeclHIR,
   SelectorDeclHIR,
   ValueDeclHIR,
 } from "../../../engine-core-ts/src/core/hir/style-types";
@@ -77,6 +78,15 @@ export interface RenderValueHoverArgs {
   readonly note?: string;
 }
 
+export interface RenderSassSymbolHoverArgs {
+  readonly sassSymbolDecl: SassSymbolDeclHIR;
+  readonly scssModulePath: string;
+  readonly referenceCount: number;
+  readonly workspaceRoot: string;
+  readonly headingName?: string;
+  readonly note?: string;
+}
+
 /**
  * Build a markdown hover card for a cx() call and its resolved
  * selector list.
@@ -139,6 +149,21 @@ export function renderValueHover(args: RenderValueHoverArgs): string {
   return `**\`@value ${headingName}\`** — _${location}_${note}\n\n_${referenceLabel}._\n\n\`\`\`scss\n@value ${args.valueDecl.name}: ${args.valueDecl.value};\n\`\`\``;
 }
 
+export function renderSassSymbolHover(args: RenderSassSymbolHoverArgs): string {
+  const location = formatLocation(
+    args.scssModulePath,
+    args.sassSymbolDecl.range.start.line,
+    args.workspaceRoot,
+  );
+  const note = args.note ? `\n\n_${args.note}_` : "";
+  const headingName = args.headingName ?? args.sassSymbolDecl.name;
+  const referenceLabel =
+    args.referenceCount === 1
+      ? "1 Sass symbol reference"
+      : `${args.referenceCount} Sass symbol references`;
+  return `**\`${formatSassSymbolHeading(args.sassSymbolDecl.symbolKind, headingName)}\`** — _${location}_${note}\n\n_${referenceLabel}._\n\n\`\`\`scss\n${buildSassSymbolSnippet(args.sassSymbolDecl)}\n\`\`\``;
+}
+
 function renderSingle(args: RenderArgs, selector: SelectorDeclHIR): string {
   const location = formatLocation(
     args.scssModulePath,
@@ -152,6 +177,31 @@ function renderSingle(args: RenderArgs, selector: SelectorDeclHIR): string {
     args.workspaceRoot,
   );
   return `**\`.${selector.name}\`** — _${location}_${explanation}\n\n\`\`\`scss\n${body}\n\`\`\`${dependencyNote}`;
+}
+
+function formatSassSymbolHeading(
+  symbolKind: SassSymbolDeclHIR["symbolKind"],
+  name: string,
+): string {
+  switch (symbolKind) {
+    case "variable":
+      return `$${name}`;
+    case "mixin":
+      return `@mixin ${name}`;
+    case "function":
+      return `@function ${name}`;
+  }
+}
+
+function buildSassSymbolSnippet(decl: SassSymbolDeclHIR): string {
+  switch (decl.symbolKind) {
+    case "variable":
+      return `$${decl.name}: …;`;
+    case "mixin":
+      return `@mixin ${decl.name}(…) { … }`;
+    case "function":
+      return `@function ${decl.name}(…) { … }`;
+  }
 }
 
 function renderMulti(args: RenderArgs): string {

@@ -8,6 +8,7 @@
           "filePath": "<workspace>/test/_fixtures/semantic-smoke/ValueSmoke.module.scss",
           "keyframes": [],
           "kind": "style",
+          "sassSymbolDecls": [],
           "sassSymbols": [],
           "selectors": [
             {

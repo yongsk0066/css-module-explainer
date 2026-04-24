@@ -5,11 +5,15 @@ import {
   findComposesTokenAtCursor,
   findKeyframesAtCursor,
   findKeyframesByName,
+  findSassSymbolAtCursor,
+  findSassSymbolDeclAtCursor,
+  findSassSymbolDeclByName,
   findSelectorAtCursor,
   findValueDeclAtCursor,
   findValueImportAtCursor,
   findValueRefAtCursor,
   listAnimationNameRefs,
+  listSassSymbols,
   listValueRefs,
   readSelectorStyleDependencySummary,
   readSelectorUsageSummary,
@@ -19,6 +23,7 @@ import {
 } from "../../engine-core-ts/src/core/query";
 import type {
   KeyframesDeclHIR,
+  SassSymbolDeclHIR,
   SelectorDeclHIR,
   StyleDocumentHIR,
   ValueDeclHIR,
@@ -65,10 +70,21 @@ export interface StyleValueHoverResult {
   readonly note?: string;
 }
 
+export interface StyleSassSymbolHoverResult {
+  readonly kind: "sassSymbol";
+  readonly sassSymbolDecl: SassSymbolDeclHIR;
+  readonly range: Range;
+  readonly scssModulePath: string;
+  readonly referenceCount: number;
+  readonly headingName?: string;
+  readonly note?: string;
+}
+
 export type StyleHoverResult =
   | StyleSelectorHoverResult
   | StyleKeyframesHoverResult
-  | StyleValueHoverResult;
+  | StyleValueHoverResult
+  | StyleSassSymbolHoverResult;
 
 export interface StyleHoverQueryOptions {
   readonly env?: NodeJS.ProcessEnv;
@@ -145,6 +161,18 @@ export function resolveStyleHoverResult(
     };
   }
 
+  const sassSymbolDecl = findSassSymbolDeclAtCursor(styleDocument, args.line, args.character);
+  if (sassSymbolDecl) {
+    return {
+      kind: "sassSymbol",
+      sassSymbolDecl,
+      range: sassSymbolDecl.range,
+      scssModulePath: args.filePath,
+      referenceCount: listSassSymbols(styleDocument, sassSymbolDecl.symbolKind, sassSymbolDecl.name)
+        .length,
+    };
+  }
+
   const animationRef = findAnimationNameRefAtCursor(styleDocument, args.line, args.character);
   if (animationRef) {
     const targetKeyframes = findKeyframesByName(styleDocument, animationRef.name);
@@ -157,6 +185,21 @@ export function resolveStyleHoverResult(
       note: `Referenced via \`${animationRef.property}\``,
       scssModulePath: args.filePath,
       referenceCount: listAnimationNameRefs(styleDocument, targetKeyframes.name).length,
+    };
+  }
+
+  const sassSymbol = findSassSymbolAtCursor(styleDocument, args.line, args.character);
+  if (sassSymbol) {
+    const target = findSassSymbolDeclByName(styleDocument, sassSymbol.symbolKind, sassSymbol.name);
+    if (!target) return null;
+    return {
+      kind: "sassSymbol",
+      sassSymbolDecl: target,
+      range: sassSymbol.range,
+      headingName: sassSymbol.name,
+      note: `Referenced via Sass ${sassSymbol.role}`,
+      scssModulePath: args.filePath,
+      referenceCount: listSassSymbols(styleDocument, sassSymbol.symbolKind, sassSymbol.name).length,
     };
   }
 

@@ -440,6 +440,32 @@ describe("parseStyleSelectorMap / edge cases", () => {
       ]);
     });
 
+    it("records same-file Sass symbol declarations", () => {
+      const source = `$gap: 1rem;
+@mixin raised($depth) { box-shadow: 0 0 $depth black; }
+@function tone($value) { @return $value; }
+.button {
+  color: $gap;
+  @include raised($gap);
+  border-color: tone($gap);
+}`;
+      const document = parseStyleDocument(source, "/fake/a.module.scss");
+
+      expect(
+        document.sassSymbolDecls.map((decl) => [
+          decl.symbolKind,
+          decl.name,
+          sliceRange(source, decl.range),
+        ]),
+      ).toEqual([
+        ["variable", "gap", "$gap"],
+        ["mixin", "raised", "raised"],
+        ["variable", "depth", "$depth"],
+        ["function", "tone", "tone"],
+        ["variable", "value", "$value"],
+      ]);
+    });
+
     it("keeps Sass symbol ranges in UTF-16 editor positions", () => {
       const source = `$gap: 1rem;
 .button { content: "한🙂"; color: $gap; }`;

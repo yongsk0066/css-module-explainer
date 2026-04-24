@@ -4,11 +4,14 @@ import {
   findComposesTokenAtCursor,
   findKeyframesAtCursor,
   findKeyframesByName,
+  findSassSymbolAtCursor,
+  findSassSymbolDeclAtCursor,
   findSelectorAtCursor,
   findValueDeclAtCursor,
   findValueImportAtCursor,
   findValueRefAtCursor,
   listAnimationNameRefs,
+  listSassSymbols,
   listValueRefs,
   resolveComposesTarget,
   resolveValueImportTarget,
@@ -170,6 +173,47 @@ export function resolveStyleReferencesAtCursor(
       }
     }
     return dedupeLocations(valueRefs);
+  }
+
+  const sassSymbolDecl = findSassSymbolDeclAtCursor(args.styleDocument, args.line, args.character);
+  if (sassSymbolDecl) {
+    const locations = listSassSymbols(
+      args.styleDocument,
+      sassSymbolDecl.symbolKind,
+      sassSymbolDecl.name,
+    ).map<StyleReferenceLocation>((symbol) => ({
+      uri: pathToFileUrl(args.filePath),
+      range: symbol.range,
+    }));
+    if (args.includeDeclaration) {
+      locations.unshift({
+        uri: pathToFileUrl(args.filePath),
+        range: sassSymbolDecl.range,
+      });
+    }
+    return dedupeLocations(locations);
+  }
+
+  const sassSymbol = findSassSymbolAtCursor(args.styleDocument, args.line, args.character);
+  if (sassSymbol) {
+    const locations = listSassSymbols(
+      args.styleDocument,
+      sassSymbol.symbolKind,
+      sassSymbol.name,
+    ).map<StyleReferenceLocation>((symbol) => ({
+      uri: pathToFileUrl(args.filePath),
+      range: symbol.range,
+    }));
+    const matchedSassSymbolDecl = args.styleDocument.sassSymbolDecls.find(
+      (decl) => decl.symbolKind === sassSymbol.symbolKind && decl.name === sassSymbol.name,
+    );
+    if (args.includeDeclaration && matchedSassSymbolDecl) {
+      locations.unshift({
+        uri: pathToFileUrl(args.filePath),
+        range: matchedSassSymbolDecl.range,
+      });
+    }
+    return dedupeLocations(locations);
   }
 
   const valueRef = findValueRefAtCursor(args.styleDocument, args.line, args.character);

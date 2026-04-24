@@ -530,6 +530,43 @@ test("references protocol returns same-file value references for @value", async 
   expect(result!.some((location) => location.range.start.line === 3)).toBe(true);
 });
 
+test("references protocol returns same-file Sass symbol references", async ({ makeClient }) => {
+  const scssUri = "file:///fake/workspace/src/Button.module.scss";
+  const scss = `$gap: 1rem;
+.button {
+  color: $gap;
+  margin: $gap;
+}
+`;
+
+  const client = makeClient({
+    readStyleFile: (path) => (path.endsWith("Button.module.scss") ? scss : null),
+    typeResolver: new FakeTypeResolver(),
+  });
+
+  await client.initialize();
+  client.initialized();
+  client.didOpen({
+    textDocument: {
+      uri: scssUri,
+      languageId: "scss",
+      version: 1,
+      text: scss,
+    },
+  });
+
+  const result = await client.references({
+    textDocument: { uri: scssUri },
+    position: { line: 0, character: 1 },
+    context: { includeDeclaration: true },
+  });
+
+  expect(result).not.toBeNull();
+  expect(result).toHaveLength(3);
+  expect(result!.every((location) => location.uri === scssUri)).toBe(true);
+  expect(result!.map((location) => location.range.start.line)).toEqual([0, 2, 3]);
+});
+
 test("references protocol returns local import sites and source declaration for imported @value", async ({
   makeClient,
 }) => {

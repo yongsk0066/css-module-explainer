@@ -6,6 +6,7 @@ import { toLspRange } from "./lsp-adapters";
 import {
   renderHover,
   renderKeyframesHover,
+  renderSassSymbolHover,
   renderSelectorHover,
   renderValueHover,
 } from "./hover-renderer";
@@ -91,14 +92,23 @@ function buildStyleHover(params: CursorParams, deps: ProviderDeps): Hover | null
             referenceCount: styleHover.referenceCount,
             workspaceRoot: deps.workspaceRoot,
           })
-        : renderValueHover({
-            valueDecl: styleHover.valueDecl,
-            ...(styleHover.headingName ? { headingName: styleHover.headingName } : {}),
-            ...(styleHover.note ? { note: styleHover.note } : {}),
-            scssModulePath: styleHover.scssModulePath,
-            referenceCount: styleHover.referenceCount,
-            workspaceRoot: deps.workspaceRoot,
-          });
+        : styleHover.kind === "value"
+          ? renderValueHover({
+              valueDecl: styleHover.valueDecl,
+              ...(styleHover.headingName ? { headingName: styleHover.headingName } : {}),
+              ...(styleHover.note ? { note: styleHover.note } : {}),
+              scssModulePath: styleHover.scssModulePath,
+              referenceCount: styleHover.referenceCount,
+              workspaceRoot: deps.workspaceRoot,
+            })
+          : renderSassSymbolHover({
+              sassSymbolDecl: styleHover.sassSymbolDecl,
+              ...(styleHover.headingName ? { headingName: styleHover.headingName } : {}),
+              ...(styleHover.note ? { note: styleHover.note } : {}),
+              scssModulePath: styleHover.scssModulePath,
+              referenceCount: styleHover.referenceCount,
+              workspaceRoot: deps.workspaceRoot,
+            });
   return {
     range: toLspRange(styleHover.range),
     contents: { kind: "markdown", value: markdown },

@@ -2,6 +2,8 @@ import path from "node:path";
 import type {
   AnimationNameRefHIR,
   KeyframesDeclHIR,
+  SassSymbolDeclHIR,
+  SassSymbolOccurrenceHIR,
   SelectorDeclHIR,
   StyleDocumentHIR,
   ValueDeclHIR,
@@ -209,6 +211,50 @@ export function listValueRefs(
   name: string,
 ): readonly ValueRefHIR[] {
   return styleDocument.valueRefs.filter((valueRef) => valueRef.name === name);
+}
+
+export function findSassSymbolDeclAtCursor(
+  styleDocument: StyleDocumentHIR,
+  line: number,
+  character: number,
+): SassSymbolDeclHIR | null {
+  for (const decl of styleDocument.sassSymbolDecls) {
+    if (rangeContains(decl.range, line, character)) return decl;
+  }
+  return null;
+}
+
+export function findSassSymbolAtCursor(
+  styleDocument: StyleDocumentHIR,
+  line: number,
+  character: number,
+): SassSymbolOccurrenceHIR | null {
+  for (const symbol of styleDocument.sassSymbols) {
+    if (rangeContains(symbol.range, line, character)) return symbol;
+  }
+  return null;
+}
+
+export function findSassSymbolDeclByName(
+  styleDocument: StyleDocumentHIR,
+  symbolKind: SassSymbolDeclHIR["symbolKind"],
+  name: string,
+): SassSymbolDeclHIR | null {
+  return (
+    styleDocument.sassSymbolDecls.find(
+      (decl) => decl.symbolKind === symbolKind && decl.name === name,
+    ) ?? null
+  );
+}
+
+export function listSassSymbols(
+  styleDocument: StyleDocumentHIR,
+  symbolKind: SassSymbolDeclHIR["symbolKind"],
+  name: string,
+): readonly SassSymbolOccurrenceHIR[] {
+  return styleDocument.sassSymbols.filter(
+    (symbol) => symbol.symbolKind === symbolKind && symbol.name === name,
+  );
 }
 
 export interface ResolvedValueTarget {

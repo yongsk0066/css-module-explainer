@@ -8,6 +8,7 @@
           "filePath": "<workspace>/examples/src/scenarios/18-less-module/LessModule.module.less",
           "keyframes": [],
           "kind": "style",
+          "sassSymbolDecls": [],
           "sassSymbols": [],
           "selectors": [
             {

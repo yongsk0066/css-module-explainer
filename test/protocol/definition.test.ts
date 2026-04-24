@@ -50,6 +50,14 @@ const IMPORTED_VALUE_SCSS = `@value primary from "./tokens.module.scss";
 
 const TOKENS_SCSS = `@value primary: #ff3355;`;
 
+const SASS_SYMBOL_SCSS = `$gap: 1rem;
+@mixin raised() {}
+.button {
+  color: $gap;
+  @include raised();
+}
+`;
+
 const FUNCTION_DYNAMIC_TSX = `import classNames from 'classnames/bind';
 import styles from './Status.module.scss';
 const cx = classNames.bind(styles);
@@ -561,6 +569,50 @@ export function Actions() {
     expect(links).toHaveLength(1);
     expect(links[0]!.targetUri).toBe(tokensUri);
     expect(links[0]!.targetSelectionRange.start.line).toBe(0);
+  });
+
+  it("navigates from Sass symbol references to same-file declarations", async () => {
+    const scssUri = "file:///fake/workspace/src/Button.module.scss";
+    client = createInProcessServer({
+      readStyleFile: (path) => (path.endsWith("Button.module.scss") ? SASS_SYMBOL_SCSS : null),
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    client.didOpen({
+      textDocument: {
+        uri: scssUri,
+        languageId: "scss",
+        version: 1,
+        text: SASS_SYMBOL_SCSS,
+      },
+    });
+
+    const variableResult = await client.definition({
+      textDocument: { uri: scssUri },
+      position: { line: 3, character: 10 },
+    });
+    expect(variableResult).not.toBeNull();
+    const variableLinks = variableResult as Array<{
+      targetUri: string;
+      targetSelectionRange: { start: { line: number } };
+    }>;
+    expect(variableLinks).toHaveLength(1);
+    expect(variableLinks[0]!.targetUri).toBe(scssUri);
+    expect(variableLinks[0]!.targetSelectionRange.start.line).toBe(0);
+
+    const mixinResult = await client.definition({
+      textDocument: { uri: scssUri },
+      position: { line: 4, character: 13 },
+    });
+    expect(mixinResult).not.toBeNull();
+    const mixinLinks = mixinResult as Array<{
+      targetUri: string;
+      targetSelectionRange: { start: { line: number } };
+    }>;
+    expect(mixinLinks).toHaveLength(1);
+    expect(mixinLinks[0]!.targetUri).toBe(scssUri);
+    expect(mixinLinks[0]!.targetSelectionRange.start.line).toBe(1);
   });
 
   it("returns multiple LocationLinks for a union-typed cx(variable) call", async () => {
