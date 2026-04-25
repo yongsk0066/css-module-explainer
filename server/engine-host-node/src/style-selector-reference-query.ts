@@ -54,6 +54,24 @@ export function resolveRustStyleSelectorReferenceSummaryForWorkspaceTarget(
   );
 }
 
+export function resolveRustStyleSelectorReferenceSummariesForWorkspaceTarget(
+  args: {
+    readonly filePath: string;
+  },
+  deps: StyleSelectorReferenceDeps,
+  options: StyleSelectorReferenceQueryOptions = {},
+): readonly StyleSemanticGraphSelectorReferenceSummaryV0[] | null {
+  if (!usesRustStyleSemanticGraphBackend(resolveSelectedQueryBackendKind(options.env))) {
+    return null;
+  }
+
+  const graph = safeResolveRustStyleSemanticGraphForWorkspaceTarget(args.filePath, deps, options);
+  if (!graph) return null;
+  if (!hasSourceBackedSelectorReferenceEvidence(graph)) return null;
+
+  return graph.selectorReferenceEngine.selectors;
+}
+
 function safeResolveRustStyleSemanticGraphForWorkspaceTarget(
   filePath: string,
   deps: StyleSelectorReferenceDeps,

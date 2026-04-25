@@ -9,14 +9,17 @@ import {
   usesRustSelectorUsageBackend,
 } from "./selected-query-backend";
 import { resolveRustSelectorUsagePayloadForWorkspaceTarget } from "./selector-usage-query-backend";
+import {
+  resolveRustStyleSelectorReferenceSummariesForWorkspaceTarget,
+  type StyleSelectorReferenceQueryOptions,
+} from "./style-selector-reference-query";
 
 export interface StyleModuleUsageSelectorSummary {
   readonly canonicalName: string;
   readonly range: StyleDocumentHIR["selectors"][number]["range"];
 }
 
-export interface StyleModuleUsageQueryOptions {
-  readonly env?: NodeJS.ProcessEnv;
+export interface StyleModuleUsageQueryOptions extends StyleSelectorReferenceQueryOptions {
   readonly readRustSelectorUsagePayloadForWorkspaceTarget?: typeof resolveRustSelectorUsagePayloadForWorkspaceTarget;
 }
 
@@ -34,7 +37,7 @@ export function resolveUnusedStyleSelectors(
     | "typeResolver"
     | "workspaceRoot"
     | "settings"
-  >,
+  > & { readonly readStyleFile?: ProviderDeps["readStyleFile"] },
   options: StyleModuleUsageQueryOptions = {},
 ): readonly StyleModuleUsageSelectorSummary[] {
   const selectedQueryBackend = resolveSelectedQueryBackendKind(options.env);
@@ -48,6 +51,9 @@ export function resolveUnusedStyleSelectors(
   if (hasUnresolvedDynamicUsage) {
     return [];
   }
+
+  const graphUnused = resolveGraphUnusedStyleSelectors(args, deps, options);
+  if (graphUnused) return graphUnused;
 
   const readRustPayload =
     options.readRustSelectorUsagePayloadForWorkspaceTarget ??
@@ -69,6 +75,50 @@ export function resolveUnusedStyleSelectors(
       return readCurrentUnusedStyleSelectors(args, deps);
     }
     if (!payload.hasAnyReferences) {
+      unused.push({
+        canonicalName: selector.canonicalName,
+        range: selector.range,
+      });
+    }
+  }
+
+  return unused;
+}
+
+function resolveGraphUnusedStyleSelectors(
+  args: {
+    readonly scssPath: string;
+    readonly styleDocument: StyleDocumentHIR;
+  },
+  deps: Pick<
+    ProviderDeps,
+    | "analysisCache"
+    | "semanticReferenceIndex"
+    | "styleDependencyGraph"
+    | "styleDocumentForPath"
+    | "typeResolver"
+    | "workspaceRoot"
+    | "settings"
+  > & { readonly readStyleFile?: ProviderDeps["readStyleFile"] },
+  options: StyleModuleUsageQueryOptions,
+): readonly StyleModuleUsageSelectorSummary[] | null {
+  if (!deps.readStyleFile) return null;
+  const graphSelectors = resolveRustStyleSelectorReferenceSummariesForWorkspaceTarget(
+    { filePath: args.scssPath },
+    { ...deps, readStyleFile: deps.readStyleFile },
+    options,
+  );
+  if (!graphSelectors) return null;
+
+  const referenceSummaryByName = new Map(
+    graphSelectors.map((selector) => [selector.localName, selector] as const),
+  );
+  const unused: StyleModuleUsageSelectorSummary[] = [];
+
+  for (const selector of listCanonicalSelectors(args.styleDocument)) {
+    const referenceSummary = referenceSummaryByName.get(selector.canonicalName);
+    if (!referenceSummary) return null;
+    if (!referenceSummary.hasAnyReferences) {
       unused.push({
         canonicalName: selector.canonicalName,
         range: selector.range,

@@ -166,6 +166,7 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
       providerDeps.styleDocumentForPath,
       {
         analysisCache: providerDeps.analysisCache,
+        readStyleFile: providerDeps.readStyleFile,
         typeResolver: providerDeps.typeResolver,
         workspaceRoot: providerDeps.workspaceRoot,
         settings: providerDeps.settings,

@@ -22,6 +22,7 @@ export function resolveStyleDiagnosticFindings(
   },
   deps: Pick<ProviderDeps, "semanticReferenceIndex"> & {
     readonly analysisCache?: ProviderDeps["analysisCache"];
+    readonly readStyleFile?: ProviderDeps["readStyleFile"];
     readonly styleDependencyGraph?: ProviderDeps["styleDependencyGraph"];
     readonly styleDocumentForPath?: ProviderDeps["styleDocumentForPath"];
     readonly typeResolver?: ProviderDeps["typeResolver"];
@@ -42,6 +43,7 @@ export function resolveStyleDiagnosticFindings(
       typeResolver: deps.typeResolver,
       workspaceRoot: deps.workspaceRoot,
       settings: deps.settings,
+      ...(deps.readStyleFile ? { readStyleFile: deps.readStyleFile } : {}),
       ...(deps.aliasResolver ? { aliasResolver: deps.aliasResolver } : {}),
     } satisfies Pick<
       ProviderDeps,
@@ -52,7 +54,10 @@ export function resolveStyleDiagnosticFindings(
       | "typeResolver"
       | "workspaceRoot"
       | "settings"
-    > & { readonly aliasResolver?: ProviderDeps["aliasResolver"] };
+    > & {
+      readonly aliasResolver?: ProviderDeps["aliasResolver"];
+      readonly readStyleFile?: ProviderDeps["readStyleFile"];
+    };
     const unusedSelectors = resolveUnusedStyleSelectors(args, rustDeps, options);
     const otherFindings = checkStyleDocument(
       args,
@@ -83,6 +88,7 @@ export function resolveStyleDiagnosticFindings(
 function hasRustStyleDiagnosticsDeps(
   deps: Pick<ProviderDeps, "semanticReferenceIndex"> & {
     readonly analysisCache?: ProviderDeps["analysisCache"];
+    readonly readStyleFile?: ProviderDeps["readStyleFile"];
     readonly styleDependencyGraph?: ProviderDeps["styleDependencyGraph"];
     readonly styleDocumentForPath?: ProviderDeps["styleDocumentForPath"];
     readonly typeResolver?: ProviderDeps["typeResolver"];
@@ -99,7 +105,10 @@ function hasRustStyleDiagnosticsDeps(
   | "typeResolver"
   | "workspaceRoot"
   | "settings"
-> & { readonly aliasResolver?: ProviderDeps["aliasResolver"] } {
+> & {
+  readonly aliasResolver?: ProviderDeps["aliasResolver"];
+  readonly readStyleFile?: ProviderDeps["readStyleFile"];
+} {
   return Boolean(
     deps.analysisCache &&
     deps.styleDependencyGraph &&

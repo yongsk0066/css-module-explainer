@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/engine-core-ts/src/core/semantic/workspace-reference-index";
 import { resolveStyleDiagnosticFindings } from "../../../server/engine-host-node/src/style-diagnostics-query";
+import type { StyleSemanticGraphSummaryV0 } from "../../../server/engine-host-node/src/style-semantic-graph-query-backend";
 import { infoAtLine, makeBaseDeps, semanticSiteAt } from "../../_fixtures/test-helpers";
 import {
   buildStyleDocumentFromSelectorMap,
@@ -56,6 +57,7 @@ describe("resolveStyleDiagnosticFindings", () => {
       { scssPath, styleDocument },
       {
         analysisCache: deps.analysisCache,
+        readStyleFile: deps.readStyleFile,
         semanticReferenceIndex: deps.semanticReferenceIndex,
         styleDependencyGraph: deps.styleDependencyGraph,
         styleDocumentForPath: deps.styleDocumentForPath,
@@ -99,6 +101,52 @@ describe("resolveStyleDiagnosticFindings", () => {
     });
   });
 
+  it("can source unused-selector findings from rust style semantic graph references", () => {
+    const scssPath = "/fake/Button.module.scss";
+    const styleDocument = buildStyleDocumentFromSelectorMap(
+      scssPath,
+      new Map([
+        ["indicator", infoAtLine("indicator", 1)],
+        ["active", infoAtLine("active", 3)],
+      ]),
+    );
+    const deps = makeBaseDeps({
+      selectorMapForPath: () =>
+        new Map([
+          ["indicator", infoAtLine("indicator", 1)],
+          ["active", infoAtLine("active", 3)],
+        ]),
+      workspaceRoot: "/fake",
+    });
+
+    const findings = resolveStyleDiagnosticFindings(
+      { scssPath, styleDocument },
+      {
+        analysisCache: deps.analysisCache,
+        readStyleFile: deps.readStyleFile,
+        semanticReferenceIndex: deps.semanticReferenceIndex,
+        styleDependencyGraph: deps.styleDependencyGraph,
+        styleDocumentForPath: deps.styleDocumentForPath,
+        typeResolver: deps.typeResolver,
+        workspaceRoot: deps.workspaceRoot,
+        settings: deps.settings,
+      },
+      {
+        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        readRustStyleSemanticGraphForWorkspaceTarget: () => makeReferenceGraph(scssPath),
+        readRustSelectorUsagePayloadForWorkspaceTarget: () => {
+          throw new Error("unexpected selector-usage fallback");
+        },
+      },
+    );
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toMatchObject({
+      code: "unused-selector",
+      canonicalName: "active",
+    });
+  });
+
   it("does not fall back to current unused-selector diagnostics when rust deps are incomplete", () => {
     const scssPath = "/fake/Button.module.scss";
     const styleDocument = makeStyleDocumentFixture(scssPath, [
@@ -130,3 +178,102 @@ describe("resolveStyleDiagnosticFindings", () => {
     });
   });
 });
+
+function makeReferenceGraph(stylePath: string): StyleSemanticGraphSummaryV0 {
+  return {
+    schemaVersion: "0",
+    product: "omena-semantic.style-semantic-graph",
+    language: "scss",
+    parserFacts: {},
+    semanticFacts: {},
+    selectorIdentityEngine: {
+      schemaVersion: "0",
+      product: "omena-semantic.selector-identity",
+      canonicalIdCount: 2,
+      canonicalIds: [
+        {
+          canonicalId: "selector:indicator",
+          localName: "indicator",
+          identityKind: "localClass",
+          rewriteSafety: "safe",
+          blockers: [],
+        },
+        {
+          canonicalId: "selector:active",
+          localName: "active",
+          identityKind: "localClass",
+          rewriteSafety: "safe",
+          blockers: [],
+        },
+      ],
+      rewriteSafety: {
+        allCanonicalIdsRewriteSafe: true,
+        safeCanonicalIds: ["selector:indicator", "selector:active"],
+        blockedCanonicalIds: [],
+        blockers: [],
+      },
+    },
+    selectorReferenceEngine: {
+      schemaVersion: "0",
+      product: "omena-semantic.selector-references",
+      stylePath,
+      selectorCount: 2,
+      referencedSelectorCount: 1,
+      unreferencedSelectorCount: 1,
+      totalReferenceSites: 1,
+      selectors: [
+        makeSelectorReferenceSummary(stylePath, "indicator", true),
+        makeSelectorReferenceSummary(stylePath, "active", false),
+      ],
+    },
+    sourceInputEvidence: {},
+    promotionEvidence: {},
+    losslessCstContract: {},
+  };
+}
+
+function makeSelectorReferenceSummary(
+  stylePath: string,
+  localName: string,
+  hasAnyReferences: boolean,
+) {
+  const referenceCount = hasAnyReferences ? 1 : 0;
+  return {
+    canonicalId: `selector:${localName}`,
+    filePath: stylePath,
+    localName,
+    totalReferences: referenceCount,
+    directReferenceCount: referenceCount,
+    editableDirectReferenceCount: referenceCount,
+    exactReferenceCount: referenceCount,
+    inferredOrBetterReferenceCount: referenceCount,
+    hasExpandedReferences: false,
+    hasStyleDependencyReferences: false,
+    hasAnyReferences,
+    sites: hasAnyReferences
+      ? [
+          {
+            filePath: "/fake/App.tsx",
+            range: {
+              start: { line: 8, character: 10 },
+              end: { line: 8, character: 19 },
+            },
+            expansion: "direct",
+            referenceKind: "source",
+          },
+        ]
+      : [],
+    editableDirectSites: hasAnyReferences
+      ? [
+          {
+            filePath: "/fake/App.tsx",
+            range: {
+              start: { line: 8, character: 10 },
+              end: { line: 8, character: 19 },
+            },
+            className: localName,
+          },
+        ]
+      : [],
+  };
+}

@@ -28,7 +28,12 @@ export function computeScssUnusedDiagnostics(
   styleDocumentForPath?: (filePath: string) => StyleDocumentHIR | null,
   runtimeDeps?: Pick<
     ProviderDeps,
-    "analysisCache" | "typeResolver" | "workspaceRoot" | "settings" | "aliasResolver"
+    | "analysisCache"
+    | "readStyleFile"
+    | "typeResolver"
+    | "workspaceRoot"
+    | "settings"
+    | "aliasResolver"
   > & {
     readonly env?: NodeJS.ProcessEnv;
   },
@@ -37,6 +42,7 @@ export function computeScssUnusedDiagnostics(
     { scssPath, styleDocument },
     {
       ...(runtimeDeps?.analysisCache ? { analysisCache: runtimeDeps.analysisCache } : {}),
+      ...(runtimeDeps?.readStyleFile ? { readStyleFile: runtimeDeps.readStyleFile } : {}),
       semanticReferenceIndex,
       ...(styleDependencyGraph ? { styleDependencyGraph } : {}),
       ...(styleDocumentForPath ? { styleDocumentForPath } : {}),
