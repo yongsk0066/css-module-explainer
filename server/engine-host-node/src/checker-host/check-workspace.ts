@@ -78,6 +78,8 @@ export async function checkWorkspace(
   const sourceDiagnosticOptions = options.env ? { env: options.env } : {};
   const styleDiagnosticOptions = {
     ...(options.env ? { env: options.env } : {}),
+    sourceDocuments,
+    styleFiles,
     ...(options.includeUnusedSelectors !== undefined
       ? { includeUnusedSelectors: options.includeUnusedSelectors }
       : {}),

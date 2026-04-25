@@ -11,12 +11,16 @@ import {
 } from "./selected-query-backend";
 import {
   resolveRustStyleSemanticGraphForWorkspaceTarget,
+  type StyleSemanticGraphQueryOptions,
   type StyleSemanticGraphSummaryV0,
   type StyleSemanticGraphSelectorReferenceSummaryV0,
 } from "./style-semantic-graph-query-backend";
 import type { SelectorUsageRenderSummary } from "./selector-usage-query-backend";
 
-export interface StyleSelectorReferenceQueryOptions {
+export interface StyleSelectorReferenceQueryOptions extends Pick<
+  StyleSemanticGraphQueryOptions,
+  "sourceDocuments" | "styleFiles"
+> {
   readonly env?: NodeJS.ProcessEnv;
   readonly readRustStyleSemanticGraphForWorkspaceTarget?: typeof resolveRustStyleSemanticGraphForWorkspaceTarget;
 }

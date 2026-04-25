@@ -6,6 +6,7 @@ import { buildEngineInputV2 } from "./engine-input-v2";
 import {
   collectSourceDocuments,
   resolveWorkspaceCheckFilesSync,
+  type SourceDocumentSnapshot,
 } from "./checker-host/workspace-check-support";
 import { runRustSelectedQueryBackendJson } from "./selected-query-backend";
 import type { BuildSelectedQueryResultsV2Options } from "./engine-query-v2";
@@ -119,6 +120,8 @@ type StyleSemanticGraphQueryBackendOptions = Pick<
 
 export interface StyleSemanticGraphQueryOptions {
   readonly runRustSelectedQueryBackendJson?: RustJsonRunner;
+  readonly sourceDocuments?: readonly SourceDocumentSnapshot[];
+  readonly styleFiles?: readonly string[];
 }
 
 export function resolveRustStyleSemanticGraph(
@@ -163,10 +166,16 @@ export function resolveRustStyleSemanticGraphForWorkspaceTarget(
   stylePath: string,
   queryOptions: StyleSemanticGraphQueryOptions = {},
 ): StyleSemanticGraphSummaryV0 | null {
-  const { sourceFiles, styleFiles } = resolveWorkspaceCheckFilesSync({
-    workspaceRoot: args.workspaceRoot,
-  });
-  const sourceDocuments = collectSourceDocuments(sourceFiles, deps.analysisCache);
+  const resolvedFiles =
+    queryOptions.sourceDocuments && queryOptions.styleFiles
+      ? null
+      : resolveWorkspaceCheckFilesSync({
+          workspaceRoot: args.workspaceRoot,
+        });
+  const sourceDocuments =
+    queryOptions.sourceDocuments ??
+    collectSourceDocuments(resolvedFiles?.sourceFiles ?? [], deps.analysisCache);
+  const styleFiles = queryOptions.styleFiles ?? resolvedFiles?.styleFiles ?? [];
 
   return resolveRustStyleSemanticGraph(
     {
