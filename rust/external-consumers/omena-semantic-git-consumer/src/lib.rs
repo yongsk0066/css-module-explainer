@@ -5,8 +5,8 @@ use engine_input_producers::{
 };
 use engine_style_parser::parse_style_module;
 use omena_semantic::{
-    StyleSemanticGraphSummaryV0, TheoryObservationHarnessSummaryV0, summarize_style_semantic_graph,
-    summarize_theory_observation_harness,
+    StyleSemanticGraphSummaryV0, TheoryObservationHarnessInput, TheoryObservationHarnessSummaryV0,
+    summarize_style_semantic_graph,
 };
 
 pub fn consume_style_semantic_graph() -> Option<StyleSemanticGraphSummaryV0> {
@@ -16,7 +16,7 @@ pub fn consume_style_semantic_graph() -> Option<StyleSemanticGraphSummaryV0> {
 
 pub fn consume_theory_observation_harness() -> Option<TheoryObservationHarnessSummaryV0> {
     let graph = consume_style_semantic_graph()?;
-    Some(summarize_theory_observation_harness(&graph))
+    Some(graph.summarize_theory_observation_harness())
 }
 
 fn sample_input() -> EngineInputV2 {

@@ -55,3 +55,8 @@ For the theory observation harness:
 cat style-semantic-graph-input.json \
   | cargo run --manifest-path rust/Cargo.toml -p omena-semantic --bin omena-semantic-observation
 ```
+
+Downstream consumers can use either the free function or the
+`TheoryObservationHarnessInput` trait. The trait is the dogfooding surface for
+consumers that should depend on an observation contract instead of a concrete
+builder entry point.

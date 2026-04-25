@@ -66,7 +66,24 @@ pub struct SemanticCouplingBoundaryObservationV0 {
     pub split_recommendation: &'static str,
 }
 
-pub fn summarize_theory_observation_harness(
+pub trait TheoryObservationHarnessInput {
+    fn summarize_theory_observation_harness(&self) -> TheoryObservationHarnessSummaryV0;
+}
+
+impl TheoryObservationHarnessInput for StyleSemanticGraphSummaryV0 {
+    fn summarize_theory_observation_harness(&self) -> TheoryObservationHarnessSummaryV0 {
+        summarize_style_semantic_graph_observation(self)
+    }
+}
+
+pub fn summarize_theory_observation_harness<T>(input: &T) -> TheoryObservationHarnessSummaryV0
+where
+    T: TheoryObservationHarnessInput + ?Sized,
+{
+    input.summarize_theory_observation_harness()
+}
+
+fn summarize_style_semantic_graph_observation(
     graph: &StyleSemanticGraphSummaryV0,
 ) -> TheoryObservationHarnessSummaryV0 {
     let selector_identity = observe_selector_identity(graph);

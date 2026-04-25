@@ -20,7 +20,7 @@ pub use lossless_cst::{
 };
 pub use observation::{
     SelectorIdentityObservationV0, SemanticCouplingBoundaryObservationV0,
-    SemanticGraphDownstreamReadinessV0, SourceEvidenceObservationV0,
+    SemanticGraphDownstreamReadinessV0, SourceEvidenceObservationV0, TheoryObservationHarnessInput,
     TheoryObservationHarnessSummaryV0, summarize_theory_observation_harness,
 };
 pub use selector_identity::{
