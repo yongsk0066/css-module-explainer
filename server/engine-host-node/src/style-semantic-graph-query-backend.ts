@@ -1,3 +1,4 @@
+import type { Range } from "@css-module-explainer/shared";
 import type { EngineInputV2 } from "../../engine-core-ts/src/contracts";
 import type { StyleDocumentHIR } from "../../engine-core-ts/src/core/hir/style-types";
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
@@ -18,6 +19,7 @@ export interface StyleSemanticGraphSummaryV0 {
   readonly parserFacts: unknown;
   readonly semanticFacts: unknown;
   readonly selectorIdentityEngine: StyleSemanticGraphSelectorIdentityEngineV0;
+  readonly selectorReferenceEngine: StyleSemanticGraphSelectorReferenceEngineV0;
   readonly sourceInputEvidence: unknown;
   readonly promotionEvidence: unknown;
   readonly losslessCstContract: unknown;
@@ -53,6 +55,39 @@ export interface StyleSemanticGraphSelectorIdentityReadModel {
   readonly range: StyleDocumentHIR["selectors"][number]["range"];
   readonly ruleRange: StyleDocumentHIR["selectors"][number]["ruleRange"];
   readonly viewKind: StyleDocumentHIR["selectors"][number]["viewKind"];
+}
+
+export interface StyleSemanticGraphSelectorReferenceEngineV0 {
+  readonly schemaVersion: "0";
+  readonly product: "omena-semantic.selector-references";
+  readonly stylePath: string | null;
+  readonly selectorCount: number;
+  readonly referencedSelectorCount: number;
+  readonly unreferencedSelectorCount: number;
+  readonly totalReferenceSites: number;
+  readonly selectors: readonly StyleSemanticGraphSelectorReferenceSummaryV0[];
+}
+
+export interface StyleSemanticGraphSelectorReferenceSummaryV0 {
+  readonly canonicalId: string;
+  readonly filePath: string;
+  readonly localName: string;
+  readonly totalReferences: number;
+  readonly directReferenceCount: number;
+  readonly editableDirectReferenceCount: number;
+  readonly exactReferenceCount: number;
+  readonly inferredOrBetterReferenceCount: number;
+  readonly hasExpandedReferences: boolean;
+  readonly hasStyleDependencyReferences: boolean;
+  readonly hasAnyReferences: boolean;
+  readonly sites: readonly StyleSemanticGraphSelectorReferenceSiteV0[];
+}
+
+export interface StyleSemanticGraphSelectorReferenceSiteV0 {
+  readonly filePath: string;
+  readonly range: Range;
+  readonly expansion: string;
+  readonly referenceKind: string;
 }
 
 export interface StyleSemanticGraphRunnerInputV0 {

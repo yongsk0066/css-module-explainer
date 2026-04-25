@@ -9,10 +9,12 @@ parser implementation or changing existing parser consumers.
 Current public products:
 
 - `omena-semantic.style-semantic-graph` — combined parser boundary,
-  selector-identity, source-input evidence, promotion evidence, and lossless
-  CST contract for semantic graph consumers.
+  selector-identity, selector-reference, source-input evidence, promotion
+  evidence, and lossless CST contract for semantic graph consumers.
 - `omena-semantic.selector-identity` — canonical selector ids, BEM suffix
   identity, and rewrite-safety blockers.
+- `omena-semantic.selector-references` — selector-scoped reference summaries
+  and identity-preserving reference sites derived from `EngineInputV2`.
 - `omena-semantic.promotion-evidence` — explicit readiness/gap checklist for
   promotion beyond output parity.
 - `omena-semantic.source-input-evidence` — `EngineInputV2`-backed reference
