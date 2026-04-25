@@ -102,6 +102,34 @@ describe("runWorkspaceCheckCommand", () => {
       ]),
     );
   });
+
+  it("keeps workspace checker options when routed through diagnostics boundaries", async () => {
+    const workspaceRoot = makeWorkspace({
+      "src/App.tsx": [
+        "import classNames from 'classnames/bind';",
+        "import styles from './Button.module.scss';",
+        "const cx = classNames.bind(styles);",
+        "const ok = cx('button');",
+        "",
+      ].join("\n"),
+      "src/Button.module.scss": ".button {}\n.unused {}",
+    });
+
+    const result = await runWorkspaceCheckCommand({
+      workspace: { workspaceRoot, includeUnusedSelectors: false },
+      filters: {
+        preset: null,
+        category: "all",
+        severity: "all",
+        includeBundles: [],
+        includeCodes: [],
+        excludeCodes: [],
+      },
+    });
+
+    expect(result.workspaceCheck.summary).toEqual({ warnings: 0, hints: 0, total: 0 });
+    expect(result.workspaceCheck.findings).toEqual([]);
+  });
 });
 
 function makeWorkspace(files: Record<string, string>): string {

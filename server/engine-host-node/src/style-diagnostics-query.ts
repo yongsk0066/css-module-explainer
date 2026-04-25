@@ -2,6 +2,7 @@ import {
   checkStyleDocument,
   type StyleCheckerFinding,
 } from "../../engine-core-ts/src/core/checker";
+import type { StyleDocumentCheckOptions } from "../../engine-core-ts/src/core/checker/check-style-document";
 import type { StyleDocumentHIR } from "../../engine-core-ts/src/core/hir/style-types";
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
 import {
@@ -13,7 +14,10 @@ import {
   type StyleModuleUsageQueryOptions,
 } from "./style-module-usage-query";
 
-export interface StyleDiagnosticsQueryOptions extends StyleModuleUsageQueryOptions {}
+export interface StyleDiagnosticsQueryOptions extends StyleModuleUsageQueryOptions {
+  readonly includeUnusedSelectors?: boolean;
+  readonly includeComposesResolution?: boolean;
+}
 
 export function resolveStyleDiagnosticFindings(
   args: {
@@ -33,7 +37,9 @@ export function resolveStyleDiagnosticFindings(
   options: StyleDiagnosticsQueryOptions = {},
 ): readonly StyleCheckerFinding[] {
   const selectedQueryBackend = resolveSelectedQueryBackendKind(options.env);
-  const useRustSelectorUsage = usesRustSelectorUsageBackend(selectedQueryBackend);
+  const includeUnusedSelectors = options.includeUnusedSelectors ?? true;
+  const useRustSelectorUsage =
+    includeUnusedSelectors && usesRustSelectorUsageBackend(selectedQueryBackend);
   if (useRustSelectorUsage && hasRustStyleDiagnosticsDeps(deps)) {
     const rustDeps = {
       analysisCache: deps.analysisCache,
@@ -67,7 +73,12 @@ export function resolveStyleDiagnosticFindings(
         styleDocumentForPath: rustDeps.styleDocumentForPath,
         ...(rustDeps.aliasResolver ? { aliasResolver: rustDeps.aliasResolver } : {}),
       },
-      { includeUnusedSelectors: false },
+      {
+        includeUnusedSelectors: false,
+        ...(options.includeComposesResolution !== undefined
+          ? { includeComposesResolution: options.includeComposesResolution }
+          : {}),
+      },
     );
     return [
       ...unusedSelectors.map<StyleCheckerFinding>((selector) => ({
@@ -82,7 +93,12 @@ export function resolveStyleDiagnosticFindings(
     ];
   }
 
-  return checkCurrentStyleDocument(args, deps, { includeUnusedSelectors: !useRustSelectorUsage });
+  return checkCurrentStyleDocument(args, deps, {
+    includeUnusedSelectors: includeUnusedSelectors && !useRustSelectorUsage,
+    ...(options.includeComposesResolution !== undefined
+      ? { includeComposesResolution: options.includeComposesResolution }
+      : {}),
+  });
 }
 
 function hasRustStyleDiagnosticsDeps(
@@ -129,7 +145,7 @@ function checkCurrentStyleDocument(
     readonly styleDocumentForPath?: ProviderDeps["styleDocumentForPath"];
     readonly aliasResolver?: ProviderDeps["aliasResolver"];
   },
-  options: { readonly includeUnusedSelectors: boolean },
+  options: Pick<StyleDocumentCheckOptions, "includeUnusedSelectors" | "includeComposesResolution">,
 ): readonly StyleCheckerFinding[] {
   return checkStyleDocument(
     args,

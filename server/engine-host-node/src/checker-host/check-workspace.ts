@@ -1,11 +1,13 @@
-import { checkSourceDocument } from "../../../engine-core-ts/src/core/checker/check-source-document";
-import { checkStyleDocument } from "../../../engine-core-ts/src/core/checker/check-style-document";
 import type {
   CheckerFinding,
   WorkspaceCheckerFinding,
 } from "../../../engine-core-ts/src/core/checker/contracts";
 import type { CheckerReportSummaryV1 } from "../../../engine-core-ts/src/contracts";
 import type { ClassnameTransformMode } from "../../../engine-core-ts/src/core/scss/classname-transform";
+import { NOOP_LOG_ERROR } from "../../../engine-core-ts/src/provider-deps";
+import { DEFAULT_SETTINGS } from "../../../engine-core-ts/src/settings";
+import { resolveSourceDiagnosticFindings } from "../source-diagnostics-query";
+import { resolveStyleDiagnosticFindings } from "../style-diagnostics-query";
 import type { TypeFactBackendKind } from "../type-backend";
 import {
   collectSourceDocuments,
@@ -42,6 +44,16 @@ export async function checkWorkspace(
   const workspaceRoot = options.workspaceRoot;
   const classnameTransform = options.classnameTransform ?? "asIs";
   const pathAlias = options.pathAlias ?? {};
+  const settings = {
+    ...DEFAULT_SETTINGS,
+    diagnostics: {
+      ...DEFAULT_SETTINGS.diagnostics,
+      missingModule: options.includeMissingModule ?? DEFAULT_SETTINGS.diagnostics.missingModule,
+      unusedSelector: options.includeUnusedSelectors ?? DEFAULT_SETTINGS.diagnostics.unusedSelector,
+    },
+    scss: { classnameTransform },
+    pathAlias,
+  };
   const { sourceFiles, styleFiles } = await resolveWorkspaceCheckFiles({
     workspaceRoot,
     ...(options.sourceFilePaths ? { sourceFilePaths: options.sourceFilePaths } : {}),
@@ -63,23 +75,19 @@ export async function checkWorkspace(
   const sourceDocuments = collectSourceDocuments(sourceFiles, analysisHost.analysisCache);
 
   const findings: WorkspaceCheckerFinding[] = [];
-  const sourceCheckOptions =
-    options.includeMissingModule !== undefined
-      ? { includeMissingModule: options.includeMissingModule }
-      : {};
-  const styleCheckOptions: {
-    includeUnusedSelectors?: boolean;
-    includeComposesResolution?: boolean;
-  } = {};
-  if (options.includeUnusedSelectors !== undefined) {
-    styleCheckOptions.includeUnusedSelectors = options.includeUnusedSelectors;
-  }
-  if (options.includeComposesResolution !== undefined) {
-    styleCheckOptions.includeComposesResolution = options.includeComposesResolution;
-  }
+  const sourceDiagnosticOptions = options.env ? { env: options.env } : {};
+  const styleDiagnosticOptions = {
+    ...(options.env ? { env: options.env } : {}),
+    ...(options.includeUnusedSelectors !== undefined
+      ? { includeUnusedSelectors: options.includeUnusedSelectors }
+      : {}),
+    ...(options.includeComposesResolution !== undefined
+      ? { includeComposesResolution: options.includeComposesResolution }
+      : {}),
+  };
 
   for (const document of sourceDocuments) {
-    for (const finding of checkSourceDocument(
+    for (const finding of resolveSourceDiagnosticFindings(
       {
         documentUri: document.uri,
         content: document.content,
@@ -91,8 +99,10 @@ export async function checkWorkspace(
         styleDocumentForPath: styleHost.styleDocumentForPath,
         typeResolver: analysisHost.typeResolver,
         workspaceRoot,
+        settings,
+        logError: NOOP_LOG_ERROR,
       },
-      sourceCheckOptions,
+      sourceDiagnosticOptions,
     )) {
       findings.push({ filePath: document.filePath, finding });
     }
@@ -101,17 +111,22 @@ export async function checkWorkspace(
   for (const styleFile of styleFiles) {
     const styleDocument = styleHost.styleDocumentForPath(styleFile);
     if (!styleDocument) continue;
-    for (const finding of checkStyleDocument(
+    for (const finding of resolveStyleDiagnosticFindings(
       {
         scssPath: styleFile,
         styleDocument,
       },
       {
+        analysisCache: analysisHost.analysisCache,
         semanticReferenceIndex: analysisHost.semanticReferenceIndex,
         styleDependencyGraph: styleHost.styleDependencyGraph,
         styleDocumentForPath: styleHost.styleDocumentForPath,
+        readStyleFile: styleHost.readStyleFile,
+        typeResolver: analysisHost.typeResolver,
+        workspaceRoot,
+        settings,
       },
-      styleCheckOptions,
+      styleDiagnosticOptions,
     )) {
       findings.push({ filePath: styleFile, finding });
     }

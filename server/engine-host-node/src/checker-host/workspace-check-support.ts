@@ -35,6 +35,7 @@ export interface WorkspaceCheckResolvedFiles {
 
 export interface WorkspaceStyleHost {
   readonly styleDependencyGraph: WorkspaceStyleDependencyGraph;
+  readonly readStyleFile: (filePath: string) => string | null;
   readonly styleDocumentForPath: (filePath: string) => StyleDocumentHIR | null;
   preloadStyleDocuments(): void;
 }
@@ -129,6 +130,7 @@ export function createWorkspaceStyleHost(params: {
   };
 
   return {
+    readStyleFile,
     styleDependencyGraph,
     styleDocumentForPath,
     preloadStyleDocuments(): void {
