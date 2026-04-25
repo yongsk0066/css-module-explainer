@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { FileChangeType } from "vscode-languageserver-protocol/node";
 import { createInProcessServer, type LspTestClient } from "./_harness/in-process-server";
 import { FakeTypeResolver } from "../_fixtures/fake-type-resolver";
-import { targetFixture, workspace } from "../../packages/vitest-cme/src";
+import { textDocumentPositionParams, workspace } from "../../packages/vitest-cme/src";
 
 // Semantic reference TSX staleness on watched-file change.
 //
@@ -42,6 +42,18 @@ const UPDATED_SCSS_WORKSPACE = workspace({
   [SCSS_URI]: ".bt/*at:small*/n-small { color: red; }\n.bt/*at:large*/n-large { color: blue; }\n",
 });
 
+function referenceParams(source: ReturnType<typeof workspace>, markerName: string) {
+  return {
+    ...textDocumentPositionParams({
+      workspace: source,
+      documentUri: SCSS_URI,
+      filePath: SCSS_URI,
+      markerName,
+    }),
+    context: { includeDeclaration: false },
+  };
+}
+
 describe("semantic reference staleness on watched SCSS change", () => {
   let client: LspTestClient | null = null;
 
@@ -80,15 +92,7 @@ describe("semantic reference staleness on watched SCSS change", () => {
     // Sanity check: the template expansion recorded `btn-small`.
     // Find References on the existing `.btn-small` selector in
     // the SCSS file must return the template call site.
-    const initialRefs = await client.references({
-      textDocument: { uri: SCSS_URI },
-      position: targetFixture({
-        workspace: INITIAL_SCSS_WORKSPACE,
-        filePath: SCSS_URI,
-        markerName: "small",
-      }).position,
-      context: { includeDeclaration: false },
-    });
+    const initialRefs = await client.references(referenceParams(INITIAL_SCSS_WORKSPACE, "small"));
     expect(initialRefs).not.toBeNull();
     expect(initialRefs!.length).toBeGreaterThan(0);
     expect(initialRefs!.some((loc) => loc.uri === TSX_URI)).toBe(true);
@@ -123,15 +127,7 @@ describe("semantic reference staleness on watched SCSS change", () => {
     const second = await client.waitForDiagnostics(TSX_URI);
     expect(second).toEqual([]);
 
-    const refsAfter = await client.references({
-      textDocument: { uri: SCSS_URI },
-      position: targetFixture({
-        workspace: UPDATED_SCSS_WORKSPACE,
-        filePath: SCSS_URI,
-        markerName: "large",
-      }).position,
-      context: { includeDeclaration: false },
-    });
+    const refsAfter = await client.references(referenceParams(UPDATED_SCSS_WORKSPACE, "large"));
     // The template expansion must now include `btn-large`.
     expect(refsAfter).not.toBeNull();
     expect(refsAfter!.length).toBeGreaterThan(0);

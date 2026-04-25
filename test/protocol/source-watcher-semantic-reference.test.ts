@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { FileChangeType } from "vscode-languageserver-protocol/node";
 import { createInProcessServer, type LspTestClient } from "./_harness/in-process-server";
 import type { Range, ResolvedType } from "@css-module-explainer/shared";
-import { targetFixture, workspace } from "../../packages/vitest-cme/src";
+import { textDocumentPositionParams, workspace } from "../../packages/vitest-cme/src";
 import type {
   ResolveTypeOptions,
   TypeResolver,
@@ -72,6 +72,18 @@ const SCSS_WORKSPACE = workspace({
   [SCSS_URI]: ".s/*at:small*/mall { color: red; }\n.l/*at:large*/arge { color: blue; }\n",
 });
 
+function referenceParams(markerName: string) {
+  return {
+    ...textDocumentPositionParams({
+      workspace: SCSS_WORKSPACE,
+      documentUri: SCSS_URI,
+      filePath: SCSS_URI,
+      markerName,
+    }),
+    context: { includeDeclaration: false },
+  };
+}
+
 describe("source-watcher → semantic reference freshness", () => {
   let client: LspTestClient | null = null;
 
@@ -107,29 +119,13 @@ describe("source-watcher → semantic reference freshness", () => {
     await client.waitForDiagnostics(TSX_URI);
 
     // Sanity: Find References on `.small` returns the TSX site.
-    const refsSmall = await client.references({
-      textDocument: { uri: SCSS_URI },
-      position: targetFixture({
-        workspace: SCSS_WORKSPACE,
-        filePath: SCSS_URI,
-        markerName: "small",
-      }).position,
-      context: { includeDeclaration: false },
-    });
+    const refsSmall = await client.references(referenceParams("small"));
     expect(refsSmall).not.toBeNull();
     expect(refsSmall!.some((loc) => loc.uri === TSX_URI)).toBe(true);
 
     // `.large` should NOT have a reference yet — typeResolver
     // only returned ["small"].
-    const refsLargeBefore = await client.references({
-      textDocument: { uri: SCSS_URI },
-      position: targetFixture({
-        workspace: SCSS_WORKSPACE,
-        filePath: SCSS_URI,
-        markerName: "large",
-      }).position,
-      context: { includeDeclaration: false },
-    });
+    const refsLargeBefore = await client.references(referenceParams("large"));
     const hadLargeBefore =
       refsLargeBefore !== null && refsLargeBefore.some((loc) => loc.uri === TSX_URI);
     expect(hadLargeBefore).toBe(false);
@@ -155,15 +151,7 @@ describe("source-watcher → semantic reference freshness", () => {
 
     // `.large` should now have a reference from the variable
     // expansion.
-    const refsLargeAfter = await client.references({
-      textDocument: { uri: SCSS_URI },
-      position: targetFixture({
-        workspace: SCSS_WORKSPACE,
-        filePath: SCSS_URI,
-        markerName: "large",
-      }).position,
-      context: { includeDeclaration: false },
-    });
+    const refsLargeAfter = await client.references(referenceParams("large"));
     expect(refsLargeAfter).not.toBeNull();
     expect(refsLargeAfter!.length).toBeGreaterThan(0);
     expect(refsLargeAfter!.some((loc) => loc.uri === TSX_URI)).toBe(true);
