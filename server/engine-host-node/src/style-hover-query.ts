@@ -36,7 +36,6 @@ import type {
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
 import {
   resolveSelectedQueryBackendKind,
-  usesRustStyleSemanticGraphBackend,
   usesRustSelectorUsageBackend,
 } from "./selected-query-backend";
 import {
@@ -45,10 +44,10 @@ import {
   type SelectorUsageRenderSummary,
 } from "./selector-usage-query-backend";
 import {
-  buildStyleSemanticGraphSelectorIdentityReadModels,
-  resolveRustStyleSemanticGraphForWorkspaceTarget,
-  type StyleSemanticGraphSelectorIdentityReadModel,
-} from "./style-semantic-graph-query-backend";
+  resolveRustStyleSelectorIdentityReadModelForWorkspaceTarget,
+  type StyleSelectorIdentityQueryOptions,
+} from "./style-selector-identity-query";
+import type { StyleSemanticGraphSelectorIdentityReadModel } from "./style-semantic-graph-query-backend";
 
 export interface StyleSelectorHoverResult {
   readonly kind: "selector";
@@ -98,10 +97,9 @@ export type StyleHoverResult =
   | StyleValueHoverResult
   | StyleSassSymbolHoverResult;
 
-export interface StyleHoverQueryOptions {
+export interface StyleHoverQueryOptions extends StyleSelectorIdentityQueryOptions {
   readonly env?: NodeJS.ProcessEnv;
   readonly readRustSelectorUsagePayloadForWorkspaceTarget?: typeof resolveRustSelectorUsagePayloadForWorkspaceTarget;
-  readonly readRustStyleSemanticGraphForWorkspaceTarget?: typeof resolveRustStyleSemanticGraphForWorkspaceTarget;
 }
 
 export function resolveStyleHoverResult(
@@ -468,27 +466,15 @@ function withStyleSelectorIdentity(
   canonicalName: string,
   options: StyleHoverQueryOptions,
 ): { readonly selectorIdentity?: StyleSemanticGraphSelectorIdentityReadModel } {
-  const backend = resolveSelectedQueryBackendKind(options.env);
-  if (!usesRustStyleSemanticGraphBackend(backend)) return {};
-
-  const graph = (
-    options.readRustStyleSemanticGraphForWorkspaceTarget ??
-    resolveRustStyleSemanticGraphForWorkspaceTarget
-  )(
+  const selectorIdentity = resolveRustStyleSelectorIdentityReadModelForWorkspaceTarget(
     {
-      workspaceRoot: deps.workspaceRoot,
-      classnameTransform: deps.settings.scss.classnameTransform,
-      pathAlias: deps.settings.pathAlias,
+      filePath,
+      styleDocument,
+      canonicalName,
     },
     deps,
-    filePath,
+    options,
   );
-  if (!graph) return {};
-
-  const selectorIdentity = buildStyleSemanticGraphSelectorIdentityReadModels(
-    graph,
-    styleDocument,
-  ).find((identity) => identity.canonicalName === canonicalName);
   return selectorIdentity ? { selectorIdentity } : {};
 }
 

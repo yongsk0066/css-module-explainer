@@ -29,23 +29,21 @@ import type {
 } from "../../engine-core-ts/src/core/rewrite/text-rewrite-plan";
 import {
   resolveSelectedQueryBackendKind,
-  usesRustStyleSemanticGraphBackend,
   usesRustSelectorUsageBackend,
 } from "./selected-query-backend";
 import {
-  buildStyleSemanticGraphSelectorIdentityReadModels,
-  resolveRustStyleSemanticGraphForWorkspaceTarget,
-} from "./style-semantic-graph-query-backend";
+  resolveRustStyleSelectorIdentityReadModelForWorkspaceTarget,
+  type StyleSelectorIdentityQueryOptions,
+} from "./style-selector-identity-query";
 import {
   buildSelectorUsageEditableDirectSitesFromRustPayload,
   resolveRustSelectorUsagePayloadForWorkspaceTarget,
   type SelectorUsageEvaluatorCandidatePayloadV0,
 } from "./selector-usage-query-backend";
 
-export interface StyleRenameQueryOptions {
+export interface StyleRenameQueryOptions extends StyleSelectorIdentityQueryOptions {
   readonly env?: NodeJS.ProcessEnv;
   readonly readRustSelectorUsagePayloadForWorkspaceTarget?: typeof resolveRustSelectorUsagePayloadForWorkspaceTarget;
-  readonly readRustStyleSemanticGraphForWorkspaceTarget?: typeof resolveRustStyleSemanticGraphForWorkspaceTarget;
 }
 
 export interface SassSymbolRenameTarget {
@@ -134,10 +132,12 @@ function readStyleSelectorRenameTargetAtCursor(
     return rewritePolicy;
   }
 
-  const rustIdentity = resolveStyleRenameRustSelectorIdentity(
-    filePath,
-    styleDocument,
-    rewritePolicy.summary.canonicalName,
+  const rustIdentity = resolveRustStyleSelectorIdentityReadModelForWorkspaceTarget(
+    {
+      filePath,
+      styleDocument,
+      canonicalName: rewritePolicy.summary.canonicalName,
+    },
     deps,
     options,
   );
@@ -392,46 +392,6 @@ function resolveStyleRenameRewriteSafety(
     hasBlockingExpandedReferences,
     hasBlockingStyleDependencyReferences,
   };
-}
-
-function resolveStyleRenameRustSelectorIdentity(
-  filePath: string,
-  styleDocument: StyleDocumentHIR,
-  canonicalName: string,
-  deps: Pick<
-    ProviderDeps,
-    | "analysisCache"
-    | "settings"
-    | "styleDocumentForPath"
-    | "typeResolver"
-    | "workspaceRoot"
-    | "readStyleFile"
-  >,
-  options: StyleRenameQueryOptions,
-) {
-  if (!usesRustStyleSemanticGraphBackend(resolveSelectedQueryBackendKind(options.env))) {
-    return null;
-  }
-
-  const graph = (
-    options.readRustStyleSemanticGraphForWorkspaceTarget ??
-    resolveRustStyleSemanticGraphForWorkspaceTarget
-  )(
-    {
-      workspaceRoot: deps.workspaceRoot,
-      classnameTransform: deps.settings.scss.classnameTransform,
-      pathAlias: deps.settings.pathAlias,
-    },
-    deps,
-    filePath,
-  );
-  if (!graph) return null;
-
-  return (
-    buildStyleSemanticGraphSelectorIdentityReadModels(graph, styleDocument).find(
-      (identity) => identity.canonicalName === canonicalName,
-    ) ?? null
-  );
 }
 
 function buildRustEditableDirectSites(
