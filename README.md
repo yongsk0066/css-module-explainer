@@ -334,7 +334,6 @@ Current checker policy:
 - `pnpm check:rust-checker-style-unused-consumer-boundary` validates the opt-in `checker-cli` Rust consumer path for that bounded unused-selector subset
 - `pnpm check:rust-checker-style-unused-lane` runs the full bounded unused-selector checker lane: canonical-candidate, canonical-producer, and opt-in consumer-boundary consistency
 - `pnpm check:rust-checker-bounded-lanes` is the current aggregate entry for release-enforced checker-canonical lanes; today it runs `style-recovery`, `source-missing`, and `style-unused`
-- `pnpm check:rust-checker-expanded-lanes` is a compatibility alias for the same release-enforced checker aggregate
 - `pnpm check:rust-checker-entrance` is the official checker-canonical entrance gate; it currently aliases `pnpm check:rust-checker-bounded-lanes`
 - `pnpm check:rust-checker-promotion-review` validates the current promotion stance for bounded checker lanes; today it confirms all three checker lanes are inside the broader Rust lane and the release gate
 - `pnpm check:rust-checker-broader-lane-readiness` locks the current broader-lane promotion criteria for those bounded lanes; today it requires three bounded lanes, a promotion-review command, and a broader target of `pnpm check:rust-lane-bundle`, with all three lanes promoted into the broader Rust lane and the release gate
@@ -372,7 +371,6 @@ Current checker policy:
   - bounded style-unused checker consumer path: `pnpm check:rust-checker-style-unused-consumer-boundary`
   - bounded style-unused checker lane: `pnpm check:rust-checker-style-unused-lane`
   - bounded checker lane aggregate: `pnpm check:rust-checker-bounded-lanes`
-  - expanded checker lane aggregate: `pnpm check:rust-checker-expanded-lanes`
   - official checker entrance gate: `pnpm check:rust-checker-entrance`
   - checker lane promotion review: `pnpm check:rust-checker-promotion-review`
   - broader checker lane readiness: `pnpm check:rust-checker-broader-lane-readiness`
