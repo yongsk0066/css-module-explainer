@@ -1,18 +1,32 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createInProcessServer, type LspTestClient } from "./_harness/in-process-server";
 import { FakeTypeResolver } from "../_fixtures/fake-type-resolver";
+import { targetFixture, workspace, type CmeWorkspace } from "../../packages/vitest-cme/src";
 
 const URI = "file:///fake/workspace/src/Button.tsx";
 
-const INITIAL_TSX = `import classNames from 'classnames/bind';
+const INITIAL_WORKSPACE = workspace({
+  [URI]: `import classNames from 'classnames/bind';
 import styles from './Button.module.scss';
 const cx = classNames.bind(styles);
 export function Button() {
-  return <div className={cx('alpha')}>hi</div>;
+  return <div className={cx('/*|*/alpha')}>hi</div>;
 }
-`;
+`,
+});
 
-const UPDATED_TSX = INITIAL_TSX.replace("'alpha'", "'beta'");
+const UPDATED_WORKSPACE = workspace({
+  [URI]: `import classNames from 'classnames/bind';
+import styles from './Button.module.scss';
+const cx = classNames.bind(styles);
+export function Button() {
+  return <div className={cx('/*|*/beta')}>hi</div>;
+}
+`,
+});
+
+const INITIAL_TSX = INITIAL_WORKSPACE.file(URI).content;
+const UPDATED_TSX = UPDATED_WORKSPACE.file(URI).content;
 
 const STYLE_SCSS = `
 .alpha {
@@ -49,45 +63,33 @@ describe("TS 7 Phase C / long-lived LSP session", () => {
       },
     });
     expect(await client.waitForDiagnostics(URI)).toEqual([]);
-    await expectHoverToContain(client, INITIAL_TSX, "alpha", "color: red;");
+    await expectHoverToContain(client, INITIAL_WORKSPACE, "color: red;");
 
     client.didChange({
       textDocument: { uri: URI, version: 2 },
       contentChanges: [{ text: UPDATED_TSX }],
     });
     expect(await client.waitForDiagnostics(URI)).toEqual([]);
-    await expectHoverToContain(client, UPDATED_TSX, "beta", "color: blue;");
+    await expectHoverToContain(client, UPDATED_WORKSPACE, "color: blue;");
 
     client.didChange({
       textDocument: { uri: URI, version: 3 },
       contentChanges: [{ text: INITIAL_TSX }],
     });
     expect(await client.waitForDiagnostics(URI)).toEqual([]);
-    await expectHoverToContain(client, INITIAL_TSX, "alpha", "color: red;");
+    await expectHoverToContain(client, INITIAL_WORKSPACE, "color: red;");
   });
 });
 
 async function expectHoverToContain(
   client: LspTestClient,
-  text: string,
-  marker: string,
+  source: CmeWorkspace,
   expected: string,
 ): Promise<void> {
   const hover = await client.hover({
     textDocument: { uri: URI },
-    position: positionInside(text, marker),
+    position: targetFixture({ workspace: source, filePath: URI }).position,
   });
   expect(hover).not.toBeNull();
   expect((hover!.contents as { value: string }).value).toContain(expected);
-}
-
-function positionInside(text: string, marker: string): { line: number; character: number } {
-  const offset = text.indexOf(marker);
-  expect(offset).toBeGreaterThanOrEqual(0);
-  const before = text.slice(0, offset + 1);
-  const lines = before.split("\n");
-  return {
-    line: lines.length - 1,
-    character: lines.at(-1)!.length - 1,
-  };
 }
