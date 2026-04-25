@@ -160,6 +160,60 @@ describe("style semantic graph query backend", () => {
     expect(runnerInput?.engineInput.sources[0]?.filePath).toBe("/fake/ws/src/App.tsx");
     expect(runnerInput?.engineInput.styles.map((style) => style.filePath)).toEqual([SCSS_PATH]);
   });
+
+  it("reuses cached workspace target graph reads for the same style path", () => {
+    const deps = makeBaseDeps({
+      selectorMapForPath: (filePath) =>
+        filePath === SCSS_PATH ? new Map([["button", infoAtLine("button", 1)]]) : null,
+      readStyleFile: (filePath) => (filePath === SCSS_PATH ? SCSS_SOURCE : null),
+      workspaceRoot: "/fake/ws",
+    });
+    let runnerCalls = 0;
+    const styleSemanticGraphCache = new Map<string, StyleSemanticGraphSummaryV0 | null>();
+    const queryOptions = {
+      sourceDocuments: [],
+      styleFiles: [SCSS_PATH],
+      styleSemanticGraphCache,
+      runRustSelectedQueryBackendJson: <T>(): T => {
+        runnerCalls += 1;
+        return makeGraph() as T;
+      },
+    };
+
+    const first = resolveRustStyleSemanticGraphForWorkspaceTarget(
+      {
+        workspaceRoot: "/fake/ws",
+        classnameTransform: DEFAULT_SETTINGS.scss.classnameTransform,
+        pathAlias: DEFAULT_SETTINGS.pathAlias,
+      },
+      {
+        analysisCache: deps.analysisCache,
+        styleDocumentForPath: deps.styleDocumentForPath,
+        typeResolver: deps.typeResolver,
+        readStyleFile: deps.readStyleFile,
+      },
+      SCSS_PATH,
+      queryOptions,
+    );
+    const second = resolveRustStyleSemanticGraphForWorkspaceTarget(
+      {
+        workspaceRoot: "/fake/ws",
+        classnameTransform: DEFAULT_SETTINGS.scss.classnameTransform,
+        pathAlias: DEFAULT_SETTINGS.pathAlias,
+      },
+      {
+        analysisCache: deps.analysisCache,
+        styleDocumentForPath: deps.styleDocumentForPath,
+        typeResolver: deps.typeResolver,
+        readStyleFile: deps.readStyleFile,
+      },
+      SCSS_PATH,
+      queryOptions,
+    );
+
+    expect(first).toBe(second);
+    expect(runnerCalls).toBe(1);
+  });
 });
 
 function makeGraph(): StyleSemanticGraphSummaryV0 {

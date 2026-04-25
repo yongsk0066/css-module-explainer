@@ -147,6 +147,73 @@ describe("resolveStyleDiagnosticFindings", () => {
     });
   });
 
+  it("forwards precomputed workspace inputs to rust style semantic graph diagnostics", () => {
+    const scssPath = "/fake/Button.module.scss";
+    const styleDocument = buildStyleDocumentFromSelectorMap(
+      scssPath,
+      new Map([
+        ["indicator", infoAtLine("indicator", 1)],
+        ["active", infoAtLine("active", 3)],
+      ]),
+    );
+    const deps = makeBaseDeps({
+      selectorMapForPath: () =>
+        new Map([
+          ["indicator", infoAtLine("indicator", 1)],
+          ["active", infoAtLine("active", 3)],
+        ]),
+      workspaceRoot: "/fake",
+    });
+    const sourceDocuments = [
+      {
+        uri: "file:///fake/App.tsx",
+        filePath: "/fake/App.tsx",
+        content: "const app = true;",
+        version: 1,
+      },
+    ];
+    const styleFiles = [scssPath];
+    const styleSemanticGraphCache = new Map();
+    let forwardedOptions:
+      | {
+          readonly sourceDocuments?: readonly unknown[];
+          readonly styleFiles?: readonly string[];
+          readonly styleSemanticGraphCache?: unknown;
+        }
+      | undefined;
+
+    resolveStyleDiagnosticFindings(
+      { scssPath, styleDocument },
+      {
+        analysisCache: deps.analysisCache,
+        readStyleFile: deps.readStyleFile,
+        semanticReferenceIndex: deps.semanticReferenceIndex,
+        styleDependencyGraph: deps.styleDependencyGraph,
+        styleDocumentForPath: deps.styleDocumentForPath,
+        typeResolver: deps.typeResolver,
+        workspaceRoot: deps.workspaceRoot,
+        settings: deps.settings,
+      },
+      {
+        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        sourceDocuments,
+        styleFiles,
+        styleSemanticGraphCache,
+        readRustStyleSemanticGraphForWorkspaceTarget: (_args, _deps, _filePath, options) => {
+          forwardedOptions = options;
+          return makeReferenceGraph(scssPath);
+        },
+        readRustSelectorUsagePayloadForWorkspaceTarget: () => {
+          throw new Error("unexpected selector-usage fallback");
+        },
+      },
+    );
+
+    expect(forwardedOptions?.sourceDocuments).toBe(sourceDocuments);
+    expect(forwardedOptions?.styleFiles).toBe(styleFiles);
+    expect(forwardedOptions?.styleSemanticGraphCache).toBe(styleSemanticGraphCache);
+  });
+
   it("does not fall back to current unused-selector diagnostics when rust deps are incomplete", () => {
     const scssPath = "/fake/Button.module.scss";
     const styleDocument = makeStyleDocumentFixture(scssPath, [

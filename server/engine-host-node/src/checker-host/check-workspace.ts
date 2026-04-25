@@ -8,6 +8,7 @@ import { NOOP_LOG_ERROR } from "../../../engine-core-ts/src/provider-deps";
 import { DEFAULT_SETTINGS } from "../../../engine-core-ts/src/settings";
 import { resolveSourceDiagnosticFindings } from "../source-diagnostics-query";
 import { resolveStyleDiagnosticFindings } from "../style-diagnostics-query";
+import type { StyleSemanticGraphCache } from "../style-semantic-graph-query-backend";
 import type { TypeFactBackendKind } from "../type-backend";
 import {
   collectSourceDocuments,
@@ -76,10 +77,12 @@ export async function checkWorkspace(
 
   const findings: WorkspaceCheckerFinding[] = [];
   const sourceDiagnosticOptions = options.env ? { env: options.env } : {};
+  const styleSemanticGraphCache: StyleSemanticGraphCache = new Map();
   const styleDiagnosticOptions = {
     ...(options.env ? { env: options.env } : {}),
     sourceDocuments,
     styleFiles,
+    styleSemanticGraphCache,
     ...(options.includeUnusedSelectors !== undefined
       ? { includeUnusedSelectors: options.includeUnusedSelectors }
       : {}),

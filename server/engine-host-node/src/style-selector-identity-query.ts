@@ -7,10 +7,14 @@ import {
 import {
   buildStyleSemanticGraphSelectorIdentityReadModels,
   resolveRustStyleSemanticGraphForWorkspaceTarget,
+  type StyleSemanticGraphQueryOptions,
   type StyleSemanticGraphSelectorIdentityReadModel,
 } from "./style-semantic-graph-query-backend";
 
-export interface StyleSelectorIdentityQueryOptions {
+export interface StyleSelectorIdentityQueryOptions extends Pick<
+  StyleSemanticGraphQueryOptions,
+  "sourceDocuments" | "styleFiles" | "styleSemanticGraphCache"
+> {
   readonly env?: NodeJS.ProcessEnv;
   readonly readRustStyleSemanticGraphForWorkspaceTarget?: typeof resolveRustStyleSemanticGraphForWorkspaceTarget;
 }
@@ -65,6 +69,7 @@ function safeResolveRustStyleSemanticGraphForWorkspaceTarget(
       },
       deps,
       filePath,
+      options,
     );
   } catch {
     return null;
