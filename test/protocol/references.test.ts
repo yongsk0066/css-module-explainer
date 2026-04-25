@@ -1,22 +1,39 @@
 import { expect, test } from "../_fixtures/protocol";
 import { FakeTypeResolver } from "../_fixtures/fake-type-resolver";
-import { targetFixture, workspace, type CmeWorkspace } from "../../packages/vitest-cme/src";
+import { textDocumentPositionFixture, workspace } from "../../packages/vitest-cme/src";
 
 const SCSS_URI = "file:///fake/workspace/src/Button.module.scss";
 
-function fixture(
-  filePath: string,
-  content: string,
-): {
+interface ReferenceFixture {
   readonly content: string;
-  readonly position: { readonly line: number; readonly character: number };
-  readonly workspace: CmeWorkspace;
-} {
+  readonly positionParams: {
+    readonly textDocument: { readonly uri: string };
+    readonly position: { readonly line: number; readonly character: number };
+  };
+}
+
+function fixture(filePath: string, content: string): ReferenceFixture {
   const source = workspace({ [filePath]: content });
+  const { textDocument, position } = textDocumentPositionFixture({
+    workspace: source,
+    documentUri: filePath,
+    filePath,
+  });
   return {
     content: source.file(filePath).content,
-    position: targetFixture({ workspace: source, filePath }).position,
-    workspace: source,
+    positionParams: { textDocument, position },
+  };
+}
+
+function referenceParams(
+  target: ReferenceFixture,
+  includeDeclaration: boolean,
+): ReferenceFixture["positionParams"] & {
+  readonly context: { readonly includeDeclaration: boolean };
+} {
+  return {
+    ...target.positionParams,
+    context: { includeDeclaration },
   };
 }
 
@@ -52,11 +69,7 @@ export function Button() {
   });
   await client.waitForDiagnostics(tsxUri);
 
-  const result = await client.references({
-    textDocument: { uri: SCSS_URI },
-    position: scssFixture.position,
-    context: { includeDeclaration: false },
-  });
+  const result = await client.references(referenceParams(scssFixture, false));
 
   expect(result).not.toBeNull();
   expect(result).toHaveLength(1);
@@ -98,11 +111,7 @@ export function Button() {
   });
   await client.waitForDiagnostics(tsxUri);
 
-  const result = await client.references({
-    textDocument: { uri: tsxUri },
-    position: tsxFixture.position,
-    context: { includeDeclaration: false },
-  });
+  const result = await client.references(referenceParams(tsxFixture, false));
 
   expect(result).not.toBeNull();
   expect(result).toHaveLength(1);
@@ -138,11 +147,7 @@ export function Button() {
   });
   await client.waitForDiagnostics(tsxUri);
 
-  const result = await client.references({
-    textDocument: { uri: SCSS_URI },
-    position: scssFixture.position,
-    context: { includeDeclaration: false },
-  });
+  const result = await client.references(referenceParams(scssFixture, false));
 
   expect(result).not.toBeNull();
   expect(result).toHaveLength(1);
@@ -182,11 +187,7 @@ export function Button() {
   });
   await client.waitForDiagnostics(tsxUri);
 
-  const result = await client.references({
-    textDocument: { uri: SCSS_URI },
-    position: scssFixture.position,
-    context: { includeDeclaration: false },
-  });
+  const result = await client.references(referenceParams(scssFixture, false));
 
   expect(result).not.toBeNull();
   expect(result).toHaveLength(1);
@@ -230,11 +231,7 @@ export function Sized(flag: boolean) {
   });
   await client.waitForDiagnostics(tsxUri);
 
-  const result = await client.references({
-    textDocument: { uri: scssUri },
-    position: scssFixture.position,
-    context: { includeDeclaration: false },
-  });
+  const result = await client.references(referenceParams(scssFixture, false));
 
   expect(result).not.toBeNull();
   expect(result).toHaveLength(1);
@@ -291,11 +288,7 @@ export function StatusChip(status: Status) {
   });
   await client.waitForDiagnostics(tsxUri);
 
-  const result = await client.references({
-    textDocument: { uri: scssUri },
-    position: scssFixture.position,
-    context: { includeDeclaration: false },
-  });
+  const result = await client.references(referenceParams(scssFixture, false));
 
   expect(result).not.toBeNull();
   expect(result).toHaveLength(1);
@@ -339,11 +332,7 @@ export function StateChip(variant: string) {
   });
   await client.waitForDiagnostics(tsxUri);
 
-  const result = await client.references({
-    textDocument: { uri: scssUri },
-    position: scssFixture.position,
-    context: { includeDeclaration: false },
-  });
+  const result = await client.references(referenceParams(scssFixture, false));
 
   expect(result).not.toBeNull();
   expect(result).toHaveLength(1);
@@ -387,11 +376,7 @@ export function ButtonChip(variant: string) {
   });
   await client.waitForDiagnostics(tsxUri);
 
-  const result = await client.references({
-    textDocument: { uri: scssUri },
-    position: scssFixture.position,
-    context: { includeDeclaration: false },
-  });
+  const result = await client.references(referenceParams(scssFixture, false));
 
   expect(result).not.toBeNull();
   expect(result).toHaveLength(1);
@@ -482,11 +467,7 @@ export function Base() {
   await client.waitForDiagnostics(tsxUri);
   await client.waitForDiagnostics(baseTsxUri);
 
-  const result = await client.references({
-    textDocument: { uri: buttonScssUri },
-    position: buttonScssFixture.position,
-    context: { includeDeclaration: false },
-  });
+  const result = await client.references(referenceParams(buttonScssFixture, false));
 
   expect(result).not.toBeNull();
   expect(result!.some((location) => location.uri === baseTsxUri)).toBe(true);
@@ -531,11 +512,7 @@ test("references protocol returns same-file animation references for @keyframes"
     },
   });
 
-  const result = await client.references({
-    textDocument: { uri: scssUri },
-    position: scssFixture.position,
-    context: { includeDeclaration: true },
-  });
+  const result = await client.references(referenceParams(scssFixture, true));
 
   expect(result).not.toBeNull();
   expect(result).toHaveLength(3);
@@ -575,11 +552,7 @@ test("references protocol returns same-file value references for @value", async 
     },
   });
 
-  const result = await client.references({
-    textDocument: { uri: scssUri },
-    position: scssFixture.position,
-    context: { includeDeclaration: true },
-  });
+  const result = await client.references(referenceParams(scssFixture, true));
 
   expect(result).not.toBeNull();
   expect(result).toHaveLength(2);
@@ -617,11 +590,7 @@ test("references protocol returns same-file Sass symbol references", async ({ ma
     },
   });
 
-  const result = await client.references({
-    textDocument: { uri: scssUri },
-    position: scssFixture.position,
-    context: { includeDeclaration: true },
-  });
+  const result = await client.references(referenceParams(scssFixture, true));
 
   expect(result).not.toBeNull();
   expect(result).toHaveLength(3);
@@ -666,11 +635,7 @@ test("references protocol returns local import sites and source declaration for 
     },
   });
 
-  const result = await client.references({
-    textDocument: { uri: scssUri },
-    position: scssFixture.position,
-    context: { includeDeclaration: true },
-  });
+  const result = await client.references(referenceParams(scssFixture, true));
 
   expect(result).not.toBeNull();
   expect(result).toHaveLength(3);
