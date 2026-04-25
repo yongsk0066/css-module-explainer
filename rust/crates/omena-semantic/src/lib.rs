@@ -21,8 +21,9 @@ pub use selector_identity::{
     summarize_selector_identity_engine,
 };
 pub use source_evidence::{
-    CertaintyReasonEvidenceV0, ReferenceSiteIdentityEvidenceV0,
-    SourceInputPromotionEvidenceSummaryV0, summarize_source_input_evidence,
+    BindingOriginEvidenceV0, CertaintyReasonEvidenceV0, ReferenceSiteIdentityEvidenceV0,
+    SourceInputPromotionEvidenceSummaryV0, StyleModuleEdgeEvidenceV0,
+    ValueDomainExplanationEvidenceV0, summarize_source_input_evidence,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -362,6 +363,34 @@ $color: red;
         assert_eq!(evidence.certainty_reason.expression_count, 2);
         assert_eq!(evidence.certainty_reason.exact_count, 1);
         assert_eq!(evidence.certainty_reason.inferred_count, 1);
+        assert_eq!(evidence.binding_origin.status, "ready");
+        assert_eq!(evidence.binding_origin.expression_count, 2);
+        assert_eq!(evidence.binding_origin.direct_class_name_count, 1);
+        assert_eq!(evidence.binding_origin.root_binding_count, 1);
+        assert_eq!(
+            evidence
+                .binding_origin
+                .expression_kind_counts
+                .get("literal"),
+            Some(&1)
+        );
+        assert_eq!(evidence.style_module_edge.status, "ready");
+        assert_eq!(evidence.style_module_edge.source_style_edge_count, 2);
+        assert_eq!(evidence.style_module_edge.distinct_style_module_count, 1);
+        assert_eq!(
+            evidence.style_module_edge.missing_style_document_edge_count,
+            0
+        );
+        assert_eq!(evidence.value_domain_explanation.status, "ready");
+        assert_eq!(evidence.value_domain_explanation.expression_count, 2);
+        assert_eq!(evidence.value_domain_explanation.exact_expression_count, 1);
+        assert_eq!(
+            evidence
+                .value_domain_explanation
+                .constrained_expression_count,
+            1
+        );
+        assert_eq!(evidence.value_domain_explanation.finite_value_count, 1);
         assert_eq!(
             evidence
                 .certainty_reason
@@ -402,15 +431,36 @@ $color: red;
             evidence
                 .items
                 .iter()
+                .find(|item| item.evidence == "bindingOrigin")
+                .map(|item| item.status),
+            Some("ready")
+        );
+        assert_eq!(
+            evidence
+                .items
+                .iter()
+                .find(|item| item.evidence == "styleModuleEdge")
+                .map(|item| item.status),
+            Some("ready")
+        );
+        assert_eq!(
+            evidence
+                .items
+                .iter()
+                .find(|item| item.evidence == "valueDomainExplanation")
+                .map(|item| item.status),
+            Some("ready")
+        );
+        assert_eq!(
+            evidence
+                .items
+                .iter()
                 .find(|item| item.evidence == "certaintyReason")
                 .map(|item| item.status),
             Some("ready")
         );
         assert!(evidence.blocking_gaps.is_empty());
-        assert_eq!(
-            evidence.next_priorities,
-            vec!["bindingOrigin", "styleModuleEdge", "valueDomainExplanation"]
-        );
+        assert!(evidence.next_priorities.is_empty());
         Ok(())
     }
 

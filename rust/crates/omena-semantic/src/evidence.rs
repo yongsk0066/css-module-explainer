@@ -149,6 +149,33 @@ pub fn summarize_semantic_promotion_evidence_with_source_input(
 
     for item in &mut summary.items {
         match item.evidence {
+            "bindingOrigin" => {
+                item.status = source_evidence.binding_origin.status;
+                item.provider = "EngineInputV2.class-expressions";
+                item.observed_count = source_evidence.binding_origin.expression_count;
+                item.reason = format!(
+                    "{} source class expressions expose binding origins",
+                    source_evidence.binding_origin.expression_count
+                );
+            }
+            "styleModuleEdge" => {
+                item.status = source_evidence.style_module_edge.status;
+                item.provider = "EngineInputV2.source-style-edges";
+                item.observed_count = source_evidence.style_module_edge.source_style_edge_count;
+                item.reason = format!(
+                    "{} source-to-style module edges are linked",
+                    source_evidence.style_module_edge.source_style_edge_count
+                );
+            }
+            "valueDomainExplanation" => {
+                item.status = source_evidence.value_domain_explanation.status;
+                item.provider = "EngineInputV2.expression-semantics";
+                item.observed_count = source_evidence.value_domain_explanation.expression_count;
+                item.reason = format!(
+                    "{} source expressions expose value-domain explanations",
+                    source_evidence.value_domain_explanation.expression_count
+                );
+            }
             "referenceSiteIdentity" => {
                 item.status = source_evidence.reference_site_identity.status;
                 item.provider = "EngineInputV2.selector-usage";
@@ -177,10 +204,6 @@ pub fn summarize_semantic_promotion_evidence_with_source_input(
         .filter(|item| item.status == "gap")
         .map(|item| item.evidence)
         .collect();
-    summary.next_priorities = if source_evidence.blocking_gaps.is_empty() {
-        vec!["bindingOrigin", "styleModuleEdge", "valueDomainExplanation"]
-    } else {
-        source_evidence.blocking_gaps
-    };
+    summary.next_priorities = source_evidence.blocking_gaps;
     summary
 }
