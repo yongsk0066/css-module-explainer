@@ -10,6 +10,7 @@ import { handleReferences } from "../../../server/lsp-server/src/providers/refer
 import {
   cursorFixture,
   textDocumentPositionFixture,
+  textDocumentPositionFromCursor,
   workspace,
   type CmeWorkspace,
   type Range,
@@ -86,8 +87,7 @@ function sourceCursor(fixture: CmeWorkspace = SOURCE_WORKSPACE, markerName = "cu
 
 function sourceReferenceParams(cursor = sourceCursor()) {
   return {
-    textDocument: { uri: cursor.documentUri },
-    position: cursor.position,
+    ...textDocumentPositionFromCursor(cursor),
     context: { includeDeclaration: false },
   };
 }
