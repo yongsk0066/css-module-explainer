@@ -1,9 +1,12 @@
 use engine_input_producers::EngineInputV2;
-use engine_style_parser::{ParserBoundarySyntaxFactsV0, StyleSemanticFactsV0, Stylesheet};
-use omena_semantic::{SemanticPromotionEvidenceSummaryV0, SourceInputPromotionEvidenceSummaryV0};
+use engine_style_parser::{
+    ParserBoundarySyntaxFactsV0, StyleSemanticFactsV0, Stylesheet, parse_style_module,
+};
+use omena_semantic::{
+    LosslessCstContractV0, SelectorIdentityEngineSummaryV0, SelectorReferenceEngineSummaryV0,
+    SemanticPromotionEvidenceSummaryV0, SourceInputPromotionEvidenceSummaryV0,
+};
 use serde::Serialize;
-
-pub use omena_semantic::StyleSemanticGraphSummaryV0;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -11,10 +14,27 @@ pub struct OmenaBridgeBoundarySummaryV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub bridge_name: &'static str,
-    pub delegated_graph_product: &'static str,
+    pub graph_product: &'static str,
+    pub delegated_semantic_boundary_product: &'static str,
     pub delegated_source_evidence_product: &'static str,
+    pub bridge_owned_surfaces: Vec<&'static str>,
     pub cme_coupled_surfaces: Vec<&'static str>,
     pub next_decoupling_targets: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StyleSemanticGraphSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub language: &'static str,
+    pub parser_facts: ParserBoundarySyntaxFactsV0,
+    pub semantic_facts: StyleSemanticFactsV0,
+    pub selector_identity_engine: SelectorIdentityEngineSummaryV0,
+    pub selector_reference_engine: SelectorReferenceEngineSummaryV0,
+    pub source_input_evidence: SourceInputPromotionEvidenceSummaryV0,
+    pub promotion_evidence: SemanticPromotionEvidenceSummaryV0,
+    pub lossless_cst_contract: LosslessCstContractV0,
 }
 
 pub fn summarize_omena_bridge_boundary() -> OmenaBridgeBoundarySummaryV0 {
@@ -22,8 +42,10 @@ pub fn summarize_omena_bridge_boundary() -> OmenaBridgeBoundarySummaryV0 {
         schema_version: "0",
         product: "omena-bridge.cme-semantic-bridge",
         bridge_name: "cme-semantic-bridge",
-        delegated_graph_product: "omena-semantic.style-semantic-graph",
+        graph_product: "omena-semantic.style-semantic-graph",
+        delegated_semantic_boundary_product: "omena-semantic.style-semantic-boundary",
         delegated_source_evidence_product: "omena-semantic.source-input-evidence",
+        bridge_owned_surfaces: vec!["styleSemanticGraph", "styleSemanticGraphFromSource"],
         cme_coupled_surfaces: vec![
             "EngineInputV2",
             "sourceInputEvidence",
@@ -61,7 +83,7 @@ pub fn summarize_omena_bridge_style_semantic_graph(
     sheet: &Stylesheet,
     input: &EngineInputV2,
 ) -> StyleSemanticGraphSummaryV0 {
-    omena_semantic::summarize_style_semantic_graph(sheet, input)
+    summarize_omena_bridge_style_semantic_graph_for_path(sheet, input, None)
 }
 
 pub fn summarize_omena_bridge_style_semantic_graph_for_path(
@@ -69,7 +91,33 @@ pub fn summarize_omena_bridge_style_semantic_graph_for_path(
     input: &EngineInputV2,
     style_path: Option<&str>,
 ) -> StyleSemanticGraphSummaryV0 {
-    omena_semantic::summarize_style_semantic_graph_for_path(sheet, input, style_path)
+    let boundary = omena_semantic::summarize_style_semantic_boundary(sheet);
+    let parser_facts = boundary.parser_facts;
+    let semantic_facts = boundary.semantic_facts;
+    let selector_identity_engine = boundary.selector_identity_engine;
+    let selector_reference_engine =
+        omena_semantic::summarize_selector_reference_engine(input, style_path);
+    let source_input_evidence = omena_semantic::summarize_source_input_evidence(input);
+    let promotion_evidence =
+        omena_semantic::summarize_semantic_promotion_evidence_with_source_input(
+            &parser_facts,
+            &semantic_facts,
+            input,
+        );
+    let lossless_cst_contract = boundary.lossless_cst_contract;
+
+    StyleSemanticGraphSummaryV0 {
+        schema_version: "0",
+        product: "omena-semantic.style-semantic-graph",
+        language: boundary.language,
+        parser_facts,
+        semantic_facts,
+        selector_identity_engine,
+        selector_reference_engine,
+        source_input_evidence,
+        promotion_evidence,
+        lossless_cst_contract,
+    }
 }
 
 pub fn summarize_omena_bridge_style_semantic_graph_from_source(
@@ -77,7 +125,12 @@ pub fn summarize_omena_bridge_style_semantic_graph_from_source(
     style_source: &str,
     input: &EngineInputV2,
 ) -> Option<StyleSemanticGraphSummaryV0> {
-    omena_semantic::summarize_style_semantic_graph_from_source(style_path, style_source, input)
+    let sheet = parse_style_module(style_path, style_source)?;
+    Some(summarize_omena_bridge_style_semantic_graph_for_path(
+        &sheet,
+        input,
+        Some(style_path),
+    ))
 }
 
 #[cfg(test)]
@@ -102,12 +155,21 @@ mod tests {
         assert_eq!(boundary.schema_version, "0");
         assert_eq!(boundary.product, "omena-bridge.cme-semantic-bridge");
         assert_eq!(
-            boundary.delegated_graph_product,
+            boundary.graph_product,
             "omena-semantic.style-semantic-graph"
+        );
+        assert_eq!(
+            boundary.delegated_semantic_boundary_product,
+            "omena-semantic.style-semantic-boundary"
         );
         assert_eq!(
             boundary.delegated_source_evidence_product,
             "omena-semantic.source-input-evidence"
+        );
+        assert!(
+            boundary
+                .bridge_owned_surfaces
+                .contains(&"styleSemanticGraphFromSource")
         );
         assert!(
             boundary
@@ -163,6 +225,33 @@ mod tests {
         assert_eq!(
             graph.source_input_evidence.reference_site_identity.status,
             "ready"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn owns_graph_assembly_without_changing_host_product() -> Result<(), String> {
+        let sheet = parse_style_module("Component.module.scss", ".button { color: red; }")
+            .ok_or_else(|| "SCSS module path should parse".to_string())?;
+        let bridge_graph =
+            summarize_omena_bridge_style_semantic_graph(&sheet, &sample_engine_input());
+        let semantic_graph =
+            omena_semantic::summarize_style_semantic_graph(&sheet, &sample_engine_input());
+
+        assert_eq!(bridge_graph.product, "omena-semantic.style-semantic-graph");
+        assert_eq!(bridge_graph.product, semantic_graph.product);
+        assert_eq!(bridge_graph.language, semantic_graph.language);
+        assert_eq!(
+            bridge_graph.selector_reference_engine,
+            semantic_graph.selector_reference_engine
+        );
+        assert_eq!(
+            bridge_graph.source_input_evidence,
+            semantic_graph.source_input_evidence
+        );
+        assert_eq!(
+            bridge_graph.promotion_evidence,
+            semantic_graph.promotion_evidence
         );
         Ok(())
     }
