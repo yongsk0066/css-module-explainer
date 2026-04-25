@@ -6,6 +6,7 @@ import {
   targetFixture,
   textDocumentPositionFixture,
   textDocumentPositionFromCursor,
+  textDocumentPositionParams,
   textDocumentRangeFixture,
   textDocumentRenameFromCursor,
   textDocumentRenameFixture,
@@ -182,6 +183,24 @@ describe("vitest-cme workspace markers", () => {
     expect(textDocumentPositionFromCursor(cursor)).toEqual({
       textDocument: { uri: "file:///fake/Button.tsx" },
       position: { line: 0, character: 15 },
+    });
+  });
+
+  it("builds LSP text document position params without target metadata", () => {
+    const ws = workspace({
+      "Button.module.scss": ".button { color: /*at:value*/$gap; }",
+    });
+
+    expect(
+      textDocumentPositionParams({
+        workspace: ws,
+        filePath: "Button.module.scss",
+        documentUri: "file:///fake/Button.module.scss",
+        markerName: "value",
+      }),
+    ).toEqual({
+      textDocument: { uri: "file:///fake/Button.module.scss" },
+      position: { line: 0, character: 17 },
     });
   });
 

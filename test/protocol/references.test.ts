@@ -1,6 +1,6 @@
 import { expect, test } from "../_fixtures/protocol";
 import { FakeTypeResolver } from "../_fixtures/fake-type-resolver";
-import { textDocumentPositionFixture, workspace } from "../../packages/vitest-cme/src";
+import { textDocumentPositionParams, workspace } from "../../packages/vitest-cme/src";
 
 const SCSS_URI = "file:///fake/workspace/src/Button.module.scss";
 
@@ -14,14 +14,13 @@ interface ReferenceFixture {
 
 function fixture(filePath: string, content: string): ReferenceFixture {
   const source = workspace({ [filePath]: content });
-  const { textDocument, position } = textDocumentPositionFixture({
-    workspace: source,
-    documentUri: filePath,
-    filePath,
-  });
   return {
     content: source.file(filePath).content,
-    positionParams: { textDocument, position },
+    positionParams: textDocumentPositionParams({
+      workspace: source,
+      documentUri: filePath,
+      filePath,
+    }),
   };
 }
 

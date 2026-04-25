@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createInProcessServer, type LspTestClient } from "./_harness/in-process-server";
 import { FakeTypeResolver } from "../_fixtures/fake-type-resolver";
 import {
-  textDocumentPositionFixture,
+  textDocumentPositionParams,
   workspace,
   type CmeWorkspace,
 } from "../../packages/vitest-cme/src";
@@ -181,13 +181,12 @@ function fixturePositionParams(
   readonly textDocument: { readonly uri: string };
   readonly position: { readonly line: number; readonly character: number };
 } {
-  const { textDocument, position } = textDocumentPositionFixture({
+  return textDocumentPositionParams({
     workspace: source,
     documentUri: filePath,
     filePath,
     ...(markerName === undefined ? {} : { markerName }),
   });
-  return { textDocument, position };
 }
 
 describe("definition protocol / clsx", () => {

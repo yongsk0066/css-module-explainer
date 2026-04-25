@@ -13,6 +13,11 @@ export interface CmeTextDocumentPositionFixture {
   readonly target: CmeTargetFixture;
 }
 
+export interface CmeTextDocumentPositionParams {
+  readonly textDocument: { readonly uri: string };
+  readonly position: Position;
+}
+
 export interface CmeTextDocumentPositionFixtureOptions {
   readonly workspace: CmeWorkspace;
   readonly documentUri: string;
@@ -24,10 +29,7 @@ export interface CmeTextDocumentRenameFixture extends CmeTextDocumentPositionFix
   readonly newName: string;
 }
 
-export interface CmeTextDocumentRenameFromCursorFixture extends Omit<
-  CmeTextDocumentPositionFixture,
-  "target"
-> {
+export interface CmeTextDocumentRenameFromCursorFixture extends CmeTextDocumentPositionParams {
   readonly newName: string;
 }
 
@@ -64,6 +66,13 @@ export function textDocumentPositionFixture(
   };
 }
 
+export function textDocumentPositionParams(
+  options: CmeTextDocumentPositionFixtureOptions,
+): CmeTextDocumentPositionParams {
+  const { textDocument, position } = textDocumentPositionFixture(options);
+  return { textDocument, position };
+}
+
 export function textDocumentRenameFixture(
   options: CmeTextDocumentRenameFixtureOptions,
 ): CmeTextDocumentRenameFixture {
@@ -75,7 +84,7 @@ export function textDocumentRenameFixture(
 
 export function textDocumentPositionFromCursor(
   cursor: CmeCursorLike,
-): Omit<CmeTextDocumentPositionFixture, "target"> {
+): CmeTextDocumentPositionParams {
   return {
     textDocument: { uri: cursor.documentUri },
     position: { line: cursor.line, character: cursor.character },
