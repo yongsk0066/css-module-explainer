@@ -107,6 +107,17 @@ describe("check orchestrator manifest", () => {
     );
   });
 
+  it("keeps selected-query consumer coverage on Rust graph host and provider surfaces", () => {
+    const selectedQueryConsumers = resolveGateTarget(manifest, "rust/selected-query/consumers");
+
+    expect(selectedQueryConsumers?.command).toContain(
+      "test/unit/runtime/style-semantic-graph-query-backend.test.ts",
+    );
+    expect(selectedQueryConsumers?.command).toContain(
+      "test/unit/providers/scss-diagnostics.test.ts",
+    );
+  });
+
   it("renders a deterministic check inventory", () => {
     const inventory = renderCheckInventory(manifest);
     expect(inventory).toContain("# Check Inventory");
