@@ -44,7 +44,11 @@ import {
   usesRustSelectorUsageBackend,
   usesRustSourceResolutionBackend,
 } from "./selected-query-backend";
-import { resolveRustSelectorUsagePayload } from "./selector-usage-query-backend";
+import {
+  resolveRustSelectorUsagePayloads,
+  type SelectorUsageEvaluatorCandidateV0,
+  type resolveRustSelectorUsagePayload,
+} from "./selector-usage-query-backend";
 
 export interface BuildSelectedQueryResultsV2Options {
   readonly workspaceRoot: string;
@@ -63,6 +67,7 @@ export interface BuildSelectedQueryResultsV2Options {
   readonly readRustExpressionSemanticsPayload?: typeof resolveRustExpressionSemanticsPayload;
   readonly readRustExpressionSemanticsPayloads?: typeof resolveRustExpressionSemanticsPayloads;
   readonly readRustSelectorUsagePayload?: typeof resolveRustSelectorUsagePayload;
+  readonly readRustSelectorUsagePayloads?: typeof resolveRustSelectorUsagePayloads;
 }
 
 export function buildSelectedQueryResultsV2(
@@ -178,16 +183,15 @@ export function buildSelectedQueryResultsV2(
     }
   }
 
+  const readRustSelectorUsagePayload = usesRustSelectorUsageBackend(selectedQueryBackend)
+    ? createSelectorUsagePayloadReader(options)
+    : null;
   for (const styleFile of options.styleFiles) {
     const styleDocument = options.styleDocumentForPath(styleFile);
     if (!styleDocument) continue;
     for (const selector of listCanonicalSelectors(styleDocument)) {
-      const rustSelectorUsagePayload = usesRustSelectorUsageBackend(selectedQueryBackend)
-        ? (options.readRustSelectorUsagePayload ?? resolveRustSelectorUsagePayload)(
-            options,
-            styleFile,
-            selector.canonicalName,
-          )
+      const rustSelectorUsagePayload = readRustSelectorUsagePayload
+        ? readRustSelectorUsagePayload(options, styleFile, selector.canonicalName)
         : null;
       if (rustSelectorUsagePayload) {
         results.push(
@@ -302,6 +306,36 @@ function selectorUsageResultV2FromRustPayload(
       hasAnyReferences: payload.hasAnyReferences,
     },
   };
+}
+
+function createSelectorUsagePayloadReader(
+  options: BuildSelectedQueryResultsV2Options,
+): typeof resolveRustSelectorUsagePayload {
+  if (options.readRustSelectorUsagePayload) {
+    return options.readRustSelectorUsagePayload;
+  }
+
+  const readPayloads = options.readRustSelectorUsagePayloads ?? resolveRustSelectorUsagePayloads;
+  let payloadsBySelector: ReadonlyMap<string, SelectorUsageEvaluatorCandidateV0> | null = null;
+
+  return (_options, filePath, canonicalName) => {
+    if (!payloadsBySelector) {
+      payloadsBySelector = new Map(
+        readPayloads(options).map((candidate) => [
+          selectorUsagePayloadKey(candidate.filePath, candidate.queryId),
+          candidate,
+        ]),
+      );
+    }
+
+    return (
+      payloadsBySelector.get(selectorUsagePayloadKey(filePath, canonicalName))?.payload ?? null
+    );
+  };
+}
+
+function selectorUsagePayloadKey(filePath: string, canonicalName: string): string {
+  return `${filePath}\u0000${canonicalName}`;
 }
 
 function expressionSemanticsResultV2FromRustPayload(

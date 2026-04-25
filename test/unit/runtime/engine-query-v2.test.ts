@@ -289,6 +289,7 @@ describe("buildSelectedQueryResultsV2", () => {
     ] as const;
     let sourceResolutionPayloadReads = 0;
     let expressionSemanticsPayloadReads = 0;
+    let selectorUsagePayloadReads = 0;
 
     const results = buildResults({
       workspaceRoot: "/fake",
@@ -318,15 +319,23 @@ describe("buildSelectedQueryResultsV2", () => {
           makeExpressionSemanticsPayload("class-expr:1", "active"),
         ];
       },
-      readRustSelectorUsagePayload: () => null,
+      readRustSelectorUsagePayloads: () => {
+        selectorUsagePayloadReads += 1;
+        return [
+          makeSelectorUsageCandidate("/fake/src/Button.module.scss", "indicator"),
+          makeSelectorUsageCandidate("/fake/src/Button.module.scss", "active"),
+        ];
+      },
     });
 
     expect(sourceResolutionPayloadReads).toBe(1);
     expect(expressionSemanticsPayloadReads).toBe(1);
+    expect(selectorUsagePayloadReads).toBe(1);
     expect(results.filter((result) => result.kind === "source-expression-resolution")).toHaveLength(
       2,
     );
     expect(results.filter((result) => result.kind === "expression-semantics")).toHaveLength(2);
+    expect(results.filter((result) => result.kind === "selector-usage")).toHaveLength(2);
   });
 });
 
@@ -360,5 +369,24 @@ function makeExpressionSemanticsPayload(expressionId: string, selectorName: stri
     selectorCertaintyShapeLabel: "bounded selector set (1)",
     valueCertaintyShapeKind: "boundedFinite",
     valueCertaintyShapeLabel: "bounded finite (1)",
+  };
+}
+
+function makeSelectorUsageCandidate(filePath: string, canonicalName: string) {
+  return {
+    kind: "selector-usage" as const,
+    filePath,
+    queryId: canonicalName,
+    payload: {
+      canonicalName,
+      totalReferences: 1,
+      directReferenceCount: 1,
+      editableDirectReferenceCount: 1,
+      exactReferenceCount: 1,
+      inferredOrBetterReferenceCount: 1,
+      hasExpandedReferences: false,
+      hasStyleDependencyReferences: false,
+      hasAnyReferences: true,
+    },
   };
 }

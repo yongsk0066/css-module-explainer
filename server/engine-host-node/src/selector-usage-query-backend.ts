@@ -55,7 +55,7 @@ export interface SelectorUsageRenderSummary {
   readonly hasAnyReferences: boolean;
 }
 
-interface SelectorUsageEvaluatorCandidateV0 {
+export interface SelectorUsageEvaluatorCandidateV0 {
   readonly kind: "selector-usage";
   readonly filePath: string;
   readonly queryId: string;
@@ -68,11 +68,9 @@ interface SelectorUsageCanonicalProducerSignalV0 {
   };
 }
 
-export function resolveRustSelectorUsagePayload(
+export function resolveRustSelectorUsagePayloads(
   options: SelectorUsageQueryBackendOptions,
-  filePath: string,
-  canonicalName: string,
-): SelectorUsageEvaluatorCandidatePayloadV0 | null {
+): readonly SelectorUsageEvaluatorCandidateV0[] {
   const input = buildEngineInputV2({
     workspaceRoot: options.workspaceRoot,
     classnameTransform: options.classnameTransform,
@@ -87,7 +85,15 @@ export function resolveRustSelectorUsagePayload(
     "input-selector-usage-canonical-producer",
     input,
   );
-  const match = signal.evaluatorCandidates.results.find(
+  return signal.evaluatorCandidates.results;
+}
+
+export function resolveRustSelectorUsagePayload(
+  options: SelectorUsageQueryBackendOptions,
+  filePath: string,
+  canonicalName: string,
+): SelectorUsageEvaluatorCandidatePayloadV0 | null {
+  const match = resolveRustSelectorUsagePayloads(options).find(
     (candidate) => candidate.filePath === filePath && candidate.queryId === canonicalName,
   );
   return match?.payload ?? null;
