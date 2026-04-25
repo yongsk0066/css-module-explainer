@@ -6,13 +6,8 @@ import type { CxBinding } from "../../../server/engine-core-ts/src/core/cx/cx-ty
 import type { ResolvedCxBinding } from "../../../server/engine-core-ts/src/core/cx/resolved-bindings";
 import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
-import { NullSemanticWorkspaceReferenceIndex } from "../../../server/engine-core-ts/src/core/semantic/workspace-reference-index";
-import {
-  NOOP_LOG_ERROR,
-  type ProviderDeps,
-} from "../../../server/lsp-server/src/providers/cursor-dispatch";
+import type { ProviderDeps } from "../../../server/lsp-server/src/providers/cursor-dispatch";
 import { computeDiagnostics } from "../../../server/lsp-server/src/providers/diagnostics";
-import { DEFAULT_SETTINGS } from "../../../server/engine-core-ts/src/settings";
 import type { TypeResolver } from "../../../server/engine-core-ts/src/core/ts/type-resolver";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
 import {
@@ -38,6 +33,7 @@ const b = cx('/*<missing>*/unknonw/*</missing>*/');
 const CX_BINDING_RANGE = TSX_WORKSPACE.range("binding", SOURCE_PATH).range;
 const INDICATOR_RANGE = TSX_WORKSPACE.range("indicator", SOURCE_PATH).range;
 const MISSING_CLASS_RANGE = TSX_WORKSPACE.range("missing", SOURCE_PATH).range;
+type TestClassExpression = Parameters<typeof buildTestClassExpressions>[0]["expressions"][number];
 
 const detectCxBindings = (_sourceFile: ts.SourceFile): CxBinding[] => [
   {
@@ -104,6 +100,35 @@ function diagnosticParams(testWorkspace: CmeWorkspace = TSX_WORKSPACE) {
     workspace: testWorkspace,
     filePath: SOURCE_PATH,
     documentUri: SOURCE_URI,
+  });
+}
+
+function makeExpressionDeps(
+  expressionFactory: (bindings: readonly ResolvedCxBinding[]) => TestClassExpression[],
+  selectors: ReadonlyMap<string, ReturnType<typeof info>>,
+  typeResolver: TypeResolver = new FakeTypeResolver(),
+): ProviderDeps {
+  const sourceFileCache = new SourceFileCache({ max: 10 });
+  const analysisCache = new DocumentAnalysisCache({
+    sourceFileCache,
+    fileExists: () => true,
+    aliasResolver: EMPTY_ALIAS_RESOLVER,
+    scanCxImports: (sf, fp) => ({
+      stylesBindings: new Map(),
+      bindings: detectCxBindings(sf, fp),
+    }),
+    parseClassExpressions: (_sf: ts.SourceFile, bindings: readonly ResolvedCxBinding[]) =>
+      buildTestClassExpressions({
+        filePath: SOURCE_PATH,
+        bindings,
+        expressions: bindings.length === 0 ? [] : expressionFactory(bindings),
+      }),
+    max: 10,
+  });
+  return makeBaseDeps({
+    analysisCache,
+    styleDocumentForPath: styleDocumentForSelectors(selectors),
+    typeResolver,
   });
 }
 
@@ -189,53 +214,22 @@ const a = cx(/*<template>*/\`prefix-\${x}\`/*</template>*/);
 `,
     });
     const expressionRange = templateWorkspace.range("template", SOURCE_PATH).range;
-    const sourceFileCache = new SourceFileCache({ max: 10 });
-    const analysisCache = new DocumentAnalysisCache({
-      sourceFileCache,
-      fileExists: () => true,
-      aliasResolver: EMPTY_ALIAS_RESOLVER,
-      scanCxImports: (sf, fp) => ({
-        stylesBindings: new Map(),
-        bindings: detectCxBindings(sf, fp),
-      }),
-      parseClassExpressions: (_sf: ts.SourceFile, bindings: readonly ResolvedCxBinding[]) =>
-        buildTestClassExpressions({
-          filePath: "/fake/ws/src/Button.tsx",
-          bindings,
-          expressions:
-            bindings.length === 0
-              ? []
-              : [
-                  {
-                    kind: "template",
-                    origin: "cxCall",
-                    rawTemplate: "prefix-${x}",
-                    staticPrefix: "prefix-",
-                    range: expressionRange,
-                    scssModulePath: bindings[0]!.scssModulePath,
-                  },
-                ],
-        }),
-      max: 10,
-    });
-    const deps: ProviderDeps = {
-      analysisCache,
-      styleDocumentForPath: styleDocumentForSelectors(
-        new Map([
-          ["indicator", info("indicator")],
-          ["active", info("active")],
-        ]),
-      ),
-      typeResolver: new FakeTypeResolver(),
-      semanticReferenceIndex: new NullSemanticWorkspaceReferenceIndex(),
-      workspaceRoot: "/fake/ws",
-      logError: NOOP_LOG_ERROR,
-      invalidateStyle: () => {},
-      pushStyleFile: () => {},
-      indexerReady: Promise.resolve(),
-      stopIndexer: () => {},
-      settings: DEFAULT_SETTINGS,
-    };
+    const deps = makeExpressionDeps(
+      (bindings) => [
+        {
+          kind: "template",
+          origin: "cxCall",
+          rawTemplate: "prefix-${x}",
+          staticPrefix: "prefix-",
+          range: expressionRange,
+          scssModulePath: bindings[0]!.scssModulePath,
+        },
+      ],
+      new Map([
+        ["indicator", info("indicator")],
+        ["active", info("active")],
+      ]),
+    );
     const result = computeDiagnostics(diagnosticParams(templateWorkspace), deps);
     expect(result).toHaveLength(1);
     expect(result[0]!.message).toContain("No class starting with 'prefix-'");
@@ -252,34 +246,6 @@ const a = cx(/*<size>*/size/*</size>*/);
 `,
     });
     const expressionRange = unionWorkspace.range("size", SOURCE_PATH).range;
-    const sourceFileCache = new SourceFileCache({ max: 10 });
-    const analysisCache = new DocumentAnalysisCache({
-      sourceFileCache,
-      fileExists: () => true,
-      aliasResolver: EMPTY_ALIAS_RESOLVER,
-      scanCxImports: (sf, fp) => ({
-        stylesBindings: new Map(),
-        bindings: detectCxBindings(sf, fp),
-      }),
-      parseClassExpressions: (_sf: ts.SourceFile, bindings: readonly ResolvedCxBinding[]) =>
-        buildTestClassExpressions({
-          filePath: "/fake/ws/src/Button.tsx",
-          bindings,
-          expressions:
-            bindings.length === 0
-              ? []
-              : [
-                  {
-                    kind: "symbolRef",
-                    origin: "cxCall",
-                    rawReference: "size",
-                    range: expressionRange,
-                    scssModulePath: bindings[0]!.scssModulePath,
-                  },
-                ],
-        }),
-      max: 10,
-    });
     // Union has three values but classMap only has two of them.
     class UnionResolver implements TypeResolver {
       resolve(_filePath?: string, _variableName?: string, _workspaceRoot?: string, _range?: Range) {
@@ -288,24 +254,22 @@ const a = cx(/*<size>*/size/*</size>*/);
       invalidate() {}
       clear() {}
     }
-    const deps: ProviderDeps = {
-      analysisCache,
-      styleDocumentForPath: styleDocumentForSelectors(
-        new Map([
-          ["small", info("small")],
-          ["medium", info("medium")],
-        ]),
-      ),
-      typeResolver: new UnionResolver(),
-      semanticReferenceIndex: new NullSemanticWorkspaceReferenceIndex(),
-      workspaceRoot: "/fake/ws",
-      logError: NOOP_LOG_ERROR,
-      invalidateStyle: () => {},
-      pushStyleFile: () => {},
-      indexerReady: Promise.resolve(),
-      stopIndexer: () => {},
-      settings: DEFAULT_SETTINGS,
-    };
+    const deps = makeExpressionDeps(
+      (bindings) => [
+        {
+          kind: "symbolRef",
+          origin: "cxCall",
+          rawReference: "size",
+          range: expressionRange,
+          scssModulePath: bindings[0]!.scssModulePath,
+        },
+      ],
+      new Map([
+        ["small", info("small")],
+        ["medium", info("medium")],
+      ]),
+      new UnionResolver(),
+    );
     const result = computeDiagnostics(diagnosticParams(unionWorkspace), deps);
     expect(result).toHaveLength(1);
     expect(result[0]!.message).toContain("Missing class for union member");
@@ -327,47 +291,18 @@ const a = cx(/*<size>*/size/*</size>*/);
 `,
     });
     const expressionRange = flowWorkspace.range("size", SOURCE_PATH).range;
-    const sourceFileCache = new SourceFileCache({ max: 10 });
-    const analysisCache = new DocumentAnalysisCache({
-      sourceFileCache,
-      fileExists: () => true,
-      aliasResolver: EMPTY_ALIAS_RESOLVER,
-      scanCxImports: (sf, fp) => ({
-        stylesBindings: new Map(),
-        bindings: detectCxBindings(sf, fp),
-      }),
-      parseClassExpressions: (_sf: ts.SourceFile, bindings: readonly ResolvedCxBinding[]) =>
-        buildTestClassExpressions({
-          filePath: "/fake/ws/src/Button.tsx",
-          bindings,
-          expressions:
-            bindings.length === 0
-              ? []
-              : [
-                  {
-                    kind: "symbolRef",
-                    origin: "cxCall",
-                    rawReference: "size",
-                    range: expressionRange,
-                    scssModulePath: bindings[0]!.scssModulePath,
-                  },
-                ],
-        }),
-      max: 10,
-    });
-    const deps: ProviderDeps = {
-      analysisCache,
-      styleDocumentForPath: styleDocumentForSelectors(new Map([["small", info("small")]])),
-      typeResolver: new FakeTypeResolver(),
-      semanticReferenceIndex: new NullSemanticWorkspaceReferenceIndex(),
-      workspaceRoot: "/fake/ws",
-      logError: NOOP_LOG_ERROR,
-      invalidateStyle: () => {},
-      pushStyleFile: () => {},
-      indexerReady: Promise.resolve(),
-      stopIndexer: () => {},
-      settings: DEFAULT_SETTINGS,
-    };
+    const deps = makeExpressionDeps(
+      (bindings) => [
+        {
+          kind: "symbolRef",
+          origin: "cxCall",
+          rawReference: "size",
+          range: expressionRange,
+          scssModulePath: bindings[0]!.scssModulePath,
+        },
+      ],
+      new Map([["small", info("small")]]),
+    );
     const result = computeDiagnostics(diagnosticParams(flowWorkspace), deps);
     expect(result).toHaveLength(1);
     expect(result[0]!.message).toContain("Missing class for possible value");
@@ -389,47 +324,18 @@ const a = cx(/*<unknown>*/unknown/*</unknown>*/);
 `,
     });
     const expressionRange = unresolvedWorkspace.range("unknown", SOURCE_PATH).range;
-    const sourceFileCache = new SourceFileCache({ max: 10 });
-    const analysisCache = new DocumentAnalysisCache({
-      sourceFileCache,
-      fileExists: () => true,
-      aliasResolver: EMPTY_ALIAS_RESOLVER,
-      scanCxImports: (sf, fp) => ({
-        stylesBindings: new Map(),
-        bindings: detectCxBindings(sf, fp),
-      }),
-      parseClassExpressions: (_sf: ts.SourceFile, bindings: readonly ResolvedCxBinding[]) =>
-        buildTestClassExpressions({
-          filePath: "/fake/ws/src/Button.tsx",
-          bindings,
-          expressions:
-            bindings.length === 0
-              ? []
-              : [
-                  {
-                    kind: "symbolRef",
-                    origin: "cxCall",
-                    rawReference: "unknown",
-                    range: expressionRange,
-                    scssModulePath: bindings[0]!.scssModulePath,
-                  },
-                ],
-        }),
-      max: 10,
-    });
-    const deps: ProviderDeps = {
-      analysisCache,
-      styleDocumentForPath: styleDocumentForSelectors(new Map([["indicator", info("indicator")]])),
-      typeResolver: new FakeTypeResolver(), // always unresolvable
-      semanticReferenceIndex: new NullSemanticWorkspaceReferenceIndex(),
-      workspaceRoot: "/fake/ws",
-      logError: NOOP_LOG_ERROR,
-      invalidateStyle: () => {},
-      pushStyleFile: () => {},
-      indexerReady: Promise.resolve(),
-      stopIndexer: () => {},
-      settings: DEFAULT_SETTINGS,
-    };
+    const deps = makeExpressionDeps(
+      (bindings) => [
+        {
+          kind: "symbolRef",
+          origin: "cxCall",
+          rawReference: "unknown",
+          range: expressionRange,
+          scssModulePath: bindings[0]!.scssModulePath,
+        },
+      ],
+      new Map([["indicator", info("indicator")]]),
+    );
     const result = computeDiagnostics(diagnosticParams(unresolvedWorkspace), deps);
     expect(result).toEqual([]);
   });
