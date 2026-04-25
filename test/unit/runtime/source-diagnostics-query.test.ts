@@ -119,6 +119,51 @@ function makeSymbolRefDeps(options: { readonly typeResolver?: TypeResolver } = {
   });
 }
 
+function makeMultiSymbolRefDeps(): ProviderDeps {
+  const sourceFileCache = new SourceFileCache({ max: 10 });
+  const analysisCache = new DocumentAnalysisCache({
+    sourceFileCache,
+    fileExists: () => true,
+    aliasResolver: EMPTY_ALIAS_RESOLVER,
+    scanCxImports: (sf, fp) => ({ stylesBindings: new Map(), bindings: detectCxBindings(sf, fp) }),
+    parseClassExpressions: (_sf, bindings) =>
+      buildTestClassExpressions({
+        filePath: "/fake/ws/src/Button.tsx",
+        bindings,
+        expressions:
+          bindings.length === 0
+            ? []
+            : [
+                {
+                  kind: "symbolRef",
+                  origin: "cxCall",
+                  rawReference: "size",
+                  rootName: "size",
+                  pathSegments: [],
+                  range: { start: { line: 5, character: 17 }, end: { line: 5, character: 21 } },
+                  scssModulePath: bindings[0]!.scssModulePath,
+                },
+                {
+                  kind: "symbolRef",
+                  origin: "cxCall",
+                  rawReference: "tone",
+                  rootName: "tone",
+                  pathSegments: [],
+                  range: { start: { line: 6, character: 17 }, end: { line: 6, character: 21 } },
+                  scssModulePath: bindings[0]!.scssModulePath,
+                },
+              ],
+      }),
+    max: 10,
+  });
+  return makeBaseDeps({
+    analysisCache,
+    selectorMapForPath: () => new Map([["unknown", info("unknown")]]),
+    typeResolver: new FakeTypeResolver(["small", "large"]),
+    workspaceRoot: "/fake/ws",
+  });
+}
+
 describe("resolveSourceDiagnosticFindings", () => {
   it("returns source checker findings through the host boundary", () => {
     const findings = resolveSourceDiagnosticFindings(
@@ -216,6 +261,67 @@ describe("resolveSourceDiagnosticFindings", () => {
       code: "missing-resolved-class-values",
       missingValues: ["small", "large"],
     });
+  });
+
+  it("reuses rust expression-semantics payloads across symbol refs in the same style module", () => {
+    let payloadReads = 0;
+
+    const findings = resolveSourceDiagnosticFindings(
+      {
+        documentUri: "file:///fake/ws/src/Button.tsx",
+        content: SYMBOL_REF_TSX,
+        filePath: "/fake/ws/src/Button.tsx",
+        version: 1,
+      },
+      makeMultiSymbolRefDeps(),
+      {
+        env: {
+          CME_SELECTED_QUERY_BACKEND: "rust-expression-semantics",
+        } as NodeJS.ProcessEnv,
+        readRustExpressionSemanticsPayloads: () => {
+          payloadReads += 1;
+          return [
+            {
+              expressionId: "class-expr:0",
+              expressionKind: "symbolRef",
+              styleFilePath: "/fake/ws/src/Button.module.scss",
+              selectorNames: [],
+              candidateNames: ["small"],
+              finiteValues: ["small"],
+              valueDomainKind: "finiteSet",
+              selectorCertainty: "possible",
+              valueCertainty: "inferred",
+              selectorCertaintyShapeKind: "unknown",
+              selectorCertaintyShapeLabel: "unknown",
+              valueCertaintyShapeKind: "boundedFinite",
+              valueCertaintyShapeLabel: "bounded finite (1)",
+            },
+            {
+              expressionId: "class-expr:1",
+              expressionKind: "symbolRef",
+              styleFilePath: "/fake/ws/src/Button.module.scss",
+              selectorNames: [],
+              candidateNames: ["large"],
+              finiteValues: ["large"],
+              valueDomainKind: "finiteSet",
+              selectorCertainty: "possible",
+              valueCertainty: "inferred",
+              selectorCertaintyShapeKind: "unknown",
+              selectorCertaintyShapeLabel: "unknown",
+              valueCertaintyShapeKind: "boundedFinite",
+              valueCertaintyShapeLabel: "bounded finite (1)",
+            },
+          ];
+        },
+      },
+    );
+
+    expect(payloadReads).toBe(1);
+    expect(findings).toHaveLength(2);
+    expect(findings.map((finding) => finding.code)).toEqual([
+      "missing-resolved-class-values",
+      "missing-resolved-class-values",
+    ]);
   });
 });
 

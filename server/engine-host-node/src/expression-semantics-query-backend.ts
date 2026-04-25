@@ -60,6 +60,22 @@ interface ExpressionSemanticsCanonicalProducerSignalV0 {
   };
 }
 
+export function resolveRustExpressionSemanticsPayloads(
+  document: SelectedQueryBackendDocument,
+  scssModulePath: string,
+  deps: Pick<
+    ProviderDeps,
+    "analysisCache" | "styleDocumentForPath" | "typeResolver" | "workspaceRoot" | "settings"
+  >,
+): readonly ExpressionSemanticsEvaluatorCandidatePayloadV0[] {
+  const input = buildSelectedQueryBackendInput(document, scssModulePath, deps);
+  const signal = runRustSelectedQueryBackendJson<ExpressionSemanticsCanonicalProducerSignalV0>(
+    "input-expression-semantics-canonical-producer",
+    input,
+  );
+  return signal.evaluatorCandidates.results.map((candidate) => candidate.payload);
+}
+
 export function resolveRustExpressionSemanticsPayload(
   document: SelectedQueryBackendDocument,
   expressionId: string,
@@ -69,15 +85,10 @@ export function resolveRustExpressionSemanticsPayload(
     "analysisCache" | "styleDocumentForPath" | "typeResolver" | "workspaceRoot" | "settings"
   >,
 ): ExpressionSemanticsEvaluatorCandidatePayloadV0 | null {
-  const input = buildSelectedQueryBackendInput(document, scssModulePath, deps);
-  const signal = runRustSelectedQueryBackendJson<ExpressionSemanticsCanonicalProducerSignalV0>(
-    "input-expression-semantics-canonical-producer",
-    input,
+  const match = resolveRustExpressionSemanticsPayloads(document, scssModulePath, deps).find(
+    (payload) => payload.expressionId === expressionId,
   );
-  const match = signal.evaluatorCandidates.results.find(
-    (candidate) => candidate.queryId === expressionId,
-  );
-  return match?.payload ?? null;
+  return match ?? null;
 }
 
 export function buildExpressionSemanticsSummaryFromRustPayload(

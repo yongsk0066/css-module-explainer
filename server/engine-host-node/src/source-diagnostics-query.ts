@@ -7,7 +7,9 @@ import { findInvalidClassReference } from "../../engine-core-ts/src/core/query";
 import type { DocumentParams, ProviderDeps } from "../../engine-core-ts/src/provider-deps";
 import {
   buildExpressionSemanticsSummaryFromRustPayload,
-  resolveRustExpressionSemanticsPayload,
+  resolveRustExpressionSemanticsPayloads,
+  type ExpressionSemanticsEvaluatorCandidatePayloadV0,
+  type resolveRustExpressionSemanticsPayload,
 } from "./expression-semantics-query-backend";
 import {
   resolveSelectedQueryBackendKind,
@@ -17,6 +19,7 @@ import {
 export interface SourceDiagnosticsQueryOptions {
   readonly env?: NodeJS.ProcessEnv;
   readonly readRustExpressionSemanticsPayload?: typeof resolveRustExpressionSemanticsPayload;
+  readonly readRustExpressionSemanticsPayloads?: typeof resolveRustExpressionSemanticsPayloads;
 }
 
 export function resolveSourceDiagnosticFindings(
@@ -37,7 +40,7 @@ export function resolveSourceDiagnosticFindings(
     return resolveSourceDiagnosticFindingsViaRustSemantics(
       params,
       deps,
-      options.readRustExpressionSemanticsPayload ?? resolveRustExpressionSemanticsPayload,
+      createRustExpressionSemanticsPayloadReader(params, deps, options),
     );
   }
 
@@ -204,6 +207,48 @@ function resolveSourceDiagnosticFindingsViaRustSemantics(
   }
 
   return findings;
+}
+
+function createRustExpressionSemanticsPayloadReader(
+  params: DocumentParams,
+  deps: Pick<
+    ProviderDeps,
+    "analysisCache" | "styleDocumentForPath" | "typeResolver" | "workspaceRoot" | "settings"
+  >,
+  options: SourceDiagnosticsQueryOptions,
+): typeof resolveRustExpressionSemanticsPayload {
+  if (options.readRustExpressionSemanticsPayload) {
+    return options.readRustExpressionSemanticsPayload;
+  }
+
+  const readPayloads =
+    options.readRustExpressionSemanticsPayloads ?? resolveRustExpressionSemanticsPayloads;
+  const payloadsByStylePath = new Map<
+    string,
+    ReadonlyMap<string, ExpressionSemanticsEvaluatorCandidatePayloadV0>
+  >();
+
+  return (_document, expressionId, scssModulePath) => {
+    let payloadsByExpressionId = payloadsByStylePath.get(scssModulePath);
+    if (!payloadsByExpressionId) {
+      const payloads = readPayloads(
+        {
+          uri: params.documentUri,
+          content: params.content,
+          filePath: params.filePath,
+          version: params.version,
+        },
+        scssModulePath,
+        deps,
+      );
+      payloadsByExpressionId = new Map(
+        payloads.map((payload) => [payload.expressionId, payload] as const),
+      );
+      payloadsByStylePath.set(scssModulePath, payloadsByExpressionId);
+    }
+
+    return payloadsByExpressionId.get(expressionId) ?? null;
+  };
 }
 
 function createFallbackFindingReader(args: {
