@@ -4,6 +4,14 @@ export {
   type CmeDocumentFixture,
   type CmeDocumentFixtureOptions,
 } from "./document";
+export {
+  textDocumentPositionFixture,
+  textDocumentRenameFixture,
+  type CmeTextDocumentPositionFixture,
+  type CmeTextDocumentPositionFixtureOptions,
+  type CmeTextDocumentRenameFixture,
+  type CmeTextDocumentRenameFixtureOptions,
+} from "./lsp";
 export { targetFixture, type CmeTargetFixture, type CmeTargetFixtureOptions } from "./target";
 export {
   MarkerParseError,

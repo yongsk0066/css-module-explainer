@@ -4,6 +4,8 @@ import {
   cursorFixture,
   documentFixture,
   targetFixture,
+  textDocumentPositionFixture,
+  textDocumentRenameFixture,
   workspace,
 } from "../../../packages/vitest-cme/src";
 
@@ -138,6 +140,48 @@ describe("vitest-cme workspace markers", () => {
         filePath: "Button.module.scss",
         position: { line: 0, character: 17 },
       },
+    });
+  });
+
+  it("builds LSP text document position params from a marker", () => {
+    const ws = workspace({
+      "Button.module.scss": ".button { color: /*at:value*/$gap; }",
+    });
+
+    expect(
+      textDocumentPositionFixture({
+        workspace: ws,
+        filePath: "Button.module.scss",
+        documentUri: "file:///fake/Button.module.scss",
+        markerName: "value",
+      }),
+    ).toMatchObject({
+      textDocument: { uri: "file:///fake/Button.module.scss" },
+      position: { line: 0, character: 17 },
+      target: {
+        filePath: "Button.module.scss",
+        marker: { name: "value" },
+      },
+    });
+  });
+
+  it("builds LSP rename params from a marker", () => {
+    const ws = workspace({
+      "Button.module.scss": ".button { color: /*at:value*/$gap; }",
+    });
+
+    expect(
+      textDocumentRenameFixture({
+        workspace: ws,
+        filePath: "Button.module.scss",
+        documentUri: "file:///fake/Button.module.scss",
+        markerName: "value",
+        newName: "spacing",
+      }),
+    ).toMatchObject({
+      textDocument: { uri: "file:///fake/Button.module.scss" },
+      position: { line: 0, character: 17 },
+      newName: "spacing",
     });
   });
 });

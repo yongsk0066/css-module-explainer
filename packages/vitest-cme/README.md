@@ -11,6 +11,8 @@ one fixture at a time.
 - `documentFixture()` for provider-style document params from a workspace file
 - `cursorFixture()` for provider-style cursor params from a marker
 - `targetFixture()` for runtime query targets from a marker
+- `textDocumentPositionFixture()` / `textDocumentRenameFixture()` for LSP-style
+  `{ textDocument, position }` and rename params from a marker
 - `scenario()` wrapper actions: `hover`, `definition`, `prepareRename`,
   `codeAction`, `completion`, with action result types preserved
 - `registerCmeMatchers()` with five domain-oriented matchers

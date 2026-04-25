@@ -15,6 +15,8 @@ import {
   cursorFixture,
   scenario,
   targetFixture,
+  textDocumentPositionFixture,
+  textDocumentRenameFixture,
   workspace,
   type CmeWorkspace,
   type Range,
@@ -128,11 +130,12 @@ function stylePositionParams(
   markerName = "cursor",
   filePath?: string,
 ) {
-  const target = targetFixture({ workspace: fixture, markerName, filePath });
-  return {
-    textDocument: { uri },
-    position: target.position,
-  };
+  return textDocumentPositionFixture({
+    workspace: fixture,
+    documentUri: uri,
+    markerName,
+    filePath,
+  });
 }
 
 function styleRenameParams(
@@ -142,10 +145,13 @@ function styleRenameParams(
   markerName = "cursor",
   filePath?: string,
 ) {
-  return {
-    ...stylePositionParams(fixture, uri, markerName, filePath),
+  return textDocumentRenameFixture({
+    workspace: fixture,
+    documentUri: uri,
+    markerName,
+    filePath,
     newName,
-  };
+  });
 }
 
 describe("handlePrepareRename", () => {
@@ -169,10 +175,7 @@ describe("handlePrepareRename", () => {
 
   it("returns null for non-style files", () => {
     const result = handlePrepareRename(
-      {
-        textDocument: { uri: NON_STYLE_URI },
-        position: targetFixture({ workspace: NON_STYLE_WORKSPACE }).position,
-      },
+      stylePositionParams(NON_STYLE_WORKSPACE, NON_STYLE_URI),
       makeDeps(),
     );
     expect(result).toBeNull();
@@ -259,11 +262,7 @@ describe("handleRename", () => {
 
   it("returns null for non-style files (TS/TSX side not yet wired)", () => {
     const result = handleRename(
-      {
-        textDocument: { uri: NON_STYLE_URI },
-        position: targetFixture({ workspace: NON_STYLE_WORKSPACE }).position,
-        newName: "status",
-      },
+      styleRenameParams(NON_STYLE_WORKSPACE, NON_STYLE_URI, "status"),
       makeDeps(),
     );
     expect(result).toBeNull();

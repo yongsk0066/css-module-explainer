@@ -9,7 +9,7 @@ import type { ProviderDeps } from "../../../server/lsp-server/src/providers/curs
 import { handleReferences } from "../../../server/lsp-server/src/providers/references";
 import {
   cursorFixture,
-  targetFixture,
+  textDocumentPositionFixture,
   workspace,
   type CmeWorkspace,
   type Range,
@@ -92,12 +92,24 @@ function sourceReferenceParams(cursor = sourceCursor()) {
   };
 }
 
-function styleCursorPosition(
+function styleReferenceParams(
   fixture: CmeWorkspace = STYLE_WORKSPACE,
-  markerName = "cursor",
-  filePath?: string,
+  options: {
+    readonly uri?: string;
+    readonly markerName?: string;
+    readonly filePath?: string;
+    readonly includeDeclaration?: boolean;
+  } = {},
 ) {
-  return targetFixture({ workspace: fixture, markerName, filePath }).position;
+  return {
+    ...textDocumentPositionFixture({
+      workspace: fixture,
+      documentUri: options.uri ?? STYLE_URI,
+      markerName: options.markerName ?? "cursor",
+      filePath: options.filePath,
+    }),
+    context: { includeDeclaration: options.includeDeclaration ?? true },
+  };
 }
 
 function makeSourceDeps(expressionRange: Range = SOURCE_CLASS_RANGE): ProviderDeps {
@@ -148,11 +160,7 @@ function makeSourceDeps(expressionRange: Range = SOURCE_CLASS_RANGE): ProviderDe
 describe("handleReferences", () => {
   it("returns null for non-style files", () => {
     const result = handleReferences(
-      {
-        textDocument: { uri: NON_STYLE_URI },
-        position: targetFixture({ workspace: NON_STYLE_WORKSPACE }).position,
-        context: { includeDeclaration: true },
-      },
+      styleReferenceParams(NON_STYLE_WORKSPACE, { uri: NON_STYLE_URI }),
       makeDeps(),
     );
     expect(result).toBeNull();
@@ -175,14 +183,7 @@ describe("handleReferences", () => {
   });
 
   it("returns null when cursor is not on a class selector", () => {
-    const result = handleReferences(
-      {
-        textDocument: { uri: STYLE_URI },
-        position: styleCursorPosition(NO_SELECTOR_STYLE_WORKSPACE),
-        context: { includeDeclaration: true },
-      },
-      makeDeps(),
-    );
+    const result = handleReferences(styleReferenceParams(NO_SELECTOR_STYLE_WORKSPACE), makeDeps());
     expect(result).toBeNull();
   });
 
@@ -192,11 +193,7 @@ describe("handleReferences", () => {
       semanticSiteAt("file:///fake/src/App.tsx", "indicator", 10, "/fake/src/Button.module.scss"),
     ]);
     const result = handleReferences(
-      {
-        textDocument: { uri: STYLE_URI },
-        position: styleCursorPosition(),
-        context: { includeDeclaration: true },
-      },
+      styleReferenceParams(),
       makeDeps({ semanticReferenceIndex: idx }),
     );
     expect(result).not.toBeNull();
@@ -223,11 +220,7 @@ describe("handleReferences", () => {
     );
     idx.record("file:///fake/src/App.tsx", [expectedSite]);
     const result = handleReferences(
-      {
-        textDocument: { uri: STYLE_URI },
-        position: styleCursorPosition(),
-        context: { includeDeclaration: true },
-      },
+      styleReferenceParams(),
       makeDeps({ semanticReferenceIndex: idx }),
     );
 
@@ -267,15 +260,10 @@ describe("handleReferences", () => {
     ]);
 
     const result = handleReferences(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: styleCursorPosition(
-          workspace({ [SCSS_PATH]: "\n./*|*/btn-small {}\n.btn-large {}\n" }),
-          "cursor",
-          SCSS_PATH,
-        ),
-        context: { includeDeclaration: true },
-      },
+      styleReferenceParams(workspace({ [SCSS_PATH]: "\n./*|*/btn-small {}\n.btn-large {}\n" }), {
+        uri: SCSS_URI,
+        filePath: SCSS_PATH,
+      }),
       makeBaseDeps({
         selectorMapForPath: () =>
           new Map([
@@ -320,15 +308,10 @@ describe("handleReferences", () => {
     );
 
     const result = handleReferences(
-      {
-        textDocument: { uri: BASE_URI },
-        position: styleCursorPosition(
-          workspace({ [BASE_PATH]: "\n\n\n\n\n./*|*/base {}\n" }),
-          "cursor",
-          BASE_PATH,
-        ),
-        context: { includeDeclaration: true },
-      },
+      styleReferenceParams(workspace({ [BASE_PATH]: "\n\n\n\n\n./*|*/base {}\n" }), {
+        uri: BASE_URI,
+        filePath: BASE_PATH,
+      }),
       makeBaseDeps({
         selectorMapForPath: (path) => {
           if (path === BASE_PATH) return new Map([["base", infoAtLine("base", 5)]]);
@@ -435,11 +418,7 @@ describe("handleReferences", () => {
     // alias access under the canonical `btn-primary` selector, so
     // the provider must route through `originalName` to find it.
     const result = handleReferences(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: styleCursorPosition(fixture),
-        context: { includeDeclaration: true },
-      },
+      styleReferenceParams(fixture, { uri: SCSS_URI }),
       makeBaseDeps({
         selectorMapForPath: () => classMap,
         workspaceRoot: "/fake",
@@ -475,11 +454,7 @@ describe("handleReferences", () => {
     ]);
 
     const result = handleReferences(
-      {
-        textDocument: { uri: SCSS_URI },
-        position: styleCursorPosition(fixture),
-        context: { includeDeclaration: true },
-      },
+      styleReferenceParams(fixture, { uri: SCSS_URI }),
       makeBaseDeps({
         selectorMapForPath: () => classMap,
         workspaceRoot: "/fake",
@@ -495,11 +470,7 @@ describe("handleReferences", () => {
   it("logs and returns null on exception", () => {
     const logError = vi.fn();
     const result = handleReferences(
-      {
-        textDocument: { uri: STYLE_URI },
-        position: styleCursorPosition(),
-        context: { includeDeclaration: true },
-      },
+      styleReferenceParams(),
       makeDeps({
         selectorMapForPath: () => {
           throw new Error("boom");
