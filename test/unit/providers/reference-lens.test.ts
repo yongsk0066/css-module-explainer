@@ -10,6 +10,10 @@ import {
   parseStyleSelectorMap,
 } from "../../_fixtures/style-documents";
 
+const SOURCE_URI = "file:///fake/src/Button.tsx";
+const STYLE_PATH = "/fake/src/Button.module.scss";
+const STYLE_URI = "file:///fake/src/Button.module.scss";
+
 function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   return makeBaseDeps({
     selectorMapForPath: () =>
@@ -22,32 +26,25 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   });
 }
 
+function codeLensParams(uri = STYLE_URI) {
+  return { textDocument: { uri } };
+}
+
 describe("handleCodeLens", () => {
   it("returns null for non-style files", () => {
-    const result = handleCodeLens(
-      { textDocument: { uri: "file:///fake/src/Button.tsx" } },
-      makeDeps(),
-    );
+    const result = handleCodeLens(codeLensParams(SOURCE_URI), makeDeps());
     expect(result).toBeNull();
   });
 
   it("returns null when no class has references", () => {
-    const result = handleCodeLens(
-      { textDocument: { uri: "file:///fake/src/Button.module.scss" } },
-      makeDeps(),
-    );
+    const result = handleCodeLens(codeLensParams(), makeDeps());
     expect(result).toBeNull();
   });
 
   it("shows reference count when sites exist", () => {
     const idx = new WorkspaceSemanticWorkspaceReferenceIndex();
-    idx.record("file:///a.tsx", [
-      semanticSiteAt("file:///a.tsx", "indicator", 10, "/fake/src/Button.module.scss"),
-    ]);
-    const result = handleCodeLens(
-      { textDocument: { uri: "file:///fake/src/Button.module.scss" } },
-      makeDeps({ semanticReferenceIndex: idx }),
-    );
+    idx.record("file:///a.tsx", [semanticSiteAt("file:///a.tsx", "indicator", 10, STYLE_PATH)]);
+    const result = handleCodeLens(codeLensParams(), makeDeps({ semanticReferenceIndex: idx }));
     expect(result).not.toBeNull();
     const indicatorLens = result!.find((l) => l.command?.title.includes("1 reference"));
     expect(indicatorLens).toBeDefined();
@@ -56,22 +53,12 @@ describe("handleCodeLens", () => {
   it("uses semantic reference counts when available", () => {
     const idx = new WorkspaceSemanticWorkspaceReferenceIndex();
     idx.record("file:///a.tsx", [
-      semanticSiteAt(
-        "file:///fake/src/App.tsx",
-        "indicator",
-        10,
-        "/fake/src/Button.module.scss",
-        "indicator",
-        {
-          start: 5,
-          end: 14,
-        },
-      ),
+      semanticSiteAt("file:///fake/src/App.tsx", "indicator", 10, STYLE_PATH, "indicator", {
+        start: 5,
+        end: 14,
+      }),
     ]);
-    const result = handleCodeLens(
-      { textDocument: { uri: "file:///fake/src/Button.module.scss" } },
-      makeDeps({ semanticReferenceIndex: idx }),
-    );
+    const result = handleCodeLens(codeLensParams(), makeDeps({ semanticReferenceIndex: idx }));
 
     expect(result).not.toBeNull();
     const indicatorLens = result!.find((lens) => lens.command?.title === "1 reference");
@@ -100,7 +87,7 @@ describe("handleCodeLens", () => {
     );
 
     const result = handleCodeLens(
-      { textDocument: { uri: BASE_URI } },
+      codeLensParams(BASE_URI),
       makeBaseDeps({
         selectorMapForPath: (path) => {
           if (path === BASE_PATH) return new Map([["base", infoAtLine("base", 5)]]);
@@ -120,34 +107,22 @@ describe("handleCodeLens", () => {
   it("annotates dynamic references in the code lens title", () => {
     const idx = new WorkspaceSemanticWorkspaceReferenceIndex();
     idx.record("file:///a.tsx", [
-      semanticSiteAt(
-        "file:///fake/src/App.tsx",
-        "indicator",
-        10,
-        "/fake/src/Button.module.scss",
-        "indicator",
-        {
-          start: 5,
-          end: 18,
-          certainty: "inferred",
-          reason: "templatePrefix",
-        },
-      ),
+      semanticSiteAt("file:///fake/src/App.tsx", "indicator", 10, STYLE_PATH, "indicator", {
+        start: 5,
+        end: 18,
+        certainty: "inferred",
+        reason: "templatePrefix",
+      }),
     ]);
 
-    const result = handleCodeLens(
-      { textDocument: { uri: "file:///fake/src/Button.module.scss" } },
-      makeDeps({ semanticReferenceIndex: idx }),
-    );
+    const result = handleCodeLens(codeLensParams(), makeDeps({ semanticReferenceIndex: idx }));
 
     expect(result).not.toBeNull();
     expect(result![0]!.command?.title).toBe("1 reference (0 direct, dynamic)");
   });
 
   it("classnameTransform (camelCaseOnly): emits a lens for an alias-only entry whose bucket lives under canonical", async () => {
-    const SCSS_PATH = "/fake/src/Button.module.scss";
-    const SCSS_URI = "file:///fake/src/Button.module.scss";
-    const base = parseStyleSelectorMap(`.btn-primary { color: red; }`, SCSS_PATH);
+    const base = parseStyleSelectorMap(`.btn-primary { color: red; }`, STYLE_PATH);
     const classMap = expandSelectorMapWithTransform(base, "camelCaseOnly");
     // Under camelCaseOnly the original key is gone; only the alias
     // entry remains, keyed by `btnPrimary` with `originalName`
@@ -157,14 +132,14 @@ describe("handleCodeLens", () => {
 
     const idx = new WorkspaceSemanticWorkspaceReferenceIndex();
     idx.record("file:///fake/src/App.tsx", [
-      semanticSiteAt("file:///fake/src/App.tsx", "btnPrimary", 5, SCSS_PATH, "btn-primary", {
+      semanticSiteAt("file:///fake/src/App.tsx", "btnPrimary", 5, STYLE_PATH, "btn-primary", {
         reason: "styleAccess",
         origin: "styleAccess",
       }),
     ]);
 
     const result = handleCodeLens(
-      { textDocument: { uri: SCSS_URI } },
+      codeLensParams(),
       makeBaseDeps({
         selectorMapForPath: () => classMap,
         workspaceRoot: "/fake",
@@ -178,9 +153,7 @@ describe("handleCodeLens", () => {
   });
 
   it("classnameTransform: emits one lens reflecting the canonical bucket across both class-map views", async () => {
-    const SCSS_PATH = "/fake/src/Button.module.scss";
-    const SCSS_URI = "file:///fake/src/Button.module.scss";
-    const base = parseStyleSelectorMap(`.btn-primary { color: red; }`, SCSS_PATH);
+    const base = parseStyleSelectorMap(`.btn-primary { color: red; }`, STYLE_PATH);
     const classMap = expandSelectorMapWithTransform(base, "camelCase");
     // Under camelCase the map holds both views of the same class.
     expect(classMap.has("btn-primary")).toBe(true);
@@ -191,15 +164,15 @@ describe("handleCodeLens", () => {
     // distinguishable count.
     const idx = new WorkspaceSemanticWorkspaceReferenceIndex();
     idx.record("file:///fake/src/App.tsx", [
-      semanticSiteAt("file:///fake/src/App.tsx", "btn-primary", 5, SCSS_PATH, "btn-primary"),
-      semanticSiteAt("file:///fake/src/App.tsx", "btnPrimary", 9, SCSS_PATH, "btn-primary", {
+      semanticSiteAt("file:///fake/src/App.tsx", "btn-primary", 5, STYLE_PATH, "btn-primary"),
+      semanticSiteAt("file:///fake/src/App.tsx", "btnPrimary", 9, STYLE_PATH, "btn-primary", {
         reason: "styleAccess",
         origin: "styleAccess",
       }),
     ]);
 
     const result = handleCodeLens(
-      { textDocument: { uri: SCSS_URI } },
+      codeLensParams(),
       makeBaseDeps({
         selectorMapForPath: () => classMap,
         workspaceRoot: "/fake",
@@ -227,7 +200,7 @@ describe("handleCodeLens", () => {
   it("logs and returns null on exception", () => {
     const logError = vi.fn();
     const result = handleCodeLens(
-      { textDocument: { uri: "file:///fake/src/Button.module.scss" } },
+      codeLensParams(),
       makeDeps({
         selectorMapForPath: () => {
           throw new Error("boom");
