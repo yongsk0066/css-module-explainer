@@ -1,4 +1,5 @@
 import type { EngineInputV2 } from "../../engine-core-ts/src/contracts";
+import type { StyleDocumentHIR } from "../../engine-core-ts/src/core/hir/style-types";
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
 import { buildEngineInputV2 } from "./engine-input-v2";
 import {
@@ -16,10 +17,42 @@ export interface StyleSemanticGraphSummaryV0 {
   readonly language: string;
   readonly parserFacts: unknown;
   readonly semanticFacts: unknown;
-  readonly selectorIdentityEngine: unknown;
+  readonly selectorIdentityEngine: StyleSemanticGraphSelectorIdentityEngineV0;
   readonly sourceInputEvidence: unknown;
   readonly promotionEvidence: unknown;
   readonly losslessCstContract: unknown;
+}
+
+export interface StyleSemanticGraphSelectorIdentityEngineV0 {
+  readonly schemaVersion: "0";
+  readonly product: "omena-semantic.selector-identity";
+  readonly canonicalIdCount: number;
+  readonly canonicalIds: readonly StyleSemanticGraphSelectorIdentityV0[];
+  readonly rewriteSafety: {
+    readonly allCanonicalIdsRewriteSafe: boolean;
+    readonly safeCanonicalIds: readonly string[];
+    readonly blockedCanonicalIds: readonly string[];
+    readonly blockers: readonly string[];
+  };
+}
+
+export interface StyleSemanticGraphSelectorIdentityV0 {
+  readonly canonicalId: string;
+  readonly localName: string;
+  readonly identityKind: string;
+  readonly rewriteSafety: "safe" | "blocked";
+  readonly blockers: readonly string[];
+}
+
+export interface StyleSemanticGraphSelectorIdentityReadModel {
+  readonly canonicalId: string;
+  readonly canonicalName: string;
+  readonly identityKind: string;
+  readonly rewriteSafety: StyleSemanticGraphSelectorIdentityV0["rewriteSafety"];
+  readonly blockers: readonly string[];
+  readonly range: StyleDocumentHIR["selectors"][number]["range"];
+  readonly ruleRange: StyleDocumentHIR["selectors"][number]["ruleRange"];
+  readonly viewKind: StyleDocumentHIR["selectors"][number]["viewKind"];
 }
 
 export interface StyleSemanticGraphRunnerInputV0 {
@@ -116,6 +149,33 @@ export function runRustStyleSemanticGraph(
 ): StyleSemanticGraphSummaryV0 {
   const runJson = options.runRustSelectedQueryBackendJson ?? runRustSelectedQueryBackendJson;
   return runJson<StyleSemanticGraphSummaryV0>("style-semantic-graph", input);
+}
+
+export function buildStyleSemanticGraphSelectorIdentityReadModels(
+  graph: StyleSemanticGraphSummaryV0,
+  styleDocument: StyleDocumentHIR,
+): readonly StyleSemanticGraphSelectorIdentityReadModel[] {
+  const selectorByCanonicalName = new Map(
+    styleDocument.selectors.map((selector) => [selector.canonicalName, selector] as const),
+  );
+
+  return graph.selectorIdentityEngine.canonicalIds.flatMap((identity) => {
+    const selector = selectorByCanonicalName.get(identity.localName);
+    if (!selector) return [];
+
+    return [
+      {
+        canonicalId: identity.canonicalId,
+        canonicalName: identity.localName,
+        identityKind: identity.identityKind,
+        rewriteSafety: identity.rewriteSafety,
+        blockers: identity.blockers,
+        range: selector.range,
+        ruleRange: selector.ruleRange,
+        viewKind: selector.viewKind,
+      },
+    ];
+  });
 }
 
 function ensureStyleFileIncluded(

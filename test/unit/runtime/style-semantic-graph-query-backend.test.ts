@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_SETTINGS } from "../../../server/engine-core-ts/src/settings";
 import {
+  buildStyleSemanticGraphSelectorIdentityReadModels,
   resolveRustStyleSemanticGraph,
+  type StyleSemanticGraphSummaryV0,
   type StyleSemanticGraphRunnerInputV0,
 } from "../../../server/engine-host-node/src/style-semantic-graph-query-backend";
 import { infoAtLine, makeBaseDeps } from "../../_fixtures/test-helpers";
+import { buildStyleDocumentFromSelectorMap } from "../../_fixtures/style-documents";
 
 const SCSS_PATH = "/fake/ws/src/Button.module.scss";
 const SCSS_SOURCE = ".button { color: red; }";
@@ -37,17 +40,7 @@ describe("style semantic graph query backend", () => {
         runRustSelectedQueryBackendJson: <T>(command: string, input: unknown): T => {
           runnerCommand = command;
           runnerInput = input as StyleSemanticGraphRunnerInputV0;
-          return {
-            schemaVersion: "0",
-            product: "omena-semantic.style-semantic-graph",
-            language: "scss",
-            parserFacts: {},
-            semanticFacts: {},
-            selectorIdentityEngine: {},
-            sourceInputEvidence: {},
-            promotionEvidence: {},
-            losslessCstContract: {},
-          } as T;
+          return makeGraph() as T;
         },
       },
     );
@@ -60,6 +53,40 @@ describe("style semantic graph query backend", () => {
     });
     expect(runnerInput?.engineInput.styles).toHaveLength(1);
     expect(runnerInput?.engineInput.styles[0]?.filePath).toBe(SCSS_PATH);
+  });
+
+  it("attaches host HIR ranges to rust selector identity graph entries", () => {
+    const styleDocument = buildStyleDocumentFromSelectorMap(
+      SCSS_PATH,
+      new Map([
+        ["button", infoAtLine("button", 2)],
+        ["icon", infoAtLine("icon", 5)],
+      ]),
+    );
+
+    expect(buildStyleSemanticGraphSelectorIdentityReadModels(makeGraph(), styleDocument)).toEqual([
+      {
+        canonicalId: "selector:button",
+        canonicalName: "button",
+        identityKind: "localClass",
+        rewriteSafety: "safe",
+        blockers: [],
+        range: { start: { line: 2, character: 1 }, end: { line: 2, character: 7 } },
+        ruleRange: { start: { line: 2, character: 0 }, end: { line: 4, character: 1 } },
+        viewKind: "canonical",
+      },
+    ]);
+  });
+
+  it("omits rust selector identities that have no current host HIR range", () => {
+    const styleDocument = buildStyleDocumentFromSelectorMap(
+      SCSS_PATH,
+      new Map([["icon", infoAtLine("icon", 5)]]),
+    );
+
+    expect(buildStyleSemanticGraphSelectorIdentityReadModels(makeGraph(), styleDocument)).toEqual(
+      [],
+    );
   });
 
   it("does not spawn rust when the target style source is unavailable", () => {
@@ -88,3 +115,36 @@ describe("style semantic graph query backend", () => {
     expect(graph).toBeNull();
   });
 });
+
+function makeGraph(): StyleSemanticGraphSummaryV0 {
+  return {
+    schemaVersion: "0",
+    product: "omena-semantic.style-semantic-graph",
+    language: "scss",
+    parserFacts: {},
+    semanticFacts: {},
+    selectorIdentityEngine: {
+      schemaVersion: "0",
+      product: "omena-semantic.selector-identity",
+      canonicalIdCount: 1,
+      canonicalIds: [
+        {
+          canonicalId: "selector:button",
+          localName: "button",
+          identityKind: "localClass",
+          rewriteSafety: "safe",
+          blockers: [],
+        },
+      ],
+      rewriteSafety: {
+        allCanonicalIdsRewriteSafe: true,
+        safeCanonicalIds: ["selector:button"],
+        blockedCanonicalIds: [],
+        blockers: [],
+      },
+    },
+    sourceInputEvidence: {},
+    promotionEvidence: {},
+    losslessCstContract: {},
+  };
+}
