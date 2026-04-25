@@ -4,8 +4,9 @@ import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/engine
 import { WorkspaceStyleDependencyGraph } from "../../../server/engine-core-ts/src/core/semantic/style-dependency-graph";
 import { parseStyleDocument } from "../../../server/engine-core-ts/src/core/scss/scss-parser";
 import { computeScssUnusedDiagnostics } from "../../../server/lsp-server/src/providers/scss-diagnostics";
+import type { StyleSemanticGraphSummaryV0 } from "../../../server/engine-host-node/src/style-semantic-graph-query-backend";
 import { workspace } from "../../../packages/vitest-cme/src";
-import { infoAtLine as info, semanticSiteAt } from "../../_fixtures/test-helpers";
+import { infoAtLine as info, makeBaseDeps, semanticSiteAt } from "../../_fixtures/test-helpers";
 import {
   buildStyleDocumentFromSelectorMap,
   expandSelectorMapWithTransform,
@@ -118,6 +119,41 @@ describe("computeScssUnusedDiagnostics", () => {
       semanticReferenceIndex,
     );
     expect(diagnostics).toEqual([]);
+  });
+
+  it("uses rust style semantic graph references through the provider runtime deps", () => {
+    const classMap = new Map([
+      ["indicator", info("indicator", 1)],
+      ["active", info("active", 3)],
+    ]);
+    const styleDoc = styleDocument(classMap);
+    const deps = makeBaseDeps({
+      selectorMapForPath: () => classMap,
+      workspaceRoot: "/fake",
+    });
+    const styleSemanticGraphCache = new Map([[SCSS_PATH, makeReferenceGraph(SCSS_PATH)]]);
+
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      styleDoc,
+      deps.semanticReferenceIndex,
+      deps.styleDependencyGraph,
+      deps.styleDocumentForPath,
+      {
+        analysisCache: deps.analysisCache,
+        readStyleFile: deps.readStyleFile,
+        typeResolver: deps.typeResolver,
+        workspaceRoot: deps.workspaceRoot,
+        settings: deps.settings,
+        aliasResolver: deps.aliasResolver,
+        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        styleSemanticGraphCache,
+      },
+    );
+
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]!.message).toContain("'.active'");
+    expect(diagnostics[0]!.severity).toBe(DiagnosticSeverity.Hint);
   });
 
   it("suppresses all diagnostics when an unresolvable variable targets the module", () => {
@@ -789,3 +825,102 @@ $secret: 2rem;
     ).toBeDefined();
   });
 });
+
+function makeReferenceGraph(stylePath: string): StyleSemanticGraphSummaryV0 {
+  return {
+    schemaVersion: "0",
+    product: "omena-semantic.style-semantic-graph",
+    language: "scss",
+    parserFacts: {},
+    semanticFacts: {},
+    selectorIdentityEngine: {
+      schemaVersion: "0",
+      product: "omena-semantic.selector-identity",
+      canonicalIdCount: 2,
+      canonicalIds: [
+        {
+          canonicalId: "selector:indicator",
+          localName: "indicator",
+          identityKind: "localClass",
+          rewriteSafety: "safe",
+          blockers: [],
+        },
+        {
+          canonicalId: "selector:active",
+          localName: "active",
+          identityKind: "localClass",
+          rewriteSafety: "safe",
+          blockers: [],
+        },
+      ],
+      rewriteSafety: {
+        allCanonicalIdsRewriteSafe: true,
+        safeCanonicalIds: ["selector:indicator", "selector:active"],
+        blockedCanonicalIds: [],
+        blockers: [],
+      },
+    },
+    selectorReferenceEngine: {
+      schemaVersion: "0",
+      product: "omena-semantic.selector-references",
+      stylePath,
+      selectorCount: 2,
+      referencedSelectorCount: 1,
+      unreferencedSelectorCount: 1,
+      totalReferenceSites: 1,
+      selectors: [
+        makeSelectorReferenceSummary(stylePath, "indicator", true),
+        makeSelectorReferenceSummary(stylePath, "active", false),
+      ],
+    },
+    sourceInputEvidence: {},
+    promotionEvidence: {},
+    losslessCstContract: {},
+  };
+}
+
+function makeSelectorReferenceSummary(
+  stylePath: string,
+  localName: string,
+  hasAnyReferences: boolean,
+) {
+  const referenceCount = hasAnyReferences ? 1 : 0;
+  return {
+    canonicalId: `selector:${localName}`,
+    filePath: stylePath,
+    localName,
+    totalReferences: referenceCount,
+    directReferenceCount: referenceCount,
+    editableDirectReferenceCount: referenceCount,
+    exactReferenceCount: referenceCount,
+    inferredOrBetterReferenceCount: referenceCount,
+    hasExpandedReferences: false,
+    hasStyleDependencyReferences: false,
+    hasAnyReferences,
+    sites: hasAnyReferences
+      ? [
+          {
+            filePath: "/fake/App.tsx",
+            range: {
+              start: { line: 8, character: 10 },
+              end: { line: 8, character: 19 },
+            },
+            expansion: "direct",
+            referenceKind: "source",
+          },
+        ]
+      : [],
+    editableDirectSites: hasAnyReferences
+      ? [
+          {
+            filePath: "/fake/App.tsx",
+            range: {
+              start: { line: 8, character: 10 },
+              end: { line: 8, character: 19 },
+            },
+            className: localName,
+          },
+        ]
+      : [],
+  };
+}
