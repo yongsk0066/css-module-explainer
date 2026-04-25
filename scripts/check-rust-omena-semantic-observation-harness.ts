@@ -1,5 +1,8 @@
 import { strict as assert } from "node:assert";
 import { execFileSync, spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { buildContractParitySnapshot } from "./contract-parity-runtime";
+import { OMENA_SEMANTIC_OBSERVATION_CORPUS } from "./omena-semantic-observation-corpus";
 
 interface TheoryObservationHarnessSummaryV0 {
   readonly schemaVersion: "0";
@@ -46,6 +49,12 @@ interface TheoryObservationHarnessSummaryV0 {
 }
 
 const STYLE_PATH = "/tmp/Component.module.scss";
+
+interface ObservationInput {
+  readonly stylePath: string;
+  readonly styleSource: string;
+  readonly engineInput: unknown;
+}
 
 function range(startLine: number, startCharacter: number, endLine: number, endCharacter: number) {
   return {
@@ -153,13 +162,10 @@ function sampleEngineInput() {
   };
 }
 
-async function runObservation(styleSource: string): Promise<TheoryObservationHarnessSummaryV0> {
-  const input = JSON.stringify({
-    stylePath: STYLE_PATH,
-    styleSource,
-    engineInput: sampleEngineInput(),
-  });
-
+async function runObservation(
+  inputValue: ObservationInput,
+): Promise<TheoryObservationHarnessSummaryV0> {
+  const input = JSON.stringify(inputValue);
   return new Promise((resolve, reject) => {
     const child = spawn(
       "cargo",
@@ -200,6 +206,16 @@ async function runObservation(styleSource: string): Promise<TheoryObservationHar
   });
 }
 
+async function runSyntheticObservation(
+  styleSource: string,
+): Promise<TheoryObservationHarnessSummaryV0> {
+  return runObservation({
+    stylePath: STYLE_PATH,
+    styleSource,
+    engineInput: sampleEngineInput(),
+  });
+}
+
 void (async () => {
   execFileSync(
     "cargo",
@@ -217,7 +233,7 @@ void (async () => {
     },
   );
 
-  const ready = await runObservation(".button { &__icon { color: red; } }");
+  const ready = await runSyntheticObservation(".button { &__icon { color: red; } }");
   assert.equal(ready.product, "omena-semantic.theory-observation-harness");
   assert.equal(ready.selectorIdentity.status, "ready");
   assert.equal(ready.selectorIdentity.renameSafe, true);
@@ -229,7 +245,7 @@ void (async () => {
     `validated omena-semantic observation harness: ready selectors=${ready.selectorIdentity.observedSelectorCount} sourceExpressions=${ready.sourceEvidence.expressionCount}\n`,
   );
 
-  const blocked = await runObservation(".button { &.active { color: red; } }");
+  const blocked = await runSyntheticObservation(".button { &.active { color: red; } }");
   assert.equal(blocked.selectorIdentity.status, "partial");
   assert.equal(blocked.selectorIdentity.rewriteBlockedSelectorCount, 1);
   assert.equal(blocked.downstreamReadiness.status, "partial");
@@ -237,6 +253,44 @@ void (async () => {
   process.stdout.write(
     `validated omena-semantic observation harness: blocked selectors=${blocked.selectorIdentity.rewriteBlockedSelectorCount} gaps=${blocked.blockingGaps.join(",")}\n`,
   );
+
+  for (const entry of OMENA_SEMANTIC_OBSERVATION_CORPUS) {
+    process.stdout.write(`== omena-semantic-observation-corpus:${entry.label} ==\n`);
+    // oxlint-disable-next-line eslint/no-await-in-loop
+    const snapshot = await buildContractParitySnapshot(entry.contract);
+    // oxlint-disable-next-line eslint/no-await-in-loop
+    const actual = await runObservation({
+      stylePath: entry.styleFilePath,
+      styleSource: readFileSync(entry.styleFilePath, "utf8"),
+      engineInput: snapshot.input,
+    });
+
+    assert.equal(actual.product, "omena-semantic.theory-observation-harness");
+    assert.equal(actual.graphProduct, "omena-semantic.style-semantic-graph");
+    assert.equal(actual.selectorIdentity.status, entry.expected.selectorIdentityStatus);
+    assert.equal(actual.sourceEvidence.status, entry.expected.sourceEvidenceStatus);
+    assert.equal(actual.downstreamReadiness.status, entry.expected.downstreamReadinessStatus);
+    assert.ok(
+      actual.selectorIdentity.observedSelectorCount >= entry.expected.minSelectorCount,
+      `${entry.label}: expected at least ${entry.expected.minSelectorCount} selectors, got ${actual.selectorIdentity.observedSelectorCount}`,
+    );
+    assert.ok(
+      actual.sourceEvidence.expressionCount >= entry.expected.minExpressionCount,
+      `${entry.label}: expected at least ${entry.expected.minExpressionCount} expressions, got ${actual.sourceEvidence.expressionCount}`,
+    );
+    assert.equal(actual.sourceEvidence.cmeCoupled, true);
+    assert.equal(actual.couplingBoundary.cmeCoupledObservationCount, 2);
+    assert.equal(actual.couplingBoundary.splitRecommendation, "keep-integrated-observe-boundary");
+    process.stdout.write(
+      [
+        "validated external observation corpus:",
+        `selectors=${actual.selectorIdentity.observedSelectorCount}`,
+        `expressions=${actual.sourceEvidence.expressionCount}`,
+        `status=${actual.downstreamReadiness.status}`,
+      ].join(" "),
+    );
+    process.stdout.write("\n\n");
+  }
 })().catch((error: unknown) => {
   console.error(error);
   process.exit(1);
