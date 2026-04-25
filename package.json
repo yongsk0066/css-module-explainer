@@ -109,7 +109,7 @@
     "check:rust-checker-real-project-bounded": "node --import tsx ./scripts/check-rust-checker-real-project-bounded.ts",
     "check:rust-checker-promotion-evidence": "pnpm cme-check run rust/checker/promotion-review && pnpm cme-check run rust/checker/broader-lane-readiness && pnpm cme-check run rust/checker/real-project-bounded",
     "check:rust-checker-release-gate-readiness": "node --import tsx ./scripts/check-rust-checker-release-gate-readiness.ts",
-    "check:rust-checker-release-gate-shadow": "pnpm cme-check bundle rust/release/bundle && pnpm cme-check run rust/checker/entrance && pnpm cme-check run rust/checker/promotion-evidence",
+    "check:rust-checker-release-gate-shadow": "pnpm cme-check bundle rust/release/bundle && pnpm cme-check run rust/checker/entrance && pnpm cme-check run rust/checker/promotion-evidence && pnpm cme-check run rust/checker/release-gate-readiness",
     "check:rust-checker-release-gate-shadow-review": "node --import tsx ./scripts/check-rust-checker-release-gate-shadow-review.ts",
     "check:rust-type-fact-compare": "node --import tsx ./scripts/check-rust-type-fact-compare.ts",
     "check:rust-query-plan-compare": "node --import tsx ./scripts/check-rust-query-plan-compare.ts",

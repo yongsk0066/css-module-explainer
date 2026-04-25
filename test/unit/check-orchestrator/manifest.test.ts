@@ -76,6 +76,14 @@ describe("check orchestrator manifest", () => {
     expect(tsgoReleaseBundle?.kind).toBe("alias");
     expect(tsgoReleaseBundle?.referencedScripts).toEqual(["check:tsgo-operational-lane"]);
 
+    const checkerReleaseGateShadow = resolveGateTarget(
+      manifest,
+      "rust/checker/release-gate-shadow",
+    );
+    expect(checkerReleaseGateShadow?.referencedScripts).toEqual(
+      expect.arrayContaining(["check:rust-checker-release-gate-readiness"]),
+    );
+
     const selectedQueryDefaultCandidate = resolveGateTarget(
       manifest,
       "rust/selected-query/default-candidate",

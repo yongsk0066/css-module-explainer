@@ -54,6 +54,10 @@ jobs:
         name: Run checker promotion evidence
         run: pnpm cme-check run rust/checker/promotion-evidence
         continue-on-error: true
+      - id: checker_release_gate_readiness
+        name: Run checker release gate readiness
+        run: pnpm cme-check run rust/checker/release-gate-readiness
+        continue-on-error: true
       - if: always()
         name: Enforce shadow soak result
         run: |
@@ -64,6 +68,7 @@ jobs:
           echo "rust_gate_evidence=${{ steps.rust_gate_evidence.outcome }}"
           echo "checker_entrance=${{ steps.checker_entrance.outcome }}"
           echo "checker_promotion_evidence=${{ steps.checker_promotion_evidence.outcome }}"
+          echo "checker_release_gate_readiness=${{ steps.checker_release_gate_readiness.outcome }}"
           failed=0
           if [ "${{ steps.rust_workspace.outcome }}" != "success" ]; then
             failed=1
@@ -84,6 +89,9 @@ jobs:
             failed=1
           fi
           if [ "${{ steps.checker_promotion_evidence.outcome }}" != "success" ]; then
+            failed=1
+          fi
+          if [ "${{ steps.checker_release_gate_readiness.outcome }}" != "success" ]; then
             failed=1
           fi
           exit "$failed"
