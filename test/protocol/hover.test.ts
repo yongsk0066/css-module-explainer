@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createInProcessServer, type LspTestClient } from "./_harness/in-process-server";
 import { FakeTypeResolver } from "../_fixtures/fake-type-resolver";
-import { targetFixture, workspace, type CmeWorkspace } from "../../packages/vitest-cme/src";
+import {
+  textDocumentPositionFixture,
+  workspace,
+  type CmeWorkspace,
+} from "../../packages/vitest-cme/src";
 
 const BUTTON_TSX_URI = "file:///fake/workspace/src/Button.tsx";
 const BUTTON_SCSS_URI = "file:///fake/workspace/src/Button.module.scss";
@@ -157,11 +161,19 @@ const PREFIX_SUFFIX_DYNAMIC_SCSS = `
 .btn-error-chip { color: crimson; }
 `;
 
-function fixturePosition(
+function fixturePositionParams(
   source: CmeWorkspace,
   filePath: string,
-): { line: number; character: number } {
-  return targetFixture({ workspace: source, filePath }).position;
+): {
+  readonly textDocument: { readonly uri: string };
+  readonly position: { readonly line: number; readonly character: number };
+} {
+  const { textDocument, position } = textDocumentPositionFixture({
+    workspace: source,
+    documentUri: filePath,
+    filePath,
+  });
+  return { textDocument, position };
 }
 
 describe("hover protocol / clsx", () => {
@@ -207,10 +219,7 @@ export function Button() {
     });
     // Line 3: "  return <div className={clsx(styles.indicator)}>hi</div>;"
     // "indicator" starts at character 38 (after "styles.")
-    const hover = await client.hover({
-      textDocument: { uri: BUTTON_TSX_URI },
-      position: fixturePosition(CLSX_WORKSPACE, BUTTON_TSX_URI),
-    });
+    const hover = await client.hover(fixturePositionParams(CLSX_WORKSPACE, BUTTON_TSX_URI));
     expect(hover).not.toBeNull();
     const value = (hover!.contents as { value: string }).value;
     expect(value).toContain("`.indicator`");
@@ -241,10 +250,7 @@ describe("hover protocol", () => {
         text: BUTTON_TSX,
       },
     });
-    const hover = await client.hover({
-      textDocument: { uri: BUTTON_TSX_URI },
-      position: fixturePosition(BUTTON_TSX_WORKSPACE, BUTTON_TSX_URI),
-    });
+    const hover = await client.hover(fixturePositionParams(BUTTON_TSX_WORKSPACE, BUTTON_TSX_URI));
     expect(hover).not.toBeNull();
     const value = (hover!.contents as { value: string }).value;
     expect(value).toContain("`.indicator`");
@@ -267,10 +273,9 @@ describe("hover protocol", () => {
         text: FUNCTION_DYNAMIC_TSX,
       },
     });
-    const hover = await client.hover({
-      textDocument: { uri: STATUS_TSX_URI },
-      position: fixturePosition(FUNCTION_DYNAMIC_WORKSPACE, STATUS_TSX_URI),
-    });
+    const hover = await client.hover(
+      fixturePositionParams(FUNCTION_DYNAMIC_WORKSPACE, STATUS_TSX_URI),
+    );
     expect(hover).not.toBeNull();
     const value = (hover!.contents as { value: string }).value;
     expect(value).toContain("state-idle");
@@ -294,10 +299,9 @@ describe("hover protocol", () => {
         text: SUFFIX_DYNAMIC_TSX,
       },
     });
-    const hover = await client.hover({
-      textDocument: { uri: STATE_CHIP_TSX_URI },
-      position: fixturePosition(SUFFIX_DYNAMIC_WORKSPACE, STATE_CHIP_TSX_URI),
-    });
+    const hover = await client.hover(
+      fixturePositionParams(SUFFIX_DYNAMIC_WORKSPACE, STATE_CHIP_TSX_URI),
+    );
     expect(hover).not.toBeNull();
     const value = (hover!.contents as { value: string }).value;
     expect(value).toContain("idle-chip");
@@ -325,10 +329,9 @@ describe("hover protocol", () => {
         text: PREFIX_SUFFIX_DYNAMIC_TSX,
       },
     });
-    const hover = await client.hover({
-      textDocument: { uri: BUTTON_CHIP_TSX_URI },
-      position: fixturePosition(PREFIX_SUFFIX_DYNAMIC_WORKSPACE, BUTTON_CHIP_TSX_URI),
-    });
+    const hover = await client.hover(
+      fixturePositionParams(PREFIX_SUFFIX_DYNAMIC_WORKSPACE, BUTTON_CHIP_TSX_URI),
+    );
     expect(hover).not.toBeNull();
     const value = (hover!.contents as { value: string }).value;
     expect(value).toContain("btn-idle-chip");
@@ -365,10 +368,7 @@ describe("hover protocol", () => {
     });
     await client.waitForDiagnostics(BUTTON_TSX_URI);
 
-    const hover = await client.hover({
-      textDocument: { uri: BUTTON_SCSS_URI },
-      position: fixturePosition(BUTTON_SCSS_WORKSPACE, BUTTON_SCSS_URI),
-    });
+    const hover = await client.hover(fixturePositionParams(BUTTON_SCSS_WORKSPACE, BUTTON_SCSS_URI));
     expect(hover).not.toBeNull();
     const value = (hover!.contents as { value: string }).value;
     expect(value).toContain("`.indicator`");
@@ -437,10 +437,7 @@ export function Base() {
     });
     await client.waitForDiagnostics(tsxUri);
 
-    const hover = await client.hover({
-      textDocument: { uri: buttonScssUri },
-      position: fixturePosition(buttonScssWorkspace, buttonScssUri),
-    });
+    const hover = await client.hover(fixturePositionParams(buttonScssWorkspace, buttonScssUri));
     expect(hover).not.toBeNull();
     const value = (hover!.contents as { value: string }).value;
     expect(value).toContain("`.base`");
@@ -463,10 +460,7 @@ export function Base() {
         text: BUTTON_TSX,
       },
     });
-    const hover = await client.hover({
-      textDocument: { uri: BUTTON_TSX_URI },
-      position: fixturePosition(BUTTON_TSX_WORKSPACE, BUTTON_TSX_URI),
-    });
+    const hover = await client.hover(fixturePositionParams(BUTTON_TSX_WORKSPACE, BUTTON_TSX_URI));
     expect(hover).toBeNull();
   });
 
@@ -486,10 +480,7 @@ export function Base() {
       },
     });
 
-    const hover = await client.hover({
-      textDocument: { uri: BUTTON_SCSS_URI },
-      position: fixturePosition(KEYFRAMES_WORKSPACE, BUTTON_SCSS_URI),
-    });
+    const hover = await client.hover(fixturePositionParams(KEYFRAMES_WORKSPACE, BUTTON_SCSS_URI));
     expect(hover).not.toBeNull();
     const value = (hover!.contents as { value: string }).value;
     expect(value).toContain("`@keyframes fade`");
@@ -512,10 +503,7 @@ export function Base() {
       },
     });
 
-    const hover = await client.hover({
-      textDocument: { uri: BUTTON_SCSS_URI },
-      position: fixturePosition(VALUE_WORKSPACE, BUTTON_SCSS_URI),
-    });
+    const hover = await client.hover(fixturePositionParams(VALUE_WORKSPACE, BUTTON_SCSS_URI));
     expect(hover).not.toBeNull();
     const value = (hover!.contents as { value: string }).value;
     expect(value).toContain("`@value primary`");
@@ -542,10 +530,9 @@ export function Base() {
       },
     });
 
-    const hover = await client.hover({
-      textDocument: { uri: BUTTON_SCSS_URI },
-      position: fixturePosition(IMPORTED_VALUE_WORKSPACE, BUTTON_SCSS_URI),
-    });
+    const hover = await client.hover(
+      fixturePositionParams(IMPORTED_VALUE_WORKSPACE, BUTTON_SCSS_URI),
+    );
     expect(hover).not.toBeNull();
     const value = (hover!.contents as { value: string }).value;
     expect(value).toContain("`@value primary`");
@@ -568,10 +555,7 @@ export function Base() {
       },
     });
 
-    const hover = await client.hover({
-      textDocument: { uri: BUTTON_SCSS_URI },
-      position: fixturePosition(SASS_SYMBOL_WORKSPACE, BUTTON_SCSS_URI),
-    });
+    const hover = await client.hover(fixturePositionParams(SASS_SYMBOL_WORKSPACE, BUTTON_SCSS_URI));
     expect(hover).not.toBeNull();
     const value = (hover!.contents as { value: string }).value;
     expect(value).toContain("`$gap`");
@@ -604,10 +588,7 @@ export function Button(enabled: boolean) {
         text: FLOW_TSX,
       },
     });
-    const hover = await client.hover({
-      textDocument: { uri: BUTTON_TSX_URI },
-      position: fixturePosition(flowWorkspace, BUTTON_TSX_URI),
-    });
+    const hover = await client.hover(fixturePositionParams(flowWorkspace, BUTTON_TSX_URI));
     expect(hover).not.toBeNull();
     const value = (hover!.contents as { value: string }).value;
     expect(value).toContain("Resolved from `size` via branched local flow analysis.");
