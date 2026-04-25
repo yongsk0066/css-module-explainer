@@ -190,10 +190,13 @@ mod tests {
             "omena-semantic.theory-observation-harness"
         );
         assert!(contract.ready);
+        assert!(contract.publish_ready);
         assert_eq!(contract.selector_identity_status, "ready");
         assert_eq!(contract.source_evidence_status, "ready");
         assert_eq!(contract.downstream_readiness_status, "ready");
         assert!(contract.blocking_gaps.is_empty());
+        assert!(contract.publish_blocking_gaps.is_empty());
+        assert!(contract.observation_gaps.is_empty());
         Ok(())
     }
 

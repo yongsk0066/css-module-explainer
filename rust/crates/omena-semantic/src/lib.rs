@@ -609,10 +609,13 @@ $color: red;
             "omena-semantic.theory-observation-harness"
         );
         assert!(contract.ready);
+        assert!(contract.publish_ready);
         assert_eq!(contract.selector_identity_status, "ready");
         assert_eq!(contract.source_evidence_status, "ready");
         assert_eq!(contract.downstream_readiness_status, "ready");
         assert!(contract.blocking_gaps.is_empty());
+        assert!(contract.publish_blocking_gaps.is_empty());
+        assert!(contract.observation_gaps.is_empty());
         assert_eq!(contract, graph.summarize_theory_observation_contract());
         Ok(())
     }
@@ -651,10 +654,16 @@ $color: red;
 
         let contract = graph.summarize_theory_observation_contract();
         assert!(!contract.ready);
+        assert!(!contract.publish_ready);
         assert_eq!(
             contract.blocking_gaps,
             vec!["selectorRewriteSafety", "downstreamReadiness"]
         );
+        assert_eq!(
+            contract.publish_blocking_gaps,
+            vec!["selectorRewriteSafety"]
+        );
+        assert_eq!(contract.observation_gaps, vec!["downstreamReadiness"]);
         Ok(())
     }
 
@@ -690,6 +699,14 @@ $color: red;
         assert_eq!(
             observation.coupling_boundary.cme_coupled_surfaces,
             vec!["sourceInputEvidence", "promotionEvidenceWithSourceInput"]
+        );
+        let contract = graph.summarize_theory_observation_contract();
+        assert!(!contract.ready);
+        assert!(contract.publish_ready);
+        assert!(contract.publish_blocking_gaps.is_empty());
+        assert_eq!(
+            contract.observation_gaps,
+            vec!["sourceEvidence", "downstreamReadiness"]
         );
         Ok(())
     }

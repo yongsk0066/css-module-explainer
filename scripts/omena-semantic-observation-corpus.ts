@@ -13,6 +13,10 @@ export interface OmenaSemanticObservationCorpusEntry {
     readonly downstreamReadinessStatus: "ready" | "partial" | "gap";
     readonly minSelectorCount: number;
     readonly minExpressionCount: number;
+    readonly ready: boolean;
+    readonly publishReady: boolean;
+    readonly publishBlockingGaps: readonly string[];
+    readonly observationGaps: readonly string[];
   };
 }
 
@@ -59,6 +63,10 @@ export const OMENA_SEMANTIC_OBSERVATION_CORPUS: readonly OmenaSemanticObservatio
       downstreamReadinessStatus: "ready",
       minSelectorCount: 2,
       minExpressionCount: 1,
+      ready: true,
+      publishReady: true,
+      publishBlockingGaps: [],
+      observationGaps: [],
     },
   },
   {
@@ -100,6 +108,10 @@ export const OMENA_SEMANTIC_OBSERVATION_CORPUS: readonly OmenaSemanticObservatio
       downstreamReadinessStatus: "ready",
       minSelectorCount: 10,
       minExpressionCount: 1,
+      ready: true,
+      publishReady: true,
+      publishBlockingGaps: [],
+      observationGaps: [],
     },
   },
   {
@@ -135,6 +147,10 @@ export const OMENA_SEMANTIC_OBSERVATION_CORPUS: readonly OmenaSemanticObservatio
       downstreamReadinessStatus: "gap",
       minSelectorCount: 10,
       minExpressionCount: 1,
+      ready: false,
+      publishReady: true,
+      publishBlockingGaps: [],
+      observationGaps: ["sourceEvidence", "downstreamReadiness"],
     },
   },
   {
@@ -170,6 +186,10 @@ export const OMENA_SEMANTIC_OBSERVATION_CORPUS: readonly OmenaSemanticObservatio
       downstreamReadinessStatus: "gap",
       minSelectorCount: 4,
       minExpressionCount: 0,
+      ready: false,
+      publishReady: true,
+      publishBlockingGaps: [],
+      observationGaps: ["sourceEvidence", "downstreamReadiness"],
     },
   },
 ] as const;

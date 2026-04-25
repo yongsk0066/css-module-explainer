@@ -48,6 +48,23 @@ interface TheoryObservationHarnessSummaryV0 {
   readonly nextPriorities: readonly string[];
 }
 
+interface TheoryObservationContractV0 {
+  readonly schemaVersion: "0";
+  readonly product: "omena-semantic.theory-observation-contract";
+  readonly observationProduct: "omena-semantic.theory-observation-harness";
+  readonly ready: boolean;
+  readonly publishReady: boolean;
+  readonly selectorIdentityStatus: "ready" | "partial" | "gap";
+  readonly sourceEvidenceStatus: "ready" | "partial" | "gap";
+  readonly downstreamReadinessStatus: "ready" | "partial" | "gap";
+  readonly genericObservationCount: number;
+  readonly cmeCoupledObservationCount: number;
+  readonly blockingGaps: readonly string[];
+  readonly publishBlockingGaps: readonly string[];
+  readonly observationGaps: readonly string[];
+  readonly nextPriorities: readonly string[];
+}
+
 const STYLE_PATH = "/tmp/Component.module.scss";
 
 interface ObservationInput {
@@ -165,6 +182,22 @@ function sampleEngineInput() {
 async function runObservation(
   inputValue: ObservationInput,
 ): Promise<TheoryObservationHarnessSummaryV0> {
+  return runOmenaSemanticJson<TheoryObservationHarnessSummaryV0>(
+    "omena-semantic-observation",
+    inputValue,
+  );
+}
+
+async function runObservationContract(
+  inputValue: ObservationInput,
+): Promise<TheoryObservationContractV0> {
+  return runOmenaSemanticJson<TheoryObservationContractV0>(
+    "omena-semantic-observation-contract",
+    inputValue,
+  );
+}
+
+async function runOmenaSemanticJson<T>(bin: string, inputValue: ObservationInput): Promise<T> {
   const input = JSON.stringify(inputValue);
   return new Promise((resolve, reject) => {
     const child = spawn(
@@ -177,7 +210,7 @@ async function runObservation(
         "-p",
         "omena-semantic",
         "--bin",
-        "omena-semantic-observation",
+        bin,
       ],
       {
         cwd: process.cwd(),
@@ -196,10 +229,10 @@ async function runObservation(
     child.on("error", reject);
     child.on("close", (code) => {
       if (code !== 0) {
-        reject(new Error(`omena-semantic-observation exited with ${code}\n${stderr}`));
+        reject(new Error(`${bin} exited with ${code}\n${stderr}`));
         return;
       }
-      resolve(JSON.parse(stdout) as TheoryObservationHarnessSummaryV0);
+      resolve(JSON.parse(stdout) as T);
     });
 
     child.stdin.end(input);
@@ -264,6 +297,12 @@ void (async () => {
       styleSource: readFileSync(entry.styleFilePath, "utf8"),
       engineInput: snapshot.input,
     });
+    // oxlint-disable-next-line eslint/no-await-in-loop
+    const contract = await runObservationContract({
+      stylePath: entry.styleFilePath,
+      styleSource: readFileSync(entry.styleFilePath, "utf8"),
+      engineInput: snapshot.input,
+    });
 
     assert.equal(actual.product, "omena-semantic.theory-observation-harness");
     assert.equal(actual.graphProduct, "omena-semantic.style-semantic-graph");
@@ -281,12 +320,22 @@ void (async () => {
     assert.equal(actual.sourceEvidence.cmeCoupled, true);
     assert.equal(actual.couplingBoundary.cmeCoupledObservationCount, 2);
     assert.equal(actual.couplingBoundary.splitRecommendation, "keep-integrated-observe-boundary");
+    assert.equal(contract.product, "omena-semantic.theory-observation-contract");
+    assert.equal(contract.observationProduct, actual.product);
+    assert.equal(contract.ready, entry.expected.ready);
+    assert.equal(contract.publishReady, entry.expected.publishReady);
+    assert.deepEqual(contract.publishBlockingGaps, entry.expected.publishBlockingGaps);
+    assert.deepEqual(contract.observationGaps, entry.expected.observationGaps);
+    assert.equal(contract.selectorIdentityStatus, actual.selectorIdentity.status);
+    assert.equal(contract.sourceEvidenceStatus, actual.sourceEvidence.status);
+    assert.equal(contract.downstreamReadinessStatus, actual.downstreamReadiness.status);
     process.stdout.write(
       [
         "validated external observation corpus:",
         `selectors=${actual.selectorIdentity.observedSelectorCount}`,
         `expressions=${actual.sourceEvidence.expressionCount}`,
         `status=${actual.downstreamReadiness.status}`,
+        `publishReady=${contract.publishReady}`,
       ].join(" "),
     );
     process.stdout.write("\n\n");

@@ -56,6 +56,13 @@ cat style-semantic-graph-input.json \
   | cargo run --manifest-path rust/Cargo.toml -p omena-semantic --bin omena-semantic-observation
 ```
 
+For the compact observation contract:
+
+```sh
+cat style-semantic-graph-input.json \
+  | cargo run --manifest-path rust/Cargo.toml -p omena-semantic --bin omena-semantic-observation-contract
+```
+
 Downstream consumers can use either the free function or the
 `TheoryObservationHarnessInput` trait. The trait is the dogfooding surface for
 consumers that should depend on an observation contract instead of a concrete

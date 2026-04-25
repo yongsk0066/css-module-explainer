@@ -25,12 +25,15 @@ pub struct TheoryObservationContractV0 {
     pub product: &'static str,
     pub observation_product: &'static str,
     pub ready: bool,
+    pub publish_ready: bool,
     pub selector_identity_status: &'static str,
     pub source_evidence_status: &'static str,
     pub downstream_readiness_status: &'static str,
     pub generic_observation_count: usize,
     pub cme_coupled_observation_count: usize,
     pub blocking_gaps: Vec<&'static str>,
+    pub publish_blocking_gaps: Vec<&'static str>,
+    pub observation_gaps: Vec<&'static str>,
     pub next_priorities: Vec<&'static str>,
 }
 
@@ -153,19 +156,45 @@ fn summarize_style_semantic_graph_observation(
 fn summarize_theory_observation_contract_from_summary(
     observation: &TheoryObservationHarnessSummaryV0,
 ) -> TheoryObservationContractV0 {
+    let publish_blocking_gaps = publish_blocking_gaps_for_observation(observation);
+    let observation_gaps = observation
+        .blocking_gaps
+        .iter()
+        .copied()
+        .filter(|gap| !publish_blocking_gaps.contains(gap))
+        .collect::<Vec<_>>();
+
     TheoryObservationContractV0 {
         schema_version: "0",
         product: "omena-semantic.theory-observation-contract",
         observation_product: observation.product,
         ready: observation.blocking_gaps.is_empty(),
+        publish_ready: publish_blocking_gaps.is_empty(),
         selector_identity_status: observation.selector_identity.status,
         source_evidence_status: observation.source_evidence.status,
         downstream_readiness_status: observation.downstream_readiness.status,
         generic_observation_count: observation.coupling_boundary.generic_observation_count,
         cme_coupled_observation_count: observation.coupling_boundary.cme_coupled_observation_count,
         blocking_gaps: observation.blocking_gaps.clone(),
+        publish_blocking_gaps,
+        observation_gaps,
         next_priorities: observation.next_priorities.clone(),
     }
+}
+
+fn publish_blocking_gaps_for_observation(
+    observation: &TheoryObservationHarnessSummaryV0,
+) -> Vec<&'static str> {
+    let mut gaps = Vec::new();
+
+    if observation.selector_identity.status != "ready" {
+        gaps.push("selectorRewriteSafety");
+    }
+    if observation.coupling_boundary.generic_observation_count == 0 {
+        gaps.push("genericObservationBoundary");
+    }
+
+    gaps
 }
 
 fn observe_selector_identity(graph: &StyleSemanticGraphSummaryV0) -> SelectorIdentityObservationV0 {
