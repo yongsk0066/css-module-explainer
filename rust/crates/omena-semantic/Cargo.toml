@@ -1,0 +1,16 @@
+[package]
+name = "omena-semantic"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Semantic boundary crate for CSS Module Explainer style analysis"
+repository = "https://github.com/yongsk0066/css-module-explainer"
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+engine-style-parser = { path = "../engine-style-parser" }
+serde.workspace = true
