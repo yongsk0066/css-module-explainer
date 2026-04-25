@@ -7,7 +7,12 @@ import {
 } from "vscode-languageserver-protocol/node";
 import type { ProviderDeps } from "../../../server/lsp-server/src/providers/cursor-dispatch";
 import { handleCodeAction } from "../../../server/lsp-server/src/providers/code-actions";
-import { scenario, workspace } from "../../../packages/vitest-cme/src";
+import {
+  scenario,
+  textDocumentRangeFixture,
+  workspace,
+  type CmeWorkspace,
+} from "../../../packages/vitest-cme/src";
 import { makeBaseDeps } from "../../_fixtures/test-helpers";
 
 const SOURCE_PATH = "src/Button.tsx";
@@ -64,6 +69,22 @@ function makeParams(diagnostics: Diagnostic[]): CodeActionParams {
   };
 }
 
+function makeMarkedParams(
+  fixture: CmeWorkspace,
+  rangeName: string,
+  diagnostics: Diagnostic[],
+): CodeActionParams {
+  return {
+    ...textDocumentRangeFixture({
+      workspace: fixture,
+      documentUri: SOURCE_URI,
+      filePath: SOURCE_PATH,
+      rangeName,
+    }),
+    context: { diagnostics, triggerKind: 1 },
+  };
+}
+
 describe("handleCodeAction", () => {
   it("returns replace and create actions for a diagnostic with a suggestion", async () => {
     const ws = workspace({
@@ -79,14 +100,7 @@ describe("handleCodeAction", () => {
       workspace: ws,
       actions: {
         codeAction: ({ workspace: fixture }) =>
-          handleCodeAction(
-            {
-              textDocument: { uri: SOURCE_URI },
-              range: fixture.range("missing", SOURCE_PATH).range,
-              context: { diagnostics: [d], triggerKind: 1 },
-            },
-            makeDeps(),
-          ),
+          handleCodeAction(makeMarkedParams(fixture, "missing", [d]), makeDeps()),
       },
     });
 

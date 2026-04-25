@@ -6,9 +6,12 @@ export {
 } from "./document";
 export {
   textDocumentPositionFixture,
+  textDocumentRangeFixture,
   textDocumentRenameFixture,
   type CmeTextDocumentPositionFixture,
   type CmeTextDocumentPositionFixtureOptions,
+  type CmeTextDocumentRangeFixture,
+  type CmeTextDocumentRangeFixtureOptions,
   type CmeTextDocumentRenameFixture,
   type CmeTextDocumentRenameFixtureOptions,
 } from "./lsp";

@@ -1,5 +1,5 @@
 import { targetFixture, type CmeTargetFixture } from "./target";
-import type { CmeWorkspace, Position } from "./workspace";
+import type { CmeRangeMarker, CmeWorkspace, Position, Range } from "./workspace";
 
 export interface CmeTextDocumentPositionFixture {
   readonly textDocument: { readonly uri: string };
@@ -20,6 +20,19 @@ export interface CmeTextDocumentRenameFixture extends CmeTextDocumentPositionFix
 
 export interface CmeTextDocumentRenameFixtureOptions extends CmeTextDocumentPositionFixtureOptions {
   readonly newName: string;
+}
+
+export interface CmeTextDocumentRangeFixture {
+  readonly textDocument: { readonly uri: string };
+  readonly range: Range;
+  readonly marker: CmeRangeMarker;
+}
+
+export interface CmeTextDocumentRangeFixtureOptions {
+  readonly workspace: CmeWorkspace;
+  readonly documentUri: string;
+  readonly filePath?: string;
+  readonly rangeName: string;
 }
 
 export function textDocumentPositionFixture(
@@ -44,5 +57,16 @@ export function textDocumentRenameFixture(
   return {
     ...textDocumentPositionFixture(options),
     newName: options.newName,
+  };
+}
+
+export function textDocumentRangeFixture(
+  options: CmeTextDocumentRangeFixtureOptions,
+): CmeTextDocumentRangeFixture {
+  const marker = options.workspace.range(options.rangeName, options.filePath);
+  return {
+    textDocument: { uri: options.documentUri },
+    range: marker.range,
+    marker,
   };
 }

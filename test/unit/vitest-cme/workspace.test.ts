@@ -5,6 +5,7 @@ import {
   documentFixture,
   targetFixture,
   textDocumentPositionFixture,
+  textDocumentRangeFixture,
   textDocumentRenameFixture,
   workspace,
 } from "../../../packages/vitest-cme/src";
@@ -182,6 +183,31 @@ describe("vitest-cme workspace markers", () => {
       textDocument: { uri: "file:///fake/Button.module.scss" },
       position: { line: 0, character: 17 },
       newName: "spacing",
+    });
+  });
+
+  it("builds LSP text document range params from a range marker", () => {
+    const ws = workspace({
+      "Button.tsx": "const cls = cx('/*<missing>*/missing/*</missing>*/');",
+    });
+
+    expect(
+      textDocumentRangeFixture({
+        workspace: ws,
+        filePath: "Button.tsx",
+        documentUri: "file:///fake/Button.tsx",
+        rangeName: "missing",
+      }),
+    ).toMatchObject({
+      textDocument: { uri: "file:///fake/Button.tsx" },
+      range: {
+        start: { line: 0, character: 16 },
+        end: { line: 0, character: 23 },
+      },
+      marker: {
+        name: "missing",
+        filePath: "Button.tsx",
+      },
     });
   });
 });
