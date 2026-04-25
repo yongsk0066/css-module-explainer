@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createInProcessServer, type LspTestClient } from "./_harness/in-process-server";
 import { FakeTypeResolver } from "../_fixtures/fake-type-resolver";
-import { targetFixture, workspace, type CmeWorkspace } from "../../packages/vitest-cme/src";
+import {
+  textDocumentPositionFixture,
+  workspace,
+  type CmeWorkspace,
+} from "../../packages/vitest-cme/src";
 
 const BUTTON_TSX_URI = "file:///fake/workspace/src/Button.tsx";
 const BUTTON_SCSS_URI = "file:///fake/workspace/src/Button.module.scss";
@@ -169,12 +173,21 @@ function openButton(client: LspTestClient): void {
   });
 }
 
-function fixturePosition(
+function fixturePositionParams(
   source: CmeWorkspace,
   filePath: string,
   markerName?: string,
-): { line: number; character: number } {
-  return targetFixture({ workspace: source, filePath, markerName }).position;
+): {
+  readonly textDocument: { readonly uri: string };
+  readonly position: { readonly line: number; readonly character: number };
+} {
+  const { textDocument, position } = textDocumentPositionFixture({
+    workspace: source,
+    documentUri: filePath,
+    filePath,
+    ...(markerName === undefined ? {} : { markerName }),
+  });
+  return { textDocument, position };
 }
 
 describe("definition protocol / clsx", () => {
@@ -218,10 +231,7 @@ export function Button() {
       },
     });
     // Line 3: "  return <div className={clsx(styles.indicator)}>hi</div>;"
-    const result = await client.definition({
-      textDocument: { uri: BUTTON_TSX_URI },
-      position: fixturePosition(CLSX_WORKSPACE, BUTTON_TSX_URI),
-    });
+    const result = await client.definition(fixturePositionParams(CLSX_WORKSPACE, BUTTON_TSX_URI));
     expect(result).not.toBeNull();
     expect(Array.isArray(result)).toBe(true);
     const links = result as Array<{ targetUri: string; originSelectionRange: unknown }>;
@@ -248,10 +258,9 @@ describe("definition protocol", () => {
     openButton(client);
     // Line 4 (0-based): "  return <div className={cx('indicator')}>hi</div>;"
     //                                               ↑ column 32 is inside 'indicator'
-    const result = await client.definition({
-      textDocument: { uri: BUTTON_TSX_URI },
-      position: fixturePosition(BUTTON_TSX_WORKSPACE, BUTTON_TSX_URI),
-    });
+    const result = await client.definition(
+      fixturePositionParams(BUTTON_TSX_WORKSPACE, BUTTON_TSX_URI),
+    );
     expect(result).not.toBeNull();
     expect(Array.isArray(result)).toBe(true);
     const links = result as Array<{ targetUri: string; originSelectionRange: unknown }>;
@@ -296,10 +305,7 @@ export function Actions() {
       },
     });
 
-    const result = await client.definition({
-      textDocument: { uri: actionsUri },
-      position: fixturePosition(tsxWorkspace, actionsUri),
-    });
+    const result = await client.definition(fixturePositionParams(tsxWorkspace, actionsUri));
 
     expect(result).not.toBeNull();
     const links = result as Array<{ targetSelectionRange: { start: { line: number } } }>;
@@ -321,10 +327,9 @@ export function Actions() {
         text: FUNCTION_DYNAMIC_TSX,
       },
     });
-    const result = await client.definition({
-      textDocument: { uri: STATUS_TSX_URI },
-      position: fixturePosition(FUNCTION_DYNAMIC_WORKSPACE, STATUS_TSX_URI),
-    });
+    const result = await client.definition(
+      fixturePositionParams(FUNCTION_DYNAMIC_WORKSPACE, STATUS_TSX_URI),
+    );
     expect(result).not.toBeNull();
     expect(Array.isArray(result)).toBe(true);
     const links = result as Array<{ targetUri: string }>;
@@ -348,10 +353,9 @@ export function Actions() {
         text: SUFFIX_DYNAMIC_TSX,
       },
     });
-    const result = await client.definition({
-      textDocument: { uri: STATE_CHIP_TSX_URI },
-      position: fixturePosition(SUFFIX_DYNAMIC_WORKSPACE, STATE_CHIP_TSX_URI),
-    });
+    const result = await client.definition(
+      fixturePositionParams(SUFFIX_DYNAMIC_WORKSPACE, STATE_CHIP_TSX_URI),
+    );
     expect(result).not.toBeNull();
     expect(Array.isArray(result)).toBe(true);
     const links = result as Array<{ targetUri: string }>;
@@ -375,10 +379,9 @@ export function Actions() {
         text: PREFIX_SUFFIX_DYNAMIC_TSX,
       },
     });
-    const result = await client.definition({
-      textDocument: { uri: BUTTON_CHIP_TSX_URI },
-      position: fixturePosition(PREFIX_SUFFIX_DYNAMIC_WORKSPACE, BUTTON_CHIP_TSX_URI),
-    });
+    const result = await client.definition(
+      fixturePositionParams(PREFIX_SUFFIX_DYNAMIC_WORKSPACE, BUTTON_CHIP_TSX_URI),
+    );
     expect(result).not.toBeNull();
     expect(Array.isArray(result)).toBe(true);
     const links = result as Array<{ targetUri: string }>;
@@ -395,10 +398,9 @@ export function Actions() {
     client.initialized();
     openButton(client);
     // Line 0 = the import statement. No cx call can span it.
-    const result = await client.definition({
-      textDocument: { uri: BUTTON_TSX_URI },
-      position: fixturePosition(BUTTON_TSX_WORKSPACE, BUTTON_TSX_URI, "outside"),
-    });
+    const result = await client.definition(
+      fixturePositionParams(BUTTON_TSX_WORKSPACE, BUTTON_TSX_URI, "outside"),
+    );
     expect(result).toBeNull();
   });
 
@@ -410,10 +412,9 @@ export function Actions() {
     await client.initialize();
     client.initialized();
     openButton(client);
-    const result = await client.definition({
-      textDocument: { uri: BUTTON_TSX_URI },
-      position: fixturePosition(BUTTON_TSX_WORKSPACE, BUTTON_TSX_URI),
-    });
+    const result = await client.definition(
+      fixturePositionParams(BUTTON_TSX_WORKSPACE, BUTTON_TSX_URI),
+    );
     expect(result).toBeNull();
   });
 
@@ -436,10 +437,7 @@ export function Actions() {
         text: plainWorkspace.file(plainUri).content,
       },
     });
-    const result = await client.definition({
-      textDocument: { uri: plainUri },
-      position: fixturePosition(plainWorkspace, plainUri),
-    });
+    const result = await client.definition(fixturePositionParams(plainWorkspace, plainUri));
     expect(result).toBeNull();
   });
 
@@ -487,10 +485,9 @@ export function Actions() {
       },
     });
 
-    const result = await client.definition({
-      textDocument: { uri: buttonScssUri },
-      position: fixturePosition(composingWorkspace, buttonScssUri),
-    });
+    const result = await client.definition(
+      fixturePositionParams(composingWorkspace, buttonScssUri),
+    );
     expect(result).not.toBeNull();
     const links = result as Array<{ targetUri: string }>;
     expect(links).toHaveLength(1);
@@ -526,10 +523,9 @@ export function Actions() {
       },
     });
 
-    const result = await client.definition({
-      textDocument: { uri: BUTTON_SCSS_URI },
-      position: fixturePosition(sameFileWorkspace, BUTTON_SCSS_URI),
-    });
+    const result = await client.definition(
+      fixturePositionParams(sameFileWorkspace, BUTTON_SCSS_URI),
+    );
     expect(result).not.toBeNull();
     const links = result as Array<{
       targetUri: string;
@@ -556,10 +552,9 @@ export function Actions() {
       },
     });
 
-    const result = await client.definition({
-      textDocument: { uri: BUTTON_SCSS_URI },
-      position: fixturePosition(KEYFRAMES_WORKSPACE, BUTTON_SCSS_URI),
-    });
+    const result = await client.definition(
+      fixturePositionParams(KEYFRAMES_WORKSPACE, BUTTON_SCSS_URI),
+    );
     expect(result).not.toBeNull();
     const links = result as Array<{
       targetUri: string;
@@ -586,10 +581,7 @@ export function Actions() {
       },
     });
 
-    const result = await client.definition({
-      textDocument: { uri: BUTTON_SCSS_URI },
-      position: fixturePosition(VALUE_WORKSPACE, BUTTON_SCSS_URI),
-    });
+    const result = await client.definition(fixturePositionParams(VALUE_WORKSPACE, BUTTON_SCSS_URI));
     expect(result).not.toBeNull();
     const links = result as Array<{
       targetUri: string;
@@ -621,10 +613,9 @@ export function Actions() {
       },
     });
 
-    const result = await client.definition({
-      textDocument: { uri: BUTTON_SCSS_URI },
-      position: fixturePosition(IMPORTED_VALUE_WORKSPACE, BUTTON_SCSS_URI),
-    });
+    const result = await client.definition(
+      fixturePositionParams(IMPORTED_VALUE_WORKSPACE, BUTTON_SCSS_URI),
+    );
     expect(result).not.toBeNull();
     const links = result as Array<{
       targetUri: string;
@@ -651,10 +642,9 @@ export function Actions() {
       },
     });
 
-    const variableResult = await client.definition({
-      textDocument: { uri: BUTTON_SCSS_URI },
-      position: fixturePosition(SASS_SYMBOL_WORKSPACE, BUTTON_SCSS_URI, "variable"),
-    });
+    const variableResult = await client.definition(
+      fixturePositionParams(SASS_SYMBOL_WORKSPACE, BUTTON_SCSS_URI, "variable"),
+    );
     expect(variableResult).not.toBeNull();
     const variableLinks = variableResult as Array<{
       targetUri: string;
@@ -664,10 +654,9 @@ export function Actions() {
     expect(variableLinks[0]!.targetUri).toBe(BUTTON_SCSS_URI);
     expect(variableLinks[0]!.targetSelectionRange.start.line).toBe(0);
 
-    const mixinResult = await client.definition({
-      textDocument: { uri: BUTTON_SCSS_URI },
-      position: fixturePosition(SASS_SYMBOL_WORKSPACE, BUTTON_SCSS_URI, "mixin"),
-    });
+    const mixinResult = await client.definition(
+      fixturePositionParams(SASS_SYMBOL_WORKSPACE, BUTTON_SCSS_URI, "mixin"),
+    );
     expect(mixinResult).not.toBeNull();
     const mixinLinks = mixinResult as Array<{
       targetUri: string;
@@ -711,10 +700,7 @@ export function Sized({ size }: { size: 'small' | 'medium' }) {
     });
     // Line 4 (0-based): "  return <div className={cx(size)}>hi</div>;"
     //                                               ↑ column 30 is inside `size`
-    const result = await client.definition({
-      textDocument: { uri: sizedUri },
-      position: fixturePosition(sizedWorkspace, sizedUri),
-    });
+    const result = await client.definition(fixturePositionParams(sizedWorkspace, sizedUri));
     expect(result).not.toBeNull();
     const links = result as Array<{ targetUri: string }>;
     expect(links).toHaveLength(2);
@@ -754,10 +740,7 @@ export function Sized(flag: boolean) {
         text: SIZED_TSX,
       },
     });
-    const result = await client.definition({
-      textDocument: { uri: sizedUri },
-      position: fixturePosition(sizedWorkspace, sizedUri),
-    });
+    const result = await client.definition(fixturePositionParams(sizedWorkspace, sizedUri));
     expect(result).not.toBeNull();
     const links = result as Array<{ targetUri: string }>;
     expect(links).toHaveLength(2);
