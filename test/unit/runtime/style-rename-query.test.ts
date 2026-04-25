@@ -6,6 +6,7 @@ import {
   readStyleRenameTargetAtCursor,
   planStyleRenameAtCursor,
 } from "../../../server/engine-host-node/src/style-rename-query";
+import type { StyleSemanticGraphSummaryV0 } from "../../../server/engine-host-node/src/style-semantic-graph-query-backend";
 
 const SCSS_PATH = "/fake/src/Button.module.scss";
 
@@ -203,6 +204,26 @@ describe("style rename query", () => {
     });
   });
 
+  it("uses rust style semantic graph selector identity to block unsafe rename targets", () => {
+    const deps = makeBaseDeps({
+      selectorMapForPath: () => new Map([["indicator", infoAtLine("indicator", 1)]]),
+      workspaceRoot: "/fake",
+    });
+    const styleDocument = deps.styleDocumentForPath(SCSS_PATH);
+
+    expect(styleDocument).not.toBeNull();
+    const target = readStyleRenameTargetAtCursor(SCSS_PATH, 1, 3, styleDocument!, deps, {
+      env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+      readRustStyleSemanticGraphForWorkspaceTarget: () => makeGraph("blocked"),
+      readRustSelectorUsagePayloadForWorkspaceTarget: () => null,
+    });
+
+    expect(target).toEqual({
+      kind: "blocked",
+      reason: "unsafeSelectorShape",
+    });
+  });
+
   it("uses rust selector-usage payloads for direct source rewrite sites", () => {
     const deps = makeBaseDeps({
       selectorMapForPath: () => new Map([["indicator", infoAtLine("indicator", 1)]]),
@@ -244,3 +265,36 @@ describe("style rename query", () => {
     expect(plan?.kind === "plan" ? plan.plan.edits[1]?.uri : null).toBe("file:///fake/src/App.tsx");
   });
 });
+
+function makeGraph(rewriteSafety: "safe" | "blocked"): StyleSemanticGraphSummaryV0 {
+  return {
+    schemaVersion: "0",
+    product: "omena-semantic.style-semantic-graph",
+    language: "scss",
+    parserFacts: {},
+    semanticFacts: {},
+    selectorIdentityEngine: {
+      schemaVersion: "0",
+      product: "omena-semantic.selector-identity",
+      canonicalIdCount: 1,
+      canonicalIds: [
+        {
+          canonicalId: "selector:indicator",
+          localName: "indicator",
+          identityKind: "localClass",
+          rewriteSafety,
+          blockers: rewriteSafety === "blocked" ? ["nested-expansion"] : [],
+        },
+      ],
+      rewriteSafety: {
+        allCanonicalIdsRewriteSafe: rewriteSafety === "safe",
+        safeCanonicalIds: rewriteSafety === "safe" ? ["selector:indicator"] : [],
+        blockedCanonicalIds: rewriteSafety === "blocked" ? ["selector:indicator"] : [],
+        blockers: rewriteSafety === "blocked" ? ["nested-expansion"] : [],
+      },
+    },
+    sourceInputEvidence: {},
+    promotionEvidence: {},
+    losslessCstContract: {},
+  };
+}

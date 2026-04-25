@@ -8,6 +8,7 @@ import {
   usesRustExpressionSemanticsBackend,
   usesRustSelectorUsageBackend,
   usesRustSourceResolutionBackend,
+  usesRustStyleSemanticGraphBackend,
 } from "../../../server/engine-host-node/src/selected-query-backend";
 
 describe("selected query backend", () => {
@@ -86,6 +87,7 @@ describe("selected query backend", () => {
     expect(usesRustSourceResolutionBackend(kind)).toBe(true);
     expect(usesRustExpressionSemanticsBackend(kind)).toBe(true);
     expect(usesRustSelectorUsageBackend(kind)).toBe(true);
+    expect(usesRustStyleSemanticGraphBackend(kind)).toBe(true);
   });
 
   it("keeps individual Rust backend selectors narrow", () => {
@@ -100,6 +102,7 @@ describe("selected query backend", () => {
     expect(usesRustSourceResolutionBackend("rust-selector-usage")).toBe(false);
     expect(usesRustExpressionSemanticsBackend("rust-selector-usage")).toBe(false);
     expect(usesRustSelectorUsageBackend("rust-selector-usage")).toBe(true);
+    expect(usesRustStyleSemanticGraphBackend("rust-selector-usage")).toBe(false);
   });
 
   it("detects whether a prebuilt engine-shadow-runner is available", () => {

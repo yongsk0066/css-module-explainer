@@ -65,6 +65,10 @@ export function usesRustSelectorUsageBackend(kind: SelectedQueryBackendKind): bo
   return kind === "rust-selector-usage" || kind === "rust-selected-query";
 }
 
+export function usesRustStyleSemanticGraphBackend(kind: SelectedQueryBackendKind): boolean {
+  return kind === "rust-selected-query";
+}
+
 export function buildSelectedQueryBackendInput(
   document: SelectedQueryBackendDocument,
   scssModulePath: string,

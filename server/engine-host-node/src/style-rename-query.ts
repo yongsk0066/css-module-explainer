@@ -29,8 +29,13 @@ import type {
 } from "../../engine-core-ts/src/core/rewrite/text-rewrite-plan";
 import {
   resolveSelectedQueryBackendKind,
+  usesRustStyleSemanticGraphBackend,
   usesRustSelectorUsageBackend,
 } from "./selected-query-backend";
+import {
+  buildStyleSemanticGraphSelectorIdentityReadModels,
+  resolveRustStyleSemanticGraphForWorkspaceTarget,
+} from "./style-semantic-graph-query-backend";
 import {
   buildSelectorUsageEditableDirectSitesFromRustPayload,
   resolveRustSelectorUsagePayloadForWorkspaceTarget,
@@ -40,6 +45,7 @@ import {
 export interface StyleRenameQueryOptions {
   readonly env?: NodeJS.ProcessEnv;
   readonly readRustSelectorUsagePayloadForWorkspaceTarget?: typeof resolveRustSelectorUsagePayloadForWorkspaceTarget;
+  readonly readRustStyleSemanticGraphForWorkspaceTarget?: typeof resolveRustStyleSemanticGraphForWorkspaceTarget;
 }
 
 export interface SassSymbolRenameTarget {
@@ -80,6 +86,7 @@ export function readStyleRenameTargetAtCursor(
     | "styleDocumentForPath"
     | "typeResolver"
     | "workspaceRoot"
+    | "readStyleFile"
   >,
   options: StyleRenameQueryOptions = {},
 ): StyleRenameReadResult {
@@ -109,6 +116,7 @@ function readStyleSelectorRenameTargetAtCursor(
     | "styleDocumentForPath"
     | "typeResolver"
     | "workspaceRoot"
+    | "readStyleFile"
   >,
   options: StyleRenameQueryOptions,
 ): SelectorRenameReadResult {
@@ -124,6 +132,17 @@ function readStyleSelectorRenameTargetAtCursor(
   });
   if (rewritePolicy.kind === "blocked") {
     return rewritePolicy;
+  }
+
+  const rustIdentity = resolveStyleRenameRustSelectorIdentity(
+    filePath,
+    styleDocument,
+    rewritePolicy.summary.canonicalName,
+    deps,
+    options,
+  );
+  if (rustIdentity?.rewriteSafety === "blocked") {
+    return { kind: "blocked", reason: "unsafeSelectorShape" };
   }
 
   const rewriteSafety = resolveStyleRenameRewriteSafety(
@@ -210,6 +229,7 @@ export function planStyleRenameAtCursor(
     | "styleDocumentForPath"
     | "typeResolver"
     | "workspaceRoot"
+    | "readStyleFile"
   >,
   newName: string,
   options: StyleRenameQueryOptions = {},
@@ -323,6 +343,7 @@ function resolveStyleRenameRewriteSafety(
     | "styleDocumentForPath"
     | "typeResolver"
     | "workspaceRoot"
+    | "readStyleFile"
   >,
   options: StyleRenameQueryOptions,
 ) {
@@ -371,6 +392,46 @@ function resolveStyleRenameRewriteSafety(
     hasBlockingExpandedReferences,
     hasBlockingStyleDependencyReferences,
   };
+}
+
+function resolveStyleRenameRustSelectorIdentity(
+  filePath: string,
+  styleDocument: StyleDocumentHIR,
+  canonicalName: string,
+  deps: Pick<
+    ProviderDeps,
+    | "analysisCache"
+    | "settings"
+    | "styleDocumentForPath"
+    | "typeResolver"
+    | "workspaceRoot"
+    | "readStyleFile"
+  >,
+  options: StyleRenameQueryOptions,
+) {
+  if (!usesRustStyleSemanticGraphBackend(resolveSelectedQueryBackendKind(options.env))) {
+    return null;
+  }
+
+  const graph = (
+    options.readRustStyleSemanticGraphForWorkspaceTarget ??
+    resolveRustStyleSemanticGraphForWorkspaceTarget
+  )(
+    {
+      workspaceRoot: deps.workspaceRoot,
+      classnameTransform: deps.settings.scss.classnameTransform,
+      pathAlias: deps.settings.pathAlias,
+    },
+    deps,
+    filePath,
+  );
+  if (!graph) return null;
+
+  return (
+    buildStyleSemanticGraphSelectorIdentityReadModels(graph, styleDocument).find(
+      (identity) => identity.canonicalName === canonicalName,
+    ) ?? null
+  );
 }
 
 function buildRustEditableDirectSites(
