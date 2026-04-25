@@ -35,7 +35,7 @@ checksum = "f8ca58f447f06ed17d5fc4043ce1b10dd205e060fb3ce5b979b8ed8e59ff3f79"
 [[package]]
 name = "omena-semantic"
 version = "0.1.0"
-source = "git+https://github.com/omenien/omena-semantic.git?rev=1bf4117#1bf4117e27401dbe7a40b1e2325493e9af2ec057"
+source = "git+https://github.com/omenien/omena-semantic.git?rev=7e08ba0#7e08ba0ce0eb2fc5914ab6635c627ce55b787fef"
 dependencies = [
  "engine-input-producers",
  "engine-style-parser",

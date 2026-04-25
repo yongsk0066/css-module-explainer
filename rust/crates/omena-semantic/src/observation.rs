@@ -20,6 +20,22 @@ pub struct TheoryObservationHarnessSummaryV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct TheoryObservationContractV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub observation_product: &'static str,
+    pub ready: bool,
+    pub selector_identity_status: &'static str,
+    pub source_evidence_status: &'static str,
+    pub downstream_readiness_status: &'static str,
+    pub generic_observation_count: usize,
+    pub cme_coupled_observation_count: usize,
+    pub blocking_gaps: Vec<&'static str>,
+    pub next_priorities: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SelectorIdentityObservationV0 {
     pub status: &'static str,
     pub observed_selector_count: usize,
@@ -68,6 +84,10 @@ pub struct SemanticCouplingBoundaryObservationV0 {
 
 pub trait TheoryObservationHarnessInput {
     fn summarize_theory_observation_harness(&self) -> TheoryObservationHarnessSummaryV0;
+
+    fn summarize_theory_observation_contract(&self) -> TheoryObservationContractV0 {
+        summarize_theory_observation_contract(self)
+    }
 }
 
 impl TheoryObservationHarnessInput for StyleSemanticGraphSummaryV0 {
@@ -81,6 +101,15 @@ where
     T: TheoryObservationHarnessInput + ?Sized,
 {
     input.summarize_theory_observation_harness()
+}
+
+pub fn summarize_theory_observation_contract<T>(input: &T) -> TheoryObservationContractV0
+where
+    T: TheoryObservationHarnessInput + ?Sized,
+{
+    summarize_theory_observation_contract_from_summary(
+        &input.summarize_theory_observation_harness(),
+    )
 }
 
 fn summarize_style_semantic_graph_observation(
@@ -118,6 +147,24 @@ fn summarize_style_semantic_graph_observation(
         coupling_boundary,
         blocking_gaps,
         next_priorities,
+    }
+}
+
+fn summarize_theory_observation_contract_from_summary(
+    observation: &TheoryObservationHarnessSummaryV0,
+) -> TheoryObservationContractV0 {
+    TheoryObservationContractV0 {
+        schema_version: "0",
+        product: "omena-semantic.theory-observation-contract",
+        observation_product: observation.product,
+        ready: observation.blocking_gaps.is_empty(),
+        selector_identity_status: observation.selector_identity.status,
+        source_evidence_status: observation.source_evidence.status,
+        downstream_readiness_status: observation.downstream_readiness.status,
+        generic_observation_count: observation.coupling_boundary.generic_observation_count,
+        cme_coupled_observation_count: observation.coupling_boundary.cme_coupled_observation_count,
+        blocking_gaps: observation.blocking_gaps.clone(),
+        next_priorities: observation.next_priorities.clone(),
     }
 }
 

@@ -59,4 +59,6 @@ cat style-semantic-graph-input.json \
 Downstream consumers can use either the free function or the
 `TheoryObservationHarnessInput` trait. The trait is the dogfooding surface for
 consumers that should depend on an observation contract instead of a concrete
-builder entry point.
+builder entry point. Consumers that only need stable readiness state can call
+`summarize_theory_observation_contract` or the trait method
+`summarize_theory_observation_contract`.

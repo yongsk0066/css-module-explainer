@@ -20,8 +20,9 @@ pub use lossless_cst::{
 };
 pub use observation::{
     SelectorIdentityObservationV0, SemanticCouplingBoundaryObservationV0,
-    SemanticGraphDownstreamReadinessV0, SourceEvidenceObservationV0, TheoryObservationHarnessInput,
-    TheoryObservationHarnessSummaryV0, summarize_theory_observation_harness,
+    SemanticGraphDownstreamReadinessV0, SourceEvidenceObservationV0, TheoryObservationContractV0,
+    TheoryObservationHarnessInput, TheoryObservationHarnessSummaryV0,
+    summarize_theory_observation_contract, summarize_theory_observation_harness,
 };
 pub use selector_identity::{
     SelectorCanonicalIdentityV0, SelectorIdentityEngineSummaryV0, SelectorIdentityRewriteSafetyV0,
@@ -127,11 +128,13 @@ mod tests {
     use engine_style_parser::parse_style_module;
 
     use super::{
-        summarize_lossless_cst_contract, summarize_parser_contract_facts,
-        summarize_selector_identity_engine, summarize_semantic_promotion_evidence,
+        TheoryObservationHarnessInput, summarize_lossless_cst_contract,
+        summarize_parser_contract_facts, summarize_selector_identity_engine,
+        summarize_semantic_promotion_evidence,
         summarize_semantic_promotion_evidence_with_source_input, summarize_source_input_evidence,
         summarize_style_semantic_boundary, summarize_style_semantic_facts,
-        summarize_style_semantic_graph, summarize_theory_observation_harness,
+        summarize_style_semantic_graph, summarize_theory_observation_contract,
+        summarize_theory_observation_harness,
     };
 
     #[test]
@@ -595,6 +598,22 @@ $color: red;
             observation.next_priorities,
             vec!["externalCorpus", "traitDogfooding"]
         );
+
+        let contract = summarize_theory_observation_contract(&graph);
+        assert_eq!(
+            contract.product,
+            "omena-semantic.theory-observation-contract"
+        );
+        assert_eq!(
+            contract.observation_product,
+            "omena-semantic.theory-observation-harness"
+        );
+        assert!(contract.ready);
+        assert_eq!(contract.selector_identity_status, "ready");
+        assert_eq!(contract.source_evidence_status, "ready");
+        assert_eq!(contract.downstream_readiness_status, "ready");
+        assert!(contract.blocking_gaps.is_empty());
+        assert_eq!(contract, graph.summarize_theory_observation_contract());
         Ok(())
     }
 
@@ -627,6 +646,13 @@ $color: red;
         assert_eq!(observation.downstream_readiness.status, "partial");
         assert_eq!(
             observation.blocking_gaps,
+            vec!["selectorRewriteSafety", "downstreamReadiness"]
+        );
+
+        let contract = graph.summarize_theory_observation_contract();
+        assert!(!contract.ready);
+        assert_eq!(
+            contract.blocking_gaps,
             vec!["selectorRewriteSafety", "downstreamReadiness"]
         );
         Ok(())

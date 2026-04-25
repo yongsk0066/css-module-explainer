@@ -5,8 +5,8 @@ use engine_input_producers::{
 };
 use engine_style_parser::parse_style_module;
 use omena_semantic::{
-    StyleSemanticGraphSummaryV0, TheoryObservationHarnessInput, TheoryObservationHarnessSummaryV0,
-    summarize_style_semantic_graph,
+    StyleSemanticGraphSummaryV0, TheoryObservationContractV0, TheoryObservationHarnessInput,
+    TheoryObservationHarnessSummaryV0, summarize_style_semantic_graph,
 };
 
 pub fn consume_style_semantic_graph() -> Option<StyleSemanticGraphSummaryV0> {
@@ -17,6 +17,18 @@ pub fn consume_style_semantic_graph() -> Option<StyleSemanticGraphSummaryV0> {
 pub fn consume_theory_observation_harness() -> Option<TheoryObservationHarnessSummaryV0> {
     let graph = consume_style_semantic_graph()?;
     Some(graph.summarize_theory_observation_harness())
+}
+
+pub fn consume_theory_observation_contract() -> Option<TheoryObservationContractV0> {
+    let graph = consume_style_semantic_graph()?;
+    Some(consume_generic_observation_contract(&graph))
+}
+
+pub fn consume_generic_observation_contract<T>(input: &T) -> TheoryObservationContractV0
+where
+    T: TheoryObservationHarnessInput + ?Sized,
+{
+    input.summarize_theory_observation_contract()
 }
 
 fn sample_input() -> EngineInputV2 {
@@ -99,7 +111,10 @@ fn range(
 
 #[cfg(test)]
 mod tests {
-    use super::{consume_style_semantic_graph, consume_theory_observation_harness};
+    use super::{
+        consume_style_semantic_graph, consume_theory_observation_contract,
+        consume_theory_observation_harness,
+    };
     use engine_style_parser::parse_style_module;
     use omena_semantic::summarize_style_semantic_boundary;
     use serde_json::json;
@@ -161,6 +176,24 @@ mod tests {
         assert_eq!(observation.source_evidence.status, "ready");
         assert_eq!(observation.downstream_readiness.status, "ready");
         assert!(observation.blocking_gaps.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn consumes_omena_semantic_observation_contract_from_generic_trait() -> Result<(), String> {
+        let contract = consume_theory_observation_contract()
+            .ok_or_else(|| "expected theory observation contract".to_string())?;
+
+        assert_eq!(contract.product, "omena-semantic.theory-observation-contract");
+        assert_eq!(
+            contract.observation_product,
+            "omena-semantic.theory-observation-harness"
+        );
+        assert!(contract.ready);
+        assert_eq!(contract.selector_identity_status, "ready");
+        assert_eq!(contract.source_evidence_status, "ready");
+        assert_eq!(contract.downstream_readiness_status, "ready");
+        assert!(contract.blocking_gaps.is_empty());
         Ok(())
     }
 

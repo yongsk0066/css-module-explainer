@@ -12,5 +12,5 @@ publish = false
 [dependencies]
 engine-input-producers = { git = "https://github.com/omenien/omena-engine-input-producers.git", rev = "074b2fd" }
 engine-style-parser = { git = "https://github.com/omenien/omena-engine-style-parser.git", rev = "76d9cde" }
-omena-semantic = { git = "https://github.com/omenien/omena-semantic.git", rev = "1bf4117" }
+omena-semantic = { git = "https://github.com/omenien/omena-semantic.git", rev = "7e08ba0" }
 serde_json = "1.0"
