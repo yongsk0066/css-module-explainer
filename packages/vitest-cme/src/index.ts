@@ -6,10 +6,14 @@ export {
 } from "./document";
 export {
   textDocumentPositionFixture,
+  textDocumentPositionFromCursor,
   textDocumentRangeFixture,
+  textDocumentRenameFromCursor,
   textDocumentRenameFixture,
+  type CmeCursorLike,
   type CmeTextDocumentPositionFixture,
   type CmeTextDocumentPositionFixtureOptions,
+  type CmeTextDocumentRenameFromCursorFixture,
   type CmeTextDocumentRangeFixture,
   type CmeTextDocumentRangeFixtureOptions,
   type CmeTextDocumentRenameFixture,

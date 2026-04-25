@@ -5,7 +5,9 @@ import {
   documentFixture,
   targetFixture,
   textDocumentPositionFixture,
+  textDocumentPositionFromCursor,
   textDocumentRangeFixture,
+  textDocumentRenameFromCursor,
   textDocumentRenameFixture,
   workspace,
 } from "../../../packages/vitest-cme/src";
@@ -166,6 +168,23 @@ describe("vitest-cme workspace markers", () => {
     });
   });
 
+  it("builds LSP text document position params from cursor params", () => {
+    const ws = workspace({
+      "Button.tsx": "const cls = cx(/*at:hover*/styles.root);",
+    });
+    const cursor = cursorFixture({
+      workspace: ws,
+      filePath: "Button.tsx",
+      documentUri: "file:///fake/Button.tsx",
+      markerName: "hover",
+    });
+
+    expect(textDocumentPositionFromCursor(cursor)).toEqual({
+      textDocument: { uri: "file:///fake/Button.tsx" },
+      position: { line: 0, character: 15 },
+    });
+  });
+
   it("builds LSP rename params from a marker", () => {
     const ws = workspace({
       "Button.module.scss": ".button { color: /*at:value*/$gap; }",
@@ -183,6 +202,24 @@ describe("vitest-cme workspace markers", () => {
       textDocument: { uri: "file:///fake/Button.module.scss" },
       position: { line: 0, character: 17 },
       newName: "spacing",
+    });
+  });
+
+  it("builds LSP rename params from cursor params", () => {
+    const ws = workspace({
+      "Button.tsx": "const cls = cx(/*at:hover*/styles.root);",
+    });
+    const cursor = cursorFixture({
+      workspace: ws,
+      filePath: "Button.tsx",
+      documentUri: "file:///fake/Button.tsx",
+      markerName: "hover",
+    });
+
+    expect(textDocumentRenameFromCursor(cursor, "active")).toEqual({
+      textDocument: { uri: "file:///fake/Button.tsx" },
+      position: { line: 0, character: 15 },
+      newName: "active",
     });
   });
 

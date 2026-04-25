@@ -1,6 +1,12 @@
 import { targetFixture, type CmeTargetFixture } from "./target";
 import type { CmeRangeMarker, CmeWorkspace, Position, Range } from "./workspace";
 
+export interface CmeCursorLike {
+  readonly documentUri: string;
+  readonly line: number;
+  readonly character: number;
+}
+
 export interface CmeTextDocumentPositionFixture {
   readonly textDocument: { readonly uri: string };
   readonly position: Position;
@@ -15,6 +21,13 @@ export interface CmeTextDocumentPositionFixtureOptions {
 }
 
 export interface CmeTextDocumentRenameFixture extends CmeTextDocumentPositionFixture {
+  readonly newName: string;
+}
+
+export interface CmeTextDocumentRenameFromCursorFixture extends Omit<
+  CmeTextDocumentPositionFixture,
+  "target"
+> {
   readonly newName: string;
 }
 
@@ -57,6 +70,25 @@ export function textDocumentRenameFixture(
   return {
     ...textDocumentPositionFixture(options),
     newName: options.newName,
+  };
+}
+
+export function textDocumentPositionFromCursor(
+  cursor: CmeCursorLike,
+): Omit<CmeTextDocumentPositionFixture, "target"> {
+  return {
+    textDocument: { uri: cursor.documentUri },
+    position: { line: cursor.line, character: cursor.character },
+  };
+}
+
+export function textDocumentRenameFromCursor(
+  cursor: CmeCursorLike,
+  newName: string,
+): CmeTextDocumentRenameFromCursorFixture {
+  return {
+    ...textDocumentPositionFromCursor(cursor),
+    newName,
   };
 }
 

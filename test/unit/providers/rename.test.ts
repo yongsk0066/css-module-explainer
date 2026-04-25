@@ -16,6 +16,8 @@ import {
   scenario,
   targetFixture,
   textDocumentPositionFixture,
+  textDocumentPositionFromCursor,
+  textDocumentRenameFromCursor,
   textDocumentRenameFixture,
   workspace,
   type CmeWorkspace,
@@ -383,27 +385,6 @@ function sourceCursorParams(
   });
 }
 
-function sourcePositionParams(cursor: CursorParams) {
-  return {
-    textDocument: { uri: cursor.documentUri },
-    position: cursorPosition(cursor),
-  };
-}
-
-function cursorPosition(cursor: CursorParams) {
-  return {
-    line: cursor.line,
-    character: cursor.character,
-  };
-}
-
-function sourceRenameParams(cursor: CursorParams, newName: string) {
-  return {
-    ...sourcePositionParams(cursor),
-    newName,
-  };
-}
-
 describe("handlePrepareRename from TS/TSX", () => {
   it("returns range and placeholder for cursor on cx('indicator')", async () => {
     const spec = scenario({
@@ -419,10 +400,7 @@ describe("handlePrepareRename from TS/TSX", () => {
             version: 1,
           });
           return handlePrepareRename(
-            {
-              textDocument: { uri: TSX_URI },
-              position: cursor.position,
-            },
+            textDocumentPositionFromCursor(cursor),
             makeTsxDeps({}, testWorkspace.range("class", TSX_PATH).range),
             cursor,
           );
@@ -485,7 +463,7 @@ const a = cx(/*<expr>*/si/*|*/ze/*</expr>*/);
     const cursorParams = sourceCursorParams(dynamicWorkspace);
 
     expect(() =>
-      handlePrepareRename(sourcePositionParams(cursorParams), deps, cursorParams),
+      handlePrepareRename(textDocumentPositionFromCursor(cursorParams), deps, cursorParams),
     ).toThrow("Dynamic class expressions cannot be renamed safely.");
   });
 });
@@ -510,7 +488,7 @@ describe("handleRename from TS/TSX", () => {
     ]);
     const cursorParams = sourceCursorParams(TSX_WORKSPACE);
     const result = handleRename(
-      sourceRenameParams(cursorParams, "status"),
+      textDocumentRenameFromCursor(cursorParams, "status"),
       makeTsxDeps({ semanticReferenceIndex }),
       cursorParams,
     );
@@ -703,7 +681,7 @@ const a = cx('/*<class>*/btn-/*|*/small/*</class>*/');
     expectPrepareRenameBlocked(
       () =>
         handlePrepareRename(
-          sourcePositionParams(cursorParams),
+          textDocumentPositionFromCursor(cursorParams),
           makeBaseDeps({
             analysisCache,
             semanticReferenceIndex,
