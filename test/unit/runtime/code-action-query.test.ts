@@ -101,6 +101,76 @@ describe("planCodeActions", () => {
     ]);
   });
 
+  it("uses explicit creation labels from diagnostic data before parsing messages", () => {
+    const range = {
+      start: { line: 1, character: 0 },
+      end: { line: 1, character: 0 },
+    };
+    const result = planCodeActions(
+      {
+        documentUri: "file:///fake/src/Button.module.scss",
+        diagnostics: [
+          {
+            range,
+            message: "unparseable selector diagnostic",
+            data: {
+              createSelector: {
+                uri: "file:///fake/src/Button.module.scss",
+                range,
+                newText: "/* generated selector */",
+                selectorName: "from-data",
+              },
+            },
+          },
+          {
+            range,
+            message: "unparseable value diagnostic",
+            data: {
+              createValue: {
+                uri: "file:///fake/src/tokens.module.scss",
+                range,
+                newText: "/* generated value */",
+                valueName: "accent",
+              },
+            },
+          },
+          {
+            range,
+            message: "unparseable keyframes diagnostic",
+            data: {
+              createKeyframes: {
+                uri: "file:///fake/src/Button.module.scss",
+                range,
+                newText: "/* generated keyframes */",
+                keyframesName: "fade-in",
+              },
+            },
+          },
+          {
+            range,
+            message: "unparseable Sass symbol diagnostic",
+            data: {
+              createSassSymbol: {
+                uri: "file:///fake/src/Button.module.scss",
+                range,
+                newText: "/* generated symbol */",
+                symbolLabel: "@mixin raised",
+              },
+            },
+          },
+        ],
+      },
+      { fileExists: () => true },
+    );
+
+    expect(result.map((plan) => plan.title)).toEqual([
+      "Add '.from-data' to Button.module.scss",
+      "Add '@value accent' to tokens.module.scss",
+      "Add '@keyframes fade-in' to Button.module.scss",
+      "Add '@mixin raised' to Button.module.scss",
+    ]);
+  });
+
   it("plans proactive sibling module actions for unstyled source files", () => {
     const result = planCodeActions(
       {

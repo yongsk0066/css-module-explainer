@@ -37,6 +37,7 @@ describe("code-action recovery data", () => {
         end: { line: 7, character: 1 },
       },
       newText: "\n\n.missing {\n}\n",
+      selectorName: "missing",
     });
   });
 
@@ -56,6 +57,7 @@ describe("code-action recovery data", () => {
         end: { line: 2, character: 22 },
       },
       newText: "\n@value accent: ;",
+      valueName: "accent",
     });
   });
 
@@ -76,6 +78,7 @@ describe("code-action recovery data", () => {
         end: { line: 0, character: 0 },
       },
       newText: "@keyframes spin {\n}\n\n",
+      keyframesName: "spin",
     });
   });
 
@@ -89,6 +92,7 @@ describe("code-action recovery data", () => {
         end: { line: 3, character: 1 },
       },
       newText: "\n\n@keyframes spin {\n}\n",
+      keyframesName: "spin",
     });
   });
 
@@ -102,6 +106,9 @@ describe("code-action recovery data", () => {
         end: { line: 0, character: 0 },
       },
       newText: "$gap: ;\n\n",
+      symbolKind: "variable",
+      symbolName: "gap",
+      symbolLabel: "$gap",
     });
   });
 
@@ -121,6 +128,9 @@ describe("code-action recovery data", () => {
         end: { line: 0, character: 20 },
       },
       newText: "\n\n@mixin raised() {\n}",
+      symbolKind: "mixin",
+      symbolName: "raised",
+      symbolLabel: "@mixin raised",
     });
   });
 });

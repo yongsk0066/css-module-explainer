@@ -12,17 +12,36 @@ export interface RecoveryEditActionData {
   readonly newText: string;
 }
 
+export interface CreateSelectorActionData extends RecoveryEditActionData {
+  readonly selectorName: string;
+}
+
+export interface CreateValueActionData extends RecoveryEditActionData {
+  readonly valueName: string;
+}
+
+export interface CreateKeyframesActionData extends RecoveryEditActionData {
+  readonly keyframesName: string;
+}
+
+export interface CreateSassSymbolActionData extends RecoveryEditActionData {
+  readonly symbolKind: SassSymbolKind;
+  readonly symbolName: string;
+  readonly symbolLabel: string;
+}
+
 export function buildCreateSelectorActionData(
   className: string,
   scssModulePath: string,
   styleDocument: StyleDocumentHIR,
-): RecoveryEditActionData {
+): CreateSelectorActionData {
   const insertionRange = findSelectorInsertionRange(styleDocument);
   return {
     uri: pathToFileUrl(scssModulePath),
     range: insertionRange,
     newText:
       styleDocument.selectors.length > 0 ? `\n\n.${className} {\n}\n` : `.${className} {\n}\n`,
+    selectorName: className,
   };
 }
 
@@ -30,7 +49,7 @@ export function buildCreateValueActionData(
   valueName: string,
   scssModulePath: string,
   styleDocument: StyleDocumentHIR,
-): RecoveryEditActionData {
+): CreateValueActionData {
   const insertionRange = findValueInsertionRange(styleDocument);
   return {
     uri: pathToFileUrl(scssModulePath),
@@ -39,6 +58,7 @@ export function buildCreateValueActionData(
       styleDocument.valueDecls.length > 0 || styleDocument.valueImports.length > 0
         ? `\n@value ${valueName}: ;`
         : `@value ${valueName}: ;\n`,
+    valueName,
   };
 }
 
@@ -46,7 +66,7 @@ export function buildCreateKeyframesActionData(
   keyframesName: string,
   scssModulePath: string,
   styleDocument: StyleDocumentHIR,
-): RecoveryEditActionData {
+): CreateKeyframesActionData {
   const insertionRange = findKeyframesInsertionRange(styleDocument);
   const hasExistingContent =
     styleDocument.keyframes.length > 0 ||
@@ -70,6 +90,7 @@ export function buildCreateKeyframesActionData(
         ? `@keyframes ${keyframesName} {\n}\n\n`
         : `@keyframes ${keyframesName} {\n}\n`
       : `\n\n@keyframes ${keyframesName} {\n}\n`,
+    keyframesName,
   };
 }
 
@@ -79,7 +100,7 @@ export function buildCreateSassSymbolActionData(
   scssModulePath: string,
   styleDocument: StyleDocumentHIR,
   syntax: StylePreprocessorSymbolSyntax = "sass",
-): RecoveryEditActionData {
+): CreateSassSymbolActionData {
   const insertionRange = findSassSymbolInsertionRange(styleDocument);
   const stub = sassSymbolStub(symbolKind, symbolName, syntax);
   const insertsAtTop =
@@ -97,6 +118,9 @@ export function buildCreateSassSymbolActionData(
     uri: pathToFileUrl(scssModulePath),
     range: insertionRange,
     newText: insertsAtTop ? (hasExistingContent ? `${stub}\n\n` : `${stub}\n`) : `\n\n${stub}`,
+    symbolKind,
+    symbolName,
+    symbolLabel: sassSymbolLabel(symbolKind, symbolName, syntax),
   };
 }
 
@@ -181,6 +205,22 @@ function sassSymbolStub(
       return `@mixin ${symbolName}() {\n}`;
     case "function":
       return `@function ${symbolName}() {\n  @return null;\n}`;
+  }
+}
+
+function sassSymbolLabel(
+  symbolKind: SassSymbolKind,
+  symbolName: string,
+  syntax: StylePreprocessorSymbolSyntax,
+): string {
+  if (syntax === "less") return `@${symbolName}`;
+  switch (symbolKind) {
+    case "variable":
+      return `$${symbolName}`;
+    case "mixin":
+      return `@mixin ${symbolName}`;
+    case "function":
+      return `@function ${symbolName}`;
   }
 }
 

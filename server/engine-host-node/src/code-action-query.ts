@@ -59,10 +59,12 @@ export function planCodeActions(
 
     const createSelector = extractCreateSelector(diagnostic);
     if (createSelector) {
-      const className = extractCreateSelectorClassName(diagnostic.message, createSelector.newText);
+      const className =
+        createSelector.selectorName ??
+        extractCreateSelectorClassName(diagnostic.message, createSelector.newText);
       plans.push({
         kind: "textEdit",
-        title: `Add '.${className}' to ${fileLabel(createSelector.uri)}`,
+        title: `Add '${selectorLabel(className)}' to ${fileLabel(createSelector.uri)}`,
         diagnosticIndex,
         uri: createSelector.uri,
         range: createSelector.range,
@@ -84,7 +86,8 @@ export function planCodeActions(
 
     const createValue = extractCreateValue(diagnostic);
     if (createValue) {
-      const valueName = extractCreateValueName(diagnostic.message, createValue.newText);
+      const valueName =
+        createValue.valueName ?? extractCreateValueName(diagnostic.message, createValue.newText);
       plans.push({
         kind: "textEdit",
         title: `Add '@value ${valueName}' to ${fileLabel(createValue.uri)}`,
@@ -97,7 +100,9 @@ export function planCodeActions(
 
     const createKeyframes = extractCreateKeyframes(diagnostic);
     if (createKeyframes) {
-      const keyframesName = extractCreateKeyframesName(diagnostic.message, createKeyframes.newText);
+      const keyframesName =
+        createKeyframes.keyframesName ??
+        extractCreateKeyframesName(diagnostic.message, createKeyframes.newText);
       plans.push({
         kind: "textEdit",
         title: `Add '@keyframes ${keyframesName}' to ${fileLabel(createKeyframes.uri)}`,
@@ -110,7 +115,9 @@ export function planCodeActions(
 
     const createSassSymbol = extractCreateSassSymbol(diagnostic);
     if (createSassSymbol) {
-      const label = extractCreateSassSymbolLabel(diagnostic.message, createSassSymbol.newText);
+      const label =
+        createSassSymbol.symbolLabel ??
+        extractCreateSassSymbolLabel(diagnostic.message, createSassSymbol.newText);
       plans.push({
         kind: "textEdit",
         title: `Add '${label}' to ${fileLabel(createSassSymbol.uri)}`,
@@ -170,6 +177,7 @@ function extractCreateSelector(diagnostic: CodeActionDiagnosticInput): {
   readonly uri: string;
   readonly range: Range;
   readonly newText: string;
+  readonly selectorName?: string;
 } | null {
   const data = diagnostic.data;
   if (!isRecord(data)) return null;
@@ -178,7 +186,12 @@ function extractCreateSelector(diagnostic: CodeActionDiagnosticInput): {
   if (typeof payload.uri !== "string" || typeof payload.newText !== "string") return null;
   const range = payload.range;
   if (!isRange(range)) return null;
-  return { uri: payload.uri, range, newText: payload.newText };
+  return {
+    uri: payload.uri,
+    range,
+    newText: payload.newText,
+    ...(nonEmptyString(payload.selectorName) ? { selectorName: payload.selectorName } : {}),
+  };
 }
 
 function extractCreateModuleFile(
@@ -195,6 +208,7 @@ function extractCreateValue(diagnostic: CodeActionDiagnosticInput): {
   readonly uri: string;
   readonly range: Range;
   readonly newText: string;
+  readonly valueName?: string;
 } | null {
   const data = diagnostic.data;
   if (!isRecord(data)) return null;
@@ -203,13 +217,19 @@ function extractCreateValue(diagnostic: CodeActionDiagnosticInput): {
   if (typeof payload.uri !== "string" || typeof payload.newText !== "string") return null;
   const range = payload.range;
   if (!isRange(range)) return null;
-  return { uri: payload.uri, range, newText: payload.newText };
+  return {
+    uri: payload.uri,
+    range,
+    newText: payload.newText,
+    ...(nonEmptyString(payload.valueName) ? { valueName: payload.valueName } : {}),
+  };
 }
 
 function extractCreateKeyframes(diagnostic: CodeActionDiagnosticInput): {
   readonly uri: string;
   readonly range: Range;
   readonly newText: string;
+  readonly keyframesName?: string;
 } | null {
   const data = diagnostic.data;
   if (!isRecord(data)) return null;
@@ -218,13 +238,19 @@ function extractCreateKeyframes(diagnostic: CodeActionDiagnosticInput): {
   if (typeof payload.uri !== "string" || typeof payload.newText !== "string") return null;
   const range = payload.range;
   if (!isRange(range)) return null;
-  return { uri: payload.uri, range, newText: payload.newText };
+  return {
+    uri: payload.uri,
+    range,
+    newText: payload.newText,
+    ...(nonEmptyString(payload.keyframesName) ? { keyframesName: payload.keyframesName } : {}),
+  };
 }
 
 function extractCreateSassSymbol(diagnostic: CodeActionDiagnosticInput): {
   readonly uri: string;
   readonly range: Range;
   readonly newText: string;
+  readonly symbolLabel?: string;
 } | null {
   const data = diagnostic.data;
   if (!isRecord(data)) return null;
@@ -233,7 +259,16 @@ function extractCreateSassSymbol(diagnostic: CodeActionDiagnosticInput): {
   if (typeof payload.uri !== "string" || typeof payload.newText !== "string") return null;
   const range = payload.range;
   if (!isRange(range)) return null;
-  return { uri: payload.uri, range, newText: payload.newText };
+  return {
+    uri: payload.uri,
+    range,
+    newText: payload.newText,
+    ...(nonEmptyString(payload.symbolLabel) ? { symbolLabel: payload.symbolLabel } : {}),
+  };
+}
+
+function nonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0;
 }
 
 function isRange(value: unknown): value is Range {
@@ -252,6 +287,10 @@ function extractCreateSelectorClassName(message: string, newText: string): strin
     /Selector '\.([^']+)' not found/.exec(message)?.[1];
   if (fromMessage) return fromMessage;
   return /^\s*\.([^{\s]+)\s*\{/u.exec(newText)?.[1] ?? "selector";
+}
+
+function selectorLabel(className: string): string {
+  return className.startsWith(".") ? className : `.${className}`;
 }
 
 function extractCreateValueName(message: string, newText: string): string {
