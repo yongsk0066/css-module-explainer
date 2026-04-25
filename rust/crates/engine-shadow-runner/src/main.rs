@@ -32,6 +32,7 @@ use engine_input_producers::{
     summarize_source_side_canonical_producer_signal_input,
     summarize_source_side_evaluator_candidates_input, summarize_type_fact_input,
 };
+use omena_semantic::summarize_style_semantic_graph_from_source;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
@@ -47,6 +48,14 @@ struct EngineOutputV2 {
     query_results: Vec<QueryResultV2>,
     rewrite_plans: Vec<serde_json::Value>,
     checker_report: CheckerReportV1,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StyleSemanticGraphInputV0 {
+    style_path: String,
+    style_source: String,
+    engine_input: EngineInputV2,
 }
 
 #[derive(Debug, Deserialize)]
@@ -530,6 +539,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some("input-semantic-canonical-producer") => {
             let input: EngineInputV2 = serde_json::from_str(&stdin)?;
             let summary = summarize_semantic_canonical_producer_signal_input(&input);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
+        Some("style-semantic-graph") => {
+            let input: StyleSemanticGraphInputV0 = serde_json::from_str(&stdin)?;
+            let Some(summary) = summarize_style_semantic_graph_from_source(
+                &input.style_path,
+                &input.style_source,
+                &input.engine_input,
+            ) else {
+                return Err("unsupported style module path".into());
+            };
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
         Some("input-expression-semantics-query-fragments") => {

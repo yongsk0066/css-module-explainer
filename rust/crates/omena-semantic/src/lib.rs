@@ -1,6 +1,7 @@
 use engine_input_producers::EngineInputV2;
 use engine_style_parser::{
-    ParserBoundarySyntaxFactsV0, StyleSemanticFactsV0, Stylesheet, summarize_semantic_boundary,
+    ParserBoundarySyntaxFactsV0, StyleSemanticFactsV0, Stylesheet, parse_style_module,
+    summarize_semantic_boundary,
 };
 use serde::Serialize;
 
@@ -110,6 +111,15 @@ pub fn summarize_style_semantic_graph(
     }
 }
 
+pub fn summarize_style_semantic_graph_from_source(
+    style_path: &str,
+    style_source: &str,
+    input: &EngineInputV2,
+) -> Option<StyleSemanticGraphSummaryV0> {
+    let sheet = parse_style_module(style_path, style_source)?;
+    Some(summarize_style_semantic_graph(&sheet, input))
+}
+
 pub fn summarize_style_semantic_facts(sheet: &Stylesheet) -> StyleSemanticFactsV0 {
     summarize_style_semantic_boundary(sheet).semantic_facts
 }
@@ -133,8 +143,8 @@ mod tests {
         summarize_semantic_promotion_evidence,
         summarize_semantic_promotion_evidence_with_source_input, summarize_source_input_evidence,
         summarize_style_semantic_boundary, summarize_style_semantic_facts,
-        summarize_style_semantic_graph, summarize_theory_observation_contract,
-        summarize_theory_observation_harness,
+        summarize_style_semantic_graph, summarize_style_semantic_graph_from_source,
+        summarize_theory_observation_contract, summarize_theory_observation_harness,
     };
 
     #[test]
@@ -544,6 +554,25 @@ $color: red;
                 .span_invariants
                 .byte_span_contract_ready
         );
+        Ok(())
+    }
+
+    #[test]
+    fn summarizes_style_semantic_graph_from_source_for_host_consumers() -> Result<(), String> {
+        let graph = summarize_style_semantic_graph_from_source(
+            "Component.module.scss",
+            ".button { color: red; }",
+            &sample_engine_input(),
+        )
+        .ok_or_else(|| "expected style semantic graph".to_string())?;
+
+        assert_eq!(graph.product, "omena-semantic.style-semantic-graph");
+        assert_eq!(graph.language, "scss");
+        assert_eq!(
+            graph.selector_identity_engine.product,
+            "omena-semantic.selector-identity"
+        );
+
         Ok(())
     }
 
