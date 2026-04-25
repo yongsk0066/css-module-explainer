@@ -1,7 +1,24 @@
 import { expect, test } from "../_fixtures/protocol";
 import { FakeTypeResolver } from "../_fixtures/fake-type-resolver";
+import { targetFixture, workspace, type CmeWorkspace } from "../../packages/vitest-cme/src";
 
 const SCSS_URI = "file:///fake/workspace/src/Button.module.scss";
+
+function fixture(
+  filePath: string,
+  content: string,
+): {
+  readonly content: string;
+  readonly position: { readonly line: number; readonly character: number };
+  readonly workspace: CmeWorkspace;
+} {
+  const source = workspace({ [filePath]: content });
+  return {
+    content: source.file(filePath).content,
+    position: targetFixture({ workspace: source, filePath }).position,
+    workspace: source,
+  };
+}
 
 test("references protocol returns TSX sites for cx('indicator')", async ({ makeClient }) => {
   const tsxUri = "file:///fake/workspace/src/Button.tsx";
@@ -12,7 +29,11 @@ export function Button() {
   return <div className={cx('indicator')}>hi</div>;
 }
 `;
-  const scss = `.indicator { color: red; }\n.other { color: blue; }\n`;
+  const scssFixture = fixture(
+    SCSS_URI,
+    `.i/*|*/ndicator { color: red; }\n.other { color: blue; }\n`,
+  );
+  const scss = scssFixture.content;
 
   const client = makeClient({
     readStyleFile: (path) => (path.endsWith("Button.module.scss") ? scss : null),
@@ -33,7 +54,7 @@ export function Button() {
 
   const result = await client.references({
     textDocument: { uri: SCSS_URI },
-    position: { line: 0, character: 2 },
+    position: scssFixture.position,
     context: { includeDeclaration: false },
   });
 
@@ -47,13 +68,17 @@ test("references protocol returns TSX sites from a TSX cursor on cx('indicator')
   makeClient,
 }) => {
   const tsxUri = "file:///fake/workspace/src/Button.tsx";
-  const tsx = `import classNames from 'classnames/bind';
+  const tsxFixture = fixture(
+    tsxUri,
+    `import classNames from 'classnames/bind';
 import styles from './Button.module.scss';
 const cx = classNames.bind(styles);
 export function Button() {
-  return <div className={cx('indicator')}>hi</div>;
+  return <div className={cx('indi/*|*/cator')}>hi</div>;
 }
-`;
+`,
+  );
+  const tsx = tsxFixture.content;
   const scss = `.indicator { color: red; }\n.other { color: blue; }\n`;
 
   const client = makeClient({
@@ -75,7 +100,7 @@ export function Button() {
 
   const result = await client.references({
     textDocument: { uri: tsxUri },
-    position: { line: 4, character: 33 },
+    position: tsxFixture.position,
     context: { includeDeclaration: false },
   });
 
@@ -93,7 +118,8 @@ export function Button() {
   return <div className={clsx(styles.indicator)}>hi</div>;
 }
 `;
-  const scss = `.indicator { color: red; }\n`;
+  const scssFixture = fixture(SCSS_URI, `.i/*|*/ndicator { color: red; }\n`);
+  const scss = scssFixture.content;
 
   const client = makeClient({
     readStyleFile: (path) => (path.endsWith("Button.module.scss") ? scss : null),
@@ -114,7 +140,7 @@ export function Button() {
 
   const result = await client.references({
     textDocument: { uri: SCSS_URI },
-    position: { line: 0, character: 2 },
+    position: scssFixture.position,
     context: { includeDeclaration: false },
   });
 
@@ -133,7 +159,11 @@ export function Button() {
   return <div className={styles['btn-primary']}>hi</div>;
 }
 `;
-  const scss = `.btn-primary { color: red; }\n.note { color: slateblue; }\n`;
+  const scssFixture = fixture(
+    SCSS_URI,
+    `.b/*|*/tn-primary { color: red; }\n.note { color: slateblue; }\n`,
+  );
+  const scss = scssFixture.content;
 
   const client = makeClient({
     readStyleFile: (path) => (path.endsWith("Button.module.scss") ? scss : null),
@@ -154,7 +184,7 @@ export function Button() {
 
   const result = await client.references({
     textDocument: { uri: SCSS_URI },
-    position: { line: 0, character: 2 },
+    position: scssFixture.position,
     context: { includeDeclaration: false },
   });
 
@@ -179,7 +209,9 @@ export function Sized(flag: boolean) {
   return <div className={cx(size)}>hi</div>;
 }
 `;
-  const scss = `.sm { font-size: 12px; }\n.lg { font-size: 20px; }\n`;
+  const scssUri = "file:///fake/workspace/src/Sized.module.scss";
+  const scssFixture = fixture(scssUri, `.s/*|*/m { font-size: 12px; }\n.lg { font-size: 20px; }\n`);
+  const scss = scssFixture.content;
 
   const client = makeClient({
     readStyleFile: (path) => (path.endsWith("Sized.module.scss") ? scss : null),
@@ -199,8 +231,8 @@ export function Sized(flag: boolean) {
   await client.waitForDiagnostics(tsxUri);
 
   const result = await client.references({
-    textDocument: { uri: "file:///fake/workspace/src/Sized.module.scss" },
-    position: { line: 0, character: 2 },
+    textDocument: { uri: scssUri },
+    position: scssFixture.position,
     context: { includeDeclaration: false },
   });
 
@@ -236,7 +268,11 @@ export function StatusChip(status: Status) {
   return <div className={cx('chip', derivedStatusClass)}>hi</div>;
 }
 `;
-  const scss = `.chip { color: slategray; }\n.state-idle { color: teal; }\n.state-busy { color: orange; }\n.state-error { color: crimson; }\n`;
+  const scssFixture = fixture(
+    scssUri,
+    `.chip { color: slategray; }\n.st/*|*/ate-idle { color: teal; }\n.state-busy { color: orange; }\n.state-error { color: crimson; }\n`,
+  );
+  const scss = scssFixture.content;
 
   const client = makeClient({
     readStyleFile: (path) => (path.endsWith("Status.module.scss") ? scss : null),
@@ -257,7 +293,7 @@ export function StatusChip(status: Status) {
 
   const result = await client.references({
     textDocument: { uri: scssUri },
-    position: { line: 1, character: 3 },
+    position: scssFixture.position,
     context: { includeDeclaration: false },
   });
 
@@ -280,7 +316,11 @@ export function StateChip(variant: string) {
   return <div className={cx('chip', derivedChipClass)}>hi</div>;
 }
 `;
-  const scss = `.chip { color: slategray; }\n.idle-chip { color: teal; }\n.busy-chip { color: orange; }\n.error-chip { color: crimson; }\n`;
+  const scssFixture = fixture(
+    scssUri,
+    `.chip { color: slategray; }\n.id/*|*/le-chip { color: teal; }\n.busy-chip { color: orange; }\n.error-chip { color: crimson; }\n`,
+  );
+  const scss = scssFixture.content;
 
   const client = makeClient({
     readStyleFile: (path) => (path.endsWith("StateChip.module.scss") ? scss : null),
@@ -301,7 +341,7 @@ export function StateChip(variant: string) {
 
   const result = await client.references({
     textDocument: { uri: scssUri },
-    position: { line: 1, character: 3 },
+    position: scssFixture.position,
     context: { includeDeclaration: false },
   });
 
@@ -324,7 +364,11 @@ export function ButtonChip(variant: string) {
   return <div className={cx('chip', derivedChipClass)}>hi</div>;
 }
 `;
-  const scss = `.chip { color: slategray; }\n.btn-idle-chip { color: teal; }\n.btn-busy-chip { color: orange; }\n.btn-error-chip { color: crimson; }\n`;
+  const scssFixture = fixture(
+    scssUri,
+    `.chip { color: slategray; }\n.btn-i/*|*/dle-chip { color: teal; }\n.btn-busy-chip { color: orange; }\n.btn-error-chip { color: crimson; }\n`,
+  );
+  const scss = scssFixture.content;
 
   const client = makeClient({
     readStyleFile: (path) => (path.endsWith("ButtonChip.module.scss") ? scss : null),
@@ -345,7 +389,7 @@ export function ButtonChip(variant: string) {
 
   const result = await client.references({
     textDocument: { uri: scssUri },
-    position: { line: 1, character: 6 },
+    position: scssFixture.position,
     context: { includeDeclaration: false },
   });
 
@@ -360,6 +404,8 @@ test("references protocol resolves a cross-file composes token to the target sel
 }) => {
   const tsxUri = "file:///fake/workspace/src/Button.tsx";
   const baseTsxUri = "file:///fake/workspace/src/Base.tsx";
+  const buttonScssUri = "file:///fake/workspace/src/Button.module.scss";
+  const baseScssUri = "file:///fake/workspace/src/Base.module.scss";
   const tsx = `import classNames from 'classnames/bind';
 import styles from './Button.module.scss';
 const cx = classNames.bind(styles);
@@ -374,12 +420,16 @@ export function Base() {
   return <div className={cx('base')}>hi</div>;
 }
 `;
-  const buttonScss = `
+  const buttonScssFixture = fixture(
+    buttonScssUri,
+    `
 .button {
-  composes: base from './Base.module.scss';
+  composes: b/*|*/ase from './Base.module.scss';
   color: red;
 }
-`;
+`,
+  );
+  const buttonScss = buttonScssFixture.content;
   const baseScss = `
 .base {
   color: blue;
@@ -415,7 +465,7 @@ export function Base() {
   });
   client.didOpen({
     textDocument: {
-      uri: "file:///fake/workspace/src/Button.module.scss",
+      uri: buttonScssUri,
       languageId: "scss",
       version: 1,
       text: buttonScss,
@@ -423,7 +473,7 @@ export function Base() {
   });
   client.didOpen({
     textDocument: {
-      uri: "file:///fake/workspace/src/Base.module.scss",
+      uri: baseScssUri,
       languageId: "scss",
       version: 1,
       text: baseScss,
@@ -433,8 +483,8 @@ export function Base() {
   await client.waitForDiagnostics(baseTsxUri);
 
   const result = await client.references({
-    textDocument: { uri: "file:///fake/workspace/src/Button.module.scss" },
-    position: { line: 2, character: 13 },
+    textDocument: { uri: buttonScssUri },
+    position: buttonScssFixture.position,
     context: { includeDeclaration: false },
   });
 
@@ -447,7 +497,9 @@ test("references protocol returns same-file animation references for @keyframes"
   makeClient,
 }) => {
   const scssUri = "file:///fake/workspace/src/Button.module.scss";
-  const scss = `@keyframes fade {
+  const scssFixture = fixture(
+    scssUri,
+    `@keyframes fa/*|*/de {
   from { opacity: 0; }
   to { opacity: 1; }
 }
@@ -459,7 +511,9 @@ test("references protocol returns same-file animation references for @keyframes"
 .pulse {
   animation-name: fade;
 }
-`;
+`,
+  );
+  const scss = scssFixture.content;
 
   const client = makeClient({
     readStyleFile: (path) => (path.endsWith("Button.module.scss") ? scss : null),
@@ -479,7 +533,7 @@ test("references protocol returns same-file animation references for @keyframes"
 
   const result = await client.references({
     textDocument: { uri: scssUri },
-    position: { line: 0, character: 13 },
+    position: scssFixture.position,
     context: { includeDeclaration: true },
   });
 
@@ -494,12 +548,16 @@ test("references protocol returns same-file value references for @value", async 
   makeClient,
 }) => {
   const scssUri = "file:///fake/workspace/src/Button.module.scss";
-  const scss = `@value primary: #ff3355;
+  const scssFixture = fixture(
+    scssUri,
+    `@value pr/*|*/imary: #ff3355;
 
 .button {
   color: primary;
 }
-`;
+`,
+  );
+  const scss = scssFixture.content;
 
   const client = makeClient({
     readStyleFile: (path) => (path.endsWith("Button.module.scss") ? scss : null),
@@ -519,7 +577,7 @@ test("references protocol returns same-file value references for @value", async 
 
   const result = await client.references({
     textDocument: { uri: scssUri },
-    position: { line: 0, character: 9 },
+    position: scssFixture.position,
     context: { includeDeclaration: true },
   });
 
@@ -532,12 +590,16 @@ test("references protocol returns same-file value references for @value", async 
 
 test("references protocol returns same-file Sass symbol references", async ({ makeClient }) => {
   const scssUri = "file:///fake/workspace/src/Button.module.scss";
-  const scss = `$gap: 1rem;
+  const scssFixture = fixture(
+    scssUri,
+    `$/*|*/gap: 1rem;
 .button {
   color: $gap;
   margin: $gap;
 }
-`;
+`,
+  );
+  const scss = scssFixture.content;
 
   const client = makeClient({
     readStyleFile: (path) => (path.endsWith("Button.module.scss") ? scss : null),
@@ -557,7 +619,7 @@ test("references protocol returns same-file Sass symbol references", async ({ ma
 
   const result = await client.references({
     textDocument: { uri: scssUri },
-    position: { line: 0, character: 1 },
+    position: scssFixture.position,
     context: { includeDeclaration: true },
   });
 
@@ -572,12 +634,16 @@ test("references protocol returns local import sites and source declaration for 
 }) => {
   const scssUri = "file:///fake/workspace/src/Button.module.scss";
   const tokensUri = "file:///fake/workspace/src/tokens.module.scss";
-  const scss = `@value primary from "./tokens.module.scss";
+  const scssFixture = fixture(
+    scssUri,
+    `@value primary from "./tokens.module.scss";
 
 .button {
-  color: primary;
+  color: p/*|*/rimary;
 }
-`;
+`,
+  );
+  const scss = scssFixture.content;
   const tokens = `@value primary: #ff3355;`;
 
   const client = makeClient({
@@ -602,7 +668,7 @@ test("references protocol returns local import sites and source declaration for 
 
   const result = await client.references({
     textDocument: { uri: scssUri },
-    position: { line: 3, character: 10 },
+    position: scssFixture.position,
     context: { includeDeclaration: true },
   });
 
