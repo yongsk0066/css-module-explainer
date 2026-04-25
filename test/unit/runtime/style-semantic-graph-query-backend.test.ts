@@ -5,6 +5,7 @@ import {
   buildStyleSemanticGraphSelectorIdentityReadModels,
   resolveRustStyleSemanticGraph,
   resolveRustStyleSemanticGraphForWorkspaceTarget,
+  type StyleSemanticGraphBatchRunnerInputV0,
   type StyleSemanticGraphSummaryV0,
   type StyleSemanticGraphRunnerInputV0,
 } from "../../../server/engine-host-node/src/style-semantic-graph-query-backend";
@@ -12,7 +13,9 @@ import { infoAtLine, makeBaseDeps } from "../../_fixtures/test-helpers";
 import { buildStyleDocumentFromSelectorMap } from "../../_fixtures/style-documents";
 
 const SCSS_PATH = "/fake/ws/src/Button.module.scss";
+const CARD_SCSS_PATH = "/fake/ws/src/Card.module.scss";
 const SCSS_SOURCE = ".button { color: red; }";
+const CARD_SCSS_SOURCE = ".card { color: red; }";
 
 describe("style semantic graph query backend", () => {
   it("routes host style semantic graph reads through the selected-query runner", () => {
@@ -260,9 +263,156 @@ describe("style semantic graph query backend", () => {
     expect(first).toBe(second);
     expect(runnerCalls).toBe(1);
   });
+
+  it("seeds workspace target graph cache from a batch runner read", () => {
+    const deps = makeBaseDeps({
+      selectorMapForPath: (filePath) =>
+        filePath === SCSS_PATH
+          ? new Map([["button", infoAtLine("button", 1)]])
+          : filePath === CARD_SCSS_PATH
+            ? new Map([["card", infoAtLine("card", 1)]])
+            : null,
+      readStyleFile: (filePath) =>
+        filePath === SCSS_PATH
+          ? SCSS_SOURCE
+          : filePath === CARD_SCSS_PATH
+            ? CARD_SCSS_SOURCE
+            : null,
+      workspaceRoot: "/fake/ws",
+    });
+    const engineInput = makeEngineInput();
+    const styleSemanticGraphCache = new Map<string, StyleSemanticGraphSummaryV0 | null>();
+    const commands: string[] = [];
+    let batchInput: StyleSemanticGraphBatchRunnerInputV0 | null = null;
+    const queryOptions = {
+      engineInput,
+      sourceDocuments: [],
+      styleFiles: [SCSS_PATH, CARD_SCSS_PATH],
+      styleSemanticGraphCache,
+      runRustSelectedQueryBackendJson: <T>(command: string, input: unknown): T => {
+        commands.push(command);
+        if (command !== "style-semantic-graph-batch") {
+          throw new Error(`unexpected runner command: ${command}`);
+        }
+        batchInput = input as StyleSemanticGraphBatchRunnerInputV0;
+        return {
+          schemaVersion: "0",
+          product: "omena-semantic.style-semantic-graph-batch",
+          graphs: [
+            { stylePath: SCSS_PATH, graph: makeGraph(SCSS_PATH) },
+            { stylePath: CARD_SCSS_PATH, graph: makeGraph(CARD_SCSS_PATH) },
+          ],
+        } as T;
+      },
+    };
+
+    const buttonGraph = resolveRustStyleSemanticGraphForWorkspaceTarget(
+      {
+        workspaceRoot: "/fake/ws",
+        classnameTransform: DEFAULT_SETTINGS.scss.classnameTransform,
+        pathAlias: DEFAULT_SETTINGS.pathAlias,
+      },
+      {
+        analysisCache: deps.analysisCache,
+        styleDocumentForPath: deps.styleDocumentForPath,
+        typeResolver: deps.typeResolver,
+        readStyleFile: deps.readStyleFile,
+      },
+      SCSS_PATH,
+      queryOptions,
+    );
+    const cardGraph = resolveRustStyleSemanticGraphForWorkspaceTarget(
+      {
+        workspaceRoot: "/fake/ws",
+        classnameTransform: DEFAULT_SETTINGS.scss.classnameTransform,
+        pathAlias: DEFAULT_SETTINGS.pathAlias,
+      },
+      {
+        analysisCache: deps.analysisCache,
+        styleDocumentForPath: deps.styleDocumentForPath,
+        typeResolver: deps.typeResolver,
+        readStyleFile: deps.readStyleFile,
+      },
+      CARD_SCSS_PATH,
+      queryOptions,
+    );
+
+    expect(commands).toEqual(["style-semantic-graph-batch"]);
+    expect(batchInput?.styles.map((style) => style.stylePath)).toEqual([SCSS_PATH, CARD_SCSS_PATH]);
+    expect(buttonGraph?.selectorReferenceEngine.stylePath).toBe(SCSS_PATH);
+    expect(cardGraph?.selectorReferenceEngine.stylePath).toBe(CARD_SCSS_PATH);
+  });
+
+  it("falls back to single graph reads when batch output omits the exact target path", () => {
+    const deps = makeBaseDeps({
+      selectorMapForPath: (filePath) =>
+        filePath === SCSS_PATH
+          ? new Map([["button", infoAtLine("button", 1)]])
+          : filePath === CARD_SCSS_PATH
+            ? new Map([["card", infoAtLine("card", 1)]])
+            : null,
+      readStyleFile: (filePath) =>
+        filePath === SCSS_PATH
+          ? SCSS_SOURCE
+          : filePath === CARD_SCSS_PATH
+            ? CARD_SCSS_SOURCE
+            : null,
+      workspaceRoot: "/fake/ws",
+    });
+    const commands: string[] = [];
+
+    const graph = resolveRustStyleSemanticGraphForWorkspaceTarget(
+      {
+        workspaceRoot: "/fake/ws",
+        classnameTransform: DEFAULT_SETTINGS.scss.classnameTransform,
+        pathAlias: DEFAULT_SETTINGS.pathAlias,
+      },
+      {
+        analysisCache: deps.analysisCache,
+        styleDocumentForPath: deps.styleDocumentForPath,
+        typeResolver: deps.typeResolver,
+        readStyleFile: deps.readStyleFile,
+      },
+      SCSS_PATH,
+      {
+        engineInput: makeEngineInput(),
+        sourceDocuments: [],
+        styleFiles: [SCSS_PATH, CARD_SCSS_PATH],
+        styleSemanticGraphCache: new Map(),
+        runRustSelectedQueryBackendJson: <T>(command: string): T => {
+          commands.push(command);
+          if (command === "style-semantic-graph-batch") {
+            return {
+              schemaVersion: "0",
+              product: "omena-semantic.style-semantic-graph-batch",
+              graphs: [{ stylePath: "src/Button.module.scss", graph: makeGraph(SCSS_PATH) }],
+            } as T;
+          }
+          return makeGraph(SCSS_PATH) as T;
+        },
+      },
+    );
+
+    expect(commands).toEqual(["style-semantic-graph-batch", "style-semantic-graph"]);
+    expect(graph?.selectorReferenceEngine.stylePath).toBe(SCSS_PATH);
+  });
 });
 
-function makeGraph(): StyleSemanticGraphSummaryV0 {
+function makeEngineInput(): EngineInputV2 {
+  return {
+    version: "2",
+    workspace: {
+      root: "/fake/ws",
+      classnameTransform: DEFAULT_SETTINGS.scss.classnameTransform,
+      settingsKey: "precomputed",
+    },
+    sources: [],
+    styles: [],
+    typeFacts: [],
+  };
+}
+
+function makeGraph(stylePath = SCSS_PATH): StyleSemanticGraphSummaryV0 {
   return {
     schemaVersion: "0",
     product: "omena-semantic.style-semantic-graph",
@@ -292,7 +442,7 @@ function makeGraph(): StyleSemanticGraphSummaryV0 {
     selectorReferenceEngine: {
       schemaVersion: "0",
       product: "omena-semantic.selector-references",
-      stylePath: "/fake/ws/src/Button.module.scss",
+      stylePath,
       selectorCount: 1,
       referencedSelectorCount: 0,
       unreferencedSelectorCount: 1,

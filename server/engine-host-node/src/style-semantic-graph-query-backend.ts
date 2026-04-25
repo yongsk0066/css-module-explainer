@@ -105,6 +105,27 @@ export interface StyleSemanticGraphRunnerInputV0 {
   readonly engineInput: EngineInputV2;
 }
 
+export interface StyleSemanticGraphBatchRunnerInputV0 {
+  readonly styles: readonly StyleSemanticGraphBatchStyleInputV0[];
+  readonly engineInput: EngineInputV2;
+}
+
+export interface StyleSemanticGraphBatchStyleInputV0 {
+  readonly stylePath: string;
+  readonly styleSource: string;
+}
+
+export interface StyleSemanticGraphBatchRunnerOutputV0 {
+  readonly schemaVersion: "0";
+  readonly product: "omena-semantic.style-semantic-graph-batch";
+  readonly graphs: readonly StyleSemanticGraphBatchEntryV0[];
+}
+
+export interface StyleSemanticGraphBatchEntryV0 {
+  readonly stylePath: string;
+  readonly graph: StyleSemanticGraphSummaryV0 | null;
+}
+
 type StyleSemanticGraphQueryBackendOptions = Pick<
   BuildSelectedQueryResultsV2Options,
   | "workspaceRoot"
@@ -133,6 +154,10 @@ export function resolveRustStyleSemanticGraph(
   queryOptions: StyleSemanticGraphQueryOptions = {},
 ): StyleSemanticGraphSummaryV0 | null {
   const cache = queryOptions.styleSemanticGraphCache;
+  if (cache?.has(stylePath)) {
+    return cache.get(stylePath) ?? null;
+  }
+  maybePopulateStyleSemanticGraphCacheFromBatch(options, queryOptions);
   if (cache?.has(stylePath)) {
     return cache.get(stylePath) ?? null;
   }
@@ -217,6 +242,14 @@ export function runRustStyleSemanticGraph(
   return runJson<StyleSemanticGraphSummaryV0>("style-semantic-graph", input);
 }
 
+export function runRustStyleSemanticGraphBatch(
+  input: StyleSemanticGraphBatchRunnerInputV0,
+  options: StyleSemanticGraphQueryOptions = {},
+): StyleSemanticGraphBatchRunnerOutputV0 {
+  const runJson = options.runRustSelectedQueryBackendJson ?? runRustSelectedQueryBackendJson;
+  return runJson<StyleSemanticGraphBatchRunnerOutputV0>("style-semantic-graph-batch", input);
+}
+
 export function buildStyleSemanticGraphSelectorIdentityReadModels(
   graph: StyleSemanticGraphSummaryV0,
   styleDocument: StyleDocumentHIR,
@@ -249,4 +282,44 @@ function ensureStyleFileIncluded(
   stylePath: string,
 ): readonly string[] {
   return styleFiles.includes(stylePath) ? styleFiles : [...styleFiles, stylePath];
+}
+
+function maybePopulateStyleSemanticGraphCacheFromBatch(
+  options: StyleSemanticGraphQueryBackendOptions,
+  queryOptions: StyleSemanticGraphQueryOptions,
+): void {
+  const cache = queryOptions.styleSemanticGraphCache;
+  if (!cache || !queryOptions.engineInput || !queryOptions.styleFiles) return;
+
+  const uncachedStyleFiles = queryOptions.styleFiles.filter((stylePath) => !cache.has(stylePath));
+  if (uncachedStyleFiles.length <= 1) return;
+
+  const styles: StyleSemanticGraphBatchStyleInputV0[] = [];
+  for (const stylePath of uncachedStyleFiles) {
+    const styleSource = options.readStyleFile(stylePath);
+    if (styleSource === null) {
+      cache.set(stylePath, null);
+      continue;
+    }
+    styles.push({ stylePath, styleSource });
+  }
+  if (styles.length <= 1) return;
+
+  try {
+    const requestedStylePaths = new Set(styles.map((style) => style.stylePath));
+    const output = runRustStyleSemanticGraphBatch(
+      {
+        styles,
+        engineInput: queryOptions.engineInput,
+      },
+      queryOptions,
+    );
+
+    for (const entry of output.graphs) {
+      if (!requestedStylePaths.has(entry.stylePath)) continue;
+      cache.set(entry.stylePath, entry.graph);
+    }
+  } catch {
+    // Batch is an optimization only. Preserve the single-target fallback path.
+  }
 }
