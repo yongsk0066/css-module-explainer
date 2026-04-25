@@ -1,23 +1,39 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createInProcessServer, type LspTestClient } from "./_harness/in-process-server";
 import { FakeTypeResolver } from "../_fixtures/fake-type-resolver";
+import { targetFixture, workspace, type CmeWorkspace } from "../../packages/vitest-cme/src";
 
-const BUTTON_TSX = `import classNames from 'classnames/bind';
+const BUTTON_TSX_URI = "file:///fake/workspace/src/Button.tsx";
+const BUTTON_SCSS_URI = "file:///fake/workspace/src/Button.module.scss";
+const STATUS_TSX_URI = "file:///fake/workspace/src/Status.tsx";
+const STATE_CHIP_TSX_URI = "file:///fake/workspace/src/StateChip.tsx";
+const BUTTON_CHIP_TSX_URI = "file:///fake/workspace/src/ButtonChip.tsx";
+
+const BUTTON_TSX_WORKSPACE = workspace({
+  [BUTTON_TSX_URI]: `import classNames from 'classnames/bind';
 import styles from './Button.module.scss';
 const cx = classNames.bind(styles);
 export function Button() {
-  return <div className={cx('indicator')}>hi</div>;
+  return <div className={cx('indic/*|*/ator')}>hi</div>;
 }
-`;
+`,
+});
 
-const BUTTON_SCSS = `
-.indicator {
+const BUTTON_TSX = BUTTON_TSX_WORKSPACE.file(BUTTON_TSX_URI).content;
+
+const BUTTON_SCSS_WORKSPACE = workspace({
+  [BUTTON_SCSS_URI]: `
+.in/*|*/dicator {
   color: red;
   font-size: 14px;
 }
-`;
+`,
+});
 
-const KEYFRAMES_SCSS = `@keyframes fade {
+const BUTTON_SCSS = BUTTON_SCSS_WORKSPACE.file(BUTTON_SCSS_URI).content;
+
+const KEYFRAMES_WORKSPACE = workspace({
+  [BUTTON_SCSS_URI]: `@keyframes fa/*|*/de {
   from { opacity: 0; }
   to { opacity: 1; }
 }
@@ -29,31 +45,47 @@ const KEYFRAMES_SCSS = `@keyframes fade {
 .pulse {
   animation-name: fade;
 }
-`;
+`,
+});
 
-const VALUE_SCSS = `@value primary: #ff3355;
+const KEYFRAMES_SCSS = KEYFRAMES_WORKSPACE.file(BUTTON_SCSS_URI).content;
 
-.button {
-  color: primary;
-}
-`;
-
-const IMPORTED_VALUE_SCSS = `@value primary from "./tokens.module.scss";
+const VALUE_WORKSPACE = workspace({
+  [BUTTON_SCSS_URI]: `@value pr/*|*/imary: #ff3355;
 
 .button {
   color: primary;
 }
-`;
+`,
+});
+
+const VALUE_SCSS = VALUE_WORKSPACE.file(BUTTON_SCSS_URI).content;
+
+const IMPORTED_VALUE_WORKSPACE = workspace({
+  [BUTTON_SCSS_URI]: `@value primary from "./tokens.module.scss";
+
+.button {
+  color: p/*|*/rimary;
+}
+`,
+});
+
+const IMPORTED_VALUE_SCSS = IMPORTED_VALUE_WORKSPACE.file(BUTTON_SCSS_URI).content;
 
 const TOKENS_SCSS = `@value primary: #ff3355;`;
 
-const SASS_SYMBOL_SCSS = `$gap: 1rem;
+const SASS_SYMBOL_WORKSPACE = workspace({
+  [BUTTON_SCSS_URI]: `$gap: 1rem;
 .button {
-  color: $gap;
+  color: $/*|*/gap;
 }
-`;
+`,
+});
 
-const FUNCTION_DYNAMIC_TSX = `import classNames from 'classnames/bind';
+const SASS_SYMBOL_SCSS = SASS_SYMBOL_WORKSPACE.file(BUTTON_SCSS_URI).content;
+
+const FUNCTION_DYNAMIC_WORKSPACE = workspace({
+  [STATUS_TSX_URI]: `import classNames from 'classnames/bind';
 import styles from './Status.module.scss';
 const cx = classNames.bind(styles);
 type Status = 'idle' | 'busy' | 'error';
@@ -71,9 +103,12 @@ function resolveStatusClass(status: Status): string {
 }
 export function StatusChip(status: Status) {
   const derivedStatusClass = resolveStatusClass(status);
-  return <div className={cx('chip', derivedStatusClass)}>hi</div>;
+  return <div className={cx('chip', deri/*|*/vedStatusClass)}>hi</div>;
 }
-`;
+`,
+});
+
+const FUNCTION_DYNAMIC_TSX = FUNCTION_DYNAMIC_WORKSPACE.file(STATUS_TSX_URI).content;
 
 const FUNCTION_DYNAMIC_SCSS = `
 .chip { color: slategray; }
@@ -82,14 +117,18 @@ const FUNCTION_DYNAMIC_SCSS = `
 .state-error { color: crimson; }
 `;
 
-const SUFFIX_DYNAMIC_TSX = `import classNames from 'classnames/bind';
+const SUFFIX_DYNAMIC_WORKSPACE = workspace({
+  [STATE_CHIP_TSX_URI]: `import classNames from 'classnames/bind';
 import styles from './StateChip.module.scss';
 const cx = classNames.bind(styles);
 export function StateChip(variant: string) {
   const derivedChipClass = variant + '-chip';
-  return <div className={cx('chip', derivedChipClass)}>hi</div>;
+  return <div className={cx('chip', derive/*|*/dChipClass)}>hi</div>;
 }
-`;
+`,
+});
+
+const SUFFIX_DYNAMIC_TSX = SUFFIX_DYNAMIC_WORKSPACE.file(STATE_CHIP_TSX_URI).content;
 
 const SUFFIX_DYNAMIC_SCSS = `
 .chip { color: slategray; }
@@ -98,14 +137,18 @@ const SUFFIX_DYNAMIC_SCSS = `
 .error-chip { color: crimson; }
 `;
 
-const PREFIX_SUFFIX_DYNAMIC_TSX = `import classNames from 'classnames/bind';
+const PREFIX_SUFFIX_DYNAMIC_WORKSPACE = workspace({
+  [BUTTON_CHIP_TSX_URI]: `import classNames from 'classnames/bind';
 import styles from './ButtonChip.module.scss';
 const cx = classNames.bind(styles);
 export function ButtonChip(variant: string) {
   const derivedChipClass = 'btn-' + variant + '-chip';
-  return <div className={cx('chip', derivedChipClass)}>hi</div>;
+  return <div className={cx('chip', derive/*|*/dChipClass)}>hi</div>;
 }
-`;
+`,
+});
+
+const PREFIX_SUFFIX_DYNAMIC_TSX = PREFIX_SUFFIX_DYNAMIC_WORKSPACE.file(BUTTON_CHIP_TSX_URI).content;
 
 const PREFIX_SUFFIX_DYNAMIC_SCSS = `
 .chip { color: slategray; }
@@ -113,6 +156,13 @@ const PREFIX_SUFFIX_DYNAMIC_SCSS = `
 .btn-busy-chip { color: orange; }
 .btn-error-chip { color: crimson; }
 `;
+
+function fixturePosition(
+  source: CmeWorkspace,
+  filePath: string,
+): { line: number; character: number } {
+  return targetFixture({ workspace: source, filePath }).position;
+}
 
 describe("hover protocol / clsx", () => {
   let client: LspTestClient | null = null;
@@ -122,12 +172,16 @@ describe("hover protocol / clsx", () => {
     client = null;
   });
 
-  const CLSX_TSX = `import clsx from 'clsx';
+  const CLSX_WORKSPACE = workspace({
+    [BUTTON_TSX_URI]: `import clsx from 'clsx';
 import styles from './Button.module.scss';
 export function Button() {
-  return <div className={clsx(styles.indicator)}>hi</div>;
+  return <div className={clsx(styles.indic/*|*/ator)}>hi</div>;
 }
-`;
+`,
+  });
+
+  const CLSX_TSX = CLSX_WORKSPACE.file(BUTTON_TSX_URI).content;
 
   const CLSX_SCSS = `
 .indicator {
@@ -145,7 +199,7 @@ export function Button() {
     client.initialized();
     client.didOpen({
       textDocument: {
-        uri: "file:///fake/workspace/src/Button.tsx",
+        uri: BUTTON_TSX_URI,
         languageId: "typescriptreact",
         version: 1,
         text: CLSX_TSX,
@@ -154,8 +208,8 @@ export function Button() {
     // Line 3: "  return <div className={clsx(styles.indicator)}>hi</div>;"
     // "indicator" starts at character 38 (after "styles.")
     const hover = await client.hover({
-      textDocument: { uri: "file:///fake/workspace/src/Button.tsx" },
-      position: { line: 3, character: 42 },
+      textDocument: { uri: BUTTON_TSX_URI },
+      position: fixturePosition(CLSX_WORKSPACE, BUTTON_TSX_URI),
     });
     expect(hover).not.toBeNull();
     const value = (hover!.contents as { value: string }).value;
@@ -181,15 +235,15 @@ describe("hover protocol", () => {
     client.initialized();
     client.didOpen({
       textDocument: {
-        uri: "file:///fake/workspace/src/Button.tsx",
+        uri: BUTTON_TSX_URI,
         languageId: "typescriptreact",
         version: 1,
         text: BUTTON_TSX,
       },
     });
     const hover = await client.hover({
-      textDocument: { uri: "file:///fake/workspace/src/Button.tsx" },
-      position: { line: 4, character: 34 },
+      textDocument: { uri: BUTTON_TSX_URI },
+      position: fixturePosition(BUTTON_TSX_WORKSPACE, BUTTON_TSX_URI),
     });
     expect(hover).not.toBeNull();
     const value = (hover!.contents as { value: string }).value;
@@ -207,15 +261,15 @@ describe("hover protocol", () => {
     client.initialized();
     client.didOpen({
       textDocument: {
-        uri: "file:///fake/workspace/src/Status.tsx",
+        uri: STATUS_TSX_URI,
         languageId: "typescriptreact",
         version: 1,
         text: FUNCTION_DYNAMIC_TSX,
       },
     });
     const hover = await client.hover({
-      textDocument: { uri: "file:///fake/workspace/src/Status.tsx" },
-      position: { line: 18, character: 40 },
+      textDocument: { uri: STATUS_TSX_URI },
+      position: fixturePosition(FUNCTION_DYNAMIC_WORKSPACE, STATUS_TSX_URI),
     });
     expect(hover).not.toBeNull();
     const value = (hover!.contents as { value: string }).value;
@@ -234,15 +288,15 @@ describe("hover protocol", () => {
     client.initialized();
     client.didOpen({
       textDocument: {
-        uri: "file:///fake/workspace/src/StateChip.tsx",
+        uri: STATE_CHIP_TSX_URI,
         languageId: "typescriptreact",
         version: 1,
         text: SUFFIX_DYNAMIC_TSX,
       },
     });
     const hover = await client.hover({
-      textDocument: { uri: "file:///fake/workspace/src/StateChip.tsx" },
-      position: { line: 5, character: 42 },
+      textDocument: { uri: STATE_CHIP_TSX_URI },
+      position: fixturePosition(SUFFIX_DYNAMIC_WORKSPACE, STATE_CHIP_TSX_URI),
     });
     expect(hover).not.toBeNull();
     const value = (hover!.contents as { value: string }).value;
@@ -265,15 +319,15 @@ describe("hover protocol", () => {
     client.initialized();
     client.didOpen({
       textDocument: {
-        uri: "file:///fake/workspace/src/ButtonChip.tsx",
+        uri: BUTTON_CHIP_TSX_URI,
         languageId: "typescriptreact",
         version: 1,
         text: PREFIX_SUFFIX_DYNAMIC_TSX,
       },
     });
     const hover = await client.hover({
-      textDocument: { uri: "file:///fake/workspace/src/ButtonChip.tsx" },
-      position: { line: 5, character: 42 },
+      textDocument: { uri: BUTTON_CHIP_TSX_URI },
+      position: fixturePosition(PREFIX_SUFFIX_DYNAMIC_WORKSPACE, BUTTON_CHIP_TSX_URI),
     });
     expect(hover).not.toBeNull();
     const value = (hover!.contents as { value: string }).value;
@@ -293,11 +347,9 @@ describe("hover protocol", () => {
     });
     await client.initialize();
     client.initialized();
-    const tsxUri = "file:///fake/workspace/src/Button.tsx";
-    const scssUri = "file:///fake/workspace/src/Button.module.scss";
     client.didOpen({
       textDocument: {
-        uri: tsxUri,
+        uri: BUTTON_TSX_URI,
         languageId: "typescriptreact",
         version: 1,
         text: BUTTON_TSX,
@@ -305,17 +357,17 @@ describe("hover protocol", () => {
     });
     client.didOpen({
       textDocument: {
-        uri: scssUri,
+        uri: BUTTON_SCSS_URI,
         languageId: "scss",
         version: 1,
         text: BUTTON_SCSS,
       },
     });
-    await client.waitForDiagnostics(tsxUri);
+    await client.waitForDiagnostics(BUTTON_TSX_URI);
 
     const hover = await client.hover({
-      textDocument: { uri: scssUri },
-      position: { line: 1, character: 3 },
+      textDocument: { uri: BUTTON_SCSS_URI },
+      position: fixturePosition(BUTTON_SCSS_WORKSPACE, BUTTON_SCSS_URI),
     });
     expect(hover).not.toBeNull();
     const value = (hover!.contents as { value: string }).value;
@@ -335,12 +387,15 @@ export function Base() {
   return <div className={cx('base')}>hi</div>;
 }
 `;
-    const buttonScss = `
+    const buttonScssWorkspace = workspace({
+      [buttonScssUri]: `
 .button {
-  composes: base from './Base.module.scss';
+  composes: b/*|*/ase from './Base.module.scss';
   color: red;
 }
-`;
+`,
+    });
+    const buttonScss = buttonScssWorkspace.file(buttonScssUri).content;
     const baseScss = `
 .base {
   color: blue;
@@ -384,7 +439,7 @@ export function Base() {
 
     const hover = await client.hover({
       textDocument: { uri: buttonScssUri },
-      position: { line: 2, character: 13 },
+      position: fixturePosition(buttonScssWorkspace, buttonScssUri),
     });
     expect(hover).not.toBeNull();
     const value = (hover!.contents as { value: string }).value;
@@ -402,21 +457,20 @@ export function Base() {
     client.initialized();
     client.didOpen({
       textDocument: {
-        uri: "file:///fake/workspace/src/Button.tsx",
+        uri: BUTTON_TSX_URI,
         languageId: "typescriptreact",
         version: 1,
         text: BUTTON_TSX,
       },
     });
     const hover = await client.hover({
-      textDocument: { uri: "file:///fake/workspace/src/Button.tsx" },
-      position: { line: 4, character: 34 },
+      textDocument: { uri: BUTTON_TSX_URI },
+      position: fixturePosition(BUTTON_TSX_WORKSPACE, BUTTON_TSX_URI),
     });
     expect(hover).toBeNull();
   });
 
   it("returns a keyframes hover for @keyframes declarations", async () => {
-    const scssUri = "file:///fake/workspace/src/Button.module.scss";
     client = createInProcessServer({
       readStyleFile: (path) => (path.endsWith("Button.module.scss") ? KEYFRAMES_SCSS : null),
       typeResolver: new FakeTypeResolver(),
@@ -425,7 +479,7 @@ export function Base() {
     client.initialized();
     client.didOpen({
       textDocument: {
-        uri: scssUri,
+        uri: BUTTON_SCSS_URI,
         languageId: "scss",
         version: 1,
         text: KEYFRAMES_SCSS,
@@ -433,8 +487,8 @@ export function Base() {
     });
 
     const hover = await client.hover({
-      textDocument: { uri: scssUri },
-      position: { line: 0, character: 13 },
+      textDocument: { uri: BUTTON_SCSS_URI },
+      position: fixturePosition(KEYFRAMES_WORKSPACE, BUTTON_SCSS_URI),
     });
     expect(hover).not.toBeNull();
     const value = (hover!.contents as { value: string }).value;
@@ -443,7 +497,6 @@ export function Base() {
   });
 
   it("returns a value hover for @value declarations", async () => {
-    const scssUri = "file:///fake/workspace/src/Button.module.scss";
     client = createInProcessServer({
       readStyleFile: (path) => (path.endsWith("Button.module.scss") ? VALUE_SCSS : null),
       typeResolver: new FakeTypeResolver(),
@@ -452,7 +505,7 @@ export function Base() {
     client.initialized();
     client.didOpen({
       textDocument: {
-        uri: scssUri,
+        uri: BUTTON_SCSS_URI,
         languageId: "scss",
         version: 1,
         text: VALUE_SCSS,
@@ -460,8 +513,8 @@ export function Base() {
     });
 
     const hover = await client.hover({
-      textDocument: { uri: scssUri },
-      position: { line: 0, character: 9 },
+      textDocument: { uri: BUTTON_SCSS_URI },
+      position: fixturePosition(VALUE_WORKSPACE, BUTTON_SCSS_URI),
     });
     expect(hover).not.toBeNull();
     const value = (hover!.contents as { value: string }).value;
@@ -470,7 +523,6 @@ export function Base() {
   });
 
   it("returns a value hover for imported @value usages", async () => {
-    const scssUri = "file:///fake/workspace/src/Button.module.scss";
     client = createInProcessServer({
       readStyleFile: (path) => {
         if (path.endsWith("Button.module.scss")) return IMPORTED_VALUE_SCSS;
@@ -483,7 +535,7 @@ export function Base() {
     client.initialized();
     client.didOpen({
       textDocument: {
-        uri: scssUri,
+        uri: BUTTON_SCSS_URI,
         languageId: "scss",
         version: 1,
         text: IMPORTED_VALUE_SCSS,
@@ -491,8 +543,8 @@ export function Base() {
     });
 
     const hover = await client.hover({
-      textDocument: { uri: scssUri },
-      position: { line: 3, character: 10 },
+      textDocument: { uri: BUTTON_SCSS_URI },
+      position: fixturePosition(IMPORTED_VALUE_WORKSPACE, BUTTON_SCSS_URI),
     });
     expect(hover).not.toBeNull();
     const value = (hover!.contents as { value: string }).value;
@@ -501,7 +553,6 @@ export function Base() {
   });
 
   it("returns a Sass symbol hover for same-file references", async () => {
-    const scssUri = "file:///fake/workspace/src/Button.module.scss";
     client = createInProcessServer({
       readStyleFile: (path) => (path.endsWith("Button.module.scss") ? SASS_SYMBOL_SCSS : null),
       typeResolver: new FakeTypeResolver(),
@@ -510,7 +561,7 @@ export function Base() {
     client.initialized();
     client.didOpen({
       textDocument: {
-        uri: scssUri,
+        uri: BUTTON_SCSS_URI,
         languageId: "scss",
         version: 1,
         text: SASS_SYMBOL_SCSS,
@@ -518,8 +569,8 @@ export function Base() {
     });
 
     const hover = await client.hover({
-      textDocument: { uri: scssUri },
-      position: { line: 2, character: 10 },
+      textDocument: { uri: BUTTON_SCSS_URI },
+      position: fixturePosition(SASS_SYMBOL_WORKSPACE, BUTTON_SCSS_URI),
     });
     expect(hover).not.toBeNull();
     const value = (hover!.contents as { value: string }).value;
@@ -528,14 +579,17 @@ export function Base() {
   });
 
   it("includes dynamic explanation for a flow-resolved symbol ref", async () => {
-    const FLOW_TSX = `import classNames from 'classnames/bind';
+    const flowWorkspace = workspace({
+      [BUTTON_TSX_URI]: `import classNames from 'classnames/bind';
 import styles from './Button.module.scss';
 const cx = classNames.bind(styles);
 export function Button(enabled: boolean) {
   const size = enabled ? 'indicator' : 'active';
-  return <div className={cx(size)}>hi</div>;
+  return <div className={cx(s/*|*/ize)}>hi</div>;
 }
-`;
+`,
+    });
+    const FLOW_TSX = flowWorkspace.file(BUTTON_TSX_URI).content;
     client = createInProcessServer({
       readStyleFile: (path) => (path.endsWith("Button.module.scss") ? BUTTON_SCSS : null),
       typeResolver: new FakeTypeResolver(),
@@ -544,15 +598,15 @@ export function Button(enabled: boolean) {
     client.initialized();
     client.didOpen({
       textDocument: {
-        uri: "file:///fake/workspace/src/Button.tsx",
+        uri: BUTTON_TSX_URI,
         languageId: "typescriptreact",
         version: 1,
         text: FLOW_TSX,
       },
     });
     const hover = await client.hover({
-      textDocument: { uri: "file:///fake/workspace/src/Button.tsx" },
-      position: { line: 5, character: 29 },
+      textDocument: { uri: BUTTON_TSX_URI },
+      position: fixturePosition(flowWorkspace, BUTTON_TSX_URI),
     });
     expect(hover).not.toBeNull();
     const value = (hover!.contents as { value: string }).value;
