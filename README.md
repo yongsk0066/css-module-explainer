@@ -236,12 +236,16 @@ Current checker policy:
   - prebuilt mode can resolve an explicit `CME_ENGINE_SHADOW_RUNNER_PATH`, a packaged `dist/bin/<platform>-<arch>/engine-shadow-runner`, or the warmed `rust/target/debug` runner
   - it is regression evidence for keeping the packaged runner matrix safe while `rust-selected-query` is the packaged default
   - GitHub Actions runs the same lane in the `Rust Selected Query Default Candidate` shadow workflow on `master`
+- `pnpm check:rust-phase-2-swap-readiness` is the current v4.1 release-candidate cut-line gate
+  - it runs `pnpm check:provider-host-routing-boundary`, `pnpm check:rust-selected-query-default-candidate`, and `pnpm check:rust-checker-release-gate-shadow`
+  - this is Phase 2 swap candidate evidence, not an omena-semantic V1 freeze or an end-state freeze
 - `pnpm build` now prepares the current-platform release `engine-shadow-runner` at `dist/bin/<platform>-<arch>/engine-shadow-runner`
 - `pnpm check:packaged-engine-shadow-runner-matrix` verifies packaged runner targets before VSIX packaging; CI and publish require Linux, macOS, and Windows runner artifacts
 - `pnpm check:packaged-selected-query-default` verifies the generated VSIX file set still makes packaged runtime choose `rust-selected-query` by default while excluding checkout-only Rust/source markers and preserving the required runner matrix
 - `pnpm check:editor-path-boundary` is the current editor-path runtime lock point
   - it runs `pnpm check:selected-query-boundary` plus the protocol subset for `diagnostics`, `scss-diagnostics`, `code-actions`, watched-file invalidation, workspace-folder changes, and settings reload
   - those paths now route diagnostics/checker entry, code-action planning, session bootstrap, workspace-folder mutation, watched-file invalidation, and settings-reload orchestration through `engine-host-node` helpers or aggregates instead of owning the runtime policy directly in the LSP layer
+- `pnpm check:provider-host-routing-boundary` statically prevents LSP providers from importing core query, semantic graph, indexing, or TypeScript resolver internals directly
 - `pnpm check:plugin-consumer-example` runs the clean repo-local lint-consumer example workspace under both ESLint and Stylelint
 - `pnpm check:plugin-consumers` runs the current ESLint and Stylelint consumer smokes together
 - `pnpm check:eslint-plugin-smoke` runs the ESLint consumer against JSX fixtures and asserts that source-side semantic findings are reported as ESLint diagnostics
@@ -382,7 +386,7 @@ Current checker policy:
   - broader Rust lane bundle: `pnpm check:rust-lane-bundle`
   - release-facing Rust bundle: `pnpm check:rust-release-bundle`
   - full snapshot parity: `pnpm check:rust-shadow-compare`
-- Current `4.0.0` framing is the Rust-backed semantic core GA milestone on top of the checker release-gate Rust baseline:
+- Current `4.1.0` framing is the Phase 2 swap release-candidate milestone on top of the Rust-backed semantic core GA baseline:
   - `expression-semantics` and `source-resolution` still carry family-level canonical-producer signals and a shared top-level source-side lane
   - `expression-domain` carries input-only canonical artifacts plus type-fact-backed evaluator-candidate coverage on the Rust shadow path
   - a top-level `semantic` lane now consolidates `source-side + expression-domain` into one canonical-candidate / evaluator-candidate / canonical-producer path
@@ -390,7 +394,10 @@ Current checker policy:
   - the ESLint and Stylelint plugin consumers now form a first plugin-facing batch with focused rule surfaces, aggregate configs, a clean example workspace, and release-facing consumer gates
   - the bounded checker entrance (`style-recovery` + `source-missing` + `style-unused`) is now enforced in `pnpm check:rust-release-bundle`
   - packaged VSIX runtime now defaults to `rust-selected-query` when the bundled `engine-shadow-runner` is present, while source checkouts keep the unset default on `typescript-current`
-  - LSP providers now consume `engine-host-node` query helpers instead of importing `core/query` or `core/rewrite` internals directly, and architecture tests guard that provider boundary
+  - LSP providers now consume `engine-host-node` query helpers instead of importing `core/query` internals directly, and `pnpm check:provider-host-routing-boundary` guards that provider boundary
+  - style providers now consume Rust-backed semantic graph read models for selector identity, references, diagnostics, completions, rename safety, hover metadata, and style-module usage through host-side caches
+  - `pnpm check:rust-phase-2-swap-readiness` batches provider host-routing, selected-query default-candidate, and checker release-gate shadow evidence as the v4.1 candidate cut line
+  - the `omena-semantic` Rust boundary is published-ready and externally consumable, but this is not yet an omena-semantic V1 freeze
   - `CME_TYPE_FACT_BACKEND` now defaults to `tsgo`, with `typescript-current` retained as an explicit comparison fallback
   - `tsgo` is wired into release-batch, real-project corpus, LSP smoke, protocol/editing, server build, workspace build, and Phase C edge-readiness checks
   - the current release-shaped TS 7 aggregate is `pnpm check:tsgo-release-bundle`, and `pnpm release:verify` includes it

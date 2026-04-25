@@ -1,5 +1,20 @@
 # Changelog
 
+## [4.1.0] — 2026-04-26
+
+### Added
+
+- **Phase 2 swap readiness gate** — `pnpm check:rust-phase-2-swap-readiness` now batches provider host-routing boundary enforcement, the Rust selected-query default-candidate lane, and checker release-gate shadow enforcement into one release-candidate cut-line check.
+- **Rust-backed style semantic graph consumers** — style hover, references, reference lenses, definition, rename, diagnostics, completions, and style module usage now share host-side semantic graph read models and cache reuse paths instead of each provider rebuilding the same graph-shaped facts.
+- **Sass module semantics** — SCSS support now resolves `@use`, `@forward`, wildcard module members, module-qualified variables/mixins/functions, Sass symbol hover/definition/rename/completion, missing-symbol diagnostics, and scoped Sass variables; Less variable scope handling is covered as well.
+- **Omena semantic boundary** — the Rust workspace now includes the `omena-semantic` boundary crate, source-evidence/observation CLIs, remote git-consumer checks, and publish-readiness validation for the external `omenien/omena-semantic` split.
+
+### Changed
+
+- **Provider host routing is release-candidate guarded** — LSP provider surfaces are now statically checked by `pnpm check:provider-host-routing-boundary`, preventing direct provider imports of core query, semantic graph, indexing, and TypeScript resolver internals.
+- **Check orchestration is the canonical gate surface** — `cme-check` inventory/doctor/plan/surface reporting now owns the release gate map, workflows route through canonical gate IDs, and legacy check aliases were trimmed.
+- **Vitest CME fixtures now cover provider scenarios** — protocol and provider tests have been migrated onto marker-based fixture helpers for cursor, target, range, and LSP-position setup, reducing duplicated position math in the test suite.
+
 ## [4.0.0] — 2026-04-24
 
 ### Changed

@@ -32,6 +32,7 @@ Allowed:
 - `3.14.0`
 - `3.15.0`
 - `4.0.0`
+- `4.1.0`
 
 Do not use:
 
@@ -310,6 +311,12 @@ use `cargo run` by default, so they do not accidentally reuse a stale
 runner matrix safe while `rust-selected-query` is the packaged default. GitHub
 Actions runs the same lane in the
 `Rust Selected Query Default Candidate` shadow workflow on `master`.
+
+`pnpm check:rust-phase-2-swap-readiness` is the current v4.1 release-candidate
+cut-line gate. It first enforces `pnpm check:provider-host-routing-boundary`,
+then runs the Rust selected-query default-candidate lane and the checker
+release-gate shadow soak. Treat this as candidate evidence for the Phase 2
+swap; it is not an omena-semantic V1 freeze or an end-state freeze.
 
 `pnpm build` prepares the current-platform release `engine-shadow-runner` at
 `dist/bin/<platform>-<arch>/engine-shadow-runner`. `pnpm package`,
