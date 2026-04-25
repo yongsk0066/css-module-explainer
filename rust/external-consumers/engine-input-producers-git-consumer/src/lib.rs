@@ -1,6 +1,7 @@
 use engine_input_producers::{
-    ClassExpressionInputV2, EngineInputV2, SourceAnalysisInputV2, SourceDocumentV2,
-    StringTypeFactsV2, StyleAnalysisInputV2, StyleDocumentV2, StyleSelectorV2, TypeFactEntryV2,
+    ClassExpressionInputV2, EngineInputV2, PositionV2, RangeV2, SourceAnalysisInputV2,
+    SourceDocumentV2, StringTypeFactsV2, StyleAnalysisInputV2, StyleDocumentV2, StyleSelectorV2,
+    TypeFactEntryV2,
 };
 
 pub fn sample_input() -> EngineInputV2 {
@@ -13,6 +14,8 @@ pub fn sample_input() -> EngineInputV2 {
                         id: "expr-1".to_string(),
                         kind: "symbolRef".to_string(),
                         scss_module_path: "/tmp/App.module.scss".to_string(),
+                        range: range(3, 12, 3, 22),
+                        class_name: None,
                         root_binding_decl_id: Some("decl-1".to_string()),
                         access_path: None,
                     },
@@ -20,6 +23,8 @@ pub fn sample_input() -> EngineInputV2 {
                         id: "expr-2".to_string(),
                         kind: "styleAccess".to_string(),
                         scss_module_path: "/tmp/Card.module.scss".to_string(),
+                        range: range(8, 16, 8, 28),
+                        class_name: Some("card-header".to_string()),
                         root_binding_decl_id: None,
                         access_path: Some(vec!["card".to_string(), "header".to_string()]),
                     },
@@ -34,8 +39,10 @@ pub fn sample_input() -> EngineInputV2 {
                         name: "btn-active".to_string(),
                         view_kind: "canonical".to_string(),
                         canonical_name: Some("btn-active".to_string()),
+                        range: range(0, 1, 0, 11),
                         nested_safety: Some("safe".to_string()),
                         composes: Some(vec![serde_json::Value::Null]),
+                        bem_suffix: None,
                     }],
                 },
             },
@@ -47,15 +54,19 @@ pub fn sample_input() -> EngineInputV2 {
                             name: "card-header".to_string(),
                             view_kind: "canonical".to_string(),
                             canonical_name: Some("card-header".to_string()),
+                            range: range(0, 1, 0, 12),
                             nested_safety: Some("unsafe".to_string()),
                             composes: None,
+                            bem_suffix: None,
                         },
                         StyleSelectorV2 {
                             name: "card-header:hover".to_string(),
                             view_kind: "nested".to_string(),
                             canonical_name: Some("card-header".to_string()),
+                            range: range(2, 1, 2, 18),
                             nested_safety: Some("unknown".to_string()),
                             composes: Some(vec![serde_json::Value::Null, serde_json::Value::Null]),
+                            bem_suffix: None,
                         },
                     ],
                 },
@@ -95,6 +106,24 @@ pub fn sample_input() -> EngineInputV2 {
                 },
             },
         ],
+    }
+}
+
+fn range(
+    start_line: usize,
+    start_character: usize,
+    end_line: usize,
+    end_character: usize,
+) -> RangeV2 {
+    RangeV2 {
+        start: PositionV2 {
+            line: start_line,
+            character: start_character,
+        },
+        end: PositionV2 {
+            line: end_line,
+            character: end_character,
+        },
     }
 }
 

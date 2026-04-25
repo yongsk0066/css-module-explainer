@@ -5,7 +5,7 @@ version = 4
 [[package]]
 name = "engine-input-producers"
 version = "0.1.0"
-source = "git+https://github.com/omenien/omena-engine-input-producers.git?rev=0b7cd56#0b7cd568ff1ab56e2f519fbcef9f44355e486321"
+source = "git+https://github.com/omenien/omena-engine-input-producers.git?rev=074b2fd#074b2fd0bfe6f61e412ab0963b8e01f9060d310a"
 dependencies = [
  "serde",
  "serde_json",

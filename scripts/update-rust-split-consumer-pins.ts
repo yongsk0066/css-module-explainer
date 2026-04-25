@@ -6,7 +6,7 @@ import process from "node:process";
 type Fixture = {
   readonly label: string;
   readonly manifestPath: string;
-  readonly dependencyName: string;
+  readonly dependencyNames: readonly string[];
 };
 
 const repoRoot = process.cwd();
@@ -17,7 +17,7 @@ const fixtures: readonly Fixture[] = [
       repoRoot,
       "rust/external-consumers/engine-input-producers-git-consumer/Cargo.toml",
     ),
-    dependencyName: "engine-input-producers",
+    dependencyNames: ["engine-input-producers"],
   },
   {
     label: "engine-style-parser",
@@ -25,7 +25,15 @@ const fixtures: readonly Fixture[] = [
       repoRoot,
       "rust/external-consumers/engine-style-parser-git-consumer/Cargo.toml",
     ),
-    dependencyName: "engine-style-parser",
+    dependencyNames: ["engine-style-parser"],
+  },
+  {
+    label: "omena-semantic",
+    manifestPath: path.join(
+      repoRoot,
+      "rust/external-consumers/omena-semantic-git-consumer/Cargo.toml",
+    ),
+    dependencyNames: ["engine-input-producers", "engine-style-parser", "omena-semantic"],
   },
 ] as const;
 
@@ -60,34 +68,45 @@ let changed = false;
 
 for (const fixture of fixtures) {
   const manifest = readFileSync(fixture.manifestPath, "utf8");
-  const dependency = parseDependency(manifest, fixture.dependencyName);
-  const mainSha = resolveMainSha(dependency.repoUrl);
-  const shortSha = mainSha.slice(0, 7);
+  let nextManifest = manifest;
+  let fixtureChanged = false;
 
-  if (dependency.rev === shortSha) {
-    process.stdout.write(`${fixture.label}: already pinned to ${shortSha}\n`);
-    continue;
-  }
+  for (const dependencyName of fixture.dependencyNames) {
+    const dependency = parseDependency(nextManifest, dependencyName);
+    const mainSha = resolveMainSha(dependency.repoUrl);
+    const shortSha = mainSha.slice(0, 7);
+    const dependencyLabel =
+      fixture.dependencyNames.length === 1 ? fixture.label : `${fixture.label}/${dependencyName}`;
 
-  if (checkOnly) {
-    process.stderr.write(
-      `${fixture.label}: pinned ${dependency.rev} but remote main is ${shortSha}\n`,
+    if (dependency.rev === shortSha) {
+      process.stdout.write(`${dependencyLabel}: already pinned to ${shortSha}\n`);
+      continue;
+    }
+
+    if (checkOnly) {
+      process.stderr.write(
+        `${dependencyLabel}: pinned ${dependency.rev} but remote main is ${shortSha}\n`,
+      );
+      process.exitCode = 1;
+      continue;
+    }
+
+    nextManifest = nextManifest.replace(
+      dependency.pattern,
+      `${dependencyName} = { git = "${dependency.repoUrl}", rev = "${shortSha}" }`,
     );
-    process.exitCode = 1;
-    continue;
+    fixtureChanged = true;
+    process.stdout.write(`${dependencyLabel}: updated ${dependency.rev} -> ${shortSha}\n`);
   }
 
-  const nextManifest = manifest.replace(
-    dependency.pattern,
-    `${fixture.dependencyName} = { git = "${dependency.repoUrl}", rev = "${shortSha}" }`,
-  );
-  writeFileSync(fixture.manifestPath, nextManifest);
-  execFileSync("cargo", ["generate-lockfile", "--manifest-path", fixture.manifestPath], {
-    cwd: repoRoot,
-    stdio: "inherit",
-  });
-  changed = true;
-  process.stdout.write(`${fixture.label}: updated ${dependency.rev} -> ${shortSha}\n`);
+  if (!checkOnly && fixtureChanged) {
+    writeFileSync(fixture.manifestPath, nextManifest);
+    execFileSync("cargo", ["generate-lockfile", "--manifest-path", fixture.manifestPath], {
+      cwd: repoRoot,
+      stdio: "inherit",
+    });
+    changed = true;
+  }
 }
 
 if (checkOnly && process.exitCode === 1) {
