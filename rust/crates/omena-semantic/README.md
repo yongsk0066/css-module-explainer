@@ -18,3 +18,10 @@ Current public products:
 Primary check:
 
 - `cargo test --manifest-path rust/Cargo.toml -p omena-semantic`
+
+CLI smoke:
+
+```sh
+printf '.button { &__icon {} }' \
+  | cargo run --manifest-path rust/Cargo.toml -p omena-semantic --bin omena-semantic-boundary -- Component.module.scss
+```

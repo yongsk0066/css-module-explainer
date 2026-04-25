@@ -45,6 +45,7 @@ version = "0.1.0"
 dependencies = [
  "engine-style-parser",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
