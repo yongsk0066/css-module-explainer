@@ -8,6 +8,7 @@ import {
   planSourceExpressionRename,
   readSourceExpressionRenameTarget,
 } from "../../../server/engine-host-node/src/source-rename-query";
+import type { StyleSemanticGraphSummaryV0 } from "../../../server/engine-host-node/src/style-semantic-graph-query-backend";
 import {
   EMPTY_ALIAS_RESOLVER,
   buildTestClassExpressions,
@@ -174,4 +175,175 @@ describe("source rename query", () => {
     expect(plan?.kind).toBe("plan");
     expect(plan?.kind === "plan" ? plan.plan.edits[0]?.newText : null).toBe("status");
   });
+
+  it("uses rust style semantic graph reference sites for source rename edits", () => {
+    const deps = makeTsxDeps([
+      {
+        kind: "literal",
+        origin: "cxCall",
+        className: "indicator",
+        range: {
+          start: { line: 3, character: 14 },
+          end: { line: 3, character: 23 },
+        },
+        scssModulePath: BINDING.scssModulePath,
+      },
+    ]);
+    const cursor = {
+      documentUri: "file:///fake/src/App.tsx",
+      content: TSX,
+      filePath: "/fake/src/App.tsx",
+      line: 3,
+      character: 16,
+      version: 1,
+    };
+    const ctx = readSourceExpressionContextAtCursor(cursor, {
+      analysisCache: deps.analysisCache,
+      styleDocumentForPath: deps.styleDocumentForPath,
+    });
+
+    expect(ctx).not.toBeNull();
+    const plan = planSourceExpressionRename(ctx!, cursor, deps, "status", {
+      env: {
+        CME_SELECTED_QUERY_BACKEND: "rust-selected-query",
+      } as NodeJS.ProcessEnv,
+      readRustSourceResolutionSelectorMatch: () => ({
+        styleFilePath: "/fake/src/Button.module.scss",
+        selectorNames: ["indicator"],
+      }),
+      readRustStyleSemanticGraphForWorkspaceTarget: () => makeGraph("direct"),
+    });
+
+    expect(plan?.kind).toBe("plan");
+    expect(plan?.kind === "plan" ? plan.plan.edits.map((edit) => edit.newText) : []).toEqual([
+      "status",
+      "status",
+    ]);
+    expect(plan?.kind === "plan" ? plan.plan.edits[1]?.uri : null).toBe(
+      "file:///fake/src/FromGraph.tsx",
+    );
+  });
+
+  it("uses rust style semantic graph blockers for source rename safety", () => {
+    const deps = makeTsxDeps([
+      {
+        kind: "literal",
+        origin: "cxCall",
+        className: "indicator",
+        range: {
+          start: { line: 3, character: 14 },
+          end: { line: 3, character: 23 },
+        },
+        scssModulePath: BINDING.scssModulePath,
+      },
+    ]);
+    const cursor = {
+      documentUri: "file:///fake/src/App.tsx",
+      content: TSX,
+      filePath: "/fake/src/App.tsx",
+      line: 3,
+      character: 16,
+      version: 1,
+    };
+    const ctx = readSourceExpressionContextAtCursor(cursor, {
+      analysisCache: deps.analysisCache,
+      styleDocumentForPath: deps.styleDocumentForPath,
+    });
+
+    expect(ctx).not.toBeNull();
+    const target = readSourceExpressionRenameTarget(ctx!, cursor, deps, {
+      env: {
+        CME_SELECTED_QUERY_BACKEND: "rust-selected-query",
+      } as NodeJS.ProcessEnv,
+      readRustSourceResolutionSelectorMatch: () => ({
+        styleFilePath: "/fake/src/Button.module.scss",
+        selectorNames: ["indicator"],
+      }),
+      readRustStyleSemanticGraphForWorkspaceTarget: () => makeGraph("expanded"),
+    });
+
+    expect(target).toEqual({
+      kind: "blocked",
+      reason: "expandedReferences",
+    });
+  });
 });
+
+function makeGraph(referenceMode: "direct" | "expanded"): StyleSemanticGraphSummaryV0 {
+  const hasExpandedReferences = referenceMode === "expanded";
+  return {
+    schemaVersion: "0",
+    product: "omena-semantic.style-semantic-graph",
+    language: "scss",
+    parserFacts: {},
+    semanticFacts: {},
+    selectorIdentityEngine: {
+      schemaVersion: "0",
+      product: "omena-semantic.selector-identity",
+      canonicalIdCount: 1,
+      canonicalIds: [
+        {
+          canonicalId: "selector:indicator",
+          localName: "indicator",
+          identityKind: "localClass",
+          rewriteSafety: "safe",
+          blockers: [],
+        },
+      ],
+      rewriteSafety: {
+        allCanonicalIdsRewriteSafe: true,
+        safeCanonicalIds: ["selector:indicator"],
+        blockedCanonicalIds: [],
+        blockers: [],
+      },
+    },
+    selectorReferenceEngine: {
+      schemaVersion: "0",
+      product: "omena-semantic.selector-references",
+      stylePath: "/fake/src/Button.module.scss",
+      selectorCount: 1,
+      referencedSelectorCount: 1,
+      unreferencedSelectorCount: 0,
+      totalReferenceSites: hasExpandedReferences ? 2 : 1,
+      selectors: [
+        {
+          canonicalId: "selector:indicator",
+          filePath: "/fake/src/Button.module.scss",
+          localName: "indicator",
+          totalReferences: hasExpandedReferences ? 2 : 1,
+          directReferenceCount: 1,
+          editableDirectReferenceCount: 1,
+          exactReferenceCount: 1,
+          inferredOrBetterReferenceCount: hasExpandedReferences ? 2 : 1,
+          hasExpandedReferences,
+          hasStyleDependencyReferences: false,
+          hasAnyReferences: true,
+          sites: [
+            {
+              filePath: "/fake/src/FromGraph.tsx",
+              range: {
+                start: { line: 9, character: 4 },
+                end: { line: 9, character: 13 },
+              },
+              expansion: "direct",
+              referenceKind: "source",
+            },
+          ],
+          editableDirectSites: [
+            {
+              filePath: "/fake/src/FromGraph.tsx",
+              range: {
+                start: { line: 9, character: 4 },
+                end: { line: 9, character: 13 },
+              },
+              className: "indicator",
+            },
+          ],
+        },
+      ],
+    },
+    sourceInputEvidence: {},
+    promotionEvidence: {},
+    losslessCstContract: {},
+  };
+}

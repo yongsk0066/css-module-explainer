@@ -24,27 +24,33 @@ import {
   resolveSelectedQueryBackendKind,
   usesRustSourceResolutionBackend,
 } from "./source-resolution-query-backend";
+import {
+  buildSelectorReferenceRewriteSafetyFromRustGraph,
+  resolveRustStyleSelectorReferenceSummaryForWorkspaceTarget,
+  type StyleSelectorReferenceQueryOptions,
+} from "./style-selector-reference-query";
 
-export interface SourceRenameQueryOptions {
-  readonly env?: NodeJS.ProcessEnv;
+export interface SourceRenameQueryOptions extends StyleSelectorReferenceQueryOptions {
   readonly readRustSourceResolutionSelectorMatch?: typeof resolveRustSourceResolutionSelectorMatch;
 }
 
 type RenameableSourceExpression = LiteralClassExpressionHIR | StyleAccessClassExpressionHIR;
+type SourceRenameDeps = Pick<
+  ProviderDeps,
+  | "analysisCache"
+  | "readStyleFile"
+  | "settings"
+  | "semanticReferenceIndex"
+  | "styleDependencyGraph"
+  | "styleDocumentForPath"
+  | "typeResolver"
+  | "workspaceRoot"
+>;
 
 export function readSourceExpressionRenameTarget(
   ctx: SourceExpressionContext,
   params: Pick<CursorParams, "documentUri" | "content" | "filePath" | "version">,
-  deps: Pick<
-    ProviderDeps,
-    | "analysisCache"
-    | "settings"
-    | "semanticReferenceIndex"
-    | "styleDependencyGraph"
-    | "styleDocumentForPath"
-    | "typeResolver"
-    | "workspaceRoot"
-  >,
+  deps: SourceRenameDeps,
   options: SourceRenameQueryOptions = {},
 ) {
   const expression = ctx.expression;
@@ -61,6 +67,7 @@ export function readSourceExpressionRenameTarget(
       params,
       deps,
       options.readRustSourceResolutionSelectorMatch ?? resolveRustSourceResolutionSelectorMatch,
+      options,
     );
     if (rustResult) return rustResult;
   }
@@ -72,16 +79,7 @@ export function readSourceExpressionRenameTarget(
 export function planSourceExpressionRename(
   ctx: SourceExpressionContext,
   params: Pick<CursorParams, "documentUri" | "content" | "filePath" | "version">,
-  deps: Pick<
-    ProviderDeps,
-    | "analysisCache"
-    | "settings"
-    | "semanticReferenceIndex"
-    | "styleDependencyGraph"
-    | "styleDocumentForPath"
-    | "typeResolver"
-    | "workspaceRoot"
-  >,
+  deps: SourceRenameDeps,
   newName: string,
   options: SourceRenameQueryOptions = {},
 ) {
@@ -93,17 +91,9 @@ export function planSourceExpressionRename(
 function readSourceExpressionRenameTargetFromRust(
   expression: RenameableSourceExpression,
   params: Pick<CursorParams, "documentUri" | "content" | "filePath" | "version">,
-  deps: Pick<
-    ProviderDeps,
-    | "analysisCache"
-    | "settings"
-    | "semanticReferenceIndex"
-    | "styleDependencyGraph"
-    | "styleDocumentForPath"
-    | "typeResolver"
-    | "workspaceRoot"
-  >,
+  deps: SourceRenameDeps,
   readRustSourceResolutionSelectorMatch: typeof resolveRustSourceResolutionSelectorMatch,
+  options: SourceRenameQueryOptions,
 ): SelectorRenameReadResult | null {
   const match = readRustSourceResolutionSelectorMatch(
     {
@@ -130,6 +120,7 @@ function readSourceExpressionRenameTargetFromRust(
     styleDocument,
     selector,
     deps,
+    options,
   );
 }
 
@@ -159,7 +150,8 @@ function finalizeRustSourceRenameTarget(
   scssPath: string,
   styleDocument: StyleDocumentHIR,
   selector: SelectorDeclHIR,
-  deps: Pick<ProviderDeps, "settings" | "semanticReferenceIndex" | "styleDependencyGraph">,
+  deps: SourceRenameDeps,
+  options: SourceRenameQueryOptions,
 ): SelectorRenameReadResult {
   const aliasMode = deps.settings.scss.classnameTransform;
   const rewritePolicy = readStyleSelectorRewritePolicy({
@@ -172,11 +164,22 @@ function finalizeRustSourceRenameTarget(
     return rewritePolicy;
   }
 
-  const rewriteSafety = readSelectorRewriteSafetySummary(
+  const baseRewriteSafety = readSelectorRewriteSafetySummary(
     deps,
     scssPath,
     rewritePolicy.summary.canonicalName,
   );
+  const graphReferences = resolveRustStyleSelectorReferenceSummaryForWorkspaceTarget(
+    {
+      filePath: scssPath,
+      canonicalName: rewritePolicy.summary.canonicalName,
+    },
+    deps,
+    options,
+  );
+  const rewriteSafety = graphReferences
+    ? buildSelectorReferenceRewriteSafetyFromRustGraph(baseRewriteSafety, graphReferences)
+    : baseRewriteSafety;
   if (rewriteSafety.hasBlockingStyleDependencyReferences) {
     return { kind: "blocked", reason: "styleDependencyReferences" };
   }
