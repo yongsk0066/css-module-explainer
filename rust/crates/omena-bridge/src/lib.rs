@@ -3,10 +3,18 @@ use engine_style_parser::{
     ParserBoundarySyntaxFactsV0, StyleSemanticFactsV0, Stylesheet, parse_style_module,
 };
 use omena_semantic::{
-    LosslessCstContractV0, SelectorIdentityEngineSummaryV0, SelectorReferenceEngineSummaryV0,
-    SemanticPromotionEvidenceSummaryV0, SourceInputPromotionEvidenceSummaryV0,
+    LosslessCstContractV0, SelectorIdentityEngineSummaryV0, SemanticPromotionEvidenceSummaryV0,
+    SourceInputPromotionEvidenceSummaryV0,
 };
 use serde::Serialize;
+
+mod selector_references;
+
+pub use selector_references::{
+    SelectorEditableDirectReferenceSiteV0, SelectorReferenceEngineSummaryV0,
+    SelectorReferenceSiteV0, SelectorReferenceSummaryV0,
+    summarize_omena_bridge_selector_reference_engine,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -16,6 +24,7 @@ pub struct OmenaBridgeBoundarySummaryV0 {
     pub bridge_name: &'static str,
     pub graph_product: &'static str,
     pub delegated_semantic_boundary_product: &'static str,
+    pub selector_reference_product: &'static str,
     pub delegated_source_evidence_product: &'static str,
     pub bridge_owned_surfaces: Vec<&'static str>,
     pub cme_coupled_surfaces: Vec<&'static str>,
@@ -44,8 +53,13 @@ pub fn summarize_omena_bridge_boundary() -> OmenaBridgeBoundarySummaryV0 {
         bridge_name: "cme-semantic-bridge",
         graph_product: "omena-semantic.style-semantic-graph",
         delegated_semantic_boundary_product: "omena-semantic.style-semantic-boundary",
+        selector_reference_product: "omena-semantic.selector-references",
         delegated_source_evidence_product: "omena-semantic.source-input-evidence",
-        bridge_owned_surfaces: vec!["styleSemanticGraph", "styleSemanticGraphFromSource"],
+        bridge_owned_surfaces: vec![
+            "styleSemanticGraph",
+            "styleSemanticGraphFromSource",
+            "selectorReferenceEngine",
+        ],
         cme_coupled_surfaces: vec![
             "EngineInputV2",
             "sourceInputEvidence",
@@ -53,11 +67,7 @@ pub fn summarize_omena_bridge_boundary() -> OmenaBridgeBoundarySummaryV0 {
             "promotionEvidenceWithSourceInput",
             "styleSemanticGraphFromSource",
         ],
-        next_decoupling_targets: vec![
-            "sourceInputEvidence",
-            "selectorReferenceEngine",
-            "promotionEvidenceWithSourceInput",
-        ],
+        next_decoupling_targets: vec!["sourceInputEvidence", "promotionEvidenceWithSourceInput"],
     }
 }
 
@@ -96,7 +106,7 @@ pub fn summarize_omena_bridge_style_semantic_graph_for_path(
     let semantic_facts = boundary.semantic_facts;
     let selector_identity_engine = boundary.selector_identity_engine;
     let selector_reference_engine =
-        omena_semantic::summarize_selector_reference_engine(input, style_path);
+        summarize_omena_bridge_selector_reference_engine(input, style_path);
     let source_input_evidence = omena_semantic::summarize_source_input_evidence(input);
     let promotion_evidence =
         omena_semantic::summarize_semantic_promotion_evidence_with_source_input(
@@ -143,8 +153,8 @@ mod tests {
     use engine_style_parser::parse_style_module;
 
     use super::{
-        summarize_omena_bridge_boundary, summarize_omena_bridge_source_input_evidence,
-        summarize_omena_bridge_style_semantic_graph,
+        summarize_omena_bridge_boundary, summarize_omena_bridge_selector_reference_engine,
+        summarize_omena_bridge_source_input_evidence, summarize_omena_bridge_style_semantic_graph,
         summarize_omena_bridge_style_semantic_graph_from_source,
     };
 
@@ -163,6 +173,10 @@ mod tests {
             "omena-semantic.style-semantic-boundary"
         );
         assert_eq!(
+            boundary.selector_reference_product,
+            "omena-semantic.selector-references"
+        );
+        assert_eq!(
             boundary.delegated_source_evidence_product,
             "omena-semantic.source-input-evidence"
         );
@@ -173,6 +187,11 @@ mod tests {
         );
         assert!(
             boundary
+                .bridge_owned_surfaces
+                .contains(&"selectorReferenceEngine")
+        );
+        assert!(
+            boundary
                 .cme_coupled_surfaces
                 .contains(&"promotionEvidenceWithSourceInput")
         );
@@ -180,6 +199,11 @@ mod tests {
             boundary
                 .next_decoupling_targets
                 .contains(&"sourceInputEvidence")
+        );
+        assert!(
+            !boundary
+                .next_decoupling_targets
+                .contains(&"selectorReferenceEngine")
         );
     }
 
@@ -230,6 +254,45 @@ mod tests {
     }
 
     #[test]
+    fn owns_selector_reference_engine_without_changing_host_product() {
+        let bridge_references = summarize_omena_bridge_selector_reference_engine(
+            &sample_engine_input(),
+            Some("/tmp/Component.module.scss"),
+        );
+        let semantic_references = omena_semantic::summarize_selector_reference_engine(
+            &sample_engine_input(),
+            Some("/tmp/Component.module.scss"),
+        );
+
+        assert_eq!(
+            bridge_references.product,
+            "omena-semantic.selector-references"
+        );
+        assert_eq!(bridge_references.product, semantic_references.product);
+        assert_eq!(bridge_references.style_path, semantic_references.style_path);
+        assert_eq!(
+            bridge_references.selector_count,
+            semantic_references.selector_count
+        );
+        assert_eq!(
+            bridge_references.referenced_selector_count,
+            semantic_references.referenced_selector_count
+        );
+        assert_eq!(
+            bridge_references.total_reference_sites,
+            semantic_references.total_reference_sites
+        );
+        assert_eq!(
+            bridge_references.selectors[0].canonical_id,
+            semantic_references.selectors[0].canonical_id
+        );
+        assert_eq!(
+            bridge_references.selectors[0].editable_direct_reference_count,
+            semantic_references.selectors[0].editable_direct_reference_count
+        );
+    }
+
+    #[test]
     fn owns_graph_assembly_without_changing_host_product() -> Result<(), String> {
         let sheet = parse_style_module("Component.module.scss", ".button { color: red; }")
             .ok_or_else(|| "SCSS module path should parse".to_string())?;
@@ -242,8 +305,18 @@ mod tests {
         assert_eq!(bridge_graph.product, semantic_graph.product);
         assert_eq!(bridge_graph.language, semantic_graph.language);
         assert_eq!(
-            bridge_graph.selector_reference_engine,
-            semantic_graph.selector_reference_engine
+            bridge_graph.selector_reference_engine.product,
+            semantic_graph.selector_reference_engine.product
+        );
+        assert_eq!(
+            bridge_graph.selector_reference_engine.selector_count,
+            semantic_graph.selector_reference_engine.selector_count
+        );
+        assert_eq!(
+            bridge_graph.selector_reference_engine.total_reference_sites,
+            semantic_graph
+                .selector_reference_engine
+                .total_reference_sites
         );
         assert_eq!(
             bridge_graph.source_input_evidence,

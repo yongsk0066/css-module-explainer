@@ -15,6 +15,9 @@ Current public products:
 - `omena-semantic.style-semantic-graph` — bridge-assembled graph product, kept
   stable for existing host consumers while graph assembly moves behind this
   crate.
+- `omena-semantic.selector-references` — bridge-owned selector reference engine
+  product, kept stable for existing host consumers while ownership moves behind
+  this crate.
 - `omena-semantic.source-input-evidence` — delegated source evidence product
   derived from `EngineInputV2`.
 
