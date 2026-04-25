@@ -200,6 +200,83 @@ pub struct ParserIndexSummaryV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ParserSemanticBoundarySummaryV0 {
+    pub schema_version: &'static str,
+    pub language: &'static str,
+    pub parser_facts: ParserBoundarySyntaxFactsV0,
+    pub semantic_facts: StyleSemanticFactsV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParserBoundarySyntaxFactsV0 {
+    pub lossless_cst: ParserLosslessCstFactsV0,
+    pub selectors: ParserIndexSelectorFactsV0,
+    pub values: ParserIndexValueFactsV0,
+    pub sass: ParserSassSyntaxFactsV0,
+    pub keyframes: ParserIndexKeyframesFactsV0,
+    pub composes: ParserIndexComposesFactsV0,
+    pub wrappers: ParserIndexWrapperFactsV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParserLosslessCstFactsV0 {
+    pub source_byte_len: usize,
+    pub token_count: usize,
+    pub root_node_count: usize,
+    pub diagnostic_count: usize,
+    pub all_token_spans_within_source: bool,
+    pub all_node_spans_within_source: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParserSassSyntaxFactsV0 {
+    pub variable_decl_names: Vec<String>,
+    pub variable_parameter_names: Vec<String>,
+    pub variable_ref_names: Vec<String>,
+    pub mixin_decl_names: Vec<String>,
+    pub mixin_include_names: Vec<String>,
+    pub function_decl_names: Vec<String>,
+    pub function_call_names: Vec<String>,
+    pub module_use_sources: Vec<String>,
+    pub module_use_edges: Vec<ParserIndexSassModuleUseFactV0>,
+    pub module_forward_sources: Vec<String>,
+    pub module_import_sources: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StyleSemanticFactsV0 {
+    pub selector_identity: StyleSelectorIdentityFactsV0,
+    pub sass: StyleSassSemanticFactsV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StyleSelectorIdentityFactsV0 {
+    pub canonical_names: Vec<String>,
+    pub bem_suffix_safe_names: Vec<String>,
+    pub bem_suffix_parent_names: Vec<String>,
+    pub nested_unsafe_names: Vec<String>,
+    pub nested_safety_counts: NestedSafetyCountsV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StyleSassSemanticFactsV0 {
+    pub selector_symbol_facts: Vec<ParserIndexSassSelectorSymbolFactV0>,
+    pub selectors_with_resolved_variable_refs_names: Vec<String>,
+    pub selectors_with_unresolved_variable_refs_names: Vec<String>,
+    pub selectors_with_resolved_mixin_includes_names: Vec<String>,
+    pub selectors_with_unresolved_mixin_includes_names: Vec<String>,
+    pub selectors_with_function_calls_names: Vec<String>,
+    pub same_file_resolution: ParserIndexSassSameFileResolutionFactsV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ParserCanonicalCandidateBundleV0 {
     pub schema_version: &'static str,
     pub language: &'static str,
@@ -1132,6 +1209,136 @@ pub fn summarize_parser_canonical_producer_signal(
 
 pub fn summarize_index_bridge(sheet: &Stylesheet) -> ParserIndexSummaryV0 {
     summarize_css_modules_intermediate(sheet)
+}
+
+pub fn summarize_semantic_boundary(sheet: &Stylesheet) -> ParserSemanticBoundarySummaryV0 {
+    let index = summarize_css_modules_intermediate(sheet);
+    let ParserIndexSummaryV0 {
+        schema_version: _,
+        language,
+        selectors,
+        values,
+        sass,
+        keyframes,
+        composes,
+        wrappers,
+    } = index;
+    let ParserIndexSelectorFactsV0 {
+        names,
+        bem_suffix_parent_names,
+        bem_suffix_safe_names,
+        nested_unsafe_names,
+        selectors_with_value_refs_names,
+        selectors_with_animation_ref_names,
+        selectors_with_animation_name_ref_names,
+        bem_suffix_count,
+        nested_safety_counts,
+    } = selectors;
+    let ParserIndexSassFactsV0 {
+        variable_decl_names,
+        variable_parameter_names,
+        variable_ref_names,
+        selectors_with_variable_refs_names: _,
+        selectors_with_resolved_variable_refs_names,
+        selectors_with_unresolved_variable_refs_names,
+        mixin_decl_names,
+        mixin_include_names,
+        selectors_with_mixin_includes_names: _,
+        selectors_with_resolved_mixin_includes_names,
+        selectors_with_unresolved_mixin_includes_names,
+        function_decl_names,
+        function_call_names,
+        selectors_with_function_calls_names,
+        selector_symbol_facts,
+        module_use_sources,
+        module_use_edges,
+        module_forward_sources,
+        module_import_sources,
+        same_file_resolution,
+    } = sass;
+
+    ParserSemanticBoundarySummaryV0 {
+        schema_version: "0",
+        language,
+        parser_facts: ParserBoundarySyntaxFactsV0 {
+            lossless_cst: summarize_lossless_cst(sheet),
+            selectors: ParserIndexSelectorFactsV0 {
+                names: names.clone(),
+                bem_suffix_parent_names: bem_suffix_parent_names.clone(),
+                bem_suffix_safe_names: bem_suffix_safe_names.clone(),
+                nested_unsafe_names: nested_unsafe_names.clone(),
+                selectors_with_value_refs_names,
+                selectors_with_animation_ref_names,
+                selectors_with_animation_name_ref_names,
+                bem_suffix_count,
+                nested_safety_counts: nested_safety_counts.clone(),
+            },
+            values,
+            sass: ParserSassSyntaxFactsV0 {
+                variable_decl_names,
+                variable_parameter_names,
+                variable_ref_names,
+                mixin_decl_names,
+                mixin_include_names,
+                function_decl_names,
+                function_call_names,
+                module_use_sources,
+                module_use_edges,
+                module_forward_sources,
+                module_import_sources,
+            },
+            keyframes,
+            composes,
+            wrappers,
+        },
+        semantic_facts: StyleSemanticFactsV0 {
+            selector_identity: StyleSelectorIdentityFactsV0 {
+                canonical_names: names,
+                bem_suffix_safe_names,
+                bem_suffix_parent_names,
+                nested_unsafe_names,
+                nested_safety_counts,
+            },
+            sass: StyleSassSemanticFactsV0 {
+                selector_symbol_facts,
+                selectors_with_resolved_variable_refs_names,
+                selectors_with_unresolved_variable_refs_names,
+                selectors_with_resolved_mixin_includes_names,
+                selectors_with_unresolved_mixin_includes_names,
+                selectors_with_function_calls_names,
+                same_file_resolution,
+            },
+        },
+    }
+}
+
+fn summarize_lossless_cst(sheet: &Stylesheet) -> ParserLosslessCstFactsV0 {
+    let source_byte_len = sheet.source.len();
+    ParserLosslessCstFactsV0 {
+        source_byte_len,
+        token_count: sheet.tokens.len(),
+        root_node_count: sheet.nodes.len(),
+        diagnostic_count: sheet.diagnostics.len(),
+        all_token_spans_within_source: sheet
+            .tokens
+            .iter()
+            .all(|token| is_valid_span(token.span, source_byte_len)),
+        all_node_spans_within_source: nodes_have_valid_spans(&sheet.nodes, source_byte_len),
+    }
+}
+
+fn nodes_have_valid_spans(nodes: &[SyntaxNode], source_byte_len: usize) -> bool {
+    nodes.iter().all(|node| {
+        is_valid_span(node.span, source_byte_len)
+            && node
+                .header_span
+                .is_none_or(|span| is_valid_span(span, source_byte_len))
+            && nodes_have_valid_spans(&node.children, source_byte_len)
+    })
+}
+
+fn is_valid_span(span: TextSpan, source_byte_len: usize) -> bool {
+    span.start <= span.end && span.end <= source_byte_len
 }
 
 fn collect_parity_names(nodes: &[SyntaxNode], acc: &mut ParityLiteAcc) {
@@ -4262,6 +4469,119 @@ $gap: 1rem;
             vec!["tone"]
         );
         Ok(())
+    }
+
+    #[test]
+    fn semantic_boundary_separates_parser_syntax_from_semantic_resolution() -> Result<(), String> {
+        let source = r#"@use "./tokens" as tokens;
+$gap: 1rem;
+@mixin raised($depth) { box-shadow: 0 0 $depth black; }
+.btn { color: $gap; @include raised($gap); }
+.ghost { color: $missing; }
+"#;
+        let sheet = parse_stylesheet(StyleLanguage::Scss, source);
+        let summary = super::summarize_semantic_boundary(&sheet);
+
+        assert_eq!(
+            summary.parser_facts.sass.module_use_edges,
+            vec![ParserIndexSassModuleUseFactV0 {
+                source: "./tokens".to_string(),
+                namespace_kind: "alias",
+                namespace: Some("tokens".to_string()),
+            }]
+        );
+        assert_eq!(
+            summary.parser_facts.sass.variable_ref_names,
+            vec!["depth", "gap", "missing"]
+        );
+        assert_eq!(
+            summary
+                .semantic_facts
+                .sass
+                .same_file_resolution
+                .resolved_variable_ref_names,
+            vec!["depth", "gap"]
+        );
+        assert_eq!(
+            summary
+                .semantic_facts
+                .sass
+                .same_file_resolution
+                .unresolved_variable_ref_names,
+            vec!["missing"]
+        );
+        assert_eq!(
+            summary.semantic_facts.selector_identity.canonical_names,
+            vec!["btn", "ghost"]
+        );
+        assert_eq!(
+            summary.semantic_facts.sass.selector_symbol_facts,
+            vec![
+                ParserIndexSassSelectorSymbolFactV0 {
+                    selector_name: "btn".to_string(),
+                    symbol_kind: "mixin",
+                    name: "raised".to_string(),
+                    role: "include",
+                    resolution: "resolved",
+                    byte_span: span_after(source, "@include", "raised")?,
+                    range: range_after(source, "@include", "raised")?,
+                },
+                ParserIndexSassSelectorSymbolFactV0 {
+                    selector_name: "btn".to_string(),
+                    symbol_kind: "variable",
+                    name: "gap".to_string(),
+                    role: "reference",
+                    resolution: "resolved",
+                    byte_span: span_after(source, ".btn { color", "$gap")?,
+                    range: range_after(source, ".btn { color", "$gap")?,
+                },
+                ParserIndexSassSelectorSymbolFactV0 {
+                    selector_name: "btn".to_string(),
+                    symbol_kind: "variable",
+                    name: "gap".to_string(),
+                    role: "reference",
+                    resolution: "resolved",
+                    byte_span: span_after(source, "@include raised(", "$gap")?,
+                    range: range_after(source, "@include raised(", "$gap")?,
+                },
+                ParserIndexSassSelectorSymbolFactV0 {
+                    selector_name: "ghost".to_string(),
+                    symbol_kind: "variable",
+                    name: "missing".to_string(),
+                    role: "reference",
+                    resolution: "unresolved",
+                    byte_span: span_after(source, ".ghost { color", "$missing")?,
+                    range: range_after(source, ".ghost { color", "$missing")?,
+                },
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn semantic_boundary_reports_lossless_cst_span_contract() {
+        let source = "// heading\n.card { &--primary { color: red; } }\n";
+        let sheet = parse_stylesheet(StyleLanguage::Scss, source);
+        let summary = super::summarize_semantic_boundary(&sheet);
+
+        assert_eq!(
+            summary.parser_facts.lossless_cst.source_byte_len,
+            source.len()
+        );
+        assert!(summary.parser_facts.lossless_cst.token_count > 0);
+        assert_eq!(summary.parser_facts.lossless_cst.diagnostic_count, 0);
+        assert!(
+            summary
+                .parser_facts
+                .lossless_cst
+                .all_token_spans_within_source
+        );
+        assert!(
+            summary
+                .parser_facts
+                .lossless_cst
+                .all_node_spans_within_source
+        );
     }
 
     #[test]
