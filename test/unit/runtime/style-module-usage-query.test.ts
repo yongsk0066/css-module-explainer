@@ -133,6 +133,43 @@ describe("style module usage query", () => {
     ]);
   });
 
+  it("falls back to current usage when rust graph drops known source references", () => {
+    const styleDocument = buildStyleDocumentFromSelectorMap(
+      SCSS_PATH,
+      new Map([
+        ["indicator", infoAtLine("indicator", 1)],
+        ["active", infoAtLine("active", 3)],
+      ]),
+    );
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    semanticReferenceIndex.record("file:///fake/ws/src/App.tsx", [
+      semanticSiteAt("file:///fake/ws/src/App.tsx", "indicator", 8, SCSS_PATH),
+    ]);
+    const deps = makeBaseDeps({
+      selectorMapForPath: () =>
+        new Map([
+          ["indicator", infoAtLine("indicator", 1)],
+          ["active", infoAtLine("active", 3)],
+        ]),
+      workspaceRoot: "/fake/ws",
+      semanticReferenceIndex,
+    });
+
+    const unused = resolveUnusedStyleSelectors({ scssPath: SCSS_PATH, styleDocument }, deps, {
+      env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+      readRustStyleSemanticGraphForWorkspaceTarget: () => makeReferenceGraph({ indicator: false }),
+      readRustSelectorUsagePayloadForWorkspaceTarget: () => {
+        throw new Error("unexpected selector-usage fallback");
+      },
+    });
+
+    expect(unused).toEqual([
+      expect.objectContaining({
+        canonicalName: "active",
+      }),
+    ]);
+  });
+
   it("falls back to semantic usage summary when rust payloads are unavailable", () => {
     const styleDocument = buildStyleDocumentFromSelectorMap(
       SCSS_PATH,
@@ -181,7 +218,13 @@ function throwingStyleDependencyGraph(): StyleDependencyGraph {
   };
 }
 
-function makeReferenceGraph(): StyleSemanticGraphSummaryV0 {
+function makeReferenceGraph(
+  references: { readonly indicator: boolean; readonly active: boolean } = {
+    indicator: true,
+    active: false,
+  },
+): StyleSemanticGraphSummaryV0 {
+  const referencedSelectorCount = Number(references.indicator) + Number(references.active);
   return {
     schemaVersion: "0",
     product: "omena-semantic.style-semantic-graph",
@@ -220,15 +263,20 @@ function makeReferenceGraph(): StyleSemanticGraphSummaryV0 {
       product: "omena-semantic.selector-references",
       stylePath: SCSS_PATH,
       selectorCount: 2,
-      referencedSelectorCount: 1,
-      unreferencedSelectorCount: 1,
-      totalReferenceSites: 1,
+      referencedSelectorCount,
+      unreferencedSelectorCount: 2 - referencedSelectorCount,
+      totalReferenceSites: referencedSelectorCount,
       selectors: [
-        makeSelectorReferenceSummary("indicator", true),
-        makeSelectorReferenceSummary("active", false),
+        makeSelectorReferenceSummary("indicator", references.indicator),
+        makeSelectorReferenceSummary("active", references.active),
       ],
     },
-    sourceInputEvidence: {},
+    sourceInputEvidence: {
+      referenceSiteIdentity: {
+        status: "ready",
+        referenceSiteCount: referencedSelectorCount,
+      },
+    },
     promotionEvidence: {},
     losslessCstContract: {},
   };

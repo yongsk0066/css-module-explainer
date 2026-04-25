@@ -114,11 +114,23 @@ function resolveGraphUnusedStyleSelectors(
     graphSelectors.map((selector) => [selector.localName, selector] as const),
   );
   const unused: StyleModuleUsageSelectorSummary[] = [];
+  const currentUsage = readStyleModuleUsageSummary(
+    args.scssPath,
+    args.styleDocument,
+    deps.semanticReferenceIndex,
+    deps.styleDependencyGraph,
+  );
+  const currentUnusedSelectors = new Set(
+    currentUsage.unusedSelectors.map((selector) => selector.canonicalName),
+  );
 
   for (const selector of listCanonicalSelectors(args.styleDocument)) {
     const referenceSummary = referenceSummaryByName.get(selector.canonicalName);
     if (!referenceSummary) return null;
     if (!referenceSummary.hasAnyReferences) {
+      if (!currentUnusedSelectors.has(selector.canonicalName)) {
+        return currentUsage.unusedSelectors.map(toStyleModuleUsageSelectorSummary);
+      }
       unused.push({
         canonicalName: selector.canonicalName,
         range: selector.range,
@@ -127,6 +139,15 @@ function resolveGraphUnusedStyleSelectors(
   }
 
   return unused;
+}
+
+function toStyleModuleUsageSelectorSummary(
+  selector: ReturnType<typeof readStyleModuleUsageSummary>["unusedSelectors"][number],
+): StyleModuleUsageSelectorSummary {
+  return {
+    canonicalName: selector.canonicalName,
+    range: selector.range,
+  };
 }
 
 function readCurrentUnusedStyleSelectors(
