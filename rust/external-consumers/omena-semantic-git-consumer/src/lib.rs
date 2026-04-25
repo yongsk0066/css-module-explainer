@@ -4,11 +4,19 @@ use engine_input_producers::{
     TypeFactEntryV2,
 };
 use engine_style_parser::parse_style_module;
-use omena_semantic::{StyleSemanticGraphSummaryV0, summarize_style_semantic_graph};
+use omena_semantic::{
+    StyleSemanticGraphSummaryV0, TheoryObservationHarnessSummaryV0, summarize_style_semantic_graph,
+    summarize_theory_observation_harness,
+};
 
 pub fn consume_style_semantic_graph() -> Option<StyleSemanticGraphSummaryV0> {
     let sheet = parse_style_module("Component.module.scss", ".button { &__icon {} }")?;
     Some(summarize_style_semantic_graph(&sheet, &sample_input()))
+}
+
+pub fn consume_theory_observation_harness() -> Option<TheoryObservationHarnessSummaryV0> {
+    let graph = consume_style_semantic_graph()?;
+    Some(summarize_theory_observation_harness(&graph))
 }
 
 fn sample_input() -> EngineInputV2 {
@@ -91,7 +99,7 @@ fn range(
 
 #[cfg(test)]
 mod tests {
-    use super::consume_style_semantic_graph;
+    use super::{consume_style_semantic_graph, consume_theory_observation_harness};
     use engine_style_parser::parse_style_module;
     use omena_semantic::summarize_style_semantic_boundary;
     use serde_json::json;
@@ -137,6 +145,22 @@ mod tests {
             value["sourceInputEvidence"]["styleModuleEdge"]["status"],
             json!("ready")
         );
+        Ok(())
+    }
+
+    #[test]
+    fn consumes_omena_semantic_observation_harness_from_external_crate() -> Result<(), String> {
+        let observation = consume_theory_observation_harness()
+            .ok_or_else(|| "expected theory observation".to_string())?;
+
+        assert_eq!(
+            observation.product,
+            "omena-semantic.theory-observation-harness"
+        );
+        assert_eq!(observation.selector_identity.status, "ready");
+        assert_eq!(observation.source_evidence.status, "ready");
+        assert_eq!(observation.downstream_readiness.status, "ready");
+        assert!(observation.blocking_gaps.is_empty());
         Ok(())
     }
 

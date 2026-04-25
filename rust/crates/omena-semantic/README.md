@@ -20,6 +20,9 @@ Current public products:
   and selector certainty reason evidence.
 - `omena-semantic.lossless-cst-contract` — byte-span invariants used by precise
   rename, formatter, and recovery-oriented consumers.
+- `omena-semantic.theory-observation-harness` — observation-only readiness
+  summary for selector rewrite safety, source evidence explainability, semantic
+  graph downstream readiness, and generic-vs-CME coupling boundaries.
 
 Primary check:
 
@@ -44,4 +47,11 @@ For the combined style semantic graph product:
 ```sh
 cat style-semantic-graph-input.json \
   | cargo run --manifest-path rust/Cargo.toml -p omena-semantic --bin omena-semantic-graph
+```
+
+For the theory observation harness:
+
+```sh
+cat style-semantic-graph-input.json \
+  | cargo run --manifest-path rust/Cargo.toml -p omena-semantic --bin omena-semantic-observation
 ```

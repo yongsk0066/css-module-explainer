@@ -6,6 +6,7 @@ use serde::Serialize;
 
 mod evidence;
 mod lossless_cst;
+mod observation;
 mod selector_identity;
 mod source_evidence;
 
@@ -16,6 +17,11 @@ pub use evidence::{
 pub use lossless_cst::{
     LosslessCstConsumerReadinessV0, LosslessCstContractV0, LosslessCstSpanInvariantsV0,
     summarize_lossless_cst_contract,
+};
+pub use observation::{
+    SelectorIdentityObservationV0, SemanticCouplingBoundaryObservationV0,
+    SemanticGraphDownstreamReadinessV0, SourceEvidenceObservationV0,
+    TheoryObservationHarnessSummaryV0, summarize_theory_observation_harness,
 };
 pub use selector_identity::{
     SelectorCanonicalIdentityV0, SelectorIdentityEngineSummaryV0, SelectorIdentityRewriteSafetyV0,
@@ -125,7 +131,7 @@ mod tests {
         summarize_selector_identity_engine, summarize_semantic_promotion_evidence,
         summarize_semantic_promotion_evidence_with_source_input, summarize_source_input_evidence,
         summarize_style_semantic_boundary, summarize_style_semantic_facts,
-        summarize_style_semantic_graph,
+        summarize_style_semantic_graph, summarize_theory_observation_harness,
     };
 
     #[test]
@@ -538,6 +544,130 @@ $color: red;
         Ok(())
     }
 
+    #[test]
+    fn theory_observation_harness_reports_ready_semantic_graph() -> Result<(), String> {
+        let sheet = parse_style_module(
+            "Component.module.scss",
+            ".button { &__icon { color: red; } }",
+        )
+        .ok_or_else(|| "SCSS module path should parse".to_string())?;
+        let graph = summarize_style_semantic_graph(&sheet, &sample_engine_input());
+        let observation = summarize_theory_observation_harness(&graph);
+
+        assert_eq!(
+            observation.product,
+            "omena-semantic.theory-observation-harness"
+        );
+        assert_eq!(
+            observation.graph_product,
+            "omena-semantic.style-semantic-graph"
+        );
+        assert_eq!(observation.selector_identity.status, "ready");
+        assert_eq!(observation.selector_identity.observed_selector_count, 2);
+        assert_eq!(
+            observation.selector_identity.rewrite_blocked_selector_count,
+            0
+        );
+        assert!(observation.selector_identity.rename_safe);
+        assert_eq!(observation.source_evidence.status, "ready");
+        assert_eq!(observation.source_evidence.reference_site_count, 2);
+        assert_eq!(
+            observation
+                .source_evidence
+                .certainty_reason_counts
+                .get("single selector matched"),
+            Some(&1)
+        );
+        assert_eq!(observation.downstream_readiness.status, "ready");
+        assert!(observation.downstream_readiness.downstream_check_ready);
+        assert!(observation.downstream_readiness.precise_rename_ready);
+        assert_eq!(observation.coupling_boundary.generic_observation_count, 3);
+        assert_eq!(
+            observation.coupling_boundary.cme_coupled_observation_count,
+            2
+        );
+        assert_eq!(
+            observation.coupling_boundary.split_recommendation,
+            "keep-integrated-observe-boundary"
+        );
+        assert!(observation.blocking_gaps.is_empty());
+        assert_eq!(
+            observation.next_priorities,
+            vec!["externalCorpus", "traitDogfooding"]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn theory_observation_harness_marks_rewrite_blockers_without_hiding_graph_readiness()
+    -> Result<(), String> {
+        let sheet = parse_style_module(
+            "Component.module.scss",
+            r#"
+.button {
+  &.active {}
+}
+"#,
+        )
+        .ok_or_else(|| "SCSS module path should parse".to_string())?;
+        let graph = summarize_style_semantic_graph(&sheet, &sample_engine_input());
+        let observation = summarize_theory_observation_harness(&graph);
+
+        assert_eq!(observation.selector_identity.status, "partial");
+        assert_eq!(
+            observation.selector_identity.rewrite_blocked_selector_count,
+            1
+        );
+        assert_eq!(
+            observation.selector_identity.blockers,
+            vec!["nested-expansion"]
+        );
+        assert!(observation.downstream_readiness.downstream_check_ready);
+        assert!(!observation.downstream_readiness.precise_rename_ready);
+        assert_eq!(observation.downstream_readiness.status, "partial");
+        assert_eq!(
+            observation.blocking_gaps,
+            vec!["selectorRewriteSafety", "downstreamReadiness"]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn theory_observation_harness_exposes_cme_coupling_gaps() -> Result<(), String> {
+        let sheet = parse_style_module("Component.module.scss", ".button { color: red; }")
+            .ok_or_else(|| "SCSS module path should parse".to_string())?;
+        let graph = summarize_style_semantic_graph(&sheet, &empty_engine_input());
+        let observation = summarize_theory_observation_harness(&graph);
+
+        assert_eq!(observation.selector_identity.status, "ready");
+        assert_eq!(observation.source_evidence.status, "gap");
+        assert_eq!(observation.source_evidence.reference_site_count, 0);
+        assert_eq!(
+            observation
+                .source_evidence
+                .explainable_certainty_reason_count,
+            0
+        );
+        assert_eq!(observation.downstream_readiness.status, "gap");
+        assert_eq!(
+            observation.blocking_gaps,
+            vec!["sourceEvidence", "downstreamReadiness"]
+        );
+        assert_eq!(
+            observation.coupling_boundary.generic_surfaces,
+            vec![
+                "parserSemanticFacts",
+                "selectorIdentity",
+                "losslessCstContract"
+            ]
+        );
+        assert_eq!(
+            observation.coupling_boundary.cme_coupled_surfaces,
+            vec!["sourceInputEvidence", "promotionEvidenceWithSourceInput"]
+        );
+        Ok(())
+    }
+
     fn sample_engine_input() -> EngineInputV2 {
         EngineInputV2 {
             version: "2".to_string(),
@@ -624,6 +754,15 @@ $color: red;
                     },
                 },
             ],
+        }
+    }
+
+    fn empty_engine_input() -> EngineInputV2 {
+        EngineInputV2 {
+            version: "2".to_string(),
+            sources: Vec::new(),
+            styles: Vec::new(),
+            type_facts: Vec::new(),
         }
     }
 
