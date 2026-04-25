@@ -1,0 +1,137 @@
+use engine_style_parser::{ParserBoundarySyntaxFactsV0, StyleSemanticFactsV0};
+use serde::Serialize;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SemanticPromotionEvidenceSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub items: Vec<SemanticPromotionEvidenceItemV0>,
+    pub blocking_gaps: Vec<&'static str>,
+    pub next_priorities: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SemanticPromotionEvidenceItemV0 {
+    pub evidence: &'static str,
+    pub status: &'static str,
+    pub provider: &'static str,
+    pub observed_count: usize,
+    pub reason: String,
+}
+
+pub fn summarize_semantic_promotion_evidence(
+    parser_facts: &ParserBoundarySyntaxFactsV0,
+    semantic_facts: &StyleSemanticFactsV0,
+) -> SemanticPromotionEvidenceSummaryV0 {
+    let source_span_ready = parser_facts.lossless_cst.all_token_spans_within_source
+        && parser_facts.lossless_cst.all_node_spans_within_source;
+    let unresolved_sass_count = semantic_facts
+        .sass
+        .selectors_with_unresolved_variable_refs_names
+        .len()
+        + semantic_facts
+            .sass
+            .selectors_with_unresolved_mixin_includes_names
+            .len();
+    let rewrite_blocker_count =
+        semantic_facts.selector_identity.nested_unsafe_names.len() + unresolved_sass_count;
+
+    let items = vec![
+        SemanticPromotionEvidenceItemV0 {
+            evidence: "selectorCanonicalId",
+            status: if semantic_facts.selector_identity.canonical_names.is_empty() {
+                "gap"
+            } else {
+                "ready"
+            },
+            provider: "StyleSelectorIdentityFactsV0.canonicalNames",
+            observed_count: semantic_facts.selector_identity.canonical_names.len(),
+            reason: format!(
+                "{} canonical selector ids are exposed",
+                semantic_facts.selector_identity.canonical_names.len()
+            ),
+        },
+        SemanticPromotionEvidenceItemV0 {
+            evidence: "sourceSpan",
+            status: if source_span_ready { "ready" } else { "gap" },
+            provider: "ParserLosslessCstFactsV0",
+            observed_count: parser_facts.lossless_cst.token_count,
+            reason: format!(
+                "token spans valid={} node spans valid={}",
+                parser_facts.lossless_cst.all_token_spans_within_source,
+                parser_facts.lossless_cst.all_node_spans_within_source
+            ),
+        },
+        SemanticPromotionEvidenceItemV0 {
+            evidence: "bindingOrigin",
+            status: "partial",
+            provider: "StyleSassSemanticFactsV0.selectorSymbolFacts",
+            observed_count: semantic_facts.sass.selector_symbol_facts.len(),
+            reason: format!(
+                "{} Sass selector symbol facts are exposed; cross-file origin still needs source bridge evidence",
+                semantic_facts.sass.selector_symbol_facts.len()
+            ),
+        },
+        SemanticPromotionEvidenceItemV0 {
+            evidence: "styleModuleEdge",
+            status: if parser_facts.sass.module_use_edges.is_empty() {
+                "partial"
+            } else {
+                "ready"
+            },
+            provider: "ParserSassSyntaxFactsV0.moduleUseEdges",
+            observed_count: parser_facts.sass.module_use_edges.len(),
+            reason: format!(
+                "{} Sass module use edges are exposed",
+                parser_facts.sass.module_use_edges.len()
+            ),
+        },
+        SemanticPromotionEvidenceItemV0 {
+            evidence: "valueDomainExplanation",
+            status: "partial",
+            provider: "ParserIndexValueFactsV0",
+            observed_count: parser_facts.values.ref_names.len(),
+            reason: format!(
+                "{} value refs are exposed; source-side expression-domain explanation remains external",
+                parser_facts.values.ref_names.len()
+            ),
+        },
+        SemanticPromotionEvidenceItemV0 {
+            evidence: "rewriteSafetyBlocker",
+            status: if rewrite_blocker_count == 0 {
+                "ready"
+            } else {
+                "partial"
+            },
+            provider: "StyleSelectorIdentityFactsV0 + StyleSassSemanticFactsV0",
+            observed_count: rewrite_blocker_count,
+            reason: format!("{rewrite_blocker_count} selector or Sass blockers are exposed"),
+        },
+        SemanticPromotionEvidenceItemV0 {
+            evidence: "referenceSiteIdentity",
+            status: "gap",
+            provider: "EngineInputV2.selector-usage",
+            observed_count: 0,
+            reason: "reference sites are produced outside this parser-backed semantic boundary"
+                .to_string(),
+        },
+        SemanticPromotionEvidenceItemV0 {
+            evidence: "certaintyReason",
+            status: "gap",
+            provider: "EngineInputV2.type-facts",
+            observed_count: 0,
+            reason: "source-side certainty reasons are not yet carried into omena-semantic"
+                .to_string(),
+        },
+    ];
+
+    SemanticPromotionEvidenceSummaryV0 {
+        schema_version: "0",
+        product: "omena-semantic.promotion-evidence",
+        items,
+        blocking_gaps: vec!["referenceSiteIdentity", "certaintyReason"],
+        next_priorities: vec!["referenceSiteIdentity", "certaintyReason", "bindingOrigin"],
+    }
+}
