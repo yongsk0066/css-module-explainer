@@ -32,7 +32,9 @@ use engine_input_producers::{
     summarize_source_side_canonical_producer_signal_input,
     summarize_source_side_evaluator_candidates_input, summarize_type_fact_input,
 };
-use omena_semantic::{StyleSemanticGraphSummaryV0, summarize_style_semantic_graph_from_source};
+use omena_bridge::{
+    StyleSemanticGraphSummaryV0, summarize_omena_bridge_style_semantic_graph_from_source,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
@@ -572,7 +574,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Some("style-semantic-graph") => {
             let input: StyleSemanticGraphInputV0 = serde_json::from_str(&stdin)?;
-            let Some(summary) = summarize_style_semantic_graph_from_source(
+            let Some(summary) = summarize_omena_bridge_style_semantic_graph_from_source(
                 &input.style_path,
                 &input.style_source,
                 &input.engine_input,
@@ -587,7 +589,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .styles
                 .into_iter()
                 .map(|style| StyleSemanticGraphBatchEntryV0 {
-                    graph: summarize_style_semantic_graph_from_source(
+                    graph: summarize_omena_bridge_style_semantic_graph_from_source(
                         &style.style_path,
                         &style.style_source,
                         &input.engine_input,

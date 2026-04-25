@@ -38,6 +38,10 @@ jobs:
         name: Run rust-parser-public-product
         run: pnpm cme-check run rust/parser/public-product
         continue-on-error: true
+      - id: rust_omena_bridge_boundary
+        name: Run rust-omena-bridge-boundary
+        run: pnpm cme-check run rust/omena-bridge/boundary
+        continue-on-error: true
       - id: rust_omena_semantic_boundary
         name: Run rust-omena-semantic-boundary
         run: pnpm cme-check run rust/omena-semantic-boundary
@@ -64,6 +68,7 @@ jobs:
           echo "rust_workspace=${{ steps.rust_workspace.outcome }}"
           echo "rust_producer_boundary=${{ steps.rust_producer_boundary.outcome }}"
           echo "rust_parser_public_product=${{ steps.rust_parser_public_product.outcome }}"
+          echo "rust_omena_bridge_boundary=${{ steps.rust_omena_bridge_boundary.outcome }}"
           echo "rust_omena_semantic_boundary=${{ steps.rust_omena_semantic_boundary.outcome }}"
           echo "rust_gate_evidence=${{ steps.rust_gate_evidence.outcome }}"
           echo "checker_entrance=${{ steps.checker_entrance.outcome }}"
@@ -77,6 +82,9 @@ jobs:
             failed=1
           fi
           if [ "${{ steps.rust_parser_public_product.outcome }}" != "success" ]; then
+            failed=1
+          fi
+          if [ "${{ steps.rust_omena_bridge_boundary.outcome }}" != "success" ]; then
             failed=1
           fi
           if [ "${{ steps.rust_omena_semantic_boundary.outcome }}" != "success" ]; then
