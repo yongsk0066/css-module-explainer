@@ -92,6 +92,15 @@ describe("check orchestrator manifest", () => {
       expect.arrayContaining(["check:rust-selected-query-workspace"]),
     );
 
+    const phase2SwapReadiness = resolveGateTarget(manifest, "rust/phase-2-swap-readiness");
+    expect(phase2SwapReadiness?.kind).toBe("bundle");
+    expect(phase2SwapReadiness?.referencedScripts).toEqual(
+      expect.arrayContaining([
+        "check:rust-selected-query-default-candidate",
+        "check:rust-checker-release-gate-shadow",
+      ]),
+    );
+
     const releaseVerify = resolveGateTarget(manifest, "release/release/verify");
     expect(releaseVerify?.kind).toBe("bundle");
     expect(releaseVerify?.referencedScripts).toEqual(

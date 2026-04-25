@@ -166,6 +166,7 @@
     "check:rust-selected-query-workspace": "pnpm cme-check run rust/selected-query/warmup && node --import tsx ./scripts/check-rust-selected-query-workspace.ts",
     "check:rust-selected-query-release-default": "pnpm cme-check run core/build && node ./scripts/merge-engine-shadow-runner-artifacts.mjs && pnpm cme-check run release/check/packaged-engine-shadow-runner-matrix && CME_SELECTED_QUERY_BACKEND=auto pnpm cme-check run test/protocol",
     "check:rust-selected-query-default-candidate": "pnpm cme-check run rust/selected-query/release-default && CME_ENGINE_SHADOW_RUNNER=prebuilt pnpm cme-check run rust/selected-query/consumers && pnpm cme-check run rust/selected-query/protocol && pnpm cme-check run rust/selected-query/workspace",
+    "check:rust-phase-2-swap-readiness": "pnpm cme-check run rust/selected-query/default-candidate && pnpm cme-check run rust/checker/release-gate-shadow",
     "check:packaged-engine-shadow-runner": "node ./scripts/check-packaged-engine-shadow-runner.mjs",
     "check:packaged-engine-shadow-runner-matrix": "node ./scripts/check-packaged-engine-shadow-runner-matrix.mjs",
     "check:packaged-selected-query-default": "node --import tsx ./scripts/check-packaged-selected-query-default.ts",
