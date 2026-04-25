@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createInProcessServer, type LspTestClient } from "./_harness/in-process-server";
 import { FakeTypeResolver } from "../_fixtures/fake-type-resolver";
-import { targetFixture, workspace } from "../../packages/vitest-cme/src";
+import {
+  textDocumentPositionFixture,
+  workspace,
+  type CmeWorkspace,
+} from "../../packages/vitest-cme/src";
 
 const BUTTON_TSX_URI = "file:///fake/workspace/src/Button.tsx";
 const BUTTON_SCSS_URI = "file:///fake/workspace/src/Button.module.scss";
@@ -70,6 +74,23 @@ const WILDCARD_TOKENS_SCSS = `$gap: 1rem;
 @function tone($value) { @return $value; }
 `;
 
+function completionParams(
+  source: CmeWorkspace,
+  filePath: string,
+  markerName?: string,
+): {
+  readonly textDocument: { readonly uri: string };
+  readonly position: { readonly line: number; readonly character: number };
+} {
+  const { textDocument, position } = textDocumentPositionFixture({
+    workspace: source,
+    documentUri: filePath,
+    filePath,
+    ...(markerName === undefined ? {} : { markerName }),
+  });
+  return { textDocument, position };
+}
+
 describe("completion protocol / clsx", () => {
   let client: LspTestClient | null = null;
 
@@ -111,10 +132,7 @@ export function Button() {
       },
     });
     // Cursor after "styles." on line 3 (dot is at 36, cursor after dot is 37)
-    const result = await client.completion({
-      textDocument: { uri: BUTTON_TSX_URI },
-      position: targetFixture({ workspace: CLSX_TSX_WORKSPACE, filePath: BUTTON_TSX_URI }).position,
-    });
+    const result = await client.completion(completionParams(CLSX_TSX_WORKSPACE, BUTTON_TSX_URI));
     expect(result).not.toBeNull();
     const items = Array.isArray(result) ? result : result!.items;
     expect(items.length).toBe(3);
@@ -144,10 +162,7 @@ const x = styles./*|*/
         text: OUTSIDE_TSX,
       },
     });
-    const result = await client.completion({
-      textDocument: { uri: BUTTON_TSX_URI },
-      position: targetFixture({ workspace: outsideWorkspace, filePath: BUTTON_TSX_URI }).position,
-    });
+    const result = await client.completion(completionParams(outsideWorkspace, BUTTON_TSX_URI));
     expect(result).toBeNull();
   });
 });
@@ -176,11 +191,7 @@ describe("completion protocol", () => {
       },
     });
     // Cursor just after cx(' on line 4
-    const result = await client.completion({
-      textDocument: { uri: BUTTON_TSX_URI },
-      position: targetFixture({ workspace: BUTTON_TSX_WORKSPACE, filePath: BUTTON_TSX_URI })
-        .position,
-    });
+    const result = await client.completion(completionParams(BUTTON_TSX_WORKSPACE, BUTTON_TSX_URI));
     expect(result).not.toBeNull();
     const items = Array.isArray(result) ? result : result!.items;
     expect(items.length).toBe(3);
@@ -203,14 +214,9 @@ describe("completion protocol", () => {
         text: BUTTON_TSX,
       },
     });
-    const result = await client.completion({
-      textDocument: { uri: BUTTON_TSX_URI },
-      position: targetFixture({
-        workspace: BUTTON_TSX_WORKSPACE,
-        filePath: BUTTON_TSX_URI,
-        markerName: "outside",
-      }).position,
-    });
+    const result = await client.completion(
+      completionParams(BUTTON_TSX_WORKSPACE, BUTTON_TSX_URI, "outside"),
+    );
     expect(result).toBeNull();
   });
 
@@ -230,14 +236,9 @@ describe("completion protocol", () => {
       },
     });
 
-    const variableResult = await client.completion({
-      textDocument: { uri: BUTTON_SCSS_URI },
-      position: targetFixture({
-        workspace: SASS_SYMBOL_WORKSPACE,
-        filePath: BUTTON_SCSS_URI,
-        markerName: "variable",
-      }).position,
-    });
+    const variableResult = await client.completion(
+      completionParams(SASS_SYMBOL_WORKSPACE, BUTTON_SCSS_URI, "variable"),
+    );
     const variableItems = Array.isArray(variableResult) ? variableResult : variableResult!.items;
     expect(variableItems.map((item) => item.label)).toEqual(["$gap"]);
     expect(variableItems[0]!.textEdit).toMatchObject({
@@ -248,25 +249,15 @@ describe("completion protocol", () => {
       },
     });
 
-    const mixinResult = await client.completion({
-      textDocument: { uri: BUTTON_SCSS_URI },
-      position: targetFixture({
-        workspace: SASS_SYMBOL_WORKSPACE,
-        filePath: BUTTON_SCSS_URI,
-        markerName: "mixin",
-      }).position,
-    });
+    const mixinResult = await client.completion(
+      completionParams(SASS_SYMBOL_WORKSPACE, BUTTON_SCSS_URI, "mixin"),
+    );
     const mixinItems = Array.isArray(mixinResult) ? mixinResult : mixinResult!.items;
     expect(mixinItems.map((item) => item.label)).toEqual(["raised"]);
 
-    const functionResult = await client.completion({
-      textDocument: { uri: BUTTON_SCSS_URI },
-      position: targetFixture({
-        workspace: SASS_SYMBOL_WORKSPACE,
-        filePath: BUTTON_SCSS_URI,
-        markerName: "function",
-      }).position,
-    });
+    const functionResult = await client.completion(
+      completionParams(SASS_SYMBOL_WORKSPACE, BUTTON_SCSS_URI, "function"),
+    );
     const functionItems = Array.isArray(functionResult) ? functionResult : functionResult!.items;
     expect(functionItems.map((item) => item.label)).toEqual(["tone"]);
   });
@@ -291,36 +282,21 @@ describe("completion protocol", () => {
       },
     });
 
-    const variableResult = await client.completion({
-      textDocument: { uri: BUTTON_SCSS_URI },
-      position: targetFixture({
-        workspace: WILDCARD_SASS_SYMBOL_WORKSPACE,
-        filePath: BUTTON_SCSS_URI,
-        markerName: "variable",
-      }).position,
-    });
+    const variableResult = await client.completion(
+      completionParams(WILDCARD_SASS_SYMBOL_WORKSPACE, BUTTON_SCSS_URI, "variable"),
+    );
     const variableItems = Array.isArray(variableResult) ? variableResult : variableResult!.items;
     expect(variableItems.map((item) => item.label)).toEqual(["$gap"]);
 
-    const mixinResult = await client.completion({
-      textDocument: { uri: BUTTON_SCSS_URI },
-      position: targetFixture({
-        workspace: WILDCARD_SASS_SYMBOL_WORKSPACE,
-        filePath: BUTTON_SCSS_URI,
-        markerName: "mixin",
-      }).position,
-    });
+    const mixinResult = await client.completion(
+      completionParams(WILDCARD_SASS_SYMBOL_WORKSPACE, BUTTON_SCSS_URI, "mixin"),
+    );
     const mixinItems = Array.isArray(mixinResult) ? mixinResult : mixinResult!.items;
     expect(mixinItems.map((item) => item.label)).toEqual(["raised"]);
 
-    const functionResult = await client.completion({
-      textDocument: { uri: BUTTON_SCSS_URI },
-      position: targetFixture({
-        workspace: WILDCARD_SASS_SYMBOL_WORKSPACE,
-        filePath: BUTTON_SCSS_URI,
-        markerName: "function",
-      }).position,
-    });
+    const functionResult = await client.completion(
+      completionParams(WILDCARD_SASS_SYMBOL_WORKSPACE, BUTTON_SCSS_URI, "function"),
+    );
     const functionItems = Array.isArray(functionResult) ? functionResult : functionResult!.items;
     expect(functionItems.map((item) => item.label)).toEqual(["tone"]);
   });
@@ -341,36 +317,21 @@ describe("completion protocol", () => {
       },
     });
 
-    const variableResult = await client.completion({
-      textDocument: { uri: BUTTON_SCSS_URI },
-      position: targetFixture({
-        workspace: INVALID_SASS_SYMBOL_WORKSPACE,
-        filePath: BUTTON_SCSS_URI,
-        markerName: "variable",
-      }).position,
-    });
+    const variableResult = await client.completion(
+      completionParams(INVALID_SASS_SYMBOL_WORKSPACE, BUTTON_SCSS_URI, "variable"),
+    );
     const variableItems = Array.isArray(variableResult) ? variableResult : variableResult!.items;
     expect(variableItems.map((item) => item.label)).toEqual(["$gap"]);
 
-    const mixinResult = await client.completion({
-      textDocument: { uri: BUTTON_SCSS_URI },
-      position: targetFixture({
-        workspace: INVALID_SASS_SYMBOL_WORKSPACE,
-        filePath: BUTTON_SCSS_URI,
-        markerName: "mixin",
-      }).position,
-    });
+    const mixinResult = await client.completion(
+      completionParams(INVALID_SASS_SYMBOL_WORKSPACE, BUTTON_SCSS_URI, "mixin"),
+    );
     const mixinItems = Array.isArray(mixinResult) ? mixinResult : mixinResult!.items;
     expect(mixinItems.map((item) => item.label)).toEqual(["raised"]);
 
-    const functionResult = await client.completion({
-      textDocument: { uri: BUTTON_SCSS_URI },
-      position: targetFixture({
-        workspace: INVALID_SASS_SYMBOL_WORKSPACE,
-        filePath: BUTTON_SCSS_URI,
-        markerName: "function",
-      }).position,
-    });
+    const functionResult = await client.completion(
+      completionParams(INVALID_SASS_SYMBOL_WORKSPACE, BUTTON_SCSS_URI, "function"),
+    );
     const functionItems = Array.isArray(functionResult) ? functionResult : functionResult!.items;
     expect(functionItems.map((item) => item.label)).toEqual(["tone"]);
   });
