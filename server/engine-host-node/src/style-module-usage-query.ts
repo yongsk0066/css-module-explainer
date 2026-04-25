@@ -6,6 +6,7 @@ import type { StyleDocumentHIR } from "../../engine-core-ts/src/core/hir/style-t
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
 import {
   resolveSelectedQueryBackendKind,
+  usesRustStyleSemanticGraphBackend,
   usesRustSelectorUsageBackend,
 } from "./selected-query-backend";
 import { resolveRustSelectorUsagePayloadForWorkspaceTarget } from "./selector-usage-query-backend";
@@ -52,7 +53,9 @@ export function resolveUnusedStyleSelectors(
     return [];
   }
 
-  const graphUnused = resolveGraphUnusedStyleSelectors(args, deps, options);
+  const graphUnused = usesRustStyleSemanticGraphBackend(selectedQueryBackend)
+    ? resolveGraphUnusedStyleSelectors(args, deps, options)
+    : null;
   if (graphUnused) return graphUnused;
 
   const readRustPayload =
@@ -102,6 +105,14 @@ function resolveGraphUnusedStyleSelectors(
   > & { readonly readStyleFile?: ProviderDeps["readStyleFile"] },
   options: StyleModuleUsageQueryOptions,
 ): readonly StyleModuleUsageSelectorSummary[] | null {
+  const currentUsage = readStyleModuleUsageSummary(
+    args.scssPath,
+    args.styleDocument,
+    deps.semanticReferenceIndex,
+    deps.styleDependencyGraph,
+  );
+  if (currentUsage.unusedSelectors.length === 0) return [];
+
   if (!deps.readStyleFile) return null;
   const graphSelectors = resolveRustStyleSelectorReferenceSummariesForWorkspaceTarget(
     { filePath: args.scssPath },
@@ -114,12 +125,6 @@ function resolveGraphUnusedStyleSelectors(
     graphSelectors.map((selector) => [selector.localName, selector] as const),
   );
   const unused: StyleModuleUsageSelectorSummary[] = [];
-  const currentUsage = readStyleModuleUsageSummary(
-    args.scssPath,
-    args.styleDocument,
-    deps.semanticReferenceIndex,
-    deps.styleDependencyGraph,
-  );
   const currentUnusedSelectors = new Set(
     currentUsage.unusedSelectors.map((selector) => selector.canonicalName),
   );

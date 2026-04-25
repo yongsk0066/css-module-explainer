@@ -170,6 +170,42 @@ describe("style module usage query", () => {
     ]);
   });
 
+  it("does not read rust graph diagnostics when current usage has no unused selectors", () => {
+    const styleDocument = buildStyleDocumentFromSelectorMap(
+      SCSS_PATH,
+      new Map([
+        ["indicator", infoAtLine("indicator", 1)],
+        ["active", infoAtLine("active", 3)],
+      ]),
+    );
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    semanticReferenceIndex.record("file:///fake/ws/src/App.tsx", [
+      semanticSiteAt("file:///fake/ws/src/App.tsx", "indicator", 8, SCSS_PATH),
+      semanticSiteAt("file:///fake/ws/src/App.tsx", "active", 9, SCSS_PATH),
+    ]);
+    const deps = makeBaseDeps({
+      selectorMapForPath: () =>
+        new Map([
+          ["indicator", infoAtLine("indicator", 1)],
+          ["active", infoAtLine("active", 3)],
+        ]),
+      workspaceRoot: "/fake/ws",
+      semanticReferenceIndex,
+    });
+
+    const unused = resolveUnusedStyleSelectors({ scssPath: SCSS_PATH, styleDocument }, deps, {
+      env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+      readRustStyleSemanticGraphForWorkspaceTarget: () => {
+        throw new Error("unexpected rust graph read");
+      },
+      readRustSelectorUsagePayloadForWorkspaceTarget: () => {
+        throw new Error("unexpected selector-usage fallback");
+      },
+    });
+
+    expect(unused).toEqual([]);
+  });
+
   it("falls back to semantic usage summary when rust payloads are unavailable", () => {
     const styleDocument = buildStyleDocumentFromSelectorMap(
       SCSS_PATH,
