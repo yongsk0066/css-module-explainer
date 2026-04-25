@@ -63,20 +63,26 @@ export function resolveStyleReferenceLenses(
               resolveRustSelectorUsagePayloadForWorkspaceTarget,
           )
         : null);
+    if (rustLensResolution) {
+      if (!rustLensResolution.usage.hasAnyReferences) continue;
+      lenses.push({
+        position: selector.range.start,
+        title: formatReferenceLensTitle(rustLensResolution.usage),
+        locations: rustLensResolution.locations,
+      });
+      continue;
+    }
+
     const currentUsage = readSelectorUsageSummary(deps, filePath, selector.canonicalName);
-    const titleUsage = rustLensResolution?.usage ?? currentUsage;
-    if (!titleUsage.hasAnyReferences) continue;
-    const locations =
-      rustLensResolution?.locations ??
-      currentUsage.allSites.map((site) => ({
-        uri: site.uri,
-        range: site.range,
-      }));
+    if (!currentUsage.hasAnyReferences) continue;
 
     lenses.push({
       position: selector.range.start,
-      title: formatReferenceLensTitle(titleUsage),
-      locations,
+      title: formatReferenceLensTitle(currentUsage),
+      locations: currentUsage.allSites.map((site) => ({
+        uri: site.uri,
+        range: site.range,
+      })),
     });
   }
   return lenses;
