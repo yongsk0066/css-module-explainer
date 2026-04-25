@@ -19,6 +19,15 @@ const size = pick();
 const el = cx(size);
 `;
 
+const MULTI_SYMBOL_REF_TSX = `
+import classNames from 'classnames/bind';
+import styles from './Button.module.scss';
+const cx = classNames.bind(styles);
+const size = pick();
+const tone = pickTone();
+const el = cx(size, tone);
+`;
+
 const detectCxBindings = (_sourceFile: ts.SourceFile): CxBinding[] => [
   {
     cxVarName: "cx",
@@ -32,7 +41,7 @@ const detectCxBindings = (_sourceFile: ts.SourceFile): CxBinding[] => [
   },
 ];
 
-function makeDeps() {
+function makeDeps(options: { readonly multiSymbolRefs?: boolean } = {}) {
   const sourceFileCache = new SourceFileCache({ max: 10 });
   const analysisCache = new DocumentAnalysisCache({
     sourceFileCache,
@@ -59,6 +68,22 @@ function makeDeps() {
                   },
                   scssModulePath: bindings[0]!.scssModulePath,
                 },
+                ...(options.multiSymbolRefs
+                  ? [
+                      {
+                        kind: "symbolRef" as const,
+                        origin: "cxCall" as const,
+                        rawReference: "size",
+                        rootName: "size",
+                        pathSegments: [],
+                        range: {
+                          start: { line: 5, character: 15 },
+                          end: { line: 5, character: 19 },
+                        },
+                        scssModulePath: bindings[0]!.scssModulePath,
+                      },
+                    ]
+                  : []),
               ],
       }),
     max: 10,
@@ -84,7 +109,7 @@ describe("buildSelectedQueryResultsV2", () => {
     const sourceDocuments = [
       {
         uri: "file:///fake/src/Button.tsx",
-        content: SYMBOL_REF_TSX,
+        content: MULTI_SYMBOL_REF_TSX,
         filePath: "/fake/src/Button.tsx",
         version: 1,
       },
@@ -251,4 +276,89 @@ describe("buildSelectedQueryResultsV2", () => {
       ]),
     );
   });
+
+  it("reuses rust payload lists while building selected query results", () => {
+    const deps = makeDeps({ multiSymbolRefs: true });
+    const sourceDocuments = [
+      {
+        uri: "file:///fake/src/Button.tsx",
+        content: SYMBOL_REF_TSX,
+        filePath: "/fake/src/Button.tsx",
+        version: 1,
+      },
+    ] as const;
+    let sourceResolutionPayloadReads = 0;
+    let expressionSemanticsPayloadReads = 0;
+
+    const results = buildResults({
+      workspaceRoot: "/fake",
+      classnameTransform: "asIs",
+      pathAlias: {},
+      sourceDocuments,
+      styleFiles: ["/fake/src/Button.module.scss"],
+      analysisCache: deps.analysisCache,
+      styleDocumentForPath: deps.styleDocumentForPath,
+      typeResolver: deps.typeResolver,
+      semanticReferenceIndex: deps.semanticReferenceIndex,
+      styleDependencyGraph: deps.styleDependencyGraph,
+      env: {
+        CME_SELECTED_QUERY_BACKEND: "rust-selected-query",
+      } as NodeJS.ProcessEnv,
+      readRustSourceResolutionPayloads: () => {
+        sourceResolutionPayloadReads += 1;
+        return [
+          makeSourceResolutionPayload("class-expr:0", "indicator"),
+          makeSourceResolutionPayload("class-expr:1", "active"),
+        ];
+      },
+      readRustExpressionSemanticsPayloads: () => {
+        expressionSemanticsPayloadReads += 1;
+        return [
+          makeExpressionSemanticsPayload("class-expr:0", "indicator"),
+          makeExpressionSemanticsPayload("class-expr:1", "active"),
+        ];
+      },
+      readRustSelectorUsagePayload: () => null,
+    });
+
+    expect(sourceResolutionPayloadReads).toBe(1);
+    expect(expressionSemanticsPayloadReads).toBe(1);
+    expect(results.filter((result) => result.kind === "source-expression-resolution")).toHaveLength(
+      2,
+    );
+    expect(results.filter((result) => result.kind === "expression-semantics")).toHaveLength(2);
+  });
 });
+
+function makeSourceResolutionPayload(expressionId: string, selectorName: string) {
+  return {
+    expressionId,
+    styleFilePath: "/fake/src/Button.module.scss",
+    selectorNames: [selectorName],
+    finiteValues: [selectorName],
+    selectorCertainty: "inferred",
+    valueCertainty: "inferred",
+    selectorCertaintyShapeKind: "boundedFinite",
+    selectorCertaintyShapeLabel: "bounded selector set (1)",
+    valueCertaintyShapeKind: "boundedFinite",
+    valueCertaintyShapeLabel: "bounded finite (1)",
+  };
+}
+
+function makeExpressionSemanticsPayload(expressionId: string, selectorName: string) {
+  return {
+    expressionId,
+    expressionKind: "symbolRef",
+    styleFilePath: "/fake/src/Button.module.scss",
+    selectorNames: [selectorName],
+    candidateNames: [selectorName],
+    finiteValues: [selectorName],
+    valueDomainKind: "finiteSet",
+    selectorCertainty: "inferred",
+    valueCertainty: "inferred",
+    selectorCertaintyShapeKind: "boundedFinite",
+    selectorCertaintyShapeLabel: "bounded selector set (1)",
+    valueCertaintyShapeKind: "boundedFinite",
+    valueCertaintyShapeLabel: "bounded finite (1)",
+  };
+}

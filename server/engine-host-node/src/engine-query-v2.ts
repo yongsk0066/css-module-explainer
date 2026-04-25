@@ -28,11 +28,15 @@ import type { ClassnameTransformMode } from "../../engine-core-ts/src/core/scss/
 import { DEFAULT_SETTINGS } from "../../engine-core-ts/src/settings";
 import {
   buildExpressionSemanticsSummaryFromRustPayload,
-  resolveRustExpressionSemanticsPayload,
+  resolveRustExpressionSemanticsPayloads,
+  type ExpressionSemanticsEvaluatorCandidatePayloadV0,
+  type resolveRustExpressionSemanticsPayload,
 } from "./expression-semantics-query-backend";
 import {
   buildSourceResolutionSummaryFromRustPayload,
-  resolveRustSourceResolutionPayload,
+  resolveRustSourceResolutionPayloads,
+  type SourceResolutionEvaluatorCandidatePayloadV0,
+  type resolveRustSourceResolutionPayload,
 } from "./source-resolution-query-backend";
 import {
   resolveSelectedQueryBackendKind,
@@ -55,7 +59,9 @@ export interface BuildSelectedQueryResultsV2Options {
   readonly styleDependencyGraph: WorkspaceStyleDependencyGraph;
   readonly env?: NodeJS.ProcessEnv;
   readonly readRustSourceResolutionPayload?: typeof resolveRustSourceResolutionPayload;
+  readonly readRustSourceResolutionPayloads?: typeof resolveRustSourceResolutionPayloads;
   readonly readRustExpressionSemanticsPayload?: typeof resolveRustExpressionSemanticsPayload;
+  readonly readRustExpressionSemanticsPayloads?: typeof resolveRustExpressionSemanticsPayloads;
   readonly readRustSelectorUsagePayload?: typeof resolveRustSelectorUsagePayload;
 }
 
@@ -66,6 +72,14 @@ export function buildSelectedQueryResultsV2(
   const selectedQueryBackend = resolveSelectedQueryBackendKind(options.env);
 
   for (const document of options.sourceDocuments) {
+    const readRustSourceResolutionPayload = usesRustSourceResolutionBackend(selectedQueryBackend)
+      ? createSourceResolutionPayloadReader(document, options)
+      : null;
+    const readRustExpressionSemanticsPayload = usesRustExpressionSemanticsBackend(
+      selectedQueryBackend,
+    )
+      ? createExpressionSemanticsPayloadReader(document, options)
+      : null;
     const analysis = options.analysisCache.get(
       document.uri,
       document.content,
@@ -88,8 +102,8 @@ export function buildSelectedQueryResultsV2(
       } as const;
       const resolution = readSourceExpressionResolution(queryContext, queryEnv);
       const semantics = readExpressionSemantics(queryContext, queryEnv);
-      const rustSourceResolutionPayload = usesRustSourceResolutionBackend(selectedQueryBackend)
-        ? (options.readRustSourceResolutionPayload ?? resolveRustSourceResolutionPayload)(
+      const rustSourceResolutionPayload = readRustSourceResolutionPayload
+        ? readRustSourceResolutionPayload(
             {
               uri: document.uri,
               content: document.content,
@@ -114,10 +128,8 @@ export function buildSelectedQueryResultsV2(
             },
           )
         : null;
-      const rustExpressionSemanticsPayload = usesRustExpressionSemanticsBackend(
-        selectedQueryBackend,
-      )
-        ? (options.readRustExpressionSemanticsPayload ?? resolveRustExpressionSemanticsPayload)(
+      const rustExpressionSemanticsPayload = readRustExpressionSemanticsPayload
+        ? readRustExpressionSemanticsPayload(
             {
               uri: document.uri,
               content: document.content,
@@ -207,6 +219,64 @@ export function buildSelectedQueryResultsV2(
       a.kind.localeCompare(b.kind) ||
       a.queryId.localeCompare(b.queryId),
   );
+}
+
+function createSourceResolutionPayloadReader(
+  document: SourceDocumentSnapshot,
+  options: BuildSelectedQueryResultsV2Options,
+): typeof resolveRustSourceResolutionPayload {
+  if (options.readRustSourceResolutionPayload) {
+    return options.readRustSourceResolutionPayload;
+  }
+
+  const readPayloads =
+    options.readRustSourceResolutionPayloads ?? resolveRustSourceResolutionPayloads;
+  const payloadsByStylePath = new Map<
+    string,
+    ReadonlyMap<string, SourceResolutionEvaluatorCandidatePayloadV0>
+  >();
+
+  return (_document, expressionId, scssModulePath, deps) => {
+    let payloadsByExpressionId = payloadsByStylePath.get(scssModulePath);
+    if (!payloadsByExpressionId) {
+      const payloads = readPayloads(document, scssModulePath, deps);
+      payloadsByExpressionId = new Map(
+        payloads.map((payload) => [payload.expressionId, payload] as const),
+      );
+      payloadsByStylePath.set(scssModulePath, payloadsByExpressionId);
+    }
+
+    return payloadsByExpressionId.get(expressionId) ?? null;
+  };
+}
+
+function createExpressionSemanticsPayloadReader(
+  document: SourceDocumentSnapshot,
+  options: BuildSelectedQueryResultsV2Options,
+): typeof resolveRustExpressionSemanticsPayload {
+  if (options.readRustExpressionSemanticsPayload) {
+    return options.readRustExpressionSemanticsPayload;
+  }
+
+  const readPayloads =
+    options.readRustExpressionSemanticsPayloads ?? resolveRustExpressionSemanticsPayloads;
+  const payloadsByStylePath = new Map<
+    string,
+    ReadonlyMap<string, ExpressionSemanticsEvaluatorCandidatePayloadV0>
+  >();
+
+  return (_document, expressionId, scssModulePath, deps) => {
+    let payloadsByExpressionId = payloadsByStylePath.get(scssModulePath);
+    if (!payloadsByExpressionId) {
+      const payloads = readPayloads(document, scssModulePath, deps);
+      payloadsByExpressionId = new Map(
+        payloads.map((payload) => [payload.expressionId, payload] as const),
+      );
+      payloadsByStylePath.set(scssModulePath, payloadsByExpressionId);
+    }
+
+    return payloadsByExpressionId.get(expressionId) ?? null;
+  };
 }
 
 function selectorUsageResultV2FromRustPayload(

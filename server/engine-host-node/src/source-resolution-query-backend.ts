@@ -64,6 +64,22 @@ interface SourceResolutionCanonicalProducerSignalV0 {
   };
 }
 
+export function resolveRustSourceResolutionPayloads(
+  document: SelectedQueryBackendDocument,
+  scssModulePath: string,
+  deps: Pick<
+    ProviderDeps,
+    "analysisCache" | "styleDocumentForPath" | "typeResolver" | "workspaceRoot" | "settings"
+  >,
+): readonly SourceResolutionEvaluatorCandidatePayloadV0[] {
+  const input = buildSelectedQueryBackendInput(document, scssModulePath, deps);
+  const signal = runRustSelectedQueryBackendJson<SourceResolutionCanonicalProducerSignalV0>(
+    "input-source-resolution-canonical-producer",
+    input,
+  );
+  return signal.evaluatorCandidates.results.map((candidate) => candidate.payload);
+}
+
 export function resolveRustSourceResolutionPayload(
   document: SelectedQueryBackendDocument,
   expressionId: string,
@@ -73,15 +89,10 @@ export function resolveRustSourceResolutionPayload(
     "analysisCache" | "styleDocumentForPath" | "typeResolver" | "workspaceRoot" | "settings"
   >,
 ): SourceResolutionEvaluatorCandidatePayloadV0 | null {
-  const input = buildSelectedQueryBackendInput(document, scssModulePath, deps);
-  const signal = runRustSelectedQueryBackendJson<SourceResolutionCanonicalProducerSignalV0>(
-    "input-source-resolution-canonical-producer",
-    input,
+  const match = resolveRustSourceResolutionPayloads(document, scssModulePath, deps).find(
+    (payload) => payload.expressionId === expressionId,
   );
-  const match = signal.evaluatorCandidates.results.find(
-    (candidate) => candidate.queryId === expressionId,
-  );
-  return match?.payload ?? null;
+  return match ?? null;
 }
 
 export function resolveRustSourceResolutionSelectorMatch(
