@@ -101,6 +101,7 @@ export function createWorkspaceStyleRuntime(
     invalidateStyle(stylePath: string): void {
       args.caches.styleIndexCache.invalidate(stylePath);
       args.caches.styleDependencyGraph.forget(stylePath);
+      args.caches.styleSemanticGraphCache.clear();
     },
     peekStyleDocument(
       stylePath: string,
@@ -116,6 +117,7 @@ export function createWorkspaceStyleRuntime(
       return args.caches.styleIndexCache.getStyleDocument(stylePath, content, mode);
     },
     pushStyleFile(stylePath: string): void {
+      args.caches.styleSemanticGraphCache.clear();
       indexerWorker.pushFile({ path: stylePath });
     },
     stop(): void {

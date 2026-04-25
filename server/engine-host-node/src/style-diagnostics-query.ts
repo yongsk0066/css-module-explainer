@@ -13,6 +13,7 @@ import {
   resolveUnusedStyleSelectors,
   type StyleModuleUsageQueryOptions,
 } from "./style-module-usage-query";
+import type { StyleSemanticGraphCache } from "./style-semantic-graph-query-backend";
 
 export interface StyleDiagnosticsQueryOptions extends StyleModuleUsageQueryOptions {
   readonly includeUnusedSelectors?: boolean;
@@ -33,6 +34,7 @@ export function resolveStyleDiagnosticFindings(
     readonly workspaceRoot?: ProviderDeps["workspaceRoot"];
     readonly settings?: ProviderDeps["settings"];
     readonly aliasResolver?: ProviderDeps["aliasResolver"];
+    readonly styleSemanticGraphCache?: StyleSemanticGraphCache;
   },
   options: StyleDiagnosticsQueryOptions = {},
 ): readonly StyleCheckerFinding[] {
@@ -51,6 +53,9 @@ export function resolveStyleDiagnosticFindings(
       settings: deps.settings,
       ...(deps.readStyleFile ? { readStyleFile: deps.readStyleFile } : {}),
       ...(deps.aliasResolver ? { aliasResolver: deps.aliasResolver } : {}),
+      ...(deps.styleSemanticGraphCache
+        ? { styleSemanticGraphCache: deps.styleSemanticGraphCache }
+        : {}),
     } satisfies Pick<
       ProviderDeps,
       | "analysisCache"
@@ -63,6 +68,7 @@ export function resolveStyleDiagnosticFindings(
     > & {
       readonly aliasResolver?: ProviderDeps["aliasResolver"];
       readonly readStyleFile?: ProviderDeps["readStyleFile"];
+      readonly styleSemanticGraphCache?: StyleSemanticGraphCache;
     };
     const unusedSelectors = resolveUnusedStyleSelectors(args, rustDeps, options);
     const otherFindings = checkStyleDocument(
@@ -111,6 +117,7 @@ function hasRustStyleDiagnosticsDeps(
     readonly workspaceRoot?: ProviderDeps["workspaceRoot"];
     readonly settings?: ProviderDeps["settings"];
     readonly aliasResolver?: ProviderDeps["aliasResolver"];
+    readonly styleSemanticGraphCache?: StyleSemanticGraphCache;
   },
 ): deps is Pick<
   ProviderDeps,
@@ -124,6 +131,7 @@ function hasRustStyleDiagnosticsDeps(
 > & {
   readonly aliasResolver?: ProviderDeps["aliasResolver"];
   readonly readStyleFile?: ProviderDeps["readStyleFile"];
+  readonly styleSemanticGraphCache?: StyleSemanticGraphCache;
 } {
   return Boolean(
     deps.analysisCache &&

@@ -29,11 +29,13 @@ describe("workspace runtime support", () => {
     const invalidate = vi.fn();
     const clearDiagnostics = vi.fn();
     const refreshCodeLens = vi.fn();
+    const clearStyleSemanticGraphCache = vi.fn();
 
     const deps = {
       styleDependencyGraph: { forgetWithinRoot },
       semanticReferenceIndex: { forget },
       analysisCache: { invalidate },
+      clearStyleSemanticGraphCache,
       refreshCodeLens,
     } as unknown as WorkspaceProviderDeps;
 
@@ -60,6 +62,7 @@ describe("workspace runtime support", () => {
     expect(forget).toHaveBeenCalledTimes(1);
     expect(invalidate).toHaveBeenCalledTimes(1);
     expect(clearDiagnostics).toHaveBeenCalledTimes(1);
+    expect(clearStyleSemanticGraphCache).toHaveBeenCalledTimes(1);
     expect(refreshCodeLens).toHaveBeenCalledTimes(1);
   });
 });

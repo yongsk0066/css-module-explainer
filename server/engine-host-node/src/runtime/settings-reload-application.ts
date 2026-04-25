@@ -54,13 +54,20 @@ export function applySettingsReload(
     const prevSettings = deps.settings;
     const prevSettingsKey = resourceSettingsDependencyKey(prevSettings);
     const nextSettingsKey = resourceSettingsDependencyKey(nextSettings);
+    const aliasChanged = !shallowEqualPathAlias(prevSettings.pathAlias, nextSettings.pathAlias);
+    const modeChanged =
+      prevSettings.scss.classnameTransform !== nextSettings.scss.classnameTransform;
+    const settingsKeyChanged = prevSettingsKey !== nextSettingsKey;
     deps.settings = nextSettings;
+    if (aliasChanged || modeChanged || settingsKeyChanged) {
+      deps.clearStyleSemanticGraphCache?.();
+    }
 
     workspaceChanges.push({
       workspaceRoot: deps.workspaceRoot,
-      aliasChanged: !shallowEqualPathAlias(prevSettings.pathAlias, nextSettings.pathAlias),
-      modeChanged: prevSettings.scss.classnameTransform !== nextSettings.scss.classnameTransform,
-      settingsKeyChanged: prevSettingsKey !== nextSettingsKey,
+      aliasChanged,
+      modeChanged,
+      settingsKeyChanged,
       affectedSettingsDependencyUris: snapshot.findSettingsDependencyUris(
         deps.workspaceRoot,
         prevSettingsKey,
@@ -84,6 +91,7 @@ export function applySettingsReload(
       if (!deps) continue;
       deps.semanticReferenceIndex.forget(uri);
       deps.analysisCache.invalidate(uri);
+      deps.clearStyleSemanticGraphCache?.();
     }
     bundles[0]?.refreshCodeLens();
     for (const doc of snapshot.openDocuments) {

@@ -11,6 +11,7 @@ import {
 } from "./selected-query-backend";
 import {
   resolveRustStyleSemanticGraphForWorkspaceTarget,
+  type StyleSemanticGraphCache,
   type StyleSemanticGraphQueryOptions,
   type StyleSemanticGraphSummaryV0,
   type StyleSemanticGraphSelectorReferenceSummaryV0,
@@ -33,7 +34,9 @@ type StyleSelectorReferenceDeps = Pick<
   | "typeResolver"
   | "workspaceRoot"
   | "readStyleFile"
->;
+> & {
+  readonly styleSemanticGraphCache?: StyleSemanticGraphCache;
+};
 
 export function resolveRustStyleSelectorReferenceSummaryForWorkspaceTarget(
   args: {
@@ -81,6 +84,10 @@ function safeResolveRustStyleSemanticGraphForWorkspaceTarget(
   deps: StyleSelectorReferenceDeps,
   options: StyleSelectorReferenceQueryOptions,
 ): StyleSemanticGraphSummaryV0 | null {
+  const queryOptions =
+    options.styleSemanticGraphCache || !deps.styleSemanticGraphCache
+      ? options
+      : { ...options, styleSemanticGraphCache: deps.styleSemanticGraphCache };
   try {
     return (
       options.readRustStyleSemanticGraphForWorkspaceTarget ??
@@ -93,7 +100,7 @@ function safeResolveRustStyleSemanticGraphForWorkspaceTarget(
       },
       deps,
       filePath,
-      options,
+      queryOptions,
     );
   } catch {
     return null;

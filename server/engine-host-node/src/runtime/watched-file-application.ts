@@ -53,6 +53,7 @@ export function applyWatchedFileChanges(
     if (change.kind !== "style" || !change.semanticsChanged) continue;
     const deps = args.registry.getDepsForFilePath(change.filePath);
     if (!deps) continue;
+    deps.clearStyleSemanticGraphCache?.();
     if (plan.stylePathsToInvalidate.includes(change.filePath)) {
       deps.invalidateStyle(change.filePath);
     }
@@ -68,6 +69,7 @@ export function applyWatchedFileChanges(
     if (plan.typeResolverInvalidationRoots.includes(deps.workspaceRoot)) {
       deps.typeResolver.invalidate(deps.workspaceRoot);
     }
+    deps.clearStyleSemanticGraphCache?.();
   }
 
   for (const uri of plan.affectedSourceUris) {
@@ -75,6 +77,7 @@ export function applyWatchedFileChanges(
     if (!deps) continue;
     deps.semanticReferenceIndex.forget(uri);
     deps.analysisCache.invalidate(uri);
+    deps.clearStyleSemanticGraphCache?.();
   }
 
   const affectedStyleUris: string[] = [];

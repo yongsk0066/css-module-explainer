@@ -26,6 +26,7 @@ export function clearWorkspaceDocumentsWithinRoot(
   sink: RuntimeSink,
 ): void {
   deps.styleDependencyGraph.forgetWithinRoot(workspaceRoot);
+  deps.clearStyleSemanticGraphCache?.();
   for (const doc of documents.all()) {
     const filePath = fileUrlToPath(doc.uri);
     if (!isWithinWorkspaceRoot(workspaceRoot, filePath)) continue;

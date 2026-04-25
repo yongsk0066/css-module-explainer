@@ -214,6 +214,58 @@ describe("resolveStyleDiagnosticFindings", () => {
     expect(forwardedOptions?.styleSemanticGraphCache).toBe(styleSemanticGraphCache);
   });
 
+  it("uses the runtime style semantic graph cache when no query cache is provided", () => {
+    const scssPath = "/fake/Button.module.scss";
+    const styleDocument = buildStyleDocumentFromSelectorMap(
+      scssPath,
+      new Map([
+        ["indicator", infoAtLine("indicator", 1)],
+        ["active", infoAtLine("active", 3)],
+      ]),
+    );
+    const deps = makeBaseDeps({
+      selectorMapForPath: () =>
+        new Map([
+          ["indicator", infoAtLine("indicator", 1)],
+          ["active", infoAtLine("active", 3)],
+        ]),
+      workspaceRoot: "/fake",
+    });
+    const styleSemanticGraphCache = new Map();
+    let forwardedOptions:
+      | {
+          readonly styleSemanticGraphCache?: unknown;
+        }
+      | undefined;
+
+    resolveStyleDiagnosticFindings(
+      { scssPath, styleDocument },
+      {
+        analysisCache: deps.analysisCache,
+        readStyleFile: deps.readStyleFile,
+        semanticReferenceIndex: deps.semanticReferenceIndex,
+        styleDependencyGraph: deps.styleDependencyGraph,
+        styleDocumentForPath: deps.styleDocumentForPath,
+        typeResolver: deps.typeResolver,
+        workspaceRoot: deps.workspaceRoot,
+        settings: deps.settings,
+        styleSemanticGraphCache,
+      },
+      {
+        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        readRustStyleSemanticGraphForWorkspaceTarget: (_args, _deps, _filePath, options) => {
+          forwardedOptions = options;
+          return makeReferenceGraph(scssPath);
+        },
+        readRustSelectorUsagePayloadForWorkspaceTarget: () => {
+          throw new Error("unexpected selector-usage fallback");
+        },
+      },
+    );
+
+    expect(forwardedOptions?.styleSemanticGraphCache).toBe(styleSemanticGraphCache);
+  });
+
   it("does not fall back to current unused-selector diagnostics when rust deps are incomplete", () => {
     const scssPath = "/fake/Button.module.scss";
     const styleDocument = makeStyleDocumentFixture(scssPath, [

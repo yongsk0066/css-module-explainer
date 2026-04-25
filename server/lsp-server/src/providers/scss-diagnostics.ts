@@ -9,7 +9,10 @@ import {
   buildCreateSelectorActionData,
   buildCreateValueActionData,
 } from "../../../engine-host-node/src/code-action-data";
-import { resolveStyleDiagnosticFindings } from "../../../engine-host-node/src/style-diagnostics-query";
+import {
+  resolveStyleDiagnosticFindings,
+  type StyleDiagnosticsQueryOptions,
+} from "../../../engine-host-node/src/style-diagnostics-query";
 import type { ProviderDeps } from "./provider-deps";
 import { toLspRange } from "./lsp-adapters";
 
@@ -36,8 +39,18 @@ export function computeScssUnusedDiagnostics(
     | "aliasResolver"
   > & {
     readonly env?: NodeJS.ProcessEnv;
+    readonly styleSemanticGraphCache?: StyleDiagnosticsQueryOptions["styleSemanticGraphCache"];
   },
 ): Diagnostic[] {
+  const queryOptions =
+    runtimeDeps?.env || runtimeDeps?.styleSemanticGraphCache
+      ? {
+          ...(runtimeDeps?.env ? { env: runtimeDeps.env } : {}),
+          ...(runtimeDeps?.styleSemanticGraphCache
+            ? { styleSemanticGraphCache: runtimeDeps.styleSemanticGraphCache }
+            : {}),
+        }
+      : undefined;
   return resolveStyleDiagnosticFindings(
     { scssPath, styleDocument },
     {
@@ -50,8 +63,11 @@ export function computeScssUnusedDiagnostics(
       ...(runtimeDeps?.workspaceRoot ? { workspaceRoot: runtimeDeps.workspaceRoot } : {}),
       ...(runtimeDeps?.settings ? { settings: runtimeDeps.settings } : {}),
       ...(runtimeDeps?.aliasResolver ? { aliasResolver: runtimeDeps.aliasResolver } : {}),
+      ...(runtimeDeps?.styleSemanticGraphCache
+        ? { styleSemanticGraphCache: runtimeDeps.styleSemanticGraphCache }
+        : {}),
     },
-    runtimeDeps?.env ? { env: runtimeDeps.env } : undefined,
+    queryOptions,
   ).map((finding) => toDiagnostic(finding, styleDocument, styleDocumentForPath));
 }
 

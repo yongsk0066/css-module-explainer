@@ -14,6 +14,7 @@ import {
   resolveRustStyleSelectorReferenceSummariesForWorkspaceTarget,
   type StyleSelectorReferenceQueryOptions,
 } from "./style-selector-reference-query";
+import type { StyleSemanticGraphCache } from "./style-semantic-graph-query-backend";
 
 export interface StyleModuleUsageSelectorSummary {
   readonly canonicalName: string;
@@ -38,7 +39,10 @@ export function resolveUnusedStyleSelectors(
     | "typeResolver"
     | "workspaceRoot"
     | "settings"
-  > & { readonly readStyleFile?: ProviderDeps["readStyleFile"] },
+  > & {
+    readonly readStyleFile?: ProviderDeps["readStyleFile"];
+    readonly styleSemanticGraphCache?: StyleSemanticGraphCache;
+  },
   options: StyleModuleUsageQueryOptions = {},
 ): readonly StyleModuleUsageSelectorSummary[] {
   const selectedQueryBackend = resolveSelectedQueryBackendKind(options.env);
@@ -102,7 +106,10 @@ function resolveGraphUnusedStyleSelectors(
     | "typeResolver"
     | "workspaceRoot"
     | "settings"
-  > & { readonly readStyleFile?: ProviderDeps["readStyleFile"] },
+  > & {
+    readonly readStyleFile?: ProviderDeps["readStyleFile"];
+    readonly styleSemanticGraphCache?: StyleSemanticGraphCache;
+  },
   options: StyleModuleUsageQueryOptions,
 ): readonly StyleModuleUsageSelectorSummary[] | null {
   const currentUsage = readStyleModuleUsageSummary(

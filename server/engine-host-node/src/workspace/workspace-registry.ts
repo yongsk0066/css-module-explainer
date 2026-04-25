@@ -1,6 +1,7 @@
 import path from "node:path";
 import { fileUrlToPath } from "../../../engine-core-ts/src/core/util/text-utils";
 import type { ProviderDeps } from "../provider-deps";
+import type { StyleSemanticGraphCache } from "../style-semantic-graph-query-backend";
 
 export interface WorkspaceFolderInfo {
   readonly uri: string;
@@ -10,6 +11,8 @@ export interface WorkspaceFolderInfo {
 
 export interface WorkspaceProviderDeps extends ProviderDeps {
   readonly workspaceFolderUri: string;
+  readonly styleSemanticGraphCache?: StyleSemanticGraphCache;
+  clearStyleSemanticGraphCache?(): void;
 }
 
 function isWithinRoot(rootPath: string, candidatePath: string): boolean {

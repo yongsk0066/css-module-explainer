@@ -41,6 +41,8 @@ export function createWorkspaceProviderDeps(args: WorkspaceRuntimeDepsArgs): Wor
     typeResolver: args.typeResolver,
     semanticReferenceIndex: args.caches.semanticReferenceIndex,
     styleDependencyGraph: args.caches.styleDependencyGraph,
+    styleSemanticGraphCache: args.caches.styleSemanticGraphCache,
+    clearStyleSemanticGraphCache: () => args.caches.styleSemanticGraphCache.clear(),
     workspaceRoot: args.folder.rootPath,
     workspaceFolderUri: args.folder.uri,
     logError: (message, err) => {

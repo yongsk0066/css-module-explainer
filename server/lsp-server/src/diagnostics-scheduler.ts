@@ -8,6 +8,11 @@ import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
 import { fileUrlToPath } from "../../engine-core-ts/src/core/util/text-utils";
 import { findLangForPath } from "../../engine-core-ts/src/core/scss/lang-registry";
 import type { WindowSettings } from "../../engine-core-ts/src/settings";
+import type { StyleSemanticGraphCache } from "../../engine-host-node/src/style-semantic-graph-query-backend";
+
+type RuntimeProviderDeps = ProviderDeps & {
+  readonly styleSemanticGraphCache?: StyleSemanticGraphCache;
+};
 
 const DIAGNOSTICS_DEBOUNCE_MS = 200;
 
@@ -155,6 +160,7 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
     const providerDeps = this.deps.getDeps(uri);
     const doc = this.deps.documents.get(uri);
     if (!providerDeps || !doc) return;
+    const runtimeProviderDeps = providerDeps as RuntimeProviderDeps;
     const filePath = fileUrlToPath(uri);
     const styleDocument = providerDeps.styleDocumentForPath(filePath);
     if (!styleDocument) return;
@@ -171,6 +177,9 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
         workspaceRoot: providerDeps.workspaceRoot,
         settings: providerDeps.settings,
         aliasResolver: providerDeps.aliasResolver,
+        ...(runtimeProviderDeps.styleSemanticGraphCache
+          ? { styleSemanticGraphCache: runtimeProviderDeps.styleSemanticGraphCache }
+          : {}),
         env: process.env,
       },
     );

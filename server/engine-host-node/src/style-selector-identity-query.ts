@@ -7,6 +7,7 @@ import {
 import {
   buildStyleSemanticGraphSelectorIdentityReadModels,
   resolveRustStyleSemanticGraphForWorkspaceTarget,
+  type StyleSemanticGraphCache,
   type StyleSemanticGraphQueryOptions,
   type StyleSemanticGraphSelectorIdentityReadModel,
 } from "./style-semantic-graph-query-backend";
@@ -27,7 +28,9 @@ type StyleSelectorIdentityDeps = Pick<
   | "typeResolver"
   | "workspaceRoot"
   | "readStyleFile"
->;
+> & {
+  readonly styleSemanticGraphCache?: StyleSemanticGraphCache;
+};
 
 export function resolveRustStyleSelectorIdentityReadModelForWorkspaceTarget(
   args: {
@@ -57,6 +60,10 @@ function safeResolveRustStyleSemanticGraphForWorkspaceTarget(
   deps: StyleSelectorIdentityDeps,
   options: StyleSelectorIdentityQueryOptions,
 ) {
+  const queryOptions =
+    options.styleSemanticGraphCache || !deps.styleSemanticGraphCache
+      ? options
+      : { ...options, styleSemanticGraphCache: deps.styleSemanticGraphCache };
   try {
     return (
       options.readRustStyleSemanticGraphForWorkspaceTarget ??
@@ -69,7 +76,7 @@ function safeResolveRustStyleSemanticGraphForWorkspaceTarget(
       },
       deps,
       filePath,
-      options,
+      queryOptions,
     );
   } catch {
     return null;

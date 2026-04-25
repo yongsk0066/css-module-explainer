@@ -45,6 +45,10 @@ interface HandlerState {
   windowSettings: WindowSettings;
 }
 
+type StyleSemanticGraphCacheInvalidator = ProviderDeps & {
+  clearStyleSemanticGraphCache?(): void;
+};
+
 /**
  * Wire every LSP request/notification handler onto the connection.
  *
@@ -196,6 +200,7 @@ function registerDocumentHandlers(state: HandlerState): void {
 
   documents.onDidChangeContent((change) => {
     state.scheduler.ensureReadySubscribed();
+    clearRuntimeStyleSemanticGraphCache(state.ctx.getDeps(change.document.uri));
     const filePath = fileUrlToPath(change.document.uri);
     if (findLangForPath(filePath)) {
       state.scheduler.scheduleScss(change.document.uri);
@@ -212,6 +217,7 @@ function registerDocumentHandlers(state: HandlerState): void {
     // before the next analyze or unused-selector check runs.
     deps.semanticReferenceIndex.forget(change.document.uri);
     deps.analysisCache.invalidate(change.document.uri);
+    clearRuntimeStyleSemanticGraphCache(deps);
     deps.refreshCodeLens();
   });
 }
@@ -257,6 +263,10 @@ function safeLogError(connection: Connection, context: string, err: unknown): vo
   } catch {
     // Connection already disposed — nothing to log to.
   }
+}
+
+function clearRuntimeStyleSemanticGraphCache(deps: ProviderDeps | null): void {
+  (deps as StyleSemanticGraphCacheInvalidator | null)?.clearStyleSemanticGraphCache?.();
 }
 
 function toCursorParams(
