@@ -10,18 +10,11 @@ type PublishReadyRepo = {
   readonly label: string;
   readonly repo: string;
   readonly packageName: string;
-  readonly libName: string;
+  readonly libName?: string;
+  readonly expectedRegistryDependencies?: readonly string[];
 };
 
-type BlockedRepo = {
-  readonly kind: "blocked";
-  readonly label: string;
-  readonly repo: string;
-  readonly packageName: string;
-  readonly expectedPackageAliases: readonly string[];
-};
-
-type SplitRepo = PublishReadyRepo | BlockedRepo;
+type SplitRepo = PublishReadyRepo;
 
 const splitRepos: readonly SplitRepo[] = [
   {
@@ -39,11 +32,11 @@ const splitRepos: readonly SplitRepo[] = [
     libName: "engine_style_parser",
   },
   {
-    kind: "blocked",
+    kind: "publish-ready",
     label: "semantic",
     repo: "omenien/omena-semantic",
     packageName: "omena-semantic",
-    expectedPackageAliases: ["omena-engine-input-producers", "omena-engine-style-parser"],
+    expectedRegistryDependencies: ["omena-engine-input-producers", "omena-engine-style-parser"],
   },
 ] as const;
 
@@ -77,41 +70,31 @@ async function main() {
       runCargo(checkoutPath, ["test"]);
       runCargo(checkoutPath, ["clippy", "--all-targets", "--all-features", "--", "-D", "warnings"]);
 
-      if (repo.kind === "publish-ready") {
-        assert.ok(
-          !/^publish\s*=\s*false$/m.test(manifest),
-          `${repo.packageName}: publish-ready packages must not set publish = false`,
-        );
+      assert.ok(
+        !/^publish\s*=\s*false$/m.test(manifest),
+        `${repo.packageName}: publish-ready packages must not set publish = false`,
+      );
+      if (repo.libName !== undefined) {
         assert.match(
           manifest,
           new RegExp(String.raw`^\[lib\]\s*\nname = "${repo.libName}"`, "m"),
           `${repo.packageName}: expected stable Rust lib import name ${repo.libName}`,
         );
-        // oxlint-disable-next-line eslint/no-await-in-loop
-        const status = await cratesIoStatus(repo.packageName);
-        assert.ok(
-          status === 200 || status === 404,
-          `${repo.packageName}: unexpected crates.io status ${status}`,
-        );
-        runCargo(checkoutPath, ["publish", "--dry-run"]);
-        process.stdout.write(
-          `validated publish-ready split crate: package=${repo.packageName} cratesIoStatus=${status}\n\n`,
-        );
-      } else {
+      }
+      for (const registryDependency of repo.expectedRegistryDependencies ?? []) {
         assert.match(
           manifest,
-          /^publish\s*=\s*false$/m,
-          `${repo.packageName}: blocked packages must keep publish = false`,
+          new RegExp(String.raw`package = "${registryDependency}", version = "0\.1\.0"`),
+          `${repo.packageName}: expected registry dependency ${registryDependency}@0.1.0`,
         );
-        for (const packageAlias of repo.expectedPackageAliases) {
-          assert.match(
-            manifest,
-            new RegExp(String.raw`package = "${packageAlias}"`),
-            `${repo.packageName}: expected dependency package alias ${packageAlias}`,
-          );
-        }
-        process.stdout.write(`validated blocked split crate: package=${repo.packageName}\n\n`);
       }
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      const status = await cratesIoStatus(repo.packageName);
+      assert.equal(status, 200, `${repo.packageName}: expected published crate on crates.io`);
+      runCargo(checkoutPath, ["publish", "--dry-run"]);
+      process.stdout.write(
+        `validated published split crate: package=${repo.packageName} cratesIoStatus=${status}\n\n`,
+      );
     }
   } finally {
     rmSync(tempRoot, { force: true, recursive: true });

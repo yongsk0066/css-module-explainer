@@ -17,7 +17,8 @@ checksum = "f8ca58f447f06ed17d5fc4043ce1b10dd205e060fb3ce5b979b8ed8e59ff3f79"
 [[package]]
 name = "omena-engine-input-producers"
 version = "0.1.0"
-source = "git+https://github.com/omenien/omena-engine-input-producers.git?rev=0e71623#0e7162347c99640627f875e17a8570458154f68b"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "00f9914b7f2fa1e7a7dd8681df48572bd66e4b8eabee6c60644d8213d7968d17"
 dependencies = [
  "serde",
  "serde_json",
@@ -35,7 +36,8 @@ dependencies = [
 [[package]]
 name = "omena-engine-style-parser"
 version = "0.1.0"
-source = "git+https://github.com/omenien/omena-engine-style-parser.git?rev=4dcf39d#4dcf39dbeb7a4efa651f4539e1b4872afc346e40"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7952aafba38c0f202ad7ccddcf86c8402b98c637296a14366fba2a61a0c7cc41"
 dependencies = [
  "serde",
  "serde_json",
@@ -44,7 +46,7 @@ dependencies = [
 [[package]]
 name = "omena-engine-style-parser"
 version = "0.1.0"
-source = "git+https://github.com/omenien/omena-engine-style-parser.git?rev=561e119#561e119b00ab40eaba5bbc2a9b2148d1869b0093"
+source = "git+https://github.com/omenien/omena-engine-style-parser.git?rev=4dcf39d#4dcf39dbeb7a4efa651f4539e1b4872afc346e40"
 dependencies = [
  "serde",
  "serde_json",
@@ -53,10 +55,10 @@ dependencies = [
 [[package]]
 name = "omena-semantic"
 version = "0.1.0"
-source = "git+https://github.com/omenien/omena-semantic.git?rev=0ce8e09#0ce8e094fa5b16c9c0ed6539a3cb61bcd9fff06c"
+source = "git+https://github.com/omenien/omena-semantic.git?rev=418c729#418c7298df4a851d626a1b037c66257dd773dd41"
 dependencies = [
- "omena-engine-input-producers 0.1.0 (git+https://github.com/omenien/omena-engine-input-producers.git?rev=0e71623)",
- "omena-engine-style-parser 0.1.0 (git+https://github.com/omenien/omena-engine-style-parser.git?rev=561e119)",
+ "omena-engine-input-producers 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "omena-engine-style-parser 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde",
  "serde_json",
 ]
