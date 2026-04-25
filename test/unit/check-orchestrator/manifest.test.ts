@@ -43,6 +43,9 @@ describe("check orchestrator manifest", () => {
     expect(resolveGateTarget(manifest, "tsgo/release/bundle")?.scriptName).toBe(
       "check:tsgo-release-bundle",
     );
+    expect(resolveGateTarget(manifest, "editor/provider-host-routing-boundary")?.scriptName).toBe(
+      "check:provider-host-routing-boundary",
+    );
     expect(resolveGateTarget(manifest, "tooling/orchestrator-doctor")?.scriptName).toBe(
       "check:orchestrator-doctor",
     );
@@ -96,6 +99,7 @@ describe("check orchestrator manifest", () => {
     expect(phase2SwapReadiness?.kind).toBe("bundle");
     expect(phase2SwapReadiness?.referencedScripts).toEqual(
       expect.arrayContaining([
+        "check:provider-host-routing-boundary",
         "check:rust-selected-query-default-candidate",
         "check:rust-checker-release-gate-shadow",
       ]),
