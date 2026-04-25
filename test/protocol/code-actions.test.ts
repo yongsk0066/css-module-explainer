@@ -1,7 +1,20 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { CodeActionKind, DiagnosticSeverity } from "vscode-languageserver-protocol/node";
+import {
+  CodeActionKind,
+  DiagnosticSeverity,
+  type CodeActionParams,
+  type Diagnostic,
+  type Range,
+} from "vscode-languageserver-protocol/node";
 import { createInProcessServer, type LspTestClient } from "./_harness/in-process-server";
 import { FakeTypeResolver } from "../_fixtures/fake-type-resolver";
+
+const BUTTON_TSX_URI = "file:///fake/workspace/src/Button.tsx";
+const BUTTON_SCSS_URI = "file:///fake/workspace/src/Button.module.scss";
+const ZERO_RANGE: Range = {
+  start: { line: 0, character: 0 },
+  end: { line: 0, character: 0 },
+};
 
 const BUTTON_TSX = `import classNames from 'classnames/bind';
 import styles from './Button.module.scss';
@@ -14,6 +27,21 @@ export function Button() {
 const BUTTON_SCSS = `
 .indicator { color: red; }
 `;
+
+function codeActionParams(
+  documentUri: string,
+  diagnostics: Diagnostic[],
+  range: Range = diagnostics[0]?.range ?? ZERO_RANGE,
+): CodeActionParams {
+  return {
+    textDocument: { uri: documentUri },
+    range,
+    context: {
+      diagnostics,
+      triggerKind: 1,
+    },
+  };
+}
 
 describe("code-action protocol", () => {
   let client: LspTestClient | null = null;
@@ -41,7 +69,7 @@ describe("code-action protocol", () => {
     client.initialized();
     client.didOpen({
       textDocument: {
-        uri: "file:///fake/workspace/src/Button.tsx",
+        uri: BUTTON_TSX_URI,
         languageId: "typescriptreact",
         version: 1,
         text: BUTTON_TSX,
@@ -49,24 +77,17 @@ describe("code-action protocol", () => {
     });
     // Wait for diagnostics → the typo 'indicaror' should produce
     // one Warning with `data.suggestion: "indicator"`.
-    const diagnostics = await client.waitForDiagnostics("file:///fake/workspace/src/Button.tsx");
+    const diagnostics = await client.waitForDiagnostics(BUTTON_TSX_URI);
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0]!.data).toMatchObject({
       suggestion: "indicator",
       createSelector: {
-        uri: "file:///fake/workspace/src/Button.module.scss",
+        uri: BUTTON_SCSS_URI,
       },
     });
 
     // Now ask for code actions at the diagnostic range.
-    const actions = await client.codeAction({
-      textDocument: { uri: "file:///fake/workspace/src/Button.tsx" },
-      range: diagnostics[0]!.range,
-      context: {
-        diagnostics,
-        triggerKind: 1,
-      },
-    });
+    const actions = await client.codeAction(codeActionParams(BUTTON_TSX_URI, diagnostics));
     expect(actions).not.toBeNull();
     expect(actions).toHaveLength(2);
     const action = actions![0] as {
@@ -76,7 +97,7 @@ describe("code-action protocol", () => {
     };
     expect(action.title).toBe("Replace with 'indicator'");
     expect(action.kind).toBe(CodeActionKind.QuickFix);
-    const edits = action.edit?.changes?.["file:///fake/workspace/src/Button.tsx"];
+    const edits = action.edit?.changes?.[BUTTON_TSX_URI];
     expect(edits).toHaveLength(1);
     expect(edits![0]!.newText).toBe("indicator");
 
@@ -85,8 +106,7 @@ describe("code-action protocol", () => {
       edit?: { changes?: Record<string, Array<{ newText: string }>> };
     };
     expect(createAction.title).toBe("Add '.indicaror' to Button.module.scss");
-    const styleEdits =
-      createAction.edit?.changes?.["file:///fake/workspace/src/Button.module.scss"];
+    const styleEdits = createAction.edit?.changes?.[BUTTON_SCSS_URI];
     expect(styleEdits).toHaveLength(1);
     expect(styleEdits![0]!.newText).toBe("\n\n.indicaror {\n}\n");
   });
@@ -94,11 +114,10 @@ describe("code-action protocol", () => {
   it("returns null when the context contains only suggestion-less diagnostics", async () => {
     client = createInProcessServer();
     await client.initialize();
-    const actions = await client.codeAction({
-      textDocument: { uri: "file:///never/opened.tsx" },
-      range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
-      context: {
-        diagnostics: [
+    const actions = await client.codeAction(
+      codeActionParams(
+        "file:///never/opened.tsx",
+        [
           {
             range: { start: { line: 0, character: 0 }, end: { line: 0, character: 5 } },
             severity: DiagnosticSeverity.Warning,
@@ -106,9 +125,9 @@ describe("code-action protocol", () => {
             message: "whatever",
           },
         ],
-        triggerKind: 1,
-      },
-    });
+        ZERO_RANGE,
+      ),
+    );
     expect(actions).toBeNull();
   });
 
@@ -125,26 +144,19 @@ export const Button = () => <div className={styles.root}>hi</div>;
     client.initialized();
     client.didOpen({
       textDocument: {
-        uri: "file:///fake/workspace/src/Button.tsx",
+        uri: BUTTON_TSX_URI,
         languageId: "typescriptreact",
         version: 1,
         text: MISSING_MODULE_TSX,
       },
     });
-    let diagnostics = await client.waitForDiagnostics("file:///fake/workspace/src/Button.tsx");
+    let diagnostics = await client.waitForDiagnostics(BUTTON_TSX_URI);
     if (diagnostics.length === 0) {
-      diagnostics = await client.waitForDiagnostics("file:///fake/workspace/src/Button.tsx");
+      diagnostics = await client.waitForDiagnostics(BUTTON_TSX_URI);
     }
     expect(diagnostics).toHaveLength(1);
 
-    const actions = await client.codeAction({
-      textDocument: { uri: "file:///fake/workspace/src/Button.tsx" },
-      range: diagnostics[0]!.range,
-      context: {
-        diagnostics,
-        triggerKind: 1,
-      },
-    });
+    const actions = await client.codeAction(codeActionParams(BUTTON_TSX_URI, diagnostics));
     expect(actions).not.toBeNull();
     expect(actions).toHaveLength(1);
     const action = actions![0] as {
@@ -171,17 +183,7 @@ export const Button = () => <div className={styles.root}>hi</div>;
     await client.initialize();
     client.initialized();
 
-    const actions = await client.codeAction({
-      textDocument: { uri: "file:///fake/workspace/src/Button.tsx" },
-      range: {
-        start: { line: 0, character: 0 },
-        end: { line: 0, character: 0 },
-      },
-      context: {
-        diagnostics: [],
-        triggerKind: 1,
-      },
-    });
+    const actions = await client.codeAction(codeActionParams(BUTTON_TSX_URI, [], ZERO_RANGE));
     expect(actions).not.toBeNull();
     expect(actions).toHaveLength(3);
     expect(actions?.map((action) => ("title" in action ? action.title : null))).toEqual([
@@ -207,29 +209,22 @@ export const Button = () => <div className={styles.root}>hi</div>;
     client.initialized();
     client.didOpen({
       textDocument: {
-        uri: "file:///fake/workspace/src/Button.module.scss",
+        uri: BUTTON_SCSS_URI,
         languageId: "scss",
         version: 1,
         text: COMPOSING_SCSS,
       },
     });
 
-    const diagnostics = await client.waitForDiagnostics(
-      "file:///fake/workspace/src/Button.module.scss",
-    );
+    const diagnostics = await client.waitForDiagnostics(BUTTON_SCSS_URI);
     const missingModule = diagnostics.find((diagnostic) =>
       diagnostic.message.includes("Cannot resolve composed CSS Module './Base.module.scss'."),
     );
     expect(missingModule).toBeDefined();
 
-    const actions = await client.codeAction({
-      textDocument: { uri: "file:///fake/workspace/src/Button.module.scss" },
-      range: missingModule!.range,
-      context: {
-        diagnostics,
-        triggerKind: 1,
-      },
-    });
+    const actions = await client.codeAction(
+      codeActionParams(BUTTON_SCSS_URI, diagnostics, missingModule!.range),
+    );
     expect(actions).not.toBeNull();
     expect(actions).toHaveLength(1);
     const action = actions![0] as {
@@ -272,16 +267,14 @@ export const Button = () => <div className={styles.root}>hi</div>;
     client.initialized();
     client.didOpen({
       textDocument: {
-        uri: "file:///fake/workspace/src/Button.module.scss",
+        uri: BUTTON_SCSS_URI,
         languageId: "scss",
         version: 1,
         text: COMPOSING_SCSS,
       },
     });
 
-    const diagnostics = await client.waitForDiagnostics(
-      "file:///fake/workspace/src/Button.module.scss",
-    );
+    const diagnostics = await client.waitForDiagnostics(BUTTON_SCSS_URI);
     const missingSelector = diagnostics.find((diagnostic) =>
       diagnostic.message.includes(
         "Selector '.base' not found in composed module './Base.module.scss'.",
@@ -289,14 +282,9 @@ export const Button = () => <div className={styles.root}>hi</div>;
     );
     expect(missingSelector).toBeDefined();
 
-    const actions = await client.codeAction({
-      textDocument: { uri: "file:///fake/workspace/src/Button.module.scss" },
-      range: missingSelector!.range,
-      context: {
-        diagnostics,
-        triggerKind: 1,
-      },
-    });
+    const actions = await client.codeAction(
+      codeActionParams(BUTTON_SCSS_URI, diagnostics, missingSelector!.range),
+    );
     expect(actions).not.toBeNull();
     expect(actions).toHaveLength(1);
     const action = actions![0] as {
@@ -336,7 +324,7 @@ export const Button = () => <div className={styles.root}>hi</div>;
     client.initialized();
     client.didOpen({
       textDocument: {
-        uri: "file:///fake/workspace/src/Button.module.scss",
+        uri: BUTTON_SCSS_URI,
         languageId: "scss",
         version: 1,
         text: VALUE_SCSS,
@@ -351,9 +339,7 @@ export const Button = () => <div className={styles.root}>hi</div>;
       },
     });
 
-    const diagnostics = await client.waitForDiagnostics(
-      "file:///fake/workspace/src/Button.module.scss",
-    );
+    const diagnostics = await client.waitForDiagnostics(BUTTON_SCSS_URI);
     const missingValue = diagnostics.find((diagnostic) =>
       diagnostic.message.includes(
         "@value 'secondary' not found in './tokens.module.scss' for local binding 'accent'.",
@@ -361,14 +347,9 @@ export const Button = () => <div className={styles.root}>hi</div>;
     );
     expect(missingValue).toBeDefined();
 
-    const actions = await client.codeAction({
-      textDocument: { uri: "file:///fake/workspace/src/Button.module.scss" },
-      range: missingValue!.range,
-      context: {
-        diagnostics,
-        triggerKind: 1,
-      },
-    });
+    const actions = await client.codeAction(
+      codeActionParams(BUTTON_SCSS_URI, diagnostics, missingValue!.range),
+    );
     expect(actions).not.toBeNull();
     expect(actions).toHaveLength(1);
     const action = actions![0] as {
@@ -402,29 +383,22 @@ export const Button = () => <div className={styles.root}>hi</div>;
     client.initialized();
     client.didOpen({
       textDocument: {
-        uri: "file:///fake/workspace/src/Button.module.scss",
+        uri: BUTTON_SCSS_URI,
         languageId: "scss",
         version: 1,
         text: KEYFRAMES_SCSS,
       },
     });
 
-    const diagnostics = await client.waitForDiagnostics(
-      "file:///fake/workspace/src/Button.module.scss",
-    );
+    const diagnostics = await client.waitForDiagnostics(BUTTON_SCSS_URI);
     const missingKeyframes = diagnostics.find((diagnostic) =>
       diagnostic.message.includes("@keyframes 'fade' not found in this file."),
     );
     expect(missingKeyframes).toBeDefined();
 
-    const actions = await client.codeAction({
-      textDocument: { uri: "file:///fake/workspace/src/Button.module.scss" },
-      range: missingKeyframes!.range,
-      context: {
-        diagnostics,
-        triggerKind: 1,
-      },
-    });
+    const actions = await client.codeAction(
+      codeActionParams(BUTTON_SCSS_URI, diagnostics, missingKeyframes!.range),
+    );
     expect(actions).not.toBeNull();
     expect(actions).toHaveLength(1);
     const action = actions![0] as {
@@ -432,7 +406,7 @@ export const Button = () => <div className={styles.root}>hi</div>;
       edit?: { changes?: Record<string, Array<{ newText: string }>> };
     };
     expect(action.title).toBe("Add '@keyframes fade' to Button.module.scss");
-    expect(action.edit?.changes?.["file:///fake/workspace/src/Button.module.scss"]).toEqual([
+    expect(action.edit?.changes?.[BUTTON_SCSS_URI]).toEqual([
       {
         range: {
           start: { line: 0, character: 0 },
@@ -457,29 +431,22 @@ export const Button = () => <div className={styles.root}>hi</div>;
     client.initialized();
     client.didOpen({
       textDocument: {
-        uri: "file:///fake/workspace/src/Button.module.scss",
+        uri: BUTTON_SCSS_URI,
         languageId: "scss",
         version: 1,
         text: SASS_SCSS,
       },
     });
 
-    const diagnostics = await client.waitForDiagnostics(
-      "file:///fake/workspace/src/Button.module.scss",
-    );
+    const diagnostics = await client.waitForDiagnostics(BUTTON_SCSS_URI);
     const missingVariable = diagnostics.find((diagnostic) =>
       diagnostic.message.includes("Sass variable '$missing' not found in this file."),
     );
     expect(missingVariable).toBeDefined();
 
-    const actions = await client.codeAction({
-      textDocument: { uri: "file:///fake/workspace/src/Button.module.scss" },
-      range: missingVariable!.range,
-      context: {
-        diagnostics,
-        triggerKind: 1,
-      },
-    });
+    const actions = await client.codeAction(
+      codeActionParams(BUTTON_SCSS_URI, diagnostics, missingVariable!.range),
+    );
     expect(actions).not.toBeNull();
     expect(actions).toHaveLength(1);
     const action = actions![0] as {
@@ -487,7 +454,7 @@ export const Button = () => <div className={styles.root}>hi</div>;
       edit?: { changes?: Record<string, Array<{ newText: string }>> };
     };
     expect(action.title).toBe("Add '$missing' to Button.module.scss");
-    expect(action.edit?.changes?.["file:///fake/workspace/src/Button.module.scss"]).toEqual([
+    expect(action.edit?.changes?.[BUTTON_SCSS_URI]).toEqual([
       {
         range: {
           start: { line: 0, character: 0 },
