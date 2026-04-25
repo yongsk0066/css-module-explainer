@@ -1,4 +1,6 @@
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
+import { pathToFileUrl } from "../../engine-core-ts/src/core/util/text-utils";
+import type { ResolvedReferenceSite } from "../../engine-core-ts/src/core/query/find-references";
 import {
   resolveSelectedQueryBackendKind,
   usesRustStyleSemanticGraphBackend,
@@ -67,4 +69,17 @@ export function buildSelectorReferenceRenderSummaryFromRustGraph(
     hasStyleDependencyReferences: selector.hasStyleDependencyReferences,
     hasAnyReferences: selector.hasAnyReferences,
   };
+}
+
+export function buildSelectorReferenceEditableDirectSitesFromRustGraph(
+  selector: StyleSemanticGraphSelectorReferenceSummaryV0,
+): readonly ResolvedReferenceSite[] {
+  return selector.editableDirectSites.map((site) => ({
+    uri: pathToFileUrl(site.filePath),
+    range: site.range,
+    className: site.className,
+    selectorCertainty: "exact",
+    expansion: "direct",
+    referenceKind: "source",
+  }));
 }

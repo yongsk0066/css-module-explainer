@@ -115,6 +115,12 @@ describe("style hover query", () => {
       blockers: ["nested-expansion"],
       range: { start: { line: 5, character: 1 }, end: { line: 5, character: 10 } },
     });
+    expect(result?.usageSummary).toMatchObject({
+      totalReferences: 3,
+      directReferenceCount: 1,
+      hasExpandedReferences: true,
+      hasAnyReferences: true,
+    });
   });
 
   it("resolves animation references to keyframes hover data", () => {
@@ -480,10 +486,45 @@ function makeGraph(rewriteSafety: "safe" | "blocked"): StyleSemanticGraphSummary
       product: "omena-semantic.selector-references",
       stylePath: SCSS_PATH,
       selectorCount: 1,
-      referencedSelectorCount: 0,
-      unreferencedSelectorCount: 1,
-      totalReferenceSites: 0,
-      selectors: [],
+      referencedSelectorCount: 1,
+      unreferencedSelectorCount: 0,
+      totalReferenceSites: 1,
+      selectors: [
+        {
+          canonicalId: "selector:indicator",
+          filePath: SCSS_PATH,
+          localName: "indicator",
+          totalReferences: 3,
+          directReferenceCount: 1,
+          editableDirectReferenceCount: 1,
+          exactReferenceCount: 1,
+          inferredOrBetterReferenceCount: 2,
+          hasExpandedReferences: true,
+          hasStyleDependencyReferences: false,
+          hasAnyReferences: true,
+          sites: [
+            {
+              filePath: "/fake/ws/src/App.tsx",
+              range: {
+                start: { line: 12, character: 8 },
+                end: { line: 12, character: 17 },
+              },
+              expansion: "direct",
+              referenceKind: "source",
+            },
+          ],
+          editableDirectSites: [
+            {
+              filePath: "/fake/ws/src/App.tsx",
+              range: {
+                start: { line: 12, character: 8 },
+                end: { line: 12, character: 17 },
+              },
+              className: "indicator",
+            },
+          ],
+        },
+      ],
     },
     sourceInputEvidence: {},
     promotionEvidence: {},

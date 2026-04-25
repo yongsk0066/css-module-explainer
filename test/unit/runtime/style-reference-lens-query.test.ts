@@ -229,6 +229,16 @@ function makeReferenceGraph(): StyleSemanticGraphSummaryV0 {
               referenceKind: "source",
             },
           ],
+          editableDirectSites: [
+            {
+              filePath: "/fake/src/App.tsx",
+              range: {
+                start: { line: 12, character: 8 },
+                end: { line: 12, character: 17 },
+              },
+              className: "indicator",
+            },
+          ],
         },
       ],
     },

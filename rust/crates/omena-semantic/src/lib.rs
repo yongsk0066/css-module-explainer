@@ -31,8 +31,8 @@ pub use selector_identity::{
     summarize_selector_identity_engine,
 };
 pub use selector_references::{
-    SelectorReferenceEngineSummaryV0, SelectorReferenceSiteV0, SelectorReferenceSummaryV0,
-    summarize_selector_reference_engine,
+    SelectorEditableDirectReferenceSiteV0, SelectorReferenceEngineSummaryV0,
+    SelectorReferenceSiteV0, SelectorReferenceSummaryV0, summarize_selector_reference_engine,
 };
 pub use source_evidence::{
     BindingOriginEvidenceV0, CertaintyReasonEvidenceV0, ReferenceSiteIdentityEvidenceV0,

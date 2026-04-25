@@ -36,6 +36,11 @@ import {
   type StyleSelectorIdentityQueryOptions,
 } from "./style-selector-identity-query";
 import {
+  buildSelectorReferenceEditableDirectSitesFromRustGraph,
+  resolveRustStyleSelectorReferenceSummaryForWorkspaceTarget,
+} from "./style-selector-reference-query";
+import type { StyleSemanticGraphSelectorReferenceSummaryV0 } from "./style-semantic-graph-query-backend";
+import {
   buildSelectorUsageEditableDirectSitesFromRustPayload,
   resolveRustSelectorUsagePayloadForWorkspaceTarget,
   type SelectorUsageEvaluatorCandidatePayloadV0,
@@ -348,6 +353,15 @@ function resolveStyleRenameRewriteSafety(
   options: StyleRenameQueryOptions,
 ) {
   const base = readSelectorRewriteSafetySummary(deps, filePath, canonicalName);
+  const graphReferences = resolveRustStyleSelectorReferenceSummaryForWorkspaceTarget(
+    { filePath, canonicalName },
+    deps,
+    options,
+  );
+  if (graphReferences) {
+    return buildRewriteSafetyFromRustGraphReferences(base, graphReferences);
+  }
+
   if (!usesRustSelectorUsageBackend(resolveSelectedQueryBackendKind(options.env))) {
     return base;
   }
@@ -388,6 +402,37 @@ function resolveStyleRenameRewriteSafety(
       hasAnyReferences: payload.hasAnyReferences,
     },
     directSites: rustEditableDirectSites ?? base.directSites,
+    referenceRewritePolicy,
+    hasBlockingExpandedReferences,
+    hasBlockingStyleDependencyReferences,
+  };
+}
+
+function buildRewriteSafetyFromRustGraphReferences(
+  base: ReturnType<typeof readSelectorRewriteSafetySummary>,
+  selector: StyleSemanticGraphSelectorReferenceSummaryV0,
+) {
+  const hasBlockingStyleDependencyReferences = selector.hasStyleDependencyReferences;
+  const hasBlockingExpandedReferences = selector.hasExpandedReferences;
+  const rustEditableDirectSites = buildSelectorReferenceEditableDirectSitesFromRustGraph(selector);
+  const referenceRewritePolicy: SelectorReferenceRewritePolicy =
+    hasBlockingStyleDependencyReferences
+      ? "blockedByStyleDependencies"
+      : hasBlockingExpandedReferences
+        ? "blockedByExpandedReferences"
+        : "directOnly";
+  return {
+    ...base,
+    usage: {
+      ...base.usage,
+      editableDirectSites: rustEditableDirectSites,
+      totalReferences: selector.totalReferences,
+      directReferenceCount: selector.directReferenceCount,
+      hasExpandedReferences: selector.hasExpandedReferences,
+      hasStyleDependencyReferences: selector.hasStyleDependencyReferences,
+      hasAnyReferences: selector.hasAnyReferences,
+    },
+    directSites: rustEditableDirectSites,
     referenceRewritePolicy,
     hasBlockingExpandedReferences,
     hasBlockingStyleDependencyReferences,

@@ -81,6 +81,7 @@ export interface StyleSemanticGraphSelectorReferenceSummaryV0 {
   readonly hasStyleDependencyReferences: boolean;
   readonly hasAnyReferences: boolean;
   readonly sites: readonly StyleSemanticGraphSelectorReferenceSiteV0[];
+  readonly editableDirectSites: readonly StyleSemanticGraphSelectorEditableDirectSiteV0[];
 }
 
 export interface StyleSemanticGraphSelectorReferenceSiteV0 {
@@ -88,6 +89,12 @@ export interface StyleSemanticGraphSelectorReferenceSiteV0 {
   readonly range: Range;
   readonly expansion: string;
   readonly referenceKind: string;
+}
+
+export interface StyleSemanticGraphSelectorEditableDirectSiteV0 {
+  readonly filePath: string;
+  readonly range: Range;
+  readonly className: string;
 }
 
 export interface StyleSemanticGraphRunnerInputV0 {

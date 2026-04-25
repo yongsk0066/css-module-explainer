@@ -47,6 +47,10 @@ import {
   resolveRustStyleSelectorIdentityReadModelForWorkspaceTarget,
   type StyleSelectorIdentityQueryOptions,
 } from "./style-selector-identity-query";
+import {
+  buildSelectorReferenceRenderSummaryFromRustGraph,
+  resolveRustStyleSelectorReferenceSummaryForWorkspaceTarget,
+} from "./style-selector-reference-query";
 import type { StyleSemanticGraphSelectorIdentityReadModel } from "./style-semantic-graph-query-backend";
 
 export interface StyleSelectorHoverResult {
@@ -420,6 +424,15 @@ function resolveStyleSelectorUsageSummary(
   options: StyleHoverQueryOptions,
 ): SelectorUsageRenderSummary {
   const backend = resolveSelectedQueryBackendKind(options.env);
+  const graphReferences = resolveRustStyleSelectorReferenceSummaryForWorkspaceTarget(
+    { filePath, canonicalName },
+    deps,
+    options,
+  );
+  if (graphReferences) {
+    return buildSelectorReferenceRenderSummaryFromRustGraph(graphReferences);
+  }
+
   if (usesRustSelectorUsageBackend(backend)) {
     const payload = (
       options.readRustSelectorUsagePayloadForWorkspaceTarget ??

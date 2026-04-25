@@ -31,6 +31,7 @@ pub struct SelectorReferenceSummaryV0 {
     pub has_style_dependency_references: bool,
     pub has_any_references: bool,
     pub sites: Vec<SelectorReferenceSiteV0>,
+    pub editable_direct_sites: Vec<SelectorEditableDirectReferenceSiteV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -40,6 +41,14 @@ pub struct SelectorReferenceSiteV0 {
     pub range: RangeV2,
     pub expansion: String,
     pub reference_kind: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SelectorEditableDirectReferenceSiteV0 {
+    pub file_path: String,
+    pub range: RangeV2,
+    pub class_name: String,
 }
 
 pub fn summarize_selector_reference_engine(
@@ -76,6 +85,15 @@ pub fn summarize_selector_reference_engine(
                         range: site.range,
                         expansion: site.expansion,
                         reference_kind: site.reference_kind,
+                    })
+                    .collect(),
+                editable_direct_sites: payload
+                    .editable_direct_sites
+                    .into_iter()
+                    .map(|site| SelectorEditableDirectReferenceSiteV0 {
+                        file_path: site.file_path,
+                        range: site.range,
+                        class_name: site.class_name,
                     })
                     .collect(),
             }
