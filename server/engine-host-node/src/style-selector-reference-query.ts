@@ -1,12 +1,17 @@
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
 import { pathToFileUrl } from "../../engine-core-ts/src/core/util/text-utils";
 import type { ResolvedReferenceSite } from "../../engine-core-ts/src/core/query/find-references";
+import type {
+  SelectorReferenceRewritePolicy,
+  SelectorRewriteSafetySummary,
+} from "../../engine-core-ts/src/core/query/read-selector-rewrite-safety";
 import {
   resolveSelectedQueryBackendKind,
   usesRustStyleSemanticGraphBackend,
 } from "./selected-query-backend";
 import {
   resolveRustStyleSemanticGraphForWorkspaceTarget,
+  type StyleSemanticGraphSummaryV0,
   type StyleSemanticGraphSelectorReferenceSummaryV0,
 } from "./style-semantic-graph-query-backend";
 import type { SelectorUsageRenderSummary } from "./selector-usage-query-backend";
@@ -38,25 +43,55 @@ export function resolveRustStyleSelectorReferenceSummaryForWorkspaceTarget(
     return null;
   }
 
-  const graph = (
-    options.readRustStyleSemanticGraphForWorkspaceTarget ??
-    resolveRustStyleSemanticGraphForWorkspaceTarget
-  )(
-    {
-      workspaceRoot: deps.workspaceRoot,
-      classnameTransform: deps.settings.scss.classnameTransform,
-      pathAlias: deps.settings.pathAlias,
-    },
-    deps,
-    args.filePath,
-  );
+  const graph = safeResolveRustStyleSemanticGraphForWorkspaceTarget(args.filePath, deps, options);
   if (!graph) return null;
+  if (!hasSourceBackedSelectorReferenceEvidence(graph)) return null;
 
   return (
     graph.selectorReferenceEngine.selectors.find(
       (selector) => selector.localName === args.canonicalName,
     ) ?? null
   );
+}
+
+function safeResolveRustStyleSemanticGraphForWorkspaceTarget(
+  filePath: string,
+  deps: StyleSelectorReferenceDeps,
+  options: StyleSelectorReferenceQueryOptions,
+): StyleSemanticGraphSummaryV0 | null {
+  try {
+    return (
+      options.readRustStyleSemanticGraphForWorkspaceTarget ??
+      resolveRustStyleSemanticGraphForWorkspaceTarget
+    )(
+      {
+        workspaceRoot: deps.workspaceRoot,
+        classnameTransform: deps.settings.scss.classnameTransform,
+        pathAlias: deps.settings.pathAlias,
+      },
+      deps,
+      filePath,
+    );
+  } catch {
+    return null;
+  }
+}
+
+function hasSourceBackedSelectorReferenceEvidence(graph: StyleSemanticGraphSummaryV0): boolean {
+  if (graph.selectorReferenceEngine.totalReferenceSites > 0) return true;
+
+  const evidence = graph.sourceInputEvidence;
+  if (!isObjectRecord(evidence)) return false;
+  const referenceSiteIdentity = evidence.referenceSiteIdentity;
+  return (
+    isObjectRecord(referenceSiteIdentity) &&
+    referenceSiteIdentity.status === "ready" &&
+    typeof referenceSiteIdentity.referenceSiteCount === "number"
+  );
+}
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
 export function buildSelectorReferenceRenderSummaryFromRustGraph(
@@ -82,4 +117,36 @@ export function buildSelectorReferenceEditableDirectSitesFromRustGraph(
     expansion: "direct",
     referenceKind: "source",
   }));
+}
+
+export function buildSelectorReferenceRewriteSafetyFromRustGraph(
+  base: SelectorRewriteSafetySummary,
+  selector: StyleSemanticGraphSelectorReferenceSummaryV0,
+): SelectorRewriteSafetySummary {
+  const editableDirectSites = buildSelectorReferenceEditableDirectSitesFromRustGraph(selector);
+  const hasBlockingStyleDependencyReferences = selector.hasStyleDependencyReferences;
+  const hasBlockingExpandedReferences = selector.hasExpandedReferences;
+  const referenceRewritePolicy: SelectorReferenceRewritePolicy =
+    hasBlockingStyleDependencyReferences
+      ? "blockedByStyleDependencies"
+      : hasBlockingExpandedReferences
+        ? "blockedByExpandedReferences"
+        : "directOnly";
+
+  return {
+    ...base,
+    usage: {
+      ...base.usage,
+      editableDirectSites,
+      totalReferences: selector.totalReferences,
+      directReferenceCount: selector.directReferenceCount,
+      hasExpandedReferences: selector.hasExpandedReferences,
+      hasStyleDependencyReferences: selector.hasStyleDependencyReferences,
+      hasAnyReferences: selector.hasAnyReferences,
+    },
+    directSites: editableDirectSites,
+    referenceRewritePolicy,
+    hasBlockingExpandedReferences,
+    hasBlockingStyleDependencyReferences,
+  };
 }

@@ -38,18 +38,7 @@ export function resolveRustStyleSelectorIdentityReadModelForWorkspaceTarget(
     return null;
   }
 
-  const graph = (
-    options.readRustStyleSemanticGraphForWorkspaceTarget ??
-    resolveRustStyleSemanticGraphForWorkspaceTarget
-  )(
-    {
-      workspaceRoot: deps.workspaceRoot,
-      classnameTransform: deps.settings.scss.classnameTransform,
-      pathAlias: deps.settings.pathAlias,
-    },
-    deps,
-    args.filePath,
-  );
+  const graph = safeResolveRustStyleSemanticGraphForWorkspaceTarget(args.filePath, deps, options);
   if (!graph) return null;
 
   return (
@@ -57,4 +46,27 @@ export function resolveRustStyleSelectorIdentityReadModelForWorkspaceTarget(
       (identity) => identity.canonicalName === args.canonicalName,
     ) ?? null
   );
+}
+
+function safeResolveRustStyleSemanticGraphForWorkspaceTarget(
+  filePath: string,
+  deps: StyleSelectorIdentityDeps,
+  options: StyleSelectorIdentityQueryOptions,
+) {
+  try {
+    return (
+      options.readRustStyleSemanticGraphForWorkspaceTarget ??
+      resolveRustStyleSemanticGraphForWorkspaceTarget
+    )(
+      {
+        workspaceRoot: deps.workspaceRoot,
+        classnameTransform: deps.settings.scss.classnameTransform,
+        pathAlias: deps.settings.pathAlias,
+      },
+      deps,
+      filePath,
+    );
+  } catch {
+    return null;
+  }
 }

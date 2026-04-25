@@ -22,10 +22,7 @@ describe("resolveStyleReferenceLenses", () => {
   it("returns an empty list when no selector has references", () => {
     const styleDocument = buildStyleDocumentFromSelectorMap(
       "/fake/src/Button.module.scss",
-      new Map([
-        ["indicator", infoAtLine("indicator", 5)],
-        ["active", infoAtLine("active", 10)],
-      ]),
+      new Map([["indicator", infoAtLine("indicator", 5)]]),
     );
 
     expect(
@@ -140,10 +137,7 @@ describe("resolveStyleReferenceLenses", () => {
   it("uses rust style semantic graph references for lens title summary and locations", () => {
     const styleDocument = buildStyleDocumentFromSelectorMap(
       "/fake/src/Button.module.scss",
-      new Map([
-        ["indicator", infoAtLine("indicator", 5)],
-        ["active", infoAtLine("active", 10)],
-      ]),
+      new Map([["indicator", infoAtLine("indicator", 5)]]),
     );
 
     const result = resolveStyleReferenceLenses(

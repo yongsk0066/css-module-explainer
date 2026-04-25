@@ -21,6 +21,10 @@ import {
 } from "./selector-usage-query-backend";
 import { resolveSelectedQueryBackendKind } from "./selected-query-backend";
 import { resolveSelectorReferenceLocations } from "./selector-references-query";
+import {
+  resolveRustStyleSelectorReferenceSummaryForWorkspaceTarget,
+  type StyleSelectorReferenceQueryOptions,
+} from "./style-selector-reference-query";
 
 export interface SourceReferenceLocation {
   readonly uri: string;
@@ -32,7 +36,7 @@ interface SourceReferenceTarget {
   readonly canonicalName: string;
 }
 
-export interface SourceReferencesQueryOptions {
+export interface SourceReferencesQueryOptions extends StyleSelectorReferenceQueryOptions {
   readonly env?: NodeJS.ProcessEnv;
   readonly readRustSourceResolutionSelectorMatch?: typeof resolveRustSourceResolutionSelectorMatch;
   readonly readRustSelectorUsagePayloadForWorkspaceTarget?: typeof resolveRustSelectorUsagePayloadForWorkspaceTarget;
@@ -50,6 +54,7 @@ export function resolveSourceExpressionReferences(
     | "styleDocumentForPath"
     | "typeResolver"
     | "workspaceRoot"
+    | "readStyleFile"
   >,
   options: SourceReferencesQueryOptions = {},
 ): readonly SourceReferenceLocation[] {
@@ -169,9 +174,22 @@ function resolveReferenceLocationsForTarget(
     | "styleDocumentForPath"
     | "typeResolver"
     | "workspaceRoot"
+    | "readStyleFile"
   >,
   options: SourceReferencesQueryOptions,
 ): readonly SourceReferenceLocation[] {
+  const graphReferences = resolveRustStyleSelectorReferenceSummaryForWorkspaceTarget(
+    target,
+    deps,
+    options,
+  );
+  if (graphReferences) {
+    return graphReferences.sites.map((site) => ({
+      uri: pathToFileUrl(site.filePath),
+      range: site.range,
+    }));
+  }
+
   const selectedQueryBackend = resolveSelectedQueryBackendKind(options.env);
   if (usesRustSelectorUsageBackend(selectedQueryBackend)) {
     const payload = (
