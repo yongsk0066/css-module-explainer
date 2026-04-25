@@ -1,17 +1,31 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createInProcessServer, type LspTestClient } from "./_harness/in-process-server";
 import { FakeTypeResolver } from "../_fixtures/fake-type-resolver";
+import { targetFixture, workspace } from "../../packages/vitest-cme/src";
 const ROOT_A_URI = "file:///fake/workspace-a";
 const ROOT_B_URI = "file:///fake/workspace-b";
+const APP_A_URI = `${ROOT_A_URI}/src/App.tsx`;
+const APP_B_URI = `${ROOT_B_URI}/src/App.tsx`;
 const itNonWindows = process.platform === "win32" ? it.skip : it;
 
-const APP_TSX = `import classNames from 'classnames/bind';
+const APP_WORKSPACE = workspace({
+  [APP_A_URI]: `import classNames from 'classnames/bind';
 import styles from '@styles/Button.module.scss';
 const cx = classNames.bind(styles);
 export function App() {
-  return <div className={cx('button')}>ok</div>;
+  return <div className={cx('/*|*/button')}>ok</div>;
 }
-`;
+`,
+  [APP_B_URI]: `import classNames from 'classnames/bind';
+import styles from '@styles/Button.module.scss';
+const cx = classNames.bind(styles);
+export function App() {
+  return <div className={cx('/*|*/button')}>ok</div>;
+}
+`,
+});
+
+const APP_TSX = APP_WORKSPACE.file(APP_A_URI).content;
 
 function readStyleFile(path: string): string | null {
   if (path === "/fake/workspace-a/src/styles-a/Button.module.scss") {
@@ -51,12 +65,9 @@ describe("multi-root pathAlias", () => {
     });
     client.initialized();
 
-    const appAUri = `${ROOT_A_URI}/src/App.tsx`;
-    const appBUri = `${ROOT_B_URI}/src/App.tsx`;
-
     client.didOpen({
       textDocument: {
-        uri: appAUri,
+        uri: APP_A_URI,
         languageId: "typescriptreact",
         version: 1,
         text: APP_TSX,
@@ -64,18 +75,18 @@ describe("multi-root pathAlias", () => {
     });
     client.didOpen({
       textDocument: {
-        uri: appBUri,
+        uri: APP_B_URI,
         languageId: "typescriptreact",
         version: 1,
         text: APP_TSX,
       },
     });
 
-    expect(await client.waitForDiagnostics(appAUri)).toEqual([]);
-    expect(await client.waitForDiagnostics(appBUri)).toEqual([]);
+    expect(await client.waitForDiagnostics(APP_A_URI)).toEqual([]);
+    expect(await client.waitForDiagnostics(APP_B_URI)).toEqual([]);
     const definitionA = await client.definition({
-      textDocument: { uri: appAUri },
-      position: { line: 4, character: 30 },
+      textDocument: { uri: APP_A_URI },
+      position: targetFixture({ workspace: APP_WORKSPACE, filePath: APP_A_URI }).position,
     });
     expect(definitionA).not.toBeNull();
     expect((definitionA as Array<{ targetUri: string }>)[0]!.targetUri).toBe(
@@ -83,8 +94,8 @@ describe("multi-root pathAlias", () => {
     );
 
     const definitionB = await client.definition({
-      textDocument: { uri: appBUri },
-      position: { line: 4, character: 30 },
+      textDocument: { uri: APP_B_URI },
+      position: targetFixture({ workspace: APP_WORKSPACE, filePath: APP_B_URI }).position,
     });
     expect(definitionB).not.toBeNull();
     expect((definitionB as Array<{ targetUri: string }>)[0]!.targetUri).toBe(
