@@ -1,3 +1,4 @@
+use engine_input_producers::EngineInputV2;
 use engine_style_parser::{
     ParserBoundarySyntaxFactsV0, StyleSemanticFactsV0, Stylesheet, summarize_semantic_boundary,
 };
@@ -38,6 +39,20 @@ pub struct StyleSemanticBoundarySummaryV0 {
     pub lossless_cst_contract: LosslessCstContractV0,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StyleSemanticGraphSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub language: &'static str,
+    pub parser_facts: ParserBoundarySyntaxFactsV0,
+    pub semantic_facts: StyleSemanticFactsV0,
+    pub selector_identity_engine: SelectorIdentityEngineSummaryV0,
+    pub source_input_evidence: SourceInputPromotionEvidenceSummaryV0,
+    pub promotion_evidence: SemanticPromotionEvidenceSummaryV0,
+    pub lossless_cst_contract: LosslessCstContractV0,
+}
+
 pub fn summarize_style_semantic_boundary(sheet: &Stylesheet) -> StyleSemanticBoundarySummaryV0 {
     let boundary = summarize_semantic_boundary(sheet);
     let parser_facts = boundary.parser_facts;
@@ -53,6 +68,36 @@ pub fn summarize_style_semantic_boundary(sheet: &Stylesheet) -> StyleSemanticBou
         parser_facts,
         semantic_facts,
         selector_identity_engine,
+        promotion_evidence,
+        lossless_cst_contract,
+    }
+}
+
+pub fn summarize_style_semantic_graph(
+    sheet: &Stylesheet,
+    input: &EngineInputV2,
+) -> StyleSemanticGraphSummaryV0 {
+    let boundary = summarize_semantic_boundary(sheet);
+    let parser_facts = boundary.parser_facts;
+    let semantic_facts = boundary.semantic_facts;
+    let selector_identity_engine =
+        summarize_selector_identity_engine(&semantic_facts.selector_identity);
+    let source_input_evidence = summarize_source_input_evidence(input);
+    let promotion_evidence = summarize_semantic_promotion_evidence_with_source_input(
+        &parser_facts,
+        &semantic_facts,
+        input,
+    );
+    let lossless_cst_contract = summarize_lossless_cst_contract(&parser_facts.lossless_cst);
+
+    StyleSemanticGraphSummaryV0 {
+        schema_version: "0",
+        product: "omena-semantic.style-semantic-graph",
+        language: boundary.language,
+        parser_facts,
+        semantic_facts,
+        selector_identity_engine,
+        source_input_evidence,
         promotion_evidence,
         lossless_cst_contract,
     }
@@ -80,6 +125,7 @@ mod tests {
         summarize_selector_identity_engine, summarize_semantic_promotion_evidence,
         summarize_semantic_promotion_evidence_with_source_input, summarize_source_input_evidence,
         summarize_style_semantic_boundary, summarize_style_semantic_facts,
+        summarize_style_semantic_graph,
     };
 
     #[test]
@@ -461,6 +507,34 @@ $color: red;
         );
         assert!(evidence.blocking_gaps.is_empty());
         assert!(evidence.next_priorities.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn exposes_style_semantic_graph_with_source_backed_promotion_evidence() -> Result<(), String> {
+        let sheet = parse_style_module("Component.module.scss", ".button { color: red; }")
+            .ok_or_else(|| "SCSS module path should parse".to_string())?;
+        let graph = summarize_style_semantic_graph(&sheet, &sample_engine_input());
+
+        assert_eq!(graph.product, "omena-semantic.style-semantic-graph");
+        assert_eq!(graph.language, "scss");
+        assert_eq!(graph.source_input_evidence.binding_origin.status, "ready");
+        assert_eq!(
+            graph
+                .promotion_evidence
+                .items
+                .iter()
+                .filter(|item| item.status == "gap")
+                .count(),
+            0
+        );
+        assert!(graph.promotion_evidence.blocking_gaps.is_empty());
+        assert!(
+            graph
+                .lossless_cst_contract
+                .span_invariants
+                .byte_span_contract_ready
+        );
         Ok(())
     }
 
