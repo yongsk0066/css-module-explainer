@@ -7,6 +7,7 @@ import {
   resolveStyleHoverResult,
   resolveStyleSelectorHoverResult,
 } from "../../../server/engine-host-node/src/style-hover-query";
+import type { StyleSemanticGraphSummaryV0 } from "../../../server/engine-host-node/src/style-semantic-graph-query-backend";
 import { infoAtLine, makeBaseDeps, semanticSiteAt } from "../../_fixtures/test-helpers";
 
 const SCSS_PATH = "/fake/ws/src/Button.module.scss";
@@ -83,6 +84,36 @@ describe("style hover query", () => {
       hasExpandedReferences: false,
       hasStyleDependencyReferences: false,
       hasAnyReferences: true,
+    });
+  });
+
+  it("attaches rust semantic graph selector identity metadata for selector hovers", () => {
+    const deps = makeBaseDeps({
+      selectorMapForPath: () => new Map([["indicator", infoAtLine("indicator", 5)]]),
+      workspaceRoot: "/fake/ws",
+    });
+
+    const result = resolveStyleSelectorHoverResult(
+      {
+        filePath: SCSS_PATH,
+        line: 5,
+        character: 3,
+      },
+      deps,
+      {
+        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        readRustSelectorUsagePayloadForWorkspaceTarget: () => null,
+        readRustStyleSemanticGraphForWorkspaceTarget: () => makeGraph("blocked"),
+      },
+    );
+
+    expect(result?.selectorIdentity).toMatchObject({
+      canonicalId: "selector:indicator",
+      canonicalName: "indicator",
+      identityKind: "localClass",
+      rewriteSafety: "blocked",
+      blockers: ["nested-expansion"],
+      range: { start: { line: 5, character: 1 }, end: { line: 5, character: 10 } },
     });
   });
 
@@ -415,4 +446,37 @@ describe("style hover query", () => {
 function styleDocumentMap(documents: readonly StyleDocumentHIR[]) {
   const byPath = new Map(documents.map((document) => [document.filePath, document]));
   return (filePath: string) => byPath.get(filePath) ?? null;
+}
+
+function makeGraph(rewriteSafety: "safe" | "blocked"): StyleSemanticGraphSummaryV0 {
+  return {
+    schemaVersion: "0",
+    product: "omena-semantic.style-semantic-graph",
+    language: "scss",
+    parserFacts: {},
+    semanticFacts: {},
+    selectorIdentityEngine: {
+      schemaVersion: "0",
+      product: "omena-semantic.selector-identity",
+      canonicalIdCount: 1,
+      canonicalIds: [
+        {
+          canonicalId: "selector:indicator",
+          localName: "indicator",
+          identityKind: "localClass",
+          rewriteSafety,
+          blockers: rewriteSafety === "blocked" ? ["nested-expansion"] : [],
+        },
+      ],
+      rewriteSafety: {
+        allCanonicalIdsRewriteSafe: rewriteSafety === "safe",
+        safeCanonicalIds: rewriteSafety === "safe" ? ["selector:indicator"] : [],
+        blockedCanonicalIds: rewriteSafety === "blocked" ? ["selector:indicator"] : [],
+        blockers: rewriteSafety === "blocked" ? ["nested-expansion"] : [],
+      },
+    },
+    sourceInputEvidence: {},
+    promotionEvidence: {},
+    losslessCstContract: {},
+  };
 }

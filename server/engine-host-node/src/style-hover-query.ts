@@ -36,6 +36,7 @@ import type {
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
 import {
   resolveSelectedQueryBackendKind,
+  usesRustStyleSemanticGraphBackend,
   usesRustSelectorUsageBackend,
 } from "./selected-query-backend";
 import {
@@ -43,6 +44,11 @@ import {
   resolveRustSelectorUsagePayloadForWorkspaceTarget,
   type SelectorUsageRenderSummary,
 } from "./selector-usage-query-backend";
+import {
+  buildStyleSemanticGraphSelectorIdentityReadModels,
+  resolveRustStyleSemanticGraphForWorkspaceTarget,
+  type StyleSemanticGraphSelectorIdentityReadModel,
+} from "./style-semantic-graph-query-backend";
 
 export interface StyleSelectorHoverResult {
   readonly kind: "selector";
@@ -51,6 +57,7 @@ export interface StyleSelectorHoverResult {
   readonly scssModulePath: string;
   readonly usageSummary: SelectorUsageRenderSummary;
   readonly styleDependencies: ReturnType<typeof readSelectorStyleDependencySummary>;
+  readonly selectorIdentity?: StyleSemanticGraphSelectorIdentityReadModel;
   readonly headingName?: string;
   readonly note?: string;
 }
@@ -94,6 +101,7 @@ export type StyleHoverResult =
 export interface StyleHoverQueryOptions {
   readonly env?: NodeJS.ProcessEnv;
   readonly readRustSelectorUsagePayloadForWorkspaceTarget?: typeof resolveRustSelectorUsagePayloadForWorkspaceTarget;
+  readonly readRustStyleSemanticGraphForWorkspaceTarget?: typeof resolveRustStyleSemanticGraphForWorkspaceTarget;
 }
 
 export function resolveStyleHoverResult(
@@ -112,6 +120,7 @@ export function resolveStyleHoverResult(
     | "workspaceRoot"
     | "settings"
     | "aliasResolver"
+    | "readStyleFile"
   >,
   options: StyleHoverQueryOptions = {},
 ): StyleHoverResult | null {
@@ -301,6 +310,7 @@ export function resolveStyleSelectorHoverResult(
     | "styleDependencyGraph"
     | "workspaceRoot"
     | "settings"
+    | "readStyleFile"
   >,
   options: StyleHoverQueryOptions = {},
 ): StyleSelectorHoverResult | null {
@@ -326,6 +336,7 @@ function resolveStyleSelectorHoverResultForDocument(
     | "styleDependencyGraph"
     | "workspaceRoot"
     | "settings"
+    | "readStyleFile"
   >,
   options: StyleHoverQueryOptions,
 ): StyleSelectorHoverResult | null {
@@ -347,6 +358,13 @@ function resolveStyleSelectorHoverResultForDocument(
         deps.styleDependencyGraph,
         args.filePath,
         canonicalSelector.canonicalName,
+      ),
+      ...withStyleSelectorIdentity(
+        deps,
+        styleDocument,
+        args.filePath,
+        canonicalSelector.canonicalName,
+        options,
       ),
     };
   }
@@ -375,6 +393,13 @@ function resolveStyleSelectorHoverResultForDocument(
       target.filePath,
       target.selector.canonicalName,
     ),
+    ...withStyleSelectorIdentity(
+      deps,
+      target.styleDocument,
+      target.filePath,
+      target.selector.canonicalName,
+      options,
+    ),
     headingName: composesHit.token.className,
     note: `Referenced via \`composes\` from \`.${composesHit.selector.name}\``,
   };
@@ -390,6 +415,7 @@ function resolveStyleSelectorUsageSummary(
     | "styleDependencyGraph"
     | "workspaceRoot"
     | "settings"
+    | "readStyleFile"
   >,
   filePath: string,
   canonicalName: string,
@@ -425,6 +451,45 @@ function resolveStyleSelectorUsageSummary(
     canonicalName,
   );
   return usage;
+}
+
+function withStyleSelectorIdentity(
+  deps: Pick<
+    ProviderDeps,
+    | "analysisCache"
+    | "styleDocumentForPath"
+    | "typeResolver"
+    | "workspaceRoot"
+    | "settings"
+    | "readStyleFile"
+  >,
+  styleDocument: StyleDocumentHIR,
+  filePath: string,
+  canonicalName: string,
+  options: StyleHoverQueryOptions,
+): { readonly selectorIdentity?: StyleSemanticGraphSelectorIdentityReadModel } {
+  const backend = resolveSelectedQueryBackendKind(options.env);
+  if (!usesRustStyleSemanticGraphBackend(backend)) return {};
+
+  const graph = (
+    options.readRustStyleSemanticGraphForWorkspaceTarget ??
+    resolveRustStyleSemanticGraphForWorkspaceTarget
+  )(
+    {
+      workspaceRoot: deps.workspaceRoot,
+      classnameTransform: deps.settings.scss.classnameTransform,
+      pathAlias: deps.settings.pathAlias,
+    },
+    deps,
+    filePath,
+  );
+  if (!graph) return {};
+
+  const selectorIdentity = buildStyleSemanticGraphSelectorIdentityReadModels(
+    graph,
+    styleDocument,
+  ).find((identity) => identity.canonicalName === canonicalName);
+  return selectorIdentity ? { selectorIdentity } : {};
 }
 
 function styleSymbolLanguageName(decl: SassSymbolDeclHIR): "Sass" | "Less" {
