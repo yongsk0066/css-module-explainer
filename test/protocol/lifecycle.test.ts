@@ -1,5 +1,7 @@
 import { test, expect } from "../_fixtures/protocol";
 
+const UNKNOWN_DOCUMENT_POSITION = { line: 0, character: 0 };
+
 test("returns capabilities including definitionProvider on initialize", async ({ makeClient }) => {
   const client = makeClient();
   const result = await client.initialize();
@@ -36,7 +38,7 @@ test("returns null for a definition request on an unknown document", async ({ ma
   // the pre-initialize `!deps` guard.
   const result = await client.definition({
     textDocument: { uri: "file:///never/opened.tsx" },
-    position: { line: 0, character: 0 },
+    position: UNKNOWN_DOCUMENT_POSITION,
   });
   expect(result).toBeNull();
 });
