@@ -40,16 +40,27 @@ const fixtures: readonly Fixture[] = [
 const checkOnly = process.argv.includes("--check");
 
 function parseDependency(manifest: string, dependencyName: string) {
-  const pattern = new RegExp(`^${dependencyName} = \\{ git = "([^"]+)", rev = "([^"]+)" \\}$`, "m");
+  const pattern = new RegExp(`^${escapeRegExp(dependencyName)} = \\{ ([^\\n]+) \\}$`, "m");
   const match = manifest.match(pattern);
   if (!match) {
     throw new Error(`missing pinned git dependency for ${dependencyName}`);
   }
+  const body = match[1];
+  const repoUrl = body.match(/git = "([^"]+)"/)?.[1];
+  const rev = body.match(/rev = "([^"]+)"/)?.[1];
+  if (!repoUrl || !rev) {
+    throw new Error(`invalid pinned git dependency for ${dependencyName}`);
+  }
   return {
     pattern,
-    repoUrl: match[1],
-    rev: match[2],
+    body,
+    repoUrl,
+    rev,
   };
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function resolveMainSha(repoUrl: string) {
@@ -93,7 +104,7 @@ for (const fixture of fixtures) {
 
     nextManifest = nextManifest.replace(
       dependency.pattern,
-      `${dependencyName} = { git = "${dependency.repoUrl}", rev = "${shortSha}" }`,
+      `${dependencyName} = { ${dependency.body.replace(/rev = "[^"]+"/, `rev = "${shortSha}"`)} }`,
     );
     fixtureChanged = true;
     process.stdout.write(`${dependencyLabel}: updated ${dependency.rev} -> ${shortSha}\n`);

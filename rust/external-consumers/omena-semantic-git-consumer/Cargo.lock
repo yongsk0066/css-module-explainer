@@ -3,24 +3,6 @@
 version = 4
 
 [[package]]
-name = "engine-input-producers"
-version = "0.1.0"
-source = "git+https://github.com/omenien/omena-engine-input-producers.git?rev=074b2fd#074b2fd0bfe6f61e412ab0963b8e01f9060d310a"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "engine-style-parser"
-version = "0.1.0"
-source = "git+https://github.com/omenien/omena-engine-style-parser.git?rev=76d9cde#76d9cdebf1d0477a1d574cfa2f119f3c214ae9e2"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "itoa"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -33,12 +15,30 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8ca58f447f06ed17d5fc4043ce1b10dd205e060fb3ce5b979b8ed8e59ff3f79"
 
 [[package]]
+name = "omena-engine-input-producers"
+version = "0.1.0"
+source = "git+https://github.com/omenien/omena-engine-input-producers.git?rev=0e71623#0e7162347c99640627f875e17a8570458154f68b"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "omena-engine-style-parser"
+version = "0.1.0"
+source = "git+https://github.com/omenien/omena-engine-style-parser.git?rev=561e119#561e119b00ab40eaba5bbc2a9b2148d1869b0093"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "omena-semantic"
 version = "0.1.0"
-source = "git+https://github.com/omenien/omena-semantic.git?rev=c5f1bf5#c5f1bf5a55845cbc3f268e05294345bed4adcb1f"
+source = "git+https://github.com/omenien/omena-semantic.git?rev=0ce8e09#0ce8e094fa5b16c9c0ed6539a3cb61bcd9fff06c"
 dependencies = [
- "engine-input-producers",
- "engine-style-parser",
+ "omena-engine-input-producers",
+ "omena-engine-style-parser",
  "serde",
  "serde_json",
 ]
@@ -47,8 +47,8 @@ dependencies = [
 name = "omena-semantic-git-consumer-check"
 version = "0.1.0"
 dependencies = [
- "engine-input-producers",
- "engine-style-parser",
+ "omena-engine-input-producers",
+ "omena-engine-style-parser",
  "omena-semantic",
  "serde_json",
 ]

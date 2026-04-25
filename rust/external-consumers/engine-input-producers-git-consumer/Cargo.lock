@@ -3,19 +3,10 @@
 version = 4
 
 [[package]]
-name = "engine-input-producers"
-version = "0.1.0"
-source = "git+https://github.com/omenien/omena-engine-input-producers.git?rev=074b2fd#074b2fd0bfe6f61e412ab0963b8e01f9060d310a"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "engine-input-producers-git-consumer-check"
 version = "0.1.0"
 dependencies = [
- "engine-input-producers",
+ "omena-engine-input-producers",
  "serde_json",
 ]
 
@@ -30,6 +21,15 @@ name = "memchr"
 version = "2.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8ca58f447f06ed17d5fc4043ce1b10dd205e060fb3ce5b979b8ed8e59ff3f79"
+
+[[package]]
+name = "omena-engine-input-producers"
+version = "0.1.0"
+source = "git+https://github.com/omenien/omena-engine-input-producers.git?rev=0e71623#0e7162347c99640627f875e17a8570458154f68b"
+dependencies = [
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "proc-macro2"

@@ -30,7 +30,7 @@ license = "MIT"
 publish = false
 
 [dependencies]
-engine-input-producers = { git = "${repo_url}", rev = "${repo_ref}" }
+engine-input-producers = { package = "omena-engine-input-producers", git = "${repo_url}", rev = "${repo_ref}" }
 serde_json = "1.0"
 EOF
   manifest_path="${temp_dir}/Cargo.toml"

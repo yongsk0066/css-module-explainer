@@ -30,7 +30,7 @@ license = "MIT"
 publish = false
 
 [dependencies]
-engine-style-parser = { git = "${repo_url}", rev = "${repo_ref}" }
+engine-style-parser = { package = "omena-engine-style-parser", git = "${repo_url}", rev = "${repo_ref}" }
 serde_json = "1.0"
 EOF
   manifest_path="${temp_dir}/Cargo.toml"

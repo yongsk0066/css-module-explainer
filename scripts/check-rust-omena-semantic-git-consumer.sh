@@ -61,8 +61,8 @@ license = "MIT"
 publish = false
 
 [dependencies]
-engine-input-producers = { git = "${input_repo_url}", rev = "${input_repo_ref}" }
-engine-style-parser = { git = "${parser_repo_url}", rev = "${parser_repo_ref}" }
+engine-input-producers = { package = "omena-engine-input-producers", git = "${input_repo_url}", rev = "${input_repo_ref}" }
+engine-style-parser = { package = "omena-engine-style-parser", git = "${parser_repo_url}", rev = "${parser_repo_ref}" }
 omena-semantic = { git = "${semantic_repo_url}", rev = "${semantic_repo_ref}" }
 serde_json = "1.0"
 EOF

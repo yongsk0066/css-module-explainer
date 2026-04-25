@@ -3,19 +3,10 @@
 version = 4
 
 [[package]]
-name = "engine-style-parser"
-version = "0.1.0"
-source = "git+https://github.com/omenien/omena-engine-style-parser.git?rev=76d9cde#76d9cdebf1d0477a1d574cfa2f119f3c214ae9e2"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "engine-style-parser-git-consumer-check"
 version = "0.1.0"
 dependencies = [
- "engine-style-parser",
+ "omena-engine-style-parser",
  "serde_json",
 ]
 
@@ -30,6 +21,15 @@ name = "memchr"
 version = "2.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8ca58f447f06ed17d5fc4043ce1b10dd205e060fb3ce5b979b8ed8e59ff3f79"
+
+[[package]]
+name = "omena-engine-style-parser"
+version = "0.1.0"
+source = "git+https://github.com/omenien/omena-engine-style-parser.git?rev=561e119#561e119b00ab40eaba5bbc2a9b2148d1869b0093"
+dependencies = [
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "proc-macro2"
