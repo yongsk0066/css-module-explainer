@@ -3,9 +3,11 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import {
   buildCheckPlan,
+  buildCheckSurfaceReport,
   loadCheckManifest,
   renderCheckInventory,
   renderCheckPlan,
+  renderCheckSurfaceReport,
   resolveGateTarget,
   runDoctor,
 } from "../manifest/index";
@@ -39,6 +41,9 @@ switch (parsedArgs.command) {
     break;
   case "doctor":
     runDoctorCommand(parsedArgs.json);
+    break;
+  case "surface":
+    printSurface(parsedArgs.json);
     break;
   case "inventory":
     runInventoryCommand(parsedArgs);
@@ -168,6 +173,16 @@ function runDoctorCommand(json: boolean): void {
   process.exit(errorCount === 0 ? 0 : 1);
 }
 
+function printSurface(json: boolean): void {
+  const report = buildCheckSurfaceReport(manifest);
+  if (json) {
+    console.log(JSON.stringify(report, null, 2));
+    return;
+  }
+
+  console.log(renderCheckSurfaceReport(report));
+}
+
 function runInventoryCommand(parsed: ParsedArgs): void {
   if (parsed.check && parsed.write) {
     fail("Use either --check or --write, not both.");
@@ -200,6 +215,7 @@ function printHelp(): void {
   pnpm cme-check bundle <id-or-script> [--dry] [-- extra args]
   pnpm cme-check plan <id-or-script> [--json]
   pnpm cme-check doctor [--json]
+  pnpm cme-check surface [--json]
   pnpm cme-check inventory [--check|--write]
 `);
 }

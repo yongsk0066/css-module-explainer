@@ -4,9 +4,11 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   buildCheckPlan,
+  buildCheckSurfaceReport,
   loadCheckManifest,
   renderCheckInventory,
   renderCheckPlan,
+  renderCheckSurfaceReport,
   resolveGateTarget,
   runDoctor,
 } from "../../../packages/check-orchestrator/src";
@@ -130,6 +132,23 @@ describe("check orchestrator manifest", () => {
     expect(rendered).toContain("  - rust/release/bundle (check:rust-release-bundle, bundle)");
   });
 
+  it("reports aggregate surface size for cleanup planning", () => {
+    const report = buildCheckSurfaceReport(manifest);
+    expect(report.totalGates).toBeGreaterThan(150);
+    expect(report.aliasChains).toEqual([]);
+    expect(report.largestBundles[0]).toEqual(
+      expect.objectContaining({
+        id: "release/release/verify",
+        scriptName: "release:verify",
+      }),
+    );
+
+    const rendered = renderCheckSurfaceReport(report);
+    expect(rendered).toContain("Check surface");
+    expect(rendered).toContain("Alias chains: 0");
+    expect(rendered).toContain("- release/release/verify");
+  });
+
   it("reports workflow direct script calls that bypass cme-check", () => {
     const root = mkdtempSync(path.join(os.tmpdir(), "cme-check-orchestrator-"));
     mkdirSync(path.join(root, ".github/workflows"), { recursive: true });
@@ -219,6 +238,37 @@ describe("check orchestrator manifest", () => {
         }),
       ]),
     );
+  });
+
+  it("warns on alias chains so public check surfaces stay flat", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "cme-check-orchestrator-"));
+    mkdirSync(path.join(root, ".github/workflows"), { recursive: true });
+    writeFileSync(
+      path.join(root, "package.json"),
+      JSON.stringify(
+        {
+          name: "css-module-explainer",
+          scripts: {
+            "cme-check": "node ./check.js",
+            "check:rust-checker-bounded-lanes": "echo checker",
+            "check:rust-checker-entrance": "pnpm cme-check run rust/checker/bounded-lanes",
+            "check:rust-parser-index-producer": "pnpm cme-check run rust/checker/entrance",
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    const diagnostics = runDoctor(loadCheckManifest(root));
+    expect(diagnostics).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        code: "alias-chain",
+        message:
+          'Alias "check:rust-parser-index-producer" references alias "check:rust-checker-entrance"; point to "check:rust-checker-bounded-lanes" directly or keep only one public alias.',
+      }),
+    ]);
   });
 
   it("reports non-canonical cme-check targets in checked surfaces", () => {

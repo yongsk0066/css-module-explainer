@@ -57,6 +57,35 @@ export interface CheckPlan {
   readonly steps: readonly CheckPlanStep[];
 }
 
+export interface CheckAliasChain {
+  readonly aliasId: string;
+  readonly aliasScriptName: string;
+  readonly referencedAliasId: string;
+  readonly referencedAliasScriptName: string;
+  readonly directTargetScripts: readonly string[];
+}
+
+export interface CheckBundleSurface {
+  readonly id: string;
+  readonly scriptName: string;
+  readonly scope: CheckScopeId;
+  readonly kind: CheckGateKind;
+  readonly uniqueLeafCount: number;
+  readonly totalStepCount: number;
+  readonly repeatedStepCount: number;
+  readonly maxDepth: number;
+}
+
+export interface CheckSurfaceReport {
+  readonly totalGates: number;
+  readonly gateCount: number;
+  readonly bundleCount: number;
+  readonly aliasCount: number;
+  readonly commandCount: number;
+  readonly aliasChains: readonly CheckAliasChain[];
+  readonly largestBundles: readonly CheckBundleSurface[];
+}
+
 export interface RootPackageJson {
   readonly name?: string;
   readonly scripts?: Record<string, string>;

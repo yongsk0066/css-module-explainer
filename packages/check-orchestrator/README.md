@@ -14,6 +14,7 @@ pnpm cme-check bundle tsgo/release/bundle
 pnpm cme-check bundle release/release/verify
 pnpm cme-check plan release/release/verify
 pnpm cme-check doctor
+pnpm cme-check surface
 pnpm cme-check inventory --check
 ```
 
@@ -24,7 +25,12 @@ grouping, bundle introspection, argument forwarding, execution plans, and doctor
 checks so workflows do not need to duplicate every script name.
 `doctor` also rejects GitHub workflow calls that bypass `cme-check` for
 manifest-covered package scripts, non-canonical or unknown `cme-check` targets,
-and `bundle` calls pointed at non-bundle gates.
+and `bundle` calls pointed at non-bundle gates. It warns on alias chains so
+public check names stay flat.
+
+`surface` prints the current gate count, alias-chain count, and largest bundles
+by unique leaf dependencies. Use it before broad gate rewrites to identify the
+smallest stable surface needed by the next migration.
 
 `CHECKS.md` is generated from the manifest. Update it with
 `pnpm cme-check inventory --write` after adding, renaming, or regrouping check

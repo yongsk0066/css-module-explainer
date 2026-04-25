@@ -175,8 +175,6 @@ function toTsgoGatePath(rest: string): string {
       return "release/bundle";
     case "operational-lane":
       return "operational/lane";
-    case "operational-shadow":
-      return "operational/shadow";
     case "operational-shadow-review":
       return "operational/shadow-review";
     default:

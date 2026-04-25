@@ -3,6 +3,7 @@ import path from "node:path";
 import { renderCheckInventory } from "./inventory";
 import { buildCheckPlan, renderCheckPlan } from "./plan";
 import { classifyScript } from "./scopes";
+import { buildCheckSurfaceReport, findAliasChains, renderCheckSurfaceReport } from "./surface";
 import { findWorkflowBypassDiagnostics } from "./workflows";
 import type {
   CheckBundle,
@@ -13,15 +14,24 @@ import type {
 } from "./types";
 
 export type {
+  CheckAliasChain,
   CheckBundle,
+  CheckBundleSurface,
   CheckDiagnostic,
   CheckGate,
   CheckManifest,
   CheckPlan,
   CheckPlanStep,
   CheckScopeId,
+  CheckSurfaceReport,
 } from "./types";
-export { buildCheckPlan, renderCheckInventory, renderCheckPlan };
+export {
+  buildCheckPlan,
+  buildCheckSurfaceReport,
+  renderCheckInventory,
+  renderCheckPlan,
+  renderCheckSurfaceReport,
+};
 
 const PACKAGE_SCRIPT_REF = /\bpnpm\s+(?:run\s+)?([A-Za-z0-9:_-]+)/g;
 const CHECK_ORCHESTRATOR_TARGET_REF =
@@ -36,6 +46,7 @@ export function loadCheckManifest(rootDir = findRepoRoot()): CheckManifest {
     .map(([scriptName, command]) => buildGate(scriptName, command, scripts, diagnostics));
 
   diagnostics.push(...findDuplicateGateIds(gates));
+  diagnostics.push(...findAliasChainDiagnostics(gates));
   diagnostics.push(...findCheckOrchestratorTargetDiagnostics(gates));
   diagnostics.push(...findWorkflowBypassDiagnostics(rootDir, gates));
 
@@ -238,6 +249,14 @@ function findDuplicateGateIds(gates: readonly CheckGate[]): readonly CheckDiagno
       code: "duplicate-gate-id",
       message: `Gate id "${id}" is shared by scripts: ${scripts.join(", ")}`,
     }));
+}
+
+function findAliasChainDiagnostics(gates: readonly CheckGate[]): readonly CheckDiagnostic[] {
+  return findAliasChains(gates).map((chain) => ({
+    severity: "warning" as const,
+    code: "alias-chain",
+    message: `Alias "${chain.aliasScriptName}" references alias "${chain.referencedAliasScriptName}"; point to "${chain.directTargetScripts.join(", ")}" directly or keep only one public alias.`,
+  }));
 }
 
 function readRootPackageJson(rootDir: string): RootPackageJson {
