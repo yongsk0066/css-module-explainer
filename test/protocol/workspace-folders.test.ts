@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createInProcessServer, type LspTestClient } from "./_harness/in-process-server";
 import { FakeTypeResolver } from "../_fixtures/fake-type-resolver";
-import { targetFixture, workspace } from "../../packages/vitest-cme/src";
+import { textDocumentPositionParams, workspace } from "../../packages/vitest-cme/src";
 const ROOT_A_URI = "file:///fake/workspace-a";
 const ROOT_B_URI = "file:///fake/workspace-b";
 const APP_A_URI = `${ROOT_A_URI}/src/App.tsx`;
@@ -77,10 +77,13 @@ describe("workspace folder changes", () => {
     });
 
     expect(await client.waitForDiagnostics(APP_B_URI)).toEqual([]);
-    const definition = await client.definition({
-      textDocument: { uri: APP_B_URI },
-      position: targetFixture({ workspace: APP_B_WORKSPACE, filePath: APP_B_URI }).position,
-    });
+    const definition = await client.definition(
+      textDocumentPositionParams({
+        workspace: APP_B_WORKSPACE,
+        documentUri: APP_B_URI,
+        filePath: APP_B_URI,
+      }),
+    );
     expect(definition).not.toBeNull();
     expect((definition as Array<{ targetUri: string }>)[0]!.targetUri).toBe(
       `${ROOT_B_URI}/src/Button.module.scss`,
@@ -121,10 +124,13 @@ describe("workspace folder changes", () => {
 
     expect(await client.waitForDiagnostics(APP_A_URI)).toEqual([]);
     expect(
-      await client.definition({
-        textDocument: { uri: APP_A_URI },
-        position: targetFixture({ workspace: APP_A_WORKSPACE, filePath: APP_A_URI }).position,
-      }),
+      await client.definition(
+        textDocumentPositionParams({
+          workspace: APP_A_WORKSPACE,
+          documentUri: APP_A_URI,
+          filePath: APP_A_URI,
+        }),
+      ),
     ).toBeNull();
   });
 });

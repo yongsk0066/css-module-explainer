@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createInProcessServer, type LspTestClient } from "./_harness/in-process-server";
 import { FakeTypeResolver } from "../_fixtures/fake-type-resolver";
-import { targetFixture, workspace, type CmeWorkspace } from "../../packages/vitest-cme/src";
+import {
+  textDocumentPositionParams,
+  workspace,
+  type CmeWorkspace,
+} from "../../packages/vitest-cme/src";
 
 const URI = "file:///fake/workspace/src/Button.tsx";
 
@@ -86,10 +90,13 @@ async function expectHoverToContain(
   source: CmeWorkspace,
   expected: string,
 ): Promise<void> {
-  const hover = await client.hover({
-    textDocument: { uri: URI },
-    position: targetFixture({ workspace: source, filePath: URI }).position,
-  });
+  const hover = await client.hover(
+    textDocumentPositionParams({
+      workspace: source,
+      documentUri: URI,
+      filePath: URI,
+    }),
+  );
   expect(hover).not.toBeNull();
   expect((hover!.contents as { value: string }).value).toContain(expected);
 }

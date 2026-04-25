@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createInProcessServer, type LspTestClient } from "./_harness/in-process-server";
 import { FakeTypeResolver } from "../_fixtures/fake-type-resolver";
-import { targetFixture, workspace } from "../../packages/vitest-cme/src";
+import { textDocumentPositionParams, workspace } from "../../packages/vitest-cme/src";
 
 const ROOT_A_URI = "file:///fake/workspace-a";
 const ROOT_B_URI = "file:///fake/workspace-b";
@@ -76,19 +76,25 @@ describe("multi-root resource-scoped settings", () => {
     expect(await client.waitForDiagnostics(APP_A_URI)).toEqual([]);
     expect(await client.waitForDiagnostics(APP_B_URI)).toEqual([]);
 
-    const definitionA = await client.definition({
-      textDocument: { uri: APP_A_URI },
-      position: targetFixture({ workspace: CLSX_WORKSPACE, filePath: APP_A_URI }).position,
-    });
+    const definitionA = await client.definition(
+      textDocumentPositionParams({
+        workspace: CLSX_WORKSPACE,
+        documentUri: APP_A_URI,
+        filePath: APP_A_URI,
+      }),
+    );
     expect(definitionA).not.toBeNull();
     expect((definitionA as Array<{ targetUri: string }>)[0]!.targetUri).toBe(
       `${ROOT_A_URI}/src/Button.module.scss`,
     );
 
-    const definitionB = await client.definition({
-      textDocument: { uri: APP_B_URI },
-      position: targetFixture({ workspace: CLSX_WORKSPACE, filePath: APP_B_URI }).position,
-    });
+    const definitionB = await client.definition(
+      textDocumentPositionParams({
+        workspace: CLSX_WORKSPACE,
+        documentUri: APP_B_URI,
+        filePath: APP_B_URI,
+      }),
+    );
     expect(definitionB).toBeNull();
   });
 });

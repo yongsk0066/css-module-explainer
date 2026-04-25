@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createInProcessServer, type LspTestClient } from "./_harness/in-process-server";
 import { FakeTypeResolver } from "../_fixtures/fake-type-resolver";
-import { targetFixture, workspace, type CmeWorkspace } from "../../packages/vitest-cme/src";
+import {
+  textDocumentPositionParams,
+  workspace,
+  type CmeWorkspace,
+} from "../../packages/vitest-cme/src";
 
 const itNonWindows = process.platform === "win32" ? it.skip : it;
 const ROOT_A_URI = "file:///fake/workspace-a";
@@ -92,10 +96,13 @@ describe("TS 7 Phase C / workspace edge", () => {
     });
 
     expect(
-      await client.definition({
-        textDocument: { uri: APP_A_URI },
-        position: targetFixture({ workspace: APP_A_WORKSPACE, filePath: APP_A_URI }).position,
-      }),
+      await client.definition(
+        textDocumentPositionParams({
+          workspace: APP_A_WORKSPACE,
+          documentUri: APP_A_URI,
+          filePath: APP_A_URI,
+        }),
+      ),
     ).toBeNull();
     await expectDefinitionTarget(
       client,
@@ -122,10 +129,13 @@ async function expectDefinitionTarget(
   uri: string,
   expectedTargetUri: string,
 ): Promise<void> {
-  const definition = await client.definition({
-    textDocument: { uri },
-    position: targetFixture({ workspace: source, filePath: uri }).position,
-  });
+  const definition = await client.definition(
+    textDocumentPositionParams({
+      workspace: source,
+      documentUri: uri,
+      filePath: uri,
+    }),
+  );
   expect(definition).not.toBeNull();
   expect((definition as Array<{ targetUri: string }>)[0]!.targetUri).toBe(expectedTargetUri);
 }

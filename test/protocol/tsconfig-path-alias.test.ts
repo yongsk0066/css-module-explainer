@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { expect, test } from "../_fixtures/protocol";
-import { targetFixture, workspace } from "../../packages/vitest-cme/src";
+import { textDocumentPositionParams, workspace } from "../../packages/vitest-cme/src";
 
 const TSX_URI = "file:///fake/workspace/src/Some.tsx";
 const SCSS_URI = "file:///fake/workspace/src/components/Some.module.scss";
@@ -63,10 +63,13 @@ test("tsconfig paths aliases resolve CSS Module imports across definition and co
     });
     await client.waitForDiagnostics(TSX_URI);
 
-    const definition = await client.definition({
-      textDocument: { uri: TSX_URI },
-      position: targetFixture({ workspace: TSX_WORKSPACE, filePath: TSX_URI }).position,
-    });
+    const definition = await client.definition(
+      textDocumentPositionParams({
+        workspace: TSX_WORKSPACE,
+        documentUri: TSX_URI,
+        filePath: TSX_URI,
+      }),
+    );
     expect(definition).not.toBeNull();
     expect(definition).toHaveLength(1);
     const first = definition![0]!;
