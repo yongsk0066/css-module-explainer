@@ -16,6 +16,11 @@ import {
   resolveRustSelectorUsagePayloadForWorkspaceTarget,
   type SelectorUsageRenderSummary,
 } from "./selector-usage-query-backend";
+import {
+  buildSelectorReferenceRenderSummaryFromRustGraph,
+  resolveRustStyleSelectorReferenceSummaryForWorkspaceTarget,
+  type StyleSelectorReferenceQueryOptions,
+} from "./style-selector-reference-query";
 
 export interface StyleReferenceLensSummary {
   readonly position: Position;
@@ -23,7 +28,7 @@ export interface StyleReferenceLensSummary {
   readonly locations: readonly ShowReferencesLocation[];
 }
 
-export interface StyleReferenceLensQueryOptions {
+export interface StyleReferenceLensQueryOptions extends StyleSelectorReferenceQueryOptions {
   readonly env?: NodeJS.ProcessEnv;
   readonly readRustSelectorUsagePayloadForWorkspaceTarget?: typeof resolveRustSelectorUsagePayloadForWorkspaceTarget;
 }
@@ -40,27 +45,30 @@ export function resolveStyleReferenceLenses(
     | "typeResolver"
     | "workspaceRoot"
     | "settings"
+    | "readStyleFile"
   >,
   options: StyleReferenceLensQueryOptions = {},
 ): readonly StyleReferenceLensSummary[] {
   const lenses: StyleReferenceLensSummary[] = [];
   const selectedQueryBackend = resolveSelectedQueryBackendKind(options.env);
   for (const selector of listCanonicalSelectors(styleDocument)) {
-    const usage = readSelectorUsageSummary(deps, filePath, selector.canonicalName);
-    if (!usage.hasAnyReferences) continue;
-    const rustLensResolution = usesRustSelectorUsageBackend(selectedQueryBackend)
-      ? resolveRustReferenceLensSummary(
-          deps,
-          filePath,
-          selector.canonicalName,
-          options.readRustSelectorUsagePayloadForWorkspaceTarget ??
-            resolveRustSelectorUsagePayloadForWorkspaceTarget,
-        )
-      : null;
-    const titleUsage = rustLensResolution?.usage ?? usage;
+    const rustLensResolution =
+      resolveRustGraphReferenceLensSummary(deps, filePath, selector.canonicalName, options) ??
+      (usesRustSelectorUsageBackend(selectedQueryBackend)
+        ? resolveRustReferenceLensSummary(
+            deps,
+            filePath,
+            selector.canonicalName,
+            options.readRustSelectorUsagePayloadForWorkspaceTarget ??
+              resolveRustSelectorUsagePayloadForWorkspaceTarget,
+          )
+        : null);
+    const currentUsage = readSelectorUsageSummary(deps, filePath, selector.canonicalName);
+    const titleUsage = rustLensResolution?.usage ?? currentUsage;
+    if (!titleUsage.hasAnyReferences) continue;
     const locations =
       rustLensResolution?.locations ??
-      usage.allSites.map((site) => ({
+      currentUsage.allSites.map((site) => ({
         uri: site.uri,
         range: site.range,
       }));
@@ -72,6 +80,41 @@ export function resolveStyleReferenceLenses(
     });
   }
   return lenses;
+}
+
+function resolveRustGraphReferenceLensSummary(
+  deps: Pick<
+    ProviderDeps,
+    | "analysisCache"
+    | "styleDocumentForPath"
+    | "typeResolver"
+    | "workspaceRoot"
+    | "settings"
+    | "readStyleFile"
+  >,
+  filePath: string,
+  canonicalName: string,
+  options: StyleReferenceLensQueryOptions,
+): {
+  readonly usage: SelectorUsageRenderSummary;
+  readonly locations: readonly ShowReferencesLocation[];
+} | null {
+  const selector = resolveRustStyleSelectorReferenceSummaryForWorkspaceTarget(
+    {
+      filePath,
+      canonicalName,
+    },
+    deps,
+    options,
+  );
+  if (!selector) return null;
+  return {
+    usage: buildSelectorReferenceRenderSummaryFromRustGraph(selector),
+    locations: selector.sites.map((site) => ({
+      uri: pathToFileUrl(site.filePath),
+      range: site.range,
+    })),
+  };
 }
 
 function resolveRustReferenceLensSummary(
