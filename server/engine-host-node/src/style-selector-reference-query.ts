@@ -19,7 +19,7 @@ import type { SelectorUsageRenderSummary } from "./selector-usage-query-backend"
 
 export interface StyleSelectorReferenceQueryOptions extends Pick<
   StyleSemanticGraphQueryOptions,
-  "sourceDocuments" | "styleFiles" | "styleSemanticGraphCache"
+  "engineInput" | "sourceDocuments" | "styleFiles" | "styleSemanticGraphCache"
 > {
   readonly env?: NodeJS.ProcessEnv;
   readonly readRustStyleSemanticGraphForWorkspaceTarget?: typeof resolveRustStyleSemanticGraphForWorkspaceTarget;

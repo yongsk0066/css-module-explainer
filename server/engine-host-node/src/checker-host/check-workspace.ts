@@ -6,6 +6,11 @@ import type { CheckerReportSummaryV1 } from "../../../engine-core-ts/src/contrac
 import type { ClassnameTransformMode } from "../../../engine-core-ts/src/core/scss/classname-transform";
 import { NOOP_LOG_ERROR } from "../../../engine-core-ts/src/provider-deps";
 import { DEFAULT_SETTINGS } from "../../../engine-core-ts/src/settings";
+import { buildEngineInputV2 } from "../engine-input-v2";
+import {
+  resolveSelectedQueryBackendKind,
+  usesRustStyleSemanticGraphBackend,
+} from "../selected-query-backend";
 import { resolveSourceDiagnosticFindings } from "../source-diagnostics-query";
 import { resolveStyleDiagnosticFindings } from "../style-diagnostics-query";
 import type { StyleSemanticGraphCache } from "../style-semantic-graph-query-backend";
@@ -78,8 +83,22 @@ export async function checkWorkspace(
   const findings: WorkspaceCheckerFinding[] = [];
   const sourceDiagnosticOptions = options.env ? { env: options.env } : {};
   const styleSemanticGraphCache: StyleSemanticGraphCache = new Map();
+  const selectedQueryBackend = resolveSelectedQueryBackendKind(options.env ?? process.env);
+  const styleSemanticGraphEngineInput = usesRustStyleSemanticGraphBackend(selectedQueryBackend)
+    ? buildEngineInputV2({
+        workspaceRoot,
+        classnameTransform,
+        pathAlias,
+        sourceDocuments,
+        styleFiles,
+        analysisCache: analysisHost.analysisCache,
+        styleDocumentForPath: styleHost.styleDocumentForPath,
+        typeResolver: analysisHost.typeResolver,
+      })
+    : undefined;
   const styleDiagnosticOptions = {
     ...(options.env ? { env: options.env } : {}),
+    ...(styleSemanticGraphEngineInput ? { engineInput: styleSemanticGraphEngineInput } : {}),
     sourceDocuments,
     styleFiles,
     styleSemanticGraphCache,

@@ -121,6 +121,7 @@ type StyleSemanticGraphQueryBackendOptions = Pick<
 
 export interface StyleSemanticGraphQueryOptions {
   readonly runRustSelectedQueryBackendJson?: RustJsonRunner;
+  readonly engineInput?: EngineInputV2;
   readonly sourceDocuments?: readonly SourceDocumentSnapshot[];
   readonly styleFiles?: readonly string[];
   readonly styleSemanticGraphCache?: StyleSemanticGraphCache;
@@ -142,16 +143,18 @@ export function resolveRustStyleSemanticGraph(
     return null;
   }
 
-  const engineInput = buildEngineInputV2({
-    workspaceRoot: options.workspaceRoot,
-    classnameTransform: options.classnameTransform,
-    pathAlias: options.pathAlias,
-    sourceDocuments: options.sourceDocuments,
-    styleFiles: ensureStyleFileIncluded(options.styleFiles, stylePath),
-    analysisCache: options.analysisCache,
-    styleDocumentForPath: options.styleDocumentForPath,
-    typeResolver: options.typeResolver,
-  });
+  const engineInput =
+    queryOptions.engineInput ??
+    buildEngineInputV2({
+      workspaceRoot: options.workspaceRoot,
+      classnameTransform: options.classnameTransform,
+      pathAlias: options.pathAlias,
+      sourceDocuments: options.sourceDocuments,
+      styleFiles: ensureStyleFileIncluded(options.styleFiles, stylePath),
+      analysisCache: options.analysisCache,
+      styleDocumentForPath: options.styleDocumentForPath,
+      typeResolver: options.typeResolver,
+    });
 
   const graph = runRustStyleSemanticGraph(
     {

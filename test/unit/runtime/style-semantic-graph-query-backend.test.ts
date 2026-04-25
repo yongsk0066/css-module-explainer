@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { EngineInputV2 } from "../../../server/engine-core-ts/src/contracts";
 import { DEFAULT_SETTINGS } from "../../../server/engine-core-ts/src/settings";
 import {
   buildStyleSemanticGraphSelectorIdentityReadModels,
@@ -159,6 +160,51 @@ describe("style semantic graph query backend", () => {
     expect(runnerInput?.engineInput.sources).toHaveLength(1);
     expect(runnerInput?.engineInput.sources[0]?.filePath).toBe("/fake/ws/src/App.tsx");
     expect(runnerInput?.engineInput.styles.map((style) => style.filePath)).toEqual([SCSS_PATH]);
+  });
+
+  it("reuses a precomputed engine input for style semantic graph runner calls", () => {
+    const deps = makeBaseDeps({
+      selectorMapForPath: (filePath) =>
+        filePath === SCSS_PATH ? new Map([["button", infoAtLine("button", 1)]]) : null,
+      readStyleFile: (filePath) => (filePath === SCSS_PATH ? SCSS_SOURCE : null),
+      workspaceRoot: "/fake/ws",
+    });
+    const engineInput: EngineInputV2 = {
+      version: "2",
+      workspace: {
+        root: "/fake/ws",
+        classnameTransform: DEFAULT_SETTINGS.scss.classnameTransform,
+        settingsKey: "precomputed",
+      },
+      sources: [],
+      styles: [],
+      typeFacts: [],
+    };
+    let runnerInput: StyleSemanticGraphRunnerInputV0 | null = null;
+
+    resolveRustStyleSemanticGraph(
+      {
+        workspaceRoot: "/fake/ws",
+        classnameTransform: DEFAULT_SETTINGS.scss.classnameTransform,
+        pathAlias: DEFAULT_SETTINGS.pathAlias,
+        sourceDocuments: [],
+        styleFiles: [SCSS_PATH],
+        analysisCache: deps.analysisCache,
+        styleDocumentForPath: deps.styleDocumentForPath,
+        typeResolver: deps.typeResolver,
+        readStyleFile: deps.readStyleFile,
+      },
+      SCSS_PATH,
+      {
+        engineInput,
+        runRustSelectedQueryBackendJson: <T>(_command: string, input: unknown): T => {
+          runnerInput = input as StyleSemanticGraphRunnerInputV0;
+          return makeGraph() as T;
+        },
+      },
+    );
+
+    expect(runnerInput?.engineInput).toBe(engineInput);
   });
 
   it("reuses cached workspace target graph reads for the same style path", () => {

@@ -13,7 +13,7 @@ import {
 
 export interface StyleSelectorIdentityQueryOptions extends Pick<
   StyleSemanticGraphQueryOptions,
-  "sourceDocuments" | "styleFiles" | "styleSemanticGraphCache"
+  "engineInput" | "sourceDocuments" | "styleFiles" | "styleSemanticGraphCache"
 > {
   readonly env?: NodeJS.ProcessEnv;
   readonly readRustStyleSemanticGraphForWorkspaceTarget?: typeof resolveRustStyleSemanticGraphForWorkspaceTarget;
