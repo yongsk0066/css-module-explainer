@@ -12,6 +12,8 @@ Current public products:
   identity, and rewrite-safety blockers.
 - `omena-semantic.promotion-evidence` — explicit readiness/gap checklist for
   promotion beyond output parity.
+- `omena-semantic.source-input-evidence` — `EngineInputV2`-backed reference
+  site identity and selector certainty reason evidence.
 - `omena-semantic.lossless-cst-contract` — byte-span invariants used by precise
   rename, formatter, and recovery-oriented consumers.
 
@@ -24,4 +26,11 @@ CLI smoke:
 ```sh
 printf '.button { &__icon {} }' \
   | cargo run --manifest-path rust/Cargo.toml -p omena-semantic --bin omena-semantic-boundary -- Component.module.scss
+```
+
+For `EngineInputV2` source-side evidence:
+
+```sh
+cat engine-input-v2.json \
+  | cargo run --manifest-path rust/Cargo.toml -p omena-semantic --bin omena-semantic-source-evidence
 ```

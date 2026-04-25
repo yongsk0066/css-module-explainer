@@ -1,5 +1,8 @@
+use engine_input_producers::EngineInputV2;
 use engine_style_parser::{ParserBoundarySyntaxFactsV0, StyleSemanticFactsV0};
 use serde::Serialize;
+
+use crate::summarize_source_input_evidence;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -134,4 +137,50 @@ pub fn summarize_semantic_promotion_evidence(
         blocking_gaps: vec!["referenceSiteIdentity", "certaintyReason"],
         next_priorities: vec!["referenceSiteIdentity", "certaintyReason", "bindingOrigin"],
     }
+}
+
+pub fn summarize_semantic_promotion_evidence_with_source_input(
+    parser_facts: &ParserBoundarySyntaxFactsV0,
+    semantic_facts: &StyleSemanticFactsV0,
+    input: &EngineInputV2,
+) -> SemanticPromotionEvidenceSummaryV0 {
+    let source_evidence = summarize_source_input_evidence(input);
+    let mut summary = summarize_semantic_promotion_evidence(parser_facts, semantic_facts);
+
+    for item in &mut summary.items {
+        match item.evidence {
+            "referenceSiteIdentity" => {
+                item.status = source_evidence.reference_site_identity.status;
+                item.provider = "EngineInputV2.selector-usage";
+                item.observed_count = source_evidence.reference_site_identity.reference_site_count;
+                item.reason = format!(
+                    "{} selector reference sites are identity-preserving",
+                    source_evidence.reference_site_identity.reference_site_count
+                );
+            }
+            "certaintyReason" => {
+                item.status = source_evidence.certainty_reason.status;
+                item.provider = "EngineInputV2.expression-semantics";
+                item.observed_count = source_evidence.certainty_reason.expression_count;
+                item.reason = format!(
+                    "{} source expressions expose selector certainty reasons",
+                    source_evidence.certainty_reason.expression_count
+                );
+            }
+            _ => {}
+        }
+    }
+
+    summary.blocking_gaps = summary
+        .items
+        .iter()
+        .filter(|item| item.status == "gap")
+        .map(|item| item.evidence)
+        .collect();
+    summary.next_priorities = if source_evidence.blocking_gaps.is_empty() {
+        vec!["bindingOrigin", "styleModuleEdge", "valueDomainExplanation"]
+    } else {
+        source_evidence.blocking_gaps
+    };
+    summary
 }
