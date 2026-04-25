@@ -24,6 +24,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "omena-engine-input-producers"
+version = "0.1.0"
+source = "git+https://github.com/omenien/omena-engine-input-producers.git?rev=9e4d29c#9e4d29ce7e7d1d8103ee0ef52f887e6880f6d2ea"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "omena-engine-style-parser"
+version = "0.1.0"
+source = "git+https://github.com/omenien/omena-engine-style-parser.git?rev=4dcf39d#4dcf39dbeb7a4efa651f4539e1b4872afc346e40"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "omena-engine-style-parser"
 version = "0.1.0"
 source = "git+https://github.com/omenien/omena-engine-style-parser.git?rev=561e119#561e119b00ab40eaba5bbc2a9b2148d1869b0093"
@@ -37,8 +55,8 @@ name = "omena-semantic"
 version = "0.1.0"
 source = "git+https://github.com/omenien/omena-semantic.git?rev=0ce8e09#0ce8e094fa5b16c9c0ed6539a3cb61bcd9fff06c"
 dependencies = [
- "omena-engine-input-producers",
- "omena-engine-style-parser",
+ "omena-engine-input-producers 0.1.0 (git+https://github.com/omenien/omena-engine-input-producers.git?rev=0e71623)",
+ "omena-engine-style-parser 0.1.0 (git+https://github.com/omenien/omena-engine-style-parser.git?rev=561e119)",
  "serde",
  "serde_json",
 ]
@@ -47,8 +65,8 @@ dependencies = [
 name = "omena-semantic-git-consumer-check"
 version = "0.1.0"
 dependencies = [
- "omena-engine-input-producers",
- "omena-engine-style-parser",
+ "omena-engine-input-producers 0.1.0 (git+https://github.com/omenien/omena-engine-input-producers.git?rev=9e4d29c)",
+ "omena-engine-style-parser 0.1.0 (git+https://github.com/omenien/omena-engine-style-parser.git?rev=4dcf39d)",
  "omena-semantic",
  "serde_json",
 ]
