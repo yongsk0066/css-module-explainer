@@ -386,7 +386,14 @@ function sourceCursorParams(
 function sourcePositionParams(cursor: CursorParams) {
   return {
     textDocument: { uri: cursor.documentUri },
-    position: { line: cursor.line, character: cursor.character },
+    position: cursorPosition(cursor),
+  };
+}
+
+function cursorPosition(cursor: CursorParams) {
+  return {
+    line: cursor.line,
+    character: cursor.character,
   };
 }
 
