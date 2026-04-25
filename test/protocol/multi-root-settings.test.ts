@@ -1,17 +1,30 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createInProcessServer, type LspTestClient } from "./_harness/in-process-server";
 import { FakeTypeResolver } from "../_fixtures/fake-type-resolver";
+import { targetFixture, workspace } from "../../packages/vitest-cme/src";
 
 const ROOT_A_URI = "file:///fake/workspace-a";
 const ROOT_B_URI = "file:///fake/workspace-b";
+const APP_A_URI = `${ROOT_A_URI}/src/Button.tsx`;
+const APP_B_URI = `${ROOT_B_URI}/src/Button.tsx`;
 const itNonWindows = process.platform === "win32" ? it.skip : it;
 
-const CLSX_TSX = `import clsx from 'clsx';
+const CLSX_WORKSPACE = workspace({
+  [APP_A_URI]: `import clsx from 'clsx';
 import styles from './Button.module.scss';
 export function Button() {
-  return <div className={clsx(styles.fooBar)}>hi</div>;
+  return <div className={clsx(styles./*|*/fooBar)}>hi</div>;
 }
-`;
+`,
+  [APP_B_URI]: `import clsx from 'clsx';
+import styles from './Button.module.scss';
+export function Button() {
+  return <div className={clsx(styles./*|*/fooBar)}>hi</div>;
+}
+`,
+});
+
+const CLSX_TSX = CLSX_WORKSPACE.file(APP_A_URI).content;
 
 const SCSS = `.foo-bar { color: red; }\n`;
 
@@ -43,12 +56,9 @@ describe("multi-root resource-scoped settings", () => {
     });
     client.initialized();
 
-    const appAUri = `${ROOT_A_URI}/src/Button.tsx`;
-    const appBUri = `${ROOT_B_URI}/src/Button.tsx`;
-
     client.didOpen({
       textDocument: {
-        uri: appAUri,
+        uri: APP_A_URI,
         languageId: "typescriptreact",
         version: 1,
         text: CLSX_TSX,
@@ -56,19 +66,19 @@ describe("multi-root resource-scoped settings", () => {
     });
     client.didOpen({
       textDocument: {
-        uri: appBUri,
+        uri: APP_B_URI,
         languageId: "typescriptreact",
         version: 1,
         text: CLSX_TSX,
       },
     });
 
-    expect(await client.waitForDiagnostics(appAUri)).toEqual([]);
-    expect(await client.waitForDiagnostics(appBUri)).toEqual([]);
+    expect(await client.waitForDiagnostics(APP_A_URI)).toEqual([]);
+    expect(await client.waitForDiagnostics(APP_B_URI)).toEqual([]);
 
     const definitionA = await client.definition({
-      textDocument: { uri: appAUri },
-      position: { line: 3, character: 37 },
+      textDocument: { uri: APP_A_URI },
+      position: targetFixture({ workspace: CLSX_WORKSPACE, filePath: APP_A_URI }).position,
     });
     expect(definitionA).not.toBeNull();
     expect((definitionA as Array<{ targetUri: string }>)[0]!.targetUri).toBe(
@@ -76,8 +86,8 @@ describe("multi-root resource-scoped settings", () => {
     );
 
     const definitionB = await client.definition({
-      textDocument: { uri: appBUri },
-      position: { line: 3, character: 37 },
+      textDocument: { uri: APP_B_URI },
+      position: targetFixture({ workspace: CLSX_WORKSPACE, filePath: APP_B_URI }).position,
     });
     expect(definitionB).toBeNull();
   });

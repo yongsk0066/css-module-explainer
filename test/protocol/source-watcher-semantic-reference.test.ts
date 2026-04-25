@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { FileChangeType } from "vscode-languageserver-protocol/node";
 import { createInProcessServer, type LspTestClient } from "./_harness/in-process-server";
 import type { Range, ResolvedType } from "@css-module-explainer/shared";
+import { targetFixture, workspace } from "../../packages/vitest-cme/src";
 import type {
   ResolveTypeOptions,
   TypeResolver,
@@ -55,6 +56,9 @@ class MutableFakeTypeResolver implements TypeResolver {
 // Uses a bare variable `cx(size)` (not a template `cx(\`btn-${size}\`)`)
 // so the semantic expansion goes through `expandVariableRef` →
 // `typeResolver.resolve`, not `expandTemplateRef` (prefix match).
+const TSX_URI = "file:///fake/workspace/src/App.tsx";
+const SCSS_URI = "file:///fake/workspace/src/app.module.scss";
+
 const APP_TSX = `import classNames from 'classnames/bind';
 import styles from './app.module.scss';
 import { size } from './theme';
@@ -63,6 +67,10 @@ export function App() {
   return <div className={cx(size)}>hi</div>;
 }
 `;
+
+const SCSS_WORKSPACE = workspace({
+  [SCSS_URI]: ".s/*at:small*/mall { color: red; }\n.l/*at:large*/arge { color: blue; }\n",
+});
 
 describe("source-watcher → semantic reference freshness", () => {
   let client: LspTestClient | null = null;
@@ -76,7 +84,7 @@ describe("source-watcher → semantic reference freshness", () => {
     // TypeResolver initially resolves `size` to "small", so
     // `expandVariableRef` records a semantic reference for `small`.
     const typeResolver = new MutableFakeTypeResolver(["small"]);
-    const scssContent = ".small { color: red; }\n.large { color: blue; }\n";
+    const scssContent = SCSS_WORKSPACE.file(SCSS_URI).content;
 
     client = createInProcessServer({
       readStyleFile: () => scssContent,
@@ -85,12 +93,9 @@ describe("source-watcher → semantic reference freshness", () => {
     await client.initialize();
     client.initialized();
 
-    const tsxUri = "file:///fake/workspace/src/App.tsx";
-    const scssUri = "file:///fake/workspace/src/app.module.scss";
-
     client.didOpen({
       textDocument: {
-        uri: tsxUri,
+        uri: TSX_URI,
         languageId: "typescriptreact",
         version: 1,
         text: APP_TSX,
@@ -99,26 +104,34 @@ describe("source-watcher → semantic reference freshness", () => {
 
     // Initial diagnostics — triggers onAnalyze, populates
     // semantic references with the `small` expansion via expandVariableRef.
-    await client.waitForDiagnostics(tsxUri);
+    await client.waitForDiagnostics(TSX_URI);
 
     // Sanity: Find References on `.small` returns the TSX site.
     const refsSmall = await client.references({
-      textDocument: { uri: scssUri },
-      position: { line: 0, character: 2 }, // inside `.small`
+      textDocument: { uri: SCSS_URI },
+      position: targetFixture({
+        workspace: SCSS_WORKSPACE,
+        filePath: SCSS_URI,
+        markerName: "small",
+      }).position,
       context: { includeDeclaration: false },
     });
     expect(refsSmall).not.toBeNull();
-    expect(refsSmall!.some((loc) => loc.uri === tsxUri)).toBe(true);
+    expect(refsSmall!.some((loc) => loc.uri === TSX_URI)).toBe(true);
 
     // `.large` should NOT have a reference yet — typeResolver
     // only returned ["small"].
     const refsLargeBefore = await client.references({
-      textDocument: { uri: scssUri },
-      position: { line: 1, character: 2 }, // inside `.large`
+      textDocument: { uri: SCSS_URI },
+      position: targetFixture({
+        workspace: SCSS_WORKSPACE,
+        filePath: SCSS_URI,
+        markerName: "large",
+      }).position,
       context: { includeDeclaration: false },
     });
     const hadLargeBefore =
-      refsLargeBefore !== null && refsLargeBefore.some((loc) => loc.uri === tsxUri);
+      refsLargeBefore !== null && refsLargeBefore.some((loc) => loc.uri === TSX_URI);
     expect(hadLargeBefore).toBe(false);
 
     // Simulate source change: `size` now resolves to "large".
@@ -138,18 +151,22 @@ describe("source-watcher → semantic reference freshness", () => {
     // Wait for the debounced re-diagnostics — the analysis cache
     // must have been invalidated so `onAnalyze` re-fires with the
     // new type-resolver output.
-    await client.waitForDiagnostics(tsxUri);
+    await client.waitForDiagnostics(TSX_URI);
 
     // `.large` should now have a reference from the variable
     // expansion.
     const refsLargeAfter = await client.references({
-      textDocument: { uri: scssUri },
-      position: { line: 1, character: 2 }, // inside `.large`
+      textDocument: { uri: SCSS_URI },
+      position: targetFixture({
+        workspace: SCSS_WORKSPACE,
+        filePath: SCSS_URI,
+        markerName: "large",
+      }).position,
       context: { includeDeclaration: false },
     });
     expect(refsLargeAfter).not.toBeNull();
     expect(refsLargeAfter!.length).toBeGreaterThan(0);
-    expect(refsLargeAfter!.some((loc) => loc.uri === tsxUri)).toBe(true);
+    expect(refsLargeAfter!.some((loc) => loc.uri === TSX_URI)).toBe(true);
     expect(typeResolver.invalidations).toBe(1);
   });
 
@@ -164,18 +181,16 @@ describe("source-watcher → semantic reference freshness", () => {
     await client.initialize();
     client.initialized();
 
-    const tsxUri = "file:///fake/workspace/src/App.tsx";
-
     client.didOpen({
       textDocument: {
-        uri: tsxUri,
+        uri: TSX_URI,
         languageId: "typescriptreact",
         version: 1,
         text: APP_TSX,
       },
     });
 
-    await client.waitForDiagnostics(tsxUri);
+    await client.waitForDiagnostics(TSX_URI);
 
     client.didChangeWatchedFiles({
       changes: [
@@ -186,7 +201,7 @@ describe("source-watcher → semantic reference freshness", () => {
       ],
     });
 
-    await expect(client.waitForDiagnostics(tsxUri, 200)).rejects.toThrow(/timed out/u);
+    await expect(client.waitForDiagnostics(TSX_URI, 200)).rejects.toThrow(/timed out/u);
     expect(typeResolver.invalidations).toBe(0);
   });
 });

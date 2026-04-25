@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { FileChangeType } from "vscode-languageserver-protocol/node";
 import { createInProcessServer, type LspTestClient } from "./_harness/in-process-server";
 import { FakeTypeResolver } from "../_fixtures/fake-type-resolver";
+import { targetFixture, workspace } from "../../packages/vitest-cme/src";
 
 // Semantic reference TSX staleness on watched-file change.
 //
@@ -21,6 +22,9 @@ import { FakeTypeResolver } from "../_fixtures/fake-type-resolver";
 // `scheduleTsx` cycle cache-misses, re-analyzes, and
 // re-contributes fresh semantic sites.
 
+const TSX_URI = "file:///fake/workspace/src/App.tsx";
+const SCSS_URI = "file:///fake/workspace/src/app.module.scss";
+
 const APP_TSX = `import classNames from 'classnames/bind';
 import styles from './app.module.scss';
 const cx = classNames.bind(styles);
@@ -29,6 +33,14 @@ export function App() {
   return <div className={cx(\`btn-\${size}\`)}>hi</div>;
 }
 `;
+
+const INITIAL_SCSS_WORKSPACE = workspace({
+  [SCSS_URI]: ".bt/*at:small*/n-small { color: red; }\n",
+});
+
+const UPDATED_SCSS_WORKSPACE = workspace({
+  [SCSS_URI]: ".bt/*at:small*/n-small { color: red; }\n.bt/*at:large*/n-large { color: blue; }\n",
+});
 
 describe("semantic reference staleness on watched SCSS change", () => {
   let client: LspTestClient | null = null;
@@ -42,7 +54,7 @@ describe("semantic reference staleness on watched SCSS change", () => {
     // SCSS starts with only `.btn-small`. The template expansion
     // in the TSX should initially produce a single expanded
     // semantic reference for `btn-small`.
-    let scssContent = ".btn-small { color: red; }\n";
+    let scssContent = INITIAL_SCSS_WORKSPACE.file(SCSS_URI).content;
     client = createInProcessServer({
       readStyleFile: () => scssContent,
       typeResolver: new FakeTypeResolver(),
@@ -50,12 +62,9 @@ describe("semantic reference staleness on watched SCSS change", () => {
     await client.initialize();
     client.initialized();
 
-    const tsxUri = "file:///fake/workspace/src/App.tsx";
-    const scssUri = "file:///fake/workspace/src/app.module.scss";
-
     client.didOpen({
       textDocument: {
-        uri: tsxUri,
+        uri: TSX_URI,
         languageId: "typescriptreact",
         version: 1,
         text: APP_TSX,
@@ -65,20 +74,24 @@ describe("semantic reference staleness on watched SCSS change", () => {
     // First diagnostics push — forces the initial analyze, which
     // populates semantic references with the template's expansion
     // against the current classMap (`.btn-small` only).
-    const first = await client.waitForDiagnostics(tsxUri);
+    const first = await client.waitForDiagnostics(TSX_URI);
     expect(first).toEqual([]);
 
     // Sanity check: the template expansion recorded `btn-small`.
     // Find References on the existing `.btn-small` selector in
     // the SCSS file must return the template call site.
     const initialRefs = await client.references({
-      textDocument: { uri: scssUri },
-      position: { line: 0, character: 3 }, // inside `.btn-small`
+      textDocument: { uri: SCSS_URI },
+      position: targetFixture({
+        workspace: INITIAL_SCSS_WORKSPACE,
+        filePath: SCSS_URI,
+        markerName: "small",
+      }).position,
       context: { includeDeclaration: false },
     });
     expect(initialRefs).not.toBeNull();
     expect(initialRefs!.length).toBeGreaterThan(0);
-    expect(initialRefs!.some((loc) => loc.uri === tsxUri)).toBe(true);
+    expect(initialRefs!.some((loc) => loc.uri === TSX_URI)).toBe(true);
 
     // Now "change" the SCSS on disk: add `.btn-large {}`. The
     // current semantic expansion still only knows about
@@ -88,11 +101,11 @@ describe("semantic reference staleness on watched SCSS change", () => {
     // through — which requires the TSX analysis cache to be
     // invalidated so `onAnalyze` re-fires against the new
     // classMap.
-    scssContent = ".btn-small { color: red; }\n.btn-large { color: blue; }\n";
+    scssContent = UPDATED_SCSS_WORKSPACE.file(SCSS_URI).content;
     client.didChangeWatchedFiles({
       changes: [
         {
-          uri: scssUri,
+          uri: SCSS_URI,
           type: FileChangeType.Changed,
         },
       ],
@@ -107,17 +120,21 @@ describe("semantic reference staleness on watched SCSS change", () => {
     // semantic reference for `btn-large` is never recorded —
     // `handleReferences` then returns `null` on the empty bucket
     // and the assertion below fails.
-    const second = await client.waitForDiagnostics(tsxUri);
+    const second = await client.waitForDiagnostics(TSX_URI);
     expect(second).toEqual([]);
 
     const refsAfter = await client.references({
-      textDocument: { uri: scssUri },
-      position: { line: 1, character: 3 }, // inside `.btn-large`
+      textDocument: { uri: SCSS_URI },
+      position: targetFixture({
+        workspace: UPDATED_SCSS_WORKSPACE,
+        filePath: SCSS_URI,
+        markerName: "large",
+      }).position,
       context: { includeDeclaration: false },
     });
     // The template expansion must now include `btn-large`.
     expect(refsAfter).not.toBeNull();
     expect(refsAfter!.length).toBeGreaterThan(0);
-    expect(refsAfter!.some((loc) => loc.uri === tsxUri)).toBe(true);
+    expect(refsAfter!.some((loc) => loc.uri === TSX_URI)).toBe(true);
   });
 });
