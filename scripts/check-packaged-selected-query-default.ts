@@ -86,6 +86,14 @@ if (defaultBackend !== "rust-selected-query") {
   throw new Error(`Expected packaged default backend rust-selected-query, got ${defaultBackend}`);
 }
 
+const autoBackend = resolveSelectedQueryBackendKind(
+  { ...packagedEnv, CME_SELECTED_QUERY_BACKEND: "auto" },
+  fileExists,
+);
+if (autoBackend !== "rust-selected-query") {
+  throw new Error(`Expected packaged auto backend rust-selected-query, got ${autoBackend}`);
+}
+
 const explicitTypescriptBackend = resolveSelectedQueryBackendKind(
   { ...packagedEnv, CME_SELECTED_QUERY_BACKEND: "typescript-current" },
   fileExists,

@@ -50,18 +50,13 @@ export const SCOPE_DEFINITIONS: readonly ScopeDefinition[] = [
       scriptName.startsWith("check:tsgo-") ||
       scriptName === "check:release-batch-tsgo" ||
       scriptName === "check:real-project-corpus-tsgo" ||
-      scriptName === "check:lsp-server-smoke-tsgo" ||
-      scriptName === "check:operational-lane" ||
-      scriptName === "check:operational-shadow" ||
-      scriptName === "check:operational-shadow-review",
+      scriptName === "check:lsp-server-smoke-tsgo",
     toGateId: (scriptName) =>
-      scriptName.startsWith("check:operational-")
-        ? `operational/${toTsgoGatePath(stripCheckPrefix(scriptName).replace(/^operational-/, ""))}`
-        : `tsgo/${toTsgoGatePath(
-            stripCheckPrefix(scriptName)
-              .replace(/^tsgo-/, "")
-              .replace(/-tsgo$/, ""),
-          )}`,
+      `tsgo/${toTsgoGatePath(
+        stripCheckPrefix(scriptName)
+          .replace(/^tsgo-/, "")
+          .replace(/-tsgo$/, ""),
+      )}`,
   },
   {
     id: "plugin",
