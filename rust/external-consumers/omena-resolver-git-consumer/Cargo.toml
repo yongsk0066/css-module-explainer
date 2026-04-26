@@ -3,7 +3,7 @@ members = ["."]
 resolver = "2"
 
 [package]
-name = "omena-query-git-consumer-check"
+name = "omena-resolver-git-consumer-check"
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
@@ -11,5 +11,5 @@ publish = false
 
 [dependencies]
 engine-input-producers = { package = "omena-engine-input-producers", git = "https://github.com/omenien/omena-engine-input-producers.git", rev = "9e4d29c" }
-omena-query = { git = "https://github.com/omenien/omena-query.git", rev = "5abdd01" }
+omena-resolver = { git = "https://github.com/omenien/omena-resolver.git", rev = "4018a24" }
 serde_json = "1.0"
