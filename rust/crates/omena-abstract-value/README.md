@@ -11,6 +11,9 @@ Current public product:
   class-value lattice and selector projection certainty contract.
 - `intersect_abstract_class_values` — reduced-product intersection over finite,
   prefix, suffix, character-inclusion, and composite class-value domains.
+- `reduced_abstract_class_value_from_facts` /
+  `reduced_value_domain_kind_from_facts` — source fact reduction before
+  evaluator-facing domain-kind reporting.
 
 Primary check:
 

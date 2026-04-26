@@ -1467,6 +1467,125 @@ export function deriveTsExpressionDomainCanonicalCandidateBundle(
   };
 }
 
+const MAX_EXPECTED_FINITE_CLASS_VALUES = 8;
+
+type ExpressionValueDomainPayloadLike = {
+  readonly valueDomainKind: string;
+  readonly valueConstraintKind?: string;
+  readonly valuePrefix?: string;
+  readonly valueSuffix?: string;
+  readonly valueMinLen?: number;
+  readonly valueCharMust?: string;
+  readonly valueCharMay?: string;
+  readonly valueMayIncludeOtherChars?: boolean;
+  readonly finiteValues?: readonly string[];
+};
+
+function deriveReducedExpressionValueDomainKind(payload: ExpressionValueDomainPayloadLike): string {
+  if (payload.valueDomainKind === "none" || payload.valueDomainKind === "unknown") {
+    return "none";
+  }
+
+  if (payload.valueDomainKind === "top") {
+    return "top";
+  }
+
+  if (payload.valueDomainKind === "exact") {
+    if (!payload.finiteValues?.length) return "top";
+    return hasExpressionValueConstraintDetails(payload)
+      ? finiteExpressionValueDomainKind(
+          payload.finiteValues.filter((value) => expressionValueMatchesConstraint(payload, value)),
+        )
+      : "exact";
+  }
+
+  if (payload.valueDomainKind === "finiteSet") {
+    const values = payload.finiteValues ?? [];
+    return hasExpressionValueConstraintDetails(payload)
+      ? finiteExpressionValueDomainKind(
+          values.filter((value) => expressionValueMatchesConstraint(payload, value)),
+        )
+      : finiteExpressionValueDomainKind(values);
+  }
+
+  if (payload.valueDomainKind === "constrained") {
+    if (payload.finiteValues?.length) {
+      return finiteExpressionValueDomainKind(
+        payload.finiteValues.filter((value) => expressionValueMatchesConstraint(payload, value)),
+      );
+    }
+    return payload.valueConstraintKind ?? "top";
+  }
+
+  return payload.valueDomainKind;
+}
+
+function hasExpressionValueConstraintDetails(payload: ExpressionValueDomainPayloadLike): boolean {
+  return (
+    payload.valueConstraintKind !== undefined ||
+    payload.valuePrefix !== undefined ||
+    payload.valueSuffix !== undefined ||
+    payload.valueMinLen !== undefined ||
+    payload.valueCharMust !== undefined ||
+    payload.valueCharMay !== undefined ||
+    payload.valueMayIncludeOtherChars !== undefined
+  );
+}
+
+function finiteExpressionValueDomainKind(values: readonly string[]): string {
+  const uniqueCount = new Set(values).size;
+  if (uniqueCount === 0) return "bottom";
+  if (uniqueCount === 1) return "exact";
+  if (uniqueCount <= MAX_EXPECTED_FINITE_CLASS_VALUES) return "finiteSet";
+  return "composite";
+}
+
+function expressionValueMatchesConstraint(
+  payload: ExpressionValueDomainPayloadLike,
+  value: string,
+): boolean {
+  switch (payload.valueConstraintKind) {
+    case "prefix":
+      return value.startsWith(payload.valuePrefix ?? "");
+    case "suffix":
+      return value.endsWith(payload.valueSuffix ?? "");
+    case "prefixSuffix":
+      return (
+        value.startsWith(payload.valuePrefix ?? "") &&
+        value.endsWith(payload.valueSuffix ?? "") &&
+        value.length >= (payload.valueMinLen ?? 0)
+      );
+    case "charInclusion":
+      return expressionValueMatchesCharConstraint(payload, value);
+    case "composite":
+      return (
+        (!payload.valuePrefix || value.startsWith(payload.valuePrefix)) &&
+        (!payload.valueSuffix || value.endsWith(payload.valueSuffix)) &&
+        value.length >= (payload.valueMinLen ?? 0) &&
+        expressionValueMatchesCharConstraint(payload, value)
+      );
+    default:
+      return true;
+  }
+}
+
+function expressionValueMatchesCharConstraint(
+  payload: ExpressionValueDomainPayloadLike,
+  value: string,
+): boolean {
+  const valueChars = new Set(value);
+  for (const char of payload.valueCharMust ?? "") {
+    if (!valueChars.has(char)) return false;
+  }
+  if (payload.valueMayIncludeOtherChars) return true;
+
+  const mayChars = new Set([...(payload.valueCharMay ?? ""), ...(payload.valueCharMust ?? "")]);
+  for (const char of valueChars) {
+    if (!mayChars.has(char)) return false;
+  }
+  return true;
+}
+
 export function deriveTsExpressionDomainEvaluatorCandidates(
   snapshot: EngineParitySnapshotV2,
 ): ExpressionDomainEvaluatorCandidatesV0 {
@@ -1478,7 +1597,7 @@ export function deriveTsExpressionDomainEvaluatorCandidates(
       queryId: query.queryId,
       payload: {
         expressionId: query.payload.expressionId,
-        valueDomainKind: query.payload.valueDomainKind,
+        valueDomainKind: deriveReducedExpressionValueDomainKind(query.payload),
         ...(query.payload.valueConstraintKind
           ? { valueConstraintKind: query.payload.valueConstraintKind }
           : {}),

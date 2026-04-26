@@ -6,7 +6,7 @@ use crate::{
     ExpressionDomainCanonicalProducerSignalV0, ExpressionDomainEvaluatorCandidatePayloadV0,
     ExpressionDomainEvaluatorCandidateV0, ExpressionDomainEvaluatorCandidatesV0,
     ExpressionDomainFragmentV0, ExpressionDomainFragmentsV0, ExpressionDomainPlanSummaryV0,
-    collect_constraint_detail_counts, map_expression_value_domain_kind,
+    collect_constraint_detail_counts, map_reduced_expression_value_domain_kind,
 };
 
 struct ExpressionDomainInputRows {
@@ -91,7 +91,7 @@ fn collect_expression_domain_input_rows(input: &EngineInputV2) -> ExpressionDoma
             query_id: entry.expression_id.clone(),
             payload: ExpressionDomainEvaluatorCandidatePayloadV0 {
                 expression_id: entry.expression_id.clone(),
-                value_domain_kind: map_expression_value_domain_kind(&entry.facts),
+                value_domain_kind: map_reduced_expression_value_domain_kind(&entry.facts),
                 value_constraint_kind: entry.facts.constraint_kind.clone(),
                 value_prefix: entry.facts.prefix.clone(),
                 value_suffix: entry.facts.suffix.clone(),
@@ -214,7 +214,7 @@ mod tests {
         summarize_expression_domain_evaluator_candidates_input,
         summarize_expression_domain_fragments_input, summarize_expression_domain_plan_input,
     };
-    use crate::test_support::sample_input;
+    use crate::{StringTypeFactsV2, TypeFactEntryV2, test_support::sample_input};
 
     #[test]
     fn summarizes_expression_domain_counts() {
@@ -287,12 +287,47 @@ mod tests {
         assert_eq!(summary.results.len(), 2);
         assert_eq!(summary.results[0].kind, "expression-domain");
         assert_eq!(summary.results[0].query_id, "expr-1");
-        assert_eq!(summary.results[0].payload.value_domain_kind, "constrained");
+        assert_eq!(summary.results[0].payload.value_domain_kind, "prefixSuffix");
         assert_eq!(
             summary.results[0].payload.value_constraint_kind.as_deref(),
             Some("prefixSuffix")
         );
         assert_eq!(summary.results[1].payload.finite_value_count, 2);
+    }
+
+    #[test]
+    fn expression_domain_evaluator_reports_reduced_value_domain_kind() {
+        let mut input = sample_input();
+        input.type_facts.push(TypeFactEntryV2 {
+            file_path: "/tmp/App.tsx".to_string(),
+            expression_id: "expr-3".to_string(),
+            facts: StringTypeFactsV2 {
+                kind: "finiteSet".to_string(),
+                constraint_kind: Some("prefix".to_string()),
+                values: Some(vec!["btn-active".to_string(), "card".to_string()]),
+                prefix: Some("btn-".to_string()),
+                suffix: None,
+                min_len: None,
+                max_len: None,
+                char_must: None,
+                char_may: None,
+                may_include_other_chars: None,
+            },
+        });
+
+        let fragments = summarize_expression_domain_fragments_input(&input);
+        let candidates = summarize_expression_domain_candidates_input(&input);
+        let evaluator_candidates = summarize_expression_domain_evaluator_candidates_input(&input);
+
+        assert_eq!(fragments.fragments[2].expression_id, "expr-3");
+        assert_eq!(fragments.fragments[2].value_domain_kind, "finiteSet");
+        assert_eq!(candidates.candidates[2].expression_id, "expr-3");
+        assert_eq!(candidates.candidates[2].value_domain_kind, "finiteSet");
+        assert_eq!(evaluator_candidates.results[2].query_id, "expr-3");
+        assert_eq!(
+            evaluator_candidates.results[2].payload.value_domain_kind,
+            "exact"
+        );
     }
 
     #[test]

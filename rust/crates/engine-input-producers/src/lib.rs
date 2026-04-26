@@ -965,6 +965,11 @@ pub(crate) fn map_expression_value_domain_kind(facts: &StringTypeFactsV2) -> Str
     omena_abstract_value::expression_value_domain_kind_from_facts(&abstract_value_facts(facts))
 }
 
+pub(crate) fn map_reduced_expression_value_domain_kind(facts: &StringTypeFactsV2) -> String {
+    omena_abstract_value::reduced_value_domain_kind_from_facts(&abstract_value_facts(facts))
+        .to_string()
+}
+
 pub(crate) fn map_value_certainty(facts: &StringTypeFactsV2) -> Option<String> {
     omena_abstract_value::value_certainty_from_facts(&abstract_value_facts(facts))
         .map(str::to_string)

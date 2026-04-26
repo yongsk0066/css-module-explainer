@@ -291,6 +291,20 @@ pub fn enumerate_finite_class_values(value: &AbstractClassValueV0) -> Option<Vec
     }
 }
 
+pub fn abstract_class_value_kind(value: &AbstractClassValueV0) -> &'static str {
+    match value {
+        AbstractClassValueV0::Bottom => "bottom",
+        AbstractClassValueV0::Exact { .. } => "exact",
+        AbstractClassValueV0::FiniteSet { .. } => "finiteSet",
+        AbstractClassValueV0::Prefix { .. } => "prefix",
+        AbstractClassValueV0::Suffix { .. } => "suffix",
+        AbstractClassValueV0::PrefixSuffix { .. } => "prefixSuffix",
+        AbstractClassValueV0::CharInclusion { .. } => "charInclusion",
+        AbstractClassValueV0::Composite { .. } => "composite",
+        AbstractClassValueV0::Top => "top",
+    }
+}
+
 pub fn intersect_abstract_class_values(
     left: &AbstractClassValueV0,
     right: &AbstractClassValueV0,
@@ -302,6 +316,33 @@ pub fn intersect_abstract_class_values(
         (AbstractClassValueV0::Top, value) | (value, AbstractClassValueV0::Top) => value.clone(),
         _ => intersect_non_top_class_values(left, right),
     }
+}
+
+pub fn reduced_abstract_class_value_from_facts(
+    facts: &ExternalStringTypeFactsV0,
+) -> AbstractClassValueV0 {
+    let mut value = abstract_class_value_from_facts(facts);
+
+    if facts_have_constraint_details(facts) && matches!(facts.kind.as_str(), "exact" | "finiteSet")
+    {
+        value = intersect_abstract_class_values(&value, &constrained_class_value_from_facts(facts));
+    }
+
+    if !matches!(facts.kind.as_str(), "exact" | "finiteSet")
+        && let Some(values) = facts.values.as_ref().filter(|values| !values.is_empty())
+    {
+        value = intersect_abstract_class_values(&value, &finite_set_class_value(values.clone()));
+    }
+
+    value
+}
+
+pub fn reduced_value_domain_kind_from_facts(facts: &ExternalStringTypeFactsV0) -> &'static str {
+    if facts.kind == "unknown" {
+        return "none";
+    }
+
+    abstract_class_value_kind(&reduced_abstract_class_value_from_facts(facts))
 }
 
 pub fn abstract_class_value_from_facts(facts: &ExternalStringTypeFactsV0) -> AbstractClassValueV0 {
@@ -1089,6 +1130,16 @@ fn is_false(value: &bool) -> bool {
     !value
 }
 
+fn facts_have_constraint_details(facts: &ExternalStringTypeFactsV0) -> bool {
+    facts.constraint_kind.is_some()
+        || facts.prefix.is_some()
+        || facts.suffix.is_some()
+        || facts.min_len.is_some()
+        || facts.char_must.is_some()
+        || facts.char_may.is_some()
+        || facts.may_include_other_chars.is_some()
+}
+
 fn constrained_class_value_from_facts(facts: &ExternalStringTypeFactsV0) -> AbstractClassValueV0 {
     match facts.constraint_kind.as_deref() {
         Some("prefix") => prefix_class_value(facts.prefix.clone().unwrap_or_default(), None),
@@ -1166,12 +1217,14 @@ mod tests {
     use super::{
         AbstractClassValueProvenanceV0, AbstractClassValueV0, CompositeClassValueInputV0,
         ExternalStringTypeFactsV0, MAX_FINITE_CLASS_VALUES, SelectorProjectionCertaintyV0,
-        abstract_class_value_from_facts, char_inclusion_class_value, composite_class_value,
-        derive_selector_projection_certainty, exact_class_value, finite_set_class_value,
-        finite_values_from_facts, intersect_abstract_class_values, prefix_class_value,
-        prefix_suffix_class_value, project_abstract_value_selectors, selector_certainty_from_facts,
-        selector_certainty_shape_kind_from_facts, selector_certainty_shape_label_from_facts,
-        suffix_class_value, summarize_omena_abstract_value_domain, value_certainty_from_facts,
+        abstract_class_value_from_facts, bottom_class_value, char_inclusion_class_value,
+        composite_class_value, derive_selector_projection_certainty, exact_class_value,
+        finite_set_class_value, finite_values_from_facts, intersect_abstract_class_values,
+        prefix_class_value, prefix_suffix_class_value, project_abstract_value_selectors,
+        reduced_abstract_class_value_from_facts, reduced_value_domain_kind_from_facts,
+        selector_certainty_from_facts, selector_certainty_shape_kind_from_facts,
+        selector_certainty_shape_label_from_facts, suffix_class_value,
+        summarize_omena_abstract_value_domain, value_certainty_from_facts,
         value_certainty_shape_kind_from_facts, value_certainty_shape_label_from_facts,
     };
 
@@ -1409,6 +1462,51 @@ mod tests {
                 &char_inclusion_class_value("", "abc", None, false),
             ),
             AbstractClassValueV0::Bottom
+        );
+    }
+
+    #[test]
+    fn reduces_external_facts_before_reporting_domain_kind() {
+        let finite_with_prefix = external_facts("finiteSet")
+            .with_values(["btn-primary", "card"])
+            .with_constraint_kind("prefix")
+            .with_prefix("btn-");
+
+        assert_eq!(
+            reduced_abstract_class_value_from_facts(&finite_with_prefix),
+            exact_class_value("btn-primary")
+        );
+        assert_eq!(
+            reduced_value_domain_kind_from_facts(&finite_with_prefix),
+            "exact"
+        );
+
+        let constrained_with_values = external_facts("constrained")
+            .with_values(["btn-primary", "card"])
+            .with_constraint_kind("prefix")
+            .with_prefix("btn-");
+
+        assert_eq!(
+            reduced_abstract_class_value_from_facts(&constrained_with_values),
+            exact_class_value("btn-primary")
+        );
+
+        let finite_with_conflicting_prefix = external_facts("finiteSet")
+            .with_values(["btn-primary", "card"])
+            .with_constraint_kind("prefix")
+            .with_prefix("nav-");
+
+        assert_eq!(
+            reduced_abstract_class_value_from_facts(&finite_with_conflicting_prefix),
+            bottom_class_value()
+        );
+        assert_eq!(
+            reduced_value_domain_kind_from_facts(&finite_with_conflicting_prefix),
+            "bottom"
+        );
+        assert_eq!(
+            reduced_value_domain_kind_from_facts(&external_facts("unknown")),
+            "none"
         );
     }
 
