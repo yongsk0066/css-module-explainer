@@ -28,6 +28,9 @@ describe("check orchestrator manifest", () => {
     expect(resolveGateTarget(manifest, "rust/omena-query/adapter-capabilities")?.scriptName).toBe(
       "check:rust-omena-query-adapter-capabilities",
     );
+    expect(resolveGateTarget(manifest, "rust/omena-resolver/boundary")?.scriptName).toBe(
+      "check:rust-omena-resolver-boundary",
+    );
     expect(resolveGateTarget(manifest, "ts7/phase-b/protocol@tsgo")?.scriptName).toBe(
       "check:ts7-phase-b-protocol-tsgo",
     );

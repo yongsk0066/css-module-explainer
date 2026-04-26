@@ -6,6 +6,7 @@ members = [
   "crates/omena-abstract-value",
   "crates/omena-bridge",
   "crates/omena-query",
+  "crates/omena-resolver",
   "crates/omena-semantic",
 ]
 resolver = "2"

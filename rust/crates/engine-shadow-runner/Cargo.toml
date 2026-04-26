@@ -11,5 +11,6 @@ workspace = true
 [dependencies]
 engine-input-producers = { path = "../engine-input-producers" }
 omena-query = { path = "../omena-query" }
+omena-resolver = { path = "../omena-resolver" }
 serde.workspace = true
 serde_json.workspace = true

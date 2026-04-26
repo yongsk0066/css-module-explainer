@@ -4,6 +4,8 @@ Internal Rust crate for the Omena query boundary.
 
 This crate owns the consumer-facing query surface that groups producer query
 fragments with the abstract-value projection contract.
+Source-resolution wrappers now route through `omena-resolver` so resolver
+ownership can move independently while query output contracts stay stable.
 
 Current public products:
 

@@ -7,12 +7,13 @@ use engine_input_producers::{
     summarize_expression_semantics_query_fragments_input,
     summarize_selector_usage_canonical_producer_signal_input,
     summarize_selector_usage_query_fragments_input,
-    summarize_source_resolution_canonical_producer_signal_input,
-    summarize_source_resolution_query_fragments_input,
 };
 use omena_abstract_value::{AbstractValueDomainSummaryV0, summarize_omena_abstract_value_domain};
 use omena_bridge::{
     StyleSemanticGraphSummaryV0, summarize_omena_bridge_style_semantic_graph_from_source,
+};
+use omena_resolver::{
+    summarize_omena_resolver_canonical_producer_signal, summarize_omena_resolver_query_fragments,
 };
 use serde::Serialize;
 
@@ -110,6 +111,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
         delegated_fragment_products: vec![
             "engine-input-producers.expression-semantics-query-fragments",
             "engine-input-producers.source-resolution-query-fragments",
+            "omena-resolver.boundary",
             "engine-input-producers.selector-usage-query-fragments",
         ],
         expression_semantics_query_count,
@@ -121,6 +123,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
         ready_surfaces: vec![
             "queryFragmentBundle",
             "abstractValueProjectionContract",
+            "sourceResolutionResolverBoundary",
             "queryBoundarySummary",
         ],
         cme_coupled_surfaces: vec!["EngineInputV2", "producerQueryFragments"],
@@ -239,7 +242,7 @@ pub fn summarize_omena_query_expression_semantics_query_fragments(
 pub fn summarize_omena_query_source_resolution_query_fragments(
     input: &EngineInputV2,
 ) -> SourceResolutionQueryFragmentsV0 {
-    summarize_source_resolution_query_fragments_input(input)
+    summarize_omena_resolver_query_fragments(input)
 }
 
 pub fn summarize_omena_query_selector_usage_query_fragments(
@@ -251,7 +254,7 @@ pub fn summarize_omena_query_selector_usage_query_fragments(
 pub fn summarize_omena_query_source_resolution_canonical_producer_signal(
     input: &EngineInputV2,
 ) -> SourceResolutionCanonicalProducerSignalV0 {
-    summarize_source_resolution_canonical_producer_signal_input(input)
+    summarize_omena_resolver_canonical_producer_signal(input)
 }
 
 pub fn summarize_omena_query_expression_semantics_canonical_producer_signal(
@@ -346,6 +349,16 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"abstractValueProjectionContract")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"sourceResolutionResolverBoundary")
+        );
+        assert!(
+            summary
+                .delegated_fragment_products
+                .contains(&"omena-resolver.boundary")
         );
         assert!(
             summary
