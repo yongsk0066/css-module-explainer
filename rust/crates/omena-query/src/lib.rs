@@ -1,7 +1,13 @@
 use engine_input_producers::{
-    EngineInputV2, ExpressionSemanticsQueryFragmentsV0, SelectorUsageQueryFragmentsV0,
-    SourceResolutionQueryFragmentsV0, summarize_expression_semantics_query_fragments_input,
+    EngineInputV2, ExpressionSemanticsCanonicalProducerSignalV0,
+    ExpressionSemanticsQueryFragmentsV0, SelectorUsageCanonicalProducerSignalV0,
+    SelectorUsageQueryFragmentsV0, SourceResolutionCanonicalProducerSignalV0,
+    SourceResolutionQueryFragmentsV0,
+    summarize_expression_semantics_canonical_producer_signal_input,
+    summarize_expression_semantics_query_fragments_input,
+    summarize_selector_usage_canonical_producer_signal_input,
     summarize_selector_usage_query_fragments_input,
+    summarize_source_resolution_canonical_producer_signal_input,
     summarize_source_resolution_query_fragments_input,
 };
 use omena_abstract_value::{AbstractValueDomainSummaryV0, summarize_omena_abstract_value_domain};
@@ -186,6 +192,7 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
         ],
         adapter_readiness: vec![
             "backendCapabilityMatrix",
+            "canonicalProducerWrapperBoundary",
             "runnerCommandContract",
             "fragmentBundleBoundary",
         ],
@@ -204,6 +211,24 @@ pub fn summarize_omena_query_fragment_bundle(input: &EngineInputV2) -> OmenaQuer
     }
 }
 
+pub fn summarize_omena_query_source_resolution_canonical_producer_signal(
+    input: &EngineInputV2,
+) -> SourceResolutionCanonicalProducerSignalV0 {
+    summarize_source_resolution_canonical_producer_signal_input(input)
+}
+
+pub fn summarize_omena_query_expression_semantics_canonical_producer_signal(
+    input: &EngineInputV2,
+) -> ExpressionSemanticsCanonicalProducerSignalV0 {
+    summarize_expression_semantics_canonical_producer_signal_input(input)
+}
+
+pub fn summarize_omena_query_selector_usage_canonical_producer_signal(
+    input: &EngineInputV2,
+) -> SelectorUsageCanonicalProducerSignalV0 {
+    summarize_selector_usage_canonical_producer_signal_input(input)
+}
+
 #[cfg(test)]
 mod tests {
     use engine_input_producers::{
@@ -214,8 +239,11 @@ mod tests {
 
     use super::{
         SelectedQueryAdapterCapabilitiesV0, summarize_omena_query_boundary,
+        summarize_omena_query_expression_semantics_canonical_producer_signal,
         summarize_omena_query_fragment_bundle,
         summarize_omena_query_selected_query_adapter_capabilities,
+        summarize_omena_query_selector_usage_canonical_producer_signal,
+        summarize_omena_query_source_resolution_canonical_producer_signal,
     };
 
     #[test]
@@ -306,6 +334,35 @@ mod tests {
                 .any(|command| command.command == "style-semantic-graph-batch")
         );
         assert!(summary.adapter_readiness.contains(&"runnerCommandContract"));
+        assert!(
+            summary
+                .adapter_readiness
+                .contains(&"canonicalProducerWrapperBoundary")
+        );
+    }
+
+    #[test]
+    fn owns_selected_query_canonical_producer_wrappers_without_changing_products() {
+        let input = sample_input();
+
+        let source = summarize_omena_query_source_resolution_canonical_producer_signal(&input);
+        assert_eq!(source.schema_version, "0");
+        assert_eq!(source.input_version, "2");
+        assert_eq!(source.canonical_bundle.query_fragments.len(), 2);
+        assert_eq!(source.evaluator_candidates.results.len(), 2);
+
+        let expression =
+            summarize_omena_query_expression_semantics_canonical_producer_signal(&input);
+        assert_eq!(expression.schema_version, "0");
+        assert_eq!(expression.input_version, "2");
+        assert_eq!(expression.canonical_bundle.query_fragments.len(), 2);
+        assert_eq!(expression.evaluator_candidates.results.len(), 2);
+
+        let selector = summarize_omena_query_selector_usage_canonical_producer_signal(&input);
+        assert_eq!(selector.schema_version, "0");
+        assert_eq!(selector.input_version, "2");
+        assert_eq!(selector.canonical_bundle.query_fragments.len(), 2);
+        assert_eq!(selector.evaluator_candidates.results.len(), 2);
     }
 
     fn backend<'a>(

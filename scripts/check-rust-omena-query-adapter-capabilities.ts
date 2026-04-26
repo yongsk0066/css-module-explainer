@@ -74,6 +74,7 @@ void (async () => {
   ]);
   assert.deepEqual([...summary.adapterReadiness].toSorted(), [
     "backendCapabilityMatrix",
+    "canonicalProducerWrapperBoundary",
     "fragmentBundleBoundary",
     "runnerCommandContract",
   ]);
