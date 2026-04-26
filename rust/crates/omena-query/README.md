@@ -29,3 +29,9 @@ Primary check:
 ```sh
 pnpm cme-check run rust/omena-query/boundary
 ```
+
+Boundary ownership check:
+
+```sh
+pnpm cme-check run rust/omena-query/runner-boundary
+```
