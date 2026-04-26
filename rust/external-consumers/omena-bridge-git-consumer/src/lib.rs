@@ -128,6 +128,13 @@ mod tests {
             graph.source_input_evidence.reference_site_identity.status,
             "ready"
         );
+        assert_eq!(
+            graph
+                .source_input_evidence
+                .value_domain_explanation
+                .derivation_count,
+            1
+        );
         assert!(graph.promotion_evidence.blocking_gaps.is_empty());
         Ok(())
     }
@@ -159,6 +166,10 @@ mod tests {
             json!("omena-semantic.source-input-evidence")
         );
         assert_eq!(value["referenceSiteIdentity"]["status"], json!("ready"));
+        assert_eq!(
+            value["valueDomainExplanation"]["derivationOperationCounts"]["baseFromFacts"],
+            json!(1)
+        );
         Ok(())
     }
 }

@@ -131,6 +131,21 @@ mod tests {
             "ready"
         );
         assert_eq!(graph.source_input_evidence.binding_origin.status, "ready");
+        assert_eq!(
+            graph
+                .source_input_evidence
+                .value_domain_explanation
+                .derivation_count,
+            1
+        );
+        assert_eq!(
+            graph
+                .source_input_evidence
+                .value_domain_explanation
+                .derivation_product_counts
+                .get("omena-abstract-value.reduced-class-value-derivation"),
+            Some(&1)
+        );
         assert!(graph.promotion_evidence.blocking_gaps.is_empty());
         assert!(
             graph
@@ -159,6 +174,11 @@ mod tests {
         assert_eq!(
             value["sourceInputEvidence"]["styleModuleEdge"]["status"],
             json!("ready")
+        );
+        assert_eq!(
+            value["sourceInputEvidence"]["valueDomainExplanation"]["derivationReducedKindCounts"]
+                ["exact"],
+            json!(1)
         );
         Ok(())
     }
