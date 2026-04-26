@@ -309,13 +309,19 @@ Current checker policy:
 - `pnpm check:rust-parser-split-boundary` verifies the full parser split boundary: parser public-product validation inside the monorepo plus remote git-consumer validation against `omena-engine-style-parser`
 - `pnpm check:rust-input-producers-git-consumer` verifies that the split input-producers repo can be consumed as a remote git dependency by the repo-stored standalone fixture at `rust/external-consumers/engine-input-producers-git-consumer`
 - `pnpm check:rust-input-producers-split-boundary` verifies the full input-producers split boundary: monorepo producer-boundary validation plus remote git-consumer validation against `omena-engine-input-producers`
-- `pnpm check:rust-split-boundaries` runs both current Rust split-boundary checks together
+- `pnpm check:rust-split-boundaries` runs the current Rust split-boundary checks together
+- `pnpm check:rust-split-publish-readiness` verifies the published split crate set against crates.io metadata, registry dependency contracts, and `cargo publish --dry-run`
 - `pnpm check:rust-split-consumer-pins` verifies that the repo-stored split consumer fixtures are pinned to the current `main` commit of each split repo
 - `pnpm update:rust-split-consumer-pins` refreshes those fixture refs plus lockfiles when the split repos advance
 - The current external Rust split boundaries are:
   - `omenien/omena-engine-input-producers`
   - `omenien/omena-engine-style-parser`
-  - keep both pinned behind repeatable remote-consumer checks before any new rename or public packaging move
+  - `omenien/omena-semantic`
+  - `omenien/omena-abstract-value`
+  - `omenien/omena-resolver`
+  - `omenien/omena-bridge`
+  - `omenien/omena-query`
+  - keep them pinned behind repeatable remote-consumer checks before any new rename or public packaging move
 - `pnpm check:rust-parser-parity-lite` compares the Rust parser scaffold against the current TS style parser on a bounded shared fixture set
 - `pnpm check:rust-parser-css-modules-intermediate` compares the Rust parser CSS Modules intermediate facts against the current TS style HIR on a bounded shared fixture set
 - `pnpm check:rust-parser-index-producer` remains as a compatibility alias for the same intermediate producer check
@@ -397,7 +403,7 @@ Current checker policy:
   - LSP providers now consume `engine-host-node` query helpers instead of importing `core/query` internals directly, and `pnpm check:provider-host-routing-boundary` guards that provider boundary
   - style providers now consume Rust-backed semantic graph read models for selector identity, references, diagnostics, completions, rename safety, hover metadata, and style-module usage through host-side caches
   - `pnpm check:rust-phase-2-swap-readiness` batches provider host-routing, selected-query default-candidate, and checker release-gate shadow evidence as the v4.1 candidate cut line
-  - the `omena-semantic` Rust boundary is published-ready and externally consumable, but this is not yet an omena-semantic V1 freeze
+  - the Omena Rust split crates are published and externally consumable through crates.io, but this is not yet an omena-semantic or bridge V1 freeze
   - `CME_TYPE_FACT_BACKEND` now defaults to `tsgo`, with `typescript-current` retained as an explicit comparison fallback
   - `tsgo` is wired into release-batch, real-project corpus, LSP smoke, protocol/editing, server build, workspace build, and Phase C edge-readiness checks
   - the current release-shaped TS 7 aggregate is `pnpm check:tsgo-release-bundle`, and `pnpm release:verify` includes it
