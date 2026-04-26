@@ -30,3 +30,9 @@ Primary check:
 ```sh
 cargo test --manifest-path rust/Cargo.toml -p omena-bridge
 ```
+
+Split boundary check:
+
+```sh
+pnpm cme-check bundle rust/omena-bridge/split-boundary
+```
