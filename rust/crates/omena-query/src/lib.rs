@@ -15,6 +15,7 @@ pub struct OmenaQueryBoundarySummaryV0 {
     pub query_engine_name: &'static str,
     pub input_version: String,
     pub abstract_value_domain: AbstractValueDomainSummaryV0,
+    pub selected_query_adapter_capabilities: SelectedQueryAdapterCapabilitiesV0,
     pub delegated_fragment_products: Vec<&'static str>,
     pub expression_semantics_query_count: usize,
     pub source_resolution_query_count: usize,
@@ -36,6 +37,38 @@ pub struct OmenaQueryFragmentBundleV0 {
     pub selector_usage: SelectorUsageQueryFragmentsV0,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SelectedQueryAdapterCapabilitiesV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub default_candidate_backend: &'static str,
+    pub backend_kinds: Vec<SelectedQueryBackendCapabilityV0>,
+    pub runner_commands: Vec<SelectedQueryRunnerCommandV0>,
+    pub required_input_contracts: Vec<&'static str>,
+    pub adapter_readiness: Vec<&'static str>,
+    pub routing_status: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SelectedQueryBackendCapabilityV0 {
+    pub backend_kind: &'static str,
+    pub source_resolution: bool,
+    pub expression_semantics: bool,
+    pub selector_usage: bool,
+    pub style_semantic_graph: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SelectedQueryRunnerCommandV0 {
+    pub surface: &'static str,
+    pub command: &'static str,
+    pub input_contract: &'static str,
+    pub output_product: &'static str,
+}
+
 pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBoundarySummaryV0 {
     let fragment_bundle = summarize_omena_query_fragment_bundle(input);
     let expression_semantics_query_count = fragment_bundle.expression_semantics.fragments.len();
@@ -48,6 +81,8 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
         query_engine_name: "omena-query",
         input_version: input.version.clone(),
         abstract_value_domain: summarize_omena_abstract_value_domain(),
+        selected_query_adapter_capabilities:
+            summarize_omena_query_selected_query_adapter_capabilities(),
         delegated_fragment_products: vec![
             "engine-input-producers.expression-semantics-query-fragments",
             "engine-input-producers.source-resolution-query-fragments",
@@ -66,6 +101,95 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
         ],
         cme_coupled_surfaces: vec!["EngineInputV2", "producerQueryFragments"],
         next_decoupling_targets: vec!["queryEvaluationRuntime", "selectedQueryBackendAdapter"],
+    }
+}
+
+pub fn summarize_omena_query_selected_query_adapter_capabilities()
+-> SelectedQueryAdapterCapabilitiesV0 {
+    SelectedQueryAdapterCapabilitiesV0 {
+        schema_version: "0",
+        product: "omena-query.selected-query-adapter-capabilities",
+        default_candidate_backend: "rust-selected-query",
+        backend_kinds: vec![
+            SelectedQueryBackendCapabilityV0 {
+                backend_kind: "typescript-current",
+                source_resolution: false,
+                expression_semantics: false,
+                selector_usage: false,
+                style_semantic_graph: false,
+            },
+            SelectedQueryBackendCapabilityV0 {
+                backend_kind: "rust-source-resolution",
+                source_resolution: true,
+                expression_semantics: false,
+                selector_usage: false,
+                style_semantic_graph: false,
+            },
+            SelectedQueryBackendCapabilityV0 {
+                backend_kind: "rust-expression-semantics",
+                source_resolution: false,
+                expression_semantics: true,
+                selector_usage: false,
+                style_semantic_graph: false,
+            },
+            SelectedQueryBackendCapabilityV0 {
+                backend_kind: "rust-selector-usage",
+                source_resolution: false,
+                expression_semantics: false,
+                selector_usage: true,
+                style_semantic_graph: false,
+            },
+            SelectedQueryBackendCapabilityV0 {
+                backend_kind: "rust-selected-query",
+                source_resolution: true,
+                expression_semantics: true,
+                selector_usage: true,
+                style_semantic_graph: true,
+            },
+        ],
+        runner_commands: vec![
+            SelectedQueryRunnerCommandV0 {
+                surface: "sourceResolution",
+                command: "input-source-resolution-canonical-producer",
+                input_contract: "EngineInputV2",
+                output_product: "engine-input-producers.source-resolution-canonical-producer",
+            },
+            SelectedQueryRunnerCommandV0 {
+                surface: "expressionSemantics",
+                command: "input-expression-semantics-canonical-producer",
+                input_contract: "EngineInputV2",
+                output_product: "engine-input-producers.expression-semantics-canonical-producer",
+            },
+            SelectedQueryRunnerCommandV0 {
+                surface: "selectorUsage",
+                command: "input-selector-usage-canonical-producer",
+                input_contract: "EngineInputV2",
+                output_product: "engine-input-producers.selector-usage-canonical-producer",
+            },
+            SelectedQueryRunnerCommandV0 {
+                surface: "styleSemanticGraph",
+                command: "style-semantic-graph",
+                input_contract: "StyleSemanticGraphInputV0",
+                output_product: "omena-semantic.style-semantic-graph",
+            },
+            SelectedQueryRunnerCommandV0 {
+                surface: "styleSemanticGraphBatch",
+                command: "style-semantic-graph-batch",
+                input_contract: "StyleSemanticGraphBatchInputV0",
+                output_product: "omena-semantic.style-semantic-graph-batch",
+            },
+        ],
+        required_input_contracts: vec![
+            "EngineInputV2",
+            "StyleSemanticGraphInputV0",
+            "StyleSemanticGraphBatchInputV0",
+        ],
+        adapter_readiness: vec![
+            "backendCapabilityMatrix",
+            "runnerCommandContract",
+            "fragmentBundleBoundary",
+        ],
+        routing_status: "declaredOnly",
     }
 }
 
@@ -88,7 +212,11 @@ mod tests {
         StyleSelectorV2, TypeFactEntryV2,
     };
 
-    use super::{summarize_omena_query_boundary, summarize_omena_query_fragment_bundle};
+    use super::{
+        SelectedQueryAdapterCapabilitiesV0, summarize_omena_query_boundary,
+        summarize_omena_query_fragment_bundle,
+        summarize_omena_query_selected_query_adapter_capabilities,
+    };
 
     #[test]
     fn summarizes_query_boundary_over_producer_fragments() {
@@ -102,6 +230,10 @@ mod tests {
         assert_eq!(
             summary.abstract_value_domain.product,
             "omena-abstract-value.domain"
+        );
+        assert_eq!(
+            summary.selected_query_adapter_capabilities.product,
+            "omena-query.selected-query-adapter-capabilities"
         );
         assert_eq!(summary.expression_semantics_query_count, 2);
         assert_eq!(summary.source_resolution_query_count, 2);
@@ -133,6 +265,57 @@ mod tests {
         assert_eq!(bundle.source_resolution.fragments[1].query_id, "expr-2");
         assert_eq!(bundle.selector_usage.fragments.len(), 2);
         assert_eq!(bundle.selector_usage.fragments[0].query_id, "btn-active");
+    }
+
+    #[test]
+    fn declares_selected_query_adapter_capabilities_without_flipping_runtime_routing() {
+        let summary = summarize_omena_query_selected_query_adapter_capabilities();
+
+        assert_eq!(summary.schema_version, "0");
+        assert_eq!(
+            summary.product,
+            "omena-query.selected-query-adapter-capabilities"
+        );
+        assert_eq!(summary.default_candidate_backend, "rust-selected-query");
+        assert_eq!(summary.routing_status, "declaredOnly");
+
+        let unified = backend(&summary, "rust-selected-query");
+        assert!(unified.is_some());
+        let Some(unified) = unified else {
+            return;
+        };
+        assert!(unified.source_resolution);
+        assert!(unified.expression_semantics);
+        assert!(unified.selector_usage);
+        assert!(unified.style_semantic_graph);
+
+        let source_only = backend(&summary, "rust-source-resolution");
+        assert!(source_only.is_some());
+        let Some(source_only) = source_only else {
+            return;
+        };
+        assert!(source_only.source_resolution);
+        assert!(!source_only.expression_semantics);
+        assert!(!source_only.selector_usage);
+        assert!(!source_only.style_semantic_graph);
+
+        assert!(
+            summary
+                .runner_commands
+                .iter()
+                .any(|command| command.command == "style-semantic-graph-batch")
+        );
+        assert!(summary.adapter_readiness.contains(&"runnerCommandContract"));
+    }
+
+    fn backend<'a>(
+        summary: &'a SelectedQueryAdapterCapabilitiesV0,
+        backend_kind: &str,
+    ) -> Option<&'a super::SelectedQueryBackendCapabilityV0> {
+        summary
+            .backend_kinds
+            .iter()
+            .find(|backend| backend.backend_kind == backend_kind)
     }
 
     fn sample_input() -> EngineInputV2 {
