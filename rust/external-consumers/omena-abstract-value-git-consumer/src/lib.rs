@@ -34,7 +34,8 @@ mod tests {
     use super::{consume_domain_summary_product, consume_prefix_suffix_projection};
     use omena_abstract_value::{
         AbstractClassValueV0, ExternalStringTypeFactsV0, abstract_class_value_from_facts,
-        enumerate_finite_class_values, finite_set_class_value,
+        char_inclusion_class_value, enumerate_finite_class_values, finite_set_class_value,
+        intersect_abstract_class_values, prefix_class_value, suffix_class_value,
         value_certainty_shape_kind_from_facts,
     };
     use serde_json::json;
@@ -84,6 +85,43 @@ mod tests {
         assert_eq!(
             value_certainty_shape_kind_from_facts(&facts),
             "boundedFinite"
+        );
+    }
+
+    #[test]
+    fn consumes_reduced_product_intersection_contract() {
+        let finite = finite_set_class_value(["btn-primary", "card", "btn-secondary"]);
+        let prefix = prefix_class_value("btn-", None);
+
+        assert_eq!(
+            intersect_abstract_class_values(&finite, &prefix),
+            AbstractClassValueV0::FiniteSet {
+                values: vec!["btn-primary".to_string(), "btn-secondary".to_string()]
+            }
+        );
+
+        let edge = intersect_abstract_class_values(
+            &prefix_class_value("btn-", None),
+            &suffix_class_value("-active", None),
+        );
+        let reduced = intersect_abstract_class_values(
+            &edge,
+            &char_inclusion_class_value("ab", "-abceintv", None, false),
+        );
+
+        assert_eq!(
+            reduced,
+            AbstractClassValueV0::Composite {
+                prefix: Some("btn-".to_string()),
+                suffix: Some("-active".to_string()),
+                min_length: Some("btn--active".len()),
+                must_chars: "-abceintv".to_string(),
+                may_chars: "-abceintv".to_string(),
+                may_include_other_chars: false,
+                provenance: Some(
+                    omena_abstract_value::AbstractClassValueProvenanceV0::CompositeJoin
+                ),
+            }
         );
     }
 

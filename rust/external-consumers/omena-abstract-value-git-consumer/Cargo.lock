@@ -17,7 +17,7 @@ checksum = "f8ca58f447f06ed17d5fc4043ce1b10dd205e060fb3ce5b979b8ed8e59ff3f79"
 [[package]]
 name = "omena-abstract-value"
 version = "0.1.0"
-source = "git+https://github.com/omenien/omena-abstract-value.git?rev=a6f15b4#a6f15b4362d9dd5b19c42f263638344eda8dffef"
+source = "git+https://github.com/omenien/omena-abstract-value.git?rev=0c55b95#0c55b95e41eb321a1f06fd9a134790ea9e33ec3d"
 dependencies = [
  "serde",
 ]
