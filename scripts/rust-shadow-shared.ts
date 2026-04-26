@@ -703,8 +703,41 @@ export interface CheckerStyleUnusedCanonicalProducerSignalV0 {
   };
 }
 
+export interface OmenaQuerySelectedQueryBackendCapabilityV0 {
+  readonly backendKind: string;
+  readonly sourceResolution: boolean;
+  readonly expressionSemantics: boolean;
+  readonly selectorUsage: boolean;
+  readonly styleSemanticGraph: boolean;
+}
+
+export interface OmenaQuerySelectedQueryRunnerCommandV0 {
+  readonly surface: string;
+  readonly command: string;
+  readonly inputContract: string;
+  readonly outputProduct: string;
+}
+
+export interface OmenaQuerySelectedQueryAdapterCapabilitiesV0 {
+  readonly schemaVersion: string;
+  readonly product: string;
+  readonly defaultCandidateBackend: string;
+  readonly backendKinds: readonly OmenaQuerySelectedQueryBackendCapabilityV0[];
+  readonly runnerCommands: readonly OmenaQuerySelectedQueryRunnerCommandV0[];
+  readonly requiredInputContracts: readonly string[];
+  readonly adapterReadiness: readonly string[];
+  readonly routingStatus: string;
+}
+
 export async function runShadow(snapshot: unknown): Promise<ShadowSummaryV0> {
   return runShadowJson<ShadowSummaryV0>([], snapshot);
+}
+
+export async function runShadowOmenaQuerySelectedQueryAdapterCapabilities(): Promise<OmenaQuerySelectedQueryAdapterCapabilitiesV0> {
+  return runShadowJson<OmenaQuerySelectedQueryAdapterCapabilitiesV0>(
+    ["omena-query-selected-query-adapter-capabilities"],
+    null,
+  );
 }
 
 export async function runShadowTypeFactInput(

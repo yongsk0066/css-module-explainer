@@ -23,6 +23,14 @@ export interface SelectedQueryBackendDocument {
   readonly version: number;
 }
 
+export const SELECTED_QUERY_RUNNER_COMMANDS = {
+  sourceResolutionCanonicalProducer: "input-source-resolution-canonical-producer",
+  expressionSemanticsCanonicalProducer: "input-expression-semantics-canonical-producer",
+  selectorUsageCanonicalProducer: "input-selector-usage-canonical-producer",
+  styleSemanticGraph: "style-semantic-graph",
+  styleSemanticGraphBatch: "style-semantic-graph-batch",
+} as const;
+
 export function resolveSelectedQueryBackendKind(
   env: NodeJS.ProcessEnv = process.env,
   fileExists: (filePath: string) => boolean = existsSync,

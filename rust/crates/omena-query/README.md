@@ -18,5 +18,5 @@ Current public products:
 Primary check:
 
 ```sh
-cargo test --manifest-path rust/Cargo.toml -p omena-query
+pnpm cme-check run rust/omena-query/boundary
 ```

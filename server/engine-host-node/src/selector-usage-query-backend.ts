@@ -5,7 +5,10 @@ import {
   collectSourceDocuments,
   resolveWorkspaceCheckFilesSync,
 } from "./checker-host/workspace-check-support";
-import { runRustSelectedQueryBackendJson } from "./selected-query-backend";
+import {
+  SELECTED_QUERY_RUNNER_COMMANDS,
+  runRustSelectedQueryBackendJson,
+} from "./selected-query-backend";
 import type { BuildSelectedQueryResultsV2Options } from "./engine-query-v2";
 
 type SelectorUsageQueryBackendOptions = Pick<
@@ -82,7 +85,7 @@ export function resolveRustSelectorUsagePayloads(
     typeResolver: options.typeResolver,
   });
   const signal = runRustSelectedQueryBackendJson<SelectorUsageCanonicalProducerSignalV0>(
-    "input-selector-usage-canonical-producer",
+    SELECTED_QUERY_RUNNER_COMMANDS.selectorUsageCanonicalProducer,
     input,
   );
   return signal.evaluatorCandidates.results;

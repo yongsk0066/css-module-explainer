@@ -35,6 +35,9 @@ use engine_input_producers::{
 use omena_bridge::{
     StyleSemanticGraphSummaryV0, summarize_omena_bridge_style_semantic_graph_from_source,
 };
+use omena_query::{
+    summarize_omena_query_boundary, summarize_omena_query_selected_query_adapter_capabilities,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
@@ -637,6 +640,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some("input-source-resolution-canonical-producer") => {
             let input: EngineInputV2 = serde_json::from_str(&stdin)?;
             let summary = summarize_source_resolution_canonical_producer_signal_input(&input);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
+        Some("input-omena-query-boundary") => {
+            let input: EngineInputV2 = serde_json::from_str(&stdin)?;
+            let summary = summarize_omena_query_boundary(&input);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
+        Some("omena-query-selected-query-adapter-capabilities") => {
+            let summary = summarize_omena_query_selected_query_adapter_capabilities();
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
         Some("input-source-resolution-match-fragments") => {

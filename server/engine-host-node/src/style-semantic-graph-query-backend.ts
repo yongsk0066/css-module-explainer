@@ -8,7 +8,10 @@ import {
   resolveWorkspaceCheckFilesSync,
   type SourceDocumentSnapshot,
 } from "./checker-host/workspace-check-support";
-import { runRustSelectedQueryBackendJson } from "./selected-query-backend";
+import {
+  SELECTED_QUERY_RUNNER_COMMANDS,
+  runRustSelectedQueryBackendJson,
+} from "./selected-query-backend";
 import type { BuildSelectedQueryResultsV2Options } from "./engine-query-v2";
 
 type RustJsonRunner = <T>(command: string, input: unknown) => T;
@@ -239,7 +242,10 @@ export function runRustStyleSemanticGraph(
   options: StyleSemanticGraphQueryOptions = {},
 ): StyleSemanticGraphSummaryV0 {
   const runJson = options.runRustSelectedQueryBackendJson ?? runRustSelectedQueryBackendJson;
-  return runJson<StyleSemanticGraphSummaryV0>("style-semantic-graph", input);
+  return runJson<StyleSemanticGraphSummaryV0>(
+    SELECTED_QUERY_RUNNER_COMMANDS.styleSemanticGraph,
+    input,
+  );
 }
 
 export function runRustStyleSemanticGraphBatch(
@@ -247,7 +253,10 @@ export function runRustStyleSemanticGraphBatch(
   options: StyleSemanticGraphQueryOptions = {},
 ): StyleSemanticGraphBatchRunnerOutputV0 {
   const runJson = options.runRustSelectedQueryBackendJson ?? runRustSelectedQueryBackendJson;
-  return runJson<StyleSemanticGraphBatchRunnerOutputV0>("style-semantic-graph-batch", input);
+  return runJson<StyleSemanticGraphBatchRunnerOutputV0>(
+    SELECTED_QUERY_RUNNER_COMMANDS.styleSemanticGraphBatch,
+    input,
+  );
 }
 
 export function buildStyleSemanticGraphSelectorIdentityReadModels(

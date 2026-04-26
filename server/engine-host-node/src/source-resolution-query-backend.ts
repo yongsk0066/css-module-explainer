@@ -16,6 +16,7 @@ import type { SourceExpressionResolution } from "../../engine-core-ts/src/core/q
 import type { EdgeCertainty } from "../../engine-core-ts/src/core/semantic/certainty";
 import {
   buildSelectedQueryBackendInput,
+  SELECTED_QUERY_RUNNER_COMMANDS,
   resolveSelectedQueryBackendKind,
   runRustSelectedQueryBackendJson,
   usesRustExpressionSemanticsBackend,
@@ -74,7 +75,7 @@ export function resolveRustSourceResolutionPayloads(
 ): readonly SourceResolutionEvaluatorCandidatePayloadV0[] {
   const input = buildSelectedQueryBackendInput(document, scssModulePath, deps);
   const signal = runRustSelectedQueryBackendJson<SourceResolutionCanonicalProducerSignalV0>(
-    "input-source-resolution-canonical-producer",
+    SELECTED_QUERY_RUNNER_COMMANDS.sourceResolutionCanonicalProducer,
     input,
   );
   return signal.evaluatorCandidates.results.map((candidate) => candidate.payload);

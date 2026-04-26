@@ -17,6 +17,7 @@ import type { EdgeCertainty } from "../../engine-core-ts/src/core/semantic/certa
 import type { ExpressionSemanticsSummary } from "../../engine-core-ts/src/core/query/read-expression-semantics";
 import {
   buildSelectedQueryBackendInput,
+  SELECTED_QUERY_RUNNER_COMMANDS,
   runRustSelectedQueryBackendJson,
   type SelectedQueryBackendDocument,
 } from "./selected-query-backend";
@@ -70,7 +71,7 @@ export function resolveRustExpressionSemanticsPayloads(
 ): readonly ExpressionSemanticsEvaluatorCandidatePayloadV0[] {
   const input = buildSelectedQueryBackendInput(document, scssModulePath, deps);
   const signal = runRustSelectedQueryBackendJson<ExpressionSemanticsCanonicalProducerSignalV0>(
-    "input-expression-semantics-canonical-producer",
+    SELECTED_QUERY_RUNNER_COMMANDS.expressionSemanticsCanonicalProducer,
     input,
   );
   return signal.evaluatorCandidates.results.map((candidate) => candidate.payload);
