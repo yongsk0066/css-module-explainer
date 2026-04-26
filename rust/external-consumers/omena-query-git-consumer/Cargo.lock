@@ -54,7 +54,7 @@ dependencies = [
 [[package]]
 name = "omena-query"
 version = "0.1.0"
-source = "git+https://github.com/omenien/omena-query.git?rev=204927a#204927a947439f611fd5d9fc1b3967afd153accd"
+source = "git+https://github.com/omenien/omena-query.git?rev=0094bf5#0094bf526e56e9e142d54e07781f5eb288b24003"
 dependencies = [
  "omena-abstract-value",
  "omena-bridge",
@@ -75,7 +75,7 @@ dependencies = [
 [[package]]
 name = "omena-resolver"
 version = "0.1.0"
-source = "git+https://github.com/omenien/omena-resolver.git?rev=554028c#554028c7d6f9f70f4be3829f39227035270f457a"
+source = "git+https://github.com/omenien/omena-resolver.git?rev=68c22b3#68c22b35a0bea984eaf6d8fb207cb4932c562bf9"
 dependencies = [
  "omena-engine-input-producers",
  "serde",

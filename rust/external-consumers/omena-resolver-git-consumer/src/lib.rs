@@ -5,7 +5,8 @@ use engine_input_producers::{
 };
 use omena_resolver::{
     OmenaResolverBoundarySummaryV0, OmenaResolverModuleGraphSummaryV0,
-    summarize_omena_resolver_boundary, summarize_omena_resolver_module_graph_index,
+    OmenaResolverRuntimeQueryBoundarySummaryV0, summarize_omena_resolver_boundary,
+    summarize_omena_resolver_module_graph_index, summarize_omena_resolver_runtime_query_boundary,
 };
 
 pub fn consume_resolver_boundary() -> OmenaResolverBoundarySummaryV0 {
@@ -14,6 +15,10 @@ pub fn consume_resolver_boundary() -> OmenaResolverBoundarySummaryV0 {
 
 pub fn consume_resolver_module_graph() -> OmenaResolverModuleGraphSummaryV0 {
     summarize_omena_resolver_module_graph_index(&sample_input())
+}
+
+pub fn consume_resolver_runtime_query_boundary() -> OmenaResolverRuntimeQueryBoundarySummaryV0 {
+    summarize_omena_resolver_runtime_query_boundary(&consume_resolver_module_graph())
 }
 
 fn sample_input() -> EngineInputV2 {
@@ -130,8 +135,14 @@ fn range(
 
 #[cfg(test)]
 mod tests {
-    use super::{consume_resolver_boundary, consume_resolver_module_graph, sample_input};
-    use omena_resolver::summarize_omena_resolver_query_fragments;
+    use super::{
+        consume_resolver_boundary, consume_resolver_module_graph,
+        consume_resolver_runtime_query_boundary, sample_input,
+    };
+    use omena_resolver::{
+        query_omena_resolver_runtime_module, summarize_omena_resolver_module_graph_index,
+        summarize_omena_resolver_query_fragments,
+    };
     use serde_json::json;
 
     #[test]
@@ -144,10 +155,17 @@ mod tests {
         assert_eq!(boundary.source_resolution_candidate_count, 2);
         assert_eq!(boundary.module_graph_module_count, 2);
         assert_eq!(boundary.module_graph_source_expression_edge_count, 2);
+        assert_eq!(boundary.runtime_query_module_count, 2);
+        assert_eq!(boundary.runtime_query_ready_module_count, 2);
         assert!(
             boundary
                 .resolver_owned_products
                 .contains(&"omena-resolver.module-graph-index")
+        );
+        assert!(
+            boundary
+                .resolver_owned_products
+                .contains(&"omena-resolver.runtime-query-boundary")
         );
         assert!(
             boundary
@@ -179,6 +197,40 @@ mod tests {
         assert_eq!(app.source_expression_ids, ["expr-1"]);
         assert_eq!(app.type_fact_expression_ids, ["expr-1"]);
         assert_eq!(app.selector_names, ["btn-active"]);
+    }
+
+    #[test]
+    fn consumes_remote_resolver_runtime_query_boundary_via_git_dependency() {
+        let runtime_query = consume_resolver_runtime_query_boundary();
+
+        assert_eq!(
+            runtime_query.product,
+            "omena-resolver.runtime-query-boundary"
+        );
+        assert_eq!(
+            runtime_query.input_product,
+            "omena-resolver.module-graph-index"
+        );
+        assert_eq!(runtime_query.module_query_count, 2);
+        assert_eq!(runtime_query.fully_resolvable_module_count, 2);
+        assert_eq!(runtime_query.unresolved_type_fact_count, 0);
+        assert!(runtime_query.blocking_gaps.is_empty());
+        assert!(
+            runtime_query
+                .runtime_capabilities
+                .contains(&"moduleLookupByStylePath")
+        );
+
+        let module_graph = summarize_omena_resolver_module_graph_index(&sample_input());
+        let app = query_omena_resolver_runtime_module(&module_graph, "/tmp/App.module.scss");
+        assert!(app.is_some());
+        let Some(app) = app else {
+            return;
+        };
+        assert_eq!(app.status, "ready");
+        assert!(app.can_resolve_source_expressions);
+        assert!(app.can_check_type_fact_edges);
+        assert!(app.can_query_selector_names);
     }
 
     #[test]
