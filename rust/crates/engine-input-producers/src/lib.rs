@@ -962,77 +962,21 @@ pub(crate) struct ConstraintDetailInput<'a> {
 }
 
 pub(crate) fn map_expression_value_domain_kind(facts: &StringTypeFactsV2) -> String {
-    match facts.kind.as_str() {
-        "unknown" => "none".to_string(),
-        other => other.to_string(),
-    }
+    omena_abstract_value::expression_value_domain_kind_from_facts(&abstract_value_facts(facts))
 }
 
 pub(crate) fn map_value_certainty(facts: &StringTypeFactsV2) -> Option<String> {
-    match facts.kind.as_str() {
-        "exact" => Some("exact".to_string()),
-        "finiteSet" | "constrained" => Some("inferred".to_string()),
-        "unknown" | "top" => Some("possible".to_string()),
-        _ => None,
-    }
+    omena_abstract_value::value_certainty_from_facts(&abstract_value_facts(facts))
+        .map(str::to_string)
 }
 
 pub(crate) fn map_value_certainty_shape_kind(facts: &StringTypeFactsV2) -> String {
-    match facts.kind.as_str() {
-        "exact" => "exact".to_string(),
-        "finiteSet" => "boundedFinite".to_string(),
-        "constrained" => "constrained".to_string(),
-        _ => "unknown".to_string(),
-    }
+    omena_abstract_value::value_certainty_shape_kind_from_facts(&abstract_value_facts(facts))
+        .to_string()
 }
 
 pub(crate) fn map_value_certainty_shape_label(facts: &StringTypeFactsV2) -> String {
-    match map_value_certainty(facts).as_deref() {
-        Some("exact") => "exact".to_string(),
-        Some("possible") | None => "unknown".to_string(),
-        Some("inferred") => match facts.kind.as_str() {
-            "finiteSet" => {
-                let finite_value_count = facts
-                    .values
-                    .as_ref()
-                    .map(|values| {
-                        values
-                            .iter()
-                            .collect::<std::collections::BTreeSet<_>>()
-                            .len()
-                    })
-                    .unwrap_or(0);
-                format!("bounded finite ({finite_value_count})")
-            }
-            "constrained" => match facts.constraint_kind.as_deref() {
-                Some("prefix") => {
-                    format!(
-                        "constrained prefix `{}`",
-                        facts.prefix.as_deref().unwrap_or("")
-                    )
-                }
-                Some("suffix") => {
-                    format!(
-                        "constrained suffix `{}`",
-                        facts.suffix.as_deref().unwrap_or("")
-                    )
-                }
-                Some("prefixSuffix") => format!(
-                    "constrained prefix `{}` + suffix `{}`",
-                    facts.prefix.as_deref().unwrap_or(""),
-                    facts.suffix.as_deref().unwrap_or("")
-                ),
-                Some("charInclusion") => format!(
-                    "constrained character inclusion ({})",
-                    facts.char_must.as_deref().unwrap_or("none")
-                ),
-                Some("composite") => "constrained composite".to_string(),
-                _ => "unknown".to_string(),
-            },
-            _ => "unknown".to_string(),
-        },
-        _ => "unknown".to_string(),
-    }
+    omena_abstract_value::value_certainty_shape_label_from_facts(&abstract_value_facts(facts))
 }
 
 pub(crate) fn map_selector_certainty_shape_kind(
@@ -1040,17 +984,12 @@ pub(crate) fn map_selector_certainty_shape_kind(
     matched_selector_count: usize,
     selector_universe_count: usize,
 ) -> String {
-    match map_selector_certainty(facts, matched_selector_count, selector_universe_count).as_str() {
-        "exact" => "exact".to_string(),
-        "possible" => "unknown".to_string(),
-        "inferred" => match facts.constraint_kind.as_deref() {
-            Some("prefix" | "suffix" | "prefixSuffix" | "charInclusion" | "composite") => {
-                "constrained".to_string()
-            }
-            _ => "boundedFinite".to_string(),
-        },
-        _ => "unknown".to_string(),
-    }
+    omena_abstract_value::selector_certainty_shape_kind_from_facts(
+        &abstract_value_facts(facts),
+        matched_selector_count,
+        selector_universe_count,
+    )
+    .to_string()
 }
 
 pub(crate) fn map_selector_certainty_shape_label(
@@ -1058,29 +997,11 @@ pub(crate) fn map_selector_certainty_shape_label(
     matched_selector_count: usize,
     selector_universe_count: usize,
 ) -> String {
-    match map_selector_certainty(facts, matched_selector_count, selector_universe_count).as_str() {
-        "exact" => "exact".to_string(),
-        "possible" => "unknown".to_string(),
-        "inferred" => match facts.constraint_kind.as_deref() {
-            Some("prefix") => {
-                format!("constrained prefix selector set ({matched_selector_count})")
-            }
-            Some("suffix") => {
-                format!("constrained suffix selector set ({matched_selector_count})")
-            }
-            Some("prefixSuffix") => {
-                format!("constrained edge selector set ({matched_selector_count})")
-            }
-            Some("charInclusion") => {
-                format!("constrained character selector set ({matched_selector_count})")
-            }
-            Some("composite") => {
-                format!("constrained composite selector set ({matched_selector_count})")
-            }
-            _ => format!("bounded selector set ({matched_selector_count})"),
-        },
-        _ => "unknown".to_string(),
-    }
+    omena_abstract_value::selector_certainty_shape_label_from_facts(
+        &abstract_value_facts(facts),
+        matched_selector_count,
+        selector_universe_count,
+    )
 }
 
 pub(crate) fn map_selector_certainty(
@@ -1088,51 +1009,32 @@ pub(crate) fn map_selector_certainty(
     matched_selector_count: usize,
     selector_universe_count: usize,
 ) -> String {
-    match facts.kind.as_str() {
-        "unknown" => "possible".to_string(),
-        "exact" => {
-            if matched_selector_count == 1 {
-                "exact".to_string()
-            } else {
-                "possible".to_string()
-            }
-        }
-        "finiteSet" => {
-            let finite_value_count = facts
-                .values
-                .as_ref()
-                .map(|values| {
-                    values
-                        .iter()
-                        .collect::<std::collections::BTreeSet<_>>()
-                        .len()
-                })
-                .unwrap_or(0);
-            if finite_value_count == 0 {
-                "possible".to_string()
-            } else if matched_selector_count == finite_value_count {
-                "exact".to_string()
-            } else {
-                "inferred".to_string()
-            }
-        }
-        "constrained" | "top" => {
-            if matched_selector_count == 0 {
-                "possible".to_string()
-            } else if matched_selector_count == selector_universe_count {
-                "exact".to_string()
-            } else {
-                "inferred".to_string()
-            }
-        }
-        _ => "possible".to_string(),
-    }
+    omena_abstract_value::selector_certainty_from_facts(
+        &abstract_value_facts(facts),
+        matched_selector_count,
+        selector_universe_count,
+    )
+    .to_string()
 }
 
 pub(crate) fn finite_values_for_facts(facts: &StringTypeFactsV2) -> Option<Vec<String>> {
-    match facts.kind.as_str() {
-        "exact" | "finiteSet" => facts.values.clone(),
-        _ => None,
+    omena_abstract_value::finite_values_from_facts(&abstract_value_facts(facts))
+}
+
+fn abstract_value_facts(
+    facts: &StringTypeFactsV2,
+) -> omena_abstract_value::ExternalStringTypeFactsV0 {
+    omena_abstract_value::ExternalStringTypeFactsV0 {
+        kind: facts.kind.clone(),
+        constraint_kind: facts.constraint_kind.clone(),
+        values: facts.values.clone(),
+        prefix: facts.prefix.clone(),
+        suffix: facts.suffix.clone(),
+        min_len: facts.min_len,
+        max_len: facts.max_len,
+        char_must: facts.char_must.clone(),
+        char_may: facts.char_may.clone(),
+        may_include_other_chars: facts.may_include_other_chars,
     }
 }
 

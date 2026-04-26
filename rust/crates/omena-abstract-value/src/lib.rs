@@ -93,6 +93,20 @@ pub struct CompositeClassValueInputV0 {
     pub provenance: Option<AbstractClassValueProvenanceV0>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExternalStringTypeFactsV0 {
+    pub kind: String,
+    pub constraint_kind: Option<String>,
+    pub values: Option<Vec<String>>,
+    pub prefix: Option<String>,
+    pub suffix: Option<String>,
+    pub min_len: Option<usize>,
+    pub max_len: Option<usize>,
+    pub char_must: Option<String>,
+    pub char_may: Option<String>,
+    pub may_include_other_chars: Option<bool>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum SelectorProjectionCertaintyV0 {
@@ -273,6 +287,151 @@ pub fn enumerate_finite_class_values(value: &AbstractClassValueV0) -> Option<Vec
         AbstractClassValueV0::Bottom => Some(Vec::new()),
         AbstractClassValueV0::Exact { value } => Some(vec![value.clone()]),
         AbstractClassValueV0::FiniteSet { values } => Some(values.clone()),
+        _ => None,
+    }
+}
+
+pub fn abstract_class_value_from_facts(facts: &ExternalStringTypeFactsV0) -> AbstractClassValueV0 {
+    match facts.kind.as_str() {
+        "exact" => facts
+            .values
+            .as_ref()
+            .and_then(|values| values.first())
+            .map_or_else(top_class_value, |value| exact_class_value(value.clone())),
+        "finiteSet" => finite_set_class_value(facts.values.clone().unwrap_or_default()),
+        "constrained" => constrained_class_value_from_facts(facts),
+        "unknown" | "top" => top_class_value(),
+        _ => top_class_value(),
+    }
+}
+
+pub fn expression_value_domain_kind_from_facts(facts: &ExternalStringTypeFactsV0) -> String {
+    match facts.kind.as_str() {
+        "unknown" => "none".to_string(),
+        other => other.to_string(),
+    }
+}
+
+pub fn value_certainty_from_facts(facts: &ExternalStringTypeFactsV0) -> Option<&'static str> {
+    match facts.kind.as_str() {
+        "exact" => Some("exact"),
+        "finiteSet" | "constrained" => Some("inferred"),
+        "unknown" | "top" => Some("possible"),
+        _ => None,
+    }
+}
+
+pub fn value_certainty_shape_kind_from_facts(facts: &ExternalStringTypeFactsV0) -> &'static str {
+    match facts.kind.as_str() {
+        "exact" => "exact",
+        "finiteSet" => "boundedFinite",
+        "constrained" => "constrained",
+        _ => "unknown",
+    }
+}
+
+pub fn value_certainty_shape_label_from_facts(facts: &ExternalStringTypeFactsV0) -> String {
+    match value_certainty_from_facts(facts) {
+        Some("exact") => "exact".to_string(),
+        Some("possible") | None => "unknown".to_string(),
+        Some("inferred") => match facts.kind.as_str() {
+            "finiteSet" => format!("bounded finite ({})", finite_value_count_for_facts(facts)),
+            "constrained" => constrained_value_shape_label_from_facts(facts),
+            _ => "unknown".to_string(),
+        },
+        _ => "unknown".to_string(),
+    }
+}
+
+pub fn selector_certainty_from_facts(
+    facts: &ExternalStringTypeFactsV0,
+    matched_selector_count: usize,
+    selector_universe_count: usize,
+) -> &'static str {
+    match facts.kind.as_str() {
+        "unknown" => "possible",
+        "exact" => {
+            if matched_selector_count == 1 {
+                "exact"
+            } else {
+                "possible"
+            }
+        }
+        "finiteSet" => {
+            let finite_value_count = finite_value_count_for_facts(facts);
+            if finite_value_count == 0 || matched_selector_count == 0 {
+                "possible"
+            } else if matched_selector_count == finite_value_count {
+                "exact"
+            } else {
+                "inferred"
+            }
+        }
+        "constrained" | "top" => {
+            if matched_selector_count == 0 {
+                "possible"
+            } else if matched_selector_count == selector_universe_count {
+                "exact"
+            } else {
+                "inferred"
+            }
+        }
+        _ => "possible",
+    }
+}
+
+pub fn selector_certainty_shape_kind_from_facts(
+    facts: &ExternalStringTypeFactsV0,
+    matched_selector_count: usize,
+    selector_universe_count: usize,
+) -> &'static str {
+    match selector_certainty_from_facts(facts, matched_selector_count, selector_universe_count) {
+        "exact" => "exact",
+        "possible" => "unknown",
+        "inferred" => {
+            if is_constrained_selector_shape(facts) {
+                "constrained"
+            } else {
+                "boundedFinite"
+            }
+        }
+        _ => "unknown",
+    }
+}
+
+pub fn selector_certainty_shape_label_from_facts(
+    facts: &ExternalStringTypeFactsV0,
+    matched_selector_count: usize,
+    selector_universe_count: usize,
+) -> String {
+    match selector_certainty_from_facts(facts, matched_selector_count, selector_universe_count) {
+        "exact" => "exact".to_string(),
+        "possible" => "unknown".to_string(),
+        "inferred" => match facts.constraint_kind.as_deref() {
+            Some("prefix") => {
+                format!("constrained prefix selector set ({matched_selector_count})")
+            }
+            Some("suffix") => {
+                format!("constrained suffix selector set ({matched_selector_count})")
+            }
+            Some("prefixSuffix") => {
+                format!("constrained edge selector set ({matched_selector_count})")
+            }
+            Some("charInclusion") => {
+                format!("constrained character selector set ({matched_selector_count})")
+            }
+            Some("composite") => {
+                format!("constrained composite selector set ({matched_selector_count})")
+            }
+            _ => format!("bounded selector set ({matched_selector_count})"),
+        },
+        _ => "unknown".to_string(),
+    }
+}
+
+pub fn finite_values_from_facts(facts: &ExternalStringTypeFactsV0) -> Option<Vec<String>> {
+    match facts.kind.as_str() {
+        "exact" | "finiteSet" => facts.values.clone(),
         _ => None,
     }
 }
@@ -619,14 +778,90 @@ fn is_false(value: &bool) -> bool {
     !value
 }
 
+fn constrained_class_value_from_facts(facts: &ExternalStringTypeFactsV0) -> AbstractClassValueV0 {
+    match facts.constraint_kind.as_deref() {
+        Some("prefix") => prefix_class_value(facts.prefix.clone().unwrap_or_default(), None),
+        Some("suffix") => suffix_class_value(facts.suffix.clone().unwrap_or_default(), None),
+        Some("prefixSuffix") => prefix_suffix_class_value(
+            facts.prefix.clone().unwrap_or_default(),
+            facts.suffix.clone().unwrap_or_default(),
+            facts.min_len,
+            None,
+        ),
+        Some("charInclusion") => char_inclusion_class_value(
+            facts.char_must.clone().unwrap_or_default(),
+            facts.char_may.clone().unwrap_or_default(),
+            None,
+            facts.may_include_other_chars.unwrap_or(false),
+        ),
+        Some("composite") => composite_class_value(CompositeClassValueInputV0 {
+            prefix: facts.prefix.clone(),
+            suffix: facts.suffix.clone(),
+            min_length: facts.min_len,
+            must_chars: facts.char_must.clone().unwrap_or_default(),
+            may_chars: facts.char_may.clone().unwrap_or_default(),
+            may_include_other_chars: facts.may_include_other_chars.unwrap_or(false),
+            provenance: None,
+        }),
+        _ => top_class_value(),
+    }
+}
+
+fn finite_value_count_for_facts(facts: &ExternalStringTypeFactsV0) -> usize {
+    facts
+        .values
+        .as_ref()
+        .map(|values| values.iter().collect::<BTreeSet<_>>().len())
+        .unwrap_or(0)
+}
+
+fn constrained_value_shape_label_from_facts(facts: &ExternalStringTypeFactsV0) -> String {
+    match facts.constraint_kind.as_deref() {
+        Some("prefix") => {
+            format!(
+                "constrained prefix `{}`",
+                facts.prefix.as_deref().unwrap_or("")
+            )
+        }
+        Some("suffix") => {
+            format!(
+                "constrained suffix `{}`",
+                facts.suffix.as_deref().unwrap_or("")
+            )
+        }
+        Some("prefixSuffix") => format!(
+            "constrained prefix `{}` + suffix `{}`",
+            facts.prefix.as_deref().unwrap_or(""),
+            facts.suffix.as_deref().unwrap_or("")
+        ),
+        Some("charInclusion") => format!(
+            "constrained character inclusion ({})",
+            facts.char_must.as_deref().unwrap_or("none")
+        ),
+        Some("composite") => "constrained composite".to_string(),
+        _ => "unknown".to_string(),
+    }
+}
+
+fn is_constrained_selector_shape(facts: &ExternalStringTypeFactsV0) -> bool {
+    matches!(
+        facts.constraint_kind.as_deref(),
+        Some("prefix" | "suffix" | "prefixSuffix" | "charInclusion" | "composite")
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         AbstractClassValueProvenanceV0, AbstractClassValueV0, CompositeClassValueInputV0,
-        MAX_FINITE_CLASS_VALUES, SelectorProjectionCertaintyV0, char_inclusion_class_value,
-        composite_class_value, derive_selector_projection_certainty, exact_class_value,
-        finite_set_class_value, prefix_class_value, prefix_suffix_class_value,
-        project_abstract_value_selectors, summarize_omena_abstract_value_domain,
+        ExternalStringTypeFactsV0, MAX_FINITE_CLASS_VALUES, SelectorProjectionCertaintyV0,
+        abstract_class_value_from_facts, char_inclusion_class_value, composite_class_value,
+        derive_selector_projection_certainty, exact_class_value, finite_set_class_value,
+        finite_values_from_facts, prefix_class_value, prefix_suffix_class_value,
+        project_abstract_value_selectors, selector_certainty_from_facts,
+        selector_certainty_shape_kind_from_facts, selector_certainty_shape_label_from_facts,
+        summarize_omena_abstract_value_domain, value_certainty_from_facts,
+        value_certainty_shape_kind_from_facts, value_certainty_shape_label_from_facts,
     };
 
     #[test]
@@ -660,6 +895,72 @@ mod tests {
             AbstractClassValueV0::FiniteSet {
                 values: vec!["button".to_string(), "card".to_string()]
             }
+        );
+    }
+
+    #[test]
+    fn maps_external_string_facts_to_stable_value_certainty_labels() {
+        let exact = external_facts("exact").with_values(["button"]);
+        assert_eq!(
+            abstract_class_value_from_facts(&exact),
+            exact_class_value("button")
+        );
+        assert_eq!(value_certainty_from_facts(&exact), Some("exact"));
+        assert_eq!(value_certainty_shape_kind_from_facts(&exact), "exact");
+        assert_eq!(value_certainty_shape_label_from_facts(&exact), "exact");
+        assert_eq!(
+            finite_values_from_facts(&exact),
+            Some(vec!["button".to_string()])
+        );
+
+        let finite = external_facts("finiteSet").with_values(["card", "button", "card"]);
+        assert_eq!(value_certainty_from_facts(&finite), Some("inferred"));
+        assert_eq!(
+            value_certainty_shape_kind_from_facts(&finite),
+            "boundedFinite"
+        );
+        assert_eq!(
+            value_certainty_shape_label_from_facts(&finite),
+            "bounded finite (2)"
+        );
+        assert_eq!(selector_certainty_from_facts(&finite, 1, 3), "inferred");
+        assert_eq!(
+            selector_certainty_shape_label_from_facts(&finite, 1, 3),
+            "bounded selector set (1)"
+        );
+    }
+
+    #[test]
+    fn maps_constrained_external_string_facts_to_stable_shape_labels() {
+        let edge = external_facts("constrained")
+            .with_constraint_kind("prefixSuffix")
+            .with_prefix("btn-")
+            .with_suffix("-active")
+            .with_min_len(11);
+
+        assert_eq!(
+            abstract_class_value_from_facts(&edge),
+            AbstractClassValueV0::PrefixSuffix {
+                prefix: "btn-".to_string(),
+                suffix: "-active".to_string(),
+                min_length: 11,
+                provenance: None,
+            }
+        );
+        assert_eq!(value_certainty_from_facts(&edge), Some("inferred"));
+        assert_eq!(value_certainty_shape_kind_from_facts(&edge), "constrained");
+        assert_eq!(
+            value_certainty_shape_label_from_facts(&edge),
+            "constrained prefix `btn-` + suffix `-active`"
+        );
+        assert_eq!(selector_certainty_from_facts(&edge, 1, 3), "inferred");
+        assert_eq!(
+            selector_certainty_shape_kind_from_facts(&edge, 1, 3),
+            "constrained"
+        );
+        assert_eq!(
+            selector_certainty_shape_label_from_facts(&edge, 1, 3),
+            "constrained edge selector set (1)"
         );
     }
 
@@ -787,5 +1088,55 @@ mod tests {
 
     fn selector_universe(values: impl IntoIterator<Item = &'static str>) -> Vec<String> {
         values.into_iter().map(str::to_string).collect()
+    }
+
+    fn external_facts(kind: &str) -> ExternalStringTypeFactsV0 {
+        ExternalStringTypeFactsV0 {
+            kind: kind.to_string(),
+            constraint_kind: None,
+            values: None,
+            prefix: None,
+            suffix: None,
+            min_len: None,
+            max_len: None,
+            char_must: None,
+            char_may: None,
+            may_include_other_chars: None,
+        }
+    }
+
+    trait ExternalFactsTestExt {
+        fn with_values(self, values: impl IntoIterator<Item = &'static str>) -> Self;
+        fn with_constraint_kind(self, value: &'static str) -> Self;
+        fn with_prefix(self, value: &'static str) -> Self;
+        fn with_suffix(self, value: &'static str) -> Self;
+        fn with_min_len(self, value: usize) -> Self;
+    }
+
+    impl ExternalFactsTestExt for ExternalStringTypeFactsV0 {
+        fn with_values(mut self, values: impl IntoIterator<Item = &'static str>) -> Self {
+            self.values = Some(values.into_iter().map(str::to_string).collect());
+            self
+        }
+
+        fn with_constraint_kind(mut self, value: &'static str) -> Self {
+            self.constraint_kind = Some(value.to_string());
+            self
+        }
+
+        fn with_prefix(mut self, value: &'static str) -> Self {
+            self.prefix = Some(value.to_string());
+            self
+        }
+
+        fn with_suffix(mut self, value: &'static str) -> Self {
+            self.suffix = Some(value.to_string());
+            self
+        }
+
+        fn with_min_len(mut self, value: usize) -> Self {
+            self.min_len = Some(value);
+            self
+        }
     }
 }

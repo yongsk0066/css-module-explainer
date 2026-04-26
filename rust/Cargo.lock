@@ -6,6 +6,7 @@ version = 4
 name = "engine-input-producers"
 version = "0.1.0"
 dependencies = [
+ "omena-abstract-value",
  "serde",
  "serde_json",
 ]
