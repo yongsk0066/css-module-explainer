@@ -15,6 +15,31 @@ pub struct AbstractValueDomainSummaryV0 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReducedClassValueDerivationV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub input_fact_kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_constraint_kind: Option<String>,
+    pub input_value_count: usize,
+    pub reduced_kind: &'static str,
+    pub steps: Vec<ReducedClassValueDerivationStepV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReducedClassValueDerivationStepV0 {
+    pub operation: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_kind: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refinement_kind: Option<&'static str>,
+    pub result_kind: &'static str,
+    pub reason: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(
     tag = "kind",
     rename_all = "camelCase",
@@ -321,20 +346,67 @@ pub fn intersect_abstract_class_values(
 pub fn reduced_abstract_class_value_from_facts(
     facts: &ExternalStringTypeFactsV0,
 ) -> AbstractClassValueV0 {
+    reduce_abstract_class_value_with_steps(facts).0
+}
+
+pub fn reduced_class_value_derivation_from_facts(
+    facts: &ExternalStringTypeFactsV0,
+) -> ReducedClassValueDerivationV0 {
+    let (value, steps) = reduce_abstract_class_value_with_steps(facts);
+
+    ReducedClassValueDerivationV0 {
+        schema_version: "0",
+        product: "omena-abstract-value.reduced-class-value-derivation",
+        input_fact_kind: facts.kind.clone(),
+        input_constraint_kind: facts.constraint_kind.clone(),
+        input_value_count: finite_value_count_for_facts(facts),
+        reduced_kind: abstract_class_value_kind(&value),
+        steps,
+    }
+}
+
+fn reduce_abstract_class_value_with_steps(
+    facts: &ExternalStringTypeFactsV0,
+) -> (AbstractClassValueV0, Vec<ReducedClassValueDerivationStepV0>) {
     let mut value = abstract_class_value_from_facts(facts);
+    let mut steps = vec![ReducedClassValueDerivationStepV0 {
+        operation: "baseFromFacts",
+        input_kind: None,
+        refinement_kind: None,
+        result_kind: abstract_class_value_kind(&value),
+        reason: "mapped input facts to the base abstract value",
+    }];
 
     if facts_have_constraint_details(facts) && matches!(facts.kind.as_str(), "exact" | "finiteSet")
     {
-        value = intersect_abstract_class_values(&value, &constrained_class_value_from_facts(facts));
+        let refinement = constrained_class_value_from_facts(facts);
+        let result = intersect_abstract_class_values(&value, &refinement);
+        steps.push(ReducedClassValueDerivationStepV0 {
+            operation: "intersectConstraint",
+            input_kind: Some(abstract_class_value_kind(&value)),
+            refinement_kind: Some(abstract_class_value_kind(&refinement)),
+            result_kind: abstract_class_value_kind(&result),
+            reason: "refined exact or finite facts with constraint details",
+        });
+        value = result;
     }
 
     if !matches!(facts.kind.as_str(), "exact" | "finiteSet")
         && let Some(values) = facts.values.as_ref().filter(|values| !values.is_empty())
     {
-        value = intersect_abstract_class_values(&value, &finite_set_class_value(values.clone()));
+        let refinement = finite_set_class_value(values.clone());
+        let result = intersect_abstract_class_values(&value, &refinement);
+        steps.push(ReducedClassValueDerivationStepV0 {
+            operation: "intersectFiniteValues",
+            input_kind: Some(abstract_class_value_kind(&value)),
+            refinement_kind: Some(abstract_class_value_kind(&refinement)),
+            result_kind: abstract_class_value_kind(&result),
+            reason: "refined constrained facts with explicit finite values",
+        });
+        value = result;
     }
 
-    value
+    (value, steps)
 }
 
 pub fn reduced_value_domain_kind_from_facts(facts: &ExternalStringTypeFactsV0) -> &'static str {
@@ -1221,11 +1293,12 @@ mod tests {
         composite_class_value, derive_selector_projection_certainty, exact_class_value,
         finite_set_class_value, finite_values_from_facts, intersect_abstract_class_values,
         prefix_class_value, prefix_suffix_class_value, project_abstract_value_selectors,
-        reduced_abstract_class_value_from_facts, reduced_value_domain_kind_from_facts,
-        selector_certainty_from_facts, selector_certainty_shape_kind_from_facts,
-        selector_certainty_shape_label_from_facts, suffix_class_value,
-        summarize_omena_abstract_value_domain, top_class_value, value_certainty_from_facts,
-        value_certainty_shape_kind_from_facts, value_certainty_shape_label_from_facts,
+        reduced_abstract_class_value_from_facts, reduced_class_value_derivation_from_facts,
+        reduced_value_domain_kind_from_facts, selector_certainty_from_facts,
+        selector_certainty_shape_kind_from_facts, selector_certainty_shape_label_from_facts,
+        suffix_class_value, summarize_omena_abstract_value_domain, top_class_value,
+        value_certainty_from_facts, value_certainty_shape_kind_from_facts,
+        value_certainty_shape_label_from_facts,
     };
 
     #[test]
@@ -1621,6 +1694,55 @@ mod tests {
             reduced_value_domain_kind_from_facts(&external_facts("unknown")),
             "none"
         );
+    }
+
+    #[test]
+    fn explains_reduced_external_fact_derivation_steps() {
+        let finite_with_prefix = external_facts("finiteSet")
+            .with_values(["btn-primary", "card"])
+            .with_constraint_kind("prefix")
+            .with_prefix("btn-");
+
+        let derivation = reduced_class_value_derivation_from_facts(&finite_with_prefix);
+
+        assert_eq!(derivation.schema_version, "0");
+        assert_eq!(
+            derivation.product,
+            "omena-abstract-value.reduced-class-value-derivation"
+        );
+        assert_eq!(derivation.input_fact_kind, "finiteSet");
+        assert_eq!(derivation.input_constraint_kind.as_deref(), Some("prefix"));
+        assert_eq!(derivation.input_value_count, 2);
+        assert_eq!(derivation.reduced_kind, "exact");
+        assert_eq!(derivation.steps.len(), 2);
+        assert_eq!(derivation.steps[0].operation, "baseFromFacts");
+        assert_eq!(derivation.steps[0].result_kind, "finiteSet");
+        assert_eq!(derivation.steps[1].operation, "intersectConstraint");
+        assert_eq!(derivation.steps[1].input_kind, Some("finiteSet"));
+        assert_eq!(derivation.steps[1].refinement_kind, Some("prefix"));
+        assert_eq!(derivation.steps[1].result_kind, "exact");
+    }
+
+    #[test]
+    fn explains_constrained_finite_value_derivation_steps() {
+        let constrained_with_values = external_facts("constrained")
+            .with_values(["btn-primary", "btn-secondary", "card"])
+            .with_constraint_kind("prefix")
+            .with_prefix("btn-");
+
+        let derivation = reduced_class_value_derivation_from_facts(&constrained_with_values);
+
+        assert_eq!(derivation.input_fact_kind, "constrained");
+        assert_eq!(derivation.input_constraint_kind.as_deref(), Some("prefix"));
+        assert_eq!(derivation.input_value_count, 3);
+        assert_eq!(derivation.reduced_kind, "finiteSet");
+        assert_eq!(derivation.steps.len(), 2);
+        assert_eq!(derivation.steps[0].operation, "baseFromFacts");
+        assert_eq!(derivation.steps[0].result_kind, "prefix");
+        assert_eq!(derivation.steps[1].operation, "intersectFiniteValues");
+        assert_eq!(derivation.steps[1].input_kind, Some("prefix"));
+        assert_eq!(derivation.steps[1].refinement_kind, Some("finiteSet"));
+        assert_eq!(derivation.steps[1].result_kind, "finiteSet");
     }
 
     #[test]
