@@ -2,14 +2,18 @@ use engine_input_producers::EngineInputV2;
 use engine_style_parser::{
     ParserBoundarySyntaxFactsV0, StyleSemanticFactsV0, Stylesheet, parse_style_module,
 };
-use omena_semantic::{
-    LosslessCstContractV0, SelectorIdentityEngineSummaryV0, SemanticPromotionEvidenceSummaryV0,
-};
+use omena_semantic::{LosslessCstContractV0, SelectorIdentityEngineSummaryV0};
 use serde::Serialize;
 
+mod promotion_evidence;
 mod selector_references;
 mod source_evidence;
 
+pub use promotion_evidence::{
+    SemanticPromotionEvidenceItemV0, SemanticPromotionEvidenceSummaryV0,
+    summarize_omena_bridge_promotion_evidence_with_source_input,
+    summarize_omena_bridge_semantic_promotion_evidence,
+};
 pub use selector_references::{
     SelectorEditableDirectReferenceSiteV0, SelectorReferenceEngineSummaryV0,
     SelectorReferenceSiteV0, SelectorReferenceSummaryV0,
@@ -65,6 +69,7 @@ pub fn summarize_omena_bridge_boundary() -> OmenaBridgeBoundarySummaryV0 {
             "styleSemanticGraphFromSource",
             "selectorReferenceEngine",
             "sourceInputEvidence",
+            "promotionEvidenceWithSourceInput",
         ],
         cme_coupled_surfaces: vec![
             "EngineInputV2",
@@ -73,20 +78,8 @@ pub fn summarize_omena_bridge_boundary() -> OmenaBridgeBoundarySummaryV0 {
             "promotionEvidenceWithSourceInput",
             "styleSemanticGraphFromSource",
         ],
-        next_decoupling_targets: vec!["promotionEvidenceWithSourceInput"],
+        next_decoupling_targets: Vec::new(),
     }
-}
-
-pub fn summarize_omena_bridge_promotion_evidence_with_source_input(
-    parser_facts: &ParserBoundarySyntaxFactsV0,
-    semantic_facts: &StyleSemanticFactsV0,
-    input: &EngineInputV2,
-) -> SemanticPromotionEvidenceSummaryV0 {
-    omena_semantic::summarize_semantic_promotion_evidence_with_source_input(
-        parser_facts,
-        semantic_facts,
-        input,
-    )
 }
 
 pub fn summarize_omena_bridge_style_semantic_graph(
@@ -108,12 +101,11 @@ pub fn summarize_omena_bridge_style_semantic_graph_for_path(
     let selector_reference_engine =
         summarize_omena_bridge_selector_reference_engine(input, style_path);
     let source_input_evidence = summarize_omena_bridge_source_input_evidence(input);
-    let promotion_evidence =
-        omena_semantic::summarize_semantic_promotion_evidence_with_source_input(
-            &parser_facts,
-            &semantic_facts,
-            input,
-        );
+    let promotion_evidence = summarize_omena_bridge_promotion_evidence_with_source_input(
+        &parser_facts,
+        &semantic_facts,
+        input,
+    );
     let lossless_cst_contract = boundary.lossless_cst_contract;
 
     StyleSemanticGraphSummaryV0 {
@@ -153,7 +145,9 @@ mod tests {
     use engine_style_parser::parse_style_module;
 
     use super::{
-        summarize_omena_bridge_boundary, summarize_omena_bridge_selector_reference_engine,
+        summarize_omena_bridge_boundary,
+        summarize_omena_bridge_promotion_evidence_with_source_input,
+        summarize_omena_bridge_selector_reference_engine,
         summarize_omena_bridge_source_input_evidence, summarize_omena_bridge_style_semantic_graph,
         summarize_omena_bridge_style_semantic_graph_from_source,
     };
@@ -197,23 +191,17 @@ mod tests {
         );
         assert!(
             boundary
-                .cme_coupled_surfaces
+                .bridge_owned_surfaces
                 .contains(&"promotionEvidenceWithSourceInput")
         );
         assert!(
             boundary
-                .next_decoupling_targets
+                .cme_coupled_surfaces
                 .contains(&"promotionEvidenceWithSourceInput")
         );
         assert!(
-            !boundary
-                .next_decoupling_targets
-                .contains(&"sourceInputEvidence")
-        );
-        assert!(
-            !boundary
-                .next_decoupling_targets
-                .contains(&"selectorReferenceEngine")
+            boundary.next_decoupling_targets.is_empty(),
+            "all current omena-bridge decoupling targets should be bridge-owned"
         );
     }
 
@@ -316,6 +304,28 @@ mod tests {
     }
 
     #[test]
+    fn owns_source_backed_promotion_evidence_without_changing_host_product() -> Result<(), String> {
+        let sheet = parse_style_module("Component.module.scss", ".button { color: red; }")
+            .ok_or_else(|| "SCSS module path should parse".to_string())?;
+        let boundary = omena_semantic::summarize_style_semantic_boundary(&sheet);
+        let input = sample_engine_input();
+        let bridge_evidence = summarize_omena_bridge_promotion_evidence_with_source_input(
+            &boundary.parser_facts,
+            &boundary.semantic_facts,
+            &input,
+        );
+        let semantic_evidence =
+            omena_semantic::summarize_semantic_promotion_evidence_with_source_input(
+                &boundary.parser_facts,
+                &boundary.semantic_facts,
+                &input,
+            );
+
+        assert_bridge_promotion_evidence_matches_semantic(&bridge_evidence, &semantic_evidence);
+        Ok(())
+    }
+
+    #[test]
     fn owns_graph_assembly_without_changing_host_product() -> Result<(), String> {
         let sheet = parse_style_module("Component.module.scss", ".button { color: red; }")
             .ok_or_else(|| "SCSS module path should parse".to_string())?;
@@ -345,11 +355,30 @@ mod tests {
             &bridge_graph.source_input_evidence,
             &semantic_graph.source_input_evidence,
         );
-        assert_eq!(
-            bridge_graph.promotion_evidence,
-            semantic_graph.promotion_evidence
+        assert_bridge_promotion_evidence_matches_semantic(
+            &bridge_graph.promotion_evidence,
+            &semantic_graph.promotion_evidence,
         );
         Ok(())
+    }
+
+    fn assert_bridge_promotion_evidence_matches_semantic(
+        bridge: &super::SemanticPromotionEvidenceSummaryV0,
+        semantic: &omena_semantic::SemanticPromotionEvidenceSummaryV0,
+    ) {
+        assert_eq!(bridge.schema_version, semantic.schema_version);
+        assert_eq!(bridge.product, semantic.product);
+        assert_eq!(bridge.blocking_gaps, semantic.blocking_gaps);
+        assert_eq!(bridge.next_priorities, semantic.next_priorities);
+        assert_eq!(bridge.items.len(), semantic.items.len());
+
+        for (bridge_item, semantic_item) in bridge.items.iter().zip(&semantic.items) {
+            assert_eq!(bridge_item.evidence, semantic_item.evidence);
+            assert_eq!(bridge_item.status, semantic_item.status);
+            assert_eq!(bridge_item.provider, semantic_item.provider);
+            assert_eq!(bridge_item.observed_count, semantic_item.observed_count);
+            assert_eq!(bridge_item.reason, semantic_item.reason);
+        }
     }
 
     fn assert_bridge_source_input_evidence_matches_semantic(
