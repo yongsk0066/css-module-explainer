@@ -51,6 +51,24 @@ export type QueryResultKindV2 =
   | "selector-usage"
   | "source-expression-resolution";
 
+export interface ValueDomainDerivationStepV2 {
+  readonly operation: string;
+  readonly inputKind?: string;
+  readonly refinementKind?: string;
+  readonly resultKind: string;
+  readonly reason: string;
+}
+
+export interface ValueDomainDerivationV2 {
+  readonly schemaVersion: string;
+  readonly product: string;
+  readonly inputFactKind: string;
+  readonly inputConstraintKind?: string;
+  readonly inputValueCount: number;
+  readonly reducedKind: string;
+  readonly steps: readonly ValueDomainDerivationStepV2[];
+}
+
 export interface ExpressionSemanticsQueryResultV2 {
   readonly kind: "expression-semantics";
   readonly filePath: string;
@@ -72,6 +90,7 @@ export interface ExpressionSemanticsQueryResultV2 {
     readonly valueCharMay?: string;
     readonly valueMayIncludeOtherChars?: boolean;
     readonly valueDomainReason?: string;
+    readonly valueDomainDerivation?: ValueDomainDerivationV2;
     readonly selectorCertainty: string;
     readonly selectorCertaintyShapeKind?: SelectorCertaintyShapeKindV2;
     readonly selectorConstraintKind?: StringConstraintKindV2;

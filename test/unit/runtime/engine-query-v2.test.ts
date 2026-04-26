@@ -198,6 +198,7 @@ describe("buildSelectedQueryResultsV2", () => {
         selectorCertaintyShapeLabel: "bounded selector set (1)",
         valueCertaintyShapeKind: "boundedFinite",
         valueCertaintyShapeLabel: "bounded finite (2)",
+        valueDomainDerivation: sampleValueDomainDerivation(),
       }),
     });
 
@@ -210,6 +211,10 @@ describe("buildSelectedQueryResultsV2", () => {
             selectorNames: ["indicator"],
             candidateNames: ["indicator", "active"],
             valueDomainKind: "finiteSet",
+            valueDomainDerivation: expect.objectContaining({
+              product: "omena-abstract-value.reduced-class-value-derivation",
+              reducedKind: "finiteSet",
+            }),
             selectorCertaintyShapeKind: "boundedFinite",
             valueCertaintyShapeKind: "boundedFinite",
           }),
@@ -369,6 +374,25 @@ function makeExpressionSemanticsPayload(expressionId: string, selectorName: stri
     selectorCertaintyShapeLabel: "bounded selector set (1)",
     valueCertaintyShapeKind: "boundedFinite",
     valueCertaintyShapeLabel: "bounded finite (1)",
+    valueDomainDerivation: sampleValueDomainDerivation(),
+  };
+}
+
+function sampleValueDomainDerivation() {
+  return {
+    schemaVersion: "0",
+    product: "omena-abstract-value.reduced-class-value-derivation",
+    inputFactKind: "finiteSet",
+    inputValueCount: 2,
+    reducedKind: "finiteSet",
+    steps: [
+      {
+        operation: "baseFromFacts",
+        inputKind: "finiteSet",
+        resultKind: "finiteSet",
+        reason: "finite type facts are preserved as exact candidate sets",
+      },
+    ],
   };
 }
 

@@ -419,6 +419,9 @@ function expressionSemanticsResultV2(
       ...(valueDomain.charMay ? { valueCharMay: valueDomain.charMay } : {}),
       ...(valueDomain.mayIncludeOtherChars ? { valueMayIncludeOtherChars: true } : {}),
       ...(valueDomainReason ? { valueDomainReason } : {}),
+      ...(semantics.valueDomainDerivation
+        ? { valueDomainDerivation: semantics.valueDomainDerivation }
+        : {}),
       selectorCertainty: semantics.selectorCertainty,
       ...(selectorCertaintyProfile
         ? { selectorCertaintyShapeKind: selectorCertaintyProfile.shapeKind }

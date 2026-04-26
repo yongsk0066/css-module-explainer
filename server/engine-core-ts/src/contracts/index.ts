@@ -43,6 +43,8 @@ export {
   type StringTypeFactKindV2,
   type StringTypeFactsV2,
   type ValueCertaintyShapeKindV2,
+  type ValueDomainDerivationStepV2,
+  type ValueDomainDerivationV2,
   type ValueDomainKindV2,
   type TypeFactTableEntryV2,
   type TypeFactTableV2,
