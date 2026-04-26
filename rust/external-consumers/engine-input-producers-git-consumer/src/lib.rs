@@ -179,6 +179,16 @@ mod tests {
                 .map(|results| results.len()),
             Some(2)
         );
+        assert_eq!(
+            value["evaluatorCandidates"]["expressionDomain"]["results"][0]["payload"]
+                ["valueDomainDerivation"]["product"],
+            json!("omena-abstract-value.reduced-class-value-derivation")
+        );
+        assert_eq!(
+            value["evaluatorCandidates"]["expressionDomain"]["results"][0]["payload"]
+                ["valueDomainDerivation"]["reducedKind"],
+            json!("prefixSuffix")
+        );
         Ok(())
     }
 }

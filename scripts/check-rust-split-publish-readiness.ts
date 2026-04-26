@@ -29,7 +29,7 @@ const splitRepos: readonly SplitRepo[] = [
     label: "input-producers",
     repo: "omenien/omena-engine-input-producers",
     packageName: "omena-engine-input-producers",
-    expectedVersion: "0.1.0",
+    expectedVersion: "0.1.1",
     libName: "engine_input_producers",
   },
   {
@@ -65,7 +65,7 @@ const splitRepos: readonly SplitRepo[] = [
     label: "abstract-value",
     repo: "omenien/omena-abstract-value",
     packageName: "omena-abstract-value",
-    expectedVersion: "0.1.0",
+    expectedVersion: "0.1.1",
     libName: "omena_abstract_value",
   },
   {
