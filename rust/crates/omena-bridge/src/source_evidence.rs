@@ -83,8 +83,13 @@ pub struct ValueDomainExplanationEvidenceV0 {
     pub constrained_expression_count: usize,
     pub unknown_expression_count: usize,
     pub finite_value_count: usize,
+    pub derivation_count: usize,
+    pub derivation_step_count: usize,
     pub value_domain_kind_counts: BTreeMap<String, usize>,
     pub constraint_kind_counts: BTreeMap<String, usize>,
+    pub derivation_product_counts: BTreeMap<String, usize>,
+    pub derivation_reduced_kind_counts: BTreeMap<String, usize>,
+    pub derivation_operation_counts: BTreeMap<String, usize>,
 }
 
 pub fn summarize_omena_bridge_source_input_evidence(
@@ -340,8 +345,13 @@ fn summarize_value_domain_explanation(input: &EngineInputV2) -> ValueDomainExpla
     let mut constrained_expression_count = 0usize;
     let mut unknown_expression_count = 0usize;
     let mut finite_value_count = 0usize;
+    let mut derivation_count = 0usize;
+    let mut derivation_step_count = 0usize;
     let mut value_domain_kind_counts = BTreeMap::new();
     let mut constraint_kind_counts = BTreeMap::new();
+    let mut derivation_product_counts = BTreeMap::new();
+    let mut derivation_reduced_kind_counts = BTreeMap::new();
+    let mut derivation_operation_counts = BTreeMap::new();
 
     for result in expression_semantics.results {
         expression_count += 1;
@@ -364,6 +374,21 @@ fn summarize_value_domain_explanation(input: &EngineInputV2) -> ValueDomainExpla
         if let Some(kind) = &payload.value_constraint_kind {
             *constraint_kind_counts.entry(kind.clone()).or_insert(0) += 1;
         }
+
+        derivation_count += 1;
+        let derivation = payload.value_domain_derivation;
+        *derivation_product_counts
+            .entry(derivation.product.to_string())
+            .or_insert(0) += 1;
+        *derivation_reduced_kind_counts
+            .entry(derivation.reduced_kind.to_string())
+            .or_insert(0) += 1;
+        for step in derivation.steps {
+            derivation_step_count += 1;
+            *derivation_operation_counts
+                .entry(step.operation.to_string())
+                .or_insert(0) += 1;
+        }
     }
 
     ValueDomainExplanationEvidenceV0 {
@@ -373,6 +398,7 @@ fn summarize_value_domain_explanation(input: &EngineInputV2) -> ValueDomainExpla
             + finite_value_expression_count
             + constrained_expression_count
             > 0
+            && derivation_count == expression_count
         {
             "ready"
         } else {
@@ -384,8 +410,13 @@ fn summarize_value_domain_explanation(input: &EngineInputV2) -> ValueDomainExpla
         constrained_expression_count,
         unknown_expression_count,
         finite_value_count,
+        derivation_count,
+        derivation_step_count,
         value_domain_kind_counts,
         constraint_kind_counts,
+        derivation_product_counts,
+        derivation_reduced_kind_counts,
+        derivation_operation_counts,
     }
 }
 

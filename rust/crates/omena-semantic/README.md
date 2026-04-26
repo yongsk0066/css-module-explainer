@@ -19,7 +19,7 @@ Current public products:
   promotion beyond output parity.
 - `omena-semantic.source-input-evidence` — `EngineInputV2`-backed reference
   site identity, binding origin, style module edge, value-domain explanation,
-  and selector certainty reason evidence.
+  value-domain derivation, and selector certainty reason evidence.
 - `omena-semantic.lossless-cst-contract` — byte-span invariants used by precise
   rename, formatter, and recovery-oriented consumers.
 - `omena-semantic.theory-observation-harness` — observation-only readiness

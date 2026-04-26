@@ -20,7 +20,8 @@ Current public products:
   this crate.
 - `omena-semantic.source-input-evidence` — bridge-owned source evidence product,
   kept stable for existing host consumers while ownership moves behind this
-  crate.
+  crate. The evidence includes value-domain derivation counts from the
+  source-backed expression-semantics payload.
 - `omena-semantic.promotion-evidence` — bridge-owned source-backed promotion
   evidence product, kept stable for existing host consumers while ownership
   moves behind this crate.

@@ -550,12 +550,38 @@ mod tests {
             semantic.value_domain_explanation.finite_value_count
         );
         assert_eq!(
+            bridge.value_domain_explanation.derivation_count,
+            semantic.value_domain_explanation.derivation_count
+        );
+        assert_eq!(
+            bridge.value_domain_explanation.derivation_step_count,
+            semantic.value_domain_explanation.derivation_step_count
+        );
+        assert_eq!(
             bridge.value_domain_explanation.value_domain_kind_counts,
             semantic.value_domain_explanation.value_domain_kind_counts
         );
         assert_eq!(
             bridge.value_domain_explanation.constraint_kind_counts,
             semantic.value_domain_explanation.constraint_kind_counts
+        );
+        assert_eq!(
+            bridge.value_domain_explanation.derivation_product_counts,
+            semantic.value_domain_explanation.derivation_product_counts
+        );
+        assert_eq!(
+            bridge
+                .value_domain_explanation
+                .derivation_reduced_kind_counts,
+            semantic
+                .value_domain_explanation
+                .derivation_reduced_kind_counts
+        );
+        assert_eq!(
+            bridge.value_domain_explanation.derivation_operation_counts,
+            semantic
+                .value_domain_explanation
+                .derivation_operation_counts
         );
         assert_eq!(bridge.blocking_gaps, semantic.blocking_gaps);
         assert_eq!(bridge.next_priorities, semantic.next_priorities);

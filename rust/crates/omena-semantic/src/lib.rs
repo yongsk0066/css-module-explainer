@@ -476,6 +476,36 @@ $color: red;
             1
         );
         assert_eq!(evidence.value_domain_explanation.finite_value_count, 1);
+        assert_eq!(evidence.value_domain_explanation.derivation_count, 2);
+        assert_eq!(evidence.value_domain_explanation.derivation_step_count, 2);
+        assert_eq!(
+            evidence
+                .value_domain_explanation
+                .derivation_product_counts
+                .get("omena-abstract-value.reduced-class-value-derivation"),
+            Some(&2)
+        );
+        assert_eq!(
+            evidence
+                .value_domain_explanation
+                .derivation_reduced_kind_counts
+                .get("exact"),
+            Some(&1)
+        );
+        assert_eq!(
+            evidence
+                .value_domain_explanation
+                .derivation_reduced_kind_counts
+                .get("prefix"),
+            Some(&1)
+        );
+        assert_eq!(
+            evidence
+                .value_domain_explanation
+                .derivation_operation_counts
+                .get("baseFromFacts"),
+            Some(&2)
+        );
         assert_eq!(
             evidence
                 .certainty_reason
