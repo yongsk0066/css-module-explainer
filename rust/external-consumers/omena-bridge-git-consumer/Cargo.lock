@@ -44,8 +44,8 @@ dependencies = [
 
 [[package]]
 name = "omena-engine-input-producers"
-version = "0.1.1"
-source = "git+https://github.com/omenien/omena-engine-input-producers.git?rev=6f964e2#6f964e2eaa85c0b223430ff3c6c1ffadc6ce815e"
+version = "0.1.2"
+source = "git+https://github.com/omenien/omena-engine-input-producers.git?rev=997d298#997d298233fcc3725d72a34515d87c49e1bedf56"
 dependencies = [
  "omena-abstract-value",
  "serde",
