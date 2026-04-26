@@ -744,6 +744,7 @@ export interface OmenaQuerySelectedQueryAdapterCapabilitiesV0 {
   readonly defaultCandidateBackend: string;
   readonly backendKinds: readonly OmenaQuerySelectedQueryBackendCapabilityV0[];
   readonly runnerCommands: readonly OmenaQuerySelectedQueryRunnerCommandV0[];
+  readonly expressionSemanticsPayloadContracts: readonly string[];
   readonly requiredInputContracts: readonly string[];
   readonly adapterReadiness: readonly string[];
   readonly routingStatus: string;

@@ -72,9 +72,14 @@ void (async () => {
     "StyleSemanticGraphBatchInputV0",
     "StyleSemanticGraphInputV0",
   ]);
+  assert.deepEqual([...summary.expressionSemanticsPayloadContracts].toSorted(), [
+    "valueDomainDerivation",
+    "valueDomainKind",
+  ]);
   assert.deepEqual([...summary.adapterReadiness].toSorted(), [
     "backendCapabilityMatrix",
     "canonicalProducerWrapperBoundary",
+    "expressionSemanticsDerivationPayload",
     "fragmentBundleBoundary",
     "runnerCommandContract",
     "styleSemanticGraphBridgeBoundary",

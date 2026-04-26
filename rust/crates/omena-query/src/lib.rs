@@ -55,6 +55,7 @@ pub struct SelectedQueryAdapterCapabilitiesV0 {
     pub default_candidate_backend: &'static str,
     pub backend_kinds: Vec<SelectedQueryBackendCapabilityV0>,
     pub runner_commands: Vec<SelectedQueryRunnerCommandV0>,
+    pub expression_semantics_payload_contracts: Vec<&'static str>,
     pub required_input_contracts: Vec<&'static str>,
     pub adapter_readiness: Vec<&'static str>,
     pub routing_status: &'static str,
@@ -206,6 +207,7 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
                 output_product: "omena-semantic.style-semantic-graph-batch",
             },
         ],
+        expression_semantics_payload_contracts: vec!["valueDomainKind", "valueDomainDerivation"],
         required_input_contracts: vec![
             "EngineInputV2",
             "StyleSemanticGraphInputV0",
@@ -217,6 +219,7 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
             "styleSemanticGraphBridgeBoundary",
             "runnerCommandContract",
             "fragmentBundleBoundary",
+            "expressionSemanticsDerivationPayload",
         ],
         routing_status: "declaredOnly",
     }
@@ -444,6 +447,11 @@ mod tests {
                 .iter()
                 .any(|command| command.command == "style-semantic-graph-batch")
         );
+        assert!(
+            summary
+                .expression_semantics_payload_contracts
+                .contains(&"valueDomainDerivation")
+        );
         assert!(summary.adapter_readiness.contains(&"runnerCommandContract"));
         assert!(
             summary
@@ -473,6 +481,20 @@ mod tests {
         assert_eq!(expression.input_version, "2");
         assert_eq!(expression.canonical_bundle.query_fragments.len(), 2);
         assert_eq!(expression.evaluator_candidates.results.len(), 2);
+        assert_eq!(
+            expression.evaluator_candidates.results[0]
+                .payload
+                .value_domain_derivation
+                .product,
+            "omena-abstract-value.reduced-class-value-derivation"
+        );
+        assert_eq!(
+            expression.evaluator_candidates.results[0]
+                .payload
+                .value_domain_derivation
+                .reduced_kind,
+            "prefixSuffix"
+        );
 
         let selector = summarize_omena_query_selector_usage_canonical_producer_signal(&input);
         assert_eq!(selector.schema_version, "0");
