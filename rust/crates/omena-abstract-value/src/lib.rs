@@ -1224,7 +1224,7 @@ mod tests {
         reduced_abstract_class_value_from_facts, reduced_value_domain_kind_from_facts,
         selector_certainty_from_facts, selector_certainty_shape_kind_from_facts,
         selector_certainty_shape_label_from_facts, suffix_class_value,
-        summarize_omena_abstract_value_domain, value_certainty_from_facts,
+        summarize_omena_abstract_value_domain, top_class_value, value_certainty_from_facts,
         value_certainty_shape_kind_from_facts, value_certainty_shape_label_from_facts,
     };
 
@@ -1466,6 +1466,119 @@ mod tests {
     }
 
     #[test]
+    fn reduced_product_laws_hold_over_selector_projection() {
+        let selectors = selector_universe([
+            "btn-primary",
+            "btn-secondary",
+            "btn-active",
+            "card",
+            "card-active",
+            "nav-active",
+        ]);
+        let finite = finite_set_class_value([
+            "btn-primary",
+            "btn-secondary",
+            "card",
+            "card-active",
+            "missing",
+        ]);
+        let prefix = prefix_class_value("btn-", None);
+        let suffix = suffix_class_value("-active", None);
+        let chars = char_inclusion_class_value("ab", "-abceintv", None, false);
+        let composite = composite_class_value(CompositeClassValueInputV0 {
+            prefix: Some("btn-".to_string()),
+            suffix: Some("-active".to_string()),
+            min_length: Some("btn--active".len()),
+            must_chars: "ab".to_string(),
+            may_chars: "-abceintv".to_string(),
+            may_include_other_chars: false,
+            provenance: None,
+        });
+
+        for (left, right) in [
+            (&finite, &prefix),
+            (&prefix, &suffix),
+            (&suffix, &chars),
+            (&prefix, &composite),
+        ] {
+            assert_projection_equivalent(
+                &intersect_abstract_class_values(left, right),
+                &intersect_abstract_class_values(right, left),
+                &selectors,
+            );
+        }
+
+        for value in [&finite, &prefix, &suffix, &chars, &composite] {
+            assert_projection_equivalent(
+                &intersect_abstract_class_values(value, value),
+                value,
+                &selectors,
+            );
+        }
+
+        assert_eq!(
+            intersect_abstract_class_values(&top_class_value(), &finite),
+            finite
+        );
+        assert_eq!(
+            intersect_abstract_class_values(&finite, &top_class_value()),
+            finite
+        );
+        assert_eq!(
+            intersect_abstract_class_values(&bottom_class_value(), &finite),
+            bottom_class_value()
+        );
+        assert_eq!(
+            intersect_abstract_class_values(&finite, &bottom_class_value()),
+            bottom_class_value()
+        );
+    }
+
+    #[test]
+    fn reduced_product_projection_matches_intersected_projection_sets() {
+        let selectors = selector_universe([
+            "btn-primary",
+            "btn-secondary",
+            "btn-active",
+            "card",
+            "card-active",
+            "nav-active",
+        ]);
+        let finite = finite_set_class_value([
+            "btn-primary",
+            "btn-secondary",
+            "card",
+            "card-active",
+            "missing",
+        ]);
+        let prefix = prefix_class_value("btn-", None);
+        let suffix = suffix_class_value("-active", None);
+        let prefix_suffix = intersect_abstract_class_values(&prefix, &suffix);
+
+        assert_eq!(
+            projected_names(
+                &intersect_abstract_class_values(&finite, &prefix),
+                &selectors
+            ),
+            vec!["btn-primary".to_string(), "btn-secondary".to_string()]
+        );
+        assert_eq!(
+            projected_names(
+                &intersect_abstract_class_values(&finite, &prefix),
+                &selectors
+            ),
+            intersect_projected_names(&finite, &prefix, &selectors)
+        );
+        assert_eq!(
+            projected_names(
+                &intersect_abstract_class_values(&finite, &prefix_suffix),
+                &selectors,
+            ),
+            intersect_projected_names(&finite, &prefix_suffix, &selectors)
+        );
+    }
+
+    #[test]
     fn reduces_external_facts_before_reporting_domain_kind() {
         let finite_with_prefix = external_facts("finiteSet")
             .with_values(["btn-primary", "card"])
@@ -1573,6 +1686,35 @@ mod tests {
 
     fn selector_universe(values: impl IntoIterator<Item = &'static str>) -> Vec<String> {
         values.into_iter().map(str::to_string).collect()
+    }
+
+    fn assert_projection_equivalent(
+        left: &AbstractClassValueV0,
+        right: &AbstractClassValueV0,
+        selectors: &[String],
+    ) {
+        assert_eq!(
+            projected_names(left, selectors),
+            projected_names(right, selectors)
+        );
+    }
+
+    fn projected_names(value: &AbstractClassValueV0, selectors: &[String]) -> Vec<String> {
+        project_abstract_value_selectors(value, selectors).selector_names
+    }
+
+    fn intersect_projected_names(
+        left: &AbstractClassValueV0,
+        right: &AbstractClassValueV0,
+        selectors: &[String],
+    ) -> Vec<String> {
+        let right_names = projected_names(right, selectors)
+            .into_iter()
+            .collect::<std::collections::BTreeSet<_>>();
+        projected_names(left, selectors)
+            .into_iter()
+            .filter(|name| right_names.contains(name))
+            .collect()
     }
 
     fn external_facts(kind: &str) -> ExternalStringTypeFactsV0 {
