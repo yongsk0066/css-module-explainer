@@ -1,3 +1,5 @@
+use std::collections::{BTreeMap, BTreeSet};
+
 use engine_input_producers::{
     EngineInputV2, SourceResolutionCanonicalProducerSignalV0, SourceResolutionQueryFragmentsV0,
     summarize_source_resolution_canonical_producer_signal_input,
@@ -13,16 +15,61 @@ pub struct OmenaResolverBoundarySummaryV0 {
     pub resolver_name: &'static str,
     pub input_version: String,
     pub delegated_source_resolution_products: Vec<&'static str>,
+    pub resolver_owned_products: Vec<&'static str>,
     pub source_resolution_query_count: usize,
     pub source_resolution_candidate_count: usize,
     pub source_resolution_evaluator_candidate_count: usize,
+    pub module_graph_module_count: usize,
+    pub module_graph_source_expression_edge_count: usize,
     pub ready_surfaces: Vec<&'static str>,
     pub cme_coupled_surfaces: Vec<&'static str>,
     pub next_decoupling_targets: Vec<&'static str>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaResolverModuleGraphSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub input_version: String,
+    pub module_count: usize,
+    pub source_expression_edge_count: usize,
+    pub type_fact_edge_count: usize,
+    pub selector_count: usize,
+    pub unresolved_type_fact_count: usize,
+    pub modules: Vec<OmenaResolverModuleGraphModuleV0>,
+    pub unresolved_type_fact_expression_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaResolverModuleGraphModuleV0 {
+    pub style_file_path: String,
+    pub source_expression_ids: Vec<String>,
+    pub source_expression_kinds: Vec<String>,
+    pub type_fact_expression_ids: Vec<String>,
+    pub selector_names: Vec<String>,
+    pub canonical_selector_names: Vec<String>,
+    pub has_source_input: bool,
+    pub has_style_input: bool,
+    pub has_type_fact_input: bool,
+}
+
+#[derive(Debug, Default)]
+struct ModuleGraphAccumulator {
+    source_expression_ids: BTreeSet<String>,
+    source_expression_kinds: BTreeSet<String>,
+    type_fact_expression_ids: BTreeSet<String>,
+    selector_names: BTreeSet<String>,
+    canonical_selector_names: BTreeSet<String>,
+    has_source_input: bool,
+    has_style_input: bool,
+    has_type_fact_input: bool,
+}
+
 pub fn summarize_omena_resolver_boundary(input: &EngineInputV2) -> OmenaResolverBoundarySummaryV0 {
     let canonical_signal = summarize_omena_resolver_canonical_producer_signal(input);
+    let module_graph = summarize_omena_resolver_module_graph_index(input);
 
     OmenaResolverBoundarySummaryV0 {
         schema_version: "0",
@@ -33,23 +80,110 @@ pub fn summarize_omena_resolver_boundary(input: &EngineInputV2) -> OmenaResolver
             "engine-input-producers.source-resolution-query-fragments",
             "engine-input-producers.source-resolution-canonical-producer",
         ],
+        resolver_owned_products: vec!["omena-resolver.module-graph-index"],
         source_resolution_query_count: canonical_signal.canonical_bundle.query_fragments.len(),
         source_resolution_candidate_count: canonical_signal.canonical_bundle.candidates.len(),
         source_resolution_evaluator_candidate_count: canonical_signal
             .evaluator_candidates
             .results
             .len(),
+        module_graph_module_count: module_graph.module_count,
+        module_graph_source_expression_edge_count: module_graph.source_expression_edge_count,
         ready_surfaces: vec![
             "resolverBoundarySummary",
+            "resolverModuleGraphIndex",
             "sourceResolutionQueryFragments",
             "sourceResolutionCanonicalProducerSignal",
         ],
         cme_coupled_surfaces: vec!["EngineInputV2", "producerSourceResolutionRows"],
-        next_decoupling_targets: vec![
-            "specifierResolutionRuntime",
-            "moduleGraphIndex",
-            "tsconfigPathMapping",
-        ],
+        next_decoupling_targets: vec!["specifierResolutionRuntime", "tsconfigPathMapping"],
+    }
+}
+
+pub fn summarize_omena_resolver_module_graph_index(
+    input: &EngineInputV2,
+) -> OmenaResolverModuleGraphSummaryV0 {
+    let mut modules = BTreeMap::<String, ModuleGraphAccumulator>::new();
+    let mut expression_to_style_path = BTreeMap::<String, String>::new();
+    let mut source_expression_edge_count = 0usize;
+    let mut type_fact_edge_count = 0usize;
+    let mut selector_count = 0usize;
+    let mut unresolved_type_fact_expression_ids = BTreeSet::<String>::new();
+
+    for source in &input.sources {
+        for expression in &source.document.class_expressions {
+            source_expression_edge_count += 1;
+            expression_to_style_path
+                .insert(expression.id.clone(), expression.scss_module_path.clone());
+            let module = modules
+                .entry(expression.scss_module_path.clone())
+                .or_default();
+            module.has_source_input = true;
+            module.source_expression_ids.insert(expression.id.clone());
+            module
+                .source_expression_kinds
+                .insert(expression.kind.clone());
+        }
+    }
+
+    for style in &input.styles {
+        let module = modules.entry(style.file_path.clone()).or_default();
+        module.has_style_input = true;
+        for selector in &style.document.selectors {
+            selector_count += 1;
+            module.selector_names.insert(selector.name.clone());
+            if let Some(canonical_name) = &selector.canonical_name {
+                module
+                    .canonical_selector_names
+                    .insert(canonical_name.clone());
+            }
+        }
+    }
+
+    for type_fact in &input.type_facts {
+        if let Some(style_file_path) = expression_to_style_path.get(&type_fact.expression_id) {
+            type_fact_edge_count += 1;
+            let module = modules.entry(style_file_path.clone()).or_default();
+            module.has_type_fact_input = true;
+            module
+                .type_fact_expression_ids
+                .insert(type_fact.expression_id.clone());
+        } else {
+            unresolved_type_fact_expression_ids.insert(type_fact.expression_id.clone());
+        }
+    }
+
+    let modules = modules
+        .into_iter()
+        .map(
+            |(style_file_path, module)| OmenaResolverModuleGraphModuleV0 {
+                style_file_path,
+                source_expression_ids: module.source_expression_ids.into_iter().collect(),
+                source_expression_kinds: module.source_expression_kinds.into_iter().collect(),
+                type_fact_expression_ids: module.type_fact_expression_ids.into_iter().collect(),
+                selector_names: module.selector_names.into_iter().collect(),
+                canonical_selector_names: module.canonical_selector_names.into_iter().collect(),
+                has_source_input: module.has_source_input,
+                has_style_input: module.has_style_input,
+                has_type_fact_input: module.has_type_fact_input,
+            },
+        )
+        .collect::<Vec<_>>();
+    let unresolved_type_fact_expression_ids = unresolved_type_fact_expression_ids
+        .into_iter()
+        .collect::<Vec<_>>();
+
+    OmenaResolverModuleGraphSummaryV0 {
+        schema_version: "0",
+        product: "omena-resolver.module-graph-index",
+        input_version: input.version.clone(),
+        module_count: modules.len(),
+        source_expression_edge_count,
+        type_fact_edge_count,
+        selector_count,
+        unresolved_type_fact_count: unresolved_type_fact_expression_ids.len(),
+        modules,
+        unresolved_type_fact_expression_ids,
     }
 }
 
@@ -75,7 +209,7 @@ mod tests {
 
     use super::{
         summarize_omena_resolver_boundary, summarize_omena_resolver_canonical_producer_signal,
-        summarize_omena_resolver_query_fragments,
+        summarize_omena_resolver_module_graph_index, summarize_omena_resolver_query_fragments,
     };
 
     #[test]
@@ -90,6 +224,8 @@ mod tests {
         assert_eq!(summary.source_resolution_query_count, 2);
         assert_eq!(summary.source_resolution_candidate_count, 2);
         assert_eq!(summary.source_resolution_evaluator_candidate_count, 2);
+        assert_eq!(summary.module_graph_module_count, 2);
+        assert_eq!(summary.module_graph_source_expression_edge_count, 2);
         assert!(
             summary
                 .delegated_source_resolution_products
@@ -97,14 +233,62 @@ mod tests {
         );
         assert!(
             summary
-                .ready_surfaces
-                .contains(&"sourceResolutionCanonicalProducerSignal")
+                .resolver_owned_products
+                .contains(&"omena-resolver.module-graph-index")
         );
+        assert!(summary.ready_surfaces.contains(&"resolverModuleGraphIndex"));
         assert!(
             summary
                 .next_decoupling_targets
                 .contains(&"tsconfigPathMapping")
         );
+    }
+
+    #[test]
+    fn builds_resolver_module_graph_index_from_engine_input() {
+        let input = sample_input();
+        let summary = summarize_omena_resolver_module_graph_index(&input);
+
+        assert_eq!(summary.schema_version, "0");
+        assert_eq!(summary.product, "omena-resolver.module-graph-index");
+        assert_eq!(summary.input_version, "2");
+        assert_eq!(summary.module_count, 2);
+        assert_eq!(summary.source_expression_edge_count, 2);
+        assert_eq!(summary.type_fact_edge_count, 2);
+        assert_eq!(summary.selector_count, 2);
+        assert_eq!(summary.unresolved_type_fact_count, 0);
+        assert!(summary.unresolved_type_fact_expression_ids.is_empty());
+
+        let app = summary
+            .modules
+            .iter()
+            .find(|module| module.style_file_path == "/tmp/App.module.scss");
+        assert!(app.is_some());
+        let Some(app) = app else {
+            return;
+        };
+        assert_eq!(app.source_expression_ids, ["expr-1"]);
+        assert_eq!(app.source_expression_kinds, ["symbolRef"]);
+        assert_eq!(app.type_fact_expression_ids, ["expr-1"]);
+        assert_eq!(app.selector_names, ["btn-active"]);
+        assert_eq!(app.canonical_selector_names, ["btn-active"]);
+        assert!(app.has_source_input);
+        assert!(app.has_style_input);
+        assert!(app.has_type_fact_input);
+
+        let card = summary
+            .modules
+            .iter()
+            .find(|module| module.style_file_path == "/tmp/Card.module.scss");
+        assert!(card.is_some());
+        let Some(card) = card else {
+            return;
+        };
+        assert_eq!(card.source_expression_ids, ["expr-2"]);
+        assert_eq!(card.source_expression_kinds, ["styleAccess"]);
+        assert_eq!(card.type_fact_expression_ids, ["expr-2"]);
+        assert_eq!(card.selector_names, ["card-header"]);
+        assert_eq!(card.canonical_selector_names, ["card-header"]);
     }
 
     #[test]

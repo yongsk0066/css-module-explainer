@@ -19,6 +19,16 @@ assert.ok(
   "input-omena-resolver-boundary must route through omena-resolver",
 );
 
+const resolverModuleGraphBody = commandBodies.get("input-omena-resolver-module-graph");
+assert.ok(
+  resolverModuleGraphBody,
+  "missing engine-shadow-runner command arm: input-omena-resolver-module-graph",
+);
+assert.ok(
+  resolverModuleGraphBody.includes("summarize_omena_resolver_module_graph_index"),
+  "input-omena-resolver-module-graph must route through omena-resolver",
+);
+
 assert.ok(
   querySource.includes("summarize_omena_resolver_query_fragments(input)"),
   "omena-query source-resolution query fragments must route through omena-resolver",
@@ -32,6 +42,7 @@ process.stdout.write(
   [
     "validated omena-resolver runner boundary:",
     "resolverBoundaryCommand=input-omena-resolver-boundary",
+    "moduleGraphCommand=input-omena-resolver-module-graph",
     "queryDelegation=source-resolution",
   ].join(" "),
 );
