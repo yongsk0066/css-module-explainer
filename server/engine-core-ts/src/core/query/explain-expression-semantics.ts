@@ -29,6 +29,8 @@ export interface DynamicExpressionExplanation {
   readonly candidates: readonly string[];
   readonly valueDomainLabel?: string;
   readonly valueDomainReasonLabel?: string;
+  readonly valueDomainDerivationLabel?: string;
+  readonly valueDomainDerivationStepLabels?: readonly string[];
   readonly valueCertainty?: EdgeCertainty;
   readonly valueCertaintyShapeLabel?: string;
   readonly valueCertaintyReasonLabel?: string;
@@ -52,6 +54,7 @@ export function buildDynamicExpressionExplanation(
       if (!semantics.abstractValue || !semantics.reason) return null;
       const valueDomainLabel = describeAbstractValue(semantics.abstractValue);
       const valueDomainReasonLabel = describeAbstractValueReason(semantics.abstractValue);
+      const valueDomainDerivation = describeValueDomainDerivation(semantics.valueDomainDerivation);
       const valueCertaintyProfile = deriveValueCertaintyProfile(
         semantics.abstractValue,
         semantics.valueCertainty,
@@ -78,6 +81,12 @@ export function buildDynamicExpressionExplanation(
         candidates: semantics.candidateNames,
         ...(valueDomainLabel ? { valueDomainLabel } : {}),
         ...(valueDomainReasonLabel ? { valueDomainReasonLabel } : {}),
+        ...(valueDomainDerivation
+          ? {
+              valueDomainDerivationLabel: valueDomainDerivation.label,
+              valueDomainDerivationStepLabels: valueDomainDerivation.stepLabels,
+            }
+          : {}),
         ...(semantics.valueCertainty ? { valueCertainty: semantics.valueCertainty } : {}),
         ...(valueCertaintyProfile
           ? { valueCertaintyShapeLabel: valueCertaintyProfile.shapeLabel }
@@ -95,6 +104,7 @@ export function buildDynamicExpressionExplanation(
       if (semantics.selectors.length === 0) return null;
       const valueDomainLabel = describeAbstractValue(semantics.abstractValue);
       const valueDomainReasonLabel = describeAbstractValueReason(semantics.abstractValue);
+      const valueDomainDerivation = describeValueDomainDerivation(semantics.valueDomainDerivation);
       const selectorCertaintyProfile = deriveSelectorCertaintyProfile(
         semantics.selectors.length,
         semantics.selectorCertainty,
@@ -111,6 +121,12 @@ export function buildDynamicExpressionExplanation(
         candidates: semantics.candidateNames,
         ...(valueDomainLabel ? { valueDomainLabel } : {}),
         ...(valueDomainReasonLabel ? { valueDomainReasonLabel } : {}),
+        ...(valueDomainDerivation
+          ? {
+              valueDomainDerivationLabel: valueDomainDerivation.label,
+              valueDomainDerivationStepLabels: valueDomainDerivation.stepLabels,
+            }
+          : {}),
         ...(semantics.selectorCertainty ? { selectorCertainty: semantics.selectorCertainty } : {}),
         ...(selectorCertaintyProfile
           ? { selectorCertaintyShapeLabel: selectorCertaintyProfile.shapeLabel }
@@ -286,6 +302,25 @@ export function describeAbstractValueReason(
     default:
       return null;
   }
+}
+
+function describeValueDomainDerivation(
+  derivation: ExpressionSemanticsSummary["valueDomainDerivation"],
+): { readonly label: string; readonly stepLabels: readonly string[] } | null {
+  if (!derivation) return null;
+
+  const inputKind = derivation.inputConstraintKind
+    ? `${derivation.inputFactKind}/${derivation.inputConstraintKind}`
+    : derivation.inputFactKind;
+  const operationPath = derivation.steps.map((step) => step.operation).join(" -> ");
+  return {
+    label: `${inputKind} reduced to ${derivation.reducedKind}${operationPath ? ` via ${operationPath}` : ""}`,
+    stepLabels: derivation.steps.map((step, index) => {
+      const refinement = step.refinementKind ? ` + ${step.refinementKind}` : "";
+      const input = step.inputKind ? `${step.inputKind}${refinement}` : "input facts";
+      return `${index + 1}. ${step.operation}: ${input} -> ${step.resultKind} (${step.reason})`;
+    }),
+  };
 }
 
 export function describeValueCertaintyReason(

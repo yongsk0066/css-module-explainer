@@ -13,6 +13,7 @@ interface DynamicHoverExplanation {
   readonly candidates: readonly string[];
   readonly valueDomainLabel?: string;
   readonly valueDomainReasonLabel?: string;
+  readonly valueDomainDerivationLabel?: string;
   readonly valueCertainty?: string;
   readonly valueCertaintyShapeLabel?: string;
   readonly valueCertaintyReasonLabel?: string;
@@ -281,6 +282,9 @@ function renderDynamicExplanation(
     if (explanation.valueDomainReasonLabel) {
       lines.push(`_Value domain reason: ${explanation.valueDomainReasonLabel}._`);
     }
+    if (explanation.valueDomainDerivationLabel) {
+      lines.push(`_Value domain derivation: ${explanation.valueDomainDerivationLabel}._`);
+    }
   } else {
     lines.push(`_Resolved by template prefix \`${explanation.subject}\`._`);
     if (explanation.selectorCertainty) {
@@ -303,6 +307,9 @@ function renderDynamicExplanation(
     }
     if (explanation.valueDomainReasonLabel) {
       lines.push(`_Value domain reason: ${explanation.valueDomainReasonLabel}._`);
+    }
+    if (explanation.valueDomainDerivationLabel) {
+      lines.push(`_Value domain derivation: ${explanation.valueDomainDerivationLabel}._`);
     }
   }
 

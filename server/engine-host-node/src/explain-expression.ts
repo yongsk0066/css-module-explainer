@@ -23,6 +23,7 @@ import type { TypeFactBackendKind } from "./type-backend";
 import {
   buildExpressionSemanticsSummaryFromRustPayload,
   resolveRustExpressionSemanticsPayload,
+  type ReducedClassValueDerivationV0,
 } from "./expression-semantics-query-backend";
 import {
   createWorkspaceAnalysisHost,
@@ -64,6 +65,7 @@ export interface ExplainExpressionResult {
     readonly valueCharMust?: string;
     readonly valueCharMay?: string;
     readonly valueMayIncludeOtherChars?: boolean;
+    readonly valueDomainDerivation?: ReducedClassValueDerivationV0;
     readonly valueCertaintyShapeKind?: ValueCertaintyShapeKindV2;
     readonly valueCertaintyConstraintKind?: StringConstraintKindV2;
     readonly selectorCertaintyShapeKind?: SelectorCertaintyShapeKindV2;
@@ -257,6 +259,9 @@ function resolveExplainExpressionViaRustSemantics(
       ...(payload.valueCharMust ? { valueCharMust: payload.valueCharMust } : {}),
       ...(payload.valueCharMay ? { valueCharMay: payload.valueCharMay } : {}),
       ...(payload.valueMayIncludeOtherChars ? { valueMayIncludeOtherChars: true } : {}),
+      ...(payload.valueDomainDerivation
+        ? { valueDomainDerivation: payload.valueDomainDerivation }
+        : {}),
       ...(payload.valueCertaintyShapeKind
         ? { valueCertaintyShapeKind: payload.valueCertaintyShapeKind as ValueCertaintyShapeKindV2 }
         : {}),

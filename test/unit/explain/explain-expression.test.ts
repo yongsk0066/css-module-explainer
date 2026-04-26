@@ -257,6 +257,7 @@ describe("explainExpressionAtLocation", () => {
         selectorCertaintyShapeLabel: "bounded selector set (1)",
         valueCertaintyShapeKind: "boundedFinite",
         valueCertaintyShapeLabel: "bounded finite (2)",
+        valueDomainDerivation: sampleValueDomainDerivation(),
       }),
     });
 
@@ -267,10 +268,14 @@ describe("explainExpressionAtLocation", () => {
           valueDomainKind: "finiteSet",
           valueCertaintyShapeKind: "boundedFinite",
           selectorCertaintyShapeKind: "boundedFinite",
+          valueDomainDerivation: expect.objectContaining({
+            reducedKind: "finiteSet",
+          }),
         }),
         dynamicExplanation: expect.objectContaining({
           subject: "size",
           candidates: ["small", "large"],
+          valueDomainDerivationLabel: "finiteSet reduced to finiteSet via baseFromFacts",
           valueCertainty: "inferred",
           valueCertaintyShapeLabel: "bounded finite (2)",
           valueCertaintyReasonLabel: "analysis preserved multiple finite candidate values",
@@ -346,4 +351,21 @@ function makeWorkspace(files: Record<string, string>): string {
     writeFileSync(absolutePath, content, "utf8");
   }
   return root;
+}
+
+function sampleValueDomainDerivation() {
+  return {
+    schemaVersion: "0",
+    product: "omena-abstract-value.reduced-class-value-derivation",
+    inputFactKind: "finiteSet",
+    inputValueCount: 2,
+    reducedKind: "finiteSet",
+    steps: [
+      {
+        operation: "baseFromFacts",
+        resultKind: "finiteSet",
+        reason: "mapped input facts to the base abstract value",
+      },
+    ],
+  };
 }

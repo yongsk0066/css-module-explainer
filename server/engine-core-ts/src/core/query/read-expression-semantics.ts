@@ -10,6 +10,24 @@ import { readSourceExpressionResolution } from "./read-source-expression-resolut
 
 export type ExpressionValueDomainKind = "none" | "exact" | "finiteSet" | "prefix" | "top";
 
+export interface ReducedClassValueDerivation {
+  readonly schemaVersion: string;
+  readonly product: string;
+  readonly inputFactKind: string;
+  readonly inputConstraintKind?: string;
+  readonly inputValueCount: number;
+  readonly reducedKind: string;
+  readonly steps: readonly ReducedClassValueDerivationStep[];
+}
+
+export interface ReducedClassValueDerivationStep {
+  readonly operation: string;
+  readonly inputKind?: string;
+  readonly refinementKind?: string;
+  readonly resultKind: string;
+  readonly reason: string;
+}
+
 export interface ExpressionSemanticsSummary {
   readonly expression: ClassExpressionHIR;
   readonly styleDocument: StyleDocumentHIR | null;
@@ -19,6 +37,7 @@ export interface ExpressionSemanticsSummary {
   readonly finiteValues: readonly string[] | null;
   readonly valueDomainKind: ExpressionValueDomainKind;
   readonly abstractValue?: FlowResolution["abstractValue"];
+  readonly valueDomainDerivation?: ReducedClassValueDerivation;
   readonly valueCertainty?: EdgeCertainty;
   readonly selectorCertainty: EdgeCertainty;
   readonly reason?: FlowResolution["reason"];

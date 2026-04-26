@@ -499,6 +499,7 @@ export interface ExpressionSemanticsEvaluatorCandidatePayloadV0 {
   readonly valueCharMust?: string;
   readonly valueCharMay?: string;
   readonly valueMayIncludeOtherChars?: boolean;
+  readonly valueDomainDerivation: ReducedClassValueDerivationV0;
 }
 
 export interface ExpressionSemanticsEvaluatorCandidateV0 {
@@ -2146,6 +2147,7 @@ export function deriveTsExpressionSemanticsEvaluatorCandidates(
         ...(query.payload.valueCharMust ? { valueCharMust: query.payload.valueCharMust } : {}),
         ...(query.payload.valueCharMay ? { valueCharMay: query.payload.valueCharMay } : {}),
         ...(query.payload.valueMayIncludeOtherChars ? { valueMayIncludeOtherChars: true } : {}),
+        valueDomainDerivation: deriveReducedExpressionValueDomainDerivation(query.payload),
       },
     }))
     .toSorted((a, b) => a.queryId.localeCompare(b.queryId));

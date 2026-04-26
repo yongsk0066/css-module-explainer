@@ -8,9 +8,10 @@ use crate::{
     ExpressionSemanticsFragmentsV0, ExpressionSemanticsMatchFragmentV0,
     ExpressionSemanticsMatchFragmentsV0, ExpressionSemanticsQueryFragmentV0,
     ExpressionSemanticsQueryFragmentsV0, canonical_selector_count, finite_values_for_facts,
-    map_expression_value_domain_kind, map_selector_certainty, map_selector_certainty_shape_kind,
-    map_selector_certainty_shape_label, map_value_certainty, map_value_certainty_shape_kind,
-    map_value_certainty_shape_label, resolve_selector_names,
+    map_expression_value_domain_kind, map_reduced_expression_value_domain_derivation,
+    map_selector_certainty, map_selector_certainty_shape_kind, map_selector_certainty_shape_label,
+    map_value_certainty, map_value_certainty_shape_kind, map_value_certainty_shape_label,
+    resolve_selector_names,
 };
 
 struct ExpressionSemanticsInputRows {
@@ -161,6 +162,9 @@ fn collect_expression_semantics_input_rows(input: &EngineInputV2) -> ExpressionS
                 value_char_must: candidate.value_char_must.clone(),
                 value_char_may: candidate.value_char_may.clone(),
                 value_may_include_other_chars: candidate.value_may_include_other_chars,
+                value_domain_derivation: map_reduced_expression_value_domain_derivation(
+                    &entry.facts,
+                ),
             },
         });
     }
@@ -440,6 +444,14 @@ mod tests {
         assert_eq!(
             first.payload.value_constraint_kind.as_deref(),
             Some("prefixSuffix")
+        );
+        assert_eq!(
+            first.payload.value_domain_derivation.product,
+            "omena-abstract-value.reduced-class-value-derivation"
+        );
+        assert_eq!(
+            first.payload.value_domain_derivation.reduced_kind,
+            "prefixSuffix"
         );
     }
 

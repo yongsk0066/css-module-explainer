@@ -46,6 +46,25 @@ export interface ExpressionSemanticsEvaluatorCandidatePayloadV0 {
   readonly valueCharMust?: string;
   readonly valueCharMay?: string;
   readonly valueMayIncludeOtherChars?: boolean;
+  readonly valueDomainDerivation?: ReducedClassValueDerivationV0;
+}
+
+export interface ReducedClassValueDerivationV0 {
+  readonly schemaVersion: string;
+  readonly product: string;
+  readonly inputFactKind: string;
+  readonly inputConstraintKind?: string;
+  readonly inputValueCount: number;
+  readonly reducedKind: string;
+  readonly steps: readonly ReducedClassValueDerivationStepV0[];
+}
+
+export interface ReducedClassValueDerivationStepV0 {
+  readonly operation: string;
+  readonly inputKind?: string;
+  readonly refinementKind?: string;
+  readonly resultKind: string;
+  readonly reason: string;
 }
 
 interface ExpressionSemanticsEvaluatorCandidateV0 {
@@ -111,6 +130,9 @@ export function buildExpressionSemanticsSummaryFromRustPayload(
     finiteValues: payload.finiteValues ?? null,
     valueDomainKind: mapRustValueDomainKind(payload.valueDomainKind),
     ...(abstractValue ? { abstractValue } : {}),
+    ...(payload.valueDomainDerivation
+      ? { valueDomainDerivation: payload.valueDomainDerivation }
+      : {}),
     ...(payload.valueCertainty ? { valueCertainty: payload.valueCertainty } : {}),
     selectorCertainty: payload.selectorCertainty,
     ...(reason !== undefined ? { reason } : {}),

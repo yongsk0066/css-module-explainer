@@ -207,6 +207,7 @@ describe("resolveSourceExpressionHoverResult", () => {
         selectorCertaintyShapeLabel: "bounded selector set (1)",
         valueCertaintyShapeKind: "boundedFinite",
         valueCertaintyShapeLabel: "bounded finite (2)",
+        valueDomainDerivation: sampleValueDomainDerivation(),
       }),
     });
 
@@ -216,6 +217,7 @@ describe("resolveSourceExpressionHoverResult", () => {
         kind: "symbolRef",
         subject: "size",
         candidates: ["indicator", "active"],
+        valueDomainDerivationLabel: "finiteSet reduced to finiteSet via baseFromFacts",
         valueCertainty: "inferred",
         valueCertaintyShapeLabel: "bounded finite (2)",
         valueCertaintyReasonLabel: "analysis preserved multiple finite candidate values",
@@ -269,3 +271,20 @@ describe("resolveSourceExpressionHoverResult", () => {
     expect(Array.from(result.styleDependenciesBySelector.keys())).toEqual(["indicator"]);
   });
 });
+
+function sampleValueDomainDerivation() {
+  return {
+    schemaVersion: "0",
+    product: "omena-abstract-value.reduced-class-value-derivation",
+    inputFactKind: "finiteSet",
+    inputValueCount: 2,
+    reducedKind: "finiteSet",
+    steps: [
+      {
+        operation: "baseFromFacts",
+        resultKind: "finiteSet",
+        reason: "mapped input facts to the base abstract value",
+      },
+    ],
+  };
+}

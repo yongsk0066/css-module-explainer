@@ -844,6 +844,7 @@ pub struct ExpressionSemanticsEvaluatorCandidatePayloadV0 {
     pub value_char_may: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_may_include_other_chars: Option<bool>,
+    pub value_domain_derivation: omena_abstract_value::ReducedClassValueDerivationV0,
 }
 
 #[derive(Debug, Serialize)]

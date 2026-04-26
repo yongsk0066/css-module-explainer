@@ -128,6 +128,19 @@ function formatExplainResult(
       readonly valueCharMust?: string;
       readonly valueCharMay?: string;
       readonly valueMayIncludeOtherChars?: boolean;
+      readonly valueDomainDerivation?: {
+        readonly inputFactKind: string;
+        readonly inputConstraintKind?: string;
+        readonly inputValueCount: number;
+        readonly reducedKind: string;
+        readonly steps: readonly {
+          readonly operation: string;
+          readonly inputKind?: string;
+          readonly refinementKind?: string;
+          readonly resultKind: string;
+          readonly reason: string;
+        }[];
+      };
       readonly valueCertaintyShapeKind?: string;
       readonly valueCertaintyConstraintKind?: string;
       readonly selectorCertaintyShapeKind?: string;
@@ -139,6 +152,8 @@ function formatExplainResult(
       readonly candidates: readonly string[];
       readonly valueDomainLabel?: string;
       readonly valueDomainReasonLabel?: string;
+      readonly valueDomainDerivationLabel?: string;
+      readonly valueDomainDerivationStepLabels?: readonly string[];
       readonly valueCertainty?: string;
       readonly valueCertaintyShapeLabel?: string;
       readonly valueCertaintyReasonLabel?: string;
@@ -170,6 +185,14 @@ function formatExplainResult(
     }
     if (result.dynamicExplanation.valueDomainReasonLabel) {
       lines.push(`Value domain reason: ${result.dynamicExplanation.valueDomainReasonLabel}`);
+    }
+    if (result.dynamicExplanation.valueDomainDerivationLabel) {
+      lines.push(
+        `Value domain derivation: ${result.dynamicExplanation.valueDomainDerivationLabel}`,
+      );
+    }
+    for (const step of result.dynamicExplanation.valueDomainDerivationStepLabels ?? []) {
+      lines.push(`Value domain derivation step: ${step}`);
     }
     if (result.dynamicExplanation.valueCertainty) {
       lines.push(`Value certainty: ${result.dynamicExplanation.valueCertainty}`);
@@ -219,6 +242,13 @@ function formatExplainResult(
   }
   if (result.analysisV2.valueMayIncludeOtherChars) {
     lines.push("V2 value may include other chars: true");
+  }
+  if (result.analysisV2.valueDomainDerivation) {
+    const derivation = result.analysisV2.valueDomainDerivation;
+    const inputKind = derivation.inputConstraintKind
+      ? `${derivation.inputFactKind}/${derivation.inputConstraintKind}`
+      : derivation.inputFactKind;
+    lines.push(`V2 value derivation: ${inputKind} -> ${derivation.reducedKind}`);
   }
   if (result.analysisV2.valueCertaintyShapeKind) {
     lines.push(`V2 value certainty shape kind: ${result.analysisV2.valueCertaintyShapeKind}`);
