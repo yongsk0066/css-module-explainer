@@ -35,3 +35,9 @@ Boundary ownership check:
 ```sh
 pnpm cme-check run rust/omena-query/runner-boundary
 ```
+
+Split boundary check:
+
+```sh
+pnpm cme-check bundle rust/omena-query/split-boundary
+```

@@ -51,6 +51,14 @@ const fixtures: readonly Fixture[] = [
     ),
     dependencyNames: ["engine-input-producers", "omena-bridge"],
   },
+  {
+    label: "omena-query",
+    manifestPath: path.join(
+      repoRoot,
+      "rust/external-consumers/omena-query-git-consumer/Cargo.toml",
+    ),
+    dependencyNames: ["engine-input-producers", "omena-query"],
+  },
 ] as const;
 
 const checkOnly = process.argv.includes("--check");
