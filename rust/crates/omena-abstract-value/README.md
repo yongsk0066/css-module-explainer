@@ -15,3 +15,9 @@ Primary check:
 ```sh
 cargo test --manifest-path rust/Cargo.toml -p omena-abstract-value
 ```
+
+Split boundary check:
+
+```sh
+pnpm cme-check bundle rust/omena-abstract-value/split-boundary
+```

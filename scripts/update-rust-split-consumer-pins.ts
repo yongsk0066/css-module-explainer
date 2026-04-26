@@ -12,6 +12,14 @@ type Fixture = {
 const repoRoot = process.cwd();
 const fixtures: readonly Fixture[] = [
   {
+    label: "omena-abstract-value",
+    manifestPath: path.join(
+      repoRoot,
+      "rust/external-consumers/omena-abstract-value-git-consumer/Cargo.toml",
+    ),
+    dependencyNames: ["omena-abstract-value"],
+  },
+  {
     label: "engine-input-producers",
     manifestPath: path.join(
       repoRoot,
