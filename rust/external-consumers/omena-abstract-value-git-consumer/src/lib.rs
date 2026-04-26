@@ -36,8 +36,9 @@ mod tests {
         AbstractClassValueV0, ExternalStringTypeFactsV0, abstract_class_value_from_facts,
         char_inclusion_class_value, enumerate_finite_class_values, finite_set_class_value,
         intersect_abstract_class_values, prefix_class_value,
-        reduced_abstract_class_value_from_facts, reduced_value_domain_kind_from_facts,
-        suffix_class_value, value_certainty_shape_kind_from_facts,
+        reduced_abstract_class_value_from_facts, reduced_class_value_derivation_from_facts,
+        reduced_value_domain_kind_from_facts, suffix_class_value,
+        value_certainty_shape_kind_from_facts,
     };
     use serde_json::json;
 
@@ -110,6 +111,36 @@ mod tests {
             }
         });
         assert_eq!(reduced_value_domain_kind_from_facts(&facts), "exact");
+    }
+
+    #[test]
+    fn consumes_reduced_derivation_contract() {
+        let facts = ExternalStringTypeFactsV0 {
+            kind: "finiteSet".to_string(),
+            constraint_kind: Some("prefix".to_string()),
+            values: Some(vec!["btn-primary".to_string(), "card".to_string()]),
+            prefix: Some("btn-".to_string()),
+            suffix: None,
+            min_len: None,
+            max_len: None,
+            char_must: None,
+            char_may: None,
+            may_include_other_chars: None,
+        };
+
+        let derivation = reduced_class_value_derivation_from_facts(&facts);
+
+        assert_eq!(derivation.schema_version, "0");
+        assert_eq!(
+            derivation.product,
+            "omena-abstract-value.reduced-class-value-derivation"
+        );
+        assert_eq!(derivation.input_fact_kind, "finiteSet");
+        assert_eq!(derivation.input_constraint_kind.as_deref(), Some("prefix"));
+        assert_eq!(derivation.input_value_count, 2);
+        assert_eq!(derivation.reduced_kind, "exact");
+        assert_eq!(derivation.steps[1].operation, "intersectConstraint");
+        assert_eq!(derivation.steps[1].result_kind, "exact");
     }
 
     #[test]
