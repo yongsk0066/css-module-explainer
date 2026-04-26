@@ -49,7 +49,7 @@ const fixtures: readonly Fixture[] = [
       repoRoot,
       "rust/external-consumers/omena-bridge-git-consumer/Cargo.toml",
     ),
-    dependencyNames: ["engine-input-producers", "omena-bridge"],
+    dependencyNames: ["engine-input-producers", "omena-bridge", "omena-engine-input-producers"],
   },
   {
     label: "omena-resolver",
@@ -57,7 +57,7 @@ const fixtures: readonly Fixture[] = [
       repoRoot,
       "rust/external-consumers/omena-resolver-git-consumer/Cargo.toml",
     ),
-    dependencyNames: ["engine-input-producers", "omena-resolver"],
+    dependencyNames: ["engine-input-producers", "omena-resolver", "omena-engine-input-producers"],
   },
   {
     label: "omena-query",
@@ -65,7 +65,7 @@ const fixtures: readonly Fixture[] = [
       repoRoot,
       "rust/external-consumers/omena-query-git-consumer/Cargo.toml",
     ),
-    dependencyNames: ["engine-input-producers", "omena-query"],
+    dependencyNames: ["engine-input-producers", "omena-query", "omena-engine-input-producers"],
   },
 ] as const;
 

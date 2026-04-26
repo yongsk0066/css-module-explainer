@@ -35,8 +35,9 @@ mod tests {
     use omena_abstract_value::{
         AbstractClassValueV0, ExternalStringTypeFactsV0, abstract_class_value_from_facts,
         char_inclusion_class_value, enumerate_finite_class_values, finite_set_class_value,
-        intersect_abstract_class_values, prefix_class_value, suffix_class_value,
-        value_certainty_shape_kind_from_facts,
+        intersect_abstract_class_values, prefix_class_value,
+        reduced_abstract_class_value_from_facts, reduced_value_domain_kind_from_facts,
+        suffix_class_value, value_certainty_shape_kind_from_facts,
     };
     use serde_json::json;
 
@@ -86,6 +87,29 @@ mod tests {
             value_certainty_shape_kind_from_facts(&facts),
             "boundedFinite"
         );
+    }
+
+    #[test]
+    fn consumes_reduced_external_facts_mapping_contract() {
+        let facts = ExternalStringTypeFactsV0 {
+            kind: "finiteSet".to_string(),
+            constraint_kind: Some("prefix".to_string()),
+            values: Some(vec!["btn-primary".to_string(), "card".to_string()]),
+            prefix: Some("btn-".to_string()),
+            suffix: None,
+            min_len: None,
+            max_len: None,
+            char_must: None,
+            char_may: None,
+            may_include_other_chars: None,
+        };
+
+        assert_eq!(reduced_abstract_class_value_from_facts(&facts), {
+            AbstractClassValueV0::Exact {
+                value: "btn-primary".to_string(),
+            }
+        });
+        assert_eq!(reduced_value_domain_kind_from_facts(&facts), "exact");
     }
 
     #[test]

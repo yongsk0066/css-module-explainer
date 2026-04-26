@@ -57,6 +57,9 @@ publish = false
 engine-input-producers = { package = "omena-engine-input-producers", git = "${input_repo_url}", rev = "${input_repo_ref}" }
 omena-query = { git = "${query_repo_url}", rev = "${query_repo_ref}" }
 serde_json = "1.0"
+
+[patch.crates-io]
+omena-engine-input-producers = { git = "${input_repo_url}", rev = "${input_repo_ref}" }
 EOF
   manifest_path="${temp_dir}/Cargo.toml"
 fi
