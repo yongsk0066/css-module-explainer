@@ -138,6 +138,7 @@ fn range(
 mod tests {
     use super::{consume_query_boundary, consume_style_graph_batch, sample_input};
     use omena_query::{
+        summarize_omena_query_expression_semantics_canonical_producer_signal,
         summarize_omena_query_fragment_bundle,
         summarize_omena_query_selected_query_adapter_capabilities,
     };
@@ -186,6 +187,24 @@ mod tests {
                 .iter()
                 .any(|command| command.command == "style-semantic-graph-batch")
         );
+        assert!(
+            capabilities
+                .expression_semantics_payload_contracts
+                .contains(&"valueDomainDerivation")
+        );
+    }
+
+    #[test]
+    fn consumes_remote_expression_semantics_derivation_contract() {
+        let signal =
+            summarize_omena_query_expression_semantics_canonical_producer_signal(&sample_input());
+        let payload = &signal.evaluator_candidates.results[0].payload;
+
+        assert_eq!(
+            payload.value_domain_derivation.product,
+            "omena-abstract-value.reduced-class-value-derivation"
+        );
+        assert_eq!(payload.value_domain_derivation.reduced_kind, "prefixSuffix");
     }
 
     #[test]

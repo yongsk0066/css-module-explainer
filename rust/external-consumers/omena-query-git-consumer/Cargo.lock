@@ -65,8 +65,8 @@ dependencies = [
 
 [[package]]
 name = "omena-query"
-version = "0.1.0"
-source = "git+https://github.com/omenien/omena-query.git?rev=b2389bc#b2389bc86191946fbf24df2598d1690333969900"
+version = "0.1.1"
+source = "git+https://github.com/omenien/omena-query.git?rev=b14b3d0#b14b3d0985fcaa26588b94a09a54a0e668052273"
 dependencies = [
  "omena-abstract-value 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "omena-bridge",

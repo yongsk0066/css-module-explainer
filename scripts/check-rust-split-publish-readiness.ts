@@ -113,18 +113,18 @@ const splitRepos: readonly SplitRepo[] = [
     label: "query",
     repo: "omenien/omena-query",
     packageName: "omena-query",
-    expectedVersion: "0.1.0",
+    expectedVersion: "0.1.1",
     libName: "omena_query",
     expectedRegistryDependencies: [
       {
         dependencyName: "engine-input-producers",
         packageName: "omena-engine-input-producers",
-        version: "0.1.0",
+        version: "0.1.2",
       },
       {
         dependencyName: "omena-abstract-value",
         packageName: "omena-abstract-value",
-        version: "0.1.0",
+        version: "0.1.1",
       },
       {
         dependencyName: "omena-bridge",
