@@ -3,10 +3,17 @@ use engine_input_producers::{
     SourceDocumentV2, StringTypeFactsV2, StyleAnalysisInputV2, StyleDocumentV2, StyleSelectorV2,
     TypeFactEntryV2,
 };
-use omena_resolver::{OmenaResolverBoundarySummaryV0, summarize_omena_resolver_boundary};
+use omena_resolver::{
+    OmenaResolverBoundarySummaryV0, OmenaResolverModuleGraphSummaryV0,
+    summarize_omena_resolver_boundary, summarize_omena_resolver_module_graph_index,
+};
 
 pub fn consume_resolver_boundary() -> OmenaResolverBoundarySummaryV0 {
     summarize_omena_resolver_boundary(&sample_input())
+}
+
+pub fn consume_resolver_module_graph() -> OmenaResolverModuleGraphSummaryV0 {
+    summarize_omena_resolver_module_graph_index(&sample_input())
 }
 
 fn sample_input() -> EngineInputV2 {
@@ -123,7 +130,7 @@ fn range(
 
 #[cfg(test)]
 mod tests {
-    use super::{consume_resolver_boundary, sample_input};
+    use super::{consume_resolver_boundary, consume_resolver_module_graph, sample_input};
     use omena_resolver::summarize_omena_resolver_query_fragments;
     use serde_json::json;
 
@@ -135,11 +142,43 @@ mod tests {
         assert_eq!(boundary.resolver_name, "omena-resolver");
         assert_eq!(boundary.source_resolution_query_count, 2);
         assert_eq!(boundary.source_resolution_candidate_count, 2);
+        assert_eq!(boundary.module_graph_module_count, 2);
+        assert_eq!(boundary.module_graph_source_expression_edge_count, 2);
+        assert!(
+            boundary
+                .resolver_owned_products
+                .contains(&"omena-resolver.module-graph-index")
+        );
         assert!(
             boundary
                 .ready_surfaces
-                .contains(&"sourceResolutionCanonicalProducerSignal")
+                .contains(&"resolverModuleGraphIndex")
         );
+    }
+
+    #[test]
+    fn consumes_remote_resolver_module_graph_via_git_dependency() {
+        let module_graph = consume_resolver_module_graph();
+
+        assert_eq!(module_graph.product, "omena-resolver.module-graph-index");
+        assert_eq!(module_graph.module_count, 2);
+        assert_eq!(module_graph.source_expression_edge_count, 2);
+        assert_eq!(module_graph.type_fact_edge_count, 2);
+        assert_eq!(module_graph.selector_count, 2);
+        assert_eq!(module_graph.unresolved_type_fact_count, 0);
+
+        let app = module_graph
+            .modules
+            .iter()
+            .find(|module| module.style_file_path == "/tmp/App.module.scss");
+        assert!(app.is_some());
+        let Some(app) = app else {
+            return;
+        };
+
+        assert_eq!(app.source_expression_ids, ["expr-1"]);
+        assert_eq!(app.type_fact_expression_ids, ["expr-1"]);
+        assert_eq!(app.selector_names, ["btn-active"]);
     }
 
     #[test]

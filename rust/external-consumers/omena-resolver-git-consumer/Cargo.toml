@@ -11,5 +11,5 @@ publish = false
 
 [dependencies]
 engine-input-producers = { package = "omena-engine-input-producers", git = "https://github.com/omenien/omena-engine-input-producers.git", rev = "9e4d29c" }
-omena-resolver = { git = "https://github.com/omenien/omena-resolver.git", rev = "4018a24" }
+omena-resolver = { git = "https://github.com/omenien/omena-resolver.git", rev = "554028c" }
 serde_json = "1.0"
