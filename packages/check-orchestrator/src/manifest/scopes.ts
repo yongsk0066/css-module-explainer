@@ -21,6 +21,7 @@ const RUST_FAMILIES = [
   "query-plan",
   "checker",
   "parser",
+  "omena-abstract-value",
   "omena-bridge",
   "semantic",
   "release",
