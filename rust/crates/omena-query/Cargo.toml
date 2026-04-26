@@ -14,4 +14,5 @@ workspace = true
 [dependencies]
 engine-input-producers = { path = "../engine-input-producers" }
 omena-abstract-value = { path = "../omena-abstract-value" }
+omena-bridge = { path = "../omena-bridge" }
 serde.workspace = true

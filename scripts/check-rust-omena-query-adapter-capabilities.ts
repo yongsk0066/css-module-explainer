@@ -77,6 +77,7 @@ void (async () => {
     "canonicalProducerWrapperBoundary",
     "fragmentBundleBoundary",
     "runnerCommandContract",
+    "styleSemanticGraphBridgeBoundary",
   ]);
 
   for (const backendKind of BACKEND_KINDS) {

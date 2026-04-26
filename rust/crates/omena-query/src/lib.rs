@@ -11,6 +11,9 @@ use engine_input_producers::{
     summarize_source_resolution_query_fragments_input,
 };
 use omena_abstract_value::{AbstractValueDomainSummaryV0, summarize_omena_abstract_value_domain};
+use omena_bridge::{
+    StyleSemanticGraphSummaryV0, summarize_omena_bridge_style_semantic_graph_from_source,
+};
 use serde::Serialize;
 
 #[derive(Debug, Serialize)]
@@ -73,6 +76,21 @@ pub struct SelectedQueryRunnerCommandV0 {
     pub command: &'static str,
     pub input_contract: &'static str,
     pub output_product: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryStyleSemanticGraphBatchOutputV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub graphs: Vec<OmenaQueryStyleSemanticGraphBatchEntryV0>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryStyleSemanticGraphBatchEntryV0 {
+    pub style_path: String,
+    pub graph: Option<StyleSemanticGraphSummaryV0>,
 }
 
 pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBoundarySummaryV0 {
@@ -193,6 +211,7 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
         adapter_readiness: vec![
             "backendCapabilityMatrix",
             "canonicalProducerWrapperBoundary",
+            "styleSemanticGraphBridgeBoundary",
             "runnerCommandContract",
             "fragmentBundleBoundary",
         ],
@@ -229,6 +248,39 @@ pub fn summarize_omena_query_selector_usage_canonical_producer_signal(
     summarize_selector_usage_canonical_producer_signal_input(input)
 }
 
+pub fn summarize_omena_query_style_semantic_graph_from_source(
+    style_path: &str,
+    style_source: &str,
+    input: &EngineInputV2,
+) -> Option<StyleSemanticGraphSummaryV0> {
+    summarize_omena_bridge_style_semantic_graph_from_source(style_path, style_source, input)
+}
+
+pub fn summarize_omena_query_style_semantic_graph_batch_from_sources<'a>(
+    styles: impl IntoIterator<Item = (&'a str, &'a str)>,
+    input: &EngineInputV2,
+) -> OmenaQueryStyleSemanticGraphBatchOutputV0 {
+    let graphs = styles
+        .into_iter()
+        .map(
+            |(style_path, style_source)| OmenaQueryStyleSemanticGraphBatchEntryV0 {
+                style_path: style_path.to_string(),
+                graph: summarize_omena_query_style_semantic_graph_from_source(
+                    style_path,
+                    style_source,
+                    input,
+                ),
+            },
+        )
+        .collect::<Vec<_>>();
+
+    OmenaQueryStyleSemanticGraphBatchOutputV0 {
+        schema_version: "0",
+        product: "omena-semantic.style-semantic-graph-batch",
+        graphs,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use engine_input_producers::{
@@ -244,6 +296,8 @@ mod tests {
         summarize_omena_query_selected_query_adapter_capabilities,
         summarize_omena_query_selector_usage_canonical_producer_signal,
         summarize_omena_query_source_resolution_canonical_producer_signal,
+        summarize_omena_query_style_semantic_graph_batch_from_sources,
+        summarize_omena_query_style_semantic_graph_from_source,
     };
 
     #[test]
@@ -339,6 +393,11 @@ mod tests {
                 .adapter_readiness
                 .contains(&"canonicalProducerWrapperBoundary")
         );
+        assert!(
+            summary
+                .adapter_readiness
+                .contains(&"styleSemanticGraphBridgeBoundary")
+        );
     }
 
     #[test]
@@ -363,6 +422,37 @@ mod tests {
         assert_eq!(selector.input_version, "2");
         assert_eq!(selector.canonical_bundle.query_fragments.len(), 2);
         assert_eq!(selector.evaluator_candidates.results.len(), 2);
+    }
+
+    #[test]
+    fn owns_style_semantic_graph_adapter_boundary_without_changing_graph_product() {
+        let input = sample_input();
+        let graph = summarize_omena_query_style_semantic_graph_from_source(
+            "/tmp/App.module.scss",
+            ".btn-active { color: red; }",
+            &input,
+        );
+        assert!(graph.is_some());
+        let Some(graph) = graph else {
+            return;
+        };
+        assert_eq!(graph.schema_version, "0");
+        assert_eq!(graph.product, "omena-semantic.style-semantic-graph");
+        assert_eq!(graph.selector_identity_engine.canonical_ids.len(), 1);
+
+        let batch = summarize_omena_query_style_semantic_graph_batch_from_sources(
+            [
+                ("/tmp/App.module.scss", ".btn-active { color: red; }"),
+                ("/tmp/Card.module.scss", ".card-header { color: blue; }"),
+            ],
+            &input,
+        );
+        assert_eq!(batch.schema_version, "0");
+        assert_eq!(batch.product, "omena-semantic.style-semantic-graph-batch");
+        assert_eq!(batch.graphs.len(), 2);
+        assert_eq!(batch.graphs[0].style_path, "/tmp/App.module.scss");
+        assert!(batch.graphs[0].graph.is_some());
+        assert!(batch.graphs[1].graph.is_some());
     }
 
     fn backend<'a>(

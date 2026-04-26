@@ -29,15 +29,14 @@ use engine_input_producers::{
     summarize_source_side_canonical_producer_signal_input,
     summarize_source_side_evaluator_candidates_input, summarize_type_fact_input,
 };
-use omena_bridge::{
-    StyleSemanticGraphSummaryV0, summarize_omena_bridge_style_semantic_graph_from_source,
-};
 use omena_query::{
     summarize_omena_query_boundary,
     summarize_omena_query_expression_semantics_canonical_producer_signal,
     summarize_omena_query_selected_query_adapter_capabilities,
     summarize_omena_query_selector_usage_canonical_producer_signal,
     summarize_omena_query_source_resolution_canonical_producer_signal,
+    summarize_omena_query_style_semantic_graph_batch_from_sources,
+    summarize_omena_query_style_semantic_graph_from_source,
 };
 use serde::{Deserialize, Serialize};
 
@@ -76,21 +75,6 @@ struct StyleSemanticGraphBatchStyleInputV0 {
 struct StyleSemanticGraphBatchInputV0 {
     styles: Vec<StyleSemanticGraphBatchStyleInputV0>,
     engine_input: EngineInputV2,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct StyleSemanticGraphBatchOutputV0 {
-    schema_version: &'static str,
-    product: &'static str,
-    graphs: Vec<StyleSemanticGraphBatchEntryV0>,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct StyleSemanticGraphBatchEntryV0 {
-    style_path: String,
-    graph: Option<StyleSemanticGraphSummaryV0>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -579,7 +563,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Some("style-semantic-graph") => {
             let input: StyleSemanticGraphInputV0 = serde_json::from_str(&stdin)?;
-            let Some(summary) = summarize_omena_bridge_style_semantic_graph_from_source(
+            let Some(summary) = summarize_omena_query_style_semantic_graph_from_source(
                 &input.style_path,
                 &input.style_source,
                 &input.engine_input,
@@ -590,23 +574,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Some("style-semantic-graph-batch") => {
             let input: StyleSemanticGraphBatchInputV0 = serde_json::from_str(&stdin)?;
-            let graphs = input
-                .styles
-                .into_iter()
-                .map(|style| StyleSemanticGraphBatchEntryV0 {
-                    graph: summarize_omena_bridge_style_semantic_graph_from_source(
-                        &style.style_path,
-                        &style.style_source,
-                        &input.engine_input,
-                    ),
-                    style_path: style.style_path,
-                })
-                .collect::<Vec<_>>();
-            let output = StyleSemanticGraphBatchOutputV0 {
-                schema_version: "0",
-                product: "omena-semantic.style-semantic-graph-batch",
-                graphs,
-            };
+            let output = summarize_omena_query_style_semantic_graph_batch_from_sources(
+                input
+                    .styles
+                    .iter()
+                    .map(|style| (style.style_path.as_str(), style.style_source.as_str())),
+                &input.engine_input,
+            );
             serde_json::to_writer_pretty(io::stdout(), &output)?;
         }
         Some("input-expression-semantics-query-fragments") => {

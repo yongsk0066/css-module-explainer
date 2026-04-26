@@ -18,6 +18,9 @@ Current public products:
   expression semantics, and selector usage runner commands. These keep the
   existing JSON output contracts stable while moving ownership into
   `omena-query`.
+- selected-query style semantic graph adapter wrappers. These preserve the
+  `omena-semantic.style-semantic-graph` products while delegating graph assembly
+  to `omena-bridge`.
 
 Primary check:
 
