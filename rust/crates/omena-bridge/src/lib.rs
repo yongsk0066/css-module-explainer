@@ -4,16 +4,21 @@ use engine_style_parser::{
 };
 use omena_semantic::{
     LosslessCstContractV0, SelectorIdentityEngineSummaryV0, SemanticPromotionEvidenceSummaryV0,
-    SourceInputPromotionEvidenceSummaryV0,
 };
 use serde::Serialize;
 
 mod selector_references;
+mod source_evidence;
 
 pub use selector_references::{
     SelectorEditableDirectReferenceSiteV0, SelectorReferenceEngineSummaryV0,
     SelectorReferenceSiteV0, SelectorReferenceSummaryV0,
     summarize_omena_bridge_selector_reference_engine,
+};
+pub use source_evidence::{
+    BindingOriginEvidenceV0, CertaintyReasonEvidenceV0, ReferenceSiteIdentityEvidenceV0,
+    SourceInputPromotionEvidenceSummaryV0, StyleModuleEdgeEvidenceV0,
+    ValueDomainExplanationEvidenceV0, summarize_omena_bridge_source_input_evidence,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -25,7 +30,7 @@ pub struct OmenaBridgeBoundarySummaryV0 {
     pub graph_product: &'static str,
     pub delegated_semantic_boundary_product: &'static str,
     pub selector_reference_product: &'static str,
-    pub delegated_source_evidence_product: &'static str,
+    pub source_input_evidence_product: &'static str,
     pub bridge_owned_surfaces: Vec<&'static str>,
     pub cme_coupled_surfaces: Vec<&'static str>,
     pub next_decoupling_targets: Vec<&'static str>,
@@ -54,11 +59,12 @@ pub fn summarize_omena_bridge_boundary() -> OmenaBridgeBoundarySummaryV0 {
         graph_product: "omena-semantic.style-semantic-graph",
         delegated_semantic_boundary_product: "omena-semantic.style-semantic-boundary",
         selector_reference_product: "omena-semantic.selector-references",
-        delegated_source_evidence_product: "omena-semantic.source-input-evidence",
+        source_input_evidence_product: "omena-semantic.source-input-evidence",
         bridge_owned_surfaces: vec![
             "styleSemanticGraph",
             "styleSemanticGraphFromSource",
             "selectorReferenceEngine",
+            "sourceInputEvidence",
         ],
         cme_coupled_surfaces: vec![
             "EngineInputV2",
@@ -67,14 +73,8 @@ pub fn summarize_omena_bridge_boundary() -> OmenaBridgeBoundarySummaryV0 {
             "promotionEvidenceWithSourceInput",
             "styleSemanticGraphFromSource",
         ],
-        next_decoupling_targets: vec!["sourceInputEvidence", "promotionEvidenceWithSourceInput"],
+        next_decoupling_targets: vec!["promotionEvidenceWithSourceInput"],
     }
-}
-
-pub fn summarize_omena_bridge_source_input_evidence(
-    input: &EngineInputV2,
-) -> SourceInputPromotionEvidenceSummaryV0 {
-    omena_semantic::summarize_source_input_evidence(input)
 }
 
 pub fn summarize_omena_bridge_promotion_evidence_with_source_input(
@@ -107,7 +107,7 @@ pub fn summarize_omena_bridge_style_semantic_graph_for_path(
     let selector_identity_engine = boundary.selector_identity_engine;
     let selector_reference_engine =
         summarize_omena_bridge_selector_reference_engine(input, style_path);
-    let source_input_evidence = omena_semantic::summarize_source_input_evidence(input);
+    let source_input_evidence = summarize_omena_bridge_source_input_evidence(input);
     let promotion_evidence =
         omena_semantic::summarize_semantic_promotion_evidence_with_source_input(
             &parser_facts,
@@ -177,7 +177,7 @@ mod tests {
             "omena-semantic.selector-references"
         );
         assert_eq!(
-            boundary.delegated_source_evidence_product,
+            boundary.source_input_evidence_product,
             "omena-semantic.source-input-evidence"
         );
         assert!(
@@ -192,11 +192,21 @@ mod tests {
         );
         assert!(
             boundary
+                .bridge_owned_surfaces
+                .contains(&"sourceInputEvidence")
+        );
+        assert!(
+            boundary
                 .cme_coupled_surfaces
                 .contains(&"promotionEvidenceWithSourceInput")
         );
         assert!(
             boundary
+                .next_decoupling_targets
+                .contains(&"promotionEvidenceWithSourceInput")
+        );
+        assert!(
+            !boundary
                 .next_decoupling_targets
                 .contains(&"sourceInputEvidence")
         );
@@ -228,6 +238,10 @@ mod tests {
         assert_eq!(graph.product, "omena-semantic.style-semantic-graph");
         assert_eq!(graph.selector_reference_engine.selector_count, 1);
         assert_eq!(graph.selector_reference_engine.referenced_selector_count, 1);
+        assert_eq!(
+            graph.source_input_evidence.product,
+            "omena-semantic.source-input-evidence"
+        );
         assert!(graph.promotion_evidence.blocking_gaps.is_empty());
         Ok(())
     }
@@ -293,6 +307,15 @@ mod tests {
     }
 
     #[test]
+    fn owns_source_input_evidence_without_changing_host_product() {
+        let bridge_evidence = summarize_omena_bridge_source_input_evidence(&sample_engine_input());
+        let semantic_evidence =
+            omena_semantic::summarize_source_input_evidence(&sample_engine_input());
+
+        assert_bridge_source_input_evidence_matches_semantic(&bridge_evidence, &semantic_evidence);
+    }
+
+    #[test]
     fn owns_graph_assembly_without_changing_host_product() -> Result<(), String> {
         let sheet = parse_style_module("Component.module.scss", ".button { color: red; }")
             .ok_or_else(|| "SCSS module path should parse".to_string())?;
@@ -318,15 +341,195 @@ mod tests {
                 .selector_reference_engine
                 .total_reference_sites
         );
-        assert_eq!(
-            bridge_graph.source_input_evidence,
-            semantic_graph.source_input_evidence
+        assert_bridge_source_input_evidence_matches_semantic(
+            &bridge_graph.source_input_evidence,
+            &semantic_graph.source_input_evidence,
         );
         assert_eq!(
             bridge_graph.promotion_evidence,
             semantic_graph.promotion_evidence
         );
         Ok(())
+    }
+
+    fn assert_bridge_source_input_evidence_matches_semantic(
+        bridge: &super::SourceInputPromotionEvidenceSummaryV0,
+        semantic: &omena_semantic::SourceInputPromotionEvidenceSummaryV0,
+    ) {
+        assert_eq!(bridge.schema_version, semantic.schema_version);
+        assert_eq!(bridge.product, semantic.product);
+        assert_eq!(bridge.input_version, semantic.input_version);
+        assert_eq!(
+            bridge.reference_site_identity.status,
+            semantic.reference_site_identity.status
+        );
+        assert_eq!(
+            bridge.reference_site_identity.selector_count,
+            semantic.reference_site_identity.selector_count
+        );
+        assert_eq!(
+            bridge.reference_site_identity.reference_site_count,
+            semantic.reference_site_identity.reference_site_count
+        );
+        assert_eq!(
+            bridge.reference_site_identity.direct_reference_site_count,
+            semantic.reference_site_identity.direct_reference_site_count
+        );
+        assert_eq!(
+            bridge.reference_site_identity.expanded_reference_site_count,
+            semantic
+                .reference_site_identity
+                .expanded_reference_site_count
+        );
+        assert_eq!(
+            bridge
+                .reference_site_identity
+                .style_dependency_reference_site_count,
+            semantic
+                .reference_site_identity
+                .style_dependency_reference_site_count
+        );
+        assert_eq!(
+            bridge.reference_site_identity.editable_direct_site_count,
+            semantic.reference_site_identity.editable_direct_site_count
+        );
+        assert_eq!(
+            bridge.reference_site_identity.reference_kind_counts,
+            semantic.reference_site_identity.reference_kind_counts
+        );
+        assert_eq!(
+            bridge.certainty_reason.status,
+            semantic.certainty_reason.status
+        );
+        assert_eq!(
+            bridge.certainty_reason.expression_count,
+            semantic.certainty_reason.expression_count
+        );
+        assert_eq!(
+            bridge.certainty_reason.exact_count,
+            semantic.certainty_reason.exact_count
+        );
+        assert_eq!(
+            bridge.certainty_reason.inferred_count,
+            semantic.certainty_reason.inferred_count
+        );
+        assert_eq!(
+            bridge.certainty_reason.possible_count,
+            semantic.certainty_reason.possible_count
+        );
+        assert_eq!(
+            bridge.certainty_reason.missing_reason_count,
+            semantic.certainty_reason.missing_reason_count
+        );
+        assert_eq!(
+            bridge.certainty_reason.reason_counts,
+            semantic.certainty_reason.reason_counts
+        );
+        assert_eq!(
+            bridge.certainty_reason.shape_kind_counts,
+            semantic.certainty_reason.shape_kind_counts
+        );
+        assert_eq!(
+            bridge.certainty_reason.shape_label_counts,
+            semantic.certainty_reason.shape_label_counts
+        );
+        assert_eq!(bridge.binding_origin.status, semantic.binding_origin.status);
+        assert_eq!(
+            bridge.binding_origin.expression_count,
+            semantic.binding_origin.expression_count
+        );
+        assert_eq!(
+            bridge.binding_origin.direct_class_name_count,
+            semantic.binding_origin.direct_class_name_count
+        );
+        assert_eq!(
+            bridge.binding_origin.root_binding_count,
+            semantic.binding_origin.root_binding_count
+        );
+        assert_eq!(
+            bridge.binding_origin.access_path_count,
+            semantic.binding_origin.access_path_count
+        );
+        assert_eq!(
+            bridge.binding_origin.access_path_segment_count,
+            semantic.binding_origin.access_path_segment_count
+        );
+        assert_eq!(
+            bridge.binding_origin.expression_kind_counts,
+            semantic.binding_origin.expression_kind_counts
+        );
+        assert_eq!(
+            bridge.style_module_edge.status,
+            semantic.style_module_edge.status
+        );
+        assert_eq!(
+            bridge.style_module_edge.source_style_edge_count,
+            semantic.style_module_edge.source_style_edge_count
+        );
+        assert_eq!(
+            bridge.style_module_edge.distinct_style_module_count,
+            semantic.style_module_edge.distinct_style_module_count
+        );
+        assert_eq!(
+            bridge.style_module_edge.missing_style_document_edge_count,
+            semantic.style_module_edge.missing_style_document_edge_count
+        );
+        assert_eq!(
+            bridge.style_module_edge.composed_edge_count,
+            semantic.style_module_edge.composed_edge_count
+        );
+        assert_eq!(
+            bridge.style_module_edge.imported_composed_edge_count,
+            semantic.style_module_edge.imported_composed_edge_count
+        );
+        assert_eq!(
+            bridge.style_module_edge.global_composed_edge_count,
+            semantic.style_module_edge.global_composed_edge_count
+        );
+        assert_eq!(
+            bridge.value_domain_explanation.status,
+            semantic.value_domain_explanation.status
+        );
+        assert_eq!(
+            bridge.value_domain_explanation.expression_count,
+            semantic.value_domain_explanation.expression_count
+        );
+        assert_eq!(
+            bridge.value_domain_explanation.exact_expression_count,
+            semantic.value_domain_explanation.exact_expression_count
+        );
+        assert_eq!(
+            bridge
+                .value_domain_explanation
+                .finite_value_expression_count,
+            semantic
+                .value_domain_explanation
+                .finite_value_expression_count
+        );
+        assert_eq!(
+            bridge.value_domain_explanation.constrained_expression_count,
+            semantic
+                .value_domain_explanation
+                .constrained_expression_count
+        );
+        assert_eq!(
+            bridge.value_domain_explanation.unknown_expression_count,
+            semantic.value_domain_explanation.unknown_expression_count
+        );
+        assert_eq!(
+            bridge.value_domain_explanation.finite_value_count,
+            semantic.value_domain_explanation.finite_value_count
+        );
+        assert_eq!(
+            bridge.value_domain_explanation.value_domain_kind_counts,
+            semantic.value_domain_explanation.value_domain_kind_counts
+        );
+        assert_eq!(
+            bridge.value_domain_explanation.constraint_kind_counts,
+            semantic.value_domain_explanation.constraint_kind_counts
+        );
+        assert_eq!(bridge.blocking_gaps, semantic.blocking_gaps);
+        assert_eq!(bridge.next_priorities, semantic.next_priorities);
     }
 
     fn sample_engine_input() -> EngineInputV2 {

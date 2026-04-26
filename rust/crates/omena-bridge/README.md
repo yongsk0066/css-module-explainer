@@ -18,8 +18,9 @@ Current public products:
 - `omena-semantic.selector-references` — bridge-owned selector reference engine
   product, kept stable for existing host consumers while ownership moves behind
   this crate.
-- `omena-semantic.source-input-evidence` — delegated source evidence product
-  derived from `EngineInputV2`.
+- `omena-semantic.source-input-evidence` — bridge-owned source evidence product,
+  kept stable for existing host consumers while ownership moves behind this
+  crate.
 
 Primary check:
 
