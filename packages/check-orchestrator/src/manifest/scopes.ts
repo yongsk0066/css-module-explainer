@@ -23,6 +23,7 @@ const RUST_FAMILIES = [
   "parser",
   "omena-abstract-value",
   "omena-bridge",
+  "omena-query",
   "semantic",
   "release",
   "shadow",

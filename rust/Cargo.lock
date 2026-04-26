@@ -59,6 +59,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "omena-query"
+version = "0.1.0"
+dependencies = [
+ "engine-input-producers",
+ "omena-abstract-value",
+ "serde",
+]
+
+[[package]]
 name = "omena-semantic"
 version = "0.1.0"
 dependencies = [
