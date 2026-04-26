@@ -145,6 +145,25 @@ export interface ExpressionDomainEvaluatorCandidatePayloadV0 {
   readonly valueCharMay?: string;
   readonly valueMayIncludeOtherChars?: boolean;
   readonly finiteValueCount: number;
+  readonly valueDomainDerivation: ReducedClassValueDerivationV0;
+}
+
+export interface ReducedClassValueDerivationV0 {
+  readonly schemaVersion: string;
+  readonly product: string;
+  readonly inputFactKind: string;
+  readonly inputConstraintKind?: string;
+  readonly inputValueCount: number;
+  readonly reducedKind: string;
+  readonly steps: readonly ReducedClassValueDerivationStepV0[];
+}
+
+export interface ReducedClassValueDerivationStepV0 {
+  readonly operation: string;
+  readonly inputKind?: string;
+  readonly refinementKind?: string;
+  readonly resultKind: string;
+  readonly reason: string;
 }
 
 export interface ExpressionDomainEvaluatorCandidateV0 {
@@ -1478,7 +1497,7 @@ type ExpressionValueDomainPayloadLike = {
   readonly valueCharMust?: string;
   readonly valueCharMay?: string;
   readonly valueMayIncludeOtherChars?: boolean;
-  readonly finiteValues?: readonly string[];
+  readonly finiteValues?: readonly string[] | null;
 };
 
 function deriveReducedExpressionValueDomainKind(payload: ExpressionValueDomainPayloadLike): string {
@@ -1518,6 +1537,130 @@ function deriveReducedExpressionValueDomainKind(payload: ExpressionValueDomainPa
   }
 
   return payload.valueDomainKind;
+}
+
+function deriveReducedExpressionValueDomainDerivation(
+  payload: ExpressionValueDomainPayloadLike,
+): ReducedClassValueDerivationV0 {
+  const inputFactKind = payload.valueDomainKind === "none" ? "unknown" : payload.valueDomainKind;
+  let currentKind = deriveBaseExpressionClassValueKind(payload);
+  const steps: ReducedClassValueDerivationStepV0[] = [
+    {
+      operation: "baseFromFacts",
+      resultKind: currentKind,
+      reason: "mapped input facts to the base abstract value",
+    },
+  ];
+
+  if (
+    hasExpressionValueConstraintDetails(payload) &&
+    (inputFactKind === "exact" || inputFactKind === "finiteSet")
+  ) {
+    const refinementKind = deriveConstraintExpressionClassValueKind(payload);
+    const resultKind = deriveReducedExpressionValueDomainKind(payload);
+    steps.push({
+      operation: "intersectConstraint",
+      inputKind: currentKind,
+      refinementKind,
+      resultKind,
+      reason: "refined exact or finite facts with constraint details",
+    });
+    currentKind = resultKind;
+  }
+
+  if (
+    inputFactKind !== "exact" &&
+    inputFactKind !== "finiteSet" &&
+    payload.finiteValues != null &&
+    payload.finiteValues.length > 0
+  ) {
+    const refinementKind = finiteExpressionValueDomainKind(payload.finiteValues);
+    const resultKind = deriveReducedExpressionValueDomainKind(payload);
+    steps.push({
+      operation: "intersectFiniteValues",
+      inputKind: currentKind,
+      refinementKind,
+      resultKind,
+      reason: "refined constrained facts with explicit finite values",
+    });
+    currentKind = resultKind;
+  }
+
+  return {
+    schemaVersion: "0",
+    product: "omena-abstract-value.reduced-class-value-derivation",
+    inputFactKind,
+    ...(payload.valueConstraintKind ? { inputConstraintKind: payload.valueConstraintKind } : {}),
+    inputValueCount: payload.finiteValues?.length ?? 0,
+    reducedKind:
+      inputFactKind === "unknown" ? "none" : currentKind === "unknown" ? "none" : currentKind,
+    steps,
+  };
+}
+
+function deriveBaseExpressionClassValueKind(payload: ExpressionValueDomainPayloadLike): string {
+  switch (payload.valueDomainKind) {
+    case "none":
+    case "unknown":
+      return "top";
+    case "exact":
+      return payload.finiteValues?.length ? "exact" : "top";
+    case "finiteSet":
+      return finiteExpressionValueDomainKind(payload.finiteValues ?? []);
+    case "constrained":
+      return deriveConstraintExpressionClassValueKind(payload);
+    default:
+      return payload.valueDomainKind;
+  }
+}
+
+function deriveConstraintExpressionClassValueKind(
+  payload: ExpressionValueDomainPayloadLike,
+): string {
+  switch (payload.valueConstraintKind) {
+    case "prefix":
+      return "prefix";
+    case "suffix":
+      return "suffix";
+    case "prefixSuffix":
+      if (!payload.valuePrefix && !payload.valueSuffix) return "top";
+      if (!payload.valuePrefix) return "suffix";
+      if (!payload.valueSuffix) return "prefix";
+      return "prefixSuffix";
+    case "charInclusion":
+      return deriveCharInclusionExpressionClassValueKind(payload);
+    case "composite":
+      return deriveCompositeExpressionClassValueKind(payload);
+    default:
+      return "top";
+  }
+}
+
+function deriveCharInclusionExpressionClassValueKind(
+  payload: ExpressionValueDomainPayloadLike,
+): string {
+  const hasMustChars = (payload.valueCharMust ?? "").length > 0;
+  const hasMayChars = (payload.valueCharMay ?? "").length > 0 || hasMustChars;
+  if (payload.valueMayIncludeOtherChars && !hasMustChars) return "top";
+  if (!payload.valueMayIncludeOtherChars && !hasMayChars) return "top";
+  return "charInclusion";
+}
+
+function deriveCompositeExpressionClassValueKind(
+  payload: ExpressionValueDomainPayloadLike,
+): string {
+  const hasEdges = Boolean(payload.valuePrefix || payload.valueSuffix);
+  const hasCharInfo =
+    (payload.valueCharMust ?? "").length > 0 ||
+    (!payload.valueMayIncludeOtherChars && (payload.valueCharMay ?? "").length > 0);
+
+  if (!hasCharInfo)
+    return deriveConstraintExpressionClassValueKind({
+      ...payload,
+      valueConstraintKind: "prefixSuffix",
+    });
+  if (!hasEdges) return deriveCharInclusionExpressionClassValueKind(payload);
+  return "composite";
 }
 
 function hasExpressionValueConstraintDetails(payload: ExpressionValueDomainPayloadLike): boolean {
@@ -1613,6 +1756,7 @@ export function deriveTsExpressionDomainEvaluatorCandidates(
         ...(query.payload.valueCharMay ? { valueCharMay: query.payload.valueCharMay } : {}),
         ...(query.payload.valueMayIncludeOtherChars ? { valueMayIncludeOtherChars: true } : {}),
         finiteValueCount: query.payload.finiteValues?.length ?? 0,
+        valueDomainDerivation: deriveReducedExpressionValueDomainDerivation(query.payload),
       },
     }))
     .toSorted((a, b) => a.queryId.localeCompare(b.queryId));

@@ -6,7 +6,8 @@ use crate::{
     ExpressionDomainCanonicalProducerSignalV0, ExpressionDomainEvaluatorCandidatePayloadV0,
     ExpressionDomainEvaluatorCandidateV0, ExpressionDomainEvaluatorCandidatesV0,
     ExpressionDomainFragmentV0, ExpressionDomainFragmentsV0, ExpressionDomainPlanSummaryV0,
-    collect_constraint_detail_counts, map_reduced_expression_value_domain_kind,
+    collect_constraint_detail_counts, map_reduced_expression_value_domain_derivation,
+    map_reduced_expression_value_domain_kind,
 };
 
 struct ExpressionDomainInputRows {
@@ -101,6 +102,9 @@ fn collect_expression_domain_input_rows(input: &EngineInputV2) -> ExpressionDoma
                 value_char_may: entry.facts.char_may.clone(),
                 value_may_include_other_chars: entry.facts.may_include_other_chars,
                 finite_value_count: entry.facts.values.as_ref().map_or(0, Vec::len),
+                value_domain_derivation: map_reduced_expression_value_domain_derivation(
+                    &entry.facts,
+                ),
             },
         });
     }
@@ -327,6 +331,21 @@ mod tests {
         assert_eq!(
             evaluator_candidates.results[2].payload.value_domain_kind,
             "exact"
+        );
+        assert_eq!(
+            evaluator_candidates.results[2]
+                .payload
+                .value_domain_derivation
+                .reduced_kind,
+            "exact"
+        );
+        assert_eq!(
+            evaluator_candidates.results[2]
+                .payload
+                .value_domain_derivation
+                .steps[1]
+                .operation,
+            "intersectConstraint"
         );
     }
 

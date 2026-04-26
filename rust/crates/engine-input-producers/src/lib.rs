@@ -284,6 +284,7 @@ pub struct ExpressionDomainEvaluatorCandidatePayloadV0 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_may_include_other_chars: Option<bool>,
     pub finite_value_count: usize,
+    pub value_domain_derivation: omena_abstract_value::ReducedClassValueDerivationV0,
 }
 
 #[derive(Debug, Serialize)]
@@ -968,6 +969,12 @@ pub(crate) fn map_expression_value_domain_kind(facts: &StringTypeFactsV2) -> Str
 pub(crate) fn map_reduced_expression_value_domain_kind(facts: &StringTypeFactsV2) -> String {
     omena_abstract_value::reduced_value_domain_kind_from_facts(&abstract_value_facts(facts))
         .to_string()
+}
+
+pub(crate) fn map_reduced_expression_value_domain_derivation(
+    facts: &StringTypeFactsV2,
+) -> omena_abstract_value::ReducedClassValueDerivationV0 {
+    omena_abstract_value::reduced_class_value_derivation_from_facts(&abstract_value_facts(facts))
 }
 
 pub(crate) fn map_value_certainty(facts: &StringTypeFactsV2) -> Option<String> {

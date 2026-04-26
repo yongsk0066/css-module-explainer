@@ -360,7 +360,7 @@ pub fn reduced_class_value_derivation_from_facts(
         input_fact_kind: facts.kind.clone(),
         input_constraint_kind: facts.constraint_kind.clone(),
         input_value_count: finite_value_count_for_facts(facts),
-        reduced_kind: abstract_class_value_kind(&value),
+        reduced_kind: reduced_class_value_kind(facts, &value),
         steps,
     }
 }
@@ -415,6 +415,17 @@ pub fn reduced_value_domain_kind_from_facts(facts: &ExternalStringTypeFactsV0) -
     }
 
     abstract_class_value_kind(&reduced_abstract_class_value_from_facts(facts))
+}
+
+fn reduced_class_value_kind(
+    facts: &ExternalStringTypeFactsV0,
+    value: &AbstractClassValueV0,
+) -> &'static str {
+    if facts.kind == "unknown" {
+        return "none";
+    }
+
+    abstract_class_value_kind(value)
 }
 
 pub fn abstract_class_value_from_facts(facts: &ExternalStringTypeFactsV0) -> AbstractClassValueV0 {
