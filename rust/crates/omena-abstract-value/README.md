@@ -9,6 +9,8 @@ Current public product:
 
 - `omena-abstract-value.domain` — domain boundary summary for the abstract
   class-value lattice and selector projection certainty contract.
+- `intersect_abstract_class_values` — reduced-product intersection over finite,
+  prefix, suffix, character-inclusion, and composite class-value domains.
 
 Primary check:
 

@@ -291,6 +291,19 @@ pub fn enumerate_finite_class_values(value: &AbstractClassValueV0) -> Option<Vec
     }
 }
 
+pub fn intersect_abstract_class_values(
+    left: &AbstractClassValueV0,
+    right: &AbstractClassValueV0,
+) -> AbstractClassValueV0 {
+    match (left, right) {
+        (AbstractClassValueV0::Bottom, _) | (_, AbstractClassValueV0::Bottom) => {
+            bottom_class_value()
+        }
+        (AbstractClassValueV0::Top, value) | (value, AbstractClassValueV0::Top) => value.clone(),
+        _ => intersect_non_top_class_values(left, right),
+    }
+}
+
 pub fn abstract_class_value_from_facts(facts: &ExternalStringTypeFactsV0) -> AbstractClassValueV0 {
     match facts.kind.as_str() {
         "exact" => facts
@@ -774,6 +787,304 @@ fn matches_char_constraints(
     value_chars.iter().all(|char| may_chars.contains(char))
 }
 
+fn abstract_value_matches_string(value: &AbstractClassValueV0, candidate: &str) -> bool {
+    match value {
+        AbstractClassValueV0::Bottom => false,
+        AbstractClassValueV0::Exact { value } => value == candidate,
+        AbstractClassValueV0::FiniteSet { values } => values.iter().any(|value| value == candidate),
+        AbstractClassValueV0::Prefix { prefix, .. } => candidate.starts_with(prefix),
+        AbstractClassValueV0::Suffix { suffix, .. } => candidate.ends_with(suffix),
+        AbstractClassValueV0::PrefixSuffix {
+            prefix,
+            suffix,
+            min_length,
+            ..
+        } => {
+            candidate.len() >= *min_length
+                && candidate.starts_with(prefix)
+                && candidate.ends_with(suffix)
+        }
+        AbstractClassValueV0::CharInclusion {
+            must_chars,
+            may_chars,
+            may_include_other_chars,
+            ..
+        } => matches_char_constraints(candidate, must_chars, may_chars, *may_include_other_chars),
+        AbstractClassValueV0::Composite {
+            prefix,
+            suffix,
+            min_length,
+            must_chars,
+            may_chars,
+            may_include_other_chars,
+            ..
+        } => {
+            min_length.is_none_or(|min_length| candidate.len() >= min_length)
+                && prefix
+                    .as_ref()
+                    .is_none_or(|prefix| candidate.starts_with(prefix))
+                && suffix
+                    .as_ref()
+                    .is_none_or(|suffix| candidate.ends_with(suffix))
+                && matches_char_constraints(
+                    candidate,
+                    must_chars,
+                    may_chars,
+                    *may_include_other_chars,
+                )
+        }
+        AbstractClassValueV0::Top => true,
+    }
+}
+
+fn intersect_non_top_class_values(
+    left: &AbstractClassValueV0,
+    right: &AbstractClassValueV0,
+) -> AbstractClassValueV0 {
+    match (
+        enumerate_finite_class_values(left),
+        enumerate_finite_class_values(right),
+    ) {
+        (Some(left_values), Some(right_values)) => {
+            let right_values = right_values.into_iter().collect::<BTreeSet<_>>();
+            return finite_set_class_value(
+                left_values
+                    .into_iter()
+                    .filter(|value| right_values.contains(value)),
+            );
+        }
+        (Some(values), None) => {
+            return finite_set_class_value(
+                values
+                    .into_iter()
+                    .filter(|value| abstract_value_matches_string(right, value)),
+            );
+        }
+        (None, Some(values)) => {
+            return finite_set_class_value(
+                values
+                    .into_iter()
+                    .filter(|value| abstract_value_matches_string(left, value)),
+            );
+        }
+        (None, None) => {}
+    }
+
+    match (
+        ClassValueReductionFacts::from_abstract_value(left),
+        ClassValueReductionFacts::from_abstract_value(right),
+    ) {
+        (Some(left), Some(right)) => left
+            .intersect(&right)
+            .map_or_else(bottom_class_value, |facts| facts.into_abstract_value()),
+        _ => bottom_class_value(),
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ClassValueReductionFacts {
+    prefix: Option<String>,
+    suffix: Option<String>,
+    min_length: Option<usize>,
+    must_chars: String,
+    allowed_chars: Option<String>,
+}
+
+impl ClassValueReductionFacts {
+    fn from_abstract_value(value: &AbstractClassValueV0) -> Option<Self> {
+        match value {
+            AbstractClassValueV0::Bottom
+            | AbstractClassValueV0::Exact { .. }
+            | AbstractClassValueV0::FiniteSet { .. } => None,
+            AbstractClassValueV0::Prefix { prefix, .. } => Some(Self {
+                prefix: Some(prefix.clone()),
+                suffix: None,
+                min_length: None,
+                must_chars: String::new(),
+                allowed_chars: None,
+            }),
+            AbstractClassValueV0::Suffix { suffix, .. } => Some(Self {
+                prefix: None,
+                suffix: Some(suffix.clone()),
+                min_length: None,
+                must_chars: String::new(),
+                allowed_chars: None,
+            }),
+            AbstractClassValueV0::PrefixSuffix {
+                prefix,
+                suffix,
+                min_length,
+                ..
+            } => Some(Self {
+                prefix: Some(prefix.clone()),
+                suffix: Some(suffix.clone()),
+                min_length: Some(*min_length),
+                must_chars: String::new(),
+                allowed_chars: None,
+            }),
+            AbstractClassValueV0::CharInclusion {
+                must_chars,
+                may_chars,
+                may_include_other_chars,
+                ..
+            } => Some(Self {
+                prefix: None,
+                suffix: None,
+                min_length: None,
+                must_chars: must_chars.clone(),
+                allowed_chars: (!*may_include_other_chars).then_some(may_chars.clone()),
+            }),
+            AbstractClassValueV0::Composite {
+                prefix,
+                suffix,
+                min_length,
+                must_chars,
+                may_chars,
+                may_include_other_chars,
+                ..
+            } => Some(Self {
+                prefix: prefix.clone(),
+                suffix: suffix.clone(),
+                min_length: *min_length,
+                must_chars: must_chars.clone(),
+                allowed_chars: (!*may_include_other_chars).then_some(may_chars.clone()),
+            }),
+            AbstractClassValueV0::Top => Some(Self {
+                prefix: None,
+                suffix: None,
+                min_length: None,
+                must_chars: String::new(),
+                allowed_chars: None,
+            }),
+        }
+    }
+
+    fn intersect(&self, other: &Self) -> Option<Self> {
+        let prefix = intersect_prefixes(self.prefix.as_deref(), other.prefix.as_deref())?;
+        let suffix = intersect_suffixes(self.suffix.as_deref(), other.suffix.as_deref())?;
+        let min_length = max_optional_usize(self.min_length, other.min_length);
+        let edge_chars = char_set_for_string(format!(
+            "{}{}",
+            prefix.as_deref().unwrap_or(""),
+            suffix.as_deref().unwrap_or("")
+        ));
+        let must_chars = union_char_sets(
+            &union_char_sets(&self.must_chars, &other.must_chars),
+            &edge_chars,
+        );
+        let allowed_chars = intersect_allowed_char_sets(
+            self.allowed_chars.as_deref(),
+            other.allowed_chars.as_deref(),
+        );
+
+        if let Some(allowed_chars) = &allowed_chars
+            && !char_set_is_subset(&must_chars, allowed_chars)
+        {
+            return None;
+        }
+
+        Some(Self {
+            prefix,
+            suffix,
+            min_length,
+            must_chars,
+            allowed_chars,
+        })
+    }
+
+    fn into_abstract_value(self) -> AbstractClassValueV0 {
+        let edge_chars = char_set_for_string(format!(
+            "{}{}",
+            self.prefix.as_deref().unwrap_or(""),
+            self.suffix.as_deref().unwrap_or("")
+        ));
+        if self.allowed_chars.is_none()
+            && (!edge_chars.is_empty() || self.prefix.is_some() || self.suffix.is_some())
+            && char_set_is_subset(&self.must_chars, &edge_chars)
+        {
+            return prefix_suffix_class_value(
+                self.prefix.unwrap_or_default(),
+                self.suffix.unwrap_or_default(),
+                self.min_length,
+                Some(AbstractClassValueProvenanceV0::CompositeJoin),
+            );
+        }
+
+        let may_include_other_chars = self.allowed_chars.is_none();
+        let may_chars = self
+            .allowed_chars
+            .unwrap_or_else(|| self.must_chars.clone());
+
+        if self.prefix.is_none()
+            && self.suffix.is_none()
+            && self.must_chars.is_empty()
+            && may_include_other_chars
+        {
+            return top_class_value();
+        }
+
+        if self.prefix.is_none()
+            && self.suffix.is_none()
+            && self.must_chars.is_empty()
+            && may_chars.is_empty()
+            && !may_include_other_chars
+        {
+            return bottom_class_value();
+        }
+
+        composite_class_value(CompositeClassValueInputV0 {
+            prefix: self.prefix,
+            suffix: self.suffix,
+            min_length: self.min_length,
+            must_chars: self.must_chars,
+            may_chars,
+            may_include_other_chars,
+            provenance: Some(AbstractClassValueProvenanceV0::CompositeJoin),
+        })
+    }
+}
+
+fn intersect_prefixes(left: Option<&str>, right: Option<&str>) -> Option<Option<String>> {
+    match (left, right) {
+        (None, None) => Some(None),
+        (Some(value), None) | (None, Some(value)) => Some(Some(value.to_string())),
+        (Some(left), Some(right)) if left.starts_with(right) => Some(Some(left.to_string())),
+        (Some(left), Some(right)) if right.starts_with(left) => Some(Some(right.to_string())),
+        (Some(_), Some(_)) => None,
+    }
+}
+
+fn intersect_suffixes(left: Option<&str>, right: Option<&str>) -> Option<Option<String>> {
+    match (left, right) {
+        (None, None) => Some(None),
+        (Some(value), None) | (None, Some(value)) => Some(Some(value.to_string())),
+        (Some(left), Some(right)) if left.ends_with(right) => Some(Some(left.to_string())),
+        (Some(left), Some(right)) if right.ends_with(left) => Some(Some(right.to_string())),
+        (Some(_), Some(_)) => None,
+    }
+}
+
+fn max_optional_usize(left: Option<usize>, right: Option<usize>) -> Option<usize> {
+    match (left, right) {
+        (Some(left), Some(right)) => Some(left.max(right)),
+        (Some(value), None) | (None, Some(value)) => Some(value),
+        (None, None) => None,
+    }
+}
+
+fn intersect_allowed_char_sets(left: Option<&str>, right: Option<&str>) -> Option<String> {
+    match (left, right) {
+        (Some(left), Some(right)) => Some(intersect_char_sets(left, right)),
+        (Some(value), None) | (None, Some(value)) => Some(value.to_string()),
+        (None, None) => None,
+    }
+}
+
+fn char_set_is_subset(left: &str, right: &str) -> bool {
+    let right = right.chars().collect::<BTreeSet<_>>();
+    left.chars().all(|char| right.contains(&char))
+}
+
 fn is_false(value: &bool) -> bool {
     !value
 }
@@ -857,10 +1168,10 @@ mod tests {
         ExternalStringTypeFactsV0, MAX_FINITE_CLASS_VALUES, SelectorProjectionCertaintyV0,
         abstract_class_value_from_facts, char_inclusion_class_value, composite_class_value,
         derive_selector_projection_certainty, exact_class_value, finite_set_class_value,
-        finite_values_from_facts, prefix_class_value, prefix_suffix_class_value,
-        project_abstract_value_selectors, selector_certainty_from_facts,
+        finite_values_from_facts, intersect_abstract_class_values, prefix_class_value,
+        prefix_suffix_class_value, project_abstract_value_selectors, selector_certainty_from_facts,
         selector_certainty_shape_kind_from_facts, selector_certainty_shape_label_from_facts,
-        summarize_omena_abstract_value_domain, value_certainty_from_facts,
+        suffix_class_value, summarize_omena_abstract_value_domain, value_certainty_from_facts,
         value_certainty_shape_kind_from_facts, value_certainty_shape_label_from_facts,
     };
 
@@ -1022,6 +1333,82 @@ mod tests {
                 may_include_other_chars: true,
                 provenance: None,
             }
+        );
+    }
+
+    #[test]
+    fn intersects_finite_values_with_constrained_domains() {
+        let finite = finite_set_class_value(["btn-primary", "card", "btn-secondary"]);
+        let prefix = prefix_class_value("btn-", None);
+
+        assert_eq!(
+            intersect_abstract_class_values(&finite, &prefix),
+            AbstractClassValueV0::FiniteSet {
+                values: vec!["btn-primary".to_string(), "btn-secondary".to_string()]
+            }
+        );
+
+        assert_eq!(
+            intersect_abstract_class_values(
+                &exact_class_value("card"),
+                &prefix_class_value("btn-", None),
+            ),
+            AbstractClassValueV0::Bottom
+        );
+    }
+
+    #[test]
+    fn intersects_prefix_suffix_and_char_constraints_into_reduced_product() {
+        let edge = intersect_abstract_class_values(
+            &prefix_class_value("btn-", None),
+            &suffix_class_value("-active", None),
+        );
+
+        assert_eq!(
+            edge,
+            AbstractClassValueV0::PrefixSuffix {
+                prefix: "btn-".to_string(),
+                suffix: "-active".to_string(),
+                min_length: "btn--active".len(),
+                provenance: Some(AbstractClassValueProvenanceV0::CompositeJoin),
+            }
+        );
+
+        let reduced = intersect_abstract_class_values(
+            &edge,
+            &char_inclusion_class_value("ab", "-abceintv", None, false),
+        );
+
+        assert_eq!(
+            reduced,
+            AbstractClassValueV0::Composite {
+                prefix: Some("btn-".to_string()),
+                suffix: Some("-active".to_string()),
+                min_length: Some("btn--active".len()),
+                must_chars: "-abceintv".to_string(),
+                may_chars: "-abceintv".to_string(),
+                may_include_other_chars: false,
+                provenance: Some(AbstractClassValueProvenanceV0::CompositeJoin),
+            }
+        );
+    }
+
+    #[test]
+    fn rejects_incompatible_reduced_product_constraints() {
+        assert_eq!(
+            intersect_abstract_class_values(
+                &prefix_class_value("btn-", None),
+                &prefix_class_value("card-", None),
+            ),
+            AbstractClassValueV0::Bottom
+        );
+
+        assert_eq!(
+            intersect_abstract_class_values(
+                &prefix_class_value("btn-", None),
+                &char_inclusion_class_value("", "abc", None, false),
+            ),
+            AbstractClassValueV0::Bottom
         );
     }
 
