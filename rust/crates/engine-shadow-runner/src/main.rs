@@ -12,29 +12,29 @@ use engine_input_producers::{
     summarize_expression_semantics_canonical_candidate_bundle_input,
     summarize_expression_semantics_evaluator_candidates_input,
     summarize_expression_semantics_fragments_input,
-    summarize_expression_semantics_match_fragments_input,
-    summarize_expression_semantics_query_fragments_input, summarize_query_plan_input,
+    summarize_expression_semantics_match_fragments_input, summarize_query_plan_input,
     summarize_selector_usage_candidates_input,
     summarize_selector_usage_canonical_candidate_bundle_input,
     summarize_selector_usage_evaluator_candidates_input, summarize_selector_usage_fragments_input,
-    summarize_selector_usage_plan_input, summarize_selector_usage_query_fragments_input,
-    summarize_semantic_canonical_candidate_bundle_input,
+    summarize_selector_usage_plan_input, summarize_semantic_canonical_candidate_bundle_input,
     summarize_semantic_canonical_producer_signal_input,
     summarize_semantic_evaluator_candidates_input, summarize_source_resolution_candidates_input,
     summarize_source_resolution_canonical_candidate_bundle_input,
     summarize_source_resolution_evaluator_candidates_input,
     summarize_source_resolution_fragments_input, summarize_source_resolution_match_fragments_input,
-    summarize_source_resolution_plan_input, summarize_source_resolution_query_fragments_input,
-    summarize_source_side_canonical_candidate_bundle_input,
+    summarize_source_resolution_plan_input, summarize_source_side_canonical_candidate_bundle_input,
     summarize_source_side_canonical_producer_signal_input,
     summarize_source_side_evaluator_candidates_input, summarize_type_fact_input,
 };
 use omena_query::{
     summarize_omena_query_boundary,
     summarize_omena_query_expression_semantics_canonical_producer_signal,
+    summarize_omena_query_expression_semantics_query_fragments,
     summarize_omena_query_selected_query_adapter_capabilities,
     summarize_omena_query_selector_usage_canonical_producer_signal,
+    summarize_omena_query_selector_usage_query_fragments,
     summarize_omena_query_source_resolution_canonical_producer_signal,
+    summarize_omena_query_source_resolution_query_fragments,
     summarize_omena_query_style_semantic_graph_batch_from_sources,
     summarize_omena_query_style_semantic_graph_from_source,
 };
@@ -477,7 +477,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Some("input-selector-usage-query-fragments") => {
             let input: EngineInputV2 = serde_json::from_str(&stdin)?;
-            let summary = summarize_selector_usage_query_fragments_input(&input);
+            let summary = summarize_omena_query_selector_usage_query_fragments(&input);
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
         Some("input-selector-usage-candidates") => {
@@ -585,7 +585,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Some("input-expression-semantics-query-fragments") => {
             let input: EngineInputV2 = serde_json::from_str(&stdin)?;
-            let summary = summarize_expression_semantics_query_fragments_input(&input);
+            let summary = summarize_omena_query_expression_semantics_query_fragments(&input);
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
         Some("input-expression-semantics-match-fragments") => {
@@ -634,7 +634,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Some("input-source-resolution-query-fragments") => {
             let input: EngineInputV2 = serde_json::from_str(&stdin)?;
-            let summary = summarize_source_resolution_query_fragments_input(&input);
+            let summary = summarize_omena_query_source_resolution_query_fragments(&input);
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
         Some("output-checker-style-recovery-canonical-candidate") => {

@@ -14,6 +14,8 @@ Current public products:
 - `omena-query.selected-query-adapter-capabilities` — declared backend
   capability matrix and engine-shadow-runner command contract for the current
   selected-query adapter path.
+- selected-query query fragment wrappers for expression semantics, source
+  resolution, and selector usage runner commands.
 - selected-query canonical producer wrappers for source resolution,
   expression semantics, and selector usage runner commands. These keep the
   existing JSON output contracts stable while moving ownership into

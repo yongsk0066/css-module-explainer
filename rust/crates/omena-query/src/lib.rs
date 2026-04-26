@@ -224,10 +224,28 @@ pub fn summarize_omena_query_fragment_bundle(input: &EngineInputV2) -> OmenaQuer
         schema_version: "0",
         product: "omena-query.fragment-bundle",
         input_version: input.version.clone(),
-        expression_semantics: summarize_expression_semantics_query_fragments_input(input),
-        source_resolution: summarize_source_resolution_query_fragments_input(input),
-        selector_usage: summarize_selector_usage_query_fragments_input(input),
+        expression_semantics: summarize_omena_query_expression_semantics_query_fragments(input),
+        source_resolution: summarize_omena_query_source_resolution_query_fragments(input),
+        selector_usage: summarize_omena_query_selector_usage_query_fragments(input),
     }
+}
+
+pub fn summarize_omena_query_expression_semantics_query_fragments(
+    input: &EngineInputV2,
+) -> ExpressionSemanticsQueryFragmentsV0 {
+    summarize_expression_semantics_query_fragments_input(input)
+}
+
+pub fn summarize_omena_query_source_resolution_query_fragments(
+    input: &EngineInputV2,
+) -> SourceResolutionQueryFragmentsV0 {
+    summarize_source_resolution_query_fragments_input(input)
+}
+
+pub fn summarize_omena_query_selector_usage_query_fragments(
+    input: &EngineInputV2,
+) -> SelectorUsageQueryFragmentsV0 {
+    summarize_selector_usage_query_fragments_input(input)
 }
 
 pub fn summarize_omena_query_source_resolution_canonical_producer_signal(
@@ -292,10 +310,13 @@ mod tests {
     use super::{
         SelectedQueryAdapterCapabilitiesV0, summarize_omena_query_boundary,
         summarize_omena_query_expression_semantics_canonical_producer_signal,
+        summarize_omena_query_expression_semantics_query_fragments,
         summarize_omena_query_fragment_bundle,
         summarize_omena_query_selected_query_adapter_capabilities,
         summarize_omena_query_selector_usage_canonical_producer_signal,
+        summarize_omena_query_selector_usage_query_fragments,
         summarize_omena_query_source_resolution_canonical_producer_signal,
+        summarize_omena_query_source_resolution_query_fragments,
         summarize_omena_query_style_semantic_graph_batch_from_sources,
         summarize_omena_query_style_semantic_graph_from_source,
     };
@@ -347,6 +368,29 @@ mod tests {
         assert_eq!(bundle.source_resolution.fragments[1].query_id, "expr-2");
         assert_eq!(bundle.selector_usage.fragments.len(), 2);
         assert_eq!(bundle.selector_usage.fragments[0].query_id, "btn-active");
+
+        let expression = summarize_omena_query_expression_semantics_query_fragments(&input);
+        let source = summarize_omena_query_source_resolution_query_fragments(&input);
+        let selector = summarize_omena_query_selector_usage_query_fragments(&input);
+
+        assert_eq!(expression.schema_version, "0");
+        assert_eq!(source.schema_version, "0");
+        assert_eq!(selector.schema_version, "0");
+        assert_eq!(expression.input_version, "2");
+        assert_eq!(source.input_version, "2");
+        assert_eq!(selector.input_version, "2");
+        assert_eq!(
+            expression.fragments.len(),
+            bundle.expression_semantics.fragments.len()
+        );
+        assert_eq!(
+            source.fragments.len(),
+            bundle.source_resolution.fragments.len()
+        );
+        assert_eq!(
+            selector.fragments.len(),
+            bundle.selector_usage.fragments.len()
+        );
     }
 
     #[test]
