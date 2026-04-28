@@ -21,6 +21,7 @@ export interface StyleCompletionItem {
   readonly insertText: string;
   readonly filterText: string;
   readonly replacementRange: Range;
+  readonly sourceRange?: Range;
   readonly symbolSyntax?: StylePreprocessorSymbolSyntax;
   readonly symbolKind: SassSymbolDeclHIR["symbolKind"] | "customProperty";
 }
@@ -54,7 +55,7 @@ interface SassSymbolCompletionDecl {
 
 interface CustomPropertyCompletionDecl extends Pick<
   CustomPropertyDeclHIR,
-  "name" | "range" | "ruleRange"
+  "name" | "range" | "ruleRange" | "context"
 > {
   readonly symbolKind: "customProperty";
 }
@@ -177,17 +178,26 @@ function collectSassSymbolCompletionDecls(
 
 function collectCustomPropertyCompletionDecls(args: {
   readonly styleDocument: StyleDocumentHIR;
+  readonly line: number;
+  readonly character: number;
   readonly styleDependencyGraph?: StyleDependencyGraph;
   readonly styleDocumentForPath?: (filePath: string) => StyleDocumentHIR | null;
   readonly aliasResolver?: SassModulePathAliasResolver;
   readonly readFile?: (filePath: string) => string | null;
 }): readonly CustomPropertyCompletionDecl[] {
-  const seen = new Set<string>();
-  const decls: CustomPropertyCompletionDecl[] = [];
-  const pushDecl = (decl: Pick<CustomPropertyDeclHIR, "name" | "range" | "ruleRange">) => {
-    if (seen.has(decl.name)) return;
-    seen.add(decl.name);
-    decls.push({ symbolKind: "customProperty", ...decl });
+  const referenceContext = readCustomPropertyCompletionReferenceContext(args);
+  const byName = new Map<
+    string,
+    { readonly decl: CustomPropertyCompletionDecl; readonly score: number }
+  >();
+  const pushDecl = (
+    decl: Pick<CustomPropertyDeclHIR, "name" | "range" | "ruleRange" | "context">,
+  ) => {
+    const candidate = { symbolKind: "customProperty" as const, ...decl };
+    const score = scoreCustomPropertyCompletionContext(candidate.context, referenceContext);
+    const previous = byName.get(candidate.name);
+    if (previous && previous.score > score) return;
+    byName.set(candidate.name, { decl: candidate, score });
   };
 
   for (const decl of args.styleDocument.customPropertyDecls) pushDecl(decl);
@@ -203,7 +213,68 @@ function collectCustomPropertyCompletionDecls(args: {
     }
   }
   for (const decl of args.styleDependencyGraph?.getAllCustomPropertyDecls() ?? []) pushDecl(decl);
-  return decls;
+  return [...byName.values()].map((entry) => entry.decl);
+}
+
+function readCustomPropertyCompletionReferenceContext(args: {
+  readonly styleDocument: StyleDocumentHIR;
+  readonly line: number;
+  readonly character: number;
+}): CustomPropertyDeclHIR["context"] | undefined {
+  const refAtCursor = args.styleDocument.customPropertyRefs.find((ref) =>
+    rangeContains(ref.range, args.line, args.character),
+  );
+  if (refAtCursor) return refAtCursor.context;
+
+  const containingSelector = args.styleDocument.selectors
+    .filter((selector) => rangeContains(selector.ruleRange, args.line, args.character))
+    .toSorted((left, right) => rangeSize(left.ruleRange) - rangeSize(right.ruleRange))[0];
+  if (!containingSelector) return undefined;
+  return {
+    containerKind: "rule",
+    selectorText: containingSelector.fullSelector,
+    atRuleName: null,
+    atRuleParams: null,
+    wrapperAtRules: [],
+  };
+}
+
+function scoreCustomPropertyCompletionContext(
+  declContext: CustomPropertyDeclHIR["context"],
+  referenceContext: CustomPropertyDeclHIR["context"] | undefined,
+): number {
+  if (!referenceContext) return 0;
+  let score = 0;
+  if (declContext.selectorText) {
+    if (referenceContext.selectorText === declContext.selectorText) {
+      score += 100;
+    } else if (
+      referenceContext.selectorText &&
+      referenceContext.selectorText.includes(declContext.selectorText)
+    ) {
+      score += 80;
+    } else if (declContext.selectorText === ":root") {
+      score += 10;
+    }
+  }
+  score += matchingWrapperCount(declContext, referenceContext) * 20;
+  return score;
+}
+
+function matchingWrapperCount(
+  declContext: CustomPropertyDeclHIR["context"],
+  referenceContext: CustomPropertyDeclHIR["context"],
+): number {
+  return declContext.wrapperAtRules.filter((declWrapper) =>
+    referenceContext.wrapperAtRules.some(
+      (refWrapper) =>
+        refWrapper.name === declWrapper.name && refWrapper.params === declWrapper.params,
+    ),
+  ).length;
+}
+
+function rangeSize(range: Range): number {
+  return (range.end.line - range.start.line) * 10_000 + range.end.character - range.start.character;
 }
 
 function readSassSymbolCompletionDecls(args: {
@@ -329,6 +400,7 @@ function toCustomPropertyCompletionItem(
     insertText: decl.name,
     filterText: decl.name,
     replacementRange,
+    sourceRange: decl.range,
     symbolKind: "customProperty",
   };
 }

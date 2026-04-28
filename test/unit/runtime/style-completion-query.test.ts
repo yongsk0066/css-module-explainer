@@ -58,6 +58,52 @@ describe("resolveStyleCompletionItems", () => {
     expect(result.map((item) => item.label)).toEqual(["--brand", "--space"]);
   });
 
+  it("uses matching theme context for duplicate same-file CSS custom property completions", () => {
+    const scss = `:root {
+  --brand: #111;
+}
+.theme { --brand: #222; }
+.theme .button {
+  color: var(--br)
+}
+`;
+    const result = resolveStyleCompletionItems({
+      content: scss,
+      line: 5,
+      character: 17,
+      styleDocument: parseStyleDocument(scss, SCSS_PATH),
+    });
+
+    expect(result.map((item) => item.label)).toEqual(["--brand"]);
+    expect(result[0]?.sourceRange).toMatchObject({
+      start: { line: 3, character: 9 },
+      end: { line: 3, character: 16 },
+    });
+  });
+
+  it("keeps root CSS custom property completions ahead of unrelated theme overrides", () => {
+    const scss = `:root {
+  --brand: #111;
+}
+.theme { --brand: #222; }
+.button {
+  color: var(--br)
+}
+`;
+    const result = resolveStyleCompletionItems({
+      content: scss,
+      line: 5,
+      character: 17,
+      styleDocument: parseStyleDocument(scss, SCSS_PATH),
+    });
+
+    expect(result.map((item) => item.label)).toEqual(["--brand"]);
+    expect(result[0]?.sourceRange).toMatchObject({
+      start: { line: 1, character: 2 },
+      end: { line: 1, character: 9 },
+    });
+  });
+
   it("returns imported package CSS custom property completions inside `var()`", () => {
     const scss = `@use "@design/tokens/variables.css";
 
