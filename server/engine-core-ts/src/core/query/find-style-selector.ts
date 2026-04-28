@@ -857,7 +857,10 @@ function resolveSassModuleBasePath(
     return path.resolve(path.dirname(styleFilePath), cleanSource);
   }
   if (path.isAbsolute(cleanSource)) return cleanSource;
-  return aliasResolver?.resolve(cleanSource, fileExists, styleFilePath) ?? null;
+  return (
+    aliasResolver?.resolve(cleanSource, fileExists, styleFilePath) ??
+    resolveSassPackageBasePath(styleFilePath, cleanSource, fileExists)
+  );
 }
 
 function expandSassModuleCandidatePaths(basePath: string): readonly string[] {
@@ -879,6 +882,36 @@ function expandSassModuleCandidatePaths(basePath: string): readonly string[] {
   }
 
   return uniquePaths(candidates);
+}
+
+function resolveSassPackageBasePath(
+  styleFilePath: string,
+  source: string,
+  fileExists?: (candidate: string) => boolean,
+): string | null {
+  const packageSpecifier = normalizeSassPackageSpecifier(source);
+  if (
+    !packageSpecifier ||
+    isRelativeSpecifier(packageSpecifier) ||
+    path.isAbsolute(packageSpecifier)
+  ) {
+    return null;
+  }
+
+  let current = path.dirname(styleFilePath);
+  while (true) {
+    const candidate = path.join(current, "node_modules", packageSpecifier);
+    if (!fileExists || fileExists(candidate)) return candidate;
+
+    const parent = path.dirname(current);
+    if (parent === current) return null;
+    current = parent;
+  }
+}
+
+function normalizeSassPackageSpecifier(source: string): string {
+  if (source.startsWith("~") && !source.startsWith("~/")) return source.slice(1);
+  return source;
 }
 
 function isStyleModuleExtension(extension: string): boolean {

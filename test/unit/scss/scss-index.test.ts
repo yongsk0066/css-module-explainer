@@ -472,6 +472,27 @@ describe("parseStyleSelectorMap / edge cases", () => {
       ]);
     });
 
+    it("records legacy Sass @import as wildcard module uses", () => {
+      const source = `@import "./legacy";
+@import "./tokens", "@design/foundation/scss/utils";
+@import "https://cdn.example/reset.css";
+@import "./plain.css";`;
+      const document = parseStyleDocument(source, "/fake/a.module.scss");
+
+      expect(
+        document.sassModuleUses.map((moduleUse) => [
+          moduleUse.source,
+          moduleUse.namespaceKind,
+          moduleUse.namespace,
+          sliceRange(source, moduleUse.range),
+        ]),
+      ).toEqual([
+        ["./legacy", "wildcard", null, "./legacy"],
+        ["./tokens", "wildcard", null, "./tokens"],
+        ["@design/foundation/scss/utils", "wildcard", null, "@design/foundation/scss/utils"],
+      ]);
+    });
+
     it("records @forward edges with source ranges", () => {
       const source = `@forward "./tokens" as theme-* show $gap, raised;
 @forward "../theme/_spacing.scss?raw" hide $private, hidden;`;

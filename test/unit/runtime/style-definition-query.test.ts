@@ -12,6 +12,7 @@ const THEME_PATH = "/fake/workspace/src/theme.module.scss";
 const TOKENS_PATH = "/fake/workspace/src/tokens.module.scss";
 const TOKENS_CSS_PATH = "/fake/workspace/src/tokens.module.css";
 const TOKENS_PARTIAL_PATH = "/fake/workspace/src/_tokens.module.scss";
+const PACKAGE_UTILS_PATH = "/fake/workspace/node_modules/@design/foundation/scss/_utils.scss";
 const EMPTY_ALIAS_RESOLVER = new AliasResolver("/fake/workspace", {});
 
 describe("resolveStyleDefinitionTargets", () => {
@@ -296,6 +297,65 @@ describe("resolveStyleDefinitionTargets", () => {
       targetSelectionRange: {
         start: { line: 2, character: 10 },
         end: { line: 2, character: 14 },
+      },
+    });
+  });
+
+  it("resolves legacy @import Sass symbols as wildcard module members", () => {
+    const ws = styleWorkspace({
+      [BUTTON_PATH]: `@import "./tokens.module";
+
+.button {
+  color: $g/*|*/ap;
+}
+`,
+      [TOKENS_PARTIAL_PATH]: `$gap: 1rem;`,
+    });
+
+    const targets = resolveStyleDefinitionTargets(styleTarget(ws), styleDeps(ws));
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0]).toMatchObject({
+      targetFilePath: TOKENS_PARTIAL_PATH,
+      targetSelectionRange: {
+        start: { line: 0, character: 0 },
+        end: { line: 0, character: 4 },
+      },
+    });
+  });
+
+  it("resolves package Sass imports from node_modules", () => {
+    const ws = styleWorkspace({
+      [BUTTON_PATH]: `@use "@design/foundation/scss/utils" as *;
+
+.button {
+  color: $g/*at:variable*/ray-900;
+  @include t/*at:mixin*/ypo-18;
+}
+`,
+      [PACKAGE_UTILS_PATH]: `$gray-900: #111;
+@mixin typo-18 {}
+`,
+    });
+    const deps = styleDeps(ws);
+
+    const variableTargets = resolveStyleDefinitionTargets(styleTarget(ws, "variable"), deps);
+    expect(variableTargets).toHaveLength(1);
+    expect(variableTargets[0]).toMatchObject({
+      targetFilePath: PACKAGE_UTILS_PATH,
+      targetSelectionRange: {
+        start: { line: 0, character: 0 },
+        end: { line: 0, character: 9 },
+      },
+    });
+
+    const mixinTargets = resolveStyleDefinitionTargets(styleTarget(ws, "mixin"), deps);
+    expect(mixinTargets).toHaveLength(1);
+    expect(mixinTargets[0]).toMatchObject({
+      targetFilePath: PACKAGE_UTILS_PATH,
+      targetSelectionRange: {
+        start: { line: 1, character: 7 },
+        end: { line: 1, character: 14 },
       },
     });
   });

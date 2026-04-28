@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DiagnosticSeverity, DiagnosticTag } from "vscode-languageserver-protocol/node";
+import { AliasResolver } from "../../../server/engine-core-ts/src/core/cx/alias-resolver";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/engine-core-ts/src/core/semantic/workspace-reference-index";
 import { WorkspaceStyleDependencyGraph } from "../../../server/engine-core-ts/src/core/semantic/style-dependency-graph";
 import { parseStyleDocument } from "../../../server/engine-core-ts/src/core/scss/scss-parser";
@@ -704,6 +705,108 @@ describe("computeScssUnusedDiagnostics", () => {
       new WorkspaceSemanticWorkspaceReferenceIndex(),
       new WorkspaceStyleDependencyGraph(),
       (filePath) => byPath.get(filePath) ?? null,
+    );
+
+    expect(diagnostics.filter((entry) => entry.message.includes("Sass "))).toEqual([]);
+  });
+
+  it("does not report Sass symbols resolved through legacy @import", () => {
+    const tokensPath = "/fake/tokens.module.scss";
+    const styleDoc = parseStyleDocument(
+      `@import "./tokens.module";
+
+.button {
+  color: $gap;
+  @include raised();
+}`,
+      SCSS_PATH,
+    );
+    const targetDoc = parseStyleDocument(
+      `$gap: 1rem;
+@mixin raised() {}`,
+      tokensPath,
+    );
+    const byPath = new Map([
+      [SCSS_PATH, styleDoc],
+      [tokensPath, targetDoc],
+    ]);
+
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      styleDoc,
+      new WorkspaceSemanticWorkspaceReferenceIndex(),
+      new WorkspaceStyleDependencyGraph(),
+      (filePath) => byPath.get(filePath) ?? null,
+    );
+
+    expect(diagnostics.filter((entry) => entry.message.includes("Sass "))).toEqual([]);
+  });
+
+  it("does not report Sass symbols resolved through package imports", () => {
+    const packagePath = "/fake/node_modules/@design/foundation/scss/_utils.scss";
+    const styleDoc = parseStyleDocument(
+      `@use "@design/foundation/scss/utils" as *;
+
+.button {
+  color: $gray-900;
+  @include typo-18;
+}`,
+      SCSS_PATH,
+    );
+    const targetDoc = parseStyleDocument(
+      `$gray-900: #111;
+@mixin typo-18 {}`,
+      packagePath,
+    );
+    const byPath = new Map([
+      [SCSS_PATH, styleDoc],
+      [packagePath, targetDoc],
+    ]);
+
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      styleDoc,
+      new WorkspaceSemanticWorkspaceReferenceIndex(),
+      new WorkspaceStyleDependencyGraph(),
+      (filePath) => byPath.get(filePath) ?? null,
+    );
+
+    expect(diagnostics.filter((entry) => entry.message.includes("Sass "))).toEqual([]);
+  });
+
+  it("does not report Sass symbols resolved through aliased forwarded package imports", () => {
+    const themePath = "/fake/src/shared/theme.module.scss";
+    const packagePath = "/fake/node_modules/@design/foundation/scss/_utils.scss";
+    const styleDoc = parseStyleDocument(
+      `@use "$shared/theme.module" as *;
+
+.button {
+  color: $gray-900;
+  @include typo-18;
+}`,
+      SCSS_PATH,
+    );
+    const themeDoc = parseStyleDocument(`@forward "@design/foundation/scss/utils";`, themePath);
+    const targetDoc = parseStyleDocument(
+      `$gray-900: #111;
+@mixin typo-18 {}`,
+      packagePath,
+    );
+    const byPath = new Map([
+      [SCSS_PATH, styleDoc],
+      [themePath, themeDoc],
+      [packagePath, targetDoc],
+    ]);
+
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      styleDoc,
+      new WorkspaceSemanticWorkspaceReferenceIndex(),
+      new WorkspaceStyleDependencyGraph(),
+      (filePath) => byPath.get(filePath) ?? null,
+      {
+        aliasResolver: new AliasResolver("/fake", { $shared: "src/shared" }),
+      },
     );
 
     expect(diagnostics.filter((entry) => entry.message.includes("Sass "))).toEqual([]);

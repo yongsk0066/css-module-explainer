@@ -739,6 +739,9 @@ function collectSassModuleUses(root: Root): readonly SassModuleUseHIR[] {
   root.walkAtRules("use", (atrule) => {
     moduleUses.push(...parseSassModuleUses(atrule));
   });
+  root.walkAtRules("import", (atrule) => {
+    moduleUses.push(...parseSassImportModuleUses(atrule));
+  });
   return moduleUses;
 }
 
@@ -772,6 +775,32 @@ function parseSassModuleUses(atrule: AtRule): readonly SassModuleUseHIR[] {
       },
     ];
   });
+}
+
+function parseSassImportModuleUses(atrule: AtRule): readonly SassModuleUseHIR[] {
+  const ruleRange = rangeForSourceNode(atrule);
+  return [...atrule.params.matchAll(/["']([^"']+)["']/g)].flatMap((match, index) => {
+    const source = match[1];
+    if (!source || isPlainCssImportSource(source)) return [];
+    const sourceOffset = (match.index ?? 0) + 1;
+    const range = findAtRuleParamValueTokenRange(atrule, sourceOffset, source.length);
+    if (!range) return [];
+    return [
+      {
+        kind: "sassModuleUse",
+        id: `sass-import:${atrule.source?.start?.line ?? 0}:${index}:${source}`,
+        source,
+        namespaceKind: "wildcard",
+        namespace: null,
+        range,
+        ruleRange,
+      },
+    ];
+  });
+}
+
+function isPlainCssImportSource(source: string): boolean {
+  return /^(?:https?:)?\/\//u.test(source) || /\.css(?:[?#].*)?$/iu.test(source);
 }
 
 function parseSassModuleForwards(atrule: AtRule): readonly SassModuleForwardHIR[] {
