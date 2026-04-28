@@ -218,6 +218,16 @@ export function styleDocumentSemanticFingerprint(styleDocument: StyleDocumentHIR
         ref.range.start.character,
         ref.range.end.line,
         ref.range.end.character,
+        ref.context.containerKind,
+        ref.context.selectorText ?? "",
+        ref.context.atRuleName ?? "",
+        ref.context.atRuleParams ?? "",
+        ref.context.wrapperAtRules
+          .map(
+            (wrapper) =>
+              `${wrapper.name}(${wrapper.params})@${wrapper.range.start.line}:${wrapper.range.start.character}-${wrapper.range.end.line}:${wrapper.range.end.character}`,
+          )
+          .join(","),
       ].join("::"),
     )
     .join("\n");

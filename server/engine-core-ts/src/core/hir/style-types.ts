@@ -101,6 +101,8 @@ export interface CustomPropertyDeclContextHIR {
   readonly wrapperAtRules: readonly CustomPropertyDeclAtRuleContextHIR[];
 }
 
+export type CustomPropertyRefContextHIR = CustomPropertyDeclContextHIR;
+
 export interface CustomPropertyDeclHIR extends HirNodeBase {
   readonly kind: "customPropertyDecl";
   readonly range: Range;
@@ -114,6 +116,7 @@ export interface CustomPropertyRefHIR extends HirNodeBase {
   readonly kind: "customPropertyRef";
   readonly range: Range;
   readonly name: string;
+  readonly context: CustomPropertyRefContextHIR;
 }
 
 export interface SassSymbolOccurrenceHIR extends HirNodeBase {

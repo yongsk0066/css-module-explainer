@@ -684,13 +684,13 @@ function collectCustomPropertyDecls(root: Root): readonly CustomPropertyDeclHIR[
       value: node.value,
       range,
       ruleRange: rangeForDeclarationContainer(node),
-      context: customPropertyDeclContextForDeclaration(node),
+      context: customPropertyContextForDeclaration(node),
     });
   });
   return decls;
 }
 
-function customPropertyDeclContextForDeclaration(node: Declaration): CustomPropertyDeclContextHIR {
+function customPropertyContextForDeclaration(node: Declaration): CustomPropertyDeclContextHIR {
   const parent = node.parent;
   if (parent?.type === "rule") {
     return {
@@ -772,6 +772,7 @@ function collectCustomPropertyRefs(root: Root): readonly CustomPropertyRefHIR[] 
         id: `custom-property-ref:${node.source?.start?.line ?? 0}:${match.name}:${match.offset}`,
         name: match.name,
         range,
+        context: customPropertyContextForDeclaration(node),
       });
     }
   });

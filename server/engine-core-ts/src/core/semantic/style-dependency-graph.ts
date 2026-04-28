@@ -44,7 +44,10 @@ export interface CustomPropertyDependencyDecl extends Pick<
   readonly filePath: string;
 }
 
-export interface CustomPropertyDependencyRef extends Pick<CustomPropertyRefHIR, "name" | "range"> {
+export interface CustomPropertyDependencyRef extends Pick<
+  CustomPropertyRefHIR,
+  "name" | "range" | "context"
+> {
   readonly filePath: string;
 }
 
@@ -359,6 +362,7 @@ function collectCustomPropertyRefs(
     filePath,
     name: ref.name,
     range: ref.range,
+    context: ref.context,
   }));
 }
 

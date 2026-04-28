@@ -100,6 +100,13 @@ describe("parseStyleDocument / CSS custom properties", () => {
           start: { line: 1, character: 20 },
           end: { line: 1, character: 36 },
         },
+        context: {
+          containerKind: "rule",
+          selectorText: ".title",
+          atRuleName: null,
+          atRuleParams: null,
+          wrapperAtRules: [],
+        },
       },
     ]);
   });
@@ -127,6 +134,28 @@ describe("parseStyleDocument / CSS custom properties", () => {
             { name: "layer", params: "theme" },
             { name: "media", params: "(prefers-color-scheme: dark)" },
           ],
+        },
+      },
+    ]);
+  });
+
+  it("captures custom property reference wrapper context", () => {
+    const document = parseStyleDocument(
+      `@media (min-width: 600px) {
+  [data-theme="dark"] .title { color: var(--brand); }
+}`,
+      "/fake/theme.module.css",
+    );
+
+    expect(document.customPropertyRefs).toMatchObject([
+      {
+        name: "--brand",
+        context: {
+          containerKind: "rule",
+          selectorText: `[data-theme="dark"] .title`,
+          atRuleName: null,
+          atRuleParams: null,
+          wrapperAtRules: [{ name: "media", params: "(min-width: 600px)" }],
         },
       },
     ]);
