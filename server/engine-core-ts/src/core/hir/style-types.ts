@@ -32,6 +32,16 @@ export type SassSymbolResolution = "resolved" | "unresolved";
 
 export type SassModuleUseNamespaceKind = "default" | "alias" | "wildcard";
 
+export interface StyleAtRuleContextHIR {
+  readonly name: string;
+  readonly params: string;
+  readonly range: Range;
+}
+
+export interface SelectorRuleContextHIR {
+  readonly wrapperAtRules: readonly StyleAtRuleContextHIR[];
+}
+
 export interface SelectorDeclHIR extends HirNodeBase {
   readonly kind: "selector";
   readonly range: Range;
@@ -45,6 +55,7 @@ export interface SelectorDeclHIR extends HirNodeBase {
   readonly nestedSafety: NestedSelectorSafety;
   readonly bemSuffix?: BemSuffixInfo;
   readonly originalName?: string;
+  readonly context?: SelectorRuleContextHIR;
 }
 
 export interface KeyframesDeclHIR extends HirNodeBase {
@@ -87,11 +98,7 @@ export interface ValueRefHIR extends HirNodeBase {
 
 export type CustomPropertyDeclContainerKind = "root" | "rule" | "atrule";
 
-export interface CustomPropertyDeclAtRuleContextHIR {
-  readonly name: string;
-  readonly params: string;
-  readonly range: Range;
-}
+export interface CustomPropertyDeclAtRuleContextHIR extends StyleAtRuleContextHIR {}
 
 export interface CustomPropertyDeclContextHIR {
   readonly containerKind: CustomPropertyDeclContainerKind;

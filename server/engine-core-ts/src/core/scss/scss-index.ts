@@ -108,6 +108,19 @@ export function styleDocumentSemanticFingerprint(styleDocument: StyleDocumentHIR
       const bemSuffix = selector.bemSuffix
         ? `${selector.bemSuffix.rawToken}:${selector.bemSuffix.parentResolvedName}`
         : "";
+      const wrapperContext =
+        selector.context?.wrapperAtRules
+          .map((wrapper) =>
+            [
+              wrapper.name,
+              wrapper.params,
+              wrapper.range.start.line,
+              wrapper.range.start.character,
+              wrapper.range.end.line,
+              wrapper.range.end.character,
+            ].join(":"),
+          )
+          .join("|") ?? "";
       return [
         selector.name,
         selector.canonicalName,
@@ -120,6 +133,7 @@ export function styleDocumentSemanticFingerprint(styleDocument: StyleDocumentHIR
         selector.nestedSafety,
         selector.originalName ?? "",
         bemSuffix,
+        wrapperContext,
         composes,
       ].join("::");
     })

@@ -130,6 +130,31 @@ describe("resolveStyleCompletionItems", () => {
     });
   });
 
+  it("uses matching wrapper context for incomplete CSS custom property completions", () => {
+    const scss = `:root { --brand: #222; }
+@media (min-width: 600px) {
+  :root { --brand: #111; }
+}
+@media (min-width: 600px) {
+  .button {
+    color: var(--);
+  }
+}
+`;
+    const result = resolveStyleCompletionItems({
+      content: scss,
+      line: 6,
+      character: 17,
+      styleDocument: parseStyleDocument(scss, SCSS_PATH),
+    });
+
+    expect(result.map((item) => item.label)).toEqual(["--brand"]);
+    expect(result[0]?.sourceRange).toMatchObject({
+      start: { line: 2, character: 10 },
+      end: { line: 2, character: 17 },
+    });
+  });
+
   it("returns imported package CSS custom property completions inside `var()`", () => {
     const scss = `@use "@design/tokens/variables.css";
 

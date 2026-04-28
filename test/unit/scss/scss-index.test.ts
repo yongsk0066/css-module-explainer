@@ -66,6 +66,27 @@ describe("parseStyleSelectorMap / flat classes", () => {
     expect(info.ruleRange.start.line).toBe(0);
     expect(info.ruleRange.end.line).toBeGreaterThanOrEqual(2);
   });
+
+  it("records wrapper at-rule context for selectors", () => {
+    const document = parseStyleDocument(
+      `@media (min-width: 600px) {
+  @supports (display: grid) {
+    .indicator { color: red; }
+  }
+}`,
+      "/fake/a.module.scss",
+    );
+
+    expect(document.selectors[0]).toMatchObject({
+      name: "indicator",
+      context: {
+        wrapperAtRules: [
+          { name: "media", params: "(min-width: 600px)" },
+          { name: "supports", params: "(display: grid)" },
+        ],
+      },
+    });
+  });
 });
 
 describe("parseStyleDocument / CSS custom properties", () => {

@@ -245,7 +245,7 @@ function readCustomPropertyCompletionReferenceContext(args: {
     selectorText: containingSelector.fullSelector,
     atRuleName: null,
     atRuleParams: null,
-    wrapperAtRules: [],
+    wrapperAtRules: containingSelector.context?.wrapperAtRules ?? [],
   };
 }
 

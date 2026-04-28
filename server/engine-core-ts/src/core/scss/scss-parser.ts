@@ -31,6 +31,7 @@ import {
   type SassSymbolResolution,
   type SassSymbolRole,
   type SelectorDeclHIR,
+  type StyleAtRuleContextHIR,
   type StyleDocumentHIR,
   type StylePreprocessorSymbolSyntax,
   type ValueDeclHIR,
@@ -288,6 +289,7 @@ function recordRule(
 ): void {
   const { declarations, composes, animationRefs } = collectDeclarationsAndComposes(rule.nodes);
   const ruleRange = rangeForSourceNode(rule);
+  const context = selectorRuleContextForRule(rule);
   animationNameRefs.push(...animationRefs);
 
   const selectorSource = rule.raws.selector?.raw ?? rule.selector;
@@ -314,6 +316,7 @@ function recordRule(
           declarations,
           composes,
           ruleRange,
+          context,
           isNested,
           bemSuffix,
         }),
@@ -350,6 +353,7 @@ interface BuildEntryArgs {
   readonly declarations: string;
   readonly composes: readonly ComposesRef[];
   readonly ruleRange: Range;
+  readonly context: SelectorDeclHIR["context"];
   readonly isNested: boolean;
   readonly bemSuffix: BemSuffixInfo | null;
 }
@@ -368,8 +372,15 @@ function buildSelectorDecl(args: BuildEntryArgs): SelectorDeclHIR {
     ruleRange: args.ruleRange,
     composes: args.composes,
     nestedSafety: classifyNestedSafety(args.isNested, args.bemSuffix),
+    ...(args.context ? { context: args.context } : {}),
     ...(args.bemSuffix ? { bemSuffix: args.bemSuffix } : {}),
   };
+}
+
+function selectorRuleContextForRule(rule: Rule): SelectorDeclHIR["context"] {
+  const wrapperAtRules = wrapperAtRulesForStyleContainer(rule);
+  if (wrapperAtRules.length === 0) return undefined;
+  return { wrapperAtRules };
 }
 
 function collectDeclarationsAndComposes(nodes: ChildNode[] | undefined): {
@@ -722,8 +733,14 @@ function customPropertyContextForDeclaration(node: Declaration): CustomPropertyD
 function wrapperAtRulesForDeclaration(
   node: Declaration,
 ): readonly CustomPropertyDeclAtRuleContextHIR[] {
-  const wrappers: CustomPropertyDeclAtRuleContextHIR[] = [];
-  let current = parentContainerForCustomPropertyContext(node.parent);
+  return wrapperAtRulesForStyleContainer(node.parent);
+}
+
+function wrapperAtRulesForStyleContainer(
+  node: ChildNode | Root | undefined,
+): readonly StyleAtRuleContextHIR[] {
+  const wrappers: StyleAtRuleContextHIR[] = [];
+  let current = parentContainerForStyleContext(node);
   while (current) {
     if (current.type === "atrule") {
       wrappers.push({
@@ -732,12 +749,12 @@ function wrapperAtRulesForDeclaration(
         range: rangeForSourceNode(current),
       });
     }
-    current = parentContainerForCustomPropertyContext(current);
+    current = parentContainerForStyleContext(current);
   }
   return wrappers.toReversed();
 }
 
-function parentContainerForCustomPropertyContext(
+function parentContainerForStyleContext(
   node: ChildNode | Root | undefined,
 ): Rule | AtRule | Root | undefined {
   const parent = node?.parent;
