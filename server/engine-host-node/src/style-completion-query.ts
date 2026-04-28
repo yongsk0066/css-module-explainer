@@ -179,6 +179,7 @@ function collectSassSymbolCompletionDecls(
 }
 
 function collectCustomPropertyCompletionDecls(args: {
+  readonly content: string;
   readonly styleDocument: StyleDocumentHIR;
   readonly line: number;
   readonly character: number;
@@ -207,8 +208,11 @@ function collectCustomPropertyCompletionDecls(args: {
     byName.set(candidate.name, { decl: candidate, score });
   };
 
-  for (const decl of args.styleDocument.customPropertyDecls)
-    pushDecl(decl, args.styleDocument.filePath);
+  const localDecls =
+    args.styleDocument.customPropertyDecls.length > 0
+      ? args.styleDocument.customPropertyDecls
+      : collectFallbackCustomPropertyCompletionDecls(args.content);
+  for (const decl of localDecls) pushDecl(decl, args.styleDocument.filePath);
   if (args.styleDocumentForPath) {
     for (const target of listCustomPropertyModuleUseDeclTargets(
       args.styleDocumentForPath,
@@ -224,6 +228,38 @@ function collectCustomPropertyCompletionDecls(args: {
     pushDecl(decl, decl.filePath);
   }
   return [...byName.values()].map((entry) => entry.decl);
+}
+
+function collectFallbackCustomPropertyCompletionDecls(
+  content: string,
+): readonly Pick<CustomPropertyDeclHIR, "name" | "range" | "ruleRange" | "context">[] {
+  const decls: Pick<CustomPropertyDeclHIR, "name" | "range" | "ruleRange" | "context">[] = [];
+  const lines = content.split(/\r?\n/u);
+  const customPropertyDecl = /(?:^|[;{])\s*(--[\p{L}\p{N}\p{M}_-]+)\s*:/gu;
+  for (const [line, text] of lines.entries()) {
+    customPropertyDecl.lastIndex = 0;
+    for (const match of text.matchAll(customPropertyDecl)) {
+      const name = match[1]!;
+      const character = match.index + match[0]!.lastIndexOf(name);
+      const range = {
+        start: { line, character },
+        end: { line, character: character + name.length },
+      };
+      decls.push({
+        name,
+        range,
+        ruleRange: range,
+        context: {
+          containerKind: "rule",
+          selectorText: ":root",
+          atRuleName: null,
+          atRuleParams: null,
+          wrapperAtRules: [],
+        },
+      });
+    }
+  }
+  return decls;
 }
 
 function readCustomPropertyCompletionReferenceContext(args: {

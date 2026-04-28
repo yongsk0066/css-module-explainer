@@ -155,6 +155,24 @@ describe("resolveStyleCompletionItems", () => {
     });
   });
 
+  it("falls back to local CSS custom properties when the current document is incomplete", () => {
+    const scss = `:root { --brand: #0af; }
+.button {
+  color: var(--`;
+    const result = resolveStyleCompletionItems({
+      content: scss,
+      line: 2,
+      character: 15,
+      styleDocument: parseStyleDocument(scss, SCSS_PATH),
+    });
+
+    expect(result.map((item) => item.label)).toEqual(["--brand"]);
+    expect(result[0]?.sourceRange).toMatchObject({
+      start: { line: 0, character: 8 },
+      end: { line: 0, character: 15 },
+    });
+  });
+
   it("returns imported package CSS custom property completions inside `var()`", () => {
     const scss = `@use "@design/tokens/variables.css";
 

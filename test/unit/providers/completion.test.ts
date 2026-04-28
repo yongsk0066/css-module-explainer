@@ -173,6 +173,32 @@ const el = cx('
       },
     });
   });
+
+  it("keeps CSS custom property completions while a style file is syntactically incomplete", () => {
+    const styleWorkspace = workspace({
+      [STYLE_PATH]: `:root { --brand: #0af; }
+.button {
+  color: var(--/*|*/`,
+    });
+    const params = completionCursor(styleWorkspace, "cursor", STYLE_PATH, STYLE_URI);
+    const styleDocument = parseStyleDocument(params.content, STYLE_PATH);
+    const result = handleCompletion(
+      params,
+      makeDeps({
+        styleDocumentForPath: () => styleDocument,
+      }),
+    );
+
+    expect(result).not.toBeNull();
+    expect(result![0]).toMatchObject({
+      label: "--brand",
+      kind: CompletionItemKind.Variable,
+      detail: "CSS custom property",
+      textEdit: {
+        newText: "--brand",
+      },
+    });
+  });
 });
 
 describe("detectClassUtilImports", () => {
