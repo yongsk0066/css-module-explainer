@@ -195,6 +195,67 @@ describe("checkStyleDocument", () => {
     );
   });
 
+  it("returns missing custom property findings for unresolved indexed token refs", () => {
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    const styleDocumentWithCustomProperties = parseStyleDocument(
+      `:root { --brand: #0af; }
+.button {
+  color: var(--missing);
+}`,
+      SCSS_PATH,
+    );
+
+    const findings = checkStyleDocument(
+      {
+        scssPath: SCSS_PATH,
+        styleDocument: styleDocumentWithCustomProperties,
+      },
+      {
+        semanticReferenceIndex,
+        styleDependencyGraph: new WorkspaceStyleDependencyGraph(),
+      },
+      { includeUnusedSelectors: false },
+    );
+
+    expect(findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          category: "style",
+          code: "missing-custom-property",
+          propertyName: "--missing",
+        }),
+      ]),
+    );
+  });
+
+  it("does not report custom properties resolved through the workspace graph", () => {
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    const styleDocumentWithCustomProperties = parseStyleDocument(
+      `.button {
+  color: var(--brand);
+}`,
+      SCSS_PATH,
+    );
+    const tokenPath = "/fake/tokens.module.css";
+    const tokenDocument = parseStyleDocument(`:root { --brand: #0af; }`, tokenPath);
+    const styleDependencyGraph = new WorkspaceStyleDependencyGraph();
+    styleDependencyGraph.record(tokenPath, tokenDocument);
+
+    const findings = checkStyleDocument(
+      {
+        scssPath: SCSS_PATH,
+        styleDocument: styleDocumentWithCustomProperties,
+      },
+      {
+        semanticReferenceIndex,
+        styleDependencyGraph,
+      },
+      { includeUnusedSelectors: false },
+    );
+
+    expect(findings.filter((finding) => finding.code === "missing-custom-property")).toEqual([]);
+  });
+
   it("returns missing Sass symbol findings for unresolved same-file symbols", () => {
     const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
     const styleDocumentWithSassSymbols = parseStyleDocument(

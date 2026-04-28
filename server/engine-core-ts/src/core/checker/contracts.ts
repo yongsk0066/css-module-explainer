@@ -118,6 +118,14 @@ export type StyleCheckerFinding =
     }
   | {
       readonly category: "style";
+      readonly code: "missing-custom-property";
+      readonly severity: "warning";
+      readonly range: Range;
+      readonly selectorFilePath: string;
+      readonly propertyName: string;
+    }
+  | {
+      readonly category: "style";
       readonly code: "missing-sass-symbol";
       readonly severity: "warning";
       readonly range: Range;

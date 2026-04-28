@@ -204,6 +204,13 @@ function toDiagnostic(
           ),
         },
       };
+    case "missing-custom-property":
+      return {
+        range: toLspRange(finding.range),
+        severity: DiagnosticSeverity.Warning,
+        source: "css-module-explainer",
+        message: formatCheckerFinding(finding, ""),
+      };
     case "missing-sass-symbol":
       return {
         range: toLspRange(finding.range),

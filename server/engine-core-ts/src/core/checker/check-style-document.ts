@@ -2,6 +2,7 @@ import path from "node:path";
 import type { ComposesRef, Range } from "@css-module-explainer/shared";
 import type { StyleDocumentHIR } from "../hir/style-types";
 import {
+  findCustomPropertyDeclByName,
   readStyleModuleUsageSummary,
   resolveSassWildcardSymbolTarget,
   type SassModulePathAliasResolver,
@@ -47,6 +48,7 @@ const STYLE_DOCUMENT_RULES: readonly CheckerRule<
   checkComposesResolutionRule,
   checkImportedValuesRule,
   checkSassSymbolResolutionRule,
+  checkCustomPropertyResolutionRule,
   checkMissingKeyframesRule,
 ];
 
@@ -250,6 +252,47 @@ function checkSassSymbolResolutionRule({
       symbolKind: symbol.symbolKind,
       symbolName: symbol.name,
       symbolRole: symbol.role,
+    });
+  }
+
+  return findings;
+}
+
+function checkCustomPropertyResolutionRule({
+  params,
+  env,
+}: {
+  readonly params: StyleDocumentCheckParams;
+  readonly env: StyleDocumentCheckEnv;
+  readonly options: StyleDocumentCheckOptions;
+}): readonly StyleCheckerFinding[] {
+  const knownDeclCount =
+    params.styleDocument.customPropertyDecls.length +
+    (env.styleDependencyGraph?.getAllCustomPropertyDecls().length ?? 0);
+  if (knownDeclCount === 0) return [];
+
+  const findings: StyleCheckerFinding[] = [];
+  const reported = new Set<string>();
+  for (const ref of params.styleDocument.customPropertyRefs) {
+    if (findCustomPropertyDeclByName(params.styleDocument, ref.name)) continue;
+    if (env.styleDependencyGraph?.getCustomPropertyDecls(ref.name).length) continue;
+
+    const key = [
+      ref.name,
+      ref.range.start.line,
+      ref.range.start.character,
+      ref.range.end.line,
+      ref.range.end.character,
+    ].join(":");
+    if (reported.has(key)) continue;
+    reported.add(key);
+    findings.push({
+      category: "style",
+      code: "missing-custom-property",
+      severity: "warning",
+      range: ref.range,
+      selectorFilePath: params.styleDocument.filePath,
+      propertyName: ref.name,
     });
   }
 

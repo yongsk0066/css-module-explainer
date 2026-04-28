@@ -602,6 +602,32 @@ describe("computeScssUnusedDiagnostics", () => {
     });
   });
 
+  it("reports missing CSS custom property refs when indexed token declarations exist", () => {
+    const styleDoc = parseStyleDocument(
+      `:root { --brand: #0af; }
+.button {
+  color: var(--missing);
+}`,
+      SCSS_PATH,
+    );
+
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      styleDoc,
+      new WorkspaceSemanticWorkspaceReferenceIndex(),
+      new WorkspaceStyleDependencyGraph(),
+    );
+
+    const diagnostic = diagnostics.find((entry) =>
+      entry.message.includes("CSS custom property '--missing' not found in indexed style tokens."),
+    );
+    expect(diagnostic).toBeDefined();
+    expect(diagnostic).toMatchObject({
+      severity: DiagnosticSeverity.Warning,
+      source: "css-module-explainer",
+    });
+  });
+
   it("reports missing Sass symbols with create-symbol data", () => {
     const styleDoc = parseStyleDocument(
       `.button {

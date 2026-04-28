@@ -56,6 +56,8 @@ export function formatCheckerFinding(finding: CheckerFinding, workspaceRoot: str
       return `@value '${finding.importedName}' not found in '${finding.fromSpecifier}' for local binding '${finding.localName}'.`;
     case "missing-keyframes":
       return `@keyframes '${finding.animationName}' not found in this file.`;
+    case "missing-custom-property":
+      return `CSS custom property '${finding.propertyName}' not found in indexed style tokens.`;
     case "missing-sass-symbol":
       return `${formatSassSymbolLabel(
         finding.symbolKind,

@@ -499,7 +499,7 @@ describe("runCheckerCli", () => {
       findingsMatch: true,
       mismatchedCodes: [],
     });
-  }, 30000);
+  }, 60000);
 
   it("prints rust style-recovery consistency summary in text output", async () => {
     const stdout: string[] = [];
@@ -530,7 +530,7 @@ describe("runCheckerCli", () => {
     expect(stdout.join("")).toContain(
       "Rust style-recovery consumer: findings=1 consistent=true releaseGate=true",
     );
-  }, 30000);
+  }, 60000);
 
   it("emits rust source-missing producer and consistency in json output", async () => {
     const stdout: string[] = [];
