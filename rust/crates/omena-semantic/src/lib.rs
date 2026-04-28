@@ -485,10 +485,13 @@ $color: red;
         assert_eq!(summary.resolved_reference_count, 1);
         assert_eq!(summary.unresolved_reference_count, 1);
         assert_eq!(summary.selectors_with_references_count, 2);
+        assert_eq!(summary.context_signal.declaration_context_selector_count, 1);
+        assert_eq!(summary.context_signal.declaration_wrapper_context_count, 0);
         assert_eq!(summary.context_signal.media_context_selector_count, 1);
         assert_eq!(summary.context_signal.wrapper_context_count, 1);
         assert!(summary.capabilities.same_file_resolution_ready);
         assert!(summary.capabilities.wrapper_context_signal_ready);
+        assert!(summary.capabilities.theme_override_context_signal_ready);
         assert!(!summary.capabilities.cross_package_cascade_ranking_ready);
         assert!(!summary.capabilities.theme_override_context_ready);
         assert_eq!(

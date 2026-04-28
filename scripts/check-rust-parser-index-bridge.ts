@@ -54,6 +54,10 @@ interface ParserIndexSummaryV0 {
   };
   readonly customProperties: {
     readonly declNames: readonly string[];
+    readonly declContextSelectors: readonly string[];
+    readonly declNamesUnderMedia: readonly string[];
+    readonly declNamesUnderSupports: readonly string[];
+    readonly declNamesUnderLayer: readonly string[];
     readonly refNames: readonly string[];
     readonly selectorsWithRefsNames: readonly string[];
     readonly selectorsWithRefsUnderMediaNames: readonly string[];
@@ -522,6 +526,15 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
   const selectorsWithCustomPropertyRefsUnderLayer = selectorsWithCustomPropertyRefs.filter(
     (selector) => wrapperSelectorNames.layer.includes(selector.name),
   );
+  const customPropertyDeclsUnderMedia = document.customPropertyDecls.filter((decl) =>
+    decl.context.wrapperAtRules.some((wrapper) => wrapper.name === "media"),
+  );
+  const customPropertyDeclsUnderSupports = document.customPropertyDecls.filter((decl) =>
+    decl.context.wrapperAtRules.some((wrapper) => wrapper.name === "supports"),
+  );
+  const customPropertyDeclsUnderLayer = document.customPropertyDecls.filter((decl) =>
+    decl.context.wrapperAtRules.some((wrapper) => wrapper.name === "layer"),
+  );
   const selectorsWithComposesUnderMedia = selectorsWithComposes.filter((selector) =>
     wrapperSelectorNames.media.includes(selector.name),
   );
@@ -673,6 +686,16 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
     },
     customProperties: {
       declNames: uniqueSorted(document.customPropertyDecls.map((entry) => entry.name)),
+      declContextSelectors: uniqueSorted(
+        document.customPropertyDecls.flatMap((entry) =>
+          entry.context.selectorText ? [entry.context.selectorText] : [],
+        ),
+      ),
+      declNamesUnderMedia: uniqueSorted(customPropertyDeclsUnderMedia.map((entry) => entry.name)),
+      declNamesUnderSupports: uniqueSorted(
+        customPropertyDeclsUnderSupports.map((entry) => entry.name),
+      ),
+      declNamesUnderLayer: uniqueSorted(customPropertyDeclsUnderLayer.map((entry) => entry.name)),
       refNames: uniqueSorted(document.customPropertyRefs.map((entry) => entry.name)),
       selectorsWithRefsNames: selectorsWithCustomPropertyRefs
         .map((selector) => selector.name)

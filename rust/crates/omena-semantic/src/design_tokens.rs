@@ -22,6 +22,8 @@ pub struct DesignTokenSemanticSummaryV0 {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DesignTokenContextSignalV0 {
+    pub declaration_context_selector_count: usize,
+    pub declaration_wrapper_context_count: usize,
     pub media_context_selector_count: usize,
     pub supports_context_selector_count: usize,
     pub layer_context_selector_count: usize,
@@ -33,6 +35,7 @@ pub struct DesignTokenContextSignalV0 {
 pub struct DesignTokenSemanticCapabilitiesV0 {
     pub same_file_resolution_ready: bool,
     pub wrapper_context_signal_ready: bool,
+    pub theme_override_context_signal_ready: bool,
     pub cross_file_import_graph_ready: bool,
     pub cross_package_cascade_ranking_ready: bool,
     pub theme_override_context_ready: bool,
@@ -54,9 +57,25 @@ pub fn summarize_design_token_semantics(
         .custom_properties
         .selectors_with_refs_under_layer_names
         .len();
+    let declaration_wrapper_context_count = parser_facts
+        .custom_properties
+        .decl_names_under_media
+        .len()
+        + parser_facts
+            .custom_properties
+            .decl_names_under_supports
+            .len()
+        + parser_facts
+            .custom_properties
+            .decl_names_under_layer
+            .len();
     let wrapper_context_count = media_context_selector_count
         + supports_context_selector_count
         + layer_context_selector_count;
+    let declaration_context_selector_count = parser_facts
+        .custom_properties
+        .decl_context_selectors
+        .len();
     let reference_count = semantic_facts.custom_properties.ref_names.len();
     let declaration_count = semantic_facts.custom_properties.decl_names.len();
 
@@ -106,6 +125,8 @@ pub fn summarize_design_token_semantics(
             .selectors_with_refs_names
             .len(),
         context_signal: DesignTokenContextSignalV0 {
+            declaration_context_selector_count,
+            declaration_wrapper_context_count,
             media_context_selector_count,
             supports_context_selector_count,
             layer_context_selector_count,
@@ -114,6 +135,8 @@ pub fn summarize_design_token_semantics(
         capabilities: DesignTokenSemanticCapabilitiesV0 {
             same_file_resolution_ready: declaration_count > 0 || reference_count > 0,
             wrapper_context_signal_ready: wrapper_context_count > 0,
+            theme_override_context_signal_ready: declaration_context_selector_count > 0
+                || declaration_wrapper_context_count > 0,
             cross_file_import_graph_ready: false,
             cross_package_cascade_ranking_ready: false,
             theme_override_context_ready: false,
