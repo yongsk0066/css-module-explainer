@@ -295,9 +295,7 @@ export function shouldUseEngineShadowRunnerDaemon(
   );
 }
 
-export function shouldTraceEngineShadowRunnerDaemon(
-  env: NodeJS.ProcessEnv = process.env,
-): boolean {
+export function shouldTraceEngineShadowRunnerDaemon(env: NodeJS.ProcessEnv = process.env): boolean {
   const value = env.CME_ENGINE_SHADOW_RUNNER_DAEMON_TRACE?.trim().toLowerCase();
   return value === "1" || value === "true" || value === "on";
 }
@@ -472,10 +470,7 @@ class EngineShadowRunnerDaemon {
       DEFAULT_DAEMON_RESTART_LIMIT,
     );
 
-    while (
-      this.restartTimestamps.length > 0 &&
-      now - this.restartTimestamps[0]! > windowMs
-    ) {
+    while (this.restartTimestamps.length > 0 && now - this.restartTimestamps[0]! > windowMs) {
       this.restartTimestamps.shift();
     }
 

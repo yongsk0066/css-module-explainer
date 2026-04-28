@@ -10,10 +10,10 @@ import {
   usesRustSelectorUsageBackend,
 } from "./selected-query-backend";
 import {
-  resolveRustSelectorUsagePayloadForWorkspaceTargetAsync,
-  resolveRustSelectorUsagePayloadForWorkspaceTarget,
   resolveRustSelectorUsagePayloadsForWorkspaceTargetAsync,
   resolveRustSelectorUsagePayloadsForWorkspaceTarget,
+  type resolveRustSelectorUsagePayloadForWorkspaceTargetAsync,
+  type resolveRustSelectorUsagePayloadForWorkspaceTarget,
   type SelectorUsageEvaluatorCandidatePayloadV0,
   type SelectorUsagePayloadCache,
 } from "./selector-usage-query-backend";

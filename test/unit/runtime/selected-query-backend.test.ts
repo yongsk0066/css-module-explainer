@@ -16,6 +16,14 @@ import {
   usesRustStyleSemanticGraphBackend,
 } from "../../../server/engine-host-node/src/selected-query-backend";
 
+function hasPackagedRuntimeFile(filePath: string): boolean {
+  return (
+    filePath.includes("dist/bin") ||
+    filePath.endsWith("dist/client/extension.js") ||
+    filePath.endsWith("dist/server/server.js")
+  );
+}
+
 describe("selected query backend", () => {
   it("defaults to typescript-current when no packaged runner is available", () => {
     expect(resolveSelectedQueryBackendKind({}, () => false)).toBe("typescript-current");
@@ -327,15 +335,11 @@ describe("selected query backend", () => {
 
   it("enables daemon usage by default in packaged Rust selected-query runtime", () => {
     const projectRoot = path.join("/extension", "css-module-explainer");
-    const packagedFiles = (filePath: string) =>
-      filePath.includes("dist/bin") ||
-      filePath.endsWith("dist/client/extension.js") ||
-      filePath.endsWith("dist/server/server.js");
 
     expect(
       shouldUseEngineShadowRunnerDaemon(
         { CME_PROJECT_ROOT: projectRoot } as NodeJS.ProcessEnv,
-        packagedFiles,
+        hasPackagedRuntimeFile,
       ),
     ).toBe(true);
     expect(
@@ -344,7 +348,7 @@ describe("selected query backend", () => {
           CME_PROJECT_ROOT: projectRoot,
           CME_ENGINE_SHADOW_RUNNER_DAEMON: "0",
         } as NodeJS.ProcessEnv,
-        packagedFiles,
+        hasPackagedRuntimeFile,
       ),
     ).toBe(false);
   });

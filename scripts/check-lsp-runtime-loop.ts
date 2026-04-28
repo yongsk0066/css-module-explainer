@@ -102,7 +102,10 @@ async function main(): Promise<void> {
 
   try {
     const initialized = await requestWithTimeout(
-      connection.sendRequest<InitializeResult>(InitializeRequest.type, initializeParams(workspaceRoot)),
+      connection.sendRequest<InitializeResult>(
+        InitializeRequest.type,
+        initializeParams(workspaceRoot),
+      ),
       "initialize",
     );
     if (initialized.serverInfo?.name !== "css-module-explainer") {
@@ -133,7 +136,9 @@ async function main(): Promise<void> {
     );
 
     const probePromise = collectProbeLatencies(connection);
-    const loadResults = await Promise.all(buildHotRequestLoad(connection, sourceUri, sourceText, styleUri));
+    const loadResults = await Promise.all(
+      buildHotRequestLoad(connection, sourceUri, sourceText, styleUri),
+    );
     const probeLatencies = await probePromise;
 
     assertHotRequestResults(loadResults);
@@ -284,7 +289,10 @@ function referenceParams(uri: string, tokenIndex: number) {
   };
 }
 
-function sourceTokenPosition(text: string, tokenIndex: number): { line: number; character: number } {
+function sourceTokenPosition(
+  text: string,
+  tokenIndex: number,
+): { line: number; character: number } {
   const token = `"token${tokenIndex}"`;
   const index = text.indexOf(token);
   if (index < 0) {
@@ -351,7 +359,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 function percentile(values: readonly number[], p: number): number {
-  const sorted = [...values].sort((left, right) => left - right);
+  const sorted = values.toSorted((left, right) => left - right);
   const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1));
   return sorted[index] ?? 0;
 }

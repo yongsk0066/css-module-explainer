@@ -7,10 +7,10 @@ import { findInvalidClassReference } from "../../engine-core-ts/src/core/query";
 import type { DocumentParams, ProviderDeps } from "../../engine-core-ts/src/provider-deps";
 import {
   buildExpressionSemanticsSummaryFromRustPayload,
-  resolveRustExpressionSemanticsPayloadAsync,
   resolveRustExpressionSemanticsPayloadsAsync,
   resolveRustExpressionSemanticsPayloads,
   type ExpressionSemanticsEvaluatorCandidatePayloadV0,
+  type resolveRustExpressionSemanticsPayloadAsync,
   type resolveRustExpressionSemanticsPayload,
 } from "./expression-semantics-query-backend";
 import {
