@@ -15,6 +15,9 @@ Current public products:
   identity, and rewrite-safety blockers.
 - `omena-semantic.selector-references` — selector-scoped reference summaries
   and identity-preserving reference sites derived from `EngineInputV2`.
+- `omena-semantic.design-token-semantics` — CSS custom property resolver
+  readiness surface that exposes same-file resolution counts, wrapper-context
+  signals, and the remaining cross-file/cascade/theme gaps.
 - `omena-semantic.promotion-evidence` — explicit readiness/gap checklist for
   promotion beyond output parity, including parser-backed design-token seed
   evidence from CSS custom properties.

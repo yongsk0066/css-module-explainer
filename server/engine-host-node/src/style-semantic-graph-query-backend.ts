@@ -27,6 +27,7 @@ export interface StyleSemanticGraphSummaryV0 {
   readonly language: string;
   readonly parserFacts: unknown;
   readonly semanticFacts: unknown;
+  readonly designTokenSemantics?: unknown;
   readonly selectorIdentityEngine: StyleSemanticGraphSelectorIdentityEngineV0;
   readonly selectorReferenceEngine: StyleSemanticGraphSelectorReferenceEngineV0;
   readonly sourceInputEvidence: unknown;

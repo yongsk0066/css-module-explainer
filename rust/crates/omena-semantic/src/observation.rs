@@ -313,6 +313,7 @@ fn observe_coupling_boundary(
 ) -> SemanticCouplingBoundaryObservationV0 {
     let generic_surfaces = vec![
         "parserSemanticFacts",
+        "designTokenSemantics",
         "selectorIdentity",
         "losslessCstContract",
     ];

@@ -18,6 +18,8 @@ Current public products:
 - `omena-semantic.selector-references` — bridge-owned selector reference engine
   product, kept stable for existing host consumers while ownership moves behind
   this crate.
+- `omena-semantic.design-token-semantics` — generic design-token readiness
+  surface forwarded from `omena-semantic` as part of the graph product.
 - `omena-semantic.source-input-evidence` — bridge-owned source evidence product,
   kept stable for existing host consumers while ownership moves behind this
   crate. The evidence includes value-domain derivation counts from the

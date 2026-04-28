@@ -5,6 +5,7 @@ use engine_style_parser::{
 };
 use serde::Serialize;
 
+mod design_tokens;
 mod evidence;
 mod lossless_cst;
 mod observation;
@@ -12,6 +13,10 @@ mod selector_identity;
 mod selector_references;
 mod source_evidence;
 
+pub use design_tokens::{
+    DesignTokenContextSignalV0, DesignTokenSemanticCapabilitiesV0, DesignTokenSemanticSummaryV0,
+    summarize_design_token_semantics,
+};
 pub use evidence::{
     SemanticPromotionEvidenceItemV0, SemanticPromotionEvidenceSummaryV0,
     summarize_semantic_promotion_evidence, summarize_semantic_promotion_evidence_with_source_input,
@@ -47,6 +52,7 @@ pub struct StyleSemanticBoundarySummaryV0 {
     pub language: &'static str,
     pub parser_facts: ParserBoundarySyntaxFactsV0,
     pub semantic_facts: StyleSemanticFactsV0,
+    pub design_token_semantics: DesignTokenSemanticSummaryV0,
     pub selector_identity_engine: SelectorIdentityEngineSummaryV0,
     pub promotion_evidence: SemanticPromotionEvidenceSummaryV0,
     pub lossless_cst_contract: LosslessCstContractV0,
@@ -60,6 +66,7 @@ pub struct StyleSemanticGraphSummaryV0 {
     pub language: &'static str,
     pub parser_facts: ParserBoundarySyntaxFactsV0,
     pub semantic_facts: StyleSemanticFactsV0,
+    pub design_token_semantics: DesignTokenSemanticSummaryV0,
     pub selector_identity_engine: SelectorIdentityEngineSummaryV0,
     pub selector_reference_engine: SelectorReferenceEngineSummaryV0,
     pub source_input_evidence: SourceInputPromotionEvidenceSummaryV0,
@@ -71,6 +78,7 @@ pub fn summarize_style_semantic_boundary(sheet: &Stylesheet) -> StyleSemanticBou
     let boundary = summarize_semantic_boundary(sheet);
     let parser_facts = boundary.parser_facts;
     let semantic_facts = boundary.semantic_facts;
+    let design_token_semantics = summarize_design_token_semantics(&parser_facts, &semantic_facts);
     let selector_identity_engine =
         summarize_selector_identity_engine(&semantic_facts.selector_identity);
     let promotion_evidence = summarize_semantic_promotion_evidence(&parser_facts, &semantic_facts);
@@ -81,6 +89,7 @@ pub fn summarize_style_semantic_boundary(sheet: &Stylesheet) -> StyleSemanticBou
         language: boundary.language,
         parser_facts,
         semantic_facts,
+        design_token_semantics,
         selector_identity_engine,
         promotion_evidence,
         lossless_cst_contract,
@@ -102,6 +111,7 @@ pub fn summarize_style_semantic_graph_for_path(
     let boundary = summarize_semantic_boundary(sheet);
     let parser_facts = boundary.parser_facts;
     let semantic_facts = boundary.semantic_facts;
+    let design_token_semantics = summarize_design_token_semantics(&parser_facts, &semantic_facts);
     let selector_identity_engine =
         summarize_selector_identity_engine(&semantic_facts.selector_identity);
     let selector_reference_engine = summarize_selector_reference_engine(input, style_path);
@@ -119,6 +129,7 @@ pub fn summarize_style_semantic_graph_for_path(
         language: boundary.language,
         parser_facts,
         semantic_facts,
+        design_token_semantics,
         selector_identity_engine,
         selector_reference_engine,
         source_input_evidence,
@@ -443,6 +454,64 @@ $color: red;
     }
 
     #[test]
+    fn exposes_design_token_semantic_readiness_surface() -> Result<(), String> {
+        let sheet = parse_style_module(
+            "Component.module.css",
+            r#"
+:root {
+  --color-gray-700: #767678;
+}
+
+@media (min-width: 600px) {
+  .button {
+    color: var(--color-gray-700);
+  }
+}
+
+.ghost {
+  border-color: var(--missing);
+}
+"#,
+        )
+        .ok_or_else(|| "CSS module path should parse".to_string())?;
+
+        let summary = summarize_style_semantic_boundary(&sheet).design_token_semantics;
+
+        assert_eq!(summary.product, "omena-semantic.design-token-semantics");
+        assert_eq!(summary.status, "context-aware-seed");
+        assert_eq!(summary.resolution_scope, "same-file");
+        assert_eq!(summary.declaration_count, 1);
+        assert_eq!(summary.reference_count, 2);
+        assert_eq!(summary.resolved_reference_count, 1);
+        assert_eq!(summary.unresolved_reference_count, 1);
+        assert_eq!(summary.selectors_with_references_count, 2);
+        assert_eq!(summary.context_signal.media_context_selector_count, 1);
+        assert_eq!(summary.context_signal.wrapper_context_count, 1);
+        assert!(summary.capabilities.same_file_resolution_ready);
+        assert!(summary.capabilities.wrapper_context_signal_ready);
+        assert!(!summary.capabilities.cross_package_cascade_ranking_ready);
+        assert!(!summary.capabilities.theme_override_context_ready);
+        assert_eq!(
+            summary.blocking_gaps,
+            vec![
+                "crossFileImportGraph",
+                "crossPackageCascadeRanking",
+                "themeOverrideContext",
+                "unresolvedDesignTokenRefs"
+            ]
+        );
+        assert_eq!(
+            summary.next_priorities,
+            vec![
+                "crossFileImportGraph",
+                "crossPackageCascadeRanking",
+                "themeOverrideContext"
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
     fn exposes_lossless_cst_contract_for_precise_consumers() -> Result<(), String> {
         let sheet = parse_style_module("Component.module.scss", ".button { color: red; }")
             .ok_or_else(|| "SCSS module path should parse".to_string())?;
@@ -710,7 +779,7 @@ $color: red;
         assert_eq!(observation.downstream_readiness.status, "ready");
         assert!(observation.downstream_readiness.downstream_check_ready);
         assert!(observation.downstream_readiness.precise_rename_ready);
-        assert_eq!(observation.coupling_boundary.generic_observation_count, 3);
+        assert_eq!(observation.coupling_boundary.generic_observation_count, 4);
         assert_eq!(
             observation.coupling_boundary.cme_coupled_observation_count,
             2
@@ -818,6 +887,7 @@ $color: red;
             observation.coupling_boundary.generic_surfaces,
             vec![
                 "parserSemanticFacts",
+                "designTokenSemantics",
                 "selectorIdentity",
                 "losslessCstContract"
             ]

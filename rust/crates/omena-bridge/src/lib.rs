@@ -2,7 +2,9 @@ use engine_input_producers::EngineInputV2;
 use engine_style_parser::{
     ParserBoundarySyntaxFactsV0, StyleSemanticFactsV0, Stylesheet, parse_style_module,
 };
-use omena_semantic::{LosslessCstContractV0, SelectorIdentityEngineSummaryV0};
+use omena_semantic::{
+    DesignTokenSemanticSummaryV0, LosslessCstContractV0, SelectorIdentityEngineSummaryV0,
+};
 use serde::Serialize;
 
 mod promotion_evidence;
@@ -48,6 +50,7 @@ pub struct StyleSemanticGraphSummaryV0 {
     pub language: &'static str,
     pub parser_facts: ParserBoundarySyntaxFactsV0,
     pub semantic_facts: StyleSemanticFactsV0,
+    pub design_token_semantics: DesignTokenSemanticSummaryV0,
     pub selector_identity_engine: SelectorIdentityEngineSummaryV0,
     pub selector_reference_engine: SelectorReferenceEngineSummaryV0,
     pub source_input_evidence: SourceInputPromotionEvidenceSummaryV0,
@@ -97,6 +100,7 @@ pub fn summarize_omena_bridge_style_semantic_graph_for_path(
     let boundary = omena_semantic::summarize_style_semantic_boundary(sheet);
     let parser_facts = boundary.parser_facts;
     let semantic_facts = boundary.semantic_facts;
+    let design_token_semantics = boundary.design_token_semantics;
     let selector_identity_engine = boundary.selector_identity_engine;
     let selector_reference_engine =
         summarize_omena_bridge_selector_reference_engine(input, style_path);
@@ -114,6 +118,7 @@ pub fn summarize_omena_bridge_style_semantic_graph_for_path(
         language: boundary.language,
         parser_facts,
         semantic_facts,
+        design_token_semantics,
         selector_identity_engine,
         selector_reference_engine,
         source_input_evidence,
@@ -354,6 +359,10 @@ mod tests {
         assert_bridge_source_input_evidence_matches_semantic(
             &bridge_graph.source_input_evidence,
             &semantic_graph.source_input_evidence,
+        );
+        assert_eq!(
+            bridge_graph.design_token_semantics,
+            semantic_graph.design_token_semantics
         );
         assert_bridge_promotion_evidence_matches_semantic(
             &bridge_graph.promotion_evidence,
