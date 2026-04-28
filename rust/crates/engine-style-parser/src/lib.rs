@@ -2018,11 +2018,8 @@ fn collect_index_names(
             Some(SyntaxNodePayload::Rule(rule)) => {
                 next_sass_scope = Some(node.span);
                 if rule_has_custom_property_decls(&node.children) {
-                    acc.custom_property_decl_context_selectors.extend(
-                        rule.selector_groups
-                            .iter()
-                            .map(|group| group.raw.clone()),
-                    );
+                    acc.custom_property_decl_context_selectors
+                        .extend(rule.selector_groups.iter().map(|group| group.raw.clone()));
                 }
                 let resolved_branches = resolve_rule_selector_branches(rule, parent_branches);
                 if !resolved_branches.is_empty() {

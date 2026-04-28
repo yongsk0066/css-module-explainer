@@ -57,25 +57,18 @@ pub fn summarize_design_token_semantics(
         .custom_properties
         .selectors_with_refs_under_layer_names
         .len();
-    let declaration_wrapper_context_count = parser_facts
-        .custom_properties
-        .decl_names_under_media
-        .len()
-        + parser_facts
-            .custom_properties
-            .decl_names_under_supports
-            .len()
-        + parser_facts
-            .custom_properties
-            .decl_names_under_layer
-            .len();
+    let declaration_wrapper_context_count =
+        parser_facts.custom_properties.decl_names_under_media.len()
+            + parser_facts
+                .custom_properties
+                .decl_names_under_supports
+                .len()
+            + parser_facts.custom_properties.decl_names_under_layer.len();
     let wrapper_context_count = media_context_selector_count
         + supports_context_selector_count
         + layer_context_selector_count;
-    let declaration_context_selector_count = parser_facts
-        .custom_properties
-        .decl_context_selectors
-        .len();
+    let declaration_context_selector_count =
+        parser_facts.custom_properties.decl_context_selectors.len();
     let reference_count = semantic_facts.custom_properties.ref_names.len();
     let declaration_count = semantic_facts.custom_properties.decl_names.len();
 
