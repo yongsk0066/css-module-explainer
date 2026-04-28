@@ -284,7 +284,7 @@ export function listCustomPropertyRefs(
 export interface CustomPropertyDeclLookup {
   readonly getCustomPropertyDecls: (name: string) => readonly (Pick<
     CustomPropertyDeclHIR,
-    "name" | "value" | "range" | "ruleRange"
+    "name" | "value" | "range" | "ruleRange" | "context"
   > & {
     readonly filePath: string;
   })[];
@@ -292,7 +292,7 @@ export interface CustomPropertyDeclLookup {
 
 export interface ResolvedCustomPropertyDeclTarget {
   readonly filePath: string;
-  readonly decl: Pick<CustomPropertyDeclHIR, "name" | "value" | "range" | "ruleRange">;
+  readonly decl: Pick<CustomPropertyDeclHIR, "name" | "value" | "range" | "ruleRange" | "context">;
 }
 
 export function listCustomPropertyModuleUseDeclTargets(
@@ -327,12 +327,18 @@ export function resolveCustomPropertyDeclTarget(
   styleDocumentForPath: (filePath: string) => StyleDocumentHIR | null,
   styleFilePath: string,
   styleDocument: StyleDocumentHIR,
-  name: string,
+  refOrName: string | Pick<CustomPropertyRefHIR, "name" | "context">,
   workspaceDeclLookup?: CustomPropertyDeclLookup,
   aliasResolver?: SassModulePathAliasResolver,
   options: SassModuleResolutionOptions = {},
 ): ResolvedCustomPropertyDeclTarget | null {
-  const localDecl = findCustomPropertyDeclByName(styleDocument, name);
+  const name = typeof refOrName === "string" ? refOrName : refOrName.name;
+  const referenceContext = typeof refOrName === "string" ? undefined : refOrName.context;
+  const localDecl = pickBestCustomPropertyDecl(
+    styleDocument.customPropertyDecls,
+    name,
+    referenceContext,
+  );
   if (localDecl) return { filePath: styleFilePath, decl: localDecl };
 
   const moduleDecls = listCustomPropertyModuleUseDeclTargets(
@@ -342,19 +348,91 @@ export function resolveCustomPropertyDeclTarget(
     aliasResolver,
     options,
   );
-  let moduleDecl: ResolvedCustomPropertyDeclTarget | undefined;
-  for (let index = moduleDecls.length - 1; index >= 0; index -= 1) {
-    const target = moduleDecls[index]!;
-    if (target.decl.name !== name) continue;
-    moduleDecl = target;
-    break;
-  }
+  const moduleDecl = pickBestCustomPropertyTarget(moduleDecls, name, referenceContext);
   if (moduleDecl) return moduleDecl;
 
-  const workspaceDecl = workspaceDeclLookup
+  const workspaceDecls = workspaceDeclLookup
     ?.getCustomPropertyDecls(name)
-    .toSorted((a, b) => a.filePath.localeCompare(b.filePath))[0];
-  return workspaceDecl ? { filePath: workspaceDecl.filePath, decl: workspaceDecl } : null;
+    .toSorted((a, b) => a.filePath.localeCompare(b.filePath));
+  const workspaceDecl = workspaceDecls
+    ? pickBestCustomPropertyTarget(
+        workspaceDecls.map((decl) => ({ filePath: decl.filePath, decl })),
+        name,
+        referenceContext,
+      )
+    : null;
+  return workspaceDecl;
+}
+
+function pickBestCustomPropertyTarget(
+  targets: readonly ResolvedCustomPropertyDeclTarget[],
+  name: string,
+  referenceContext?: CustomPropertyRefHIR["context"],
+): ResolvedCustomPropertyDeclTarget | null {
+  const decl = pickBestCustomPropertyDecl(
+    targets.map((target) => target.decl),
+    name,
+    referenceContext,
+  );
+  if (!decl) return null;
+  return targets.find((target) => target.decl === decl) ?? null;
+}
+
+function pickBestCustomPropertyDecl<T extends Pick<CustomPropertyDeclHIR, "name" | "context">>(
+  decls: readonly T[],
+  name: string,
+  referenceContext?: CustomPropertyRefHIR["context"],
+): T | null {
+  let bestDecl: T | null = null;
+  let bestScore = Number.NEGATIVE_INFINITY;
+  for (const decl of decls) {
+    if (decl.name !== name) continue;
+    const score = scoreCustomPropertyContextMatch(decl.context, referenceContext);
+    if (score < bestScore) continue;
+    bestDecl = decl;
+    bestScore = score;
+  }
+  return bestDecl;
+}
+
+function scoreCustomPropertyContextMatch(
+  declContext: CustomPropertyDeclHIR["context"],
+  referenceContext?: CustomPropertyRefHIR["context"],
+): number {
+  if (!referenceContext) return 0;
+  if (!declWrapperContextMatches(declContext, referenceContext)) {
+    return Number.NEGATIVE_INFINITY;
+  }
+
+  let score = 0;
+  if (declContext.selectorText) {
+    if (referenceContext.selectorText === declContext.selectorText) {
+      score += 100;
+    } else if (
+      referenceContext.selectorText &&
+      referenceContext.selectorText.includes(declContext.selectorText)
+    ) {
+      score += 80;
+    } else if (declContext.selectorText === ":root") {
+      score += 10;
+    } else {
+      return Number.NEGATIVE_INFINITY;
+    }
+  }
+  score += declContext.wrapperAtRules.length * 20;
+  return score;
+}
+
+function declWrapperContextMatches(
+  declContext: CustomPropertyDeclHIR["context"],
+  referenceContext: CustomPropertyRefHIR["context"],
+): boolean {
+  return declContext.wrapperAtRules.every((declWrapper) =>
+    referenceContext.wrapperAtRules.some(
+      (refWrapper) =>
+        refWrapper.name === declWrapper.name && refWrapper.params === declWrapper.params,
+    ),
+  );
 }
 
 export function findSassSymbolDeclAtCursor(

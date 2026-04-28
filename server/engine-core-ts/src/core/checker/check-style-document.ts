@@ -295,7 +295,7 @@ function checkCustomPropertyResolutionRule({
         env.styleDocumentForPath,
         params.styleDocument.filePath,
         params.styleDocument,
-        ref.name,
+        ref,
         env.styleDependencyGraph,
         env.aliasResolver,
         sassModuleResolutionOptions(env.readFile),

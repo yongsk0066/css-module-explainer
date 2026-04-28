@@ -160,7 +160,53 @@ describe("resolveStyleDefinitionTargets", () => {
     });
   });
 
-  it("resolves CSS custom property references to the last same-file declaration", () => {
+  it("resolves CSS custom property references to the last matching same-file declaration", () => {
+    const ws = styleWorkspace({
+      [BUTTON_PATH]: `:root {
+  --brand: #111;
+}
+:root { --brand: #222; }
+.button {
+  color: var(--br/*|*/and);
+}
+`,
+    });
+    const targets = resolveStyleDefinitionTargets(styleTarget(ws), styleDeps(ws));
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0]).toMatchObject({
+      targetFilePath: BUTTON_PATH,
+      targetSelectionRange: {
+        start: { line: 3, character: 8 },
+        end: { line: 3, character: 15 },
+      },
+    });
+  });
+
+  it("prefers matching CSS custom property theme context over unrelated later declarations", () => {
+    const ws = styleWorkspace({
+      [BUTTON_PATH]: `:root {
+  --brand: #111;
+}
+.theme { --brand: #222; }
+.theme .button {
+  color: var(--br/*|*/and);
+}
+`,
+    });
+    const targets = resolveStyleDefinitionTargets(styleTarget(ws), styleDeps(ws));
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0]).toMatchObject({
+      targetFilePath: BUTTON_PATH,
+      targetSelectionRange: {
+        start: { line: 3, character: 9 },
+        end: { line: 3, character: 16 },
+      },
+    });
+  });
+
+  it("falls back to root custom properties when a later theme declaration does not match", () => {
     const ws = styleWorkspace({
       [BUTTON_PATH]: `:root {
   --brand: #111;
@@ -177,8 +223,8 @@ describe("resolveStyleDefinitionTargets", () => {
     expect(targets[0]).toMatchObject({
       targetFilePath: BUTTON_PATH,
       targetSelectionRange: {
-        start: { line: 3, character: 9 },
-        end: { line: 3, character: 16 },
+        start: { line: 1, character: 2 },
+        end: { line: 1, character: 9 },
       },
     });
   });

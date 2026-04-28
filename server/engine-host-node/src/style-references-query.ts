@@ -243,7 +243,7 @@ export function resolveStyleReferencesAtCursor(
       deps.styleDocumentForPath,
       args.filePath,
       args.styleDocument,
-      customPropertyRef.name,
+      customPropertyRef,
       deps.styleDependencyGraph,
       deps.aliasResolver,
       { readFile: deps.readStyleFile },

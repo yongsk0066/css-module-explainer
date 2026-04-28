@@ -222,7 +222,7 @@ export function resolveStyleHoverResult(
       deps.styleDocumentForPath,
       args.filePath,
       styleDocument,
-      customPropertyRef.name,
+      customPropertyRef,
       deps.styleDependencyGraph,
       deps.aliasResolver,
       { readFile: deps.readStyleFile },
