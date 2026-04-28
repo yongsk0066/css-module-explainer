@@ -24,7 +24,8 @@ Current public products:
   source-backed expression-semantics payload.
 - `omena-semantic.promotion-evidence` — bridge-owned source-backed promotion
   evidence product, kept stable for existing host consumers while ownership
-  moves behind this crate.
+  moves behind this crate. The evidence includes parser-backed design-token
+  seed facts from CSS custom properties.
 
 Primary check:
 
