@@ -3,6 +3,8 @@ import {
   findAnimationNameRefAtCursor,
   findCanonicalSelector,
   findComposesTokenAtCursor,
+  findCustomPropertyDeclByName,
+  findCustomPropertyRefAtCursor,
   findKeyframesByName,
   findSassModuleMemberRefAtCursor,
   findSassModuleUseAtCursor,
@@ -17,6 +19,10 @@ import {
   resolveValueImportTarget,
   resolveValueTarget,
 } from "../../engine-core-ts/src/core/query";
+import type {
+  CustomPropertyDeclHIR,
+  StyleDocumentHIR,
+} from "../../engine-core-ts/src/core/hir/style-types";
 import type { CursorParams, ProviderDeps } from "../../engine-core-ts/src/provider-deps";
 
 export interface StyleDefinitionTarget {
@@ -28,7 +34,7 @@ export interface StyleDefinitionTarget {
 
 export function resolveStyleDefinitionTargets(
   params: Pick<CursorParams, "filePath" | "line" | "character">,
-  deps: Pick<ProviderDeps, "styleDocumentForPath" | "aliasResolver">,
+  deps: Pick<ProviderDeps, "styleDocumentForPath" | "aliasResolver" | "styleDependencyGraph">,
 ): readonly StyleDefinitionTarget[] {
   const styleDocument = deps.styleDocumentForPath(params.filePath);
   if (!styleDocument) return [];
@@ -66,6 +72,23 @@ export function resolveStyleDefinitionTargets(
     );
     return valueTarget
       ? [toStyleDefinitionTarget(valueImport.range, valueTarget.filePath, valueTarget.valueDecl)]
+      : [];
+  }
+
+  const customPropertyRef = findCustomPropertyRefAtCursor(
+    styleDocument,
+    params.line,
+    params.character,
+  );
+  if (customPropertyRef) {
+    const target = resolveCustomPropertyTarget(
+      styleDocument,
+      params.filePath,
+      customPropertyRef.name,
+      deps.styleDependencyGraph,
+    );
+    return target
+      ? [toStyleDefinitionTarget(customPropertyRef.range, target.filePath, target.decl)]
       : [];
   }
 
@@ -149,6 +172,23 @@ function toStyleDefinitionTarget(
     targetRange: target.ruleRange,
     targetSelectionRange: target.range,
   };
+}
+
+function resolveCustomPropertyTarget(
+  styleDocument: StyleDocumentHIR,
+  filePath: string,
+  name: string,
+  styleDependencyGraph: ProviderDeps["styleDependencyGraph"],
+): {
+  readonly filePath: string;
+  readonly decl: Pick<CustomPropertyDeclHIR, "range" | "ruleRange">;
+} | null {
+  const localDecl = findCustomPropertyDeclByName(styleDocument, name);
+  if (localDecl) return { filePath, decl: localDecl };
+  const workspaceDecl = styleDependencyGraph
+    .getCustomPropertyDecls(name)
+    .toSorted((a, b) => a.filePath.localeCompare(b.filePath))[0];
+  return workspaceDecl ? { filePath: workspaceDecl.filePath, decl: workspaceDecl } : null;
 }
 
 function fileStartRange(): Range {

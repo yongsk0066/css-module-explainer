@@ -1,6 +1,7 @@
 import { relative } from "node:path";
 import type { ClassExpressionHIR } from "../../../engine-core-ts/src/core/hir/source-types";
 import type {
+  CustomPropertyDeclHIR,
   KeyframesDeclHIR,
   SassSymbolDeclHIR,
   SelectorDeclHIR,
@@ -88,6 +89,15 @@ export interface RenderSassSymbolHoverArgs {
   readonly note?: string;
 }
 
+export interface RenderCustomPropertyHoverArgs {
+  readonly customPropertyDecl: Pick<CustomPropertyDeclHIR, "name" | "value" | "range">;
+  readonly scssModulePath: string;
+  readonly referenceCount: number;
+  readonly workspaceRoot: string;
+  readonly headingName?: string;
+  readonly note?: string;
+}
+
 /**
  * Build a markdown hover card for a cx() call and its resolved
  * selector list.
@@ -166,6 +176,21 @@ export function renderSassSymbolHover(args: RenderSassSymbolHoverArgs): string {
       ? `1 ${symbolLabel} reference`
       : `${args.referenceCount} ${symbolLabel} references`;
   return `**\`${formatSassSymbolHeading(args.sassSymbolDecl, headingName)}\`** — _${location}_${note}\n\n_${referenceLabel}._\n\n\`\`\`${codeFence}\n${buildSassSymbolSnippet(args.sassSymbolDecl)}\n\`\`\``;
+}
+
+export function renderCustomPropertyHover(args: RenderCustomPropertyHoverArgs): string {
+  const location = formatLocation(
+    args.scssModulePath,
+    args.customPropertyDecl.range.start.line,
+    args.workspaceRoot,
+  );
+  const note = args.note ? `\n\n_${args.note}_` : "";
+  const headingName = args.headingName ?? args.customPropertyDecl.name;
+  const referenceLabel =
+    args.referenceCount === 1
+      ? "1 CSS custom property reference"
+      : `${args.referenceCount} CSS custom property references`;
+  return `**\`${headingName}\`** — _${location}_${note}\n\n_${referenceLabel}._\n\n\`\`\`css\n${args.customPropertyDecl.name}: ${args.customPropertyDecl.value};\n\`\`\``;
 }
 
 function renderSingle(args: RenderArgs, selector: SelectorDeclHIR): string {

@@ -8,6 +8,7 @@ import { resolveStyleHoverResult } from "../../../engine-host-node/src/style-hov
 import { findLangForPath } from "../../../engine-core-ts/src/core/scss/lang-registry";
 import { toLspRange } from "./lsp-adapters";
 import {
+  renderCustomPropertyHover,
   renderHover,
   renderKeyframesHover,
   renderSassSymbolHover,
@@ -138,14 +139,23 @@ function buildStyleHover(params: CursorParams, deps: ProviderDeps): Hover | null
               referenceCount: styleHover.referenceCount,
               workspaceRoot: deps.workspaceRoot,
             })
-          : renderSassSymbolHover({
-              sassSymbolDecl: styleHover.sassSymbolDecl,
-              ...(styleHover.headingName ? { headingName: styleHover.headingName } : {}),
-              ...(styleHover.note ? { note: styleHover.note } : {}),
-              scssModulePath: styleHover.scssModulePath,
-              referenceCount: styleHover.referenceCount,
-              workspaceRoot: deps.workspaceRoot,
-            });
+          : styleHover.kind === "customProperty"
+            ? renderCustomPropertyHover({
+                customPropertyDecl: styleHover.customPropertyDecl,
+                ...(styleHover.headingName ? { headingName: styleHover.headingName } : {}),
+                ...(styleHover.note ? { note: styleHover.note } : {}),
+                scssModulePath: styleHover.scssModulePath,
+                referenceCount: styleHover.referenceCount,
+                workspaceRoot: deps.workspaceRoot,
+              })
+            : renderSassSymbolHover({
+                sassSymbolDecl: styleHover.sassSymbolDecl,
+                ...(styleHover.headingName ? { headingName: styleHover.headingName } : {}),
+                ...(styleHover.note ? { note: styleHover.note } : {}),
+                scssModulePath: styleHover.scssModulePath,
+                referenceCount: styleHover.referenceCount,
+                workspaceRoot: deps.workspaceRoot,
+              });
   return {
     range: toLspRange(styleHover.range),
     contents: { kind: "markdown", value: markdown },

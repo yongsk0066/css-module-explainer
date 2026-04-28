@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { AliasResolver } from "../../../server/engine-core-ts/src/core/cx/alias-resolver";
 import type { StyleDocumentHIR } from "../../../server/engine-core-ts/src/core/hir/style-types";
 import { parseStyleDocument } from "../../../server/engine-core-ts/src/core/scss/scss-parser";
+import { WorkspaceStyleDependencyGraph } from "../../../server/engine-core-ts/src/core/semantic/style-dependency-graph";
 import { resolveStyleDefinitionTargets } from "../../../server/engine-host-node/src/style-definition-query";
 import { targetFixture, workspace, type CmeWorkspace } from "../../../packages/vitest-cme/src";
 
@@ -9,6 +10,7 @@ const BUTTON_PATH = "/fake/workspace/src/Button.module.scss";
 const BASE_PATH = "/fake/workspace/src/Base.module.scss";
 const THEME_PATH = "/fake/workspace/src/theme.module.scss";
 const TOKENS_PATH = "/fake/workspace/src/tokens.module.scss";
+const TOKENS_CSS_PATH = "/fake/workspace/src/tokens.module.css";
 const TOKENS_PARTIAL_PATH = "/fake/workspace/src/_tokens.module.scss";
 const EMPTY_ALIAS_RESOLVER = new AliasResolver("/fake/workspace", {});
 
@@ -81,6 +83,26 @@ describe("resolveStyleDefinitionTargets", () => {
       targetSelectionRange: {
         start: { line: 0, character: 7 },
         end: { line: 0, character: 14 },
+      },
+    });
+  });
+
+  it("resolves workspace-indexed CSS custom property references to source declarations", () => {
+    const ws = styleWorkspace({
+      [BUTTON_PATH]: `.button {
+  color: var(--color/*|*/-gray-700);
+}
+`,
+      [TOKENS_CSS_PATH]: `:root { --color-gray-700: #767678; }`,
+    });
+    const targets = resolveStyleDefinitionTargets(styleTarget(ws), styleDeps(ws));
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0]).toMatchObject({
+      targetFilePath: TOKENS_CSS_PATH,
+      targetSelectionRange: {
+        start: { line: 0, character: 8 },
+        end: { line: 0, character: 24 },
       },
     });
   });
@@ -541,8 +563,13 @@ function depsForDocuments(
   options: { readonly aliasResolver?: AliasResolver } = {},
 ) {
   const byPath = new Map(documents.map((document) => [document.filePath, document]));
+  const styleDependencyGraph = new WorkspaceStyleDependencyGraph();
+  for (const document of documents) {
+    styleDependencyGraph.record(document.filePath, document);
+  }
   return {
     aliasResolver: options.aliasResolver ?? EMPTY_ALIAS_RESOLVER,
     styleDocumentForPath: (filePath: string) => byPath.get(filePath) ?? null,
+    styleDependencyGraph,
   };
 }

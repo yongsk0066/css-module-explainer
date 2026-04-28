@@ -12,6 +12,7 @@ import { infoAtLine, makeBaseDeps, semanticSiteAt } from "../../_fixtures/test-h
 
 const SCSS_PATH = "/fake/ws/src/Button.module.scss";
 const TOKENS_PATH = "/fake/ws/src/tokens.module.scss";
+const TOKENS_CSS_PATH = "/fake/ws/src/tokens.module.css";
 
 describe("style hover query", () => {
   it("uses rust selector-usage payloads for style hover summaries", () => {
@@ -185,6 +186,72 @@ describe("style hover query", () => {
       headingName: "primary",
       note: "Referenced via `declaration value`; imported from `./tokens.module.scss` as `primary`",
       referenceCount: 1,
+    });
+  });
+
+  it("resolves same-file CSS custom property references to declaration hover data", () => {
+    const css = `:root { --color-gray-700: #767678; }
+.title {
+  color: var(--color-gray-700);
+}
+.footer {
+  color: var(--color-gray-700);
+}
+`;
+    const result = resolveStyleHoverResult(
+      {
+        filePath: TOKENS_CSS_PATH,
+        line: 2,
+        character: 16,
+      },
+      makeBaseDeps({
+        styleDocumentForPath: styleDocumentMap([parseStyleDocument(css, TOKENS_CSS_PATH)]),
+      }),
+    );
+
+    expect(result).toMatchObject({
+      kind: "customProperty",
+      scssModulePath: TOKENS_CSS_PATH,
+      headingName: "--color-gray-700",
+      note: "Referenced via `var()`",
+      referenceCount: 2,
+    });
+  });
+
+  it("resolves workspace-indexed CSS custom property references to source files", () => {
+    const buttonScss = `.button {
+  color: var(--color-gray-700);
+}
+`;
+    const tokensCss = `:root { --color-gray-700: #767678; }`;
+    const buttonDocument = parseStyleDocument(buttonScss, SCSS_PATH);
+    const tokensDocument = parseStyleDocument(tokensCss, TOKENS_CSS_PATH);
+    const styleDependencyGraph = new WorkspaceStyleDependencyGraph();
+    styleDependencyGraph.record(SCSS_PATH, buttonDocument);
+    styleDependencyGraph.record(TOKENS_CSS_PATH, tokensDocument);
+
+    const result = resolveStyleHoverResult(
+      {
+        filePath: SCSS_PATH,
+        line: 1,
+        character: 16,
+      },
+      makeBaseDeps({
+        styleDocumentForPath: styleDocumentMap([buttonDocument, tokensDocument]),
+        styleDependencyGraph,
+      }),
+    );
+
+    expect(result).toMatchObject({
+      kind: "customProperty",
+      scssModulePath: TOKENS_CSS_PATH,
+      headingName: "--color-gray-700",
+      note: "Referenced via `var()`",
+      referenceCount: 1,
+      customPropertyDecl: {
+        name: "--color-gray-700",
+        value: "#767678",
+      },
     });
   });
 

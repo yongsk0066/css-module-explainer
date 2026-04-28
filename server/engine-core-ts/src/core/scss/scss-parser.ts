@@ -15,6 +15,8 @@ import {
 import {
   makeStyleDocumentHIR,
   type AnimationNameRefHIR,
+  type CustomPropertyDeclHIR,
+  type CustomPropertyRefHIR,
   type KeyframesDeclHIR,
   type NestedSelectorSafety,
   type SassModuleForwardHIR,
@@ -129,6 +131,8 @@ export function parseStyleDocument(content: string, filePath: string): StyleDocu
   const valueDecls = collectValueDecls(root, valuePathAliases);
   const valueImports = collectValueImports(root, valuePathAliases);
   const valueRefs = collectValueRefs(root, valueDecls, valueImports);
+  const customPropertyDecls = collectCustomPropertyDecls(root);
+  const customPropertyRefs = collectCustomPropertyRefs(root);
   const sassModuleUses = collectSassModuleUses(root);
   const sassModuleForwards = collectSassModuleForwards(root);
   const symbolSyntax = lang?.id === "less" ? "less" : undefined;
@@ -160,6 +164,8 @@ export function parseStyleDocument(content: string, filePath: string): StyleDocu
     [...valueDecls].toSorted(compareNamedStyleFacts),
     [...valueImports].toSorted(compareNamedStyleFacts),
     [...valueRefs].toSorted(compareNamedStyleFacts),
+    [...customPropertyDecls].toSorted(compareNamedStyleFacts),
+    [...customPropertyRefs].toSorted(compareNamedStyleFacts),
     [...sassSymbols].toSorted(compareSassSymbolOccurrences),
     [...sassSymbolDecls].toSorted(compareSassSymbolDecls),
     [...sassModuleUses].toSorted(compareSassModuleUses),
@@ -661,6 +667,71 @@ function collectValueRefs(
   });
 
   return refs;
+}
+
+function collectCustomPropertyDecls(root: Root): readonly CustomPropertyDeclHIR[] {
+  const decls: CustomPropertyDeclHIR[] = [];
+  root.walkDecls((node) => {
+    if (!isCssCustomPropertyName(node.prop)) return;
+    const range = findDeclPropTokenRange(node, node.prop.length);
+    if (!range) return;
+    decls.push({
+      kind: "customPropertyDecl",
+      id: `custom-property:${node.prop}:${range.start.line}:${range.start.character}`,
+      name: node.prop,
+      value: node.value,
+      range,
+      ruleRange: rangeForDeclarationContainer(node),
+    });
+  });
+  return decls;
+}
+
+function rangeForDeclarationContainer(node: Declaration): Range {
+  const parent = node.parent;
+  if (parent?.type === "rule" || parent?.type === "atrule") return rangeForSourceNode(parent);
+  const start = node.source?.start;
+  const end = node.source?.end;
+  return {
+    start: start
+      ? { line: start.line - 1, character: start.column - 1 }
+      : { line: 0, character: 0 },
+    end: end ? { line: end.line - 1, character: end.column - 1 } : { line: 0, character: 0 },
+  };
+}
+
+function collectCustomPropertyRefs(root: Root): readonly CustomPropertyRefHIR[] {
+  const refs: CustomPropertyRefHIR[] = [];
+  root.walkDecls((node) => {
+    for (const match of findCssVarFunctionMatches(node.value)) {
+      const range = findDeclValueTokenRange(node, match.offset, match.name.length);
+      if (!range) continue;
+      refs.push({
+        kind: "customPropertyRef",
+        id: `custom-property-ref:${node.source?.start?.line ?? 0}:${match.name}:${match.offset}`,
+        name: match.name,
+        range,
+      });
+    }
+  });
+  return refs;
+}
+
+function findCssVarFunctionMatches(value: string): Array<{ name: string; offset: number }> {
+  const matches: Array<{ name: string; offset: number }> = [];
+  for (const match of value.matchAll(/\bvar\(\s*(--[\p{L}_-][\p{L}\p{N}\p{M}_-]*)/gu)) {
+    const raw = match[0]!;
+    const name = match[1]!;
+    matches.push({
+      name,
+      offset: (match.index ?? 0) + raw.lastIndexOf(name),
+    });
+  }
+  return matches;
+}
+
+function isCssCustomPropertyName(name: string): boolean {
+  return /^--[\p{L}_-][\p{L}\p{N}\p{M}_-]*$/u.test(name);
 }
 
 function collectSassModuleUses(root: Root): readonly SassModuleUseHIR[] {

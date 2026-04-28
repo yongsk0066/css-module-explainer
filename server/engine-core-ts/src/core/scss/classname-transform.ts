@@ -111,6 +111,8 @@ export function expandStyleDocumentWithTransform(
     base.valueDecls,
     base.valueImports,
     base.valueRefs,
+    base.customPropertyDecls,
+    base.customPropertyRefs,
     base.sassSymbols,
     base.sassSymbolDecls,
     base.sassModuleUses,

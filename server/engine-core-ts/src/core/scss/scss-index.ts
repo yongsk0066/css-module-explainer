@@ -184,6 +184,33 @@ export function styleDocumentSemanticFingerprint(styleDocument: StyleDocumentHIR
       ].join("::"),
     )
     .join("\n");
+  const customPropertyDeclFingerprint = styleDocument.customPropertyDecls
+    .map((decl) =>
+      [
+        decl.name,
+        decl.value,
+        decl.range.start.line,
+        decl.range.start.character,
+        decl.range.end.line,
+        decl.range.end.character,
+        decl.ruleRange.start.line,
+        decl.ruleRange.start.character,
+        decl.ruleRange.end.line,
+        decl.ruleRange.end.character,
+      ].join("::"),
+    )
+    .join("\n");
+  const customPropertyRefFingerprint = styleDocument.customPropertyRefs
+    .map((ref) =>
+      [
+        ref.name,
+        ref.range.start.line,
+        ref.range.start.character,
+        ref.range.end.line,
+        ref.range.end.character,
+      ].join("::"),
+    )
+    .join("\n");
   const sassSymbolFingerprint = styleDocument.sassSymbols
     .map((symbol) =>
       [
@@ -284,6 +311,8 @@ export function styleDocumentSemanticFingerprint(styleDocument: StyleDocumentHIR
     valueDeclFingerprint,
     valueImportFingerprint,
     valueRefFingerprint,
+    customPropertyDeclFingerprint,
+    customPropertyRefFingerprint,
     sassSymbolFingerprint,
     sassSymbolDeclFingerprint,
     sassModuleUseFingerprint,

@@ -3,6 +3,9 @@ import {
   findAnimationNameRefAtCursor,
   findCanonicalSelector,
   findComposesTokenAtCursor,
+  findCustomPropertyDeclAtCursor,
+  findCustomPropertyDeclByName,
+  findCustomPropertyRefAtCursor,
   findKeyframesAtCursor,
   findKeyframesByName,
   findSassModuleMemberRefAtCursor,
@@ -14,6 +17,7 @@ import {
   findValueImportAtCursor,
   findValueRefAtCursor,
   listAnimationNameRefs,
+  listCustomPropertyRefs,
   listSassModuleMemberRefsForMember,
   listSassSymbolsForDecl,
   listSassWildcardSymbolsForTarget,
@@ -27,6 +31,7 @@ import {
   resolveValueTarget,
 } from "../../engine-core-ts/src/core/query";
 import type {
+  CustomPropertyDeclHIR,
   KeyframesDeclHIR,
   SassSymbolDeclHIR,
   SelectorDeclHIR,
@@ -95,11 +100,25 @@ export interface StyleSassSymbolHoverResult {
   readonly note?: string;
 }
 
+export interface StyleCustomPropertyHoverResult {
+  readonly kind: "customProperty";
+  readonly customPropertyDecl: Pick<
+    CustomPropertyDeclHIR,
+    "name" | "value" | "range" | "ruleRange"
+  >;
+  readonly range: Range;
+  readonly scssModulePath: string;
+  readonly referenceCount: number;
+  readonly headingName?: string;
+  readonly note?: string;
+}
+
 export type StyleHoverResult =
   | StyleSelectorHoverResult
   | StyleKeyframesHoverResult
   | StyleValueHoverResult
-  | StyleSassSymbolHoverResult;
+  | StyleSassSymbolHoverResult
+  | StyleCustomPropertyHoverResult;
 
 export interface StyleHoverQueryOptions extends StyleSelectorIdentityQueryOptions {
   readonly env?: NodeJS.ProcessEnv;
@@ -175,6 +194,49 @@ export function resolveStyleHoverResult(
       note: `Imported from \`${valueImport.from}\` as \`${valueImport.importedName}\``,
       scssModulePath: targetValue.filePath,
       referenceCount: listValueRefs(styleDocument, valueImport.name).length,
+    };
+  }
+
+  const customPropertyDecl = findCustomPropertyDeclAtCursor(
+    styleDocument,
+    args.line,
+    args.character,
+  );
+  if (customPropertyDecl) {
+    return {
+      kind: "customProperty",
+      customPropertyDecl,
+      range: customPropertyDecl.range,
+      scssModulePath: args.filePath,
+      referenceCount: readCustomPropertyReferenceCount(
+        deps.styleDependencyGraph,
+        styleDocument,
+        customPropertyDecl.name,
+      ),
+    };
+  }
+
+  const customPropertyRef = findCustomPropertyRefAtCursor(styleDocument, args.line, args.character);
+  if (customPropertyRef) {
+    const target = resolveCustomPropertyTarget(
+      styleDocument,
+      args.filePath,
+      customPropertyRef.name,
+      deps.styleDependencyGraph,
+    );
+    if (!target) return null;
+    return {
+      kind: "customProperty",
+      customPropertyDecl: target.decl,
+      range: customPropertyRef.range,
+      headingName: customPropertyRef.name,
+      note: "Referenced via `var()`",
+      scssModulePath: target.filePath,
+      referenceCount: readCustomPropertyReferenceCount(
+        deps.styleDependencyGraph,
+        styleDocument,
+        customPropertyRef.name,
+      ),
     };
   }
 
@@ -489,6 +551,34 @@ function withStyleSelectorIdentity(
     options,
   );
   return selectorIdentity ? { selectorIdentity } : {};
+}
+
+function resolveCustomPropertyTarget(
+  styleDocument: StyleDocumentHIR,
+  filePath: string,
+  name: string,
+  styleDependencyGraph: ProviderDeps["styleDependencyGraph"],
+): {
+  readonly filePath: string;
+  readonly decl: Pick<CustomPropertyDeclHIR, "name" | "value" | "range" | "ruleRange">;
+} | null {
+  const localDecl = findCustomPropertyDeclByName(styleDocument, name);
+  if (localDecl) return { filePath, decl: localDecl };
+  const workspaceDecl = styleDependencyGraph
+    .getCustomPropertyDecls(name)
+    .toSorted((a, b) => a.filePath.localeCompare(b.filePath))[0];
+  return workspaceDecl ? { filePath: workspaceDecl.filePath, decl: workspaceDecl } : null;
+}
+
+function readCustomPropertyReferenceCount(
+  styleDependencyGraph: ProviderDeps["styleDependencyGraph"],
+  styleDocument: StyleDocumentHIR,
+  name: string,
+): number {
+  const workspaceRefs = styleDependencyGraph.getCustomPropertyRefs(name);
+  return workspaceRefs.length > 0
+    ? workspaceRefs.length
+    : listCustomPropertyRefs(styleDocument, name).length;
 }
 
 function styleSymbolLanguageName(decl: SassSymbolDeclHIR): "Sass" | "Less" {

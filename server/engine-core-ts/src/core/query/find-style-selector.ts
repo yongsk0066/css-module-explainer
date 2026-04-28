@@ -1,6 +1,8 @@
 import path from "node:path";
 import type {
   AnimationNameRefHIR,
+  CustomPropertyDeclHIR,
+  CustomPropertyRefHIR,
   KeyframesDeclHIR,
   SassModuleForwardHIR,
   SassModuleMemberRefHIR,
@@ -237,6 +239,42 @@ export function listValueRefs(
   name: string,
 ): readonly ValueRefHIR[] {
   return styleDocument.valueRefs.filter((valueRef) => valueRef.name === name);
+}
+
+export function findCustomPropertyDeclAtCursor(
+  styleDocument: StyleDocumentHIR,
+  line: number,
+  character: number,
+): CustomPropertyDeclHIR | null {
+  for (const decl of styleDocument.customPropertyDecls) {
+    if (rangeContains(decl.range, line, character)) return decl;
+  }
+  return null;
+}
+
+export function findCustomPropertyRefAtCursor(
+  styleDocument: StyleDocumentHIR,
+  line: number,
+  character: number,
+): CustomPropertyRefHIR | null {
+  for (const ref of styleDocument.customPropertyRefs) {
+    if (rangeContains(ref.range, line, character)) return ref;
+  }
+  return null;
+}
+
+export function findCustomPropertyDeclByName(
+  styleDocument: StyleDocumentHIR,
+  name: string,
+): CustomPropertyDeclHIR | null {
+  return styleDocument.customPropertyDecls.find((decl) => decl.name === name) ?? null;
+}
+
+export function listCustomPropertyRefs(
+  styleDocument: StyleDocumentHIR,
+  name: string,
+): readonly CustomPropertyRefHIR[] {
+  return styleDocument.customPropertyRefs.filter((ref) => ref.name === name);
 }
 
 export function findSassSymbolDeclAtCursor(

@@ -9,6 +9,8 @@ export interface StyleDocumentHIR extends HirDocumentBase {
   readonly valueDecls: readonly ValueDeclHIR[];
   readonly valueImports: readonly ValueImportHIR[];
   readonly valueRefs: readonly ValueRefHIR[];
+  readonly customPropertyDecls: readonly CustomPropertyDeclHIR[];
+  readonly customPropertyRefs: readonly CustomPropertyRefHIR[];
   readonly sassSymbols: readonly SassSymbolOccurrenceHIR[];
   readonly sassSymbolDecls: readonly SassSymbolDeclHIR[];
   readonly sassModuleUses: readonly SassModuleUseHIR[];
@@ -83,6 +85,20 @@ export interface ValueRefHIR extends HirNodeBase {
   readonly source: "declaration" | "valueDecl";
 }
 
+export interface CustomPropertyDeclHIR extends HirNodeBase {
+  readonly kind: "customPropertyDecl";
+  readonly range: Range;
+  readonly name: string;
+  readonly value: string;
+  readonly ruleRange: Range;
+}
+
+export interface CustomPropertyRefHIR extends HirNodeBase {
+  readonly kind: "customPropertyRef";
+  readonly range: Range;
+  readonly name: string;
+}
+
 export interface SassSymbolOccurrenceHIR extends HirNodeBase {
   readonly kind: "sassSymbol";
   readonly selectorName: string;
@@ -149,6 +165,8 @@ export function makeStyleDocumentHIR(
   valueDecls: readonly ValueDeclHIR[] = [],
   valueImports: readonly ValueImportHIR[] = [],
   valueRefs: readonly ValueRefHIR[] = [],
+  customPropertyDecls: readonly CustomPropertyDeclHIR[] = [],
+  customPropertyRefs: readonly CustomPropertyRefHIR[] = [],
   sassSymbols: readonly SassSymbolOccurrenceHIR[] = [],
   sassSymbolDecls: readonly SassSymbolDeclHIR[] = [],
   sassModuleUses: readonly SassModuleUseHIR[] = [],
@@ -164,6 +182,8 @@ export function makeStyleDocumentHIR(
     valueDecls,
     valueImports,
     valueRefs,
+    customPropertyDecls,
+    customPropertyRefs,
     sassSymbols,
     sassSymbolDecls,
     sassModuleUses,

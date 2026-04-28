@@ -68,6 +68,36 @@ describe("parseStyleSelectorMap / flat classes", () => {
   });
 });
 
+describe("parseStyleDocument / CSS custom properties", () => {
+  it("captures custom property declarations and var() references", () => {
+    const document = parseStyleDocument(
+      `:root { --color-gray-700: #767678; }
+.title { color: var(--color-gray-700); }`,
+      "/fake/tokens.module.css",
+    );
+
+    expect(document.customPropertyDecls).toMatchObject([
+      {
+        name: "--color-gray-700",
+        value: "#767678",
+        range: {
+          start: { line: 0, character: 8 },
+          end: { line: 0, character: 24 },
+        },
+      },
+    ]);
+    expect(document.customPropertyRefs).toMatchObject([
+      {
+        name: "--color-gray-700",
+        range: {
+          start: { line: 1, character: 20 },
+          end: { line: 1, character: 36 },
+        },
+      },
+    ]);
+  });
+});
+
 describe("parseStyleSelectorMap / edge cases", () => {
   describe(":global() wrapping", () => {
     it("excludes :global(.foo) from the class map", () => {

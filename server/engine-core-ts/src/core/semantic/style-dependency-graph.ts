@@ -1,6 +1,12 @@
 import path from "node:path";
 import type { Range } from "@css-module-explainer/shared";
-import type { SassModuleUseHIR, SassSymbolKind, StyleDocumentHIR } from "../hir/style-types";
+import type {
+  CustomPropertyDeclHIR,
+  CustomPropertyRefHIR,
+  SassModuleUseHIR,
+  SassSymbolKind,
+  StyleDocumentHIR,
+} from "../hir/style-types";
 import { findSassSymbolDeclForSymbol } from "../query/find-style-selector";
 
 export type StyleDependencyReason = "localComposes" | "crossFileComposes";
@@ -29,6 +35,17 @@ export interface SassModuleMemberDependencyRef {
 
 interface SassModuleMemberDependencyEdge extends SassModuleMemberDependencyRef {
   readonly toFilePath: string;
+}
+
+export interface CustomPropertyDependencyDecl extends Pick<
+  CustomPropertyDeclHIR,
+  "name" | "value" | "range" | "ruleRange"
+> {
+  readonly filePath: string;
+}
+
+export interface CustomPropertyDependencyRef extends Pick<CustomPropertyRefHIR, "name" | "range"> {
+  readonly filePath: string;
 }
 
 export interface SassModuleExportedSymbolDependencyTarget {
@@ -65,6 +82,8 @@ export interface StyleDependencyGraph {
     symbolKind: SassSymbolKind,
     name: string,
   ): readonly SassModuleMemberDependencyRef[];
+  getCustomPropertyDecls(name: string): readonly CustomPropertyDependencyDecl[];
+  getCustomPropertyRefs(name: string): readonly CustomPropertyDependencyRef[];
 }
 
 export class WorkspaceStyleDependencyGraph implements StyleDependencyGraph {
@@ -73,6 +92,8 @@ export class WorkspaceStyleDependencyGraph implements StyleDependencyGraph {
     {
       readonly selectorEdges: readonly StyleDependencyEdge[];
       readonly sassModuleMemberEdges: readonly SassModuleMemberDependencyEdge[];
+      readonly customPropertyDecls: readonly CustomPropertyDependencyDecl[];
+      readonly customPropertyRefs: readonly CustomPropertyDependencyRef[];
     }
   >();
   private readonly incoming = new Map<string, readonly StyleDependencySelectorRef[]>();
@@ -81,6 +102,8 @@ export class WorkspaceStyleDependencyGraph implements StyleDependencyGraph {
     string,
     readonly SassModuleMemberDependencyRef[]
   >();
+  private readonly customPropertyDecls = new Map<string, readonly CustomPropertyDependencyDecl[]>();
+  private readonly customPropertyRefs = new Map<string, readonly CustomPropertyDependencyRef[]>();
 
   record(
     filePath: string,
@@ -90,6 +113,8 @@ export class WorkspaceStyleDependencyGraph implements StyleDependencyGraph {
     this.moduleEdges.set(filePath, {
       selectorEdges: collectEdges(filePath, styleDocument),
       sassModuleMemberEdges: collectSassModuleMemberEdges(filePath, styleDocument, options),
+      customPropertyDecls: collectCustomPropertyDecls(filePath, styleDocument),
+      customPropertyRefs: collectCustomPropertyRefs(filePath, styleDocument),
     });
     this.rebuild();
   }
@@ -125,10 +150,20 @@ export class WorkspaceStyleDependencyGraph implements StyleDependencyGraph {
     return this.incomingSassModuleMembers.get(sassMemberKey(filePath, symbolKind, name)) ?? [];
   }
 
+  getCustomPropertyDecls(name: string): readonly CustomPropertyDependencyDecl[] {
+    return this.customPropertyDecls.get(name) ?? [];
+  }
+
+  getCustomPropertyRefs(name: string): readonly CustomPropertyDependencyRef[] {
+    return this.customPropertyRefs.get(name) ?? [];
+  }
+
   private rebuild(): void {
     this.incoming.clear();
     this.outgoing.clear();
     this.incomingSassModuleMembers.clear();
+    this.customPropertyDecls.clear();
+    this.customPropertyRefs.clear();
     for (const edges of this.moduleEdges.values()) {
       for (const edge of edges.selectorEdges) {
         push(this.outgoing, selectorKey(edge.fromFilePath, edge.fromCanonicalName), {
@@ -154,6 +189,12 @@ export class WorkspaceStyleDependencyGraph implements StyleDependencyGraph {
             range: edge.range,
           },
         );
+      }
+      for (const decl of edges.customPropertyDecls) {
+        push(this.customPropertyDecls, decl.name, decl);
+      }
+      for (const ref of edges.customPropertyRefs) {
+        push(this.customPropertyRefs, ref.name, ref);
       }
     }
   }
@@ -273,6 +314,30 @@ function collectSassModuleMemberEdges(
   }
 
   return edges;
+}
+
+function collectCustomPropertyDecls(
+  filePath: string,
+  styleDocument: StyleDocumentHIR,
+): readonly CustomPropertyDependencyDecl[] {
+  return styleDocument.customPropertyDecls.map((decl) => ({
+    filePath,
+    name: decl.name,
+    value: decl.value,
+    range: decl.range,
+    ruleRange: decl.ruleRange,
+  }));
+}
+
+function collectCustomPropertyRefs(
+  filePath: string,
+  styleDocument: StyleDocumentHIR,
+): readonly CustomPropertyDependencyRef[] {
+  return styleDocument.customPropertyRefs.map((ref) => ({
+    filePath,
+    name: ref.name,
+    range: ref.range,
+  }));
 }
 
 function resolveSassModuleMemberTargets(
