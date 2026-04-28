@@ -252,6 +252,7 @@ pub struct ParserSassSyntaxFactsV0 {
 #[serde(rename_all = "camelCase")]
 pub struct StyleSemanticFactsV0 {
     pub selector_identity: StyleSelectorIdentityFactsV0,
+    pub custom_properties: StyleCustomPropertySemanticFactsV0,
     pub sass: StyleSassSemanticFactsV0,
 }
 
@@ -263,6 +264,16 @@ pub struct StyleSelectorIdentityFactsV0 {
     pub bem_suffix_parent_names: Vec<String>,
     pub nested_unsafe_names: Vec<String>,
     pub nested_safety_counts: NestedSafetyCountsV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StyleCustomPropertySemanticFactsV0 {
+    pub decl_names: Vec<String>,
+    pub ref_names: Vec<String>,
+    pub resolved_ref_names: Vec<String>,
+    pub unresolved_ref_names: Vec<String>,
+    pub selectors_with_refs_names: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1314,6 +1325,8 @@ pub fn summarize_semantic_boundary(sheet: &Stylesheet) -> ParserSemanticBoundary
         module_import_sources,
         same_file_resolution,
     } = sass;
+    let custom_property_semantic_facts =
+        summarize_custom_property_semantic_facts(&custom_properties);
 
     ParserSemanticBoundarySummaryV0 {
         schema_version: "0",
@@ -1358,6 +1371,7 @@ pub fn summarize_semantic_boundary(sheet: &Stylesheet) -> ParserSemanticBoundary
                 nested_unsafe_names,
                 nested_safety_counts,
             },
+            custom_properties: custom_property_semantic_facts,
             sass: StyleSassSemanticFactsV0 {
                 selector_symbol_facts,
                 selectors_with_resolved_variable_refs_names,
@@ -1368,6 +1382,32 @@ pub fn summarize_semantic_boundary(sheet: &Stylesheet) -> ParserSemanticBoundary
                 same_file_resolution,
             },
         },
+    }
+}
+
+fn summarize_custom_property_semantic_facts(
+    facts: &ParserIndexCustomPropertyFactsV0,
+) -> StyleCustomPropertySemanticFactsV0 {
+    let decl_names: BTreeSet<&str> = facts.decl_names.iter().map(String::as_str).collect();
+    let resolved_ref_names = facts
+        .ref_names
+        .iter()
+        .filter(|name| decl_names.contains(name.as_str()))
+        .cloned()
+        .collect();
+    let unresolved_ref_names = facts
+        .ref_names
+        .iter()
+        .filter(|name| !decl_names.contains(name.as_str()))
+        .cloned()
+        .collect();
+
+    StyleCustomPropertySemanticFactsV0 {
+        decl_names: facts.decl_names.clone(),
+        ref_names: facts.ref_names.clone(),
+        resolved_ref_names,
+        unresolved_ref_names,
+        selectors_with_refs_names: facts.selectors_with_refs_names.clone(),
     }
 }
 
@@ -4661,6 +4701,7 @@ $gap: 1rem;
 "#;
         let sheet = parse_stylesheet(StyleLanguage::Css, source);
         let summary = super::summarize_css_modules_intermediate(&sheet);
+        let semantic_boundary = super::summarize_semantic_boundary(&sheet);
 
         assert_eq!(
             summary.custom_properties.decl_names,
@@ -4691,6 +4732,20 @@ $gap: 1rem;
                 .custom_properties
                 .selectors_with_refs_under_layer_names,
             vec!["card"]
+        );
+        assert_eq!(
+            semantic_boundary
+                .semantic_facts
+                .custom_properties
+                .resolved_ref_names,
+            vec!["--color-gray-700"]
+        );
+        assert_eq!(
+            semantic_boundary
+                .semantic_facts
+                .custom_properties
+                .unresolved_ref_names,
+            vec!["--missing"]
         );
     }
 
