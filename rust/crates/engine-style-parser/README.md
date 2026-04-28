@@ -11,6 +11,8 @@ Current scope:
 - parser diagnostics for unterminated comments, strings, and blocks
 - bounded Rust-vs-TS parity and CSS Modules intermediate producer binaries
 - parser canonical-candidate / canonical-producer artifacts over those bounded outputs
+- CSS custom property declaration/reference seed facts in the CSS Modules
+  intermediate producer, including selector attachment and wrapper context
 - Sass symbol seed facts in the CSS Modules intermediate producer for variables,
   mixins, functions, static `@use` / `@forward` / `@import` module edges, and
   `@use` namespace seeds

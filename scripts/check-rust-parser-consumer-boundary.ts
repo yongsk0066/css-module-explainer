@@ -32,6 +32,11 @@ interface ParserIndexSummaryV0 {
     readonly importNames: readonly string[];
     readonly importSources: readonly string[];
   };
+  readonly customProperties: {
+    readonly declNames: readonly string[];
+    readonly refNames: readonly string[];
+    readonly selectorsWithRefsNames: readonly string[];
+  };
   readonly keyframes: {
     readonly names: readonly string[];
     readonly animationRefNames: readonly string[];
@@ -106,6 +111,12 @@ interface ParserConsumerBoundarySummaryV0 {
     readonly selectorsWithImportedRefsNames: readonly string[];
     readonly declNamesWithImportedRefs: readonly string[];
   };
+  readonly customPropertyResolution: {
+    readonly declNames: readonly string[];
+    readonly refNames: readonly string[];
+    readonly selectorsWithRefsNames: readonly string[];
+    readonly missingCandidateNames: readonly string[];
+  };
   readonly keyframesResolution: {
     readonly declaredNames: readonly string[];
     readonly referencedNames: readonly string[];
@@ -142,6 +153,11 @@ const CORPUS = [
     label: "scss-mixed-value-refs-parser-consumer-boundary",
     filePath: "/f.module.scss",
     source: `@supports (display: grid) { @layer ui { @value brand from "./tokens.module.scss"; @value accent: red; .btn { color: brand; background: accent; } } }`,
+  },
+  {
+    label: "css-custom-property-token-parser-consumer-boundary",
+    filePath: "/f.module.css",
+    source: `:root { --color-gray-700: #767678; }\n@media (min-width: 1px) { .btn { color: var(--color-gray-700); } }\n.card { color: var(--missing); }`,
   },
   {
     label: "scss-mixed-composes-parser-consumer-boundary",
@@ -299,6 +315,7 @@ function deriveSummaryFromProducer(
     ...intermediate.keyframes.animationNameRefNames,
   ]);
   const declaredKeyframes = new Set(intermediate.keyframes.names);
+  const declaredCustomProperties = new Set(intermediate.customProperties.declNames);
 
   return {
     schemaVersion: "0",
@@ -352,6 +369,14 @@ function deriveSummaryFromProducer(
       ),
       declNamesWithImportedRefs: [...intermediate.values.declNamesWithImportedRefs],
     },
+    customPropertyResolution: {
+      declNames: [...intermediate.customProperties.declNames],
+      refNames: [...intermediate.customProperties.refNames],
+      selectorsWithRefsNames: [...intermediate.customProperties.selectorsWithRefsNames],
+      missingCandidateNames: intermediate.customProperties.refNames.filter(
+        (name) => !declaredCustomProperties.has(name),
+      ),
+    },
     keyframesResolution: {
       declaredNames: [...intermediate.keyframes.names],
       referencedNames,
@@ -368,6 +393,7 @@ function deriveTsSummary(filePath: string, source: string): ParserConsumerBounda
   const importedValueNames = new Set(document.valueImports.map((entry) => entry.name));
   const referencedNames = uniqueSorted(document.animationNameRefs.map((entry) => entry.name));
   const declaredKeyframes = new Set(document.keyframes.map((entry) => entry.name));
+  const declaredCustomProperties = new Set(document.customPropertyDecls.map((entry) => entry.name));
   const sassSummary = deriveSassSummary(source);
 
   return {
@@ -484,6 +510,24 @@ function deriveTsSummary(filePath: string, source: string): ParserConsumerBounda
             ),
           )
           .map((decl) => decl.name),
+      ),
+    },
+    customPropertyResolution: {
+      declNames: uniqueSorted(document.customPropertyDecls.map((entry) => entry.name)),
+      refNames: uniqueSorted(document.customPropertyRefs.map((entry) => entry.name)),
+      selectorsWithRefsNames: uniqueSorted(
+        document.selectors
+          .filter((selector) =>
+            document.customPropertyRefs.some((entry) =>
+              rangeContains(selector.ruleRange, entry.range),
+            ),
+          )
+          .map((selector) => selector.name),
+      ),
+      missingCandidateNames: uniqueSorted(
+        document.customPropertyRefs
+          .map((entry) => entry.name)
+          .filter((name) => !declaredCustomProperties.has(name)),
       ),
     },
     keyframesResolution: {

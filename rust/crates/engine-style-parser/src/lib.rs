@@ -192,6 +192,7 @@ pub struct ParserIndexSummaryV0 {
     pub language: &'static str,
     pub selectors: ParserIndexSelectorFactsV0,
     pub values: ParserIndexValueFactsV0,
+    pub custom_properties: ParserIndexCustomPropertyFactsV0,
     pub sass: ParserIndexSassFactsV0,
     pub keyframes: ParserIndexKeyframesFactsV0,
     pub composes: ParserIndexComposesFactsV0,
@@ -213,6 +214,7 @@ pub struct ParserBoundarySyntaxFactsV0 {
     pub lossless_cst: ParserLosslessCstFactsV0,
     pub selectors: ParserIndexSelectorFactsV0,
     pub values: ParserIndexValueFactsV0,
+    pub custom_properties: ParserIndexCustomPropertyFactsV0,
     pub sass: ParserSassSyntaxFactsV0,
     pub keyframes: ParserIndexKeyframesFactsV0,
     pub composes: ParserIndexComposesFactsV0,
@@ -378,6 +380,17 @@ pub struct ParserIndexValueFactsV0 {
     pub selectors_with_imported_refs_under_media_names: Vec<String>,
     pub selectors_with_imported_refs_under_supports_names: Vec<String>,
     pub selectors_with_imported_refs_under_layer_names: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ParserIndexCustomPropertyFactsV0 {
+    pub decl_names: Vec<String>,
+    pub ref_names: Vec<String>,
+    pub selectors_with_refs_names: Vec<String>,
+    pub selectors_with_refs_under_media_names: Vec<String>,
+    pub selectors_with_refs_under_supports_names: Vec<String>,
+    pub selectors_with_refs_under_layer_names: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
@@ -604,6 +617,12 @@ struct IndexSummaryAcc {
     declaration_imported_value_ref_sources: Vec<String>,
     value_decl_ref_names: Vec<String>,
     value_decl_imported_value_ref_sources: Vec<String>,
+    custom_property_decl_names: Vec<String>,
+    custom_property_ref_names: Vec<String>,
+    selectors_with_custom_property_refs_names: Vec<String>,
+    selectors_with_custom_property_refs_under_media_names: Vec<String>,
+    selectors_with_custom_property_refs_under_supports_names: Vec<String>,
+    selectors_with_custom_property_refs_under_layer_names: Vec<String>,
     sass_variable_decl_names: Vec<String>,
     sass_variable_decl_facts: Vec<SassVariableDeclFact>,
     sass_variable_parameter_names: Vec<String>,
@@ -804,6 +823,24 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
     acc.value_decl_ref_names.sort();
     acc.value_decl_ref_names.dedup();
     acc.value_decl_imported_value_ref_sources.sort();
+    acc.custom_property_decl_names.sort();
+    acc.custom_property_decl_names.dedup();
+    acc.custom_property_ref_names.sort();
+    acc.custom_property_ref_names.dedup();
+    acc.selectors_with_custom_property_refs_names.sort();
+    acc.selectors_with_custom_property_refs_names.dedup();
+    acc.selectors_with_custom_property_refs_under_media_names
+        .sort();
+    acc.selectors_with_custom_property_refs_under_media_names
+        .dedup();
+    acc.selectors_with_custom_property_refs_under_supports_names
+        .sort();
+    acc.selectors_with_custom_property_refs_under_supports_names
+        .dedup();
+    acc.selectors_with_custom_property_refs_under_layer_names
+        .sort();
+    acc.selectors_with_custom_property_refs_under_layer_names
+        .dedup();
     acc.sass_variable_decl_names.sort();
     acc.sass_variable_decl_names.dedup();
     acc.sass_variable_parameter_names.sort();
@@ -946,6 +983,17 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
                 .selectors_with_imported_value_refs_under_supports_names,
             selectors_with_imported_refs_under_layer_names: acc
                 .selectors_with_imported_value_refs_under_layer_names,
+        },
+        custom_properties: ParserIndexCustomPropertyFactsV0 {
+            decl_names: acc.custom_property_decl_names,
+            ref_names: acc.custom_property_ref_names,
+            selectors_with_refs_names: acc.selectors_with_custom_property_refs_names,
+            selectors_with_refs_under_media_names: acc
+                .selectors_with_custom_property_refs_under_media_names,
+            selectors_with_refs_under_supports_names: acc
+                .selectors_with_custom_property_refs_under_supports_names,
+            selectors_with_refs_under_layer_names: acc
+                .selectors_with_custom_property_refs_under_layer_names,
         },
         sass: ParserIndexSassFactsV0 {
             variable_decl_names: acc.sass_variable_decl_names,
@@ -1218,6 +1266,7 @@ pub fn summarize_semantic_boundary(sheet: &Stylesheet) -> ParserSemanticBoundary
         language,
         selectors,
         values,
+        custom_properties,
         sass,
         keyframes,
         composes,
@@ -1274,6 +1323,7 @@ pub fn summarize_semantic_boundary(sheet: &Stylesheet) -> ParserSemanticBoundary
                 nested_safety_counts: nested_safety_counts.clone(),
             },
             values,
+            custom_properties,
             sass: ParserSassSyntaxFactsV0 {
                 variable_decl_names,
                 variable_parameter_names,
@@ -1455,6 +1505,7 @@ struct RuleReferenceFacts {
     has_imported_value_refs: bool,
     has_animation_refs: bool,
     has_animation_name_refs: bool,
+    has_custom_property_refs: bool,
     has_sass_variable_refs: bool,
     has_resolved_sass_variable_refs: bool,
     has_unresolved_sass_variable_refs: bool,
@@ -1736,6 +1787,9 @@ fn collect_rule_reference_facts(
                     value_span,
                     sass_ref_ctx,
                 );
+                if !find_css_var_ref_names(&declaration.value).is_empty() {
+                    facts.has_custom_property_refs = true;
+                }
             }
             Some(SyntaxNodePayload::AtRule(at_rule)) => match at_rule.kind {
                 AtRuleKind::Mixin | AtRuleKind::Function => {}
@@ -2051,6 +2105,10 @@ fn collect_index_names(
                 _ => {}
             },
             Some(SyntaxNodePayload::Declaration(declaration)) => {
+                if is_css_custom_property_name(&declaration.property) {
+                    acc.custom_property_decl_names
+                        .push(declaration.property.clone());
+                }
                 if let Some(name) = parse_sass_variable_decl_name(&declaration.property) {
                     acc.sass_variable_decl_facts.push(SassVariableDeclFact {
                         name: name.clone(),
@@ -2094,6 +2152,8 @@ fn collect_index_refs_and_counts(
     for node in nodes {
         match &node.payload {
             Some(SyntaxNodePayload::Declaration(declaration)) => {
+                acc.custom_property_ref_names
+                    .extend(find_css_var_ref_names(&declaration.value));
                 match classify_declaration_kind(&declaration.property) {
                     DeclarationKind::Composes => {}
                     DeclarationKind::Animation => {
@@ -2432,6 +2492,22 @@ fn collect_index_selector_attachment_facts_with_context(
                     }
                     if wrapper_ctx.under_layer {
                         acc.selectors_with_animation_name_refs_under_layer_names
+                            .extend(resolved.iter().cloned());
+                    }
+                }
+                if ref_facts.has_custom_property_refs {
+                    acc.selectors_with_custom_property_refs_names
+                        .extend(resolved.iter().cloned());
+                    if wrapper_ctx.under_media {
+                        acc.selectors_with_custom_property_refs_under_media_names
+                            .extend(resolved.iter().cloned());
+                    }
+                    if wrapper_ctx.under_supports {
+                        acc.selectors_with_custom_property_refs_under_supports_names
+                            .extend(resolved.iter().cloned());
+                    }
+                    if wrapper_ctx.under_layer {
+                        acc.selectors_with_custom_property_refs_under_layer_names
                             .extend(resolved.iter().cloned());
                     }
                 }
@@ -3073,6 +3149,83 @@ fn find_identifier_matches(raw: &str, known_names: &BTreeSet<String>) -> Vec<Str
 
 fn is_value_ident_continue(ch: char) -> bool {
     ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | '$')
+}
+
+fn find_css_var_ref_names(raw: &str) -> Vec<String> {
+    let mut refs = Vec::new();
+    let mut search_start = 0usize;
+
+    while let Some(relative_start) = raw[search_start..].find("var(") {
+        let function_start = search_start + relative_start;
+        if !is_css_function_boundary(raw, function_start) {
+            search_start = function_start + "var(".len();
+            continue;
+        }
+
+        let mut cursor = function_start + "var(".len();
+        while cursor < raw.len() {
+            let Some(ch) = raw[cursor..].chars().next() else {
+                break;
+            };
+            if !ch.is_whitespace() {
+                break;
+            }
+            cursor += ch.len_utf8();
+        }
+
+        if !raw[cursor..].starts_with("--") {
+            search_start = cursor;
+            continue;
+        }
+
+        let name_start = cursor;
+        let mut name_end = cursor;
+        for (relative_index, ch) in raw[name_start..].char_indices() {
+            let absolute_index = name_start + relative_index;
+            if relative_index == 0 {
+                name_end = absolute_index + ch.len_utf8();
+                continue;
+            }
+            if !is_css_custom_property_ident_continue(ch) {
+                break;
+            }
+            name_end = absolute_index + ch.len_utf8();
+        }
+
+        let candidate = &raw[name_start..name_end];
+        if is_css_custom_property_name(candidate) {
+            refs.push(candidate.to_string());
+        }
+        search_start = name_end.max(function_start + "var(".len());
+    }
+
+    refs
+}
+
+fn is_css_function_boundary(raw: &str, function_start: usize) -> bool {
+    raw[..function_start]
+        .chars()
+        .next_back()
+        .is_none_or(|ch| !ch.is_ascii_alphanumeric() && ch != '_')
+}
+
+fn is_css_custom_property_name(name: &str) -> bool {
+    let Some(rest) = name.strip_prefix("--") else {
+        return false;
+    };
+    let mut chars = rest.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    is_css_custom_property_ident_start(first) && chars.all(is_css_custom_property_ident_continue)
+}
+
+fn is_css_custom_property_ident_start(ch: char) -> bool {
+    ch == '_' || ch == '-' || ch.is_ascii_alphabetic() || !ch.is_ascii()
+}
+
+fn is_css_custom_property_ident_continue(ch: char) -> bool {
+    is_css_custom_property_ident_start(ch) || ch.is_ascii_digit()
 }
 
 fn is_sass_ident_start(ch: char) -> bool {
@@ -4489,6 +4642,47 @@ $gap: 1rem;
             vec!["tone"]
         );
         Ok(())
+    }
+
+    #[test]
+    fn index_summary_collects_css_custom_property_seed_facts() {
+        let source = r#":root { --color-gray-700: #767678; }
+@media (min-width: 1px) { .btn { color: var(--color-gray-700); } }
+@supports (display: grid) { @layer ui { .card { color: var(--missing); } } }
+"#;
+        let sheet = parse_stylesheet(StyleLanguage::Css, source);
+        let summary = super::summarize_css_modules_intermediate(&sheet);
+
+        assert_eq!(
+            summary.custom_properties.decl_names,
+            vec!["--color-gray-700"]
+        );
+        assert_eq!(
+            summary.custom_properties.ref_names,
+            vec!["--color-gray-700", "--missing"]
+        );
+        assert_eq!(
+            summary.custom_properties.selectors_with_refs_names,
+            vec!["btn", "card"]
+        );
+        assert_eq!(
+            summary
+                .custom_properties
+                .selectors_with_refs_under_media_names,
+            vec!["btn"]
+        );
+        assert_eq!(
+            summary
+                .custom_properties
+                .selectors_with_refs_under_supports_names,
+            vec!["card"]
+        );
+        assert_eq!(
+            summary
+                .custom_properties
+                .selectors_with_refs_under_layer_names,
+            vec!["card"]
+        );
     }
 
     #[test]

@@ -52,6 +52,14 @@ interface ParserIndexSummaryV0 {
     readonly selectorsWithImportedRefsUnderSupportsNames: readonly string[];
     readonly selectorsWithImportedRefsUnderLayerNames: readonly string[];
   };
+  readonly customProperties: {
+    readonly declNames: readonly string[];
+    readonly refNames: readonly string[];
+    readonly selectorsWithRefsNames: readonly string[];
+    readonly selectorsWithRefsUnderMediaNames: readonly string[];
+    readonly selectorsWithRefsUnderSupportsNames: readonly string[];
+    readonly selectorsWithRefsUnderLayerNames: readonly string[];
+  };
   readonly sass: ParserSassSeedFactsV0;
   readonly keyframes: {
     readonly names: readonly string[];
@@ -202,6 +210,11 @@ const CORPUS = [
     label: "scss-supports-layer-animation-value-index",
     filePath: "/f.module.scss",
     source: `@supports (display: grid) { @layer ui { @keyframes fade { from { opacity: 0; } } @value speed: 1s; .btn { animation: fade speed linear; animation-name: fade; } } }`,
+  },
+  {
+    label: "css-custom-property-token-index",
+    filePath: "/f.module.css",
+    source: `:root { --color-gray-700: #767678; }\n@media (min-width: 1px) { .btn { color: var(--color-gray-700); } }\n@supports (display: grid) { @layer ui { .card { color: var(--missing); } } }`,
   },
   {
     label: "scss-media-composes-index",
@@ -497,6 +510,18 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
         rangeContains(decl.ruleRange, entry.range),
     ),
   );
+  const selectorsWithCustomPropertyRefs = document.selectors.filter((selector) =>
+    document.customPropertyRefs.some((entry) => rangeContains(selector.ruleRange, entry.range)),
+  );
+  const selectorsWithCustomPropertyRefsUnderMedia = selectorsWithCustomPropertyRefs.filter(
+    (selector) => wrapperSelectorNames.media.includes(selector.name),
+  );
+  const selectorsWithCustomPropertyRefsUnderSupports = selectorsWithCustomPropertyRefs.filter(
+    (selector) => wrapperSelectorNames.supports.includes(selector.name),
+  );
+  const selectorsWithCustomPropertyRefsUnderLayer = selectorsWithCustomPropertyRefs.filter(
+    (selector) => wrapperSelectorNames.layer.includes(selector.name),
+  );
   const selectorsWithComposesUnderMedia = selectorsWithComposes.filter((selector) =>
     wrapperSelectorNames.media.includes(selector.name),
   );
@@ -643,6 +668,22 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
         .map((selector) => selector.name)
         .toSorted(),
       selectorsWithImportedRefsUnderLayerNames: selectorsWithImportedValueRefsUnderLayer
+        .map((selector) => selector.name)
+        .toSorted(),
+    },
+    customProperties: {
+      declNames: uniqueSorted(document.customPropertyDecls.map((entry) => entry.name)),
+      refNames: uniqueSorted(document.customPropertyRefs.map((entry) => entry.name)),
+      selectorsWithRefsNames: selectorsWithCustomPropertyRefs
+        .map((selector) => selector.name)
+        .toSorted(),
+      selectorsWithRefsUnderMediaNames: selectorsWithCustomPropertyRefsUnderMedia
+        .map((selector) => selector.name)
+        .toSorted(),
+      selectorsWithRefsUnderSupportsNames: selectorsWithCustomPropertyRefsUnderSupports
+        .map((selector) => selector.name)
+        .toSorted(),
+      selectorsWithRefsUnderLayerNames: selectorsWithCustomPropertyRefsUnderLayer
         .map((selector) => selector.name)
         .toSorted(),
     },
@@ -813,6 +854,10 @@ function compareSassModuleUseEdges(
   const kindCompare = left.namespaceKind.localeCompare(right.namespaceKind);
   if (kindCompare !== 0) return kindCompare;
   return (left.namespace ?? "").localeCompare(right.namespace ?? "");
+}
+
+function uniqueSorted(values: readonly string[]): string[] {
+  return [...new Set(values)].toSorted((left, right) => left.localeCompare(right));
 }
 
 async function runRustSummary(filePath: string, source: string): Promise<ParserIndexSummaryV0> {
