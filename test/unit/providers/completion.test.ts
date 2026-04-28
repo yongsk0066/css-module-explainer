@@ -4,6 +4,7 @@ import { CompletionItemKind } from "vscode-languageserver-protocol/node";
 import type { CxBinding } from "../../../server/engine-core-ts/src/core/cx/cx-types";
 import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
+import { parseStyleDocument } from "../../../server/engine-core-ts/src/core/scss/scss-parser";
 import type { ProviderDeps } from "../../../server/lsp-server/src/providers/cursor-dispatch";
 import { handleCompletion } from "../../../server/lsp-server/src/providers/completion";
 import { detectClassUtilImports } from "../../../server/engine-core-ts/src/core/cx/binding-detector";
@@ -17,6 +18,8 @@ import {
 
 const SOURCE_PATH = "/fake/ws/src/Button.tsx";
 const SOURCE_URI = "file:///fake/ws/src/Button.tsx";
+const STYLE_PATH = "/fake/ws/src/Button.module.scss";
+const STYLE_URI = "file:///fake/ws/src/Button.module.scss";
 const CX_COMPLETION_WORKSPACE = workspace({
   [SOURCE_PATH]: `
 import classNames from 'classnames/bind';
@@ -141,6 +144,34 @@ const el = cx('
     );
     expect(result).toBeNull();
     expect(logError).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns CSS custom property completions inside style files", () => {
+    const styleWorkspace = workspace({
+      [STYLE_PATH]: `:root { --brand: #0af; }
+.button {
+  color: var(--br/*|*/)
+}
+`,
+    });
+    const params = completionCursor(styleWorkspace, "cursor", STYLE_PATH, STYLE_URI);
+    const styleDocument = parseStyleDocument(params.content, STYLE_PATH);
+    const result = handleCompletion(
+      params,
+      makeDeps({
+        styleDocumentForPath: () => styleDocument,
+      }),
+    );
+
+    expect(result).not.toBeNull();
+    expect(result![0]).toMatchObject({
+      label: "--brand",
+      kind: CompletionItemKind.Variable,
+      detail: "CSS custom property",
+      textEdit: {
+        newText: "--brand",
+      },
+    });
   });
 });
 

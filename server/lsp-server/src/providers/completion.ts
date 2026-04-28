@@ -41,6 +41,7 @@ function computeCompletion(params: CursorParams, deps: ProviderDeps): Completion
       styleDocument,
       styleDocumentForPath: deps.styleDocumentForPath,
       aliasResolver: deps.aliasResolver,
+      styleDependencyGraph: deps.styleDependencyGraph,
     });
     return items.length > 0 ? items.map(toStyleCompletionItem) : null;
   }
@@ -66,9 +67,10 @@ function toStyleCompletionItem(item: StyleCompletionItem): CompletionItem {
 }
 
 function toSassSymbolCompletionKind(
-  symbolKind: SassSymbolDeclHIR["symbolKind"],
+  symbolKind: SassSymbolDeclHIR["symbolKind"] | "customProperty",
 ): CompletionItemKind {
   switch (symbolKind) {
+    case "customProperty":
     case "variable":
       return CompletionItemKind.Variable;
     case "mixin":
@@ -95,14 +97,14 @@ function toCompletionItem(selector: SelectorDeclHIR): CompletionItem {
 
 /**
  * Trigger characters for the completion provider: `'`, `"`,
- * `` ` ``, `,`, `.`, `$`, and `@`.
+ * `` ` ``, `,`, `.`, `$`, `@`, and `-`.
  *
  * The `.` trigger is needed for `styles.` inside clsx/classnames
  * calls where completion must fire on the dot.
- * `$` and `@` trigger Sass variable and directive completions in
- * style files.
+ * `$`, `@`, and `-` trigger Sass/Less/custom-property completions
+ * in style files.
  */
-export const COMPLETION_TRIGGER_CHARACTERS = ["'", '"', "`", ",", ".", "$", "@"] as const;
+export const COMPLETION_TRIGGER_CHARACTERS = ["'", '"', "`", ",", ".", "$", "@", "-"] as const;
 
 /**
  * Return true when the last `<name>(` on `textBefore` is still

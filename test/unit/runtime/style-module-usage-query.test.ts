@@ -288,6 +288,9 @@ function throwingStyleDependencyGraph(): StyleDependencyGraph {
     getIncoming: () => [],
     getOutgoing: () => [],
     getIncomingSassModuleMemberRefs: () => [],
+    getAllCustomPropertyDecls: () => [],
+    getCustomPropertyDecls: () => [],
+    getCustomPropertyRefs: () => [],
   };
 }
 

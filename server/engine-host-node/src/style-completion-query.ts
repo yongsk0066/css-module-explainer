@@ -1,9 +1,11 @@
 import type { Range } from "@css-module-explainer/shared";
 import type {
+  CustomPropertyDeclHIR,
   SassSymbolDeclHIR,
   StylePreprocessorSymbolSyntax,
   StyleDocumentHIR,
 } from "../../engine-core-ts/src/core/hir/style-types";
+import type { StyleDependencyGraph } from "../../engine-core-ts/src/core/semantic";
 import {
   listSassModuleExportedSymbols,
   resolveSassModuleUseTarget,
@@ -18,10 +20,15 @@ export interface StyleCompletionItem {
   readonly filterText: string;
   readonly replacementRange: Range;
   readonly symbolSyntax?: StylePreprocessorSymbolSyntax;
-  readonly symbolKind: SassSymbolDeclHIR["symbolKind"];
+  readonly symbolKind: SassSymbolDeclHIR["symbolKind"] | "customProperty";
 }
 
 type StyleCompletionContext =
+  | {
+      readonly symbolKind: "customProperty";
+      readonly prefix: string;
+      readonly replacementStartCharacter: number;
+    }
   | {
       readonly symbolKind: "variable";
       readonly symbolSyntax?: StylePreprocessorSymbolSyntax;
@@ -43,6 +50,13 @@ interface SassSymbolCompletionDecl {
   readonly ruleRange: Range;
 }
 
+interface CustomPropertyCompletionDecl extends Pick<
+  CustomPropertyDeclHIR,
+  "name" | "range" | "ruleRange"
+> {
+  readonly symbolKind: "customProperty";
+}
+
 export function resolveStyleCompletionItems(args: {
   readonly content: string;
   readonly line: number;
@@ -50,6 +64,7 @@ export function resolveStyleCompletionItems(args: {
   readonly styleDocument: StyleDocumentHIR;
   readonly styleDocumentForPath?: (filePath: string) => StyleDocumentHIR | null;
   readonly aliasResolver?: SassModulePathAliasResolver;
+  readonly styleDependencyGraph?: StyleDependencyGraph;
 }): readonly StyleCompletionItem[] {
   const lineText = readLine(args.content, args.line);
   const linePrefix = lineText.slice(0, args.character);
@@ -60,6 +75,13 @@ export function resolveStyleCompletionItems(args: {
     start: { line: args.line, character: context.replacementStartCharacter },
     end: { line: args.line, character: args.character },
   };
+  if (context.symbolKind === "customProperty") {
+    return collectCustomPropertyCompletionDecls(args)
+      .filter((decl) => decl.name.startsWith(context.prefix))
+      .map((decl) => toCustomPropertyCompletionItem(decl, replacementRange))
+      .toSorted((a, b) => a.filterText.localeCompare(b.filterText));
+  }
+
   const candidates = collectSassSymbolCompletionDecls(
     readSassSymbolCompletionDecls(args),
     context.symbolKind,
@@ -74,6 +96,16 @@ export function resolveStyleCompletionItems(args: {
 }
 
 function readStyleCompletionContext(linePrefix: string): StyleCompletionContext | null {
+  const customProperty = /var\(\s*(--[\p{L}\p{N}\p{M}_-]*)?$/u.exec(linePrefix);
+  if (customProperty) {
+    const prefix = customProperty[1] ?? "";
+    return {
+      symbolKind: "customProperty",
+      prefix,
+      replacementStartCharacter: linePrefix.length - prefix.length,
+    };
+  }
+
   const variable = /(\$[A-Za-z0-9_-]*)$/u.exec(linePrefix);
   if (variable) {
     return {
@@ -138,6 +170,23 @@ function collectSassSymbolCompletionDecls(
     results.push(decl);
   }
   return results;
+}
+
+function collectCustomPropertyCompletionDecls(args: {
+  readonly styleDocument: StyleDocumentHIR;
+  readonly styleDependencyGraph?: StyleDependencyGraph;
+}): readonly CustomPropertyCompletionDecl[] {
+  const seen = new Set<string>();
+  const decls: CustomPropertyCompletionDecl[] = [];
+  const pushDecl = (decl: Pick<CustomPropertyDeclHIR, "name" | "range" | "ruleRange">) => {
+    if (seen.has(decl.name)) return;
+    seen.add(decl.name);
+    decls.push({ symbolKind: "customProperty", ...decl });
+  };
+
+  for (const decl of args.styleDocument.customPropertyDecls) pushDecl(decl);
+  for (const decl of args.styleDependencyGraph?.getAllCustomPropertyDecls() ?? []) pushDecl(decl);
+  return decls;
 }
 
 function readSassSymbolCompletionDecls(args: {
@@ -239,6 +288,20 @@ function makeFallbackDecl(
     },
   };
   return { ...(syntax ? { syntax } : {}), symbolKind, name, range, ruleRange: range };
+}
+
+function toCustomPropertyCompletionItem(
+  decl: CustomPropertyCompletionDecl,
+  replacementRange: Range,
+): StyleCompletionItem {
+  return {
+    label: decl.name,
+    detail: "CSS custom property",
+    insertText: decl.name,
+    filterText: decl.name,
+    replacementRange,
+    symbolKind: "customProperty",
+  };
 }
 
 function isVariableDeclVisible(

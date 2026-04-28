@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { WorkspaceStyleDependencyGraph } from "../../../server/engine-core-ts/src/core/semantic/style-dependency-graph";
 import { parseStyleDocument } from "../../../server/engine-core-ts/src/core/scss/scss-parser";
 import { resolveStyleCompletionItems } from "../../../server/engine-host-node/src/style-completion-query";
 
@@ -7,6 +8,53 @@ const THEME_PATH = "/fake/src/theme.module.scss";
 const TOKENS_PATH = "/fake/src/tokens.module.scss";
 
 describe("resolveStyleCompletionItems", () => {
+  it("returns same-file CSS custom property completions inside `var()`", () => {
+    const scss = `:root { --brand: #0af; --surface: white; }
+.button {
+  color: var(--br)
+}
+`;
+    const result = resolveStyleCompletionItems({
+      content: scss,
+      line: 2,
+      character: 17,
+      styleDocument: parseStyleDocument(scss, SCSS_PATH),
+    });
+
+    expect(result.map((item) => item.label)).toEqual(["--brand"]);
+    expect(result[0]).toMatchObject({
+      detail: "CSS custom property",
+      insertText: "--brand",
+      replacementRange: {
+        start: { line: 2, character: 13 },
+        end: { line: 2, character: 17 },
+      },
+      symbolKind: "customProperty",
+    });
+  });
+
+  it("returns workspace CSS custom property completions inside `var()`", () => {
+    const scss = `.button {
+  color: var(--)
+}
+`;
+    const tokensScss = `:root { --brand: #0af; --space: 1rem; }`;
+    const styleDocument = parseStyleDocument(scss, SCSS_PATH);
+    const tokensDocument = parseStyleDocument(tokensScss, TOKENS_PATH);
+    const styleDependencyGraph = new WorkspaceStyleDependencyGraph();
+    styleDependencyGraph.record(TOKENS_PATH, tokensDocument);
+
+    const result = resolveStyleCompletionItems({
+      content: scss,
+      line: 1,
+      character: 15,
+      styleDocument,
+      styleDependencyGraph,
+    });
+
+    expect(result.map((item) => item.label)).toEqual(["--brand", "--space"]);
+  });
+
   it("returns same-file Sass variable completions after `$`", () => {
     const scss = `$gap: 1rem;
 @mixin raised($depth) {

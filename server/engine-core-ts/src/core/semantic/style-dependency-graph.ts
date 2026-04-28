@@ -82,6 +82,7 @@ export interface StyleDependencyGraph {
     symbolKind: SassSymbolKind,
     name: string,
   ): readonly SassModuleMemberDependencyRef[];
+  getAllCustomPropertyDecls(): readonly CustomPropertyDependencyDecl[];
   getCustomPropertyDecls(name: string): readonly CustomPropertyDependencyDecl[];
   getCustomPropertyRefs(name: string): readonly CustomPropertyDependencyRef[];
 }
@@ -148,6 +149,12 @@ export class WorkspaceStyleDependencyGraph implements StyleDependencyGraph {
     name: string,
   ): readonly SassModuleMemberDependencyRef[] {
     return this.incomingSassModuleMembers.get(sassMemberKey(filePath, symbolKind, name)) ?? [];
+  }
+
+  getAllCustomPropertyDecls(): readonly CustomPropertyDependencyDecl[] {
+    return [...this.customPropertyDecls.values()]
+      .flat()
+      .toSorted(compareCustomPropertyDependencyDecls);
   }
 
   getCustomPropertyDecls(name: string): readonly CustomPropertyDependencyDecl[] {
@@ -327,6 +334,20 @@ function collectCustomPropertyDecls(
     range: decl.range,
     ruleRange: decl.ruleRange,
   }));
+}
+
+function compareCustomPropertyDependencyDecls(
+  left: CustomPropertyDependencyDecl,
+  right: CustomPropertyDependencyDecl,
+): number {
+  const nameCompare = left.name.localeCompare(right.name);
+  if (nameCompare !== 0) return nameCompare;
+  const fileCompare = left.filePath.localeCompare(right.filePath);
+  if (fileCompare !== 0) return fileCompare;
+  if (left.range.start.line !== right.range.start.line) {
+    return left.range.start.line - right.range.start.line;
+  }
+  return left.range.start.character - right.range.start.character;
 }
 
 function collectCustomPropertyRefs(
