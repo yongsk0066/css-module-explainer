@@ -2,8 +2,12 @@ import type { CodeLens, CodeLensParams } from "vscode-languageserver/node";
 import type { ShowReferencesArgs } from "@css-module-explainer/shared";
 import { findLangForPath } from "../../../engine-core-ts/src/core/scss/lang-registry";
 import { fileUrlToPath } from "../../../engine-core-ts/src/core/util/text-utils";
-import { resolveStyleReferenceLenses } from "../../../engine-host-node/src/style-reference-lens-query";
+import {
+  resolveStyleReferenceLenses,
+  resolveStyleReferenceLensesAsync,
+} from "../../../engine-host-node/src/style-reference-lens-query";
 import { wrapHandler } from "./_wrap-handler";
+import { getRustSelectedQueryBackendJsonRunnerAsync } from "./selected-query-runner";
 
 /**
  * Handle `textDocument/codeLens` on `.module.{scss,css}` files.
@@ -26,6 +30,16 @@ export const handleCodeLens = wrapHandler<CodeLensParams, [], CodeLens[] | null>
 
     const styleDocument = deps.styleDocumentForPath(filePath);
     if (!styleDocument) return null;
+
+    const rustRunner = getRustSelectedQueryBackendJsonRunnerAsync(deps);
+    if (rustRunner) {
+      return resolveStyleReferenceLensesAsync(filePath, styleDocument, deps, {
+        runRustSelectedQueryBackendJsonAsync: rustRunner,
+      }).then((lenses) => {
+        const codeLenses = lenses.map<CodeLens>((lens) => buildLens(params.textDocument.uri, lens));
+        return codeLenses.length > 0 ? codeLenses : null;
+      });
+    }
 
     const lenses = resolveStyleReferenceLenses(filePath, styleDocument, deps).map<CodeLens>(
       (lens) => buildLens(params.textDocument.uri, lens),

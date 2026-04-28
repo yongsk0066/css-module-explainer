@@ -5,6 +5,7 @@ import {
   WorkspaceStyleDependencyGraph,
 } from "../../../engine-core-ts/src/core/semantic";
 import type { StyleSemanticGraphCache } from "../style-semantic-graph-query-backend";
+import type { SelectorUsagePayloadCache } from "../selector-usage-query-backend";
 
 export interface SharedRuntimeCaches {
   readonly sourceFileCache: SourceFileCache;
@@ -12,6 +13,7 @@ export interface SharedRuntimeCaches {
   readonly semanticReferenceIndex: WorkspaceSemanticWorkspaceReferenceIndex;
   readonly styleDependencyGraph: WorkspaceStyleDependencyGraph;
   readonly styleSemanticGraphCache: StyleSemanticGraphCache;
+  readonly selectorUsagePayloadCache: SelectorUsagePayloadCache;
 }
 
 export function buildSharedRuntimeCaches(): SharedRuntimeCaches {
@@ -21,5 +23,6 @@ export function buildSharedRuntimeCaches(): SharedRuntimeCaches {
     semanticReferenceIndex: new WorkspaceSemanticWorkspaceReferenceIndex(),
     styleDependencyGraph: new WorkspaceStyleDependencyGraph(),
     styleSemanticGraphCache: new Map(),
+    selectorUsagePayloadCache: new Map(),
   };
 }

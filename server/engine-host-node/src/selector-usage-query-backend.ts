@@ -6,10 +6,15 @@ import {
   resolveWorkspaceCheckFilesSync,
 } from "./checker-host/workspace-check-support";
 import {
+  isEngineShadowRunnerCancelledError,
   SELECTED_QUERY_RUNNER_COMMANDS,
   runRustSelectedQueryBackendJson,
+  runRustSelectedQueryBackendJsonAsync,
+  type RustSelectedQueryBackendJsonRunnerAsync,
 } from "./selected-query-backend";
 import type { BuildSelectedQueryResultsV2Options } from "./engine-query-v2";
+
+export type SelectorUsagePayloadCache = Map<string, readonly SelectorUsageEvaluatorCandidateV0[]>;
 
 type SelectorUsageQueryBackendOptions = Pick<
   BuildSelectedQueryResultsV2Options,
@@ -84,11 +89,42 @@ export function resolveRustSelectorUsagePayloads(
     styleDocumentForPath: options.styleDocumentForPath,
     typeResolver: options.typeResolver,
   });
-  const signal = runRustSelectedQueryBackendJson<SelectorUsageCanonicalProducerSignalV0>(
-    SELECTED_QUERY_RUNNER_COMMANDS.selectorUsageCanonicalProducer,
-    input,
-  );
-  return signal.evaluatorCandidates.results;
+  try {
+    const signal = runRustSelectedQueryBackendJson<SelectorUsageCanonicalProducerSignalV0>(
+      SELECTED_QUERY_RUNNER_COMMANDS.selectorUsageCanonicalProducer,
+      input,
+    );
+    return signal.evaluatorCandidates.results;
+  } catch (err) {
+    if (isEngineShadowRunnerCancelledError(err)) return [];
+    throw err;
+  }
+}
+
+export async function resolveRustSelectorUsagePayloadsAsync(
+  options: SelectorUsageQueryBackendOptions,
+  runJson: RustSelectedQueryBackendJsonRunnerAsync = runRustSelectedQueryBackendJsonAsync,
+): Promise<readonly SelectorUsageEvaluatorCandidateV0[]> {
+  const input = buildEngineInputV2({
+    workspaceRoot: options.workspaceRoot,
+    classnameTransform: options.classnameTransform,
+    pathAlias: options.pathAlias,
+    sourceDocuments: options.sourceDocuments,
+    styleFiles: options.styleFiles,
+    analysisCache: options.analysisCache,
+    styleDocumentForPath: options.styleDocumentForPath,
+    typeResolver: options.typeResolver,
+  });
+  try {
+    const signal = await runJson<SelectorUsageCanonicalProducerSignalV0>(
+      SELECTED_QUERY_RUNNER_COMMANDS.selectorUsageCanonicalProducer,
+      input,
+    );
+    return signal.evaluatorCandidates.results;
+  } catch (err) {
+    if (isEngineShadowRunnerCancelledError(err)) return [];
+    throw err;
+  }
 }
 
 export function resolveRustSelectorUsagePayload(
@@ -102,6 +138,88 @@ export function resolveRustSelectorUsagePayload(
   return match?.payload ?? null;
 }
 
+export async function resolveRustSelectorUsagePayloadAsync(
+  options: SelectorUsageQueryBackendOptions,
+  filePath: string,
+  canonicalName: string,
+  runJson?: RustSelectedQueryBackendJsonRunnerAsync,
+): Promise<SelectorUsageEvaluatorCandidatePayloadV0 | null> {
+  const match = (await resolveRustSelectorUsagePayloadsAsync(options, runJson)).find(
+    (candidate) => candidate.filePath === filePath && candidate.queryId === canonicalName,
+  );
+  return match?.payload ?? null;
+}
+
+export function resolveRustSelectorUsagePayloadsForWorkspaceTarget(
+  args: {
+    readonly workspaceRoot: string;
+    readonly classnameTransform: BuildSelectedQueryResultsV2Options["classnameTransform"];
+    readonly pathAlias: BuildSelectedQueryResultsV2Options["pathAlias"];
+  },
+  deps: Pick<ProviderDeps, "analysisCache" | "styleDocumentForPath" | "typeResolver">,
+  filePath: string,
+  cache?: SelectorUsagePayloadCache,
+): readonly SelectorUsageEvaluatorCandidateV0[] {
+  const cacheKey = selectorUsagePayloadCacheKey(args, filePath);
+  const cached = cache?.get(cacheKey);
+  if (cached) return cached;
+
+  const { sourceFiles, styleFiles } = resolveWorkspaceCheckFilesSync({
+    workspaceRoot: args.workspaceRoot,
+  });
+  const sourceDocuments = collectSourceDocuments(sourceFiles, deps.analysisCache);
+  const payloads = resolveRustSelectorUsagePayloads({
+    workspaceRoot: args.workspaceRoot,
+    classnameTransform: args.classnameTransform,
+    pathAlias: args.pathAlias,
+    sourceDocuments,
+    styleFiles,
+    analysisCache: deps.analysisCache,
+    styleDocumentForPath: deps.styleDocumentForPath,
+    typeResolver: deps.typeResolver,
+  }).filter((candidate) => candidate.filePath === filePath);
+  if (payloads.length > 0) cache?.set(cacheKey, payloads);
+  return payloads;
+}
+
+export async function resolveRustSelectorUsagePayloadsForWorkspaceTargetAsync(
+  args: {
+    readonly workspaceRoot: string;
+    readonly classnameTransform: BuildSelectedQueryResultsV2Options["classnameTransform"];
+    readonly pathAlias: BuildSelectedQueryResultsV2Options["pathAlias"];
+  },
+  deps: Pick<ProviderDeps, "analysisCache" | "styleDocumentForPath" | "typeResolver">,
+  filePath: string,
+  cache?: SelectorUsagePayloadCache,
+  runJson?: RustSelectedQueryBackendJsonRunnerAsync,
+): Promise<readonly SelectorUsageEvaluatorCandidateV0[]> {
+  const cacheKey = selectorUsagePayloadCacheKey(args, filePath);
+  const cached = cache?.get(cacheKey);
+  if (cached) return cached;
+
+  const { sourceFiles, styleFiles } = resolveWorkspaceCheckFilesSync({
+    workspaceRoot: args.workspaceRoot,
+  });
+  const sourceDocuments = collectSourceDocuments(sourceFiles, deps.analysisCache);
+  const payloads = (
+    await resolveRustSelectorUsagePayloadsAsync(
+      {
+        workspaceRoot: args.workspaceRoot,
+        classnameTransform: args.classnameTransform,
+        pathAlias: args.pathAlias,
+        sourceDocuments,
+        styleFiles,
+        analysisCache: deps.analysisCache,
+        styleDocumentForPath: deps.styleDocumentForPath,
+        typeResolver: deps.typeResolver,
+      },
+      runJson,
+    )
+  ).filter((candidate) => candidate.filePath === filePath);
+  if (payloads.length > 0) cache?.set(cacheKey, payloads);
+  return payloads;
+}
+
 export function resolveRustSelectorUsagePayloadForWorkspaceTarget(
   args: {
     readonly workspaceRoot: string;
@@ -111,25 +229,54 @@ export function resolveRustSelectorUsagePayloadForWorkspaceTarget(
   deps: Pick<ProviderDeps, "analysisCache" | "styleDocumentForPath" | "typeResolver">,
   filePath: string,
   canonicalName: string,
+  cache?: SelectorUsagePayloadCache,
 ): SelectorUsageEvaluatorCandidatePayloadV0 | null {
-  const { sourceFiles, styleFiles } = resolveWorkspaceCheckFilesSync({
-    workspaceRoot: args.workspaceRoot,
-  });
-  const sourceDocuments = collectSourceDocuments(sourceFiles, deps.analysisCache);
-  return resolveRustSelectorUsagePayload(
-    {
-      workspaceRoot: args.workspaceRoot,
-      classnameTransform: args.classnameTransform,
-      pathAlias: args.pathAlias,
-      sourceDocuments,
-      styleFiles,
-      analysisCache: deps.analysisCache,
-      styleDocumentForPath: deps.styleDocumentForPath,
-      typeResolver: deps.typeResolver,
-    },
+  const match = resolveRustSelectorUsagePayloadsForWorkspaceTarget(
+    args,
+    deps,
     filePath,
-    canonicalName,
-  );
+    cache,
+  ).find((candidate) => candidate.queryId === canonicalName);
+  return match?.payload ?? null;
+}
+
+export async function resolveRustSelectorUsagePayloadForWorkspaceTargetAsync(
+  args: {
+    readonly workspaceRoot: string;
+    readonly classnameTransform: BuildSelectedQueryResultsV2Options["classnameTransform"];
+    readonly pathAlias: BuildSelectedQueryResultsV2Options["pathAlias"];
+  },
+  deps: Pick<ProviderDeps, "analysisCache" | "styleDocumentForPath" | "typeResolver">,
+  filePath: string,
+  canonicalName: string,
+  cache?: SelectorUsagePayloadCache,
+  runJson?: RustSelectedQueryBackendJsonRunnerAsync,
+): Promise<SelectorUsageEvaluatorCandidatePayloadV0 | null> {
+  const match = (
+    await resolveRustSelectorUsagePayloadsForWorkspaceTargetAsync(
+      args,
+      deps,
+      filePath,
+      cache,
+      runJson,
+    )
+  ).find((candidate) => candidate.queryId === canonicalName);
+  return match?.payload ?? null;
+}
+
+function selectorUsagePayloadCacheKey(
+  args: {
+    readonly workspaceRoot: string;
+    readonly classnameTransform: BuildSelectedQueryResultsV2Options["classnameTransform"];
+    readonly pathAlias: BuildSelectedQueryResultsV2Options["pathAlias"];
+  },
+  filePath: string,
+): string {
+  const pathAliasKey = Object.entries(args.pathAlias)
+    .toSorted(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${key}=${value}`)
+    .join("|");
+  return [args.workspaceRoot, args.classnameTransform, pathAliasKey, filePath].join("\0");
 }
 
 export function buildSelectorUsageRenderSummaryFromRustPayload(

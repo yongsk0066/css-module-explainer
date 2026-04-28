@@ -4,6 +4,7 @@ import path from "node:path";
 import {
   isPackagedExtensionRuntime,
   resolveSelectedQueryBackendKind,
+  shouldUseEngineShadowRunnerDaemon,
 } from "../server/engine-host-node/src/selected-query-backend";
 
 const repoRoot = process.cwd();
@@ -94,6 +95,19 @@ if (autoBackend !== "rust-selected-query") {
   throw new Error(`Expected packaged auto backend rust-selected-query, got ${autoBackend}`);
 }
 
+if (!shouldUseEngineShadowRunnerDaemon(packagedEnv, fileExists)) {
+  throw new Error("Expected packaged Rust selected-query runtime to use daemon by default");
+}
+
+if (
+  shouldUseEngineShadowRunnerDaemon(
+    { ...packagedEnv, CME_ENGINE_SHADOW_RUNNER_DAEMON: "0" },
+    fileExists,
+  )
+) {
+  throw new Error("Expected explicit CME_ENGINE_SHADOW_RUNNER_DAEMON=0 to disable daemon usage");
+}
+
 const explicitTypescriptBackend = resolveSelectedQueryBackendKind(
   { ...packagedEnv, CME_SELECTED_QUERY_BACKEND: "typescript-current" },
   fileExists,
@@ -104,7 +118,7 @@ if (explicitTypescriptBackend !== "typescript-current") {
   );
 }
 
-console.log(`Packaged selected-query default ok: ${vsixFile} -> ${defaultBackend}`);
+console.log(`Packaged selected-query default ok: ${vsixFile} -> ${defaultBackend} daemon=on`);
 
 function readVsixEntries(filePath: string): ReadonlySet<string> {
   const output = execFileSync("unzip", ["-Z1", filePath], {

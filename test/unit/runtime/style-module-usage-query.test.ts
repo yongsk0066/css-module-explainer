@@ -101,6 +101,43 @@ describe("style module usage query", () => {
     ]);
   });
 
+  it("reads rust selector-usage payloads once per style file", () => {
+    const styleDocument = buildStyleDocumentFromSelectorMap(
+      SCSS_PATH,
+      new Map([
+        ["indicator", infoAtLine("indicator", 1)],
+        ["active", infoAtLine("active", 3)],
+      ]),
+    );
+    const deps = makeBaseDeps({
+      selectorMapForPath: () =>
+        new Map([
+          ["indicator", infoAtLine("indicator", 1)],
+          ["active", infoAtLine("active", 3)],
+        ]),
+      workspaceRoot: "/fake/ws",
+    });
+    let payloadReads = 0;
+
+    const unused = resolveUnusedStyleSelectors({ scssPath: SCSS_PATH, styleDocument }, deps, {
+      env: { CME_SELECTED_QUERY_BACKEND: "rust-selector-usage" } as NodeJS.ProcessEnv,
+      readRustSelectorUsagePayloadsForWorkspaceTarget: () => {
+        payloadReads += 1;
+        return [
+          makeSelectorUsageCandidate("indicator", true),
+          makeSelectorUsageCandidate("active", false),
+        ];
+      },
+    });
+
+    expect(payloadReads).toBe(1);
+    expect(unused).toEqual([
+      expect.objectContaining({
+        canonicalName: "active",
+      }),
+    ]);
+  });
+
   it("uses rust style semantic graph references before selector-usage payloads", () => {
     const styleDocument = buildStyleDocumentFromSelectorMap(
       SCSS_PATH,
@@ -357,5 +394,53 @@ function makeSelectorReferenceSummary(localName: string, hasAnyReferences: boole
           },
         ]
       : [],
+  };
+}
+
+function makeSelectorUsageCandidate(canonicalName: string, hasAnyReferences: boolean) {
+  const referenceCount = hasAnyReferences ? 1 : 0;
+  return {
+    kind: "selector-usage" as const,
+    filePath: SCSS_PATH,
+    queryId: canonicalName,
+    payload: {
+      canonicalName,
+      totalReferences: referenceCount,
+      directReferenceCount: referenceCount,
+      editableDirectReferenceCount: referenceCount,
+      exactReferenceCount: referenceCount,
+      inferredOrBetterReferenceCount: referenceCount,
+      hasExpandedReferences: false,
+      hasStyleDependencyReferences: false,
+      hasAnyReferences,
+      ...(hasAnyReferences
+        ? {
+            allSites: [
+              {
+                filePath: "/fake/ws/src/App.tsx",
+                range: {
+                  start: { line: 12, character: 8 },
+                  end: { line: 12, character: 17 },
+                },
+                expansion: "direct",
+                referenceKind: "source",
+              },
+            ],
+            editableDirectSites: [
+              {
+                filePath: "/fake/ws/src/App.tsx",
+                range: {
+                  start: { line: 12, character: 8 },
+                  end: { line: 12, character: 17 },
+                },
+                className: canonicalName,
+              },
+            ],
+          }
+        : {
+            allSites: [],
+            editableDirectSites: [],
+          }),
+    },
   };
 }

@@ -9,6 +9,7 @@ import {
   type StyleSemanticGraphSummaryV0,
   type StyleSemanticGraphRunnerInputV0,
 } from "../../../server/engine-host-node/src/style-semantic-graph-query-backend";
+import { EngineShadowRunnerCancelledError } from "../../../server/engine-host-node/src/selected-query-backend";
 import { infoAtLine, makeBaseDeps } from "../../_fixtures/test-helpers";
 import { buildStyleDocumentFromSelectorMap } from "../../_fixtures/style-documents";
 
@@ -343,6 +344,86 @@ describe("style semantic graph query backend", () => {
     expect(cardGraph?.selectorReferenceEngine.stylePath).toBe(CARD_SCSS_PATH);
   });
 
+  it("builds one workspace engine input for cached multi-style workspace target reads", () => {
+    const deps = makeBaseDeps({
+      selectorMapForPath: (filePath) =>
+        filePath === SCSS_PATH
+          ? new Map([["button", infoAtLine("button", 1)]])
+          : filePath === CARD_SCSS_PATH
+            ? new Map([["card", infoAtLine("card", 1)]])
+            : null,
+      readStyleFile: (filePath) =>
+        filePath === SCSS_PATH
+          ? SCSS_SOURCE
+          : filePath === CARD_SCSS_PATH
+            ? CARD_SCSS_SOURCE
+            : null,
+      workspaceRoot: "/fake/ws",
+    });
+    const styleSemanticGraphCache = new Map<string, StyleSemanticGraphSummaryV0 | null>();
+    const commands: string[] = [];
+    let batchInput: StyleSemanticGraphBatchRunnerInputV0 | null = null;
+    const queryOptions = {
+      sourceDocuments: [],
+      styleFiles: [SCSS_PATH, CARD_SCSS_PATH],
+      styleSemanticGraphCache,
+      runRustSelectedQueryBackendJson: <T>(command: string, input: unknown): T => {
+        commands.push(command);
+        if (command !== "style-semantic-graph-batch") {
+          throw new Error(`unexpected runner command: ${command}`);
+        }
+        batchInput = input as StyleSemanticGraphBatchRunnerInputV0;
+        return {
+          schemaVersion: "0",
+          product: "omena-semantic.style-semantic-graph-batch",
+          graphs: [
+            { stylePath: SCSS_PATH, graph: makeGraph(SCSS_PATH) },
+            { stylePath: CARD_SCSS_PATH, graph: makeGraph(CARD_SCSS_PATH) },
+          ],
+        } as T;
+      },
+    };
+
+    const buttonGraph = resolveRustStyleSemanticGraphForWorkspaceTarget(
+      {
+        workspaceRoot: "/fake/ws",
+        classnameTransform: DEFAULT_SETTINGS.scss.classnameTransform,
+        pathAlias: DEFAULT_SETTINGS.pathAlias,
+      },
+      {
+        analysisCache: deps.analysisCache,
+        styleDocumentForPath: deps.styleDocumentForPath,
+        typeResolver: deps.typeResolver,
+        readStyleFile: deps.readStyleFile,
+      },
+      SCSS_PATH,
+      queryOptions,
+    );
+    const cardGraph = resolveRustStyleSemanticGraphForWorkspaceTarget(
+      {
+        workspaceRoot: "/fake/ws",
+        classnameTransform: DEFAULT_SETTINGS.scss.classnameTransform,
+        pathAlias: DEFAULT_SETTINGS.pathAlias,
+      },
+      {
+        analysisCache: deps.analysisCache,
+        styleDocumentForPath: deps.styleDocumentForPath,
+        typeResolver: deps.typeResolver,
+        readStyleFile: deps.readStyleFile,
+      },
+      CARD_SCSS_PATH,
+      queryOptions,
+    );
+
+    expect(commands).toEqual(["style-semantic-graph-batch"]);
+    expect(batchInput?.engineInput.styles.map((style) => style.filePath)).toEqual([
+      SCSS_PATH,
+      CARD_SCSS_PATH,
+    ]);
+    expect(buttonGraph?.selectorReferenceEngine.stylePath).toBe(SCSS_PATH);
+    expect(cardGraph?.selectorReferenceEngine.stylePath).toBe(CARD_SCSS_PATH);
+  });
+
   it("falls back to single graph reads when batch output omits the exact target path", () => {
     const deps = makeBaseDeps({
       selectorMapForPath: (filePath) =>
@@ -395,6 +476,59 @@ describe("style semantic graph query backend", () => {
 
     expect(commands).toEqual(["style-semantic-graph-batch", "style-semantic-graph"]);
     expect(graph?.selectorReferenceEngine.stylePath).toBe(SCSS_PATH);
+  });
+
+  it("treats cancelled batch graph reads as no graph instead of retrying per target", () => {
+    const deps = makeBaseDeps({
+      selectorMapForPath: (filePath) =>
+        filePath === SCSS_PATH
+          ? new Map([["button", infoAtLine("button", 1)]])
+          : filePath === CARD_SCSS_PATH
+            ? new Map([["card", infoAtLine("card", 1)]])
+            : null,
+      readStyleFile: (filePath) =>
+        filePath === SCSS_PATH
+          ? SCSS_SOURCE
+          : filePath === CARD_SCSS_PATH
+            ? CARD_SCSS_SOURCE
+            : null,
+      workspaceRoot: "/fake/ws",
+    });
+    const commands: string[] = [];
+    const styleSemanticGraphCache = new Map<string, StyleSemanticGraphSummaryV0 | null>();
+
+    const graph = resolveRustStyleSemanticGraphForWorkspaceTarget(
+      {
+        workspaceRoot: "/fake/ws",
+        classnameTransform: DEFAULT_SETTINGS.scss.classnameTransform,
+        pathAlias: DEFAULT_SETTINGS.pathAlias,
+      },
+      {
+        analysisCache: deps.analysisCache,
+        styleDocumentForPath: deps.styleDocumentForPath,
+        typeResolver: deps.typeResolver,
+        readStyleFile: deps.readStyleFile,
+      },
+      SCSS_PATH,
+      {
+        sourceDocuments: [],
+        styleFiles: [SCSS_PATH, CARD_SCSS_PATH],
+        styleSemanticGraphCache,
+        runRustSelectedQueryBackendJson: (command: string): never => {
+          commands.push(command);
+          throw new EngineShadowRunnerCancelledError("SIGTERM", {
+            command: "engine-shadow-runner",
+            args: [command],
+            cwd: "/fake/ws",
+          });
+        },
+      },
+    );
+
+    expect(graph).toBeNull();
+    expect(commands).toEqual(["style-semantic-graph-batch"]);
+    expect(styleSemanticGraphCache.get(SCSS_PATH)).toBeNull();
+    expect(styleSemanticGraphCache.get(CARD_SCSS_PATH)).toBeNull();
   });
 });
 

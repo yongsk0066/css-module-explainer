@@ -7,6 +7,8 @@ import { findInvalidClassReference } from "../../engine-core-ts/src/core/query";
 import type { DocumentParams, ProviderDeps } from "../../engine-core-ts/src/provider-deps";
 import {
   buildExpressionSemanticsSummaryFromRustPayload,
+  resolveRustExpressionSemanticsPayloadAsync,
+  resolveRustExpressionSemanticsPayloadsAsync,
   resolveRustExpressionSemanticsPayloads,
   type ExpressionSemanticsEvaluatorCandidatePayloadV0,
   type resolveRustExpressionSemanticsPayload,
@@ -15,11 +17,15 @@ import {
   resolveSelectedQueryBackendKind,
   usesRustExpressionSemanticsBackend,
 } from "./selected-query-backend";
+import type { RustSelectedQueryBackendJsonRunnerAsync } from "./selected-query-backend";
 
 export interface SourceDiagnosticsQueryOptions {
   readonly env?: NodeJS.ProcessEnv;
   readonly readRustExpressionSemanticsPayload?: typeof resolveRustExpressionSemanticsPayload;
   readonly readRustExpressionSemanticsPayloads?: typeof resolveRustExpressionSemanticsPayloads;
+  readonly readRustExpressionSemanticsPayloadAsync?: typeof resolveRustExpressionSemanticsPayloadAsync;
+  readonly readRustExpressionSemanticsPayloadsAsync?: typeof resolveRustExpressionSemanticsPayloadsAsync;
+  readonly runRustSelectedQueryBackendJsonAsync?: RustSelectedQueryBackendJsonRunnerAsync;
 }
 
 export function resolveSourceDiagnosticFindings(
@@ -41,6 +47,43 @@ export function resolveSourceDiagnosticFindings(
       params,
       deps,
       createRustExpressionSemanticsPayloadReader(params, deps, options),
+    );
+  }
+
+  return checkSourceDocument(
+    params,
+    {
+      analysisCache: deps.analysisCache,
+      styleDocumentForPath: deps.styleDocumentForPath,
+      typeResolver: deps.typeResolver,
+      workspaceRoot: deps.workspaceRoot,
+    },
+    {
+      includeMissingModule: deps.settings.diagnostics.missingModule,
+      logError: deps.logError,
+    },
+  );
+}
+
+export async function resolveSourceDiagnosticFindingsAsync(
+  params: DocumentParams,
+  deps: Pick<
+    ProviderDeps,
+    | "analysisCache"
+    | "styleDocumentForPath"
+    | "typeResolver"
+    | "workspaceRoot"
+    | "settings"
+    | "logError"
+  >,
+  options: SourceDiagnosticsQueryOptions = {},
+): Promise<readonly SourceCheckerFinding[]> {
+  const selectedQueryBackend = resolveSelectedQueryBackendKind(options.env);
+  if (usesRustExpressionSemanticsBackend(selectedQueryBackend)) {
+    return resolveSourceDiagnosticFindingsViaRustSemanticsAsync(
+      params,
+      deps,
+      createRustExpressionSemanticsPayloadReaderAsync(params, deps, options),
     );
   }
 
@@ -209,6 +252,161 @@ function resolveSourceDiagnosticFindingsViaRustSemantics(
   return findings;
 }
 
+async function resolveSourceDiagnosticFindingsViaRustSemanticsAsync(
+  params: DocumentParams,
+  deps: Pick<
+    ProviderDeps,
+    | "analysisCache"
+    | "styleDocumentForPath"
+    | "typeResolver"
+    | "workspaceRoot"
+    | "settings"
+    | "logError"
+  >,
+  readRustSemanticsPayload: (
+    document: Parameters<typeof resolveRustExpressionSemanticsPayloadAsync>[0],
+    expressionId: string,
+    scssModulePath: string,
+    deps: Parameters<typeof resolveRustExpressionSemanticsPayloadAsync>[3],
+  ) => Promise<ExpressionSemanticsEvaluatorCandidatePayloadV0 | null>,
+): Promise<readonly SourceCheckerFinding[]> {
+  const entry = deps.analysisCache.get(
+    params.documentUri,
+    params.content,
+    params.filePath,
+    params.version,
+  );
+  const findings: SourceCheckerFinding[] = [];
+
+  if (deps.settings.diagnostics.missingModule) {
+    for (const imp of entry.stylesBindings.values()) {
+      if (imp.kind !== "missing") continue;
+      findings.push({
+        category: "source",
+        code: "missing-module",
+        severity: "warning",
+        range: imp.range,
+        specifier: imp.specifier,
+        absolutePath: imp.absolutePath,
+      });
+    }
+  }
+
+  for (const expression of entry.sourceDocument.classExpressions) {
+    if (expression.origin !== "cxCall") continue;
+    try {
+      const styleDocument = deps.styleDocumentForPath(expression.scssModulePath);
+      if (!styleDocument) continue;
+
+      if (expression.kind !== "symbolRef") {
+        const finding = findInvalidClassReference(expression, entry.sourceFile, styleDocument, {
+          typeResolver: deps.typeResolver,
+          filePath: params.filePath,
+          workspaceRoot: deps.workspaceRoot,
+          sourceBinder: entry.sourceBinder,
+          sourceBindingGraph: entry.sourceBindingGraph,
+        });
+        if (!finding) continue;
+        findings.push(mapInvalidClassFinding(finding, styleDocument.filePath));
+        continue;
+      }
+
+      const fallbackFinding = createFallbackFindingReader({
+        expression,
+        sourceFile: entry.sourceFile,
+        styleDocument,
+        sourceBinder: entry.sourceBinder,
+        sourceBindingGraph: entry.sourceBindingGraph,
+        deps,
+        filePath: params.filePath,
+      });
+      const payload = await readRustSemanticsPayload(
+        {
+          uri: params.documentUri,
+          content: params.content,
+          filePath: params.filePath,
+          version: params.version,
+        },
+        expression.id,
+        expression.scssModulePath,
+        deps,
+      );
+      if (!payload || !payload.styleFilePath) {
+        const fallback = fallbackFinding();
+        if (fallback) {
+          findings.push(mapInvalidClassFinding(fallback, styleDocument.filePath));
+        }
+        continue;
+      }
+
+      const payloadStyleDocument = deps.styleDocumentForPath(payload.styleFilePath);
+      if (!payloadStyleDocument) {
+        const fallback = fallbackFinding();
+        if (fallback) {
+          findings.push(mapInvalidClassFinding(fallback, styleDocument.filePath));
+        }
+        continue;
+      }
+      const selectors =
+        payloadStyleDocument.selectors.filter((selector) =>
+          payload.selectorNames.includes(selector.name),
+        ) ?? [];
+      const semantics = buildExpressionSemanticsSummaryFromRustPayload(
+        expression,
+        payloadStyleDocument,
+        selectors,
+        payload,
+      );
+      if (!semantics.abstractValue || !semantics.reason || !semantics.valueCertainty) {
+        const fallback = fallbackFinding();
+        if (fallback) {
+          findings.push(mapInvalidClassFinding(fallback, styleDocument.filePath));
+        }
+        continue;
+      }
+
+      const finiteValues =
+        semantics.finiteValues ?? enumerateFiniteClassValues(semantics.abstractValue);
+      if (!finiteValues) {
+        if (semantics.selectors.length > 0) continue;
+        findings.push({
+          category: "source",
+          code: "missing-resolved-class-domain",
+          severity: "warning",
+          range: expression.range,
+          scssModulePath: payloadStyleDocument.filePath,
+          abstractValue: semantics.abstractValue,
+          valueCertainty: semantics.valueCertainty,
+          selectorCertainty: semantics.selectorCertainty,
+          reason: semantics.reason,
+        });
+        continue;
+      }
+
+      const missingValues = finiteValues.filter(
+        (value) => !payloadStyleDocument.selectors.some((selector) => selector.name === value),
+      );
+      if (missingValues.length === 0) continue;
+      findings.push({
+        category: "source",
+        code: "missing-resolved-class-values",
+        severity: "warning",
+        range: expression.range,
+        scssModulePath: payloadStyleDocument.filePath,
+        missingValues,
+        abstractValue: semantics.abstractValue,
+        valueCertainty: semantics.valueCertainty,
+        selectorCertainty: semantics.selectorCertainty,
+        reason: semantics.reason,
+      });
+    } catch (err) {
+      deps.logError("diagnostics per-call validation failed", err);
+    }
+  }
+
+  return findings;
+}
+
 function createRustExpressionSemanticsPayloadReader(
   params: DocumentParams,
   deps: Pick<
@@ -248,6 +446,53 @@ function createRustExpressionSemanticsPayloadReader(
     }
 
     return payloadsByExpressionId.get(expressionId) ?? null;
+  };
+}
+
+function createRustExpressionSemanticsPayloadReaderAsync(
+  params: DocumentParams,
+  deps: Pick<
+    ProviderDeps,
+    "analysisCache" | "styleDocumentForPath" | "typeResolver" | "workspaceRoot" | "settings"
+  >,
+  options: SourceDiagnosticsQueryOptions,
+): (
+  document: Parameters<typeof resolveRustExpressionSemanticsPayloadAsync>[0],
+  expressionId: string,
+  scssModulePath: string,
+  deps: Parameters<typeof resolveRustExpressionSemanticsPayloadAsync>[3],
+) => Promise<ExpressionSemanticsEvaluatorCandidatePayloadV0 | null> {
+  if (options.readRustExpressionSemanticsPayloadAsync) {
+    return options.readRustExpressionSemanticsPayloadAsync;
+  }
+
+  const readPayloads =
+    options.readRustExpressionSemanticsPayloadsAsync ?? resolveRustExpressionSemanticsPayloadsAsync;
+  const payloadsByStylePath = new Map<
+    string,
+    Promise<ReadonlyMap<string, ExpressionSemanticsEvaluatorCandidatePayloadV0>>
+  >();
+
+  return async (_document, expressionId, scssModulePath) => {
+    let payloadsByExpressionId = payloadsByStylePath.get(scssModulePath);
+    if (!payloadsByExpressionId) {
+      payloadsByExpressionId = readPayloads(
+        {
+          uri: params.documentUri,
+          content: params.content,
+          filePath: params.filePath,
+          version: params.version,
+        },
+        scssModulePath,
+        deps,
+        options.runRustSelectedQueryBackendJsonAsync,
+      ).then(
+        (payloads) => new Map(payloads.map((payload) => [payload.expressionId, payload] as const)),
+      );
+      payloadsByStylePath.set(scssModulePath, payloadsByExpressionId);
+    }
+
+    return (await payloadsByExpressionId).get(expressionId) ?? null;
   };
 }
 

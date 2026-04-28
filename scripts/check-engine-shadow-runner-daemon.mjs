@@ -1,0 +1,202 @@
+import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import path from "node:path";
+
+const repoRoot = process.cwd();
+const rustManifest = path.join(repoRoot, "rust/Cargo.toml");
+const stylePath = "/tmp/DaemonSmoke.module.scss";
+const sourcePath = "/tmp/DaemonSmoke.tsx";
+
+const engineInput = {
+  version: "2",
+  sources: [
+    {
+      document: {
+        classExpressions: [
+          {
+            id: "expr:button",
+            kind: "literal",
+            scssModulePath: stylePath,
+            range: range(4, 12, 4, 20),
+            className: "button",
+            rootBindingDeclId: null,
+            accessPath: null,
+          },
+        ],
+      },
+    },
+  ],
+  styles: [
+    {
+      filePath: stylePath,
+      document: {
+        selectors: [
+          {
+            name: "button",
+            viewKind: "canonical",
+            canonicalName: "button",
+            range: range(0, 1, 0, 7),
+            nestedSafety: "flat",
+            composes: null,
+            bemSuffix: null,
+          },
+        ],
+      },
+    },
+  ],
+  typeFacts: [
+    {
+      filePath: sourcePath,
+      expressionId: "expr:button",
+      facts: {
+        kind: "exact",
+        constraintKind: null,
+        values: ["button"],
+        prefix: null,
+        suffix: null,
+        minLen: null,
+        maxLen: null,
+        charMust: null,
+        charMay: null,
+        mayIncludeOtherChars: null,
+      },
+    },
+  ],
+};
+
+const child = spawn(
+  "cargo",
+  [
+    "run",
+    "--manifest-path",
+    rustManifest,
+    "-p",
+    "engine-shadow-runner",
+    "--quiet",
+    "--",
+    "--daemon",
+  ],
+  {
+    cwd: repoRoot,
+    stdio: ["pipe", "pipe", "pipe"],
+  },
+);
+
+const pending = new Map();
+const stderr = [];
+let stdoutBuffer = "";
+let requestId = 0;
+
+child.stdout.setEncoding("utf8");
+child.stderr.setEncoding("utf8");
+child.stdout.on("data", (chunk) => {
+  stdoutBuffer += chunk;
+  while (stdoutBuffer.includes("\n")) {
+    const newlineIndex = stdoutBuffer.indexOf("\n");
+    const line = stdoutBuffer.slice(0, newlineIndex).trim();
+    stdoutBuffer = stdoutBuffer.slice(newlineIndex + 1);
+    if (!line) continue;
+
+    const response = JSON.parse(line);
+    const slot = pending.get(response.id);
+    if (!slot) {
+      child.kill("SIGTERM");
+      throw new Error(`Unexpected daemon response id: ${String(response.id)}`);
+    }
+    pending.delete(response.id);
+    if (response.ok) {
+      slot.resolve(response.result);
+    } else {
+      slot.reject(new Error(response.error ?? "daemon request failed"));
+    }
+  }
+});
+child.stderr.on("data", (chunk) => stderr.push(chunk));
+child.once("error", (error) => {
+  for (const slot of pending.values()) slot.reject(error);
+  pending.clear();
+});
+child.once("close", (code) => {
+  if (pending.size === 0) return;
+  const error = new Error(
+    [
+      `engine-shadow-runner daemon exited before all requests completed: ${code}`,
+      stderr.join("").trim(),
+    ]
+      .filter(Boolean)
+      .join("\n"),
+  );
+  for (const slot of pending.values()) slot.reject(error);
+  pending.clear();
+});
+
+const timeout = setTimeout(() => {
+  child.kill("SIGTERM");
+  for (const slot of pending.values()) {
+    slot.reject(new Error("engine-shadow-runner daemon smoke timed out"));
+  }
+  pending.clear();
+}, 30_000);
+
+try {
+  const sourceResolution = await sendDaemonRequest(
+    "input-source-resolution-canonical-producer",
+    engineInput,
+  );
+  assert.equal(sourceResolution.schemaVersion, "0");
+  assert.equal(sourceResolution.evaluatorCandidates.results.length, 1);
+  assert.deepEqual(sourceResolution.evaluatorCandidates.results[0].payload.selectorNames, [
+    "button",
+  ]);
+
+  const graphBatch = await sendDaemonRequest("style-semantic-graph-batch", {
+    styles: [{ stylePath, styleSource: ".button { color: red; }" }],
+    engineInput,
+  });
+  assert.equal(graphBatch.product, "omena-semantic.style-semantic-graph-batch");
+  assert.equal(graphBatch.graphs.length, 1);
+  assert.equal(graphBatch.graphs[0].stylePath, stylePath);
+  assert.equal(graphBatch.graphs[0].graph.selectorReferenceEngine.totalReferenceSites, 1);
+
+  child.stdin.end();
+  await onceClosed(child);
+  clearTimeout(timeout);
+  process.stdout.write("engine-shadow-runner daemon ok: requests=2 mode=selected-query\n");
+} catch (error) {
+  clearTimeout(timeout);
+  child.kill("SIGTERM");
+  throw error;
+}
+
+function sendDaemonRequest(command, input) {
+  const id = `request:${++requestId}`;
+  return new Promise((resolve, reject) => {
+    pending.set(id, { resolve, reject });
+    child.stdin.write(`${JSON.stringify({ id, command, input })}\n`);
+  });
+}
+
+function onceClosed(processHandle) {
+  return new Promise((resolve, reject) => {
+    processHandle.once("close", (code) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      reject(
+        new Error(
+          [`engine-shadow-runner daemon exited with code ${code}`, stderr.join("").trim()]
+            .filter(Boolean)
+            .join("\n"),
+        ),
+      );
+    });
+  });
+}
+
+function range(startLine, startCharacter, endLine, endCharacter) {
+  return {
+    start: { line: startLine, character: startCharacter },
+    end: { line: endLine, character: endCharacter },
+  };
+}

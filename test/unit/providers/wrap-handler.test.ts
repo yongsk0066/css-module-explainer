@@ -69,20 +69,28 @@ describe("wrapHandler", () => {
     expect(spy).toHaveBeenCalledWith({ id: 1 }, deps, "hello");
   });
 
-  // Documented intentional behavior: async rejection is NOT caught.
-  // Async handlers must attach their own `.catch()` at the call site
-  // so the error boundary is explicit, not implicit in a sync wrapper.
-  it("does NOT swallow an async rejection — the rejected promise is returned as-is", async () => {
+  it("returns an async impl result when impl resolves without error", async () => {
+    const deps = makeBaseDeps();
+    const handler = wrapHandler<{ x: number }, [], number>(
+      "asyncHandler",
+      async (params) => params.x * 3,
+      -1,
+    );
+    await expect(handler({ x: 4 }, deps)).resolves.toBe(12);
+  });
+
+  it("catches an async rejection and resolves to the fallback", async () => {
     const logError = vi.fn();
     const deps = makeBaseDeps({ logError });
-    const handler = wrapHandler<unknown, [], Promise<string>>(
+    const err = new Error("async boom");
+    const handler = wrapHandler<unknown, [], string>(
       "asyncHandler",
-      () => Promise.reject(new Error("async boom")),
-      Promise.resolve("fallback"),
+      async () => {
+        throw err;
+      },
+      "fallback",
     );
-    const result = handler({}, deps);
-    await expect(result).rejects.toThrow("async boom");
-    // sync wrapHandler did not see the rejection, so logError was never invoked.
-    expect(logError).not.toHaveBeenCalled();
+    await expect(handler({}, deps)).resolves.toBe("fallback");
+    expect(logError).toHaveBeenCalledWith("asyncHandler handler failed", err);
   });
 });

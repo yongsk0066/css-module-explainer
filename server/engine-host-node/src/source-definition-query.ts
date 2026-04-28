@@ -12,10 +12,12 @@ import {
 } from "../../engine-core-ts/src/core/query";
 import type { CursorParams, ProviderDeps } from "../../engine-core-ts/src/provider-deps";
 import {
+  resolveRustSourceResolutionSelectorMatchAsync,
   resolveRustSourceResolutionSelectorMatch,
   resolveSelectedQueryBackendKind,
   usesRustSourceResolutionBackend,
 } from "./source-resolution-query-backend";
+import type { RustSelectedQueryBackendJsonRunnerAsync } from "./selected-query-backend";
 
 export interface SourceDefinitionTarget {
   readonly originRange: Range;
@@ -27,6 +29,7 @@ export interface SourceDefinitionTarget {
 export interface SourceDefinitionQueryOptions {
   readonly env?: NodeJS.ProcessEnv;
   readonly readRustSourceResolutionSelectorMatch?: typeof resolveRustSourceResolutionSelectorMatch;
+  readonly runRustSelectedQueryBackendJsonAsync?: RustSelectedQueryBackendJsonRunnerAsync;
 }
 
 export function resolveSourceExpressionDefinitionTargets(
@@ -45,6 +48,29 @@ export function resolveSourceExpressionDefinitionTargets(
       params,
       deps,
       options.readRustSourceResolutionSelectorMatch ?? resolveRustSourceResolutionSelectorMatch,
+    );
+    if (rustTargets.length > 0) return rustTargets;
+  }
+
+  return resolveSourceDefinitionTargetsFromTypescript(ctx, params, deps);
+}
+
+export async function resolveSourceExpressionDefinitionTargetsAsync(
+  ctx: SourceExpressionContext,
+  params: Pick<CursorParams, "documentUri" | "content" | "filePath" | "version">,
+  deps: Pick<
+    ProviderDeps,
+    "analysisCache" | "styleDocumentForPath" | "typeResolver" | "workspaceRoot" | "settings"
+  >,
+  options: SourceDefinitionQueryOptions = {},
+): Promise<readonly SourceDefinitionTarget[]> {
+  const backend = resolveSelectedQueryBackendKind(options.env);
+  if (usesRustSourceResolutionBackend(backend)) {
+    const rustTargets = await resolveSourceDefinitionTargetsFromRustAsync(
+      ctx,
+      params,
+      deps,
+      options.runRustSelectedQueryBackendJsonAsync,
     );
     if (rustTargets.length > 0) return rustTargets;
   }
@@ -77,6 +103,43 @@ function resolveSourceDefinitionTargetsFromTypescript(
   return resolution.selectors.map((selector) =>
     toSourceDefinitionTarget(ctx.expression.range, styleDocument.filePath, selector),
   );
+}
+
+async function resolveSourceDefinitionTargetsFromRustAsync(
+  ctx: SourceExpressionContext,
+  params: Pick<CursorParams, "documentUri" | "content" | "filePath" | "version">,
+  deps: Pick<
+    ProviderDeps,
+    "analysisCache" | "styleDocumentForPath" | "typeResolver" | "workspaceRoot" | "settings"
+  >,
+  runJson?: RustSelectedQueryBackendJsonRunnerAsync,
+): Promise<readonly SourceDefinitionTarget[]> {
+  const match = await resolveRustSourceResolutionSelectorMatchAsync(
+    {
+      uri: params.documentUri,
+      content: params.content,
+      filePath: params.filePath,
+      version: params.version,
+    },
+    ctx.expression.id,
+    ctx.expression.scssModulePath,
+    deps,
+    runJson,
+  );
+  if (!match) return [];
+  const styleDocument = deps.styleDocumentForPath(match.styleFilePath);
+  if (!styleDocument || match.selectorNames.length === 0) return [];
+  return match.selectorNames
+    .flatMap((name) => {
+      const selectors = findCanonicalSelectorsByName(styleDocument, name);
+      if (selectors.length > 0) return selectors;
+      const selector =
+        styleDocument.selectors.find((candidate) => candidate.canonicalName === name) ?? null;
+      return selector ? [findCanonicalSelector(styleDocument, selector)] : [];
+    })
+    .map((selector) =>
+      toSourceDefinitionTarget(ctx.expression.range, match.styleFilePath, selector),
+    );
 }
 
 function resolveSourceDefinitionTargetsFromRust(

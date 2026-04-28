@@ -16,12 +16,15 @@ import type { SourceExpressionResolution } from "../../engine-core-ts/src/core/q
 import type { EdgeCertainty } from "../../engine-core-ts/src/core/semantic/certainty";
 import {
   buildSelectedQueryBackendInput,
+  isEngineShadowRunnerCancelledError,
   SELECTED_QUERY_RUNNER_COMMANDS,
   resolveSelectedQueryBackendKind,
   runRustSelectedQueryBackendJson,
+  runRustSelectedQueryBackendJsonAsync,
   usesRustExpressionSemanticsBackend,
   usesRustSelectorUsageBackend,
   usesRustSourceResolutionBackend,
+  type RustSelectedQueryBackendJsonRunnerAsync,
   type SelectedQueryBackendDocument,
 } from "./selected-query-backend";
 
@@ -74,11 +77,38 @@ export function resolveRustSourceResolutionPayloads(
   >,
 ): readonly SourceResolutionEvaluatorCandidatePayloadV0[] {
   const input = buildSelectedQueryBackendInput(document, scssModulePath, deps);
-  const signal = runRustSelectedQueryBackendJson<SourceResolutionCanonicalProducerSignalV0>(
-    SELECTED_QUERY_RUNNER_COMMANDS.sourceResolutionCanonicalProducer,
-    input,
-  );
-  return signal.evaluatorCandidates.results.map((candidate) => candidate.payload);
+  try {
+    const signal = runRustSelectedQueryBackendJson<SourceResolutionCanonicalProducerSignalV0>(
+      SELECTED_QUERY_RUNNER_COMMANDS.sourceResolutionCanonicalProducer,
+      input,
+    );
+    return signal.evaluatorCandidates.results.map((candidate) => candidate.payload);
+  } catch (err) {
+    if (isEngineShadowRunnerCancelledError(err)) return [];
+    throw err;
+  }
+}
+
+export async function resolveRustSourceResolutionPayloadsAsync(
+  document: SelectedQueryBackendDocument,
+  scssModulePath: string,
+  deps: Pick<
+    ProviderDeps,
+    "analysisCache" | "styleDocumentForPath" | "typeResolver" | "workspaceRoot" | "settings"
+  >,
+  runJson: RustSelectedQueryBackendJsonRunnerAsync = runRustSelectedQueryBackendJsonAsync,
+): Promise<readonly SourceResolutionEvaluatorCandidatePayloadV0[]> {
+  const input = buildSelectedQueryBackendInput(document, scssModulePath, deps);
+  try {
+    const signal = await runJson<SourceResolutionCanonicalProducerSignalV0>(
+      SELECTED_QUERY_RUNNER_COMMANDS.sourceResolutionCanonicalProducer,
+      input,
+    );
+    return signal.evaluatorCandidates.results.map((candidate) => candidate.payload);
+  } catch (err) {
+    if (isEngineShadowRunnerCancelledError(err)) return [];
+    throw err;
+  }
 }
 
 export function resolveRustSourceResolutionPayload(
@@ -96,6 +126,22 @@ export function resolveRustSourceResolutionPayload(
   return match ?? null;
 }
 
+export async function resolveRustSourceResolutionPayloadAsync(
+  document: SelectedQueryBackendDocument,
+  expressionId: string,
+  scssModulePath: string,
+  deps: Pick<
+    ProviderDeps,
+    "analysisCache" | "styleDocumentForPath" | "typeResolver" | "workspaceRoot" | "settings"
+  >,
+  runJson?: RustSelectedQueryBackendJsonRunnerAsync,
+): Promise<SourceResolutionEvaluatorCandidatePayloadV0 | null> {
+  const match = (
+    await resolveRustSourceResolutionPayloadsAsync(document, scssModulePath, deps, runJson)
+  ).find((payload) => payload.expressionId === expressionId);
+  return match ?? null;
+}
+
 export function resolveRustSourceResolutionSelectorMatch(
   document: SelectedQueryBackendDocument,
   expressionId: string,
@@ -106,6 +152,31 @@ export function resolveRustSourceResolutionSelectorMatch(
   >,
 ): SourceResolutionSelectorMatch | null {
   const payload = resolveRustSourceResolutionPayload(document, expressionId, scssModulePath, deps);
+  if (!payload || !payload.styleFilePath) return null;
+
+  return {
+    styleFilePath: payload.styleFilePath,
+    selectorNames: payload.selectorNames,
+  };
+}
+
+export async function resolveRustSourceResolutionSelectorMatchAsync(
+  document: SelectedQueryBackendDocument,
+  expressionId: string,
+  scssModulePath: string,
+  deps: Pick<
+    ProviderDeps,
+    "analysisCache" | "styleDocumentForPath" | "typeResolver" | "workspaceRoot" | "settings"
+  >,
+  runJson?: RustSelectedQueryBackendJsonRunnerAsync,
+): Promise<SourceResolutionSelectorMatch | null> {
+  const payload = await resolveRustSourceResolutionPayloadAsync(
+    document,
+    expressionId,
+    scssModulePath,
+    deps,
+    runJson,
+  );
   if (!payload || !payload.styleFilePath) return null;
 
   return {

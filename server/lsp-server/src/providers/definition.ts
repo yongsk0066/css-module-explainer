@@ -2,11 +2,16 @@ import type { LocationLink } from "vscode-languageserver/node";
 import type { Range } from "@css-module-explainer/shared";
 import { findLangForPath } from "../../../engine-core-ts/src/core/scss/lang-registry";
 import { pathToFileUrl } from "../../../engine-core-ts/src/core/util/text-utils";
-import { resolveSourceExpressionDefinitionTargets } from "../../../engine-host-node/src/source-definition-query";
+import {
+  resolveSourceExpressionDefinitionTargets,
+  resolveSourceExpressionDefinitionTargetsAsync,
+} from "../../../engine-host-node/src/source-definition-query";
+import type { RustSelectedQueryBackendJsonRunnerAsync } from "../../../engine-host-node/src/selected-query-backend";
 import { resolveStyleDefinitionTargets } from "../../../engine-host-node/src/style-definition-query";
 import { toLspRange } from "./lsp-adapters";
 import { wrapHandler } from "./_wrap-handler";
 import { withSourceExpressionAtCursor, type SourceExpressionContext } from "./cursor-dispatch";
+import { getRustSelectedQueryBackendJsonRunnerAsync } from "./selected-query-runner";
 import type { CursorParams, ProviderDeps } from "./provider-deps";
 
 /**
@@ -36,6 +41,12 @@ export const handleDefinition = wrapHandler<CursorParams, [], LocationLink[] | n
     if (findLangForPath(params.filePath)) {
       return buildStyleDefinition(params, deps);
     }
+    const rustRunner = getRustSelectedQueryBackendJsonRunnerAsync(deps);
+    if (rustRunner) {
+      return withSourceExpressionAtCursor(params, deps, (ctx) =>
+        buildLinksAsync(ctx, params, deps, rustRunner),
+      );
+    }
     return withSourceExpressionAtCursor(params, deps, (ctx) => buildLinks(ctx, params, deps));
   },
   null,
@@ -47,6 +58,26 @@ function buildLinks(
   deps: ProviderDeps,
 ): LocationLink[] | null {
   const targets = resolveSourceExpressionDefinitionTargets(ctx, params, deps);
+  if (targets.length === 0) return null;
+  return targets.map<LocationLink>((target) =>
+    toLocationLinkFromTarget(
+      target.originRange,
+      pathToFileUrl(target.targetFilePath),
+      target.targetRange,
+      target.targetSelectionRange,
+    ),
+  );
+}
+
+async function buildLinksAsync(
+  ctx: SourceExpressionContext,
+  params: CursorParams,
+  deps: ProviderDeps,
+  rustRunner: RustSelectedQueryBackendJsonRunnerAsync,
+): Promise<LocationLink[] | null> {
+  const targets = await resolveSourceExpressionDefinitionTargetsAsync(ctx, params, deps, {
+    runRustSelectedQueryBackendJsonAsync: rustRunner,
+  });
   if (targets.length === 0) return null;
   return targets.map<LocationLink>((target) =>
     toLocationLinkFromTarget(

@@ -22,12 +22,14 @@ export function findSourceExpressionContextAtCursor(
 export function withSourceExpressionAtCursor<T>(
   params: CursorParams,
   deps: ProviderDeps,
-  transform: (ctx: SourceExpressionContext) => T | null,
-): T | null {
+  transform: (ctx: SourceExpressionContext) => MaybePromise<T | null>,
+): MaybePromise<T | null> {
   const ctx = findSourceExpressionContextAtCursor(params, deps);
   if (!ctx) return null;
   return transform(ctx) ?? null;
 }
+
+type MaybePromise<T> = T | PromiseLike<T>;
 
 export type { SourceExpressionContext } from "../../../engine-host-node/src/source-cursor-query";
 export type { CursorParams, ProviderDeps } from "./provider-deps";

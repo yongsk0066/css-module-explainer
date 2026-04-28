@@ -7,9 +7,13 @@ import { type SourceCheckerFinding } from "../../../engine-core-ts/src/core/chec
 import { formatCheckerFinding } from "../../../engine-core-ts/src/checker-surface";
 import { pathToFileUrl } from "../../../engine-core-ts/src/core/util/text-utils";
 import { buildCreateSelectorActionData } from "../../../engine-host-node/src/code-action-data";
-import { resolveSourceDiagnosticFindings } from "../../../engine-host-node/src/source-diagnostics-query";
+import {
+  resolveSourceDiagnosticFindings,
+  resolveSourceDiagnosticFindingsAsync,
+} from "../../../engine-host-node/src/source-diagnostics-query";
 import { toLspRange } from "./lsp-adapters";
 import { wrapHandler } from "./_wrap-handler";
+import { getRustSelectedQueryBackendJsonRunnerAsync } from "./selected-query-runner";
 import type { DocumentParams, ProviderDeps } from "./provider-deps";
 
 /**
@@ -36,6 +40,12 @@ export const computeDiagnostics = wrapHandler<
 >(
   "diagnostics",
   (params, deps, severity: DiagnosticSeverity = DiagnosticSeverity.Warning) => {
+    const rustRunner = getRustSelectedQueryBackendJsonRunnerAsync(deps);
+    if (rustRunner) {
+      return resolveSourceDiagnosticFindingsAsync(params, deps, {
+        runRustSelectedQueryBackendJsonAsync: rustRunner,
+      }).then((findings) => findings.map((finding) => toDiagnostic(finding, deps, severity)));
+    }
     return resolveSourceDiagnosticFindings(params, deps).map((finding) =>
       toDiagnostic(finding, deps, severity),
     );

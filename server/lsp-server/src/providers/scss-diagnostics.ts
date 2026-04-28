@@ -10,9 +10,11 @@ import {
   buildCreateValueActionData,
 } from "../../../engine-host-node/src/code-action-data";
 import {
+  resolveStyleDiagnosticFindingsAsync,
   resolveStyleDiagnosticFindings,
   type StyleDiagnosticsQueryOptions,
 } from "../../../engine-host-node/src/style-diagnostics-query";
+import type { RustSelectedQueryBackendJsonRunnerAsync } from "../../../engine-host-node/src/selected-query-backend";
 import type { ProviderDeps } from "./provider-deps";
 import { toLspRange } from "./lsp-adapters";
 
@@ -40,17 +42,56 @@ export function computeScssUnusedDiagnostics(
   > & {
     readonly env?: NodeJS.ProcessEnv;
     readonly styleSemanticGraphCache?: StyleDiagnosticsQueryOptions["styleSemanticGraphCache"];
+    readonly selectorUsagePayloadCache?: StyleDiagnosticsQueryOptions["selectorUsagePayloadCache"];
+    readonly runRustSelectedQueryBackendJsonAsync?: RustSelectedQueryBackendJsonRunnerAsync;
   },
-): Diagnostic[] {
+): Diagnostic[] | Promise<Diagnostic[]> {
   const queryOptions =
-    runtimeDeps?.env || runtimeDeps?.styleSemanticGraphCache
+    runtimeDeps?.env ||
+    runtimeDeps?.styleSemanticGraphCache ||
+    runtimeDeps?.selectorUsagePayloadCache ||
+    runtimeDeps?.runRustSelectedQueryBackendJsonAsync
       ? {
           ...(runtimeDeps?.env ? { env: runtimeDeps.env } : {}),
           ...(runtimeDeps?.styleSemanticGraphCache
             ? { styleSemanticGraphCache: runtimeDeps.styleSemanticGraphCache }
             : {}),
+          ...(runtimeDeps?.selectorUsagePayloadCache
+            ? { selectorUsagePayloadCache: runtimeDeps.selectorUsagePayloadCache }
+            : {}),
+          ...(runtimeDeps?.runRustSelectedQueryBackendJsonAsync
+            ? {
+                runRustSelectedQueryBackendJsonAsync:
+                  runtimeDeps.runRustSelectedQueryBackendJsonAsync,
+              }
+            : {}),
         }
       : undefined;
+  if (runtimeDeps?.runRustSelectedQueryBackendJsonAsync) {
+    return resolveStyleDiagnosticFindingsAsync(
+      { scssPath, styleDocument },
+      {
+        ...(runtimeDeps?.analysisCache ? { analysisCache: runtimeDeps.analysisCache } : {}),
+        ...(runtimeDeps?.readStyleFile ? { readStyleFile: runtimeDeps.readStyleFile } : {}),
+        semanticReferenceIndex,
+        ...(styleDependencyGraph ? { styleDependencyGraph } : {}),
+        ...(styleDocumentForPath ? { styleDocumentForPath } : {}),
+        ...(runtimeDeps?.typeResolver ? { typeResolver: runtimeDeps.typeResolver } : {}),
+        ...(runtimeDeps?.workspaceRoot ? { workspaceRoot: runtimeDeps.workspaceRoot } : {}),
+        ...(runtimeDeps?.settings ? { settings: runtimeDeps.settings } : {}),
+        ...(runtimeDeps?.aliasResolver ? { aliasResolver: runtimeDeps.aliasResolver } : {}),
+        ...(runtimeDeps?.styleSemanticGraphCache
+          ? { styleSemanticGraphCache: runtimeDeps.styleSemanticGraphCache }
+          : {}),
+        ...(runtimeDeps?.selectorUsagePayloadCache
+          ? { selectorUsagePayloadCache: runtimeDeps.selectorUsagePayloadCache }
+          : {}),
+      },
+      queryOptions,
+    ).then((findings) =>
+      findings.map((finding) => toDiagnostic(finding, styleDocument, styleDocumentForPath)),
+    );
+  }
   return resolveStyleDiagnosticFindings(
     { scssPath, styleDocument },
     {
@@ -65,6 +106,9 @@ export function computeScssUnusedDiagnostics(
       ...(runtimeDeps?.aliasResolver ? { aliasResolver: runtimeDeps.aliasResolver } : {}),
       ...(runtimeDeps?.styleSemanticGraphCache
         ? { styleSemanticGraphCache: runtimeDeps.styleSemanticGraphCache }
+        : {}),
+      ...(runtimeDeps?.selectorUsagePayloadCache
+        ? { selectorUsagePayloadCache: runtimeDeps.selectorUsagePayloadCache }
         : {}),
     },
     queryOptions,

@@ -28,7 +28,9 @@ import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
 import { pathToFileUrl } from "../../engine-core-ts/src/core/util/text-utils";
 import {
   buildSelectorUsageLocationsFromRustPayload,
+  resolveRustSelectorUsagePayloadForWorkspaceTargetAsync,
   resolveRustSelectorUsagePayloadForWorkspaceTarget,
+  type SelectorUsagePayloadCache,
 } from "./selector-usage-query-backend";
 import {
   resolveSelectedQueryBackendKind,
@@ -36,6 +38,7 @@ import {
 } from "./selected-query-backend";
 import { resolveSelectorReferenceLocations } from "./selector-references-query";
 import {
+  resolveRustStyleSelectorReferenceSummaryForWorkspaceTargetAsync,
   resolveRustStyleSelectorReferenceSummaryForWorkspaceTarget,
   type StyleSelectorReferenceQueryOptions,
 } from "./style-selector-reference-query";
@@ -48,6 +51,8 @@ export interface StyleReferenceLocation {
 export interface StyleReferenceQueryOptions extends StyleSelectorReferenceQueryOptions {
   readonly env?: NodeJS.ProcessEnv;
   readonly readRustSelectorUsagePayloadForWorkspaceTarget?: typeof resolveRustSelectorUsagePayloadForWorkspaceTarget;
+  readonly readRustSelectorUsagePayloadForWorkspaceTargetAsync?: typeof resolveRustSelectorUsagePayloadForWorkspaceTargetAsync;
+  readonly selectorUsagePayloadCache?: SelectorUsagePayloadCache;
 }
 
 export function resolveStyleReferencesAtCursor(
@@ -99,7 +104,7 @@ export function resolveStyleReferencesAtCursor(
       deps,
       options,
     );
-    if (graphReferences) {
+    if (graphReferences?.hasAnyReferences) {
       return graphReferences.sites.map((site) => ({
         uri: pathToFileUrl(site.filePath),
         range: site.range,
@@ -108,6 +113,13 @@ export function resolveStyleReferencesAtCursor(
 
     const selectedQueryBackend = resolveSelectedQueryBackendKind(options.env);
     if (usesRustSelectorUsageBackend(selectedQueryBackend)) {
+      const selectorUsagePayloadCache =
+        options.selectorUsagePayloadCache ??
+        (
+          deps as {
+            readonly selectorUsagePayloadCache?: SelectorUsagePayloadCache;
+          }
+        ).selectorUsagePayloadCache;
       const payload = (
         options.readRustSelectorUsagePayloadForWorkspaceTarget ??
         resolveRustSelectorUsagePayloadForWorkspaceTarget
@@ -120,6 +132,7 @@ export function resolveStyleReferencesAtCursor(
         deps,
         target.filePath,
         target.canonicalName,
+        selectorUsagePayloadCache,
       );
       const rustLocations =
         payload &&
@@ -129,6 +142,7 @@ export function resolveStyleReferencesAtCursor(
         }));
       if (rustLocations) return rustLocations;
     }
+    if (graphReferences) return [];
     return resolveSelectorReferenceLocations(deps, target);
   }
 
@@ -333,6 +347,99 @@ export function resolveStyleReferencesAtCursor(
     });
   }
   return dedupeLocations(valueRefs);
+}
+
+export async function resolveStyleReferencesAtCursorAsync(
+  args: {
+    readonly filePath: string;
+    readonly line: number;
+    readonly character: number;
+    readonly includeDeclaration: boolean;
+    readonly styleDocument: StyleDocumentHIR;
+  },
+  deps: Pick<
+    ProviderDeps,
+    | "analysisCache"
+    | "semanticReferenceIndex"
+    | "settings"
+    | "styleDependencyGraph"
+    | "styleDocumentForPath"
+    | "typeResolver"
+    | "workspaceRoot"
+    | "aliasResolver"
+    | "readStyleFile"
+  >,
+  options: StyleReferenceQueryOptions = {},
+): Promise<readonly StyleReferenceLocation[]> {
+  const selector = findSelectorAtCursor(args.styleDocument, args.line, args.character);
+  const composesHit = selector
+    ? null
+    : findComposesTokenAtCursor(args.styleDocument, args.line, args.character);
+  const target = selector
+    ? {
+        filePath: args.filePath,
+        canonicalName: selector.canonicalName,
+      }
+    : (() => {
+        const resolved = resolveComposesTarget(
+          deps.styleDocumentForPath,
+          args.styleDocument.filePath,
+          composesHit,
+        );
+        if (!resolved) return null;
+        return {
+          filePath: resolved.filePath,
+          canonicalName: resolved.selector.canonicalName,
+        };
+      })();
+  if (!target) return resolveStyleReferencesAtCursor(args, deps, options);
+
+  const graphReferences = await resolveRustStyleSelectorReferenceSummaryForWorkspaceTargetAsync(
+    target,
+    deps,
+    options,
+  );
+  if (graphReferences?.hasAnyReferences) {
+    return graphReferences.sites.map((site) => ({
+      uri: pathToFileUrl(site.filePath),
+      range: site.range,
+    }));
+  }
+
+  const selectedQueryBackend = resolveSelectedQueryBackendKind(options.env);
+  if (usesRustSelectorUsageBackend(selectedQueryBackend)) {
+    const selectorUsagePayloadCache =
+      options.selectorUsagePayloadCache ??
+      (
+        deps as {
+          readonly selectorUsagePayloadCache?: SelectorUsagePayloadCache;
+        }
+      ).selectorUsagePayloadCache;
+    const payload = await (
+      options.readRustSelectorUsagePayloadForWorkspaceTargetAsync ??
+      resolveRustSelectorUsagePayloadForWorkspaceTargetAsync
+    )(
+      {
+        workspaceRoot: deps.workspaceRoot,
+        classnameTransform: deps.settings.scss.classnameTransform,
+        pathAlias: deps.settings.pathAlias,
+      },
+      deps,
+      target.filePath,
+      target.canonicalName,
+      selectorUsagePayloadCache,
+      options.runRustSelectedQueryBackendJsonAsync,
+    );
+    const rustLocations =
+      payload &&
+      buildSelectorUsageLocationsFromRustPayload(payload)?.map((site) => ({
+        uri: pathToFileUrl(site.filePath),
+        range: site.range,
+      }));
+    if (rustLocations) return rustLocations;
+  }
+  if (graphReferences) return [];
+  return resolveSelectorReferenceLocations(deps, target);
 }
 
 function dedupeLocations(

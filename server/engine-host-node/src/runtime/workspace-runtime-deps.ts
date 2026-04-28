@@ -6,6 +6,7 @@ import type { RuntimeSink } from "./runtime-sink";
 import { createWorkspaceAnalysisCache } from "./workspace-analysis-runtime";
 import type { WorkspaceRuntimeSettingsState } from "./workspace-runtime-settings";
 import type { WorkspaceStyleRuntime } from "./workspace-style-runtime";
+import { getEngineShadowRunnerDaemonJsonRunner } from "../selected-query-backend";
 
 export interface WorkspaceRuntimeDepsArgs {
   readonly folder: WorkspaceFolderInfo;
@@ -31,6 +32,7 @@ export function createWorkspaceProviderDeps(args: WorkspaceRuntimeDepsArgs): Wor
     settingsKey: () => args.settingsState.settingsKey,
     onReferencesChanged: () => args.sink.requestCodeLensRefresh(),
   });
+  const runRustSelectedQueryBackendJsonAsync = getEngineShadowRunnerDaemonJsonRunner();
 
   return {
     analysisCache,
@@ -42,7 +44,12 @@ export function createWorkspaceProviderDeps(args: WorkspaceRuntimeDepsArgs): Wor
     semanticReferenceIndex: args.caches.semanticReferenceIndex,
     styleDependencyGraph: args.caches.styleDependencyGraph,
     styleSemanticGraphCache: args.caches.styleSemanticGraphCache,
-    clearStyleSemanticGraphCache: () => args.caches.styleSemanticGraphCache.clear(),
+    selectorUsagePayloadCache: args.caches.selectorUsagePayloadCache,
+    ...(runRustSelectedQueryBackendJsonAsync ? { runRustSelectedQueryBackendJsonAsync } : {}),
+    clearStyleSemanticGraphCache: () => {
+      args.caches.styleSemanticGraphCache.clear();
+      args.caches.selectorUsagePayloadCache.clear();
+    },
     workspaceRoot: args.folder.rootPath,
     workspaceFolderUri: args.folder.uri,
     logError: (message, err) => {

@@ -1,6 +1,8 @@
 import path from "node:path";
 import { fileUrlToPath } from "../../../engine-core-ts/src/core/util/text-utils";
 import type { ProviderDeps } from "../provider-deps";
+import type { RustSelectedQueryBackendJsonRunnerAsync } from "../selected-query-backend";
+import type { SelectorUsagePayloadCache } from "../selector-usage-query-backend";
 import type { StyleSemanticGraphCache } from "../style-semantic-graph-query-backend";
 
 export interface WorkspaceFolderInfo {
@@ -12,6 +14,8 @@ export interface WorkspaceFolderInfo {
 export interface WorkspaceProviderDeps extends ProviderDeps {
   readonly workspaceFolderUri: string;
   readonly styleSemanticGraphCache?: StyleSemanticGraphCache;
+  readonly selectorUsagePayloadCache?: SelectorUsagePayloadCache;
+  readonly runRustSelectedQueryBackendJsonAsync?: RustSelectedQueryBackendJsonRunnerAsync;
   clearStyleSemanticGraphCache?(): void;
 }
 

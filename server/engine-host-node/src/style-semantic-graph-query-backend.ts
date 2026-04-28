@@ -9,12 +9,16 @@ import {
   type SourceDocumentSnapshot,
 } from "./checker-host/workspace-check-support";
 import {
+  isEngineShadowRunnerCancelledError,
   SELECTED_QUERY_RUNNER_COMMANDS,
   runRustSelectedQueryBackendJson,
+  runRustSelectedQueryBackendJsonAsync,
+  type RustSelectedQueryBackendJsonRunnerAsync,
 } from "./selected-query-backend";
 import type { BuildSelectedQueryResultsV2Options } from "./engine-query-v2";
 
 type RustJsonRunner = <T>(command: string, input: unknown) => T;
+type RustJsonRunnerAsync = RustSelectedQueryBackendJsonRunnerAsync;
 export type StyleSemanticGraphCache = Map<string, StyleSemanticGraphSummaryV0 | null>;
 
 export interface StyleSemanticGraphSummaryV0 {
@@ -145,6 +149,7 @@ type StyleSemanticGraphQueryBackendOptions = Pick<
 
 export interface StyleSemanticGraphQueryOptions {
   readonly runRustSelectedQueryBackendJson?: RustJsonRunner;
+  readonly runRustSelectedQueryBackendJsonAsync?: RustJsonRunnerAsync;
   readonly engineInput?: EngineInputV2;
   readonly sourceDocuments?: readonly SourceDocumentSnapshot[];
   readonly styleFiles?: readonly string[];
@@ -184,14 +189,71 @@ export function resolveRustStyleSemanticGraph(
       typeResolver: options.typeResolver,
     });
 
-  const graph = runRustStyleSemanticGraph(
-    {
-      stylePath,
-      styleSource,
-      engineInput,
-    },
-    queryOptions,
-  );
+  let graph: StyleSemanticGraphSummaryV0 | null;
+  try {
+    graph = runRustStyleSemanticGraph(
+      {
+        stylePath,
+        styleSource,
+        engineInput,
+      },
+      queryOptions,
+    );
+  } catch (err) {
+    if (!isEngineShadowRunnerCancelledError(err)) throw err;
+    graph = null;
+  }
+  cache?.set(stylePath, graph);
+  return graph;
+}
+
+export async function resolveRustStyleSemanticGraphAsync(
+  options: StyleSemanticGraphQueryBackendOptions,
+  stylePath: string,
+  queryOptions: StyleSemanticGraphQueryOptions = {},
+): Promise<StyleSemanticGraphSummaryV0 | null> {
+  const cache = queryOptions.styleSemanticGraphCache;
+  if (cache?.has(stylePath)) {
+    return cache.get(stylePath) ?? null;
+  }
+  await maybePopulateStyleSemanticGraphCacheFromBatchAsync(options, queryOptions);
+  if (cache?.has(stylePath)) {
+    return cache.get(stylePath) ?? null;
+  }
+
+  const styleSource = options.readStyleFile(stylePath);
+  if (styleSource === null) {
+    cache?.set(stylePath, null);
+    return null;
+  }
+
+  const engineInput =
+    queryOptions.engineInput ??
+    buildEngineInputV2({
+      workspaceRoot: options.workspaceRoot,
+      classnameTransform: options.classnameTransform,
+      pathAlias: options.pathAlias,
+      sourceDocuments: options.sourceDocuments,
+      styleFiles: ensureStyleFileIncluded(options.styleFiles, stylePath),
+      analysisCache: options.analysisCache,
+      styleDocumentForPath: options.styleDocumentForPath,
+      typeResolver: options.typeResolver,
+    });
+
+  let graph: StyleSemanticGraphSummaryV0 | null;
+  try {
+    graph = await runRustStyleSemanticGraphAsync(
+      {
+        stylePath,
+        styleSource,
+        engineInput,
+      },
+      queryOptions,
+    );
+  } catch (err) {
+    if (!isEngineShadowRunnerCancelledError(err)) throw err;
+    graph = null;
+  }
   cache?.set(stylePath, graph);
   return graph;
 }
@@ -219,6 +281,26 @@ export function resolveRustStyleSemanticGraphForWorkspaceTarget(
     queryOptions.sourceDocuments ??
     collectSourceDocuments(resolvedFiles?.sourceFiles ?? [], deps.analysisCache);
   const styleFiles = queryOptions.styleFiles ?? resolvedFiles?.styleFiles ?? [];
+  const engineInput =
+    queryOptions.engineInput ??
+    (queryOptions.styleSemanticGraphCache && styleFiles.length > 1
+      ? buildEngineInputV2({
+          workspaceRoot: args.workspaceRoot,
+          classnameTransform: args.classnameTransform,
+          pathAlias: args.pathAlias,
+          sourceDocuments,
+          styleFiles,
+          analysisCache: deps.analysisCache,
+          styleDocumentForPath: deps.styleDocumentForPath,
+          typeResolver: deps.typeResolver,
+        })
+      : undefined);
+  const workspaceQueryOptions = {
+    ...queryOptions,
+    sourceDocuments,
+    styleFiles,
+    ...(engineInput ? { engineInput } : {}),
+  };
 
   return resolveRustStyleSemanticGraph(
     {
@@ -233,7 +315,68 @@ export function resolveRustStyleSemanticGraphForWorkspaceTarget(
       readStyleFile: deps.readStyleFile,
     },
     stylePath,
-    queryOptions,
+    workspaceQueryOptions,
+  );
+}
+
+export async function resolveRustStyleSemanticGraphForWorkspaceTargetAsync(
+  args: {
+    readonly workspaceRoot: string;
+    readonly classnameTransform: BuildSelectedQueryResultsV2Options["classnameTransform"];
+    readonly pathAlias: BuildSelectedQueryResultsV2Options["pathAlias"];
+  },
+  deps: Pick<
+    ProviderDeps,
+    "analysisCache" | "styleDocumentForPath" | "typeResolver" | "readStyleFile"
+  >,
+  stylePath: string,
+  queryOptions: StyleSemanticGraphQueryOptions = {},
+): Promise<StyleSemanticGraphSummaryV0 | null> {
+  const resolvedFiles =
+    queryOptions.sourceDocuments && queryOptions.styleFiles
+      ? null
+      : resolveWorkspaceCheckFilesSync({
+          workspaceRoot: args.workspaceRoot,
+        });
+  const sourceDocuments =
+    queryOptions.sourceDocuments ??
+    collectSourceDocuments(resolvedFiles?.sourceFiles ?? [], deps.analysisCache);
+  const styleFiles = queryOptions.styleFiles ?? resolvedFiles?.styleFiles ?? [];
+  const engineInput =
+    queryOptions.engineInput ??
+    (queryOptions.styleSemanticGraphCache && styleFiles.length > 1
+      ? buildEngineInputV2({
+          workspaceRoot: args.workspaceRoot,
+          classnameTransform: args.classnameTransform,
+          pathAlias: args.pathAlias,
+          sourceDocuments,
+          styleFiles,
+          analysisCache: deps.analysisCache,
+          styleDocumentForPath: deps.styleDocumentForPath,
+          typeResolver: deps.typeResolver,
+        })
+      : undefined);
+  const workspaceQueryOptions = {
+    ...queryOptions,
+    sourceDocuments,
+    styleFiles,
+    ...(engineInput ? { engineInput } : {}),
+  };
+
+  return resolveRustStyleSemanticGraphAsync(
+    {
+      workspaceRoot: args.workspaceRoot,
+      classnameTransform: args.classnameTransform,
+      pathAlias: args.pathAlias,
+      sourceDocuments,
+      styleFiles,
+      analysisCache: deps.analysisCache,
+      styleDocumentForPath: deps.styleDocumentForPath,
+      typeResolver: deps.typeResolver,
+      readStyleFile: deps.readStyleFile,
+    },
+    stylePath,
+    workspaceQueryOptions,
   );
 }
 
@@ -248,11 +391,35 @@ export function runRustStyleSemanticGraph(
   );
 }
 
+export function runRustStyleSemanticGraphAsync(
+  input: StyleSemanticGraphRunnerInputV0,
+  options: StyleSemanticGraphQueryOptions = {},
+): Promise<StyleSemanticGraphSummaryV0> {
+  const runJson =
+    options.runRustSelectedQueryBackendJsonAsync ?? runRustSelectedQueryBackendJsonAsync;
+  return runJson<StyleSemanticGraphSummaryV0>(
+    SELECTED_QUERY_RUNNER_COMMANDS.styleSemanticGraph,
+    input,
+  );
+}
+
 export function runRustStyleSemanticGraphBatch(
   input: StyleSemanticGraphBatchRunnerInputV0,
   options: StyleSemanticGraphQueryOptions = {},
 ): StyleSemanticGraphBatchRunnerOutputV0 {
   const runJson = options.runRustSelectedQueryBackendJson ?? runRustSelectedQueryBackendJson;
+  return runJson<StyleSemanticGraphBatchRunnerOutputV0>(
+    SELECTED_QUERY_RUNNER_COMMANDS.styleSemanticGraphBatch,
+    input,
+  );
+}
+
+export function runRustStyleSemanticGraphBatchAsync(
+  input: StyleSemanticGraphBatchRunnerInputV0,
+  options: StyleSemanticGraphQueryOptions = {},
+): Promise<StyleSemanticGraphBatchRunnerOutputV0> {
+  const runJson =
+    options.runRustSelectedQueryBackendJsonAsync ?? runRustSelectedQueryBackendJsonAsync;
   return runJson<StyleSemanticGraphBatchRunnerOutputV0>(
     SELECTED_QUERY_RUNNER_COMMANDS.styleSemanticGraphBatch,
     input,
@@ -293,6 +460,49 @@ function ensureStyleFileIncluded(
   return styleFiles.includes(stylePath) ? styleFiles : [...styleFiles, stylePath];
 }
 
+async function maybePopulateStyleSemanticGraphCacheFromBatchAsync(
+  options: StyleSemanticGraphQueryBackendOptions,
+  queryOptions: StyleSemanticGraphQueryOptions,
+): Promise<void> {
+  const cache = queryOptions.styleSemanticGraphCache;
+  if (!cache || !queryOptions.engineInput || !queryOptions.styleFiles) return;
+
+  const uncachedStyleFiles = queryOptions.styleFiles.filter((stylePath) => !cache.has(stylePath));
+  if (uncachedStyleFiles.length <= 1) return;
+
+  const styles: StyleSemanticGraphBatchStyleInputV0[] = [];
+  for (const stylePath of uncachedStyleFiles) {
+    const styleSource = options.readStyleFile(stylePath);
+    if (styleSource === null) {
+      cache.set(stylePath, null);
+      continue;
+    }
+    styles.push({ stylePath, styleSource });
+  }
+  if (styles.length <= 1) return;
+
+  try {
+    const requestedStylePaths = new Set(styles.map((style) => style.stylePath));
+    const output = await runRustStyleSemanticGraphBatchAsync(
+      {
+        styles,
+        engineInput: queryOptions.engineInput,
+      },
+      queryOptions,
+    );
+
+    for (const entry of output.graphs) {
+      if (!requestedStylePaths.has(entry.stylePath)) continue;
+      cache.set(entry.stylePath, entry.graph);
+    }
+  } catch (err) {
+    if (isEngineShadowRunnerCancelledError(err)) {
+      for (const style of styles) cache.set(style.stylePath, null);
+    }
+    // Batch is an optimization only. Preserve the single-target fallback path.
+  }
+}
+
 function maybePopulateStyleSemanticGraphCacheFromBatch(
   options: StyleSemanticGraphQueryBackendOptions,
   queryOptions: StyleSemanticGraphQueryOptions,
@@ -328,7 +538,10 @@ function maybePopulateStyleSemanticGraphCacheFromBatch(
       if (!requestedStylePaths.has(entry.stylePath)) continue;
       cache.set(entry.stylePath, entry.graph);
     }
-  } catch {
+  } catch (err) {
+    if (isEngineShadowRunnerCancelledError(err)) {
+      for (const style of styles) cache.set(style.stylePath, null);
+    }
     // Batch is an optimization only. Preserve the single-target fallback path.
   }
 }

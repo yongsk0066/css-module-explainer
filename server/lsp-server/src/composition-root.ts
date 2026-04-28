@@ -15,9 +15,11 @@ import { buildServerCapabilities, registerDynamicFileWatchers } from "./server-c
 import { createServerRuntimeSession, type ServerRuntimeSession } from "./server-runtime-session";
 import type { WorkspaceRegistry } from "../../engine-host-node/src/workspace/workspace-registry";
 import { defaultReadStyleFile } from "../../engine-host-node/src/runtime";
+import { shutdownEngineShadowRunnerDaemon } from "../../engine-host-node/src/selected-query-backend";
 
 const SERVER_NAME = "css-module-explainer";
 const SERVER_VERSION = "4.1.0";
+const RUNTIME_LOOP_PROBE_REQUEST = "cssModuleExplainer/runtimeLoopProbe";
 
 /**
  * Transport-agnostic shared options consumed by every
@@ -121,6 +123,12 @@ export function createServer(options: CreateServerOptions): CreatedServer {
     getRegistry: () => registry,
   });
 
+  if (process.env.CME_LSP_RUNTIME_LOOP_PROBE === "1") {
+    connection.onRequest(RUNTIME_LOOP_PROBE_REQUEST, () => ({
+      now: Date.now(),
+    }));
+  }
+
   connection.onInitialized(async () => {
     connection.console.info(`[${SERVER_NAME}] initialized`);
     if (!session) return;
@@ -142,6 +150,7 @@ export function createServer(options: CreateServerOptions): CreatedServer {
 
   connection.onShutdown(() => {
     handlers.shutdown();
+    shutdownEngineShadowRunnerDaemon();
     void watchedFilesDisposable?.then((d) => d.dispose()).catch(() => {});
     watchedFilesDisposable = null;
     session = null;

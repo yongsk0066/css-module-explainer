@@ -266,6 +266,63 @@ describe("resolveStyleDiagnosticFindings", () => {
     expect(forwardedOptions?.styleSemanticGraphCache).toBe(styleSemanticGraphCache);
   });
 
+  it("forwards the runtime selector-usage payload cache to rust unused-selector diagnostics", () => {
+    const scssPath = "/fake/Button.module.scss";
+    const styleDocument = buildStyleDocumentFromSelectorMap(
+      scssPath,
+      new Map([["indicator", infoAtLine("indicator", 1)]]),
+    );
+    const deps = makeBaseDeps({
+      selectorMapForPath: () => new Map([["indicator", infoAtLine("indicator", 1)]]),
+      workspaceRoot: "/fake",
+    });
+    const selectorUsagePayloadCache = new Map();
+    let forwardedCache: unknown = null;
+
+    resolveStyleDiagnosticFindings(
+      { scssPath, styleDocument },
+      {
+        analysisCache: deps.analysisCache,
+        readStyleFile: deps.readStyleFile,
+        semanticReferenceIndex: deps.semanticReferenceIndex,
+        styleDependencyGraph: deps.styleDependencyGraph,
+        styleDocumentForPath: deps.styleDocumentForPath,
+        typeResolver: deps.typeResolver,
+        workspaceRoot: deps.workspaceRoot,
+        settings: deps.settings,
+        selectorUsagePayloadCache,
+      },
+      {
+        env: { CME_SELECTED_QUERY_BACKEND: "rust-selector-usage" } as NodeJS.ProcessEnv,
+        readRustSelectorUsagePayloadsForWorkspaceTarget: (_args, _deps, _filePath, cache) => {
+          forwardedCache = cache;
+          return [
+            {
+              kind: "selector-usage",
+              filePath: scssPath,
+              queryId: "indicator",
+              payload: {
+                canonicalName: "indicator",
+                totalReferences: 0,
+                directReferenceCount: 0,
+                editableDirectReferenceCount: 0,
+                exactReferenceCount: 0,
+                inferredOrBetterReferenceCount: 0,
+                hasExpandedReferences: false,
+                hasStyleDependencyReferences: false,
+                hasAnyReferences: false,
+                allSites: [],
+                editableDirectSites: [],
+              },
+            },
+          ];
+        },
+      },
+    );
+
+    expect(forwardedCache).toBe(selectorUsagePayloadCache);
+  });
+
   it("does not fall back to current unused-selector diagnostics when rust deps are incomplete", () => {
     const scssPath = "/fake/Button.module.scss";
     const styleDocument = makeStyleDocumentFixture(scssPath, [

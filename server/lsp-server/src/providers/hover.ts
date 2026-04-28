@@ -1,5 +1,9 @@
 import type { Hover } from "vscode-languageserver/node";
-import { resolveSourceExpressionHoverResult } from "../../../engine-host-node/src/source-hover-query";
+import {
+  resolveSourceExpressionHoverResult,
+  resolveSourceExpressionHoverResultAsync,
+} from "../../../engine-host-node/src/source-hover-query";
+import type { RustSelectedQueryBackendJsonRunnerAsync } from "../../../engine-host-node/src/selected-query-backend";
 import { resolveStyleHoverResult } from "../../../engine-host-node/src/style-hover-query";
 import { findLangForPath } from "../../../engine-core-ts/src/core/scss/lang-registry";
 import { toLspRange } from "./lsp-adapters";
@@ -12,6 +16,7 @@ import {
 } from "./hover-renderer";
 import { wrapHandler } from "./_wrap-handler";
 import { withSourceExpressionAtCursor, type SourceExpressionContext } from "./cursor-dispatch";
+import { getRustSelectedQueryBackendJsonRunnerAsync } from "./selected-query-runner";
 import type { CursorParams, ProviderDeps } from "./provider-deps";
 
 /**
@@ -31,6 +36,12 @@ export const handleHover = wrapHandler<CursorParams, [maxCandidates?: number], H
     if (findLangForPath(params.filePath)) {
       return buildStyleHover(params, deps);
     }
+    const rustRunner = getRustSelectedQueryBackendJsonRunnerAsync(deps);
+    if (rustRunner) {
+      return withSourceExpressionAtCursor(params, deps, (ctx) =>
+        buildHoverAsync(ctx, params, deps, maxCandidates, rustRunner),
+      );
+    }
     return withSourceExpressionAtCursor(params, deps, (ctx) =>
       buildHover(ctx, params, deps, maxCandidates),
     );
@@ -45,6 +56,32 @@ function buildHover(
   maxCandidates: number,
 ): Hover | null {
   const result = resolveSourceExpressionHoverResult(ctx, params, deps);
+  const markdown = renderHover({
+    expression: ctx.expression,
+    scssModulePath: ctx.expression.scssModulePath,
+    selectors: result.selectors,
+    dynamicExplanation: result.dynamicExplanation,
+    styleDependenciesBySelector: result.styleDependenciesBySelector,
+    workspaceRoot: deps.workspaceRoot,
+    maxCandidates,
+  });
+  if (!markdown) return null;
+  return {
+    range: toLspRange(ctx.expression.range),
+    contents: { kind: "markdown", value: markdown },
+  };
+}
+
+async function buildHoverAsync(
+  ctx: SourceExpressionContext,
+  params: CursorParams,
+  deps: ProviderDeps,
+  maxCandidates: number,
+  rustRunner: RustSelectedQueryBackendJsonRunnerAsync,
+): Promise<Hover | null> {
+  const result = await resolveSourceExpressionHoverResultAsync(ctx, params, deps, {
+    runRustSelectedQueryBackendJsonAsync: rustRunner,
+  });
   const markdown = renderHover({
     expression: ctx.expression,
     scssModulePath: ctx.expression.scssModulePath,

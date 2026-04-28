@@ -131,8 +131,8 @@ function registerCursorHandlers(state: HandlerState): void {
   const withCursor = <T>(
     featureOn: () => boolean,
     p: TextDocumentPositionParams,
-    run: (cursor: CursorParams, deps: ProviderDeps) => T | null,
-  ): T | null => {
+    run: (cursor: CursorParams, deps: ProviderDeps) => MaybePromise<T | null>,
+  ): MaybePromise<T | null> => {
     if (!featureOn()) return null;
     const deps = getDeps(p.textDocument.uri);
     if (!deps) return null;
@@ -194,6 +194,8 @@ function registerCursorHandlers(state: HandlerState): void {
     return handleRename(p, deps, cursor ?? undefined);
   });
 }
+
+type MaybePromise<T> = T | PromiseLike<T>;
 
 function registerDocumentHandlers(state: HandlerState): void {
   const { documents } = state.ctx;

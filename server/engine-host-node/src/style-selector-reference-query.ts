@@ -10,6 +10,7 @@ import {
   usesRustStyleSemanticGraphBackend,
 } from "./selected-query-backend";
 import {
+  resolveRustStyleSemanticGraphForWorkspaceTargetAsync,
   resolveRustStyleSemanticGraphForWorkspaceTarget,
   type StyleSemanticGraphCache,
   type StyleSemanticGraphQueryOptions,
@@ -20,10 +21,15 @@ import type { SelectorUsageRenderSummary } from "./selector-usage-query-backend"
 
 export interface StyleSelectorReferenceQueryOptions extends Pick<
   StyleSemanticGraphQueryOptions,
-  "engineInput" | "sourceDocuments" | "styleFiles" | "styleSemanticGraphCache"
+  | "engineInput"
+  | "sourceDocuments"
+  | "styleFiles"
+  | "styleSemanticGraphCache"
+  | "runRustSelectedQueryBackendJsonAsync"
 > {
   readonly env?: NodeJS.ProcessEnv;
   readonly readRustStyleSemanticGraphForWorkspaceTarget?: typeof resolveRustStyleSemanticGraphForWorkspaceTarget;
+  readonly readRustStyleSemanticGraphForWorkspaceTargetAsync?: typeof resolveRustStyleSemanticGraphForWorkspaceTargetAsync;
 }
 
 type StyleSelectorReferenceDeps = Pick<
@@ -61,6 +67,33 @@ export function resolveRustStyleSelectorReferenceSummaryForWorkspaceTarget(
   );
 }
 
+export async function resolveRustStyleSelectorReferenceSummaryForWorkspaceTargetAsync(
+  args: {
+    readonly filePath: string;
+    readonly canonicalName: string;
+  },
+  deps: StyleSelectorReferenceDeps,
+  options: StyleSelectorReferenceQueryOptions = {},
+): Promise<StyleSemanticGraphSelectorReferenceSummaryV0 | null> {
+  if (!usesRustStyleSemanticGraphBackend(resolveSelectedQueryBackendKind(options.env))) {
+    return null;
+  }
+
+  const graph = await safeResolveRustStyleSemanticGraphForWorkspaceTargetAsync(
+    args.filePath,
+    deps,
+    options,
+  );
+  if (!graph) return null;
+  if (!hasSourceBackedSelectorReferenceEvidence(graph)) return null;
+
+  return (
+    graph.selectorReferenceEngine.selectors.find(
+      (selector) => selector.localName === args.canonicalName,
+    ) ?? null
+  );
+}
+
 export function resolveRustStyleSelectorReferenceSummariesForWorkspaceTarget(
   args: {
     readonly filePath: string;
@@ -73,6 +106,28 @@ export function resolveRustStyleSelectorReferenceSummariesForWorkspaceTarget(
   }
 
   const graph = safeResolveRustStyleSemanticGraphForWorkspaceTarget(args.filePath, deps, options);
+  if (!graph) return null;
+  if (!hasSourceBackedSelectorReferenceEvidence(graph)) return null;
+
+  return graph.selectorReferenceEngine.selectors;
+}
+
+export async function resolveRustStyleSelectorReferenceSummariesForWorkspaceTargetAsync(
+  args: {
+    readonly filePath: string;
+  },
+  deps: StyleSelectorReferenceDeps,
+  options: StyleSelectorReferenceQueryOptions = {},
+): Promise<readonly StyleSemanticGraphSelectorReferenceSummaryV0[] | null> {
+  if (!usesRustStyleSemanticGraphBackend(resolveSelectedQueryBackendKind(options.env))) {
+    return null;
+  }
+
+  const graph = await safeResolveRustStyleSemanticGraphForWorkspaceTargetAsync(
+    args.filePath,
+    deps,
+    options,
+  );
   if (!graph) return null;
   if (!hasSourceBackedSelectorReferenceEvidence(graph)) return null;
 
@@ -92,6 +147,34 @@ function safeResolveRustStyleSemanticGraphForWorkspaceTarget(
     return (
       options.readRustStyleSemanticGraphForWorkspaceTarget ??
       resolveRustStyleSemanticGraphForWorkspaceTarget
+    )(
+      {
+        workspaceRoot: deps.workspaceRoot,
+        classnameTransform: deps.settings.scss.classnameTransform,
+        pathAlias: deps.settings.pathAlias,
+      },
+      deps,
+      filePath,
+      queryOptions,
+    );
+  } catch {
+    return null;
+  }
+}
+
+async function safeResolveRustStyleSemanticGraphForWorkspaceTargetAsync(
+  filePath: string,
+  deps: StyleSelectorReferenceDeps,
+  options: StyleSelectorReferenceQueryOptions,
+): Promise<StyleSemanticGraphSummaryV0 | null> {
+  const queryOptions =
+    options.styleSemanticGraphCache || !deps.styleSemanticGraphCache
+      ? options
+      : { ...options, styleSemanticGraphCache: deps.styleSemanticGraphCache };
+  try {
+    return await (
+      options.readRustStyleSemanticGraphForWorkspaceTargetAsync ??
+      resolveRustStyleSemanticGraphForWorkspaceTargetAsync
     )(
       {
         workspaceRoot: deps.workspaceRoot,

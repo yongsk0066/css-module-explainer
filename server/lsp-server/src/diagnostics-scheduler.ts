@@ -8,10 +8,14 @@ import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
 import { fileUrlToPath } from "../../engine-core-ts/src/core/util/text-utils";
 import { findLangForPath } from "../../engine-core-ts/src/core/scss/lang-registry";
 import type { WindowSettings } from "../../engine-core-ts/src/settings";
+import type { SelectorUsagePayloadCache } from "../../engine-host-node/src/selector-usage-query-backend";
 import type { StyleSemanticGraphCache } from "../../engine-host-node/src/style-semantic-graph-query-backend";
+import type { RustSelectedQueryBackendJsonRunnerAsync } from "../../engine-host-node/src/selected-query-backend";
 
 type RuntimeProviderDeps = ProviderDeps & {
   readonly styleSemanticGraphCache?: StyleSemanticGraphCache;
+  readonly selectorUsagePayloadCache?: SelectorUsagePayloadCache;
+  readonly runRustSelectedQueryBackendJsonAsync?: RustSelectedQueryBackendJsonRunnerAsync;
 };
 
 const DIAGNOSTICS_DEBOUNCE_MS = 200;
@@ -180,13 +184,34 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
         ...(runtimeProviderDeps.styleSemanticGraphCache
           ? { styleSemanticGraphCache: runtimeProviderDeps.styleSemanticGraphCache }
           : {}),
+        ...(runtimeProviderDeps.selectorUsagePayloadCache
+          ? { selectorUsagePayloadCache: runtimeProviderDeps.selectorUsagePayloadCache }
+          : {}),
+        ...(runtimeProviderDeps.runRustSelectedQueryBackendJsonAsync
+          ? {
+              runRustSelectedQueryBackendJsonAsync:
+                runtimeProviderDeps.runRustSelectedQueryBackendJsonAsync,
+            }
+          : {}),
         env: process.env,
       },
     );
     this.safeSendDiagnostics(uri, diagnostics);
   }
 
-  private safeSendDiagnostics(uri: string, diagnostics: readonly Diagnostic[]): void {
+  private safeSendDiagnostics(uri: string, diagnostics: MaybePromise<readonly Diagnostic[]>): void {
+    if (isPromiseLike(diagnostics)) {
+      Promise.resolve(diagnostics)
+        .then((resolved) => this.safeSendDiagnostics(uri, resolved))
+        .catch((err: unknown) => {
+          const message = err instanceof Error ? err.message : String(err);
+          this.deps.connection.console.error(
+            `[css-module-explainer] diagnostics failed: ${message}`,
+          );
+          this.safeSendDiagnostics(uri, []);
+        });
+      return;
+    }
     if (this.stopped) return;
     try {
       this.deps.connection.sendDiagnostics({ uri, diagnostics: [...diagnostics] });
@@ -194,6 +219,16 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
       this.stopped = true;
     }
   }
+}
+
+type MaybePromise<T> = T | PromiseLike<T>;
+
+function isPromiseLike<T>(value: MaybePromise<T>): value is PromiseLike<T> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { then?: unknown }).then === "function"
+  );
 }
 
 function cancelTimer(timers: Map<string, NodeJS.Timeout>, uri: string): void {

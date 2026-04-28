@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 use std::env;
-use std::io::{self, Read};
+use std::io::{self, BufRead, Read, Write};
 
 use engine_input_producers::{
     ConstraintDetailCounts, EngineInputV2, summarize_expression_domain_candidates_input,
@@ -79,6 +79,26 @@ struct StyleSemanticGraphBatchStyleInputV0 {
 struct StyleSemanticGraphBatchInputV0 {
     styles: Vec<StyleSemanticGraphBatchStyleInputV0>,
     engine_input: EngineInputV2,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct EngineShadowRunnerDaemonRequestV0 {
+    id: serde_json::Value,
+    command: String,
+    input: serde_json::Value,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct EngineShadowRunnerDaemonResponseV0 {
+    schema_version: &'static str,
+    id: serde_json::Value,
+    ok: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    result: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -420,6 +440,10 @@ struct ShadowSummaryV0 {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mode = env::args().nth(1);
+    if mode.as_deref() == Some("--daemon") {
+        return run_daemon();
+    }
+
     let mut stdin = String::new();
     io::stdin().read_to_string(&mut stdin)?;
 
@@ -692,6 +716,103 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+fn run_daemon() -> Result<(), Box<dyn std::error::Error>> {
+    let stdin = io::stdin();
+    let mut stdout = io::stdout();
+
+    for line in stdin.lock().lines() {
+        let line = line?;
+        if line.trim().is_empty() {
+            continue;
+        }
+
+        let response = match serde_json::from_str::<EngineShadowRunnerDaemonRequestV0>(&line) {
+            Ok(request) => {
+                let id = request.id.clone();
+                match run_daemon_selected_query_command(&request.command, request.input) {
+                    Ok(result) => EngineShadowRunnerDaemonResponseV0 {
+                        schema_version: "0",
+                        id,
+                        ok: true,
+                        result: Some(result),
+                        error: None,
+                    },
+                    Err(error) => EngineShadowRunnerDaemonResponseV0 {
+                        schema_version: "0",
+                        id,
+                        ok: false,
+                        result: None,
+                        error: Some(error.to_string()),
+                    },
+                }
+            }
+            Err(error) => EngineShadowRunnerDaemonResponseV0 {
+                schema_version: "0",
+                id: serde_json::Value::Null,
+                ok: false,
+                result: None,
+                error: Some(error.to_string()),
+            },
+        };
+
+        serde_json::to_writer(&mut stdout, &response)?;
+        stdout.write_all(b"\n")?;
+        stdout.flush()?;
+    }
+
+    Ok(())
+}
+
+fn run_daemon_selected_query_command(
+    command: &str,
+    input: serde_json::Value,
+) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+    match command {
+        "input-source-resolution-canonical-producer" => {
+            let input: EngineInputV2 = serde_json::from_value(input)?;
+            Ok(serde_json::to_value(
+                summarize_omena_query_source_resolution_canonical_producer_signal(&input),
+            )?)
+        }
+        "input-expression-semantics-canonical-producer" => {
+            let input: EngineInputV2 = serde_json::from_value(input)?;
+            Ok(serde_json::to_value(
+                summarize_omena_query_expression_semantics_canonical_producer_signal(&input),
+            )?)
+        }
+        "input-selector-usage-canonical-producer" => {
+            let input: EngineInputV2 = serde_json::from_value(input)?;
+            Ok(serde_json::to_value(
+                summarize_omena_query_selector_usage_canonical_producer_signal(&input),
+            )?)
+        }
+        "style-semantic-graph" => {
+            let input: StyleSemanticGraphInputV0 = serde_json::from_value(input)?;
+            let Some(summary) = summarize_omena_query_style_semantic_graph_from_source(
+                &input.style_path,
+                &input.style_source,
+                &input.engine_input,
+            ) else {
+                return Err("unsupported style module path".into());
+            };
+            Ok(serde_json::to_value(summary)?)
+        }
+        "style-semantic-graph-batch" => {
+            let input: StyleSemanticGraphBatchInputV0 = serde_json::from_value(input)?;
+            Ok(serde_json::to_value(
+                summarize_omena_query_style_semantic_graph_batch_from_sources(
+                    input
+                        .styles
+                        .iter()
+                        .map(|style| (style.style_path.as_str(), style.style_source.as_str())),
+                    &input.engine_input,
+                ),
+            )?)
+        }
+        other => Err(format!("unsupported engine-shadow-runner daemon command: {other}").into()),
+    }
 }
 
 fn summarize(payload: ShadowPayloadV0) -> ShadowSummaryV0 {

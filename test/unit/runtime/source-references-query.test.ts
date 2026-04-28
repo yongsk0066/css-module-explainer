@@ -6,6 +6,7 @@ import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/engine
 import { readSourceExpressionContextAtCursor } from "../../../server/engine-core-ts/src/core/query";
 import type { ProviderDeps } from "../../../server/lsp-server/src/providers/cursor-dispatch";
 import { resolveSourceExpressionReferences } from "../../../server/engine-host-node/src/source-references-query";
+import type { StyleSemanticGraphSummaryV0 } from "../../../server/engine-host-node/src/style-semantic-graph-query-backend";
 import {
   EMPTY_ALIAS_RESOLVER,
   buildTestClassExpressions,
@@ -289,4 +290,131 @@ describe("resolveSourceExpressionReferences", () => {
       },
     ]);
   });
+
+  it("rechecks rust selector-usage when rust graph has an empty selector reference summary", () => {
+    const deps = makeTsxDeps([
+      {
+        kind: "literal",
+        origin: "cxCall",
+        className: "indicator",
+        range: {
+          start: { line: 3, character: 14 },
+          end: { line: 3, character: 23 },
+        },
+        scssModulePath: BINDING.scssModulePath,
+      },
+    ]);
+    const ctx = readSourceExpressionContextAtCursor(cursor, {
+      analysisCache: deps.analysisCache,
+      styleDocumentForPath: deps.styleDocumentForPath,
+    });
+
+    expect(ctx).not.toBeNull();
+    expect(
+      resolveSourceExpressionReferences(ctx!, cursor, deps, {
+        env: {
+          CME_SELECTED_QUERY_BACKEND: "rust-selected-query",
+        } as NodeJS.ProcessEnv,
+        readRustSourceResolutionSelectorMatch: () => ({
+          styleFilePath: "/fake/src/Button.module.scss",
+          selectorNames: ["indicator"],
+        }),
+        readRustStyleSemanticGraphForWorkspaceTarget: () => makeEmptyReferenceGraph(),
+        readRustSelectorUsagePayloadForWorkspaceTarget: () => ({
+          canonicalName: "indicator",
+          totalReferences: 1,
+          directReferenceCount: 1,
+          editableDirectReferenceCount: 1,
+          exactReferenceCount: 1,
+          inferredOrBetterReferenceCount: 1,
+          hasExpandedReferences: false,
+          hasStyleDependencyReferences: false,
+          hasAnyReferences: true,
+          allSites: [
+            {
+              filePath: "/fake/src/FromRustUsage.tsx",
+              range: {
+                start: { line: 9, character: 4 },
+                end: { line: 9, character: 13 },
+              },
+              expansion: "direct",
+              referenceKind: "source",
+            },
+          ],
+        }),
+      }),
+    ).toEqual([
+      {
+        uri: "file:///fake/src/FromRustUsage.tsx",
+        range: {
+          start: { line: 9, character: 4 },
+          end: { line: 9, character: 13 },
+        },
+      },
+    ]);
+  });
 });
+
+function makeEmptyReferenceGraph(): StyleSemanticGraphSummaryV0 {
+  return {
+    schemaVersion: "0",
+    product: "omena-semantic.style-semantic-graph",
+    language: "scss",
+    parserFacts: {},
+    semanticFacts: {},
+    selectorIdentityEngine: {
+      schemaVersion: "0",
+      product: "omena-semantic.selector-identity",
+      canonicalIdCount: 1,
+      canonicalIds: [
+        {
+          canonicalId: "selector:indicator",
+          localName: "indicator",
+          identityKind: "localClass",
+          rewriteSafety: "safe",
+          blockers: [],
+        },
+      ],
+      rewriteSafety: {
+        allCanonicalIdsRewriteSafe: true,
+        safeCanonicalIds: ["selector:indicator"],
+        blockedCanonicalIds: [],
+        blockers: [],
+      },
+    },
+    selectorReferenceEngine: {
+      schemaVersion: "0",
+      product: "omena-semantic.selector-references",
+      stylePath: "/fake/src/Button.module.scss",
+      selectorCount: 1,
+      referencedSelectorCount: 0,
+      unreferencedSelectorCount: 1,
+      totalReferenceSites: 0,
+      selectors: [
+        {
+          canonicalId: "selector:indicator",
+          filePath: "/fake/src/Button.module.scss",
+          localName: "indicator",
+          totalReferences: 0,
+          directReferenceCount: 0,
+          editableDirectReferenceCount: 0,
+          exactReferenceCount: 0,
+          inferredOrBetterReferenceCount: 0,
+          hasExpandedReferences: false,
+          hasStyleDependencyReferences: false,
+          hasAnyReferences: false,
+          sites: [],
+          editableDirectSites: [],
+        },
+      ],
+    },
+    sourceInputEvidence: {
+      referenceSiteIdentity: {
+        status: "ready",
+        referenceSiteCount: 1,
+      },
+    },
+    promotionEvidence: {},
+    losslessCstContract: {},
+  };
+}

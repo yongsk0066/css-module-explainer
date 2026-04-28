@@ -2,8 +2,13 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   buildEngineShadowRunnerInvocation,
+  buildEngineShadowRunnerDaemonInvocation,
   canUsePrebuiltEngineShadowRunner,
+  EngineShadowRunnerCancelledError,
   isPackagedExtensionRuntime,
+  isEngineShadowRunnerCancelledError,
+  shouldUseEngineShadowRunnerDaemon,
+  shouldTraceEngineShadowRunnerDaemon,
   resolveSelectedQueryBackendKind,
   usesRustExpressionSemanticsBackend,
   usesRustSelectorUsageBackend,
@@ -161,6 +166,25 @@ describe("selected query backend", () => {
     expect(invocation.cwd).toBe("/workspace/css-module-explainer");
   });
 
+  it("uses the daemon flag in cargo-run daemon mode", () => {
+    const invocation = buildEngineShadowRunnerDaemonInvocation({
+      CME_ENGINE_SHADOW_RUNNER: "",
+      CME_PROJECT_ROOT: "/workspace/css-module-explainer",
+    } as NodeJS.ProcessEnv);
+
+    expect(invocation.command).toBe("cargo");
+    expect(invocation.args).toEqual([
+      "run",
+      "--manifest-path",
+      path.join("/workspace/css-module-explainer", "rust/Cargo.toml"),
+      "-p",
+      "engine-shadow-runner",
+      "--quiet",
+      "--",
+      "--daemon",
+    ]);
+  });
+
   it("uses the packaged runner by default when it is available", () => {
     const projectRoot = path.join("/extension", "css-module-explainer");
     const packagedRunner = path.join(
@@ -179,6 +203,26 @@ describe("selected query backend", () => {
 
     expect(invocation.command).toBe(packagedRunner);
     expect(invocation.args).toEqual(["input-source-resolution-canonical-producer"]);
+    expect(invocation.cwd).toBe(projectRoot);
+  });
+
+  it("uses the packaged runner directly in daemon mode", () => {
+    const projectRoot = path.join("/extension", "css-module-explainer");
+    const packagedRunner = path.join(
+      projectRoot,
+      "dist/bin",
+      `${process.platform}-${process.arch}`,
+      process.platform === "win32" ? "engine-shadow-runner.exe" : "engine-shadow-runner",
+    );
+    const invocation = buildEngineShadowRunnerDaemonInvocation(
+      {
+        CME_PROJECT_ROOT: projectRoot,
+      } as NodeJS.ProcessEnv,
+      (filePath) => filePath === packagedRunner,
+    );
+
+    expect(invocation.command).toBe(packagedRunner);
+    expect(invocation.args).toEqual(["--daemon"]);
     expect(invocation.cwd).toBe(projectRoot);
   });
 
@@ -243,5 +287,74 @@ describe("selected query backend", () => {
         () => false,
       ),
     ).toThrow(/check:rust-selected-query-warmup/u);
+  });
+
+  it("classifies runner signal termination as cancellation", () => {
+    const err = new EngineShadowRunnerCancelledError("SIGTERM", {
+      command: "engine-shadow-runner",
+      args: ["style-semantic-graph"],
+      cwd: "/workspace/css-module-explainer",
+    });
+
+    expect(isEngineShadowRunnerCancelledError(err)).toBe(true);
+    expect(err.message).toContain("SIGTERM");
+    expect(err.message).toContain("style-semantic-graph");
+  });
+
+  it("gates daemon usage behind the explicit daemon env flag in source checkouts", () => {
+    expect(shouldUseEngineShadowRunnerDaemon({} as NodeJS.ProcessEnv)).toBe(false);
+    expect(
+      shouldUseEngineShadowRunnerDaemon({
+        CME_ENGINE_SHADOW_RUNNER_DAEMON: "1",
+      } as NodeJS.ProcessEnv),
+    ).toBe(true);
+    expect(
+      shouldUseEngineShadowRunnerDaemon({
+        CME_ENGINE_SHADOW_RUNNER_DAEMON: "true",
+      } as NodeJS.ProcessEnv),
+    ).toBe(true);
+    expect(
+      shouldUseEngineShadowRunnerDaemon({
+        CME_ENGINE_SHADOW_RUNNER_DAEMON: "on",
+      } as NodeJS.ProcessEnv),
+    ).toBe(true);
+    expect(
+      shouldUseEngineShadowRunnerDaemon({
+        CME_ENGINE_SHADOW_RUNNER_DAEMON: "off",
+      } as NodeJS.ProcessEnv),
+    ).toBe(false);
+  });
+
+  it("enables daemon usage by default in packaged Rust selected-query runtime", () => {
+    const projectRoot = path.join("/extension", "css-module-explainer");
+    const packagedFiles = (filePath: string) =>
+      filePath.includes("dist/bin") ||
+      filePath.endsWith("dist/client/extension.js") ||
+      filePath.endsWith("dist/server/server.js");
+
+    expect(
+      shouldUseEngineShadowRunnerDaemon(
+        { CME_PROJECT_ROOT: projectRoot } as NodeJS.ProcessEnv,
+        packagedFiles,
+      ),
+    ).toBe(true);
+    expect(
+      shouldUseEngineShadowRunnerDaemon(
+        {
+          CME_PROJECT_ROOT: projectRoot,
+          CME_ENGINE_SHADOW_RUNNER_DAEMON: "0",
+        } as NodeJS.ProcessEnv,
+        packagedFiles,
+      ),
+    ).toBe(false);
+  });
+
+  it("gates daemon tracing behind the explicit trace env flag", () => {
+    expect(shouldTraceEngineShadowRunnerDaemon({} as NodeJS.ProcessEnv)).toBe(false);
+    expect(
+      shouldTraceEngineShadowRunnerDaemon({
+        CME_ENGINE_SHADOW_RUNNER_DAEMON_TRACE: "1",
+      } as NodeJS.ProcessEnv),
+    ).toBe(true);
   });
 });

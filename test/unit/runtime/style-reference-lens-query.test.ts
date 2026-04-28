@@ -134,6 +134,64 @@ describe("resolveStyleReferenceLenses", () => {
     ]);
   });
 
+  it("reads rust selector-usage payloads once for all selectors in a style file", () => {
+    const styleDocument = buildStyleDocumentFromSelectorMap(
+      "/fake/src/Button.module.scss",
+      new Map([
+        ["indicator", infoAtLine("indicator", 5)],
+        ["active", infoAtLine("active", 10)],
+      ]),
+    );
+    const deps = makeDeps();
+    let payloadReads = 0;
+
+    const result = resolveStyleReferenceLenses(
+      "/fake/src/Button.module.scss",
+      styleDocument,
+      deps,
+      {
+        env: { CME_SELECTED_QUERY_BACKEND: "rust-selector-usage" } as NodeJS.ProcessEnv,
+        readRustSelectorUsagePayloadsForWorkspaceTarget: () => {
+          payloadReads += 1;
+          return [
+            makeSelectorUsageCandidate("indicator", true),
+            makeSelectorUsageCandidate("active", false),
+          ];
+        },
+      },
+    );
+
+    expect(payloadReads).toBe(1);
+    expect(result).toHaveLength(1);
+    expect(result[0]?.title).toBe("1 reference");
+  });
+
+  it("forwards the shared selector-usage payload cache to rust payload readers", () => {
+    const styleDocument = buildStyleDocumentFromSelectorMap(
+      "/fake/src/Button.module.scss",
+      new Map([["indicator", infoAtLine("indicator", 5)]]),
+    );
+    const selectorUsagePayloadCache = new Map();
+    let forwardedCache: unknown = null;
+
+    const result = resolveStyleReferenceLenses(
+      "/fake/src/Button.module.scss",
+      styleDocument,
+      makeDeps(),
+      {
+        env: { CME_SELECTED_QUERY_BACKEND: "rust-selector-usage" } as NodeJS.ProcessEnv,
+        selectorUsagePayloadCache,
+        readRustSelectorUsagePayloadsForWorkspaceTarget: (_args, _deps, _filePath, cache) => {
+          forwardedCache = cache;
+          return [makeSelectorUsageCandidate("indicator", true)];
+        },
+      },
+    );
+
+    expect(forwardedCache).toBe(selectorUsagePayloadCache);
+    expect(result).toHaveLength(1);
+  });
+
   it("uses rust style semantic graph references for lens title summary and locations", () => {
     const styleDocument = buildStyleDocumentFromSelectorMap(
       "/fake/src/Button.module.scss",
@@ -152,6 +210,38 @@ describe("resolveStyleReferenceLenses", () => {
 
     expect(result).toHaveLength(1);
     expect(result[0]?.title).toBe("3 references (1 direct, dynamic)");
+    expect(result[0]?.locations).toEqual([
+      {
+        uri: "file:///fake/src/App.tsx",
+        range: {
+          start: { line: 12, character: 8 },
+          end: { line: 12, character: 17 },
+        },
+      },
+    ]);
+  });
+
+  it("rechecks rust selector-usage when rust graph has an empty selector reference summary", () => {
+    const styleDocument = buildStyleDocumentFromSelectorMap(
+      "/fake/src/Button.module.scss",
+      new Map([["indicator", infoAtLine("indicator", 5)]]),
+    );
+
+    const result = resolveStyleReferenceLenses(
+      "/fake/src/Button.module.scss",
+      styleDocument,
+      makeDeps(),
+      {
+        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        readRustStyleSemanticGraphForWorkspaceTarget: () => makeEmptyReferenceGraph(),
+        readRustSelectorUsagePayloadsForWorkspaceTarget: () => [
+          makeSelectorUsageCandidate("indicator", true),
+        ],
+      },
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.title).toBe("1 reference");
     expect(result[0]?.locations).toEqual([
       {
         uri: "file:///fake/src/App.tsx",
@@ -239,5 +329,88 @@ function makeReferenceGraph(): StyleSemanticGraphSummaryV0 {
     sourceInputEvidence: {},
     promotionEvidence: {},
     losslessCstContract: {},
+  };
+}
+
+function makeEmptyReferenceGraph(): StyleSemanticGraphSummaryV0 {
+  return {
+    ...makeReferenceGraph(),
+    selectorReferenceEngine: {
+      schemaVersion: "0",
+      product: "omena-semantic.selector-references",
+      stylePath: "/fake/src/Button.module.scss",
+      selectorCount: 1,
+      referencedSelectorCount: 0,
+      unreferencedSelectorCount: 1,
+      totalReferenceSites: 0,
+      selectors: [
+        {
+          canonicalId: "selector:indicator",
+          filePath: "/fake/src/Button.module.scss",
+          localName: "indicator",
+          totalReferences: 0,
+          directReferenceCount: 0,
+          editableDirectReferenceCount: 0,
+          exactReferenceCount: 0,
+          inferredOrBetterReferenceCount: 0,
+          hasExpandedReferences: false,
+          hasStyleDependencyReferences: false,
+          hasAnyReferences: false,
+          sites: [],
+          editableDirectSites: [],
+        },
+      ],
+    },
+    sourceInputEvidence: {
+      referenceSiteIdentity: {
+        status: "ready",
+        referenceSiteCount: 1,
+      },
+    },
+  };
+}
+
+function makeSelectorUsageCandidate(canonicalName: string, hasAnyReferences: boolean) {
+  const referenceCount = hasAnyReferences ? 1 : 0;
+  return {
+    kind: "selector-usage" as const,
+    filePath: "/fake/src/Button.module.scss",
+    queryId: canonicalName,
+    payload: {
+      canonicalName,
+      totalReferences: referenceCount,
+      directReferenceCount: referenceCount,
+      editableDirectReferenceCount: referenceCount,
+      exactReferenceCount: referenceCount,
+      inferredOrBetterReferenceCount: referenceCount,
+      hasExpandedReferences: false,
+      hasStyleDependencyReferences: false,
+      hasAnyReferences,
+      allSites: hasAnyReferences
+        ? [
+            {
+              filePath: "/fake/src/App.tsx",
+              range: {
+                start: { line: 12, character: 8 },
+                end: { line: 12, character: 17 },
+              },
+              expansion: "direct",
+              referenceKind: "source",
+            },
+          ]
+        : [],
+      editableDirectSites: hasAnyReferences
+        ? [
+            {
+              filePath: "/fake/src/App.tsx",
+              range: {
+                start: { line: 12, character: 8 },
+                end: { line: 12, character: 17 },
+              },
+              className: canonicalName,
+            },
+          ]
+        : [],
+    },
   };
 }

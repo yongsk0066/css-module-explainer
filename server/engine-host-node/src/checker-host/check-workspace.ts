@@ -13,6 +13,7 @@ import {
 } from "../selected-query-backend";
 import { resolveSourceDiagnosticFindings } from "../source-diagnostics-query";
 import { resolveStyleDiagnosticFindings } from "../style-diagnostics-query";
+import type { SelectorUsagePayloadCache } from "../selector-usage-query-backend";
 import type { StyleSemanticGraphCache } from "../style-semantic-graph-query-backend";
 import type { TypeFactBackendKind } from "../type-backend";
 import {
@@ -83,6 +84,7 @@ export async function checkWorkspace(
   const findings: WorkspaceCheckerFinding[] = [];
   const sourceDiagnosticOptions = options.env ? { env: options.env } : {};
   const styleSemanticGraphCache: StyleSemanticGraphCache = new Map();
+  const selectorUsagePayloadCache: SelectorUsagePayloadCache = new Map();
   const selectedQueryBackend = resolveSelectedQueryBackendKind(options.env ?? process.env);
   const styleSemanticGraphEngineInput = usesRustStyleSemanticGraphBackend(selectedQueryBackend)
     ? buildEngineInputV2({
@@ -102,6 +104,7 @@ export async function checkWorkspace(
     sourceDocuments,
     styleFiles,
     styleSemanticGraphCache,
+    selectorUsagePayloadCache,
     ...(options.includeUnusedSelectors !== undefined
       ? { includeUnusedSelectors: options.includeUnusedSelectors }
       : {}),

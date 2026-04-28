@@ -155,6 +155,100 @@ describe("resolveStyleReferencesAtCursor", () => {
     ]);
   });
 
+  it("rechecks rust selector-usage when rust graph has an empty selector reference summary", () => {
+    const styleDocument = buildStyleDocumentFromSelectorMap(
+      "/fake/src/Button.module.scss",
+      new Map([["indicator", infoAtLine("indicator", 5)]]),
+    );
+
+    const result = resolveStyleReferencesAtCursor(
+      {
+        filePath: "/fake/src/Button.module.scss",
+        line: 5,
+        character: 3,
+        includeDeclaration: true,
+        styleDocument,
+      },
+      makeDeps(),
+      {
+        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        readRustStyleSemanticGraphForWorkspaceTarget: () => makeEmptyReferenceGraph(),
+        readRustSelectorUsagePayloadForWorkspaceTarget: () => ({
+          canonicalName: "indicator",
+          totalReferences: 1,
+          directReferenceCount: 1,
+          editableDirectReferenceCount: 1,
+          exactReferenceCount: 1,
+          inferredOrBetterReferenceCount: 1,
+          hasExpandedReferences: false,
+          hasStyleDependencyReferences: false,
+          hasAnyReferences: true,
+          allSites: [
+            {
+              filePath: "/fake/src/FromRustUsage.tsx",
+              range: {
+                start: { line: 8, character: 4 },
+                end: { line: 8, character: 13 },
+              },
+              expansion: "direct",
+              referenceKind: "source",
+            },
+          ],
+        }),
+      },
+    );
+
+    expect(result).toEqual([
+      {
+        uri: "file:///fake/src/FromRustUsage.tsx",
+        range: {
+          start: { line: 8, character: 4 },
+          end: { line: 8, character: 13 },
+        },
+      },
+    ]);
+  });
+
+  it("does not fall through to the current reference index when rust graph and selector-usage agree on no references", () => {
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    semanticReferenceIndex.record("file:///fake/src/App.tsx", [
+      semanticSiteAt("file:///fake/src/App.tsx", "indicator", 10, "/fake/src/Button.module.scss"),
+    ]);
+    const styleDocument = buildStyleDocumentFromSelectorMap(
+      "/fake/src/Button.module.scss",
+      new Map([["indicator", infoAtLine("indicator", 5)]]),
+    );
+
+    const result = resolveStyleReferencesAtCursor(
+      {
+        filePath: "/fake/src/Button.module.scss",
+        line: 5,
+        character: 3,
+        includeDeclaration: true,
+        styleDocument,
+      },
+      makeDeps({ semanticReferenceIndex }),
+      {
+        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        readRustStyleSemanticGraphForWorkspaceTarget: () => makeEmptyReferenceGraph(),
+        readRustSelectorUsagePayloadForWorkspaceTarget: () => ({
+          canonicalName: "indicator",
+          totalReferences: 0,
+          directReferenceCount: 0,
+          editableDirectReferenceCount: 0,
+          exactReferenceCount: 0,
+          inferredOrBetterReferenceCount: 0,
+          hasExpandedReferences: false,
+          hasStyleDependencyReferences: false,
+          hasAnyReferences: false,
+          allSites: [],
+        }),
+      },
+    );
+
+    expect(result).toEqual([]);
+  });
+
   it("returns same-file Sass symbol references from a declaration cursor", () => {
     const filePath = "/fake/src/Button.module.scss";
     const scss = `$gap: 1rem;
@@ -602,5 +696,43 @@ function makeReferenceGraph(): StyleSemanticGraphSummaryV0 {
     sourceInputEvidence: {},
     promotionEvidence: {},
     losslessCstContract: {},
+  };
+}
+
+function makeEmptyReferenceGraph(): StyleSemanticGraphSummaryV0 {
+  return {
+    ...makeReferenceGraph(),
+    selectorReferenceEngine: {
+      schemaVersion: "0",
+      product: "omena-semantic.selector-references",
+      stylePath: "/fake/src/Button.module.scss",
+      selectorCount: 1,
+      referencedSelectorCount: 0,
+      unreferencedSelectorCount: 1,
+      totalReferenceSites: 0,
+      selectors: [
+        {
+          canonicalId: "selector:indicator",
+          filePath: "/fake/src/Button.module.scss",
+          localName: "indicator",
+          totalReferences: 0,
+          directReferenceCount: 0,
+          editableDirectReferenceCount: 0,
+          exactReferenceCount: 0,
+          inferredOrBetterReferenceCount: 0,
+          hasExpandedReferences: false,
+          hasStyleDependencyReferences: false,
+          hasAnyReferences: false,
+          sites: [],
+          editableDirectSites: [],
+        },
+      ],
+    },
+    sourceInputEvidence: {
+      referenceSiteIdentity: {
+        status: "ready",
+        referenceSiteCount: 1,
+      },
+    },
   };
 }

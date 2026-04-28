@@ -4,12 +4,11 @@ import type { ProviderDeps } from "./provider-deps";
  * Positional-contract error boundary for provider handlers.
  *
  * Every LSP handler follows the same shape — `(params, deps, ...rest)` —
- * so `wrapHandler` captures sync exceptions from `impl`, routes them
- * through `deps.logError`, and returns `fallback`. Async rejections
- * are NOT caught: if `impl` returns a rejected promise, the wrapper
- * passes it through untouched. This is intentional — async handlers
- * attach their own error boundary via `.catch()` to keep the contract
- * explicit at the async call site.
+ * so `wrapHandler` captures sync exceptions and async rejections
+ * from `impl`, routes them through `deps.logError`, and returns
+ * `fallback`. This keeps the provider boundary uniform while the
+ * implementation underneath may stay sync or move to a long-lived
+ * async backend.
  *
  * Stack preservation: `logError` receives the original `err` value,
  * so its downstream formatter (the composition-root wires
@@ -18,15 +17,32 @@ import type { ProviderDeps } from "./provider-deps";
  */
 export function wrapHandler<P, Rest extends readonly unknown[], R>(
   name: string,
-  impl: (params: P, deps: ProviderDeps, ...rest: Rest) => R,
+  impl: (params: P, deps: ProviderDeps, ...rest: Rest) => MaybePromise<R>,
   fallback: R,
-): (params: P, deps: ProviderDeps, ...rest: Rest) => R {
+): (params: P, deps: ProviderDeps, ...rest: Rest) => MaybePromise<R> {
   return (params, deps, ...rest) => {
     try {
-      return impl(params, deps, ...rest);
+      const result = impl(params, deps, ...rest);
+      if (isPromiseLike(result)) {
+        return Promise.resolve(result).catch((err: unknown) => {
+          deps.logError(`${name} handler failed`, err);
+          return fallback;
+        });
+      }
+      return result;
     } catch (err) {
       deps.logError(`${name} handler failed`, err);
       return fallback;
     }
   };
+}
+
+type MaybePromise<T> = T | PromiseLike<T>;
+
+function isPromiseLike<T>(value: MaybePromise<T>): value is PromiseLike<T> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { then?: unknown }).then === "function"
+  );
 }

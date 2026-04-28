@@ -17,8 +17,11 @@ import type { EdgeCertainty } from "../../engine-core-ts/src/core/semantic/certa
 import type { ExpressionSemanticsSummary } from "../../engine-core-ts/src/core/query/read-expression-semantics";
 import {
   buildSelectedQueryBackendInput,
+  isEngineShadowRunnerCancelledError,
   SELECTED_QUERY_RUNNER_COMMANDS,
   runRustSelectedQueryBackendJson,
+  runRustSelectedQueryBackendJsonAsync,
+  type RustSelectedQueryBackendJsonRunnerAsync,
   type SelectedQueryBackendDocument,
 } from "./selected-query-backend";
 
@@ -89,11 +92,38 @@ export function resolveRustExpressionSemanticsPayloads(
   >,
 ): readonly ExpressionSemanticsEvaluatorCandidatePayloadV0[] {
   const input = buildSelectedQueryBackendInput(document, scssModulePath, deps);
-  const signal = runRustSelectedQueryBackendJson<ExpressionSemanticsCanonicalProducerSignalV0>(
-    SELECTED_QUERY_RUNNER_COMMANDS.expressionSemanticsCanonicalProducer,
-    input,
-  );
-  return signal.evaluatorCandidates.results.map((candidate) => candidate.payload);
+  try {
+    const signal = runRustSelectedQueryBackendJson<ExpressionSemanticsCanonicalProducerSignalV0>(
+      SELECTED_QUERY_RUNNER_COMMANDS.expressionSemanticsCanonicalProducer,
+      input,
+    );
+    return signal.evaluatorCandidates.results.map((candidate) => candidate.payload);
+  } catch (err) {
+    if (isEngineShadowRunnerCancelledError(err)) return [];
+    throw err;
+  }
+}
+
+export async function resolveRustExpressionSemanticsPayloadsAsync(
+  document: SelectedQueryBackendDocument,
+  scssModulePath: string,
+  deps: Pick<
+    ProviderDeps,
+    "analysisCache" | "styleDocumentForPath" | "typeResolver" | "workspaceRoot" | "settings"
+  >,
+  runJson: RustSelectedQueryBackendJsonRunnerAsync = runRustSelectedQueryBackendJsonAsync,
+): Promise<readonly ExpressionSemanticsEvaluatorCandidatePayloadV0[]> {
+  const input = buildSelectedQueryBackendInput(document, scssModulePath, deps);
+  try {
+    const signal = await runJson<ExpressionSemanticsCanonicalProducerSignalV0>(
+      SELECTED_QUERY_RUNNER_COMMANDS.expressionSemanticsCanonicalProducer,
+      input,
+    );
+    return signal.evaluatorCandidates.results.map((candidate) => candidate.payload);
+  } catch (err) {
+    if (isEngineShadowRunnerCancelledError(err)) return [];
+    throw err;
+  }
 }
 
 export function resolveRustExpressionSemanticsPayload(
@@ -108,6 +138,22 @@ export function resolveRustExpressionSemanticsPayload(
   const match = resolveRustExpressionSemanticsPayloads(document, scssModulePath, deps).find(
     (payload) => payload.expressionId === expressionId,
   );
+  return match ?? null;
+}
+
+export async function resolveRustExpressionSemanticsPayloadAsync(
+  document: SelectedQueryBackendDocument,
+  expressionId: string,
+  scssModulePath: string,
+  deps: Pick<
+    ProviderDeps,
+    "analysisCache" | "styleDocumentForPath" | "typeResolver" | "workspaceRoot" | "settings"
+  >,
+  runJson?: RustSelectedQueryBackendJsonRunnerAsync,
+): Promise<ExpressionSemanticsEvaluatorCandidatePayloadV0 | null> {
+  const match = (
+    await resolveRustExpressionSemanticsPayloadsAsync(document, scssModulePath, deps, runJson)
+  ).find((payload) => payload.expressionId === expressionId);
   return match ?? null;
 }
 

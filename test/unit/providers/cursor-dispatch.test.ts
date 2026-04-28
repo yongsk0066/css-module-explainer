@@ -249,6 +249,26 @@ describe("withSourceExpressionAtCursor / dispatch", () => {
     expect(result).toEqual({ kind: "styleAccess", origin: "styleAccess" });
   });
 
+  it("allows the provider transform to resolve asynchronously", async () => {
+    const deps = makeDeps();
+    const spy = vi.fn(async (ctx) => ({ kind: ctx.expression.kind }));
+    const cursor = sourceCursor();
+    const result = withSourceExpressionAtCursor(
+      {
+        documentUri: SOURCE_URI,
+        content: TSX,
+        filePath: SOURCE_PATH,
+        line: cursor.line,
+        character: cursor.character,
+        version: 1,
+      },
+      deps,
+      spy,
+    );
+    await expect(result).resolves.toEqual({ kind: "literal" });
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
   it("passes the AnalysisEntry so providers can skip a second cache lookup", () => {
     const deps = makeDeps();
     const spy = vi.fn((ctx) => ctx.entry);
