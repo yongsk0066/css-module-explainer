@@ -16,7 +16,8 @@ Current public products:
 - `omena-semantic.selector-references` — selector-scoped reference summaries
   and identity-preserving reference sites derived from `EngineInputV2`.
 - `omena-semantic.promotion-evidence` — explicit readiness/gap checklist for
-  promotion beyond output parity.
+  promotion beyond output parity, including parser-backed design-token seed
+  evidence from CSS custom properties.
 - `omena-semantic.source-input-evidence` — `EngineInputV2`-backed reference
   site identity, binding origin, style module edge, value-domain explanation,
   value-domain derivation, and selector certainty reason evidence.

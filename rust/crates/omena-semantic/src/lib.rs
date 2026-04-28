@@ -408,6 +408,41 @@ $color: red;
     }
 
     #[test]
+    fn exposes_design_token_seed_promotion_evidence() -> Result<(), String> {
+        let sheet = parse_style_module(
+            "Component.module.css",
+            r#"
+:root {
+  --color-gray-700: #767678;
+}
+
+.button {
+  color: var(--color-gray-700);
+  border-color: var(--missing);
+}
+"#,
+        )
+        .ok_or_else(|| "CSS module path should parse".to_string())?;
+
+        let parser_facts = summarize_parser_contract_facts(&sheet);
+        let semantic_facts = summarize_style_semantic_facts(&sheet);
+        let evidence = summarize_semantic_promotion_evidence(&parser_facts, &semantic_facts);
+        let design_token_seed = evidence
+            .items
+            .iter()
+            .find(|item| item.evidence == "designTokenSeed")
+            .ok_or_else(|| "expected design token seed evidence".to_string())?;
+
+        assert_eq!(design_token_seed.status, "ready");
+        assert_eq!(
+            design_token_seed.provider,
+            "ParserIndexCustomPropertyFactsV0"
+        );
+        assert_eq!(design_token_seed.observed_count, 3);
+        Ok(())
+    }
+
+    #[test]
     fn exposes_lossless_cst_contract_for_precise_consumers() -> Result<(), String> {
         let sheet = parse_style_module("Component.module.scss", ".button { color: red; }")
             .ok_or_else(|| "SCSS module path should parse".to_string())?;

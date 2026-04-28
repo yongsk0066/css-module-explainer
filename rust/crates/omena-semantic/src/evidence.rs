@@ -40,6 +40,8 @@ pub fn summarize_semantic_promotion_evidence(
             .len();
     let rewrite_blocker_count =
         semantic_facts.selector_identity.nested_unsafe_names.len() + unresolved_sass_count;
+    let custom_property_seed_count = parser_facts.custom_properties.decl_names.len()
+        + parser_facts.custom_properties.ref_names.len();
 
     let items = vec![
         SemanticPromotionEvidenceItemV0 {
@@ -99,6 +101,21 @@ pub fn summarize_semantic_promotion_evidence(
             reason: format!(
                 "{} value refs are exposed; source-side expression-domain explanation remains external",
                 parser_facts.values.ref_names.len()
+            ),
+        },
+        SemanticPromotionEvidenceItemV0 {
+            evidence: "designTokenSeed",
+            status: if custom_property_seed_count == 0 {
+                "partial"
+            } else {
+                "ready"
+            },
+            provider: "ParserIndexCustomPropertyFactsV0",
+            observed_count: custom_property_seed_count,
+            reason: format!(
+                "{} CSS custom property declarations and {} var() references are exposed",
+                parser_facts.custom_properties.decl_names.len(),
+                parser_facts.custom_properties.ref_names.len()
             ),
         },
         SemanticPromotionEvidenceItemV0 {
