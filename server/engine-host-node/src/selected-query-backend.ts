@@ -316,9 +316,73 @@ export function runRustSelectedQueryBackendJsonAsync<T>(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<T> {
   if (!shouldUseEngineShadowRunnerDaemon(env)) {
-    return Promise.resolve(runRustSelectedQueryBackendJson<T>(command, input));
+    return runRustSelectedQueryBackendJsonOnceAsync<T>(command, input, env);
   }
   return getSharedEngineShadowRunnerDaemon(env).runJson<T>(command, input);
+}
+
+function runRustSelectedQueryBackendJsonOnceAsync<T>(
+  command: string,
+  input: unknown,
+  env: NodeJS.ProcessEnv,
+): Promise<T> {
+  const invocation = buildEngineShadowRunnerInvocation(command, env);
+
+  return new Promise<T>((resolve, reject) => {
+    const child = spawn(invocation.command, invocation.args, {
+      cwd: invocation.cwd,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+
+    const rejectOnce = (err: unknown) => {
+      if (settled) return;
+      settled = true;
+      reject(err);
+    };
+
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+    child.on("error", rejectOnce);
+    child.stdin.on("error", rejectOnce);
+    child.on("close", (code, signal) => {
+      if (settled) return;
+      settled = true;
+      if (signal && ENGINE_SHADOW_RUNNER_CANCELLATION_SIGNALS.has(signal)) {
+        reject(new EngineShadowRunnerCancelledError(signal, invocation));
+        return;
+      }
+      if (code !== 0) {
+        reject(
+          new Error(
+            [
+              `engine-shadow-runner exited with code ${code ?? "unknown"}`,
+              signal ? `signal: ${signal}` : "",
+              stderr.trim(),
+            ]
+              .filter(Boolean)
+              .join("\n"),
+          ),
+        );
+        return;
+      }
+
+      try {
+        resolve(JSON.parse(stdout) as T);
+      } catch (err) {
+        reject(err);
+      }
+    });
+    child.stdin.end(JSON.stringify(input), "utf8");
+  });
 }
 
 export function shutdownEngineShadowRunnerDaemon(): void {
