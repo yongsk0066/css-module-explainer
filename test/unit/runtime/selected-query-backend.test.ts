@@ -1,3 +1,5 @@
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -7,6 +9,7 @@ import {
   EngineShadowRunnerCancelledError,
   isPackagedExtensionRuntime,
   isEngineShadowRunnerCancelledError,
+  runRustSelectedQueryBackendJsonAsync,
   shouldUseEngineShadowRunnerDaemon,
   shouldTraceEngineShadowRunnerDaemon,
   resolveSelectedQueryBackendKind,
@@ -307,6 +310,49 @@ describe("selected query backend", () => {
     expect(isEngineShadowRunnerCancelledError(err)).toBe(true);
     expect(err.message).toContain("SIGTERM");
     expect(err.message).toContain("style-semantic-graph");
+  });
+
+  it("does not block the event loop for non-daemon async runner calls", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "cme-selected-query-runner-"));
+    const runnerPath = path.join(root, "fake-engine-shadow-runner.js");
+    writeFileSync(
+      runnerPath,
+      `#!/usr/bin/env node
+const chunks = [];
+process.stdin.on("data", (chunk) => chunks.push(chunk));
+process.stdin.on("end", () => {
+  setTimeout(() => {
+    process.stdout.write(JSON.stringify({
+      command: process.argv[2],
+      input: JSON.parse(Buffer.concat(chunks).toString("utf8"))
+    }));
+  }, 250);
+});
+`,
+    );
+    chmodSync(runnerPath, 0o755);
+
+    try {
+      const started = Date.now();
+      const resultPromise = runRustSelectedQueryBackendJsonAsync<{
+        readonly command: string;
+        readonly input: { readonly ok: true };
+      }>("input-selector-usage-canonical-producer", { ok: true }, {
+        CME_ENGINE_SHADOW_RUNNER: "prebuilt",
+        CME_ENGINE_SHADOW_RUNNER_DAEMON: "0",
+        CME_ENGINE_SHADOW_RUNNER_PATH: runnerPath,
+        CME_PROJECT_ROOT: root,
+      } as NodeJS.ProcessEnv);
+      const returnElapsedMs = Date.now() - started;
+
+      expect(returnElapsedMs).toBeLessThan(100);
+      await expect(resultPromise).resolves.toEqual({
+        command: "input-selector-usage-canonical-producer",
+        input: { ok: true },
+      });
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
   });
 
   it("gates daemon usage behind the explicit daemon env flag in source checkouts", () => {
