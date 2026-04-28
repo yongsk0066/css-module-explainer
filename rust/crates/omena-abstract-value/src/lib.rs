@@ -487,13 +487,8 @@ pub fn selector_certainty_from_facts(
 ) -> &'static str {
     match facts.kind.as_str() {
         "unknown" => "possible",
-        "exact" => {
-            if matched_selector_count == 1 {
-                "exact"
-            } else {
-                "possible"
-            }
-        }
+        "exact" if matched_selector_count == 1 => "exact",
+        "exact" => "possible",
         "finiteSet" => {
             let finite_value_count = finite_value_count_for_facts(facts);
             if finite_value_count == 0 || matched_selector_count == 0 {

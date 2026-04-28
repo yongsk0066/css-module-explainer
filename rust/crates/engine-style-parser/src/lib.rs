@@ -2043,6 +2043,10 @@ fn collect_index_names(
                 AtRuleKind::Import => {
                     acc.sass_module_import_sources
                         .extend(parse_sass_module_sources(&at_rule.params));
+                    acc.sass_module_use_sources
+                        .extend(parse_sass_module_sources(&at_rule.params));
+                    acc.sass_module_use_edges
+                        .extend(parse_sass_module_import_use_edges(&at_rule.params));
                 }
                 _ => {}
             },
@@ -2783,6 +2787,17 @@ fn parse_sass_module_use_edges(params: &str) -> Vec<ParserIndexSassModuleUseFact
                 source,
                 namespace_kind: "default",
             },
+        })
+        .collect()
+}
+
+fn parse_sass_module_import_use_edges(params: &str) -> Vec<ParserIndexSassModuleUseFactV0> {
+    parse_sass_module_sources(params)
+        .into_iter()
+        .map(|source| ParserIndexSassModuleUseFactV0 {
+            source,
+            namespace_kind: "wildcard",
+            namespace: None,
         })
         .collect()
 }
@@ -4404,11 +4419,16 @@ $gap: 1rem;
         );
         assert_eq!(
             summary.sass.module_use_sources,
-            vec!["./plain", "./reset", "./tokens", "sass:color"]
+            vec!["./legacy", "./plain", "./reset", "./tokens", "sass:color"]
         );
         assert_eq!(
             summary.sass.module_use_edges,
             vec![
+                ParserIndexSassModuleUseFactV0 {
+                    source: "./legacy".to_string(),
+                    namespace_kind: "wildcard",
+                    namespace: None,
+                },
                 ParserIndexSassModuleUseFactV0 {
                     source: "./plain".to_string(),
                     namespace_kind: "default",

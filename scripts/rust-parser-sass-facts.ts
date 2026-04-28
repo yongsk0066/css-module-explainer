@@ -131,8 +131,11 @@ export function deriveSassSummary(
     functionCallNames: sortedFunctionCallNames,
     selectorsWithFunctionCallsNames: selectorAttachments.selectorsWithFunctionCallsNames,
     selectorSymbolFacts: selectorAttachments.selectorSymbolFacts,
-    moduleUseSources: uniqueSorted(sourceForAtRule("use")),
-    moduleUseEdges: uniqueSortedUseEdges(deriveSassUseEdges(source)),
+    moduleUseSources: uniqueSorted([...sourceForAtRule("use"), ...sourceForAtRule("import")]),
+    moduleUseEdges: uniqueSortedUseEdges([
+      ...deriveSassUseEdges(source),
+      ...deriveSassImportUseEdges(source),
+    ]),
     moduleForwardSources: uniqueSorted(sourceForAtRule("forward")),
     moduleImportSources: uniqueSorted(sourceForAtRule("import")),
     sameFileResolution: deriveSameFileResolution(source, filePath, {
@@ -461,6 +464,16 @@ function deriveSassUseEdges(source: string): ParserSassModuleUseFactV0[] {
       };
     });
   });
+}
+
+function deriveSassImportUseEdges(source: string): ParserSassModuleUseFactV0[] {
+  return [...source.matchAll(/@import\s+([^;{]+)/g)].flatMap((match) =>
+    [...match[1]!.matchAll(/["']([^"']+)["']/g)].map((sourceMatch) => ({
+      source: sourceMatch[1]!,
+      namespaceKind: "wildcard",
+      namespace: null,
+    })),
+  );
 }
 
 function parseSassUseAlias(params: string): string | undefined {
