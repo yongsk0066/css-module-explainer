@@ -2,6 +2,9 @@ import type { Range } from "@css-module-explainer/shared";
 import {
   findAnimationNameRefAtCursor,
   findComposesTokenAtCursor,
+  findCustomPropertyDeclAtCursor,
+  findCustomPropertyDeclByName,
+  findCustomPropertyRefAtCursor,
   findKeyframesAtCursor,
   findKeyframesByName,
   findSassModuleMemberRefAtCursor,
@@ -13,6 +16,7 @@ import {
   findValueImportAtCursor,
   findValueRefAtCursor,
   listAnimationNameRefs,
+  listCustomPropertyRefs,
   listSassModuleMemberRefsForMember,
   listSassSymbolsForDecl,
   listSassWildcardSymbolsForTarget,
@@ -23,7 +27,10 @@ import {
   resolveValueImportTarget,
   resolveValueTarget,
 } from "../../engine-core-ts/src/core/query";
-import type { StyleDocumentHIR } from "../../engine-core-ts/src/core/hir/style-types";
+import type {
+  CustomPropertyDeclHIR,
+  StyleDocumentHIR,
+} from "../../engine-core-ts/src/core/hir/style-types";
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
 import { pathToFileUrl } from "../../engine-core-ts/src/core/util/text-utils";
 import {
@@ -212,6 +219,34 @@ export function resolveStyleReferencesAtCursor(
       }
     }
     return dedupeLocations(valueRefs);
+  }
+
+  const customPropertyDecl = findCustomPropertyDeclAtCursor(
+    args.styleDocument,
+    args.line,
+    args.character,
+  );
+  if (customPropertyDecl) {
+    return readCustomPropertyReferenceLocations(args, deps, customPropertyDecl.name, {
+      filePath: args.filePath,
+      decl: customPropertyDecl,
+    });
+  }
+
+  const customPropertyRef = findCustomPropertyRefAtCursor(
+    args.styleDocument,
+    args.line,
+    args.character,
+  );
+  if (customPropertyRef) {
+    const targetDecl = resolveCustomPropertyTarget(
+      args.styleDocument,
+      args.filePath,
+      customPropertyRef.name,
+      deps.styleDependencyGraph,
+    );
+    if (!targetDecl) return [];
+    return readCustomPropertyReferenceLocations(args, deps, customPropertyRef.name, targetDecl);
   }
 
   const sassSymbolDecl = findSassSymbolDeclAtCursor(args.styleDocument, args.line, args.character);
@@ -457,4 +492,54 @@ function dedupeLocations(
     if (!unique.has(key)) unique.set(key, location);
   }
   return [...unique.values()];
+}
+
+function resolveCustomPropertyTarget(
+  styleDocument: StyleDocumentHIR,
+  filePath: string,
+  name: string,
+  styleDependencyGraph: ProviderDeps["styleDependencyGraph"],
+): {
+  readonly filePath: string;
+  readonly decl: Pick<CustomPropertyDeclHIR, "range">;
+} | null {
+  const localDecl = findCustomPropertyDeclByName(styleDocument, name);
+  if (localDecl) return { filePath, decl: localDecl };
+  const workspaceDecl = styleDependencyGraph
+    .getCustomPropertyDecls(name)
+    .toSorted((a, b) => a.filePath.localeCompare(b.filePath))[0];
+  return workspaceDecl ? { filePath: workspaceDecl.filePath, decl: workspaceDecl } : null;
+}
+
+function readCustomPropertyReferenceLocations(
+  args: Pick<
+    Parameters<typeof resolveStyleReferencesAtCursor>[0],
+    "filePath" | "includeDeclaration" | "styleDocument"
+  >,
+  deps: Pick<ProviderDeps, "styleDependencyGraph">,
+  name: string,
+  targetDecl: {
+    readonly filePath: string;
+    readonly decl: Pick<CustomPropertyDeclHIR, "range">;
+  },
+): readonly StyleReferenceLocation[] {
+  const locations: StyleReferenceLocation[] = [
+    ...deps.styleDependencyGraph.getCustomPropertyRefs(name).map((ref) => ({
+      uri: pathToFileUrl(ref.filePath),
+      range: ref.range,
+    })),
+    ...listCustomPropertyRefs(args.styleDocument, name).map((ref) => ({
+      uri: pathToFileUrl(args.filePath),
+      range: ref.range,
+    })),
+  ];
+
+  if (args.includeDeclaration) {
+    locations.unshift({
+      uri: pathToFileUrl(targetDecl.filePath),
+      range: targetDecl.decl.range,
+    });
+  }
+
+  return dedupeLocations(locations);
 }

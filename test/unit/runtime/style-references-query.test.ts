@@ -353,6 +353,76 @@ describe("resolveStyleReferencesAtCursor", () => {
     expect(fileScopeResult.map((location) => location.range.start.line)).toEqual([0, 6]);
   });
 
+  it("returns same-file CSS custom property references from a declaration cursor", () => {
+    const filePath = "/fake/src/tokens.module.css";
+    const css = `:root { --color-gray-700: #767678; }
+.title {
+  color: var(--color-gray-700);
+}
+.footer {
+  color: var(--color-gray-700);
+}
+`;
+    const styleDocument = parseStyleDocument(css, filePath);
+
+    const result = resolveStyleReferencesAtCursor(
+      {
+        filePath,
+        line: 0,
+        character: 10,
+        includeDeclaration: true,
+        styleDocument,
+      },
+      makeDeps({ styleDocumentForPath: styleDocumentMap([styleDocument]) }),
+    );
+
+    expect(result.map((location) => location.uri)).toEqual([
+      "file:///fake/src/tokens.module.css",
+      "file:///fake/src/tokens.module.css",
+      "file:///fake/src/tokens.module.css",
+    ]);
+    expect(result.map((location) => location.range.start.line)).toEqual([0, 2, 5]);
+  });
+
+  it("returns workspace-indexed CSS custom property references from a reference cursor", () => {
+    const filePath = "/fake/src/Button.module.scss";
+    const tokensPath = "/fake/src/tokens.module.css";
+    const buttonScss = `.button {
+  color: var(--color-gray-700);
+}
+.footer {
+  border-color: var(--color-gray-700);
+}
+`;
+    const tokensCss = `:root { --color-gray-700: #767678; }`;
+    const styleDocument = parseStyleDocument(buttonScss, filePath);
+    const targetDocument = parseStyleDocument(tokensCss, tokensPath);
+    const styleDependencyGraph = new WorkspaceStyleDependencyGraph();
+    styleDependencyGraph.record(filePath, styleDocument);
+    styleDependencyGraph.record(tokensPath, targetDocument);
+
+    const result = resolveStyleReferencesAtCursor(
+      {
+        filePath,
+        line: 1,
+        character: 16,
+        includeDeclaration: true,
+        styleDocument,
+      },
+      makeDeps({
+        styleDocumentForPath: styleDocumentMap([styleDocument, targetDocument]),
+        styleDependencyGraph,
+      }),
+    );
+
+    expect(result.map((location) => location.uri)).toEqual([
+      "file:///fake/src/tokens.module.css",
+      "file:///fake/src/Button.module.scss",
+      "file:///fake/src/Button.module.scss",
+    ]);
+    expect(result.map((location) => location.range.start.line)).toEqual([0, 1, 4]);
+  });
+
   it("returns namespace-qualified Sass member references with the target declaration", () => {
     const filePath = "/fake/src/Button.module.scss";
     const tokensPath = "/fake/src/tokens.module.scss";
