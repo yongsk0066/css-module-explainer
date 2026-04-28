@@ -46,6 +46,7 @@ const fixtures: readonly Fixture[] = [
       "engine-style-parser",
       "omena-semantic",
       "omena-engine-input-producers",
+      "omena-engine-style-parser",
     ],
   },
   {
