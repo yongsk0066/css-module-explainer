@@ -113,7 +113,7 @@ const splitRepos: readonly SplitRepo[] = [
     label: "query",
     repo: "omenien/omena-query",
     packageName: "omena-query",
-    expectedVersion: "0.1.2",
+    expectedVersion: "0.1.3",
     libName: "omena_query",
     expectedRegistryDependencies: [
       {
@@ -129,7 +129,7 @@ const splitRepos: readonly SplitRepo[] = [
       {
         dependencyName: "omena-bridge",
         packageName: "omena-bridge",
-        version: "0.1.1",
+        version: "0.1.2",
       },
       {
         dependencyName: "omena-resolver",
