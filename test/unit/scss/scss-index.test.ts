@@ -84,6 +84,13 @@ describe("parseStyleDocument / CSS custom properties", () => {
           start: { line: 0, character: 8 },
           end: { line: 0, character: 24 },
         },
+        context: {
+          containerKind: "rule",
+          selectorText: ":root",
+          atRuleName: null,
+          atRuleParams: null,
+          wrapperAtRules: [],
+        },
       },
     ]);
     expect(document.customPropertyRefs).toMatchObject([
@@ -92,6 +99,34 @@ describe("parseStyleDocument / CSS custom properties", () => {
         range: {
           start: { line: 1, character: 20 },
           end: { line: 1, character: 36 },
+        },
+      },
+    ]);
+  });
+
+  it("captures custom property declaration wrapper context", () => {
+    const document = parseStyleDocument(
+      `@layer theme {
+  @media (prefers-color-scheme: dark) {
+    [data-theme="dark"] { --brand: #fff; }
+  }
+}`,
+      "/fake/tokens.module.css",
+    );
+
+    expect(document.customPropertyDecls).toMatchObject([
+      {
+        name: "--brand",
+        value: "#fff",
+        context: {
+          containerKind: "rule",
+          selectorText: `[data-theme="dark"]`,
+          atRuleName: null,
+          atRuleParams: null,
+          wrapperAtRules: [
+            { name: "layer", params: "theme" },
+            { name: "media", params: "(prefers-color-scheme: dark)" },
+          ],
         },
       },
     ]);

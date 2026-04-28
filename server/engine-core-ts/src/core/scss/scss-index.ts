@@ -197,6 +197,16 @@ export function styleDocumentSemanticFingerprint(styleDocument: StyleDocumentHIR
         decl.ruleRange.start.character,
         decl.ruleRange.end.line,
         decl.ruleRange.end.character,
+        decl.context.containerKind,
+        decl.context.selectorText ?? "",
+        decl.context.atRuleName ?? "",
+        decl.context.atRuleParams ?? "",
+        decl.context.wrapperAtRules
+          .map(
+            (wrapper) =>
+              `${wrapper.name}(${wrapper.params})@${wrapper.range.start.line}:${wrapper.range.start.character}-${wrapper.range.end.line}:${wrapper.range.end.character}`,
+          )
+          .join(","),
       ].join("::"),
     )
     .join("\n");

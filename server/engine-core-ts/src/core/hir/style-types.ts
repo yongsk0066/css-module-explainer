@@ -85,12 +85,29 @@ export interface ValueRefHIR extends HirNodeBase {
   readonly source: "declaration" | "valueDecl";
 }
 
+export type CustomPropertyDeclContainerKind = "root" | "rule" | "atrule";
+
+export interface CustomPropertyDeclAtRuleContextHIR {
+  readonly name: string;
+  readonly params: string;
+  readonly range: Range;
+}
+
+export interface CustomPropertyDeclContextHIR {
+  readonly containerKind: CustomPropertyDeclContainerKind;
+  readonly selectorText: string | null;
+  readonly atRuleName: string | null;
+  readonly atRuleParams: string | null;
+  readonly wrapperAtRules: readonly CustomPropertyDeclAtRuleContextHIR[];
+}
+
 export interface CustomPropertyDeclHIR extends HirNodeBase {
   readonly kind: "customPropertyDecl";
   readonly range: Range;
   readonly name: string;
   readonly value: string;
   readonly ruleRange: Range;
+  readonly context: CustomPropertyDeclContextHIR;
 }
 
 export interface CustomPropertyRefHIR extends HirNodeBase {

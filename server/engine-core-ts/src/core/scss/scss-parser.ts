@@ -15,6 +15,8 @@ import {
 import {
   makeStyleDocumentHIR,
   type AnimationNameRefHIR,
+  type CustomPropertyDeclAtRuleContextHIR,
+  type CustomPropertyDeclContextHIR,
   type CustomPropertyDeclHIR,
   type CustomPropertyRefHIR,
   type KeyframesDeclHIR,
@@ -682,9 +684,68 @@ function collectCustomPropertyDecls(root: Root): readonly CustomPropertyDeclHIR[
       value: node.value,
       range,
       ruleRange: rangeForDeclarationContainer(node),
+      context: customPropertyDeclContextForDeclaration(node),
     });
   });
   return decls;
+}
+
+function customPropertyDeclContextForDeclaration(node: Declaration): CustomPropertyDeclContextHIR {
+  const parent = node.parent;
+  if (parent?.type === "rule") {
+    return {
+      containerKind: "rule",
+      selectorText: parent.selector,
+      atRuleName: null,
+      atRuleParams: null,
+      wrapperAtRules: wrapperAtRulesForDeclaration(node),
+    };
+  }
+  if (parent?.type === "atrule") {
+    return {
+      containerKind: "atrule",
+      selectorText: null,
+      atRuleName: parent.name,
+      atRuleParams: parent.params,
+      wrapperAtRules: wrapperAtRulesForDeclaration(node),
+    };
+  }
+  return {
+    containerKind: "root",
+    selectorText: null,
+    atRuleName: null,
+    atRuleParams: null,
+    wrapperAtRules: wrapperAtRulesForDeclaration(node),
+  };
+}
+
+function wrapperAtRulesForDeclaration(
+  node: Declaration,
+): readonly CustomPropertyDeclAtRuleContextHIR[] {
+  const wrappers: CustomPropertyDeclAtRuleContextHIR[] = [];
+  let current = parentContainerForCustomPropertyContext(node.parent);
+  while (current) {
+    if (current.type === "atrule") {
+      wrappers.push({
+        name: current.name,
+        params: current.params,
+        range: rangeForSourceNode(current),
+      });
+    }
+    current = parentContainerForCustomPropertyContext(current);
+  }
+  return wrappers.toReversed();
+}
+
+function parentContainerForCustomPropertyContext(
+  node: ChildNode | Root | undefined,
+): Rule | AtRule | Root | undefined {
+  const parent = node?.parent;
+  if (!parent) return undefined;
+  if (parent.type === "rule" || parent.type === "atrule" || parent.type === "root") {
+    return parent as Rule | AtRule | Root;
+  }
+  return undefined;
 }
 
 function rangeForDeclarationContainer(node: Declaration): Range {

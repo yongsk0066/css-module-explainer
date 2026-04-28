@@ -39,7 +39,7 @@ interface SassModuleMemberDependencyEdge extends SassModuleMemberDependencyRef {
 
 export interface CustomPropertyDependencyDecl extends Pick<
   CustomPropertyDeclHIR,
-  "name" | "value" | "range" | "ruleRange"
+  "name" | "value" | "range" | "ruleRange" | "context"
 > {
   readonly filePath: string;
 }
@@ -333,6 +333,7 @@ function collectCustomPropertyDecls(
     value: decl.value,
     range: decl.range,
     ruleRange: decl.ruleRange,
+    context: decl.context,
   }));
 }
 
