@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.1.1] — 2026-04-28
+
+### Fixed
+
+- **LSP Rust backend runtime loop** — packaged VSIX runtime now runs the Rust selected-query backend through a long-lived `engine-shadow-runner` daemon by default, avoiding per-query process spawning on hot hover, reference, lens, and diagnostics paths.
+- **Daemon release guard** — `pnpm check:rust-lsp-runtime-loop` now simulates a 50-selector LSP workload, verifies event-loop probe latency, and enforces a single daemon spawn so packaged Rust backend regressions are caught before release.
+
 ## [4.1.0] — 2026-04-26
 
 ### Added
