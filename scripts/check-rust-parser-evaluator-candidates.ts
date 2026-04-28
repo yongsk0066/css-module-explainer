@@ -18,6 +18,7 @@ interface ParserEvaluatorCandidateV0 {
   readonly hasValueRefs: boolean;
   readonly hasLocalValueRefs: boolean;
   readonly hasImportedValueRefs: boolean;
+  readonly hasCustomPropertyRefs: boolean;
   readonly hasAnimationRef: boolean;
   readonly hasAnimationNameRef: boolean;
   readonly hasComposes: boolean;
@@ -47,6 +48,11 @@ const CORPUS = [
     label: "scss-mixed-value-refs-parser-evaluator-candidates",
     filePath: "/f.module.scss",
     source: `@supports (display: grid) { @layer ui { @value brand from "./tokens.module.scss"; @value accent: red; .btn { color: brand; background: accent; } } }`,
+  },
+  {
+    label: "css-custom-property-parser-evaluator-candidates",
+    filePath: "/f.module.css",
+    source: `:root { --color-gray-700: #767678; }\n@media (min-width: 1px) { .btn { color: var(--color-gray-700); } }\n.card { color: var(--missing); }`,
   },
   {
     label: "scss-mixed-composes-parser-evaluator-candidates",
@@ -189,6 +195,9 @@ function deriveTsSummary(filePath: string, source: string): ParserEvaluatorCandi
           (entry) =>
             entry.property === "animation-name" && rangeContains(selector.ruleRange, entry.range),
         );
+        const customPropertyRefs = document.customPropertyRefs.filter((entry) =>
+          rangeContains(selector.ruleRange, entry.range),
+        );
         const hasLocalComposes = selector.composes.some(
           (ref) => ref.from === undefined && ref.fromGlobal !== true,
         );
@@ -205,6 +214,7 @@ function deriveTsSummary(filePath: string, source: string): ParserEvaluatorCandi
           hasValueRefs: valueRefs.length > 0,
           hasLocalValueRefs: valueRefs.some((entry) => localValueNames.has(entry.name)),
           hasImportedValueRefs: valueRefs.some((entry) => importedValueNames.has(entry.name)),
+          hasCustomPropertyRefs: customPropertyRefs.length > 0,
           hasAnimationRef: animationRefs.length > 0,
           hasAnimationNameRef: animationNameRefs.length > 0,
           hasComposes: selector.composes.length > 0,

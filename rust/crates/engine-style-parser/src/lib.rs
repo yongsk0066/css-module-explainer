@@ -300,6 +300,7 @@ pub struct ParserEvaluatorCandidateV0 {
     pub has_value_refs: bool,
     pub has_local_value_refs: bool,
     pub has_imported_value_refs: bool,
+    pub has_custom_property_refs: bool,
     pub has_animation_ref: bool,
     pub has_animation_name_ref: bool,
     pub has_composes: bool,
@@ -1145,6 +1146,12 @@ pub fn summarize_parser_evaluator_candidates(sheet: &Stylesheet) -> ParserEvalua
         .iter()
         .map(String::as_str)
         .collect();
+    let selectors_with_custom_property_refs_names: BTreeSet<&str> = intermediate
+        .custom_properties
+        .selectors_with_refs_names
+        .iter()
+        .map(String::as_str)
+        .collect();
     let selectors_with_animation_ref_names: BTreeSet<&str> = intermediate
         .keyframes
         .selectors_with_animation_ref_names
@@ -1216,6 +1223,8 @@ pub fn summarize_parser_evaluator_candidates(sheet: &Stylesheet) -> ParserEvalua
                 has_value_refs: selectors_with_refs_names.contains(selector),
                 has_local_value_refs: selectors_with_local_refs_names.contains(selector),
                 has_imported_value_refs: selectors_with_imported_refs_names.contains(selector),
+                has_custom_property_refs: selectors_with_custom_property_refs_names
+                    .contains(selector),
                 has_animation_ref: selectors_with_animation_ref_names.contains(selector),
                 has_animation_name_ref: selectors_with_animation_name_ref_names.contains(selector),
                 has_composes: selectors_with_composes_names.contains(selector),
