@@ -22,6 +22,7 @@ export interface StyleCompletionItem {
   readonly filterText: string;
   readonly replacementRange: Range;
   readonly sourceRange?: Range;
+  readonly sourceFilePath?: string;
   readonly symbolSyntax?: StylePreprocessorSymbolSyntax;
   readonly symbolKind: SassSymbolDeclHIR["symbolKind"] | "customProperty";
 }
@@ -58,6 +59,7 @@ interface CustomPropertyCompletionDecl extends Pick<
   "name" | "range" | "ruleRange" | "context"
 > {
   readonly symbolKind: "customProperty";
+  readonly sourceFilePath?: string;
 }
 
 export function resolveStyleCompletionItems(args: {
@@ -192,15 +194,21 @@ function collectCustomPropertyCompletionDecls(args: {
   >();
   const pushDecl = (
     decl: Pick<CustomPropertyDeclHIR, "name" | "range" | "ruleRange" | "context">,
+    sourceFilePath?: string,
   ) => {
-    const candidate = { symbolKind: "customProperty" as const, ...decl };
+    const candidate = {
+      ...(sourceFilePath ? { sourceFilePath } : {}),
+      symbolKind: "customProperty" as const,
+      ...decl,
+    };
     const score = scoreCustomPropertyCompletionContext(candidate.context, referenceContext);
     const previous = byName.get(candidate.name);
     if (previous && previous.score > score) return;
     byName.set(candidate.name, { decl: candidate, score });
   };
 
-  for (const decl of args.styleDocument.customPropertyDecls) pushDecl(decl);
+  for (const decl of args.styleDocument.customPropertyDecls)
+    pushDecl(decl, args.styleDocument.filePath);
   if (args.styleDocumentForPath) {
     for (const target of listCustomPropertyModuleUseDeclTargets(
       args.styleDocumentForPath,
@@ -209,10 +217,12 @@ function collectCustomPropertyCompletionDecls(args: {
       args.aliasResolver,
       sassModuleResolutionOptions(args.readFile),
     )) {
-      pushDecl(target.decl);
+      pushDecl(target.decl, target.filePath);
     }
   }
-  for (const decl of args.styleDependencyGraph?.getAllCustomPropertyDecls() ?? []) pushDecl(decl);
+  for (const decl of args.styleDependencyGraph?.getAllCustomPropertyDecls() ?? []) {
+    pushDecl(decl, decl.filePath);
+  }
   return [...byName.values()].map((entry) => entry.decl);
 }
 
@@ -401,6 +411,7 @@ function toCustomPropertyCompletionItem(
     filterText: decl.name,
     replacementRange,
     sourceRange: decl.range,
+    ...(decl.sourceFilePath ? { sourceFilePath: decl.sourceFilePath } : {}),
     symbolKind: "customProperty",
   };
 }

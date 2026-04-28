@@ -58,6 +58,32 @@ describe("resolveStyleCompletionItems", () => {
     expect(result.map((item) => item.label)).toEqual(["--brand", "--space"]);
   });
 
+  it("uses matching workspace theme context for duplicate CSS custom property completions", () => {
+    const scss = `.theme .button {
+  color: var(--br)
+}
+`;
+    const baseTokensScss = `:root { --brand: #111; }`;
+    const themeTokensScss = `.theme { --brand: #222; }`;
+    const styleDocument = parseStyleDocument(scss, SCSS_PATH);
+    const baseTokensDocument = parseStyleDocument(baseTokensScss, TOKENS_PATH);
+    const themeTokensDocument = parseStyleDocument(themeTokensScss, THEME_PATH);
+    const styleDependencyGraph = new WorkspaceStyleDependencyGraph();
+    styleDependencyGraph.record(TOKENS_PATH, baseTokensDocument);
+    styleDependencyGraph.record(THEME_PATH, themeTokensDocument);
+
+    const result = resolveStyleCompletionItems({
+      content: scss,
+      line: 1,
+      character: 17,
+      styleDocument,
+      styleDependencyGraph,
+    });
+
+    expect(result.map((item) => item.label)).toEqual(["--brand"]);
+    expect(result[0]?.sourceFilePath).toBe(THEME_PATH);
+  });
+
   it("uses matching theme context for duplicate same-file CSS custom property completions", () => {
     const scss = `:root {
   --brand: #111;
@@ -124,6 +150,38 @@ describe("resolveStyleCompletionItems", () => {
     });
 
     expect(result.map((item) => item.label)).toEqual(["--color-gray-700", "--spacing-md"]);
+  });
+
+  it("uses matching package theme context for duplicate CSS custom property completions", () => {
+    const baseCssPath = `${PACKAGE_TOKENS_ROOT}/base.css`;
+    const themeCssPath = `${PACKAGE_TOKENS_ROOT}/theme.css`;
+    const scss = `@use "@design/tokens/base.css";
+@use "@design/tokens/theme.css";
+
+.theme .button {
+  color: var(--br)
+}
+`;
+    const baseTokensCss = `:root { --brand: #111; }`;
+    const themeTokensCss = `.theme { --brand: #222; }`;
+    const styleDocument = parseStyleDocument(scss, SCSS_PATH);
+    const baseTokensDocument = parseStyleDocument(baseTokensCss, baseCssPath);
+    const themeTokensDocument = parseStyleDocument(themeTokensCss, themeCssPath);
+
+    const result = resolveStyleCompletionItems({
+      content: scss,
+      line: 4,
+      character: 17,
+      styleDocument,
+      styleDocumentForPath: styleDocumentMap([
+        styleDocument,
+        baseTokensDocument,
+        themeTokensDocument,
+      ]),
+    });
+
+    expect(result.map((item) => item.label)).toEqual(["--brand"]);
+    expect(result[0]?.sourceFilePath).toBe(themeCssPath);
   });
 
   it("returns package-root CSS custom property completions through package.json exports", () => {
