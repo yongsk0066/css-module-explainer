@@ -113,6 +113,21 @@ export function planCodeActions(
       });
     }
 
+    const createCustomProperty = extractCreateCustomProperty(diagnostic);
+    if (createCustomProperty) {
+      const propertyName =
+        createCustomProperty.propertyName ??
+        extractCreateCustomPropertyName(diagnostic.message, createCustomProperty.newText);
+      plans.push({
+        kind: "textEdit",
+        title: `Add '${propertyName}' to ${fileLabel(createCustomProperty.uri)}`,
+        diagnosticIndex,
+        uri: createCustomProperty.uri,
+        range: createCustomProperty.range,
+        newText: createCustomProperty.newText,
+      });
+    }
+
     const createSassSymbol = extractCreateSassSymbol(diagnostic);
     if (createSassSymbol) {
       const label =
@@ -246,6 +261,27 @@ function extractCreateKeyframes(diagnostic: CodeActionDiagnosticInput): {
   };
 }
 
+function extractCreateCustomProperty(diagnostic: CodeActionDiagnosticInput): {
+  readonly uri: string;
+  readonly range: Range;
+  readonly newText: string;
+  readonly propertyName?: string;
+} | null {
+  const data = diagnostic.data;
+  if (!isRecord(data)) return null;
+  const payload = data.createCustomProperty;
+  if (!isRecord(payload)) return null;
+  if (typeof payload.uri !== "string" || typeof payload.newText !== "string") return null;
+  const range = payload.range;
+  if (!isRange(range)) return null;
+  return {
+    uri: payload.uri,
+    range,
+    newText: payload.newText,
+    ...(nonEmptyString(payload.propertyName) ? { propertyName: payload.propertyName } : {}),
+  };
+}
+
 function extractCreateSassSymbol(diagnostic: CodeActionDiagnosticInput): {
   readonly uri: string;
   readonly range: Range;
@@ -304,6 +340,12 @@ function extractCreateKeyframesName(message: string, newText: string): string {
   const fromMessage = /@keyframes '([^']+)' not found/.exec(message)?.[1];
   if (fromMessage) return fromMessage;
   return /^\s*@keyframes\s+([^{\s]+)\s*\{/u.exec(newText)?.[1] ?? "keyframes";
+}
+
+function extractCreateCustomPropertyName(message: string, newText: string): string {
+  const fromMessage = /CSS custom property '([^']+)' not found/.exec(message)?.[1];
+  if (fromMessage) return fromMessage;
+  return /^\s*(--[\w-]+)\s*:/mu.exec(newText)?.[1] ?? "custom-property";
 }
 
 function extractCreateSassSymbolLabel(message: string, newText: string): string {

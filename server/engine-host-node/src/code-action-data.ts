@@ -24,6 +24,10 @@ export interface CreateKeyframesActionData extends RecoveryEditActionData {
   readonly keyframesName: string;
 }
 
+export interface CreateCustomPropertyActionData extends RecoveryEditActionData {
+  readonly propertyName: string;
+}
+
 export interface CreateSassSymbolActionData extends RecoveryEditActionData {
   readonly symbolKind: SassSymbolKind;
   readonly symbolName: string;
@@ -91,6 +95,28 @@ export function buildCreateKeyframesActionData(
         : `@keyframes ${keyframesName} {\n}\n`
       : `\n\n@keyframes ${keyframesName} {\n}\n`,
     keyframesName,
+  };
+}
+
+export function buildCreateCustomPropertyActionData(
+  propertyName: string,
+  scssModulePath: string,
+  styleDocument: StyleDocumentHIR,
+): CreateCustomPropertyActionData {
+  const insertionRange = findStyleDocumentAppendRange(styleDocument);
+  const insertsAtTop =
+    insertionRange.start.line === 0 &&
+    insertionRange.start.character === 0 &&
+    insertionRange.end.line === 0 &&
+    insertionRange.end.character === 0;
+  const hasExistingContent = hasStyleDocumentContent(styleDocument);
+  const block = `:root {\n  ${propertyName}: ;\n}`;
+
+  return {
+    uri: pathToFileUrl(scssModulePath),
+    range: insertionRange,
+    newText: insertsAtTop ? (hasExistingContent ? `${block}\n\n` : `${block}\n`) : `\n\n${block}\n`,
+    propertyName,
   };
 }
 
@@ -222,6 +248,47 @@ function sassSymbolLabel(
     case "function":
       return `@function ${symbolName}`;
   }
+}
+
+function findStyleDocumentAppendRange(styleDocument: StyleDocumentHIR): Range {
+  const facts = [
+    ...styleDocument.customPropertyDecls,
+    ...styleDocument.keyframes,
+    ...styleDocument.valueDecls,
+    ...styleDocument.valueImports,
+    ...styleDocument.selectors,
+    ...styleDocument.sassSymbolDecls,
+  ];
+  if (facts.length === 0) {
+    return {
+      start: { line: 0, character: 0 },
+      end: { line: 0, character: 0 },
+    };
+  }
+
+  let latest = facts[0]!.ruleRange.end;
+  for (const fact of facts) {
+    const end = fact.ruleRange.end;
+    if (end.line > latest.line || (end.line === latest.line && end.character > latest.character)) {
+      latest = end;
+    }
+  }
+
+  return {
+    start: { line: latest.line, character: latest.character },
+    end: { line: latest.line, character: latest.character },
+  };
+}
+
+function hasStyleDocumentContent(styleDocument: StyleDocumentHIR): boolean {
+  return (
+    styleDocument.customPropertyDecls.length > 0 ||
+    styleDocument.keyframes.length > 0 ||
+    styleDocument.valueDecls.length > 0 ||
+    styleDocument.valueImports.length > 0 ||
+    styleDocument.selectors.length > 0 ||
+    styleDocument.sassSymbolDecls.length > 0
+  );
 }
 
 function findKeyframesInsertionRange(styleDocument: StyleDocumentHIR): Range {

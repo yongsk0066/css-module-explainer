@@ -148,6 +148,18 @@ describe("planCodeActions", () => {
           },
           {
             range,
+            message: "unparseable custom property diagnostic",
+            data: {
+              createCustomProperty: {
+                uri: "file:///fake/src/Button.module.scss",
+                range,
+                newText: "/* generated custom property */",
+                propertyName: "--brand",
+              },
+            },
+          },
+          {
+            range,
             message: "unparseable Sass symbol diagnostic",
             data: {
               createSassSymbol: {
@@ -167,6 +179,7 @@ describe("planCodeActions", () => {
       "Add '.from-data' to Button.module.scss",
       "Add '@value accent' to tokens.module.scss",
       "Add '@keyframes fade-in' to Button.module.scss",
+      "Add '--brand' to Button.module.scss",
       "Add '@mixin raised' to Button.module.scss",
     ]);
   });

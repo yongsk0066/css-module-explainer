@@ -625,6 +625,13 @@ describe("computeScssUnusedDiagnostics", () => {
     expect(diagnostic).toMatchObject({
       severity: DiagnosticSeverity.Warning,
       source: "css-module-explainer",
+      data: {
+        createCustomProperty: {
+          uri: "file:///fake/Button.module.scss",
+          newText: "\n\n:root {\n  --missing: ;\n}\n",
+          propertyName: "--missing",
+        },
+      },
     });
   });
 

@@ -4,6 +4,7 @@ import { formatCheckerFinding } from "../../../engine-core-ts/src/checker-surfac
 import type { StyleDocumentHIR } from "../../../engine-core-ts/src/core/hir/style-types";
 import { pathToFileUrl } from "../../../engine-core-ts/src/core/util/text-utils";
 import {
+  buildCreateCustomPropertyActionData,
   buildCreateKeyframesActionData,
   buildCreateSassSymbolActionData,
   buildCreateSelectorActionData,
@@ -210,6 +211,13 @@ function toDiagnostic(
         severity: DiagnosticSeverity.Warning,
         source: "css-module-explainer",
         message: formatCheckerFinding(finding, ""),
+        data: {
+          createCustomProperty: buildCreateCustomPropertyActionData(
+            finding.propertyName,
+            finding.selectorFilePath,
+            styleDocument,
+          ),
+        },
       };
     case "missing-sass-symbol":
       return {
