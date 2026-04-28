@@ -160,6 +160,55 @@ describe("resolveStyleDefinitionTargets", () => {
     });
   });
 
+  it("resolves CSS custom property references to the last same-file declaration", () => {
+    const ws = styleWorkspace({
+      [BUTTON_PATH]: `:root {
+  --brand: #111;
+}
+.theme { --brand: #222; }
+.button {
+  color: var(--br/*|*/and);
+}
+`,
+    });
+    const targets = resolveStyleDefinitionTargets(styleTarget(ws), styleDeps(ws));
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0]).toMatchObject({
+      targetFilePath: BUTTON_PATH,
+      targetSelectionRange: {
+        start: { line: 3, character: 9 },
+        end: { line: 3, character: 16 },
+      },
+    });
+  });
+
+  it("resolves CSS custom property references to the last imported module declaration", () => {
+    const baseCssPath = `${PACKAGE_TOKENS_ROOT}/base.css`;
+    const themeCssPath = `${PACKAGE_TOKENS_ROOT}/theme.css`;
+    const ws = styleWorkspace({
+      [BUTTON_PATH]: `@use "@design/tokens/base.css";
+@use "@design/tokens/theme.css";
+
+.button {
+  color: var(--br/*|*/and);
+}
+`,
+      [baseCssPath]: `:root { --brand: #111; }`,
+      [themeCssPath]: `:root { --brand: #222; }`,
+    });
+    const targets = resolveStyleDefinitionTargets(styleTarget(ws), styleDeps(ws));
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0]).toMatchObject({
+      targetFilePath: themeCssPath,
+      targetSelectionRange: {
+        start: { line: 0, character: 8 },
+        end: { line: 0, character: 15 },
+      },
+    });
+  });
+
   it("resolves Sass @use source tokens to module files with partial candidates", () => {
     const ws = styleWorkspace({
       [BUTTON_PATH]: `@use "./t/*|*/okens.module";

@@ -267,7 +267,11 @@ export function findCustomPropertyDeclByName(
   styleDocument: StyleDocumentHIR,
   name: string,
 ): CustomPropertyDeclHIR | null {
-  return styleDocument.customPropertyDecls.find((decl) => decl.name === name) ?? null;
+  for (let index = styleDocument.customPropertyDecls.length - 1; index >= 0; index -= 1) {
+    const decl = styleDocument.customPropertyDecls[index]!;
+    if (decl.name === name) return decl;
+  }
+  return null;
 }
 
 export function listCustomPropertyRefs(
@@ -316,9 +320,7 @@ export function listCustomPropertyModuleUseDeclTargets(
       targets.push({ filePath: target.filePath, decl });
     }
   }
-  return targets.toSorted(
-    (a, b) => a.decl.name.localeCompare(b.decl.name) || a.filePath.localeCompare(b.filePath),
-  );
+  return targets;
 }
 
 export function resolveCustomPropertyDeclTarget(
@@ -333,13 +335,20 @@ export function resolveCustomPropertyDeclTarget(
   const localDecl = findCustomPropertyDeclByName(styleDocument, name);
   if (localDecl) return { filePath: styleFilePath, decl: localDecl };
 
-  const moduleDecl = listCustomPropertyModuleUseDeclTargets(
+  const moduleDecls = listCustomPropertyModuleUseDeclTargets(
     styleDocumentForPath,
     styleFilePath,
     styleDocument,
     aliasResolver,
     options,
-  ).find((target) => target.decl.name === name);
+  );
+  let moduleDecl: ResolvedCustomPropertyDeclTarget | undefined;
+  for (let index = moduleDecls.length - 1; index >= 0; index -= 1) {
+    const target = moduleDecls[index]!;
+    if (target.decl.name !== name) continue;
+    moduleDecl = target;
+    break;
+  }
   if (moduleDecl) return moduleDecl;
 
   const workspaceDecl = workspaceDeclLookup
