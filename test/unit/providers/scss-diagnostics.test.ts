@@ -628,6 +628,36 @@ describe("computeScssUnusedDiagnostics", () => {
     });
   });
 
+  it("does not report imported package CSS custom property refs as missing", () => {
+    const stylePath = "/fake/src/Button.module.scss";
+    const packagePath = "/fake/node_modules/@design/tokens/variables.css";
+    const styleDoc = parseStyleDocument(
+      `@use "@design/tokens/variables.css";
+
+.title {
+  color: var(--color-gray-700);
+}`,
+      stylePath,
+    );
+    const packageDoc = parseStyleDocument(`:root { --color-gray-700: #767678; }`, packagePath);
+    const byPath = new Map([
+      [stylePath, styleDoc],
+      [packagePath, packageDoc],
+    ]);
+
+    const diagnostics = computeScssUnusedDiagnostics(
+      stylePath,
+      styleDoc,
+      new WorkspaceSemanticWorkspaceReferenceIndex(),
+      new WorkspaceStyleDependencyGraph(),
+      (filePath) => byPath.get(filePath) ?? null,
+    );
+
+    expect(diagnostics.filter((entry) => entry.message.includes("CSS custom property"))).toEqual(
+      [],
+    );
+  });
+
   it("reports missing Sass symbols with create-symbol data", () => {
     const styleDoc = parseStyleDocument(
       `.button {
@@ -833,6 +863,45 @@ describe("computeScssUnusedDiagnostics", () => {
       {
         aliasResolver: new AliasResolver("/fake", { $shared: "src/shared" }),
       },
+    );
+
+    expect(diagnostics.filter((entry) => entry.message.includes("Sass "))).toEqual([]);
+  });
+
+  it("does not report Sass symbols resolved through prefixed package forwards from a local utility module", () => {
+    const stylePath = "/fake/src/Button.module.scss";
+    const utilsPath = "/fake/src/_utils.scss";
+    const colorsPath = "/fake/node_modules/@design/tokens/_colors.scss";
+    const typographyPath = "/fake/node_modules/@design/tokens/_typography.scss";
+    const styleDoc = parseStyleDocument(
+      `@use "utils" as *;
+
+.title {
+  color: $ds_gray700;
+  @include ds_typography16;
+}`,
+      stylePath,
+    );
+    const utilsDoc = parseStyleDocument(
+      `@forward "@design/tokens/colors" as ds_*;
+@forward "@design/tokens/typography" as ds_*;`,
+      utilsPath,
+    );
+    const colorsDoc = parseStyleDocument(`$gray700: #767678;`, colorsPath);
+    const typographyDoc = parseStyleDocument(`@mixin typography16 {}`, typographyPath);
+    const byPath = new Map([
+      [stylePath, styleDoc],
+      [utilsPath, utilsDoc],
+      [colorsPath, colorsDoc],
+      [typographyPath, typographyDoc],
+    ]);
+
+    const diagnostics = computeScssUnusedDiagnostics(
+      stylePath,
+      styleDoc,
+      new WorkspaceSemanticWorkspaceReferenceIndex(),
+      new WorkspaceStyleDependencyGraph(),
+      (filePath) => byPath.get(filePath) ?? null,
     );
 
     expect(diagnostics.filter((entry) => entry.message.includes("Sass "))).toEqual([]);

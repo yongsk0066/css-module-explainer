@@ -7,6 +7,7 @@ import type {
 } from "../../engine-core-ts/src/core/hir/style-types";
 import type { StyleDependencyGraph } from "../../engine-core-ts/src/core/semantic";
 import {
+  listCustomPropertyModuleUseDeclTargets,
   listSassModuleExportedSymbols,
   resolveSassModuleUseTarget,
   type SassModulePathAliasResolver,
@@ -175,6 +176,8 @@ function collectSassSymbolCompletionDecls(
 function collectCustomPropertyCompletionDecls(args: {
   readonly styleDocument: StyleDocumentHIR;
   readonly styleDependencyGraph?: StyleDependencyGraph;
+  readonly styleDocumentForPath?: (filePath: string) => StyleDocumentHIR | null;
+  readonly aliasResolver?: SassModulePathAliasResolver;
 }): readonly CustomPropertyCompletionDecl[] {
   const seen = new Set<string>();
   const decls: CustomPropertyCompletionDecl[] = [];
@@ -185,6 +188,16 @@ function collectCustomPropertyCompletionDecls(args: {
   };
 
   for (const decl of args.styleDocument.customPropertyDecls) pushDecl(decl);
+  if (args.styleDocumentForPath) {
+    for (const target of listCustomPropertyModuleUseDeclTargets(
+      args.styleDocumentForPath,
+      args.styleDocument.filePath,
+      args.styleDocument,
+      args.aliasResolver,
+    )) {
+      pushDecl(target.decl);
+    }
+  }
   for (const decl of args.styleDependencyGraph?.getAllCustomPropertyDecls() ?? []) pushDecl(decl);
   return decls;
 }

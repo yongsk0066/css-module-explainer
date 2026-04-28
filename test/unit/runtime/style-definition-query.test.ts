@@ -12,6 +12,10 @@ const THEME_PATH = "/fake/workspace/src/theme.module.scss";
 const TOKENS_PATH = "/fake/workspace/src/tokens.module.scss";
 const TOKENS_CSS_PATH = "/fake/workspace/src/tokens.module.css";
 const TOKENS_PARTIAL_PATH = "/fake/workspace/src/_tokens.module.scss";
+const UTILS_PATH = "/fake/workspace/src/_utils.scss";
+const PACKAGE_COLORS_PATH = "/fake/workspace/node_modules/@design/tokens/_colors.scss";
+const PACKAGE_VARIABLES_CSS_PATH = "/fake/workspace/node_modules/@design/tokens/variables.css";
+const PACKAGE_TYPOGRAPHY_PATH = "/fake/workspace/node_modules/@design/tokens/_typography.scss";
 const PACKAGE_UTILS_PATH = "/fake/workspace/node_modules/@design/foundation/scss/_utils.scss";
 const EMPTY_ALIAS_RESOLVER = new AliasResolver("/fake/workspace", {});
 
@@ -101,6 +105,28 @@ describe("resolveStyleDefinitionTargets", () => {
     expect(targets).toHaveLength(1);
     expect(targets[0]).toMatchObject({
       targetFilePath: TOKENS_CSS_PATH,
+      targetSelectionRange: {
+        start: { line: 0, character: 8 },
+        end: { line: 0, character: 24 },
+      },
+    });
+  });
+
+  it("resolves CSS custom property references to imported package CSS declarations", () => {
+    const ws = styleWorkspace({
+      [BUTTON_PATH]: `@use "@design/tokens/variables.css";
+
+.button {
+  color: var(--color/*|*/-gray-700);
+}
+`,
+      [PACKAGE_VARIABLES_CSS_PATH]: `:root { --color-gray-700: #767678; }`,
+    });
+    const targets = resolveStyleDefinitionTargets(styleTarget(ws), styleDeps(ws));
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0]).toMatchObject({
+      targetFilePath: PACKAGE_VARIABLES_CSS_PATH,
       targetSelectionRange: {
         start: { line: 0, character: 8 },
         end: { line: 0, character: 24 },
@@ -460,6 +486,44 @@ $secret: 2rem;
     });
 
     expect(resolveStyleDefinitionTargets(styleTarget(ws, "hidden"), deps)).toEqual([]);
+  });
+
+  it("resolves prefixed Sass members forwarded from package targets through a local utility module", () => {
+    const ws = styleWorkspace({
+      [BUTTON_PATH]: `@use "utils" as *;
+
+.title {
+  color: $ds_g/*at:variable*/ray700;
+  @include ds_t/*at:mixin*/ypography16;
+}
+`,
+      [UTILS_PATH]: `@forward "@design/tokens/colors" as ds_*;
+@forward "@design/tokens/typography" as ds_*;
+`,
+      [PACKAGE_COLORS_PATH]: `$gray700: #767678;`,
+      [PACKAGE_TYPOGRAPHY_PATH]: `@mixin typography16 {}`,
+    });
+    const deps = styleDeps(ws);
+
+    const variableTargets = resolveStyleDefinitionTargets(styleTarget(ws, "variable"), deps);
+    expect(variableTargets).toHaveLength(1);
+    expect(variableTargets[0]).toMatchObject({
+      targetFilePath: PACKAGE_COLORS_PATH,
+      targetSelectionRange: {
+        start: { line: 0, character: 0 },
+        end: { line: 0, character: 8 },
+      },
+    });
+
+    const mixinTargets = resolveStyleDefinitionTargets(styleTarget(ws, "mixin"), deps);
+    expect(mixinTargets).toHaveLength(1);
+    expect(mixinTargets[0]).toMatchObject({
+      targetFilePath: PACKAGE_TYPOGRAPHY_PATH,
+      targetSelectionRange: {
+        start: { line: 0, character: 7 },
+        end: { line: 0, character: 19 },
+      },
+    });
   });
 
   it("resolves same-file Sass symbol references to declarations", () => {

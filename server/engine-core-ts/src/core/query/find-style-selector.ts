@@ -277,6 +277,73 @@ export function listCustomPropertyRefs(
   return styleDocument.customPropertyRefs.filter((ref) => ref.name === name);
 }
 
+export interface CustomPropertyDeclLookup {
+  readonly getCustomPropertyDecls: (name: string) => readonly (Pick<
+    CustomPropertyDeclHIR,
+    "name" | "value" | "range" | "ruleRange"
+  > & {
+    readonly filePath: string;
+  })[];
+}
+
+export interface ResolvedCustomPropertyDeclTarget {
+  readonly filePath: string;
+  readonly decl: Pick<CustomPropertyDeclHIR, "name" | "value" | "range" | "ruleRange">;
+}
+
+export function listCustomPropertyModuleUseDeclTargets(
+  styleDocumentForPath: (filePath: string) => StyleDocumentHIR | null,
+  styleFilePath: string,
+  styleDocument: StyleDocumentHIR,
+  aliasResolver?: SassModulePathAliasResolver,
+): readonly ResolvedCustomPropertyDeclTarget[] {
+  const targets: ResolvedCustomPropertyDeclTarget[] = [];
+  const seen = new Set<string>();
+  for (const moduleUse of styleDocument.sassModuleUses) {
+    const target = resolveSassModuleUseTarget(
+      styleDocumentForPath,
+      styleFilePath,
+      moduleUse,
+      aliasResolver,
+    );
+    if (!target) continue;
+    for (const decl of target.styleDocument.customPropertyDecls) {
+      const key = `${target.filePath}\u0000${decl.name}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      targets.push({ filePath: target.filePath, decl });
+    }
+  }
+  return targets.toSorted(
+    (a, b) => a.decl.name.localeCompare(b.decl.name) || a.filePath.localeCompare(b.filePath),
+  );
+}
+
+export function resolveCustomPropertyDeclTarget(
+  styleDocumentForPath: (filePath: string) => StyleDocumentHIR | null,
+  styleFilePath: string,
+  styleDocument: StyleDocumentHIR,
+  name: string,
+  workspaceDeclLookup?: CustomPropertyDeclLookup,
+  aliasResolver?: SassModulePathAliasResolver,
+): ResolvedCustomPropertyDeclTarget | null {
+  const localDecl = findCustomPropertyDeclByName(styleDocument, name);
+  if (localDecl) return { filePath: styleFilePath, decl: localDecl };
+
+  const moduleDecl = listCustomPropertyModuleUseDeclTargets(
+    styleDocumentForPath,
+    styleFilePath,
+    styleDocument,
+    aliasResolver,
+  ).find((target) => target.decl.name === name);
+  if (moduleDecl) return moduleDecl;
+
+  const workspaceDecl = workspaceDeclLookup
+    ?.getCustomPropertyDecls(name)
+    .toSorted((a, b) => a.filePath.localeCompare(b.filePath))[0];
+  return workspaceDecl ? { filePath: workspaceDecl.filePath, decl: workspaceDecl } : null;
+}
+
 export function findSassSymbolDeclAtCursor(
   styleDocument: StyleDocumentHIR,
   line: number,
@@ -857,10 +924,11 @@ function resolveSassModuleBasePath(
     return path.resolve(path.dirname(styleFilePath), cleanSource);
   }
   if (path.isAbsolute(cleanSource)) return cleanSource;
-  return (
-    aliasResolver?.resolve(cleanSource, fileExists, styleFilePath) ??
-    resolveSassPackageBasePath(styleFilePath, cleanSource, fileExists)
-  );
+  const aliasTarget = aliasResolver?.resolve(cleanSource, fileExists, styleFilePath);
+  if (aliasTarget) return aliasTarget;
+  const packageTarget = resolveSassPackageBasePath(styleFilePath, cleanSource, fileExists);
+  if (packageTarget) return packageTarget;
+  return resolveSassLocalBareBasePath(styleFilePath, cleanSource, fileExists);
 }
 
 function expandSassModuleCandidatePaths(basePath: string): readonly string[] {
@@ -907,6 +975,15 @@ function resolveSassPackageBasePath(
     if (parent === current) return null;
     current = parent;
   }
+}
+
+function resolveSassLocalBareBasePath(
+  styleFilePath: string,
+  source: string,
+  fileExists?: (candidate: string) => boolean,
+): string | null {
+  const candidate = path.resolve(path.dirname(styleFilePath), source);
+  return !fileExists || fileExists(candidate) ? candidate : null;
 }
 
 function normalizeSassPackageSpecifier(source: string): string {

@@ -4,7 +4,6 @@ import {
   findCanonicalSelector,
   findComposesTokenAtCursor,
   findCustomPropertyDeclAtCursor,
-  findCustomPropertyDeclByName,
   findCustomPropertyRefAtCursor,
   findKeyframesAtCursor,
   findKeyframesByName,
@@ -25,6 +24,7 @@ import {
   readSelectorStyleDependencySummary,
   readSelectorUsageSummary,
   resolveComposesTarget,
+  resolveCustomPropertyDeclTarget,
   resolveSassModuleMemberRefTarget,
   resolveSassWildcardSymbolTarget,
   resolveValueImportTarget,
@@ -218,11 +218,13 @@ export function resolveStyleHoverResult(
 
   const customPropertyRef = findCustomPropertyRefAtCursor(styleDocument, args.line, args.character);
   if (customPropertyRef) {
-    const target = resolveCustomPropertyTarget(
-      styleDocument,
+    const target = resolveCustomPropertyDeclTarget(
+      deps.styleDocumentForPath,
       args.filePath,
+      styleDocument,
       customPropertyRef.name,
       deps.styleDependencyGraph,
+      deps.aliasResolver,
     );
     if (!target) return null;
     return {
@@ -551,23 +553,6 @@ function withStyleSelectorIdentity(
     options,
   );
   return selectorIdentity ? { selectorIdentity } : {};
-}
-
-function resolveCustomPropertyTarget(
-  styleDocument: StyleDocumentHIR,
-  filePath: string,
-  name: string,
-  styleDependencyGraph: ProviderDeps["styleDependencyGraph"],
-): {
-  readonly filePath: string;
-  readonly decl: Pick<CustomPropertyDeclHIR, "name" | "value" | "range" | "ruleRange">;
-} | null {
-  const localDecl = findCustomPropertyDeclByName(styleDocument, name);
-  if (localDecl) return { filePath, decl: localDecl };
-  const workspaceDecl = styleDependencyGraph
-    .getCustomPropertyDecls(name)
-    .toSorted((a, b) => a.filePath.localeCompare(b.filePath))[0];
-  return workspaceDecl ? { filePath: workspaceDecl.filePath, decl: workspaceDecl } : null;
 }
 
 function readCustomPropertyReferenceCount(

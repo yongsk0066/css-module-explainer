@@ -13,6 +13,10 @@ import { infoAtLine, makeBaseDeps, semanticSiteAt } from "../../_fixtures/test-h
 const SCSS_PATH = "/fake/ws/src/Button.module.scss";
 const TOKENS_PATH = "/fake/ws/src/tokens.module.scss";
 const TOKENS_CSS_PATH = "/fake/ws/src/tokens.module.css";
+const UTILS_PATH = "/fake/ws/src/_utils.scss";
+const PACKAGE_COLORS_PATH = "/fake/ws/node_modules/@design/tokens/_colors.scss";
+const PACKAGE_VARIABLES_CSS_PATH = "/fake/ws/node_modules/@design/tokens/variables.css";
+const PACKAGE_TYPOGRAPHY_PATH = "/fake/ws/node_modules/@design/tokens/_typography.scss";
 
 describe("style hover query", () => {
   it("uses rust selector-usage payloads for style hover summaries", () => {
@@ -248,6 +252,39 @@ describe("style hover query", () => {
       headingName: "--color-gray-700",
       note: "Referenced via `var()`",
       referenceCount: 1,
+      customPropertyDecl: {
+        name: "--color-gray-700",
+        value: "#767678",
+      },
+    });
+  });
+
+  it("resolves imported package CSS custom property references to source files", () => {
+    const buttonScss = `@use "@design/tokens/variables.css";
+
+.button {
+  color: var(--color-gray-700);
+}
+`;
+    const tokensCss = `:root { --color-gray-700: #767678; }`;
+    const buttonDocument = parseStyleDocument(buttonScss, SCSS_PATH);
+    const tokensDocument = parseStyleDocument(tokensCss, PACKAGE_VARIABLES_CSS_PATH);
+
+    const result = resolveStyleHoverResult(
+      {
+        filePath: SCSS_PATH,
+        line: 3,
+        character: 16,
+      },
+      makeBaseDeps({
+        styleDocumentForPath: styleDocumentMap([buttonDocument, tokensDocument]),
+      }),
+    );
+
+    expect(result).toMatchObject({
+      kind: "customProperty",
+      scssModulePath: PACKAGE_VARIABLES_CSS_PATH,
+      headingName: "--color-gray-700",
       customPropertyDecl: {
         name: "--color-gray-700",
         value: "#767678",
@@ -512,6 +549,61 @@ describe("style hover query", () => {
       scssModulePath: TOKENS_PATH,
       headingName: "theme-gap",
       referenceCount: 2,
+    });
+  });
+
+  it("resolves hover for prefixed Sass members forwarded from package targets through a local utility module", () => {
+    const buttonScss = `@use "utils" as *;
+
+.title {
+  color: $ds_gray700;
+  @include ds_typography16;
+}
+`;
+    const utilsScss = `@forward "@design/tokens/colors" as ds_*;
+@forward "@design/tokens/typography" as ds_*;
+`;
+    const colorsScss = `$gray700: #767678;`;
+    const typographyScss = `@mixin typography16 {}`;
+    const documents = [
+      parseStyleDocument(buttonScss, SCSS_PATH),
+      parseStyleDocument(utilsScss, UTILS_PATH),
+      parseStyleDocument(colorsScss, PACKAGE_COLORS_PATH),
+      parseStyleDocument(typographyScss, PACKAGE_TYPOGRAPHY_PATH),
+    ];
+
+    const variableResult = resolveStyleHoverResult(
+      {
+        filePath: SCSS_PATH,
+        line: 3,
+        character: 14,
+      },
+      makeBaseDeps({
+        styleDocumentForPath: styleDocumentMap(documents),
+      }),
+    );
+    expect(variableResult).toMatchObject({
+      kind: "sassSymbol",
+      scssModulePath: PACKAGE_COLORS_PATH,
+      headingName: "ds_gray700",
+      note: "Referenced via Sass wildcard reference",
+    });
+
+    const mixinResult = resolveStyleHoverResult(
+      {
+        filePath: SCSS_PATH,
+        line: 4,
+        character: 15,
+      },
+      makeBaseDeps({
+        styleDocumentForPath: styleDocumentMap(documents),
+      }),
+    );
+    expect(mixinResult).toMatchObject({
+      kind: "sassSymbol",
+      scssModulePath: PACKAGE_TYPOGRAPHY_PATH,
+      headingName: "ds_typography16",
+      note: "Referenced via Sass wildcard include",
     });
   });
 });

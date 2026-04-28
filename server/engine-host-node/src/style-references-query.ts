@@ -3,7 +3,6 @@ import {
   findAnimationNameRefAtCursor,
   findComposesTokenAtCursor,
   findCustomPropertyDeclAtCursor,
-  findCustomPropertyDeclByName,
   findCustomPropertyRefAtCursor,
   findKeyframesAtCursor,
   findKeyframesByName,
@@ -22,6 +21,7 @@ import {
   listSassWildcardSymbolsForTarget,
   listValueRefs,
   resolveComposesTarget,
+  resolveCustomPropertyDeclTarget,
   resolveSassModuleMemberRefTarget,
   resolveSassWildcardSymbolTarget,
   resolveValueImportTarget,
@@ -239,11 +239,13 @@ export function resolveStyleReferencesAtCursor(
     args.character,
   );
   if (customPropertyRef) {
-    const targetDecl = resolveCustomPropertyTarget(
-      args.styleDocument,
+    const targetDecl = resolveCustomPropertyDeclTarget(
+      deps.styleDocumentForPath,
       args.filePath,
+      args.styleDocument,
       customPropertyRef.name,
       deps.styleDependencyGraph,
+      deps.aliasResolver,
     );
     if (!targetDecl) return [];
     return readCustomPropertyReferenceLocations(args, deps, customPropertyRef.name, targetDecl);
@@ -492,23 +494,6 @@ function dedupeLocations(
     if (!unique.has(key)) unique.set(key, location);
   }
   return [...unique.values()];
-}
-
-function resolveCustomPropertyTarget(
-  styleDocument: StyleDocumentHIR,
-  filePath: string,
-  name: string,
-  styleDependencyGraph: ProviderDeps["styleDependencyGraph"],
-): {
-  readonly filePath: string;
-  readonly decl: Pick<CustomPropertyDeclHIR, "range">;
-} | null {
-  const localDecl = findCustomPropertyDeclByName(styleDocument, name);
-  if (localDecl) return { filePath, decl: localDecl };
-  const workspaceDecl = styleDependencyGraph
-    .getCustomPropertyDecls(name)
-    .toSorted((a, b) => a.filePath.localeCompare(b.filePath))[0];
-  return workspaceDecl ? { filePath: workspaceDecl.filePath, decl: workspaceDecl } : null;
 }
 
 function readCustomPropertyReferenceLocations(

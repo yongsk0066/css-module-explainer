@@ -3,6 +3,8 @@ import type { ComposesRef, Range } from "@css-module-explainer/shared";
 import type { StyleDocumentHIR } from "../hir/style-types";
 import {
   findCustomPropertyDeclByName,
+  listCustomPropertyModuleUseDeclTargets,
+  resolveCustomPropertyDeclTarget,
   readStyleModuleUsageSummary,
   resolveSassWildcardSymbolTarget,
   type SassModulePathAliasResolver,
@@ -268,6 +270,14 @@ function checkCustomPropertyResolutionRule({
 }): readonly StyleCheckerFinding[] {
   const knownDeclCount =
     params.styleDocument.customPropertyDecls.length +
+    (env.styleDocumentForPath
+      ? listCustomPropertyModuleUseDeclTargets(
+          env.styleDocumentForPath,
+          params.styleDocument.filePath,
+          params.styleDocument,
+          env.aliasResolver,
+        ).length
+      : 0) +
     (env.styleDependencyGraph?.getAllCustomPropertyDecls().length ?? 0);
   if (knownDeclCount === 0) return [];
 
@@ -275,6 +285,19 @@ function checkCustomPropertyResolutionRule({
   const reported = new Set<string>();
   for (const ref of params.styleDocument.customPropertyRefs) {
     if (findCustomPropertyDeclByName(params.styleDocument, ref.name)) continue;
+    if (
+      env.styleDocumentForPath &&
+      resolveCustomPropertyDeclTarget(
+        env.styleDocumentForPath,
+        params.styleDocument.filePath,
+        params.styleDocument,
+        ref.name,
+        env.styleDependencyGraph,
+        env.aliasResolver,
+      )
+    ) {
+      continue;
+    }
     if (env.styleDependencyGraph?.getCustomPropertyDecls(ref.name).length) continue;
 
     const key = [

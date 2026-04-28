@@ -423,6 +423,43 @@ describe("resolveStyleReferencesAtCursor", () => {
     expect(result.map((location) => location.range.start.line)).toEqual([0, 1, 4]);
   });
 
+  it("returns imported package CSS custom property references from a reference cursor", () => {
+    const filePath = "/fake/src/Button.module.scss";
+    const tokensPath = "/fake/node_modules/@design/tokens/variables.css";
+    const buttonScss = `@use "@design/tokens/variables.css";
+
+.button {
+  color: var(--color-gray-700);
+}
+.footer {
+  border-color: var(--color-gray-700);
+}
+`;
+    const tokensCss = `:root { --color-gray-700: #767678; }`;
+    const styleDocument = parseStyleDocument(buttonScss, filePath);
+    const targetDocument = parseStyleDocument(tokensCss, tokensPath);
+
+    const result = resolveStyleReferencesAtCursor(
+      {
+        filePath,
+        line: 3,
+        character: 16,
+        includeDeclaration: true,
+        styleDocument,
+      },
+      makeDeps({
+        styleDocumentForPath: styleDocumentMap([styleDocument, targetDocument]),
+      }),
+    );
+
+    expect(result.map((location) => location.uri)).toEqual([
+      "file:///fake/node_modules/@design/tokens/variables.css",
+      "file:///fake/src/Button.module.scss",
+      "file:///fake/src/Button.module.scss",
+    ]);
+    expect(result.map((location) => location.range.start.line)).toEqual([0, 3, 6]);
+  });
+
   it("returns namespace-qualified Sass member references with the target declaration", () => {
     const filePath = "/fake/src/Button.module.scss";
     const tokensPath = "/fake/src/tokens.module.scss";
