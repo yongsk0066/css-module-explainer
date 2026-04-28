@@ -9,6 +9,7 @@ const REPO_ROOT = path.resolve(__dirname, "../../..");
 const BUNDLED_EXTENSION_ROOT = path.resolve(__dirname, "../..");
 const ENGINE_SHADOW_RUNNER_BINARY =
   process.platform === "win32" ? "engine-shadow-runner.exe" : "engine-shadow-runner";
+const ENGINE_SHADOW_RUNNER_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
 
 export type SelectedQueryBackendKind =
   | "typescript-current"
@@ -260,6 +261,7 @@ export function runRustSelectedQueryBackendJson<T>(command: string, input: unkno
     cwd: invocation.cwd,
     input: JSON.stringify(input),
     encoding: "utf8",
+    maxBuffer: ENGINE_SHADOW_RUNNER_MAX_BUFFER_BYTES,
   });
 
   if (child.signal && ENGINE_SHADOW_RUNNER_CANCELLATION_SIGNALS.has(child.signal)) {

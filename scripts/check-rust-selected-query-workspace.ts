@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { WorkspaceCheckerFinding } from "../server/engine-core-ts/src/core/checker";
+import { findLangForPath } from "../server/engine-core-ts/src/core/scss/lang-registry";
 import { runWorkspaceCheckCommand } from "../server/engine-host-node/src/checker-host";
 
 const boundedWorkspaceRoot = mkdtempSync(
@@ -17,6 +19,8 @@ const DEFAULT_FILTERS = {
   includeCodes: [],
   excludeCodes: [],
 } as const;
+
+const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mts", ".cts", ".mjs", ".cjs"]);
 
 void (async () => {
   try {
@@ -65,9 +69,11 @@ async function checkBoundedWorkspace(): Promise<void> {
 
 async function checkCurrentWorkspaceNoOverreport(): Promise<void> {
   const repoWorkspaceRoot = process.cwd();
+  const trackedFiles = resolveTrackedWorkspaceCheckFiles(repoWorkspaceRoot);
   const current = await runWorkspaceCheckCommand({
     workspace: {
       workspaceRoot: repoWorkspaceRoot,
+      ...trackedFiles,
       env: {
         ...process.env,
         CME_SELECTED_QUERY_BACKEND: "typescript-current",
@@ -78,6 +84,7 @@ async function checkCurrentWorkspaceNoOverreport(): Promise<void> {
   const rust = await runWorkspaceCheckCommand({
     workspace: {
       workspaceRoot: repoWorkspaceRoot,
+      ...trackedFiles,
       env: {
         ...process.env,
         CME_ENGINE_SHADOW_RUNNER: "prebuilt",
@@ -129,10 +136,34 @@ async function checkCurrentWorkspaceNoOverreport(): Promise<void> {
         current.checkerReport.summary,
       )}`,
       `rust=${summaryLabel(rust.checkerReport.summary)}`,
+      `trackedSources=${trackedFiles.sourceFilePaths.length}`,
+      `trackedStyles=${trackedFiles.styleFilePaths.length}`,
       `allowedMissingHints=${missingCurrentHints.length}`,
       "",
     ].join(" "),
   );
+}
+
+function resolveTrackedWorkspaceCheckFiles(root: string): {
+  readonly sourceFilePaths: readonly string[];
+  readonly styleFilePaths: readonly string[];
+} {
+  const output = execFileSync("git", ["ls-files", "-z"], {
+    cwd: root,
+    encoding: "utf8",
+  });
+  const filePaths = output
+    .split("\0")
+    .filter(Boolean)
+    .map((relativePath) => path.join(root, relativePath));
+  return {
+    sourceFilePaths: filePaths.filter(isSourceFile).toSorted(),
+    styleFilePaths: filePaths.filter((filePath) => findLangForPath(filePath) !== null).toSorted(),
+  };
+}
+
+function isSourceFile(filePath: string): boolean {
+  return SOURCE_EXTENSIONS.has(path.extname(filePath));
 }
 
 function writeFixture(relativePath: string, content: string): void {
