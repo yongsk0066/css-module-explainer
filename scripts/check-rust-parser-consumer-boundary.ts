@@ -54,6 +54,7 @@ interface ParserEvaluatorCandidateV0 {
   readonly selectorName: string;
   readonly hasLocalValueRefs: boolean;
   readonly hasImportedValueRefs: boolean;
+  readonly hasCustomPropertyRefs: boolean;
   readonly hasLocalComposes: boolean;
   readonly hasImportedComposes: boolean;
   readonly hasGlobalComposes: boolean;
@@ -372,7 +373,11 @@ function deriveSummaryFromProducer(
     customPropertyResolution: {
       declNames: [...intermediate.customProperties.declNames],
       refNames: [...intermediate.customProperties.refNames],
-      selectorsWithRefsNames: [...intermediate.customProperties.selectorsWithRefsNames],
+      selectorsWithRefsNames: uniqueSorted(
+        evaluator
+          .filter((candidate) => candidate.hasCustomPropertyRefs)
+          .map((candidate) => candidate.selectorName),
+      ),
       missingCandidateNames: intermediate.customProperties.refNames.filter(
         (name) => !declaredCustomProperties.has(name),
       ),
