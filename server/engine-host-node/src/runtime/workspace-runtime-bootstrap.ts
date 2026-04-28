@@ -69,6 +69,7 @@ export function createStyleDocumentLookup(
             moduleUse,
             args.aliasResolverForPath?.(path) ?? undefined,
             args.fileExists,
+            { readFile: args.readStyleFile },
           ),
         resolveSassModuleExportedSymbolTargets: (moduleUse, symbolKind, name) =>
           resolveSassModuleExportedSymbolTargets(
@@ -78,6 +79,7 @@ export function createStyleDocumentLookup(
             name,
             styleDocumentForPath,
             args.aliasResolverForPath?.(path) ?? undefined,
+            args.readStyleFile,
           ),
       });
       return styleDocument;
@@ -94,6 +96,7 @@ export function createStyleDocumentLookup(
           moduleUse,
           args.aliasResolverForPath?.(path) ?? undefined,
           args.fileExists,
+          { readFile: args.readStyleFile },
         ),
       resolveSassModuleExportedSymbolTargets: (moduleUse, symbolKind, name) =>
         resolveSassModuleExportedSymbolTargets(
@@ -103,6 +106,7 @@ export function createStyleDocumentLookup(
           name,
           styleDocumentForPath,
           args.aliasResolverForPath?.(path) ?? undefined,
+          args.readStyleFile,
         ),
     });
     return styleDocument;
@@ -133,12 +137,14 @@ function resolveSassModuleExportedSymbolTargets(
   name: string,
   styleDocumentForPath: (filePath: string) => StyleDocumentHIR | null,
   aliasResolver: AliasResolver | undefined,
+  readFile: (path: string) => string | null,
 ): readonly { readonly filePath: string; readonly name: string }[] {
   const target = resolveSassModuleUseTarget(
     styleDocumentForPath,
     stylePath,
     moduleUse,
     aliasResolver,
+    { readFile },
   );
   if (!target) return [];
   return listSassModuleExportedSymbolTargets(
@@ -148,6 +154,8 @@ function resolveSassModuleExportedSymbolTargets(
     symbolKind,
     name,
     aliasResolver,
+    new Set(),
+    { readFile },
   ).map((exportedTarget) => ({
     filePath: exportedTarget.filePath,
     name: exportedTarget.decl.name,

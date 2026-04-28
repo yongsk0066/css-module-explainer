@@ -296,6 +296,7 @@ export function listCustomPropertyModuleUseDeclTargets(
   styleFilePath: string,
   styleDocument: StyleDocumentHIR,
   aliasResolver?: SassModulePathAliasResolver,
+  options: SassModuleResolutionOptions = {},
 ): readonly ResolvedCustomPropertyDeclTarget[] {
   const targets: ResolvedCustomPropertyDeclTarget[] = [];
   const seen = new Set<string>();
@@ -305,6 +306,7 @@ export function listCustomPropertyModuleUseDeclTargets(
       styleFilePath,
       moduleUse,
       aliasResolver,
+      options,
     );
     if (!target) continue;
     for (const decl of target.styleDocument.customPropertyDecls) {
@@ -326,6 +328,7 @@ export function resolveCustomPropertyDeclTarget(
   name: string,
   workspaceDeclLookup?: CustomPropertyDeclLookup,
   aliasResolver?: SassModulePathAliasResolver,
+  options: SassModuleResolutionOptions = {},
 ): ResolvedCustomPropertyDeclTarget | null {
   const localDecl = findCustomPropertyDeclByName(styleDocument, name);
   if (localDecl) return { filePath: styleFilePath, decl: localDecl };
@@ -335,6 +338,7 @@ export function resolveCustomPropertyDeclTarget(
     styleFilePath,
     styleDocument,
     aliasResolver,
+    options,
   ).find((target) => target.decl.name === name);
   if (moduleDecl) return moduleDecl;
 
@@ -515,6 +519,10 @@ export interface SassModulePathAliasResolver {
   ): string | null;
 }
 
+export interface SassModuleResolutionOptions {
+  readonly readFile?: (filePath: string) => string | null;
+}
+
 export interface ResolvedSassModuleUseTarget {
   readonly filePath: string;
   readonly styleDocument: StyleDocumentHIR;
@@ -559,12 +567,14 @@ export function listSassModuleUseCandidatePaths(
   moduleUse: Pick<SassModuleUseHIR, "source">,
   aliasResolver?: SassModulePathAliasResolver,
   fileExists?: (candidate: string) => boolean,
+  options: SassModuleResolutionOptions = {},
 ): readonly string[] {
   const basePath = resolveSassModuleBasePath(
     styleFilePath,
     moduleUse.source,
     aliasResolver,
     fileExists,
+    options,
   );
   if (!basePath) return [];
   return expandSassModuleCandidatePaths(basePath);
@@ -575,6 +585,7 @@ export function resolveSassModuleUseTarget(
   styleFilePath: string,
   moduleUse: SassModuleUseHIR | null,
   aliasResolver?: SassModulePathAliasResolver,
+  options: SassModuleResolutionOptions = {},
 ): ResolvedSassModuleUseTarget | null {
   if (!moduleUse) return null;
   const fileExists = (candidatePath: string): boolean =>
@@ -586,6 +597,7 @@ export function resolveSassModuleUseTarget(
     moduleUse,
     aliasResolver,
     fileExists,
+    options,
   )) {
     const styleDocument = styleDocumentForPath(candidatePath);
     if (!styleDocument) continue;
@@ -603,6 +615,7 @@ export function resolveSassModuleForwardTarget(
   styleFilePath: string,
   moduleForward: SassModuleForwardHIR | null,
   aliasResolver?: SassModulePathAliasResolver,
+  options: SassModuleResolutionOptions = {},
 ): ResolvedSassModuleForwardTarget | null {
   if (!moduleForward) return null;
   const fileExists = (candidatePath: string): boolean =>
@@ -614,6 +627,7 @@ export function resolveSassModuleForwardTarget(
     moduleForward,
     aliasResolver,
     fileExists,
+    options,
   )) {
     const styleDocument = styleDocumentForPath(candidatePath);
     if (!styleDocument) continue;
@@ -631,6 +645,7 @@ export function resolveSassModuleUseTargetFilePath(
   moduleUse: SassModuleUseHIR | null,
   aliasResolver: SassModulePathAliasResolver | undefined,
   fileExists: (candidate: string) => boolean,
+  options: SassModuleResolutionOptions = {},
 ): string | null {
   if (!moduleUse) return null;
   const targetExists = (candidatePath: string): boolean =>
@@ -640,6 +655,7 @@ export function resolveSassModuleUseTargetFilePath(
     moduleUse,
     aliasResolver,
     targetExists,
+    options,
   )) {
     if (fileExists(candidatePath)) return candidatePath;
   }
@@ -654,6 +670,7 @@ export function listSassModuleExportedSymbolTargets(
   name: string,
   aliasResolver?: SassModulePathAliasResolver,
   visited: ReadonlySet<string> = new Set(),
+  options: SassModuleResolutionOptions = {},
 ): readonly ResolvedSassModuleExportedSymbolTarget[] {
   const visitKey = `${styleFilePath}\u0000${symbolKind}\u0000${name}`;
   if (visited.has(visitKey)) return [];
@@ -682,6 +699,7 @@ export function listSassModuleExportedSymbolTargets(
       styleFilePath,
       moduleForward,
       aliasResolver,
+      options,
     );
     if (!forwardTarget) continue;
     const childTargets = listSassModuleExportedSymbolTargets(
@@ -692,6 +710,7 @@ export function listSassModuleExportedSymbolTargets(
       forwardedName,
       aliasResolver,
       nextVisited,
+      options,
     );
     forwardedTargets.push(
       ...childTargets.flatMap((target) => {
@@ -710,6 +729,7 @@ export function listSassModuleExportedSymbols(
   styleDocument: StyleDocumentHIR,
   aliasResolver?: SassModulePathAliasResolver,
   visited: ReadonlySet<string> = new Set(),
+  options: SassModuleResolutionOptions = {},
 ): readonly ResolvedSassModuleExportedSymbolTarget[] {
   if (visited.has(styleFilePath)) return [];
   const nextVisited = new Set(visited);
@@ -730,6 +750,7 @@ export function listSassModuleExportedSymbols(
       styleFilePath,
       moduleForward,
       aliasResolver,
+      options,
     );
     if (!forwardTarget) continue;
     const childTargets = listSassModuleExportedSymbols(
@@ -738,6 +759,7 @@ export function listSassModuleExportedSymbols(
       forwardTarget.styleDocument,
       aliasResolver,
       nextVisited,
+      options,
     );
     targets.push(
       ...childTargets.flatMap((target) => {
@@ -795,6 +817,7 @@ export function resolveSassModuleMemberRefTarget(
   styleDocument: StyleDocumentHIR,
   memberRef: SassModuleMemberRefHIR | null,
   aliasResolver?: SassModulePathAliasResolver,
+  options: SassModuleResolutionOptions = {},
 ): ResolvedSassModuleMemberTarget | null {
   if (!memberRef) return null;
   for (const moduleUse of findSassModuleUsesForNamespace(styleDocument, memberRef.namespace)) {
@@ -803,6 +826,7 @@ export function resolveSassModuleMemberRefTarget(
       styleFilePath,
       moduleUse,
       aliasResolver,
+      options,
     );
     if (!moduleTarget) continue;
     const targets = listSassModuleExportedSymbolTargets(
@@ -812,6 +836,8 @@ export function resolveSassModuleMemberRefTarget(
       memberRef.symbolKind,
       memberRef.name,
       aliasResolver,
+      new Set(),
+      options,
     );
     if (targets.length !== 1) continue;
     const target = targets[0]!;
@@ -833,6 +859,7 @@ export function resolveSassWildcardSymbolTarget(
   styleDocument: StyleDocumentHIR,
   symbol: SassSymbolOccurrenceHIR | null,
   aliasResolver?: SassModulePathAliasResolver,
+  options: SassModuleResolutionOptions = {},
 ): ResolvedSassWildcardSymbolTarget | null {
   if (!symbol) return null;
   if (findSassSymbolDeclForSymbol(styleDocument, symbol)) return null;
@@ -844,6 +871,7 @@ export function resolveSassWildcardSymbolTarget(
       styleFilePath,
       moduleUse,
       aliasResolver,
+      options,
     );
     if (!moduleTarget) continue;
     const targets = listSassModuleExportedSymbolTargets(
@@ -853,6 +881,8 @@ export function resolveSassWildcardSymbolTarget(
       symbol.symbolKind,
       symbol.name,
       aliasResolver,
+      new Set(),
+      options,
     );
     if (targets.length !== 1) continue;
     const target = targets[0]!;
@@ -917,6 +947,7 @@ function resolveSassModuleBasePath(
   source: string,
   aliasResolver?: SassModulePathAliasResolver,
   fileExists?: (candidate: string) => boolean,
+  options: SassModuleResolutionOptions = {},
 ): string | null {
   const cleanSource = source.split(/[?#]/, 1)[0]!;
   if (cleanSource.startsWith("sass:")) return null;
@@ -926,7 +957,7 @@ function resolveSassModuleBasePath(
   if (path.isAbsolute(cleanSource)) return cleanSource;
   const aliasTarget = aliasResolver?.resolve(cleanSource, fileExists, styleFilePath);
   if (aliasTarget) return aliasTarget;
-  const packageTarget = resolveSassPackageBasePath(styleFilePath, cleanSource, fileExists);
+  const packageTarget = resolveSassPackageBasePath(styleFilePath, cleanSource, fileExists, options);
   if (packageTarget) return packageTarget;
   return resolveSassLocalBareBasePath(styleFilePath, cleanSource, fileExists);
 }
@@ -956,6 +987,7 @@ function resolveSassPackageBasePath(
   styleFilePath: string,
   source: string,
   fileExists?: (candidate: string) => boolean,
+  options: SassModuleResolutionOptions = {},
 ): string | null {
   const packageSpecifier = normalizeSassPackageSpecifier(source);
   if (
@@ -968,6 +1000,14 @@ function resolveSassPackageBasePath(
 
   let current = path.dirname(styleFilePath);
   while (true) {
+    const packageEntry = resolveSassPackageJsonEntryBasePath(
+      current,
+      packageSpecifier,
+      fileExists,
+      options,
+    );
+    if (packageEntry) return packageEntry;
+
     const candidate = path.join(current, "node_modules", packageSpecifier);
     if (!fileExists || fileExists(candidate)) return candidate;
 
@@ -975,6 +1015,91 @@ function resolveSassPackageBasePath(
     if (parent === current) return null;
     current = parent;
   }
+}
+
+function resolveSassPackageJsonEntryBasePath(
+  currentPath: string,
+  packageSpecifier: string,
+  fileExists: ((candidate: string) => boolean) | undefined,
+  options: SassModuleResolutionOptions,
+): string | null {
+  if (!options.readFile) return null;
+  const parsed = parsePackageSpecifier(packageSpecifier);
+  if (!parsed || parsed.subpath) return null;
+
+  const packageDir = path.join(currentPath, "node_modules", parsed.packageName);
+  const packageJsonText = options.readFile(path.join(packageDir, "package.json"));
+  if (!packageJsonText) return null;
+
+  const entry = readSassPackageJsonEntry(packageJsonText);
+  if (!entry) return null;
+
+  const candidate = path.resolve(packageDir, normalizePackageJsonEntry(entry));
+  return !fileExists || fileExists(candidate) ? candidate : null;
+}
+
+function parsePackageSpecifier(
+  packageSpecifier: string,
+): { readonly packageName: string; readonly subpath: string } | null {
+  const parts = packageSpecifier.split("/").filter(Boolean);
+  if (parts.length === 0) return null;
+  if (parts[0]!.startsWith("@")) {
+    if (parts.length < 2) return null;
+    return {
+      packageName: `${parts[0]!}/${parts[1]!}`,
+      subpath: parts.slice(2).join("/"),
+    };
+  }
+  return {
+    packageName: parts[0]!,
+    subpath: parts.slice(1).join("/"),
+  };
+}
+
+function readSassPackageJsonEntry(packageJsonText: string): string | null {
+  let packageJson: unknown;
+  try {
+    packageJson = JSON.parse(packageJsonText);
+  } catch {
+    return null;
+  }
+  if (!isRecord(packageJson)) return null;
+  return (
+    readStringField(packageJson, "sass") ??
+    readStringField(packageJson, "scss") ??
+    readStringField(packageJson, "style") ??
+    readSassPackageExportEntry(packageJson.exports)
+  );
+}
+
+function readSassPackageExportEntry(exportsValue: unknown): string | null {
+  if (typeof exportsValue === "string") return exportsValue;
+  if (!isRecord(exportsValue)) return null;
+
+  const rootExport = exportsValue["."];
+  if (rootExport !== undefined) {
+    const rootEntry = readSassPackageExportEntry(rootExport);
+    if (rootEntry) return rootEntry;
+  }
+
+  for (const key of ["sass", "scss", "style", "default", "import", "require"]) {
+    const entry = readSassPackageExportEntry(exportsValue[key]);
+    if (entry) return entry;
+  }
+  return null;
+}
+
+function readStringField(record: Record<string, unknown>, key: string): string | null {
+  const value = record[key];
+  return typeof value === "string" ? value : null;
+}
+
+function normalizePackageJsonEntry(entry: string): string {
+  return entry.replace(/^\.?\//u, "");
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function resolveSassLocalBareBasePath(

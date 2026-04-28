@@ -658,6 +658,42 @@ describe("computeScssUnusedDiagnostics", () => {
     );
   });
 
+  it("does not report package-root CSS custom property refs through package.json style entries", () => {
+    const stylePath = "/fake/src/Button.module.scss";
+    const packageRoot = "/fake/node_modules/@design/tokens";
+    const packageJsonPath = `${packageRoot}/package.json`;
+    const packagePath = `${packageRoot}/variables.css`;
+    const styleDoc = parseStyleDocument(
+      `@use "@design/tokens";
+
+.title {
+  color: var(--color-gray-700);
+}`,
+      stylePath,
+    );
+    const packageDoc = parseStyleDocument(`:root { --color-gray-700: #767678; }`, packagePath);
+    const byPath = new Map([
+      [stylePath, styleDoc],
+      [packagePath, packageDoc],
+    ]);
+
+    const diagnostics = computeScssUnusedDiagnostics(
+      stylePath,
+      styleDoc,
+      new WorkspaceSemanticWorkspaceReferenceIndex(),
+      new WorkspaceStyleDependencyGraph(),
+      (filePath) => byPath.get(filePath) ?? null,
+      {
+        readStyleFile: (filePath) =>
+          filePath === packageJsonPath ? `{"style":"variables.css"}` : null,
+      },
+    );
+
+    expect(diagnostics.filter((entry) => entry.message.includes("CSS custom property"))).toEqual(
+      [],
+    );
+  });
+
   it("reports missing Sass symbols with create-symbol data", () => {
     const styleDoc = parseStyleDocument(
       `.button {
@@ -825,6 +861,44 @@ describe("computeScssUnusedDiagnostics", () => {
       new WorkspaceSemanticWorkspaceReferenceIndex(),
       new WorkspaceStyleDependencyGraph(),
       (filePath) => byPath.get(filePath) ?? null,
+    );
+
+    expect(diagnostics.filter((entry) => entry.message.includes("Sass "))).toEqual([]);
+  });
+
+  it("does not report Sass symbols resolved through package.json sass entries", () => {
+    const packageRoot = "/fake/node_modules/@design/tokens";
+    const packageJsonPath = `${packageRoot}/package.json`;
+    const packagePath = `${packageRoot}/src/index.scss`;
+    const styleDoc = parseStyleDocument(
+      `@use "@design/tokens" as *;
+
+.button {
+  color: $gray700;
+  @include typography16;
+}`,
+      SCSS_PATH,
+    );
+    const targetDoc = parseStyleDocument(
+      `$gray700: #767678;
+@mixin typography16 {}`,
+      packagePath,
+    );
+    const byPath = new Map([
+      [SCSS_PATH, styleDoc],
+      [packagePath, targetDoc],
+    ]);
+
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      styleDoc,
+      new WorkspaceSemanticWorkspaceReferenceIndex(),
+      new WorkspaceStyleDependencyGraph(),
+      (filePath) => byPath.get(filePath) ?? null,
+      {
+        readStyleFile: (filePath) =>
+          filePath === packageJsonPath ? `{"sass":"src/index.scss"}` : null,
+      },
     );
 
     expect(diagnostics.filter((entry) => entry.message.includes("Sass "))).toEqual([]);

@@ -85,6 +85,7 @@ export function resolveStyleDiagnosticFindings(
         styleDependencyGraph: rustDeps.styleDependencyGraph,
         styleDocumentForPath: rustDeps.styleDocumentForPath,
         ...(rustDeps.aliasResolver ? { aliasResolver: rustDeps.aliasResolver } : {}),
+        ...(rustDeps.readStyleFile ? { readFile: rustDeps.readStyleFile } : {}),
       },
       {
         includeUnusedSelectors: false,
@@ -177,6 +178,7 @@ export async function resolveStyleDiagnosticFindingsAsync(
         styleDependencyGraph: rustDeps.styleDependencyGraph,
         styleDocumentForPath: rustDeps.styleDocumentForPath,
         ...(rustDeps.aliasResolver ? { aliasResolver: rustDeps.aliasResolver } : {}),
+        ...(rustDeps.readStyleFile ? { readFile: rustDeps.readStyleFile } : {}),
       },
       {
         includeUnusedSelectors: false,
@@ -253,6 +255,7 @@ function checkCurrentStyleDocument(
     readonly styleDependencyGraph?: ProviderDeps["styleDependencyGraph"];
     readonly styleDocumentForPath?: ProviderDeps["styleDocumentForPath"];
     readonly aliasResolver?: ProviderDeps["aliasResolver"];
+    readonly readStyleFile?: ProviderDeps["readStyleFile"];
   },
   options: Pick<StyleDocumentCheckOptions, "includeUnusedSelectors" | "includeComposesResolution">,
 ): readonly StyleCheckerFinding[] {
@@ -263,6 +266,7 @@ function checkCurrentStyleDocument(
       ...(deps.styleDependencyGraph ? { styleDependencyGraph: deps.styleDependencyGraph } : {}),
       ...(deps.styleDocumentForPath ? { styleDocumentForPath: deps.styleDocumentForPath } : {}),
       ...(deps.aliasResolver ? { aliasResolver: deps.aliasResolver } : {}),
+      ...(deps.readStyleFile ? { readFile: deps.readStyleFile } : {}),
     },
     options,
   );

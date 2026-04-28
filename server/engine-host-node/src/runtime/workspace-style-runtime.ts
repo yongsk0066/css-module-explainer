@@ -74,6 +74,7 @@ export function createWorkspaceStyleRuntime(
             moduleUse,
             args.aliasResolver(),
             args.fileExists,
+            { readFile: args.io.readStyleFile },
           ),
         resolveSassModuleExportedSymbolTargets: (moduleUse, symbolKind, name) =>
           resolveSassModuleExportedSymbolTargets(
@@ -83,6 +84,7 @@ export function createWorkspaceStyleRuntime(
             name,
             (targetPath) => readIndexedStyleDocument(args, targetPath),
             args.aliasResolver(),
+            args.io.readStyleFile,
           ),
       });
     },
@@ -158,12 +160,14 @@ function resolveSassModuleExportedSymbolTargets(
   name: string,
   styleDocumentForPath: (filePath: string) => StyleDocumentHIR | null,
   aliasResolver: AliasResolver,
+  readFile: (path: string) => string | null,
 ): readonly { readonly filePath: string; readonly name: string }[] {
   const target = resolveSassModuleUseTarget(
     styleDocumentForPath,
     stylePath,
     moduleUse,
     aliasResolver,
+    { readFile },
   );
   if (!target) return [];
   return listSassModuleExportedSymbolTargets(
@@ -173,6 +177,8 @@ function resolveSassModuleExportedSymbolTargets(
     symbolKind,
     name,
     aliasResolver,
+    new Set(),
+    { readFile },
   ).map((exportedTarget) => ({
     filePath: exportedTarget.filePath,
     name: exportedTarget.decl.name,

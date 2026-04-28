@@ -8,6 +8,7 @@ import {
   readStyleModuleUsageSummary,
   resolveSassWildcardSymbolTarget,
   type SassModulePathAliasResolver,
+  type SassModuleResolutionOptions,
 } from "../query";
 import type { SemanticWorkspaceReferenceIndex, StyleDependencyGraph } from "../semantic";
 import type { StyleCheckerFinding } from "./contracts";
@@ -23,6 +24,7 @@ export interface StyleDocumentCheckEnv {
   readonly styleDependencyGraph?: StyleDependencyGraph;
   readonly styleDocumentForPath?: (filePath: string) => StyleDocumentHIR | null;
   readonly aliasResolver?: SassModulePathAliasResolver;
+  readonly readFile?: (path: string) => string | null;
 }
 
 export interface StyleDocumentCheckOptions {
@@ -228,6 +230,7 @@ function checkSassSymbolResolutionRule({
         params.styleDocument,
         symbol,
         env.aliasResolver,
+        sassModuleResolutionOptions(env.readFile),
       )
     ) {
       continue;
@@ -276,6 +279,7 @@ function checkCustomPropertyResolutionRule({
           params.styleDocument.filePath,
           params.styleDocument,
           env.aliasResolver,
+          sassModuleResolutionOptions(env.readFile),
         ).length
       : 0) +
     (env.styleDependencyGraph?.getAllCustomPropertyDecls().length ?? 0);
@@ -294,6 +298,7 @@ function checkCustomPropertyResolutionRule({
         ref.name,
         env.styleDependencyGraph,
         env.aliasResolver,
+        sassModuleResolutionOptions(env.readFile),
       )
     ) {
       continue;
@@ -320,6 +325,12 @@ function checkCustomPropertyResolutionRule({
   }
 
   return findings;
+}
+
+function sassModuleResolutionOptions(
+  readFile: StyleDocumentCheckEnv["readFile"],
+): SassModuleResolutionOptions {
+  return readFile ? { readFile } : {};
 }
 
 function findMissingKeyframes(

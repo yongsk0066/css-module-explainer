@@ -42,6 +42,7 @@ function computeCompletion(params: CursorParams, deps: ProviderDeps): Completion
       styleDocumentForPath: deps.styleDocumentForPath,
       aliasResolver: deps.aliasResolver,
       styleDependencyGraph: deps.styleDependencyGraph,
+      readFile: deps.readStyleFile,
     });
     return items.length > 0 ? items.map(toStyleCompletionItem) : null;
   }

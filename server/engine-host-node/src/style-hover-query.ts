@@ -225,6 +225,7 @@ export function resolveStyleHoverResult(
       customPropertyRef.name,
       deps.styleDependencyGraph,
       deps.aliasResolver,
+      { readFile: deps.readStyleFile },
     );
     if (!target) return null;
     return {
@@ -285,6 +286,7 @@ export function resolveStyleHoverResult(
         styleDocument,
         sassSymbol,
         deps.aliasResolver,
+        { readFile: deps.readStyleFile },
       );
       if (!wildcardTarget) return null;
       return {
@@ -320,6 +322,7 @@ export function resolveStyleHoverResult(
       styleDocument,
       sassModuleMemberRef,
       deps.aliasResolver,
+      { readFile: deps.readStyleFile },
     );
     if (!target) return null;
     return {

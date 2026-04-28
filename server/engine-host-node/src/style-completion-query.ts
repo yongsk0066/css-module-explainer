@@ -11,6 +11,7 @@ import {
   listSassModuleExportedSymbols,
   resolveSassModuleUseTarget,
   type SassModulePathAliasResolver,
+  type SassModuleResolutionOptions,
 } from "../../engine-core-ts/src/core/query";
 import { rangeContains } from "../../engine-core-ts/src/core/util/range-utils";
 
@@ -66,6 +67,7 @@ export function resolveStyleCompletionItems(args: {
   readonly styleDocumentForPath?: (filePath: string) => StyleDocumentHIR | null;
   readonly aliasResolver?: SassModulePathAliasResolver;
   readonly styleDependencyGraph?: StyleDependencyGraph;
+  readonly readFile?: (filePath: string) => string | null;
 }): readonly StyleCompletionItem[] {
   const lineText = readLine(args.content, args.line);
   const linePrefix = lineText.slice(0, args.character);
@@ -178,6 +180,7 @@ function collectCustomPropertyCompletionDecls(args: {
   readonly styleDependencyGraph?: StyleDependencyGraph;
   readonly styleDocumentForPath?: (filePath: string) => StyleDocumentHIR | null;
   readonly aliasResolver?: SassModulePathAliasResolver;
+  readonly readFile?: (filePath: string) => string | null;
 }): readonly CustomPropertyCompletionDecl[] {
   const seen = new Set<string>();
   const decls: CustomPropertyCompletionDecl[] = [];
@@ -194,6 +197,7 @@ function collectCustomPropertyCompletionDecls(args: {
       args.styleDocument.filePath,
       args.styleDocument,
       args.aliasResolver,
+      sassModuleResolutionOptions(args.readFile),
     )) {
       pushDecl(target.decl);
     }
@@ -207,6 +211,7 @@ function readSassSymbolCompletionDecls(args: {
   readonly styleDocument: StyleDocumentHIR;
   readonly styleDocumentForPath?: (filePath: string) => StyleDocumentHIR | null;
   readonly aliasResolver?: SassModulePathAliasResolver;
+  readonly readFile?: (filePath: string) => string | null;
 }): readonly SassSymbolCompletionDecl[] {
   const { styleDocument, content } = args;
   const localDecls =
@@ -220,6 +225,7 @@ function readSassSymbolCompletionDecls(args: {
       styleDocument,
       args.styleDocumentForPath,
       args.aliasResolver,
+      sassModuleResolutionOptions(args.readFile),
     ),
   ];
 }
@@ -228,6 +234,7 @@ function collectWildcardSassSymbolCompletionDecls(
   styleDocument: StyleDocumentHIR,
   styleDocumentForPath: (filePath: string) => StyleDocumentHIR | null,
   aliasResolver?: SassModulePathAliasResolver,
+  options: { readonly readFile?: (filePath: string) => string | null } = {},
 ): readonly SassSymbolCompletionDecl[] {
   const decls: SassSymbolCompletionDecl[] = [];
   const seen = new Set<string>();
@@ -238,6 +245,7 @@ function collectWildcardSassSymbolCompletionDecls(
       styleDocument.filePath,
       moduleUse,
       aliasResolver,
+      sassModuleResolutionOptions(options.readFile),
     );
     if (!target) continue;
     for (const exportedTarget of listSassModuleExportedSymbols(
@@ -245,6 +253,8 @@ function collectWildcardSassSymbolCompletionDecls(
       target.filePath,
       target.styleDocument,
       aliasResolver,
+      new Set(),
+      sassModuleResolutionOptions(options.readFile),
     )) {
       const key = `${exportedTarget.decl.syntax ?? "sass"}:${exportedTarget.decl.symbolKind}:${
         exportedTarget.exportedName
@@ -255,6 +265,12 @@ function collectWildcardSassSymbolCompletionDecls(
     }
   }
   return decls;
+}
+
+function sassModuleResolutionOptions(
+  readFile: ((filePath: string) => string | null) | undefined,
+): SassModuleResolutionOptions {
+  return readFile ? { readFile } : {};
 }
 
 function collectFallbackSassSymbolCompletionDecls(

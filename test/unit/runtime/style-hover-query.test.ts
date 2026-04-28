@@ -14,6 +14,9 @@ const SCSS_PATH = "/fake/ws/src/Button.module.scss";
 const TOKENS_PATH = "/fake/ws/src/tokens.module.scss";
 const TOKENS_CSS_PATH = "/fake/ws/src/tokens.module.css";
 const UTILS_PATH = "/fake/ws/src/_utils.scss";
+const PACKAGE_TOKENS_ROOT = "/fake/ws/node_modules/@design/tokens";
+const PACKAGE_TOKENS_JSON_PATH = `${PACKAGE_TOKENS_ROOT}/package.json`;
+const PACKAGE_TOKENS_INDEX_PATH = `${PACKAGE_TOKENS_ROOT}/src/index.scss`;
 const PACKAGE_COLORS_PATH = "/fake/ws/node_modules/@design/tokens/_colors.scss";
 const PACKAGE_VARIABLES_CSS_PATH = "/fake/ws/node_modules/@design/tokens/variables.css";
 const PACKAGE_TYPOGRAPHY_PATH = "/fake/ws/node_modules/@design/tokens/_typography.scss";
@@ -292,6 +295,41 @@ describe("style hover query", () => {
     });
   });
 
+  it("resolves package-root CSS custom property references through package.json style entries", () => {
+    const buttonScss = `@use "@design/tokens";
+
+.button {
+  color: var(--color-gray-700);
+}
+`;
+    const tokensCss = `:root { --color-gray-700: #767678; }`;
+    const buttonDocument = parseStyleDocument(buttonScss, SCSS_PATH);
+    const tokensDocument = parseStyleDocument(tokensCss, PACKAGE_VARIABLES_CSS_PATH);
+
+    const result = resolveStyleHoverResult(
+      {
+        filePath: SCSS_PATH,
+        line: 3,
+        character: 16,
+      },
+      makeBaseDeps({
+        styleDocumentForPath: styleDocumentMap([buttonDocument, tokensDocument]),
+        readStyleFile: (filePath) =>
+          filePath === PACKAGE_TOKENS_JSON_PATH ? `{"style":"variables.css"}` : null,
+      }),
+    );
+
+    expect(result).toMatchObject({
+      kind: "customProperty",
+      scssModulePath: PACKAGE_VARIABLES_CSS_PATH,
+      headingName: "--color-gray-700",
+      customPropertyDecl: {
+        name: "--color-gray-700",
+        value: "#767678",
+      },
+    });
+  });
+
   it("resolves same-file Sass symbol references to declaration hover data", () => {
     const scss = `$gap: 1rem;
 .button {
@@ -406,6 +444,56 @@ describe("style hover query", () => {
       headingName: "gap",
       note: "Referenced via Sass wildcard reference",
       referenceCount: 2,
+    });
+  });
+
+  it("resolves package-root Sass symbol hovers through package.json sass entries", () => {
+    const buttonScss = `@use "@design/tokens" as *;
+
+.button {
+  color: $gray700;
+  @include typography16;
+}
+`;
+    const tokensScss = `$gray700: #767678;
+@mixin typography16 {}
+`;
+    const buttonDocument = parseStyleDocument(buttonScss, SCSS_PATH);
+    const tokensDocument = parseStyleDocument(tokensScss, PACKAGE_TOKENS_INDEX_PATH);
+    const deps = makeBaseDeps({
+      styleDocumentForPath: styleDocumentMap([buttonDocument, tokensDocument]),
+      readStyleFile: (filePath) =>
+        filePath === PACKAGE_TOKENS_JSON_PATH ? `{"sass":"src/index.scss"}` : null,
+    });
+
+    const variableResult = resolveStyleHoverResult(
+      {
+        filePath: SCSS_PATH,
+        line: 3,
+        character: 10,
+      },
+      deps,
+    );
+    expect(variableResult).toMatchObject({
+      kind: "sassSymbol",
+      scssModulePath: PACKAGE_TOKENS_INDEX_PATH,
+      headingName: "gray700",
+      note: "Referenced via Sass wildcard reference",
+    });
+
+    const mixinResult = resolveStyleHoverResult(
+      {
+        filePath: SCSS_PATH,
+        line: 4,
+        character: 12,
+      },
+      deps,
+    );
+    expect(mixinResult).toMatchObject({
+      kind: "sassSymbol",
+      scssModulePath: PACKAGE_TOKENS_INDEX_PATH,
+      headingName: "typography16",
+      note: "Referenced via Sass wildcard include",
     });
   });
 

@@ -30,7 +30,10 @@ export interface StyleDefinitionTarget {
 
 export function resolveStyleDefinitionTargets(
   params: Pick<CursorParams, "filePath" | "line" | "character">,
-  deps: Pick<ProviderDeps, "styleDocumentForPath" | "aliasResolver" | "styleDependencyGraph">,
+  deps: Pick<
+    ProviderDeps,
+    "styleDocumentForPath" | "aliasResolver" | "styleDependencyGraph" | "readStyleFile"
+  >,
 ): readonly StyleDefinitionTarget[] {
   const styleDocument = deps.styleDocumentForPath(params.filePath);
   if (!styleDocument) return [];
@@ -84,6 +87,7 @@ export function resolveStyleDefinitionTargets(
       customPropertyRef.name,
       deps.styleDependencyGraph,
       deps.aliasResolver,
+      { readFile: deps.readStyleFile },
     );
     return target
       ? [toStyleDefinitionTarget(customPropertyRef.range, target.filePath, target.decl)]
@@ -97,6 +101,7 @@ export function resolveStyleDefinitionTargets(
       styleDocument.filePath,
       sassModuleUse,
       deps.aliasResolver,
+      { readFile: deps.readStyleFile },
     );
     return target
       ? [
@@ -122,6 +127,7 @@ export function resolveStyleDefinitionTargets(
       styleDocument,
       sassModuleMemberRef,
       deps.aliasResolver,
+      { readFile: deps.readStyleFile },
     );
     return target
       ? [toStyleDefinitionTarget(sassModuleMemberRef.range, target.filePath, target.decl)]
@@ -140,6 +146,7 @@ export function resolveStyleDefinitionTargets(
       styleDocument,
       sassSymbol,
       deps.aliasResolver,
+      { readFile: deps.readStyleFile },
     );
     return wildcardTarget
       ? [toStyleDefinitionTarget(sassSymbol.range, wildcardTarget.filePath, wildcardTarget.decl)]

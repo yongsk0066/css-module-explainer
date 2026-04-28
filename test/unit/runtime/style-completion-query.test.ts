@@ -6,6 +6,8 @@ import { resolveStyleCompletionItems } from "../../../server/engine-host-node/sr
 const SCSS_PATH = "/fake/src/Button.module.scss";
 const THEME_PATH = "/fake/src/theme.module.scss";
 const TOKENS_PATH = "/fake/src/tokens.module.scss";
+const PACKAGE_TOKENS_ROOT = "/fake/node_modules/@design/tokens";
+const PACKAGE_TOKENS_JSON_PATH = `${PACKAGE_TOKENS_ROOT}/package.json`;
 const PACKAGE_VARIABLES_CSS_PATH = "/fake/node_modules/@design/tokens/variables.css";
 
 describe("resolveStyleCompletionItems", () => {
@@ -73,6 +75,30 @@ describe("resolveStyleCompletionItems", () => {
       character: 15,
       styleDocument,
       styleDocumentForPath: styleDocumentMap([styleDocument, tokensDocument]),
+    });
+
+    expect(result.map((item) => item.label)).toEqual(["--color-gray-700", "--spacing-md"]);
+  });
+
+  it("returns package-root CSS custom property completions through package.json exports", () => {
+    const scss = `@use "@design/tokens";
+
+.button {
+  color: var(--)
+}
+`;
+    const packageJson = `{"exports":{".":{"style":"./variables.css"}}}`;
+    const tokensCss = `:root { --color-gray-700: #767678; --spacing-md: 16px; }`;
+    const styleDocument = parseStyleDocument(scss, SCSS_PATH);
+    const tokensDocument = parseStyleDocument(tokensCss, PACKAGE_VARIABLES_CSS_PATH);
+
+    const result = resolveStyleCompletionItems({
+      content: scss,
+      line: 3,
+      character: 15,
+      styleDocument,
+      styleDocumentForPath: styleDocumentMap([styleDocument, tokensDocument]),
+      readFile: (filePath) => (filePath === PACKAGE_TOKENS_JSON_PATH ? packageJson : null),
     });
 
     expect(result.map((item) => item.label)).toEqual(["--color-gray-700", "--spacing-md"]);

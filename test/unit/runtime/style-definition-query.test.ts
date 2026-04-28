@@ -13,6 +13,9 @@ const TOKENS_PATH = "/fake/workspace/src/tokens.module.scss";
 const TOKENS_CSS_PATH = "/fake/workspace/src/tokens.module.css";
 const TOKENS_PARTIAL_PATH = "/fake/workspace/src/_tokens.module.scss";
 const UTILS_PATH = "/fake/workspace/src/_utils.scss";
+const PACKAGE_TOKENS_ROOT = "/fake/workspace/node_modules/@design/tokens";
+const PACKAGE_TOKENS_JSON_PATH = `${PACKAGE_TOKENS_ROOT}/package.json`;
+const PACKAGE_TOKENS_INDEX_PATH = `${PACKAGE_TOKENS_ROOT}/src/index.scss`;
 const PACKAGE_COLORS_PATH = "/fake/workspace/node_modules/@design/tokens/_colors.scss";
 const PACKAGE_VARIABLES_CSS_PATH = "/fake/workspace/node_modules/@design/tokens/variables.css";
 const PACKAGE_TYPOGRAPHY_PATH = "/fake/workspace/node_modules/@design/tokens/_typography.scss";
@@ -120,6 +123,29 @@ describe("resolveStyleDefinitionTargets", () => {
   color: var(--color/*|*/-gray-700);
 }
 `,
+      [PACKAGE_VARIABLES_CSS_PATH]: `:root { --color-gray-700: #767678; }`,
+    });
+    const targets = resolveStyleDefinitionTargets(styleTarget(ws), styleDeps(ws));
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0]).toMatchObject({
+      targetFilePath: PACKAGE_VARIABLES_CSS_PATH,
+      targetSelectionRange: {
+        start: { line: 0, character: 8 },
+        end: { line: 0, character: 24 },
+      },
+    });
+  });
+
+  it("resolves CSS custom property references through package.json style entries", () => {
+    const ws = styleWorkspace({
+      [BUTTON_PATH]: `@use "@design/tokens";
+
+.button {
+  color: var(--color/*|*/-gray-700);
+}
+`,
+      [PACKAGE_TOKENS_JSON_PATH]: `{"style":"variables.css"}`,
       [PACKAGE_VARIABLES_CSS_PATH]: `:root { --color-gray-700: #767678; }`,
     });
     const targets = resolveStyleDefinitionTargets(styleTarget(ws), styleDeps(ws));
@@ -382,6 +408,43 @@ describe("resolveStyleDefinitionTargets", () => {
       targetSelectionRange: {
         start: { line: 1, character: 7 },
         end: { line: 1, character: 14 },
+      },
+    });
+  });
+
+  it("resolves package root Sass imports through package.json sass entries", () => {
+    const ws = styleWorkspace({
+      [BUTTON_PATH]: `@use "@design/tokens" as *;
+
+.button {
+  color: $g/*at:variable*/ray700;
+  @include t/*at:mixin*/ypography16;
+}
+`,
+      [PACKAGE_TOKENS_JSON_PATH]: `{"sass":"src/index.scss"}`,
+      [PACKAGE_TOKENS_INDEX_PATH]: `$gray700: #767678;
+@mixin typography16 {}
+`,
+    });
+    const deps = styleDeps(ws);
+
+    const variableTargets = resolveStyleDefinitionTargets(styleTarget(ws, "variable"), deps);
+    expect(variableTargets).toHaveLength(1);
+    expect(variableTargets[0]).toMatchObject({
+      targetFilePath: PACKAGE_TOKENS_INDEX_PATH,
+      targetSelectionRange: {
+        start: { line: 0, character: 0 },
+        end: { line: 0, character: 8 },
+      },
+    });
+
+    const mixinTargets = resolveStyleDefinitionTargets(styleTarget(ws, "mixin"), deps);
+    expect(mixinTargets).toHaveLength(1);
+    expect(mixinTargets[0]).toMatchObject({
+      targetFilePath: PACKAGE_TOKENS_INDEX_PATH,
+      targetSelectionRange: {
+        start: { line: 1, character: 7 },
+        end: { line: 1, character: 19 },
       },
     });
   });
@@ -678,13 +741,20 @@ function styleTarget(ws: CmeWorkspace, markerName = "cursor", filePath?: string)
 function styleDeps(ws: CmeWorkspace, options: { readonly aliasResolver?: AliasResolver } = {}) {
   return depsForDocuments(
     ws.filePaths.map((filePath) => parseStyleDocument(ws.file(filePath).content, filePath)),
-    options,
+    {
+      ...options,
+      readStyleFile: (filePath) =>
+        ws.filePaths.includes(filePath) ? ws.file(filePath).content : null,
+    },
   );
 }
 
 function depsForDocuments(
   documents: readonly StyleDocumentHIR[],
-  options: { readonly aliasResolver?: AliasResolver } = {},
+  options: {
+    readonly aliasResolver?: AliasResolver;
+    readonly readStyleFile?: (filePath: string) => string | null;
+  } = {},
 ) {
   const byPath = new Map(documents.map((document) => [document.filePath, document]));
   const styleDependencyGraph = new WorkspaceStyleDependencyGraph();
@@ -695,5 +765,6 @@ function depsForDocuments(
     aliasResolver: options.aliasResolver ?? EMPTY_ALIAS_RESOLVER,
     styleDocumentForPath: (filePath: string) => byPath.get(filePath) ?? null,
     styleDependencyGraph,
+    readStyleFile: options.readStyleFile ?? (() => null),
   };
 }

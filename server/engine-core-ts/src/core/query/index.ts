@@ -60,6 +60,7 @@ export {
   type ResolvedSassModuleUseTarget,
   type ResolvedSassWildcardSymbolTarget,
   type SassModulePathAliasResolver,
+  type SassModuleResolutionOptions,
 } from "./find-style-selector";
 export { findInvalidClassReference } from "./find-invalid-class-references";
 export { isInsideCall, readCompletionContext } from "./read-completion-context";

@@ -246,6 +246,7 @@ export function resolveStyleReferencesAtCursor(
       customPropertyRef.name,
       deps.styleDependencyGraph,
       deps.aliasResolver,
+      { readFile: deps.readStyleFile },
     );
     if (!targetDecl) return [];
     return readCustomPropertyReferenceLocations(args, deps, customPropertyRef.name, targetDecl);
@@ -291,6 +292,7 @@ export function resolveStyleReferencesAtCursor(
         args.styleDocument,
         sassSymbol,
         deps.aliasResolver,
+        { readFile: deps.readStyleFile },
       );
       if (!wildcardTarget) return [];
       const locations = listSassWildcardSymbolsForTarget(
@@ -336,6 +338,7 @@ export function resolveStyleReferencesAtCursor(
       args.styleDocument,
       sassModuleMemberRef,
       deps.aliasResolver,
+      { readFile: deps.readStyleFile },
     );
     if (!moduleMemberTarget) return [];
     const locations = listSassModuleMemberRefsForMember(
