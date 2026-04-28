@@ -392,7 +392,7 @@ Current checker policy:
   - broader Rust lane bundle: `pnpm check:rust-lane-bundle`
   - release-facing Rust bundle: `pnpm check:rust-release-bundle`
   - full snapshot parity: `pnpm check:rust-shadow-compare`
-- Current `4.1.1` framing is the Phase 2 swap hotfix milestone on top of the Rust-backed semantic core GA baseline:
+- Current `4.1.2` framing is the Phase 2 swap runtime-hardening milestone on top of the Rust-backed semantic core GA baseline:
   - `expression-semantics` and `source-resolution` still carry family-level canonical-producer signals and a shared top-level source-side lane
   - `expression-domain` carries input-only canonical artifacts plus type-fact-backed evaluator-candidate coverage on the Rust shadow path
   - a top-level `semantic` lane now consolidates `source-side + expression-domain` into one canonical-candidate / evaluator-candidate / canonical-producer path
@@ -400,6 +400,7 @@ Current checker policy:
   - the ESLint and Stylelint plugin consumers now form a first plugin-facing batch with focused rule surfaces, aggregate configs, a clean example workspace, and release-facing consumer gates
   - the bounded checker entrance (`style-recovery` + `source-missing` + `style-unused`) is now enforced in `pnpm check:rust-release-bundle`
   - packaged VSIX runtime now defaults to `rust-selected-query` through a long-lived `engine-shadow-runner` daemon when the bundled runner is present, while source checkouts keep the unset default on `typescript-current`
+  - non-daemon async selected-query calls also use a true asynchronous one-shot runner path, so disabling the daemon does not reintroduce event-loop blocking
   - LSP providers now consume `engine-host-node` query helpers instead of importing `core/query` internals directly, and `pnpm check:provider-host-routing-boundary` guards that provider boundary
   - style providers now consume Rust-backed semantic graph read models for selector identity, references, diagnostics, completions, rename safety, hover metadata, and style-module usage through host-side caches
   - `pnpm check:rust-phase-2-swap-readiness` batches provider host-routing, selected-query default-candidate, LSP runtime-loop daemon evidence, and checker release-gate shadow evidence as the v4.1.x cut line

@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.1.2] — 2026-04-29
+
+### Fixed
+
+- **Async selected-query runner fallback** — non-daemon Rust selected-query calls now use an asynchronous one-shot runner path instead of wrapping the synchronous spawn path in a resolved promise, keeping LSP event-loop behavior safe even when the daemon is disabled.
+- **Runtime regression coverage** — selected-query backend tests now verify the non-daemon async path returns before the delayed runner exits, guarding against accidental reintroduction of sync process spawning on async product paths.
+
 ## [4.1.1] — 2026-04-28
 
 ### Fixed
