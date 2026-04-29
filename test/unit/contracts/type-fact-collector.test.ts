@@ -218,6 +218,38 @@ describe("selectTypeFactCollector", () => {
     expect(workerCalls).toHaveLength(2);
   });
 
+  it("expires cached tsgo type facts after the burst window", () => {
+    let now = 0;
+    const workerCalls: unknown[] = [];
+    const cache = createTsgoTypeFactResolvedTypesCache(64, 10, () => now);
+    const sourceEntries = createSourceEntries();
+
+    const collect = () =>
+      collectTypeFactTableV2WithTsgo({
+        workspaceRoot: "/repo",
+        sourceEntries,
+        typeResolver: finiteSetResolver(["fallback"]),
+        findConfigFile: (workspaceRoot) => `${workspaceRoot}/tsconfig.json`,
+        workerCache: cache,
+        runWorker: (input) => {
+          workerCalls.push(input);
+          return [
+            {
+              filePath: "/repo/src/App.tsx",
+              expressionId: "expr-1",
+              resolvedType: { kind: "union", values: ["primary"] },
+            },
+          ];
+        },
+      });
+
+    collect();
+    now = 10;
+    collect();
+
+    expect(workerCalls).toHaveLength(2);
+  });
+
   it("passes the packaged tsgo binary to the self-contained type fact worker", () => {
     const projectRoot = path.join("/extension", "css-module-explainer");
     const platformDir = `${process.platform}-${process.arch}`;

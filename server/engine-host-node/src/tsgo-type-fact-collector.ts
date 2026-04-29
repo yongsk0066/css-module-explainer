@@ -45,6 +45,11 @@ export interface TsgoTypeFactResolvedTypesCache {
   clear(): void;
 }
 
+interface TsgoTypeFactResolvedTypesCacheEntry {
+  readonly expiresAt: number;
+  readonly resolvedTypes: Map<string, ResolvedType>;
+}
+
 export interface TsgoTypeFactWorkerInvocation {
   readonly command: string;
   readonly args: readonly string[];
@@ -250,20 +255,29 @@ function typeFactKey(filePath: string, expressionId: string): string {
 
 export function createTsgoTypeFactResolvedTypesCache(
   maxEntries = 64,
+  maxAgeMs = 1_000,
+  now: () => number = Date.now,
 ): TsgoTypeFactResolvedTypesCache {
-  const entries = new Map<string, Map<string, ResolvedType>>();
+  const entries = new Map<string, TsgoTypeFactResolvedTypesCacheEntry>();
 
   return {
     get(key) {
-      const resolvedTypes = entries.get(key);
-      if (!resolvedTypes) return undefined;
+      const entry = entries.get(key);
+      if (!entry) return undefined;
+      if (entry.expiresAt <= now()) {
+        entries.delete(key);
+        return undefined;
+      }
       entries.delete(key);
-      entries.set(key, resolvedTypes);
-      return cloneResolvedTypes(resolvedTypes);
+      entries.set(key, entry);
+      return cloneResolvedTypes(entry.resolvedTypes);
     },
     set(key, resolvedTypes) {
       entries.delete(key);
-      entries.set(key, cloneResolvedTypes(resolvedTypes));
+      entries.set(key, {
+        expiresAt: now() + maxAgeMs,
+        resolvedTypes: cloneResolvedTypes(resolvedTypes),
+      });
       while (entries.size > maxEntries) {
         const oldestKey = entries.keys().next().value as string | undefined;
         if (oldestKey === undefined) break;
