@@ -213,6 +213,9 @@ function deriveRustSourceMissingConsistency(
         finding.valueCertaintyShapeLabel
           ? { valueCertaintyShapeLabel: finding.valueCertaintyShapeLabel }
           : {},
+        finding.valueDomainDerivation
+          ? { valueDomainDerivation: finding.valueDomainDerivation }
+          : {},
       );
     })
     .toSorted(compareStyleRecoveryFinding);
