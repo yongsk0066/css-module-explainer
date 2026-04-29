@@ -36,11 +36,21 @@ const minimumRunnerTargets = Number.parseInt(
   10,
 );
 const minimumTsgoTargets = Number.parseInt(process.env.CME_PACKAGED_TSGO_MIN_TARGETS ?? "1", 10);
+const minimumOmenaLspServerTargets = Number.parseInt(
+  process.env.CME_PACKAGED_OMENA_LSP_SERVER_MIN_TARGETS ?? "1",
+  10,
+);
 const requiredRunnerPlatforms = (process.env.CME_PACKAGED_RUNNER_REQUIRED_PLATFORMS ?? "")
   .split(",")
   .map((value) => value.trim())
   .filter(Boolean);
 const requiredTsgoPlatforms = (process.env.CME_PACKAGED_TSGO_REQUIRED_PLATFORMS ?? "")
+  .split(",")
+  .map((value) => value.trim())
+  .filter(Boolean);
+const requiredOmenaLspServerPlatforms = (
+  process.env.CME_PACKAGED_OMENA_LSP_SERVER_REQUIRED_PLATFORMS ?? ""
+)
   .split(",")
   .map((value) => value.trim())
   .filter(Boolean);
@@ -54,6 +64,12 @@ if (!Number.isInteger(minimumRunnerTargets) || minimumRunnerTargets < 1) {
 if (!Number.isInteger(minimumTsgoTargets) || minimumTsgoTargets < 1) {
   throw new Error(
     `CME_PACKAGED_TSGO_MIN_TARGETS must be a positive integer, got ${process.env.CME_PACKAGED_TSGO_MIN_TARGETS}`,
+  );
+}
+
+if (!Number.isInteger(minimumOmenaLspServerTargets) || minimumOmenaLspServerTargets < 1) {
+  throw new Error(
+    `CME_PACKAGED_OMENA_LSP_SERVER_MIN_TARGETS must be a positive integer, got ${process.env.CME_PACKAGED_OMENA_LSP_SERVER_MIN_TARGETS}`,
   );
 }
 
@@ -71,6 +87,7 @@ for (const entry of [
 
 const runnerTargets = readPackagedRunnerTargets(entries);
 const tsgoTargets = readPackagedTsgoTargets(entries);
+const omenaLspServerTargets = readPackagedOmenaLspServerTargets(entries);
 if (runnerTargets.length < minimumRunnerTargets) {
   throw new Error(
     `Expected at least ${minimumRunnerTargets} packaged runner target(s), found ${runnerTargets.length}: ${runnerTargets.join(", ")}`,
@@ -79,6 +96,11 @@ if (runnerTargets.length < minimumRunnerTargets) {
 if (tsgoTargets.length < minimumTsgoTargets) {
   throw new Error(
     `Expected at least ${minimumTsgoTargets} packaged tsgo target(s), found ${tsgoTargets.length}: ${tsgoTargets.join(", ")}`,
+  );
+}
+if (omenaLspServerTargets.length < minimumOmenaLspServerTargets) {
+  throw new Error(
+    `Expected at least ${minimumOmenaLspServerTargets} packaged omena-lsp-server target(s), found ${omenaLspServerTargets.length}: ${omenaLspServerTargets.join(", ")}`,
   );
 }
 
@@ -93,6 +115,13 @@ for (const platform of requiredTsgoPlatforms) {
   if (!tsgoTargets.some((target) => target.startsWith(`${platform}-`))) {
     throw new Error(
       `VSIX is missing packaged tsgo for required platform ${platform}; found ${tsgoTargets.join(", ")}`,
+    );
+  }
+}
+for (const platform of requiredOmenaLspServerPlatforms) {
+  if (!omenaLspServerTargets.some((target) => target.startsWith(`${platform}-`))) {
+    throw new Error(
+      `VSIX is missing packaged omena-lsp-server for required platform ${platform}; found ${omenaLspServerTargets.join(", ")}`,
     );
   }
 }
@@ -215,7 +244,7 @@ if (explicitTypescriptBackend !== "typescript-current") {
 }
 
 console.log(
-  `Packaged selected-query default ok: ${vsixFile} -> ${defaultBackend} daemon=on lsp=${packagedLspRuntime.runtime}`,
+  `Packaged selected-query default ok: ${vsixFile} -> ${defaultBackend} daemon=on lsp=${packagedLspRuntime.runtime} lspTargets=${omenaLspServerTargets.join(",")}`,
 );
 
 function readVsixEntries(filePath: string): ReadonlySet<string> {
@@ -239,6 +268,15 @@ function readPackagedTsgoTargets(vsixEntries: ReadonlySet<string>): readonly str
   const targetDirs = new Set<string>();
   for (const entry of vsixEntries) {
     const match = /^extension\/dist\/bin\/([^/]+)\/tsgo(?:\.exe)?$/u.exec(entry);
+    if (match) targetDirs.add(match[1]!);
+  }
+  return [...targetDirs].toSorted();
+}
+
+function readPackagedOmenaLspServerTargets(vsixEntries: ReadonlySet<string>): readonly string[] {
+  const targetDirs = new Set<string>();
+  for (const entry of vsixEntries) {
+    const match = /^extension\/dist\/bin\/([^/]+)\/omena-lsp-server(?:\.exe)?$/u.exec(entry);
     if (match) targetDirs.add(match[1]!);
   }
   return [...targetDirs].toSorted();
