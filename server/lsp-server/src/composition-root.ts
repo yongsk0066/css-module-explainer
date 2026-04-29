@@ -18,7 +18,7 @@ import { defaultReadStyleFile } from "../../engine-host-node/src/runtime";
 import { shutdownEngineShadowRunnerDaemon } from "../../engine-host-node/src/selected-query-backend";
 
 const SERVER_NAME = "css-module-explainer";
-const SERVER_VERSION = "4.1.22";
+const SERVER_VERSION = "4.1.23";
 const RUNTIME_LOOP_PROBE_REQUEST = "cssModuleExplainer/runtimeLoopProbe";
 
 /**
