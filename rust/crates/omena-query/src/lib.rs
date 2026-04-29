@@ -642,8 +642,11 @@ mod tests {
             .graphs
             .iter()
             .find(|entry| entry.style_path == "/tmp/App.module.scss")
-            .and_then(|entry| entry.graph.as_ref())
-            .expect("App graph should parse");
+            .and_then(|entry| entry.graph.as_ref());
+        assert!(app_graph.is_some());
+        let Some(app_graph) = app_graph else {
+            return;
+        };
         let design_tokens = &app_graph.design_token_semantics;
 
         assert_eq!(design_tokens.status, "workspace-cascade-ranking-seed");
