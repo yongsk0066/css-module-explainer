@@ -66,6 +66,11 @@ import {
   type StyleSemanticGraphSelectorIdentityReadModel,
 } from "./style-semantic-graph-query-backend";
 
+interface CustomPropertyHoverTarget {
+  readonly filePath: string;
+  readonly decl: CustomPropertyDeclHIR;
+}
+
 export interface StyleSelectorHoverResult {
   readonly kind: "selector";
   readonly selector: SelectorDeclHIR;
@@ -236,26 +241,32 @@ export function resolveStyleHoverResult(
       deps.aliasResolver,
       { readFile: deps.readStyleFile },
     );
-    if (!target) return null;
+    const designTokenRanking = withDesignTokenRanking(
+      deps,
+      styleDocument,
+      args.filePath,
+      customPropertyRef,
+      queryOptions,
+    );
+    const rankedTarget = resolveDesignTokenRankingDeclTarget(
+      deps,
+      designTokenRanking.designTokenRanking,
+    );
+    const hoverTarget = rankedTarget ?? target;
+    if (!hoverTarget) return null;
     return {
       kind: "customProperty",
-      customPropertyDecl: target.decl,
+      customPropertyDecl: hoverTarget.decl,
       range: customPropertyRef.range,
       headingName: customPropertyRef.name,
       note: "Referenced via `var()`",
-      scssModulePath: target.filePath,
+      scssModulePath: hoverTarget.filePath,
       referenceCount: readCustomPropertyReferenceCount(
         deps.styleDependencyGraph,
         styleDocument,
         customPropertyRef.name,
       ),
-      ...withDesignTokenRanking(
-        deps,
-        styleDocument,
-        args.filePath,
-        customPropertyRef,
-        queryOptions,
-      ),
+      ...designTokenRanking,
     };
   }
 
@@ -424,27 +435,33 @@ export async function resolveStyleHoverResultAsync(
     deps.aliasResolver,
     { readFile: deps.readStyleFile },
   );
-  if (!target) return null;
+  const designTokenRanking = await withDesignTokenRankingAsync(
+    deps,
+    styleDocument,
+    args.filePath,
+    customPropertyRef,
+    queryOptions,
+  );
+  const rankedTarget = resolveDesignTokenRankingDeclTarget(
+    deps,
+    designTokenRanking.designTokenRanking,
+  );
+  const hoverTarget = rankedTarget ?? target;
+  if (!hoverTarget) return null;
 
   return {
     kind: "customProperty",
-    customPropertyDecl: target.decl,
+    customPropertyDecl: hoverTarget.decl,
     range: customPropertyRef.range,
     headingName: customPropertyRef.name,
     note: "Referenced via `var()`",
-    scssModulePath: target.filePath,
+    scssModulePath: hoverTarget.filePath,
     referenceCount: readCustomPropertyReferenceCount(
       deps.styleDependencyGraph,
       styleDocument,
       customPropertyRef.name,
     ),
-    ...(await withDesignTokenRankingAsync(
-      deps,
-      styleDocument,
-      args.filePath,
-      customPropertyRef,
-      queryOptions,
-    )),
+    ...designTokenRanking,
   };
 }
 
@@ -938,6 +955,38 @@ function withDepsStyleSemanticGraphCache(
     .styleSemanticGraphCache;
   if (options.styleSemanticGraphCache || !cache) return options;
   return { ...options, styleSemanticGraphCache: cache };
+}
+
+function resolveDesignTokenRankingDeclTarget(
+  deps: Pick<ProviderDeps, "styleDocumentForPath">,
+  ranking: StyleSemanticGraphDesignTokenRankedReferenceReadModel | undefined,
+): CustomPropertyHoverTarget | null {
+  if (!ranking?.winnerDeclarationFilePath) return null;
+
+  const styleDocument = deps.styleDocumentForPath(ranking.winnerDeclarationFilePath);
+  if (!styleDocument) return null;
+
+  const winnerDeclarationRange = ranking.winnerDeclarationRange;
+  const rangeMatchedDecl = winnerDeclarationRange
+    ? styleDocument.customPropertyDecls.find(
+        (decl) =>
+          decl.name === ranking.referenceName && rangesEqual(decl.range, winnerDeclarationRange),
+      )
+    : undefined;
+  const sourceOrderDecl = styleDocument.customPropertyDecls[ranking.winnerDeclarationSourceOrder];
+  const decl =
+    rangeMatchedDecl ??
+    (sourceOrderDecl?.name === ranking.referenceName ? sourceOrderDecl : undefined);
+  return decl ? { filePath: ranking.winnerDeclarationFilePath, decl } : null;
+}
+
+function rangesEqual(left: Range, right: Range): boolean {
+  return (
+    left.start.line === right.start.line &&
+    left.start.character === right.start.character &&
+    left.end.line === right.end.line &&
+    left.end.character === right.end.character
+  );
 }
 
 function readCustomPropertyReferenceCount(

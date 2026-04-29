@@ -13,6 +13,7 @@ import type {
   StyleSemanticGraphCache,
   StyleSemanticGraphSummaryV0,
 } from "../../../server/engine-host-node/src/style-semantic-graph-query-backend";
+import { makeDesignTokenDefinitionGraph } from "../../_fixtures/style-semantic-graph";
 import { infoAtLine, makeBaseDeps, semanticSiteAt } from "../../_fixtures/test-helpers";
 
 const SCSS_PATH = "/fake/ws/src/Button.module.scss";
@@ -376,6 +377,51 @@ describe("style hover query", () => {
       designTokenRanking: {
         winnerDeclaration: { value: "green" },
         shadowedDeclarations: [{ value: "red" }, { value: "blue" }],
+      },
+    });
+  });
+
+  it("uses async rust cross-file design token winners as custom property hover targets", async () => {
+    const buttonCss = `.button {
+  color: var(--brand);
+}
+`;
+    const tokensCss = `:root { --brand: red; }`;
+    const buttonDocument = parseStyleDocument(buttonCss, SCSS_PATH);
+    const tokensDocument = parseStyleDocument(tokensCss, TOKENS_CSS_PATH);
+    const winnerDeclaration = tokensDocument.customPropertyDecls[0]!;
+
+    const result = await resolveStyleHoverResultAsync(
+      {
+        filePath: SCSS_PATH,
+        line: 1,
+        character: 16,
+      },
+      makeBaseDeps({
+        styleDocumentForPath: styleDocumentMap([buttonDocument, tokensDocument]),
+      }),
+      {
+        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" },
+        readRustStyleSemanticGraphForWorkspaceTargetAsync: async () =>
+          makeDesignTokenDefinitionGraph({
+            referenceName: "--brand",
+            winnerDeclarationFilePath: TOKENS_CSS_PATH,
+            winnerDeclarationRange: winnerDeclaration.range,
+          }),
+      },
+    );
+
+    expect(result).toMatchObject({
+      kind: "customProperty",
+      scssModulePath: TOKENS_CSS_PATH,
+      headingName: "--brand",
+      customPropertyDecl: {
+        name: "--brand",
+        value: "red",
+      },
+      designTokenRanking: {
+        winnerDeclarationFilePath: TOKENS_CSS_PATH,
+        crossFileCandidateScope: "cross-file-import-candidate",
       },
     });
   });
