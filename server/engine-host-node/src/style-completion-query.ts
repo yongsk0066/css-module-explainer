@@ -62,6 +62,8 @@ interface CustomPropertyCompletionDecl extends Pick<
   readonly sourceFilePath?: string;
 }
 
+type CustomPropertyCompletionSourceRank = 1 | 2 | 3;
+
 export function resolveStyleCompletionItems(args: {
   readonly content: string;
   readonly line: number;
@@ -189,13 +191,20 @@ function collectCustomPropertyCompletionDecls(args: {
   readonly readFile?: (filePath: string) => string | null;
 }): readonly CustomPropertyCompletionDecl[] {
   const referenceContext = readCustomPropertyCompletionReferenceContext(args);
+  let sourceOrder = 0;
   const byName = new Map<
     string,
-    { readonly decl: CustomPropertyCompletionDecl; readonly score: number }
+    {
+      readonly decl: CustomPropertyCompletionDecl;
+      readonly score: number;
+      readonly sourceRank: CustomPropertyCompletionSourceRank;
+      readonly sourceOrder: number;
+    }
   >();
   const pushDecl = (
     decl: Pick<CustomPropertyDeclHIR, "name" | "range" | "ruleRange" | "context">,
     sourceFilePath?: string,
+    sourceRank: CustomPropertyCompletionSourceRank = 1,
   ) => {
     const candidate = {
       ...(sourceFilePath ? { sourceFilePath } : {}),
@@ -203,16 +212,18 @@ function collectCustomPropertyCompletionDecls(args: {
       ...decl,
     };
     const score = scoreCustomPropertyCompletionContext(candidate.context, referenceContext);
+    if (score === Number.NEGATIVE_INFINITY) return;
     const previous = byName.get(candidate.name);
-    if (previous && previous.score > score) return;
-    byName.set(candidate.name, { decl: candidate, score });
+    const next = { decl: candidate, score, sourceRank, sourceOrder: sourceOrder++ };
+    if (previous && compareCustomPropertyCompletionCandidate(previous, next) >= 0) return;
+    byName.set(candidate.name, next);
   };
 
   const localDecls =
     args.styleDocument.customPropertyDecls.length > 0
       ? args.styleDocument.customPropertyDecls
       : collectFallbackCustomPropertyCompletionDecls(args.content);
-  for (const decl of localDecls) pushDecl(decl, args.styleDocument.filePath);
+  for (const decl of localDecls) pushDecl(decl, args.styleDocument.filePath, 3);
   if (args.styleDocumentForPath) {
     for (const target of listCustomPropertyModuleUseDeclTargets(
       args.styleDocumentForPath,
@@ -221,13 +232,32 @@ function collectCustomPropertyCompletionDecls(args: {
       args.aliasResolver,
       sassModuleResolutionOptions(args.readFile),
     )) {
-      pushDecl(target.decl, target.filePath);
+      pushDecl(target.decl, target.filePath, 2);
     }
   }
   for (const decl of args.styleDependencyGraph?.getAllCustomPropertyDecls() ?? []) {
-    pushDecl(decl, decl.filePath);
+    pushDecl(decl, decl.filePath, 1);
   }
   return [...byName.values()].map((entry) => entry.decl);
+}
+
+function compareCustomPropertyCompletionCandidate(
+  left: {
+    readonly score: number;
+    readonly sourceRank: CustomPropertyCompletionSourceRank;
+    readonly sourceOrder: number;
+  },
+  right: {
+    readonly score: number;
+    readonly sourceRank: CustomPropertyCompletionSourceRank;
+    readonly sourceOrder: number;
+  },
+): number {
+  return (
+    left.score - right.score ||
+    left.sourceRank - right.sourceRank ||
+    left.sourceOrder - right.sourceOrder
+  );
 }
 
 function collectFallbackCustomPropertyCompletionDecls(
@@ -290,6 +320,9 @@ function scoreCustomPropertyCompletionContext(
   referenceContext: CustomPropertyDeclHIR["context"] | undefined,
 ): number {
   if (!referenceContext) return 0;
+  if (!declWrapperContextMatches(declContext, referenceContext)) {
+    return Number.NEGATIVE_INFINITY;
+  }
   let score = 0;
   if (declContext.selectorText) {
     if (referenceContext.selectorText === declContext.selectorText) {
@@ -305,9 +338,11 @@ function scoreCustomPropertyCompletionContext(
       score += 70;
     } else if (declContext.selectorText === ":root") {
       score += 10;
+    } else {
+      return Number.NEGATIVE_INFINITY;
     }
   }
-  score += matchingWrapperCount(declContext, referenceContext) * 20;
+  score += declContext.wrapperAtRules.length * 20;
   return score;
 }
 
@@ -322,16 +357,16 @@ function selectorContextTokensMatch(
   return tokens.length > 0 && tokens.every((token) => referenceSelectorText.includes(token));
 }
 
-function matchingWrapperCount(
+function declWrapperContextMatches(
   declContext: CustomPropertyDeclHIR["context"],
   referenceContext: CustomPropertyDeclHIR["context"],
-): number {
-  return declContext.wrapperAtRules.filter((declWrapper) =>
+): boolean {
+  return declContext.wrapperAtRules.every((declWrapper) =>
     referenceContext.wrapperAtRules.some(
       (refWrapper) =>
         refWrapper.name === declWrapper.name && refWrapper.params === declWrapper.params,
     ),
-  ).length;
+  );
 }
 
 function rangeSize(range: Range): number {

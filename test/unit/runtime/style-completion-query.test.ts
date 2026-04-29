@@ -159,6 +159,88 @@ describe("resolveStyleCompletionItems", () => {
     });
   });
 
+  it("keeps root CSS custom property completions ahead of unmatched media overrides", () => {
+    const scss = `:root {
+  --brand: #111;
+}
+@media (min-width: 600px) {
+  :root { --brand: #222; }
+}
+.button {
+  color: var(--br)
+}
+`;
+    const result = resolveStyleCompletionItems({
+      content: scss,
+      line: 7,
+      character: 17,
+      styleDocument: parseStyleDocument(scss, SCSS_PATH),
+    });
+
+    expect(result.map((item) => item.label)).toEqual(["--brand"]);
+    expect(result[0]?.sourceRange).toMatchObject({
+      start: { line: 1, character: 2 },
+      end: { line: 1, character: 9 },
+    });
+  });
+
+  it("prefers local CSS custom property completions over workspace duplicates", () => {
+    const scss = `:root {
+  --brand: #111;
+}
+.button {
+  color: var(--br)
+}
+`;
+    const tokensScss = `:root { --brand: #222; }`;
+    const styleDocument = parseStyleDocument(scss, SCSS_PATH);
+    const tokensDocument = parseStyleDocument(tokensScss, TOKENS_PATH);
+    const styleDependencyGraph = new WorkspaceStyleDependencyGraph();
+    styleDependencyGraph.record(TOKENS_PATH, tokensDocument);
+
+    const result = resolveStyleCompletionItems({
+      content: scss,
+      line: 4,
+      character: 17,
+      styleDocument,
+      styleDependencyGraph,
+    });
+
+    expect(result.map((item) => item.label)).toEqual(["--brand"]);
+    expect(result[0]?.sourceFilePath).toBe(SCSS_PATH);
+  });
+
+  it("prefers imported CSS custom property completions over workspace duplicates", () => {
+    const scss = `@use "@design/tokens/variables.css";
+
+.button {
+  color: var(--br)
+}
+`;
+    const importedTokensCss = `:root { --brand: #111; }`;
+    const workspaceTokensCss = `:root { --brand: #222; }`;
+    const styleDocument = parseStyleDocument(scss, SCSS_PATH);
+    const importedTokensDocument = parseStyleDocument(
+      importedTokensCss,
+      PACKAGE_VARIABLES_CSS_PATH,
+    );
+    const workspaceTokensDocument = parseStyleDocument(workspaceTokensCss, TOKENS_PATH);
+    const styleDependencyGraph = new WorkspaceStyleDependencyGraph();
+    styleDependencyGraph.record(TOKENS_PATH, workspaceTokensDocument);
+
+    const result = resolveStyleCompletionItems({
+      content: scss,
+      line: 3,
+      character: 17,
+      styleDocument,
+      styleDocumentForPath: styleDocumentMap([styleDocument, importedTokensDocument]),
+      styleDependencyGraph,
+    });
+
+    expect(result.map((item) => item.label)).toEqual(["--brand"]);
+    expect(result[0]?.sourceFilePath).toBe(PACKAGE_VARIABLES_CSS_PATH);
+  });
+
   it("uses matching wrapper context for incomplete CSS custom property completions", () => {
     const scss = `:root { --brand: #222; }
 @media (min-width: 600px) {
