@@ -9,7 +9,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
     path::{Component, Path, PathBuf},
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Instant, SystemTime, UNIX_EPOCH},
 };
 
 pub const NODE_TEXT_DOCUMENT_SYNC_KIND: u8 = 2;
@@ -23,6 +23,7 @@ const REQUEST_CANCELLED_ERROR_CODE: i32 = -32800;
 const CANCELLED_REQUEST_CACHE_LIMIT: usize = 128;
 const WORKSPACE_STYLE_INDEX_LIMIT: usize = 512;
 const WORKSPACE_STYLE_INDEX_DIR_LIMIT: usize = 2048;
+const WORKSPACE_STYLE_INDEX_TIME_BUDGET_MS: u128 = 50;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -319,6 +320,7 @@ pub struct LspShellStateSnapshot {
     pub features: LspFeatureSettings,
     pub diagnostics: LspDiagnosticSettings,
     pub cancelled_request_count: usize,
+    pub workspace_style_index_exhausted_count: usize,
     pub document_count: usize,
     pub workspace_folder_count: usize,
     pub configuration_change_count: usize,
@@ -369,6 +371,7 @@ pub struct LspShellState {
     features: LspFeatureSettings,
     diagnostics: LspDiagnosticSettings,
     cancelled_request_ids: BTreeSet<String>,
+    workspace_style_index_exhausted_count: usize,
     configuration_change_count: usize,
     documents: BTreeMap<String, LspTextDocumentState>,
     open_document_uris: BTreeSet<String>,
@@ -400,6 +403,7 @@ impl LspShellState {
             features: self.features.clone(),
             diagnostics: self.diagnostics.clone(),
             cancelled_request_count: self.cancelled_request_ids.len(),
+            workspace_style_index_exhausted_count: self.workspace_style_index_exhausted_count,
             document_count: self.document_count(),
             workspace_folder_count: self.workspace_folder_count(),
             configuration_change_count: self.configuration_change_count,
@@ -788,23 +792,26 @@ fn initialize_workspace_folders(state: &mut LspShellState, params: Option<&Value
 }
 
 fn index_workspace_style_files(state: &mut LspShellState) {
+    let mut budget = WorkspaceStyleIndexBudget::with_defaults();
+    index_workspace_style_files_with_budget(state, &mut budget);
+}
+
+fn index_workspace_style_files_with_budget(
+    state: &mut LspShellState,
+    budget: &mut WorkspaceStyleIndexBudget,
+) {
     let folders: Vec<LspWorkspaceFolderState> = state.workspace_folders.values().cloned().collect();
-    let mut remaining_style_files = WORKSPACE_STYLE_INDEX_LIMIT;
-    let mut remaining_dirs = WORKSPACE_STYLE_INDEX_DIR_LIMIT;
     for folder in folders {
-        if remaining_style_files == 0 || remaining_dirs == 0 {
+        if budget.should_stop() {
             break;
         }
         let Some(path) = file_uri_to_path(folder.uri.as_str()) else {
             continue;
         };
-        index_workspace_style_files_from_dir(
-            state,
-            folder.uri.as_str(),
-            path.as_path(),
-            &mut remaining_style_files,
-            &mut remaining_dirs,
-        );
+        index_workspace_style_files_from_dir(state, folder.uri.as_str(), path.as_path(), budget);
+    }
+    if budget.exhausted {
+        state.workspace_style_index_exhausted_count += 1;
     }
 }
 
@@ -812,18 +819,17 @@ fn index_workspace_style_files_from_dir(
     state: &mut LspShellState,
     workspace_folder_uri: &str,
     dir: &Path,
-    remaining_style_files: &mut usize,
-    remaining_dirs: &mut usize,
+    budget: &mut WorkspaceStyleIndexBudget,
 ) {
-    if *remaining_style_files == 0 || *remaining_dirs == 0 || should_skip_workspace_index_dir(dir) {
+    if budget.should_stop() || should_skip_workspace_index_dir(dir) {
         return;
     }
-    *remaining_dirs -= 1;
+    budget.consume_dir();
     let Ok(entries) = fs::read_dir(dir) else {
         return;
     };
     for entry in entries.flatten() {
-        if *remaining_style_files == 0 || *remaining_dirs == 0 {
+        if budget.should_stop() {
             return;
         }
         let path = entry.path();
@@ -832,8 +838,7 @@ fn index_workspace_style_files_from_dir(
                 state,
                 workspace_folder_uri,
                 path.as_path(),
-                remaining_style_files,
-                remaining_dirs,
+                budget,
             );
             continue;
         }
@@ -860,7 +865,58 @@ fn index_workspace_style_files_from_dir(
                 text,
             ),
         );
-        *remaining_style_files -= 1;
+        budget.consume_style_file();
+    }
+}
+
+struct WorkspaceStyleIndexBudget {
+    remaining_style_files: usize,
+    remaining_dirs: usize,
+    started_at: Instant,
+    time_budget_ms: u128,
+    exhausted: bool,
+}
+
+impl WorkspaceStyleIndexBudget {
+    fn with_defaults() -> Self {
+        Self::with_limits(
+            WORKSPACE_STYLE_INDEX_LIMIT,
+            WORKSPACE_STYLE_INDEX_DIR_LIMIT,
+            WORKSPACE_STYLE_INDEX_TIME_BUDGET_MS,
+        )
+    }
+
+    fn with_limits(
+        remaining_style_files: usize,
+        remaining_dirs: usize,
+        time_budget_ms: u128,
+    ) -> Self {
+        Self {
+            remaining_style_files,
+            remaining_dirs,
+            started_at: Instant::now(),
+            time_budget_ms,
+            exhausted: false,
+        }
+    }
+
+    fn should_stop(&mut self) -> bool {
+        if self.remaining_style_files == 0
+            || self.remaining_dirs == 0
+            || self.started_at.elapsed().as_millis() >= self.time_budget_ms
+        {
+            self.exhausted = true;
+            return true;
+        }
+        false
+    }
+
+    fn consume_dir(&mut self) {
+        self.remaining_dirs = self.remaining_dirs.saturating_sub(1);
+    }
+
+    fn consume_style_file(&mut self) {
+        self.remaining_style_files = self.remaining_style_files.saturating_sub(1);
     }
 }
 
@@ -4640,6 +4696,55 @@ mod tests {
             indexed.map(|summary| summary.selector_names.clone()),
             Some(vec!["initial".to_string()]),
         );
+        let _ = std::fs::remove_dir_all(&workspace_root);
+    }
+
+    #[test]
+    fn bounds_workspace_style_indexing_by_budget() {
+        let workspace_root = std::env::temp_dir().join(format!(
+            "omena-lsp-server-index-budget-{}",
+            std::process::id()
+        ));
+        let src_dir = workspace_root.join("src");
+        let style_path = src_dir.join("Budget.module.scss");
+        let _ = std::fs::remove_dir_all(&workspace_root);
+        let create_dir_result = std::fs::create_dir_all(&src_dir);
+        assert!(
+            create_dir_result.is_ok(),
+            "create index-budget fixture directory: {:?}",
+            create_dir_result.err(),
+        );
+        let write_result = std::fs::write(&style_path, ".budget { color: red; }");
+        assert!(
+            write_result.is_ok(),
+            "write index-budget style fixture: {:?}",
+            write_result.err(),
+        );
+
+        let workspace_uri = format!("file://{}", workspace_root.display());
+        let style_uri = format!("file://{}", style_path.display());
+        let mut state = LspShellState::default();
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "workspaceFolders": [
+                        {
+                            "uri": workspace_uri,
+                            "name": "index-budget",
+                        },
+                    ],
+                },
+            }),
+        );
+        let mut budget = WorkspaceStyleIndexBudget::with_limits(1, 1, 0);
+        index_workspace_style_files_with_budget(&mut state, &mut budget);
+
+        assert!(state.document(style_uri.as_str()).is_none());
+        assert_eq!(state.snapshot().workspace_style_index_exhausted_count, 1);
         let _ = std::fs::remove_dir_all(&workspace_root);
     }
 
