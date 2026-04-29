@@ -1,5 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use omena_incremental::{
+    IncrementalComputationPlanV0, IncrementalGraphInputV0, IncrementalNodeInputV0,
+    IncrementalRevisionV0, IncrementalSnapshotV0, plan_incremental_computation,
+    snapshot_from_graph_input,
+};
 use serde::Serialize;
 
 pub const MAX_FINITE_CLASS_VALUES: usize = 8;
@@ -21,6 +26,7 @@ pub struct AbstractValueFlowAnalysisSummaryV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub context_sensitivity: &'static str,
+    pub incremental_engine: &'static str,
     pub transfer_kinds: Vec<&'static str>,
     pub max_iterations: usize,
 }
@@ -178,6 +184,16 @@ pub struct ClassValueFlowAnalysisV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ClassValueFlowIncrementalAnalysisV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub incremental_plan: IncrementalComputationPlanV0,
+    pub next_snapshot: IncrementalSnapshotV0,
+    pub analysis: ClassValueFlowAnalysisV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ClassValueFlowNodeResultV0 {
     pub id: String,
     pub predecessor_ids: Vec<String>,
@@ -226,6 +242,7 @@ pub fn summarize_omena_abstract_value_flow_analysis() -> AbstractValueFlowAnalys
         schema_version: "0",
         product: "omena-abstract-value.flow-analysis",
         context_sensitivity: "1-cfa",
+        incremental_engine: "omena-incremental",
         transfer_kinds: vec!["assignFacts", "refineFacts", "join"],
         max_iterations: MAX_FLOW_ANALYSIS_ITERATIONS,
     }
@@ -534,6 +551,42 @@ pub fn analyze_class_value_flow(graph: &ClassValueFlowGraphV0) -> ClassValueFlow
                     value_kind: abstract_class_value_kind(&value),
                     value,
                 }
+            })
+            .collect(),
+    }
+}
+
+pub fn analyze_class_value_flow_incremental(
+    graph: &ClassValueFlowGraphV0,
+    previous_snapshot: Option<&IncrementalSnapshotV0>,
+    revision: u64,
+) -> ClassValueFlowIncrementalAnalysisV0 {
+    let incremental_input = class_value_flow_incremental_input(graph, revision);
+    let incremental_plan = plan_incremental_computation(&incremental_input, previous_snapshot);
+    let next_snapshot = snapshot_from_graph_input(&incremental_input);
+
+    ClassValueFlowIncrementalAnalysisV0 {
+        schema_version: "0",
+        product: "omena-abstract-value.incremental-flow-analysis",
+        incremental_plan,
+        next_snapshot,
+        analysis: analyze_class_value_flow(graph),
+    }
+}
+
+pub fn class_value_flow_incremental_input(
+    graph: &ClassValueFlowGraphV0,
+    revision: u64,
+) -> IncrementalGraphInputV0 {
+    IncrementalGraphInputV0 {
+        revision: IncrementalRevisionV0 { value: revision },
+        nodes: graph
+            .nodes
+            .iter()
+            .map(|node| IncrementalNodeInputV0 {
+                id: node.id.clone(),
+                digest: flow_node_incremental_digest(node),
+                dependency_ids: node.predecessors.clone(),
             })
             .collect(),
     }
@@ -1231,6 +1284,69 @@ fn flow_transfer_kind(transfer: &ClassValueFlowTransferV0) -> &'static str {
     }
 }
 
+fn flow_node_incremental_digest(node: &ClassValueFlowNodeV0) -> String {
+    let mut parts = vec![
+        format!("id={}", node.id),
+        format!("deps={}", node.predecessors.join(",")),
+        format!("transfer={}", flow_transfer_kind(&node.transfer)),
+    ];
+
+    match &node.transfer {
+        ClassValueFlowTransferV0::AssignFacts(facts)
+        | ClassValueFlowTransferV0::RefineFacts(facts) => {
+            push_external_facts_digest_parts(&mut parts, facts);
+        }
+        ClassValueFlowTransferV0::Join => {}
+    }
+
+    parts.join(";")
+}
+
+fn push_external_facts_digest_parts(parts: &mut Vec<String>, facts: &ExternalStringTypeFactsV0) {
+    parts.push(format!("kind={}", facts.kind));
+    parts.push(format!(
+        "constraint={}",
+        facts.constraint_kind.as_deref().unwrap_or("")
+    ));
+    parts.push(format!(
+        "values={}",
+        facts.values.as_ref().map_or_else(String::new, |values| {
+            let mut values = values.clone();
+            values.sort();
+            values.dedup();
+            values.join(",")
+        })
+    ));
+    parts.push(format!("prefix={}", facts.prefix.as_deref().unwrap_or("")));
+    parts.push(format!("suffix={}", facts.suffix.as_deref().unwrap_or("")));
+    parts.push(format!(
+        "minLen={}",
+        facts
+            .min_len
+            .map_or_else(String::new, |value| value.to_string())
+    ));
+    parts.push(format!(
+        "maxLen={}",
+        facts
+            .max_len
+            .map_or_else(String::new, |value| value.to_string())
+    ));
+    parts.push(format!(
+        "charMust={}",
+        facts.char_must.as_deref().unwrap_or("")
+    ));
+    parts.push(format!(
+        "charMay={}",
+        facts.char_may.as_deref().unwrap_or("")
+    ));
+    parts.push(format!(
+        "mayOther={}",
+        facts
+            .may_include_other_chars
+            .map_or_else(String::new, |value| value.to_string())
+    ));
+}
+
 fn abstract_value_is_subset(left: &AbstractClassValueV0, right: &AbstractClassValueV0) -> bool {
     if left == right {
         return true;
@@ -1610,17 +1726,18 @@ mod tests {
         AbstractClassValueProvenanceV0, AbstractClassValueV0, ClassValueFlowGraphV0,
         ClassValueFlowNodeV0, ClassValueFlowTransferV0, CompositeClassValueInputV0,
         ExternalStringTypeFactsV0, MAX_FINITE_CLASS_VALUES, SelectorProjectionCertaintyV0,
-        abstract_class_value_from_facts, analyze_class_value_flow, bottom_class_value,
-        char_inclusion_class_value, composite_class_value, derive_selector_projection_certainty,
-        exact_class_value, finite_set_class_value, finite_values_from_facts,
-        intersect_abstract_class_values, join_abstract_class_values, prefix_class_value,
-        prefix_suffix_class_value, project_abstract_value_selectors,
-        reduced_abstract_class_value_from_facts, reduced_class_value_derivation_from_facts,
-        reduced_value_domain_kind_from_facts, selector_certainty_from_facts,
-        selector_certainty_shape_kind_from_facts, selector_certainty_shape_label_from_facts,
-        suffix_class_value, summarize_omena_abstract_value_domain,
-        summarize_omena_abstract_value_flow_analysis, top_class_value, value_certainty_from_facts,
-        value_certainty_shape_kind_from_facts, value_certainty_shape_label_from_facts,
+        abstract_class_value_from_facts, analyze_class_value_flow,
+        analyze_class_value_flow_incremental, bottom_class_value, char_inclusion_class_value,
+        composite_class_value, derive_selector_projection_certainty, exact_class_value,
+        finite_set_class_value, finite_values_from_facts, intersect_abstract_class_values,
+        join_abstract_class_values, prefix_class_value, prefix_suffix_class_value,
+        project_abstract_value_selectors, reduced_abstract_class_value_from_facts,
+        reduced_class_value_derivation_from_facts, reduced_value_domain_kind_from_facts,
+        selector_certainty_from_facts, selector_certainty_shape_kind_from_facts,
+        selector_certainty_shape_label_from_facts, suffix_class_value,
+        summarize_omena_abstract_value_domain, summarize_omena_abstract_value_flow_analysis,
+        top_class_value, value_certainty_from_facts, value_certainty_shape_kind_from_facts,
+        value_certainty_shape_label_from_facts,
     };
 
     #[test]
@@ -1642,6 +1759,7 @@ mod tests {
         assert_eq!(flow_summary.schema_version, "0");
         assert_eq!(flow_summary.product, "omena-abstract-value.flow-analysis");
         assert_eq!(flow_summary.context_sensitivity, "1-cfa");
+        assert_eq!(flow_summary.incremental_engine, "omena-incremental");
         assert!(flow_summary.transfer_kinds.contains(&"join"));
     }
 
@@ -2065,6 +2183,67 @@ mod tests {
             flow_value(&analysis, "btn-only"),
             Some(&AbstractClassValueV0::FiniteSet {
                 values: vec!["btn-primary".to_string(), "btn-secondary".to_string()]
+            })
+        );
+    }
+
+    #[test]
+    fn analyzes_class_value_flow_on_incremental_plan() {
+        let graph = ClassValueFlowGraphV0 {
+            context_key: Some("Button.tsx:render@primary".to_string()),
+            nodes: vec![
+                flow_assign_node("then", external_facts("exact").with_values(["btn-primary"])),
+                flow_assign_node("else", external_facts("exact").with_values(["card"])),
+                ClassValueFlowNodeV0 {
+                    id: "merge".to_string(),
+                    predecessors: vec!["then".to_string(), "else".to_string()],
+                    transfer: ClassValueFlowTransferV0::Join,
+                },
+            ],
+        };
+
+        let first = analyze_class_value_flow_incremental(&graph, None, 1);
+        assert_eq!(
+            first.product,
+            "omena-abstract-value.incremental-flow-analysis"
+        );
+        assert_eq!(first.incremental_plan.dirty_node_count, 3);
+        assert_eq!(first.incremental_plan.new_node_count, 3);
+        assert_eq!(
+            flow_value(&first.analysis, "merge"),
+            Some(&AbstractClassValueV0::FiniteSet {
+                values: vec!["btn-primary".to_string(), "card".to_string()]
+            })
+        );
+
+        let unchanged = analyze_class_value_flow_incremental(&graph, Some(&first.next_snapshot), 2);
+        assert_eq!(unchanged.incremental_plan.dirty_node_count, 0);
+        assert!(unchanged.analysis.converged);
+
+        let changed_graph = ClassValueFlowGraphV0 {
+            context_key: Some("Button.tsx:render@primary".to_string()),
+            nodes: vec![
+                flow_assign_node(
+                    "then",
+                    external_facts("exact").with_values(["btn-secondary"]),
+                ),
+                flow_assign_node("else", external_facts("exact").with_values(["card"])),
+                ClassValueFlowNodeV0 {
+                    id: "merge".to_string(),
+                    predecessors: vec!["then".to_string(), "else".to_string()],
+                    transfer: ClassValueFlowTransferV0::Join,
+                },
+            ],
+        };
+        let changed =
+            analyze_class_value_flow_incremental(&changed_graph, Some(&first.next_snapshot), 3);
+
+        assert_eq!(changed.incremental_plan.changed_input_count, 1);
+        assert_eq!(changed.incremental_plan.dependency_dirty_count, 1);
+        assert_eq!(
+            flow_value(&changed.analysis, "merge"),
+            Some(&AbstractClassValueV0::FiniteSet {
+                values: vec!["btn-secondary".to_string(), "card".to_string()]
             })
         );
     }

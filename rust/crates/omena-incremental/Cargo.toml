@@ -1,10 +1,10 @@
 [package]
-name = "omena-abstract-value"
+name = "omena-incremental"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
-description = "Abstract class value domain and selector projection contracts"
+description = "Salsa-style incremental invalidation primitives for Omena"
 repository = "https://github.com/yongsk0066/css-module-explainer"
 readme = "README.md"
 
@@ -12,5 +12,4 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
-omena-incremental = { path = "../omena-incremental" }
 serde.workspace = true

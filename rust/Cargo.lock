@@ -46,6 +46,7 @@ checksum = "f8ca58f447f06ed17d5fc4043ce1b10dd205e060fb3ce5b979b8ed8e59ff3f79"
 name = "omena-abstract-value"
 version = "0.1.0"
 dependencies = [
+ "omena-incremental",
  "serde",
 ]
 
@@ -56,6 +57,13 @@ dependencies = [
  "engine-input-producers",
  "engine-style-parser",
  "omena-semantic",
+ "serde",
+]
+
+[[package]]
+name = "omena-incremental"
+version = "0.1.0"
+dependencies = [
  "serde",
 ]
 
