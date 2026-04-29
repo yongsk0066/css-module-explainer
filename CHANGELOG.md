@@ -1,5 +1,11 @@
 # Changelog
 
+## [4.1.11] — 2026-04-29
+
+### Fixed
+
+- **Package token runtime resolution** — LSP dependency lookup now reads imported package token assets with plain `.css`, `.scss`, and `.less` extensions, so design-token packages that expose `variables.css` or forwarded Sass partials resolve through hover, definition, completion, and diagnostics instead of being limited to `.module.*` files.
+
 ## [4.1.10] — 2026-04-29
 
 ### Added
