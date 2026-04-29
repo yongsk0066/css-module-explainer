@@ -9,7 +9,10 @@ import {
   resolveStyleSelectorHoverResult,
   resolveStyleSelectorHoverResultAsync,
 } from "../../../server/engine-host-node/src/style-hover-query";
-import type { StyleSemanticGraphSummaryV0 } from "../../../server/engine-host-node/src/style-semantic-graph-query-backend";
+import type {
+  StyleSemanticGraphCache,
+  StyleSemanticGraphSummaryV0,
+} from "../../../server/engine-host-node/src/style-semantic-graph-query-backend";
 import { infoAtLine, makeBaseDeps, semanticSiteAt } from "../../_fixtures/test-helpers";
 
 const SCSS_PATH = "/fake/ws/src/Button.module.scss";
@@ -171,6 +174,49 @@ describe("style hover query", () => {
       hasExpandedReferences: true,
       hasAnyReferences: true,
     });
+  });
+
+  it("shares the runtime style semantic graph cache across async selector hover reads", async () => {
+    const styleSemanticGraphCache: StyleSemanticGraphCache = new Map();
+    const deps = {
+      ...makeBaseDeps({
+        selectorMapForPath: () => new Map([["indicator", infoAtLine("indicator", 5)]]),
+        workspaceRoot: "/fake/ws",
+      }),
+      styleSemanticGraphCache,
+    };
+    let graphBuildCount = 0;
+
+    const result = await resolveStyleSelectorHoverResultAsync(
+      {
+        filePath: SCSS_PATH,
+        line: 5,
+        character: 3,
+      },
+      deps,
+      {
+        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        readRustStyleSemanticGraphForWorkspaceTargetAsync: async (
+          _args,
+          _deps,
+          stylePath,
+          queryOptions,
+        ) => {
+          expect(queryOptions.styleSemanticGraphCache).toBe(styleSemanticGraphCache);
+          if (queryOptions.styleSemanticGraphCache?.has(stylePath)) {
+            return queryOptions.styleSemanticGraphCache.get(stylePath) ?? null;
+          }
+          graphBuildCount += 1;
+          const graph = makeGraph("blocked");
+          queryOptions.styleSemanticGraphCache?.set(stylePath, graph);
+          return graph;
+        },
+      },
+    );
+
+    expect(result?.selectorIdentity?.canonicalName).toBe("indicator");
+    expect(result?.usageSummary.totalReferences).toBe(3);
+    expect(graphBuildCount).toBe(1);
   });
 
   it("resolves animation references to keyframes hover data", () => {

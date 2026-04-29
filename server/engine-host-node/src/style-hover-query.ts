@@ -61,6 +61,7 @@ import {
   buildStyleSemanticGraphDesignTokenRankedReferenceReadModels,
   resolveRustStyleSemanticGraphForWorkspaceTargetAsync,
   resolveRustStyleSemanticGraphForWorkspaceTarget,
+  type StyleSemanticGraphCache,
   type StyleSemanticGraphDesignTokenRankedReferenceReadModel,
   type StyleSemanticGraphSelectorIdentityReadModel,
 } from "./style-semantic-graph-query-backend";
@@ -154,12 +155,13 @@ export function resolveStyleHoverResult(
 ): StyleHoverResult | null {
   const styleDocument = deps.styleDocumentForPath(args.filePath);
   if (!styleDocument) return null;
+  const queryOptions = withDepsStyleSemanticGraphCache(deps, options);
 
   const selectorHover = resolveStyleSelectorHoverResultForDocument(
     styleDocument,
     args,
     deps,
-    options,
+    queryOptions,
   );
   if (selectorHover) return selectorHover;
 
@@ -247,7 +249,13 @@ export function resolveStyleHoverResult(
         styleDocument,
         customPropertyRef.name,
       ),
-      ...withDesignTokenRanking(deps, styleDocument, args.filePath, customPropertyRef, options),
+      ...withDesignTokenRanking(
+        deps,
+        styleDocument,
+        args.filePath,
+        customPropertyRef,
+        queryOptions,
+      ),
     };
   }
 
@@ -394,17 +402,18 @@ export async function resolveStyleHoverResultAsync(
 ): Promise<StyleHoverResult | null> {
   const styleDocument = deps.styleDocumentForPath(args.filePath);
   if (!styleDocument) return null;
+  const queryOptions = withDepsStyleSemanticGraphCache(deps, options);
 
   const selectorHover = await resolveStyleSelectorHoverResultForDocumentAsync(
     styleDocument,
     args,
     deps,
-    options,
+    queryOptions,
   );
   if (selectorHover) return selectorHover;
 
   const customPropertyRef = findCustomPropertyRefAtCursor(styleDocument, args.line, args.character);
-  if (!customPropertyRef) return resolveStyleHoverResult(args, deps, options);
+  if (!customPropertyRef) return resolveStyleHoverResult(args, deps, queryOptions);
 
   const target = resolveCustomPropertyDeclTarget(
     deps.styleDocumentForPath,
@@ -434,7 +443,7 @@ export async function resolveStyleHoverResultAsync(
       styleDocument,
       args.filePath,
       customPropertyRef,
-      options,
+      queryOptions,
     )),
   };
 }
@@ -461,7 +470,12 @@ export function resolveStyleSelectorHoverResult(
   const styleDocument = deps.styleDocumentForPath(args.filePath);
   if (!styleDocument) return null;
 
-  return resolveStyleSelectorHoverResultForDocument(styleDocument, args, deps, options);
+  return resolveStyleSelectorHoverResultForDocument(
+    styleDocument,
+    args,
+    deps,
+    withDepsStyleSemanticGraphCache(deps, options),
+  );
 }
 
 export async function resolveStyleSelectorHoverResultAsync(
@@ -486,7 +500,12 @@ export async function resolveStyleSelectorHoverResultAsync(
   const styleDocument = deps.styleDocumentForPath(args.filePath);
   if (!styleDocument) return null;
 
-  return resolveStyleSelectorHoverResultForDocumentAsync(styleDocument, args, deps, options);
+  return resolveStyleSelectorHoverResultForDocumentAsync(
+    styleDocument,
+    args,
+    deps,
+    withDepsStyleSemanticGraphCache(deps, options),
+  );
 }
 
 function resolveStyleSelectorHoverResultForDocument(
@@ -759,6 +778,7 @@ function withStyleSelectorIdentity(
   canonicalName: string,
   options: StyleHoverQueryOptions,
 ): { readonly selectorIdentity?: StyleSemanticGraphSelectorIdentityReadModel } {
+  const queryOptions = withDepsStyleSemanticGraphCache(deps, options);
   const selectorIdentity = resolveRustStyleSelectorIdentityReadModelForWorkspaceTarget(
     {
       filePath,
@@ -766,7 +786,7 @@ function withStyleSelectorIdentity(
       canonicalName,
     },
     deps,
-    options,
+    queryOptions,
   );
   return selectorIdentity ? { selectorIdentity } : {};
 }
@@ -790,9 +810,10 @@ async function withStyleSelectorIdentityAsync(
     return {};
   }
 
+  const queryOptions = withDepsStyleSemanticGraphCache(deps, options);
   try {
     const graph = await (
-      options.readRustStyleSemanticGraphForWorkspaceTargetAsync ??
+      queryOptions.readRustStyleSemanticGraphForWorkspaceTargetAsync ??
       resolveRustStyleSemanticGraphForWorkspaceTargetAsync
     )(
       {
@@ -802,7 +823,7 @@ async function withStyleSelectorIdentityAsync(
       },
       deps,
       filePath,
-      options,
+      queryOptions,
     );
     if (!graph) return {};
     const selectorIdentity = buildStyleSemanticGraphSelectorIdentityReadModels(
@@ -834,9 +855,10 @@ function withDesignTokenRanking(
     return {};
   }
 
+  const queryOptions = withDepsStyleSemanticGraphCache(deps, options);
   try {
     const graph = (
-      options.readRustStyleSemanticGraphForWorkspaceTarget ??
+      queryOptions.readRustStyleSemanticGraphForWorkspaceTarget ??
       resolveRustStyleSemanticGraphForWorkspaceTarget
     )(
       {
@@ -846,7 +868,7 @@ function withDesignTokenRanking(
       },
       deps,
       filePath,
-      options,
+      queryOptions,
     );
     if (!graph) return {};
 
@@ -881,9 +903,10 @@ async function withDesignTokenRankingAsync(
     return {};
   }
 
+  const queryOptions = withDepsStyleSemanticGraphCache(deps, options);
   try {
     const graph = await (
-      options.readRustStyleSemanticGraphForWorkspaceTargetAsync ??
+      queryOptions.readRustStyleSemanticGraphForWorkspaceTargetAsync ??
       resolveRustStyleSemanticGraphForWorkspaceTargetAsync
     )(
       {
@@ -893,7 +916,7 @@ async function withDesignTokenRankingAsync(
       },
       deps,
       filePath,
-      options,
+      queryOptions,
     );
     if (!graph) return {};
 
@@ -905,6 +928,16 @@ async function withDesignTokenRankingAsync(
   } catch {
     return {};
   }
+}
+
+function withDepsStyleSemanticGraphCache(
+  deps: object,
+  options: StyleHoverQueryOptions,
+): StyleHoverQueryOptions {
+  const cache = (deps as { readonly styleSemanticGraphCache?: StyleSemanticGraphCache })
+    .styleSemanticGraphCache;
+  if (options.styleSemanticGraphCache || !cache) return options;
+  return { ...options, styleSemanticGraphCache: cache };
 }
 
 function readCustomPropertyReferenceCount(
