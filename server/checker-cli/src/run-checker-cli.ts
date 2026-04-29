@@ -31,6 +31,10 @@ import {
   buildRustStyleUnusedCanonicalProducer,
   type CheckerStyleUnusedCanonicalProducerSignalV0,
 } from "./rust-style-unused-consumer";
+import {
+  buildRustFlowAnalysisConsumer,
+  type RustFlowAnalysisConsumerV0,
+} from "./rust-flow-analysis-consumer";
 import type {
   RustSourceMissingConsistencyV0,
   RustStyleUnusedConsistencyV0,
@@ -83,6 +87,9 @@ export async function runCheckerCli(
   const rustStyleUnusedCanonicalProducer = parsed.rustStyleUnusedConsumer
     ? await buildRustStyleUnusedCanonicalProducer(parsed.options, command.checkerReport)
     : undefined;
+  const rustFlowAnalysisConsumer = parsed.rustFlowAnalysisConsumer
+    ? await buildRustFlowAnalysisConsumer(parsed.options)
+    : undefined;
   const jsonReport = buildCheckerJsonReport(
     command.workspaceCheck,
     command.checkerReport,
@@ -91,6 +98,7 @@ export async function runCheckerCli(
     rustStyleRecoveryCanonicalProducer,
     rustSourceMissingCanonicalProducer,
     rustStyleUnusedCanonicalProducer,
+    rustFlowAnalysisConsumer,
   );
   const rustStyleRecoveryConsistency = jsonReport.rustStyleRecoveryConsistency;
   const rustSourceMissingConsistency = jsonReport.rustSourceMissingConsistency;
@@ -107,6 +115,7 @@ export async function runCheckerCli(
     rustSourceMissingConsistency,
     rustStyleUnusedCanonicalProducer,
     rustStyleUnusedConsistency,
+    rustFlowAnalysisConsumer,
   );
   return shouldFail(command.checkerReport, parsed.failOn) ? 1 : 0;
 }
@@ -120,6 +129,7 @@ interface ParsedCliOptions {
   readonly rustStyleRecoveryConsumer: boolean;
   readonly rustSourceMissingConsumer: boolean;
   readonly rustStyleUnusedConsumer: boolean;
+  readonly rustFlowAnalysisConsumer: boolean;
 }
 
 async function parseCliArgs(
@@ -143,6 +153,7 @@ async function parseCliArgs(
   let rustStyleRecoveryConsumer = false;
   let rustSourceMissingConsumer = false;
   let rustStyleUnusedConsumer = false;
+  let rustFlowAnalysisConsumer = false;
   let explicitFailOn = false;
   let explicitCategory = false;
   let explicitSeverity = false;
@@ -247,6 +258,11 @@ async function parseCliArgs(
 
     if (arg === "--rust-style-unused-consumer") {
       rustStyleUnusedConsumer = true;
+      continue;
+    }
+
+    if (arg === "--rust-flow-analysis-consumer") {
+      rustFlowAnalysisConsumer = true;
       continue;
     }
 
@@ -401,6 +417,7 @@ async function parseCliArgs(
     rustStyleRecoveryConsumer,
     rustSourceMissingConsumer,
     rustStyleUnusedConsumer,
+    rustFlowAnalysisConsumer,
   };
 }
 
@@ -460,6 +477,7 @@ function writeResult(
   rustSourceMissingConsistency?: RustSourceMissingConsistencyV0,
   rustStyleUnusedCanonicalProducer?: CheckerStyleUnusedCanonicalProducerSignalV0,
   rustStyleUnusedConsistency?: RustStyleUnusedConsistencyV0,
+  rustFlowAnalysisConsumer?: RustFlowAnalysisConsumerV0,
 ): void {
   if (parsed.format === "json") {
     io.stdout(`${JSON.stringify(jsonReport, null, 2)}\n`);
@@ -516,6 +534,14 @@ function writeResult(
       `Rust style-unused consumer: findings=${rustStyleUnusedCanonicalProducer.canonicalCandidate.summary.total} ` +
         `consistent=${rustStyleUnusedConsistency?.findingsMatch === true} ` +
         `releaseGate=${rustStyleUnusedCanonicalProducer.boundedCheckerGate.includedInRustReleaseBundle}\n`,
+    );
+  }
+
+  if (rustFlowAnalysisConsumer) {
+    io.stdout(
+      `Rust flow-analysis consumer: graphs=${rustFlowAnalysisConsumer.graphCount} ` +
+        `nodes=${rustFlowAnalysisConsumer.nodeCount} ` +
+        `converged=${rustFlowAnalysisConsumer.convergedGraphCount}/${rustFlowAnalysisConsumer.graphCount}\n`,
     );
   }
 }
@@ -595,6 +621,7 @@ function buildHelpText(): string {
     "  --rust-style-recovery-consumer Consume the bounded Rust style-recovery producer alongside the TS checker result",
     "  --rust-source-missing-consumer Consume the bounded Rust source-missing producer alongside the TS checker result",
     "  --rust-style-unused-consumer Consume the bounded Rust style-unused producer alongside the TS checker result",
+    "  --rust-flow-analysis-consumer Include Rust expression-domain flow analysis summary in checker output",
     "  --classname-transform <mode> Style transform mode",
     "  --path-alias <prefix=target> Repeatable native path-alias override",
     "  --include-code <code>        Restrict findings to one rule code (repeatable)",

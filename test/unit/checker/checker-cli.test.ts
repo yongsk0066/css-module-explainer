@@ -532,6 +532,61 @@ describe("runCheckerCli", () => {
     );
   }, 60000);
 
+  it("emits rust flow analysis consumer summary in json output", async () => {
+    const workspaceRoot = makeWorkspace({
+      "src/App.tsx": [
+        "import classNames from 'classnames/bind';",
+        "import styles from './Button.module.scss';",
+        "const cx = classNames.bind(styles);",
+        "const name = Math.random() > 0.5 ? 'button' : 'missing';",
+        "cx(name);",
+        "",
+      ].join("\n"),
+      "src/Button.module.scss": ".button {}",
+    });
+    const stdout: string[] = [];
+
+    const exitCode = await runCheckerCli(
+      [
+        workspaceRoot,
+        "--source-file",
+        "src/App.tsx",
+        "--style-file",
+        "src/Button.module.scss",
+        "--format",
+        "json",
+        "--fail-on",
+        "none",
+        "--rust-flow-analysis-consumer",
+      ],
+      {
+        stdout: (message) => stdout.push(message),
+        stderr: () => {},
+        cwd: () => workspaceRoot,
+      },
+    );
+
+    expect(exitCode).toBe(0);
+    const payload = JSON.parse(stdout.join(""));
+    expect(payload.rustFlowAnalysisConsumer).toMatchObject({
+      schemaVersion: "0",
+      product: "css-module-explainer/checker.rust-flow-analysis-consumer",
+      inputVersion: "2",
+      graphCount: 1,
+      convergedGraphCount: 1,
+      unconvergedGraphCount: 0,
+      flowAnalysis: {
+        product: "engine-input-producers.expression-domain-flow-analysis",
+        analyses: [
+          expect.objectContaining({
+            filePath: path.join(workspaceRoot, "src/App.tsx"),
+          }),
+        ],
+      },
+    });
+    expect(payload.rustFlowAnalysisConsumer.nodeCount).toBeGreaterThan(0);
+  }, 60000);
+
   it("emits rust source-missing producer and consistency in json output", async () => {
     const stdout: string[] = [];
 

@@ -11,6 +11,7 @@ import type {
 import type { CheckerStyleRecoveryCanonicalProducerSignalV0 } from "./rust-style-recovery-consumer";
 import type { CheckerSourceMissingCanonicalProducerSignalV0 } from "./rust-source-missing-consumer";
 import type { CheckerStyleUnusedCanonicalProducerSignalV0 } from "./rust-style-unused-consumer";
+import type { RustFlowAnalysisConsumerV0 } from "./rust-flow-analysis-consumer";
 
 export type CheckerReportJsonFinding = CheckerFindingRecordV1;
 const STYLE_RECOVERY_CODES = new Set([
@@ -57,6 +58,7 @@ export interface CheckerReportJsonV1 {
   readonly rustSourceMissingConsistency?: RustSourceMissingConsistencyV0;
   readonly rustStyleUnusedCanonicalProducer?: CheckerStyleUnusedCanonicalProducerSignalV0;
   readonly rustStyleUnusedConsistency?: RustStyleUnusedConsistencyV0;
+  readonly rustFlowAnalysisConsumer?: RustFlowAnalysisConsumerV0;
 }
 
 export interface RustStyleRecoveryConsistencyV0 {
@@ -100,6 +102,7 @@ export function buildCheckerJsonReport(
   rustStyleRecoveryCanonicalProducer?: CheckerStyleRecoveryCanonicalProducerSignalV0,
   rustSourceMissingCanonicalProducer?: CheckerSourceMissingCanonicalProducerSignalV0,
   rustStyleUnusedCanonicalProducer?: CheckerStyleUnusedCanonicalProducerSignalV0,
+  rustFlowAnalysisConsumer?: RustFlowAnalysisConsumerV0,
 ): CheckerReportJsonV1 {
   const rustStyleRecoveryConsistency = rustStyleRecoveryCanonicalProducer
     ? deriveRustStyleRecoveryConsistency(report, rustStyleRecoveryCanonicalProducer)
@@ -134,6 +137,7 @@ export function buildCheckerJsonReport(
     ...(rustSourceMissingConsistency ? { rustSourceMissingConsistency } : {}),
     ...(rustStyleUnusedCanonicalProducer ? { rustStyleUnusedCanonicalProducer } : {}),
     ...(rustStyleUnusedConsistency ? { rustStyleUnusedConsistency } : {}),
+    ...(rustFlowAnalysisConsumer ? { rustFlowAnalysisConsumer } : {}),
   };
 }
 
