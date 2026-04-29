@@ -14,7 +14,7 @@ const styleUri = `${workspaceUri}/src/App.module.scss`;
 const otherStyleUri = `${workspaceUri}/src/Other.module.scss`;
 const sourceUri = `${workspaceUri}/src/App.tsx`;
 const sourceText =
-  'import styles from "./App.module.scss";\nconst view = <div className={styles.root} />;\nconst bracket = styles["theme"];\nconst missing = <div className="missing" />;';
+  'import styles from "./App.module.scss";\nconst view = <div className={styles.root} />;\nconst bracket = styles["theme"];\nconst bracketMissing = styles["ghost"];\nconst missing = <div className="missing" />;';
 const sourceSelectorRange = {
   start: { line: 1, character: 36 },
   end: { line: 1, character: 40 },
@@ -24,12 +24,17 @@ const sourceBracketSelectorRange = {
   end: { line: 2, character: 29 },
 };
 const sourceMissingSelectorRange = {
-  start: { line: 3, character: 32 },
-  end: { line: 3, character: 39 },
+  start: { line: 4, character: 32 },
+  end: { line: 4, character: 39 },
+};
+const sourceMissingImportedSelectorRange = {
+  start: { line: 3, character: 31 },
+  end: { line: 3, character: 36 },
 };
 const styleText =
   ".root { color: var(--brand); }\n.theme { --brand: red; }\n.alert { color: var(--missing); }";
-const otherStyleText = ".root { color: blue; }\n.theme { color: green; }\n.card { color: green; }";
+const otherStyleText =
+  ".root { color: blue; }\n.theme { color: green; }\n.ghost { color: gray; }\n.card { color: green; }";
 const sourceSelectorQueryPosition = {
   line: 1,
   character: 37,
@@ -124,6 +129,20 @@ const expectedMissingSelectorDiagnostic = {
       range: documentEndRange(styleText),
       newText: "\n\n.missing {\n}\n",
       selectorName: "missing",
+    },
+  },
+};
+const expectedMissingImportedSelectorDiagnostic = {
+  range: sourceMissingImportedSelectorRange,
+  severity: 2,
+  source: "css-module-explainer",
+  message: "CSS Module selector '.ghost' not found in indexed style tokens.",
+  data: {
+    createSelector: {
+      uri: styleUri,
+      range: documentEndRange(styleText),
+      newText: "\n\n.ghost {\n}\n",
+      selectorName: "ghost",
     },
   },
 };
@@ -579,7 +598,7 @@ assert.deepEqual(diagnosticNotifications, [
     method: "textDocument/publishDiagnostics",
     params: {
       uri: sourceUri,
-      diagnostics: [expectedMissingSelectorDiagnostic],
+      diagnostics: [expectedMissingImportedSelectorDiagnostic, expectedMissingSelectorDiagnostic],
     },
   },
   {
@@ -595,7 +614,7 @@ assert.deepEqual(diagnosticNotifications, [
     method: "textDocument/publishDiagnostics",
     params: {
       uri: sourceUri,
-      diagnostics: [expectedMissingSelectorDiagnostic],
+      diagnostics: [expectedMissingImportedSelectorDiagnostic, expectedMissingSelectorDiagnostic],
     },
   },
 ]);

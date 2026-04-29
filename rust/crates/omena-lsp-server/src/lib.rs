@@ -1283,22 +1283,20 @@ fn resolve_source_diagnostics_for_uri(state: &LspShellState, document_uri: &str)
     if definitions.is_empty() {
         return json!([]);
     }
-    let defined_names: BTreeSet<&str> = definitions
-        .iter()
-        .map(|(_, definition)| definition.name.as_str())
-        .collect();
-    let Some((target_style_uri, target_style_document)) =
-        first_style_document_for_workspace(state, document.workspace_folder_uri.as_deref())
-    else {
-        return json!([]);
-    };
-    let insertion_range = end_of_document_range(target_style_document.text.as_str());
-    let has_existing_style_content = !target_style_document.text.trim().is_empty();
     let diagnostics: Vec<Value> = collect_source_class_reference_candidates(document)
         .into_iter()
-        .filter(|candidate| !defined_names.contains(candidate.name.as_str()))
-        .map(|candidate| {
-            json!({
+        .filter(|candidate| {
+            !source_candidate_has_style_definition(candidate, definitions.as_slice())
+        })
+        .filter_map(|candidate| {
+            let (target_style_uri, target_style_document) = source_selector_diagnostic_target(
+                state,
+                &candidate,
+                document.workspace_folder_uri.as_deref(),
+            )?;
+            let insertion_range = end_of_document_range(target_style_document.text.as_str());
+            let has_existing_style_content = !target_style_document.text.trim().is_empty();
+            Some(json!({
                 "range": candidate.range,
                 "severity": state.diagnostics.severity,
                 "source": "css-module-explainer",
@@ -1318,11 +1316,29 @@ fn resolve_source_diagnostics_for_uri(state: &LspShellState, document_uri: &str)
                         "selectorName": candidate.name.as_str(),
                     },
                 },
-            })
+            }))
         })
         .collect();
 
     json!(diagnostics)
+}
+
+fn source_selector_diagnostic_target<'a>(
+    state: &'a LspShellState,
+    candidate: &LspStyleHoverCandidate,
+    workspace_folder_uri: Option<&str>,
+) -> Option<(String, &'a LspTextDocumentState)> {
+    if let Some(target_style_uri) = candidate.target_style_uri.as_deref() {
+        let target_document = state.document(target_style_uri)?;
+        if !is_style_document_uri(target_document.uri.as_str())
+            || !workspace_folder_compatible(workspace_folder_uri, target_document)
+        {
+            return None;
+        }
+        return Some((target_style_uri.to_string(), target_document));
+    }
+
+    first_style_document_for_workspace(state, workspace_folder_uri)
 }
 
 fn resolve_lsp_code_actions(params: Option<&Value>) -> Value {
