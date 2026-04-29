@@ -202,6 +202,14 @@ assert.deepEqual(
       uri: "file:///tmp/cme-rust-lsp-shell/src/App.tsx",
       diagnostics: [],
     },
+    {
+      uri: "file:///tmp/cme-rust-lsp-shell/src/App.module.scss",
+      diagnostics: [],
+    },
+    {
+      uri: "file:///tmp/cme-rust-lsp-shell/src/App.tsx",
+      diagnostics: [],
+    },
   ],
 );
 

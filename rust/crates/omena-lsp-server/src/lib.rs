@@ -543,6 +543,7 @@ pub fn handle_lsp_message_outputs(state: &mut LspShellState, message: Value) -> 
         .and_then(|value| value.get("uri"))
         .and_then(Value::as_str)
         .map(str::to_string);
+    let watched_file_uris = watched_file_uris_from_message(&message);
     let mut outputs = Vec::new();
 
     if let Some(response) = handle_lsp_message(state, message) {
@@ -587,8 +588,62 @@ pub fn handle_lsp_message_outputs(state: &mut LspShellState, message: Value) -> 
             }
         }
     }
+    if method.as_deref() == Some("workspace/didChangeWatchedFiles") {
+        let mut source_uris_to_refresh = BTreeSet::new();
+        for uri in watched_file_uris
+            .into_iter()
+            .filter(|uri| is_style_document_uri(uri.as_str()))
+        {
+            outputs.push(publish_diagnostics_notification(
+                uri.as_str(),
+                resolve_document_diagnostics_for_uri(state, uri.as_str()),
+            ));
+            for source_uri in source_uris_for_style_change_diagnostics(state, uri.as_str()) {
+                source_uris_to_refresh.insert(source_uri);
+            }
+        }
+        for source_uri in source_uris_to_refresh {
+            outputs.push(publish_diagnostics_notification(
+                source_uri.as_str(),
+                resolve_source_diagnostics_for_uri(state, source_uri.as_str()),
+            ));
+        }
+    }
 
     outputs
+}
+
+fn watched_file_uris_from_message(message: &Value) -> Vec<String> {
+    message
+        .get("params")
+        .and_then(|value| value.get("changes"))
+        .and_then(Value::as_array)
+        .map(|changes| {
+            changes
+                .iter()
+                .filter_map(|change| change.get("uri").and_then(Value::as_str))
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn source_uris_for_style_change_diagnostics(state: &LspShellState, style_uri: &str) -> Vec<String> {
+    let workspace_folder_uri = state
+        .document(style_uri)
+        .and_then(|document| document.workspace_folder_uri.clone())
+        .or_else(|| resolve_workspace_folder_uri(state, style_uri));
+    state
+        .documents
+        .values()
+        .filter(|document| !is_style_document_uri(document.uri.as_str()))
+        .filter(|document| {
+            workspace_folder_uri.as_deref().is_none_or(|workspace_uri| {
+                workspace_folder_compatible(Some(workspace_uri), document)
+            })
+        })
+        .map(|document| document.uri.clone())
+        .collect()
 }
 
 fn publish_diagnostics_notification(uri: &str, diagnostics: Value) -> Value {
