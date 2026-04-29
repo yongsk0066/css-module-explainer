@@ -200,6 +200,34 @@ describe("handleCodeAction", () => {
     ]);
   });
 
+  it("returns a create-custom-property quick fix for style diagnostics", () => {
+    const styleWorkspace = workspace({
+      [STYLE_PATH]: ".button { color: /*<token>*/var(--missing)/*</token>*/; }\n",
+    });
+    const d: Diagnostic = {
+      range: styleWorkspace.range("token", STYLE_PATH).range,
+      severity: DiagnosticSeverity.Warning,
+      source: "css-module-explainer",
+      message: "CSS custom property '--missing' not found in indexed style tokens.",
+      data: {
+        createCustomProperty: {
+          uri: STYLE_URI,
+          range: ZERO_RANGE,
+          newText: "\n\n:root {\n  --missing: ;\n}\n",
+        },
+      },
+    };
+    const result = handleCodeAction(makeParams([d]), makeDeps());
+    expect(result).toHaveLength(1);
+    expect(result![0]!.title).toBe("Add '--missing' to Button.module.scss");
+    expect(result![0]!.edit?.changes?.[STYLE_URI]).toEqual([
+      {
+        range: ZERO_RANGE,
+        newText: "\n\n:root {\n  --missing: ;\n}\n",
+      },
+    ]);
+  });
+
   it("returns a create-Sass-symbol quick fix for style diagnostics", () => {
     const styleWorkspace = workspace({
       [STYLE_PATH]: "/*<variable>*/$missing/*</variable>*/: ;\n",

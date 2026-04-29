@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildCreateCustomPropertyActionData,
   buildCreateKeyframesActionData,
   buildCreateSassSymbolActionData,
   buildCreateSelectorActionData,
@@ -93,6 +94,27 @@ describe("code-action recovery data", () => {
       },
       newText: "\n\n@keyframes spin {\n}\n",
       keyframesName: "spin",
+    });
+  });
+
+  it("builds CSS custom property creation edits at the end of existing style facts", () => {
+    const styleDocument = makeStyleDocumentFixture(scssPath, [
+      makeTestSelector("button", 2, {
+        ruleRange: {
+          start: { line: 2, character: 0 },
+          end: { line: 4, character: 1 },
+        },
+      }),
+    ]);
+
+    expect(buildCreateCustomPropertyActionData("--brand", scssPath, styleDocument)).toEqual({
+      uri: "file:///fake/ws/src/Button.module.scss",
+      range: {
+        start: { line: 4, character: 1 },
+        end: { line: 4, character: 1 },
+      },
+      newText: "\n\n:root {\n  --brand: ;\n}\n",
+      propertyName: "--brand",
     });
   });
 
