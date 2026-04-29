@@ -65,7 +65,7 @@ const splitRepos: readonly SplitRepo[] = [
     label: "abstract-value",
     repo: "omenien/omena-abstract-value",
     packageName: "omena-abstract-value",
-    expectedVersion: "0.1.5",
+    expectedVersion: "0.1.6",
     libName: "omena_abstract_value",
     expectedRegistryDependencies: [
       {

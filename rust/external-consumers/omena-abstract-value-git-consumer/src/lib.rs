@@ -34,10 +34,12 @@ mod tests {
     use super::{consume_domain_summary_product, consume_prefix_suffix_projection};
     use omena_abstract_value::{
         AbstractClassValueV0, ClassValueFlowGraphV0, ClassValueFlowNodeV0,
-        ClassValueFlowTransferV0, ExternalStringTypeFactsV0, abstract_class_value_from_facts,
-        analyze_class_value_flow, char_inclusion_class_value, enumerate_finite_class_values,
-        exact_class_value, finite_set_class_value, intersect_abstract_class_values,
-        join_abstract_class_values, prefix_class_value, reduced_abstract_class_value_from_facts,
+        ClassValueFlowTransferV0, ExternalStringTypeFactsV0, OneCfaCallSiteFlowInputV0,
+        abstract_class_value_from_facts, analyze_class_value_flow,
+        analyze_one_cfa_call_site_flows, char_inclusion_class_value,
+        enumerate_finite_class_values, exact_class_value, finite_set_class_value,
+        intersect_abstract_class_values, join_abstract_class_values, prefix_class_value,
+        reduced_abstract_class_value_from_facts,
         reduced_class_value_derivation_from_facts, reduced_value_domain_kind_from_facts,
         suffix_class_value, summarize_omena_abstract_value_flow_analysis,
         value_certainty_shape_kind_from_facts,
@@ -187,6 +189,7 @@ mod tests {
         let summary = summarize_omena_abstract_value_flow_analysis();
         assert_eq!(summary.product, "omena-abstract-value.flow-analysis");
         assert_eq!(summary.context_sensitivity, "1-cfa");
+        assert!(summary.analysis_scopes.contains(&"callSiteBatch"));
 
         assert_eq!(
             join_abstract_class_values(
@@ -226,6 +229,43 @@ mod tests {
     }
 
     #[test]
+    fn consumes_one_cfa_call_site_flow_contract() {
+        let analysis = analyze_one_cfa_call_site_flows(&[
+            OneCfaCallSiteFlowInputV0 {
+                callee_key: "variantClass".to_string(),
+                call_site_id: "Button.tsx:10".to_string(),
+                graph: flow_exit_graph("btn-primary"),
+                exit_node_id: "exit".to_string(),
+            },
+            OneCfaCallSiteFlowInputV0 {
+                callee_key: "variantClass".to_string(),
+                call_site_id: "Card.tsx:20".to_string(),
+                graph: flow_exit_graph("btn-secondary"),
+                exit_node_id: "exit".to_string(),
+            },
+        ]);
+
+        assert_eq!(
+            analysis.product,
+            "omena-abstract-value.one-cfa-call-site-flow"
+        );
+        assert_eq!(analysis.context_sensitivity, "1-cfa");
+        assert_eq!(analysis.call_site_count, 2);
+        assert_eq!(analysis.callee_count, 1);
+        assert_eq!(
+            analysis.entries[0].context_key,
+            "variantClass@Button.tsx:10"
+        );
+        assert_eq!(analysis.entries[0].derivation.steps[0].operation, "contextFromCallSite");
+        assert_eq!(
+            analysis.callee_summaries[0].joined_exit_value,
+            AbstractClassValueV0::FiniteSet {
+                values: vec!["btn-primary".to_string(), "btn-secondary".to_string()]
+            }
+        );
+    }
+
+    #[test]
     fn serializes_remote_domain_summary_for_downstream_consumers() -> Result<(), String> {
         let value =
             serde_json::to_value(omena_abstract_value::summarize_omena_abstract_value_domain())
@@ -253,6 +293,20 @@ mod tests {
                 char_may: None,
                 may_include_other_chars: None,
             }),
+        }
+    }
+
+    fn flow_exit_graph(value: &str) -> ClassValueFlowGraphV0 {
+        ClassValueFlowGraphV0 {
+            context_key: None,
+            nodes: vec![
+                flow_assign_node("input", value),
+                ClassValueFlowNodeV0 {
+                    id: "exit".to_string(),
+                    predecessors: vec!["input".to_string()],
+                    transfer: ClassValueFlowTransferV0::Join,
+                },
+            ],
         }
     }
 }
