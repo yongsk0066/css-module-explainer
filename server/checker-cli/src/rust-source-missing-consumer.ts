@@ -47,6 +47,16 @@ export interface CheckerSourceMissingCanonicalProducerSignalV0 {
       readonly valueCertaintyShapeLabel?: string;
     }[];
   };
+  readonly flowEvidence: {
+    readonly schemaVersion: "0";
+    readonly product: "engine-input-producers.expression-domain-flow-analysis";
+    readonly inputVersion: string;
+    readonly graphCount: number;
+    readonly nodeCount: number;
+    readonly convergedGraphCount: number;
+    readonly unconvergedGraphCount: number;
+    readonly maxIterationCount: number;
+  };
   readonly boundedCheckerGate: {
     readonly canonicalCandidateCommand: "pnpm check:rust-checker-source-missing-canonical-candidate";
     readonly canonicalProducerCommand: "pnpm check:rust-checker-source-missing-canonical-producer";

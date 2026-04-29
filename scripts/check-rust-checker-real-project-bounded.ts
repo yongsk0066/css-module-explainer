@@ -1,9 +1,11 @@
 import { deepStrictEqual, strict as assert } from "node:assert";
 import path from "node:path";
 import { runCheckerCli } from "../server/checker-cli/src";
+import type { EngineInputV2 } from "../server/engine-core-ts/src/contracts";
 import type { ContractParityEntry } from "./contract-parity-corpus-v1";
 import { buildContractParitySnapshot } from "./contract-parity-runtime";
 import {
+  runShadowExpressionDomainFlowAnalysisInput,
   runShadowCheckerSourceMissingCanonicalCandidate,
   runShadowCheckerSourceMissingCanonicalProducer,
   runShadowCheckerStyleRecoveryCanonicalCandidate,
@@ -15,6 +17,7 @@ import {
   type CheckerStyleRecoveryCanonicalCandidateBundleV0,
   type CheckerStyleRecoveryCanonicalProducerSignalV0,
   type CheckerStyleUnusedCanonicalProducerSignalV0,
+  type ExpressionDomainFlowAnalysisV0,
 } from "./rust-shadow-shared";
 import { deriveTsCheckerStyleUnusedCanonicalCandidate } from "./rust-checker-style-unused-shared";
 
@@ -155,11 +158,15 @@ void (async () => {
     },
   } satisfies CheckerStyleRecoveryCanonicalProducerSignalV0);
 
+  const sourceFlowSummary = await runShadowExpressionDomainFlowAnalysisInput(
+    (sourceSnapshot as { readonly input: EngineInputV2 }).input,
+  );
   const actualSourceProducer = await runShadowCheckerSourceMissingCanonicalProducer(sourceSnapshot);
   deepStrictEqual(actualSourceProducer, {
     schemaVersion: "0",
     inputVersion: expectedSourceCandidate.inputVersion,
     canonicalCandidate: expectedSourceCandidate,
+    flowEvidence: deriveFlowEvidence(sourceFlowSummary),
     boundedCheckerGate: {
       canonicalCandidateCommand: "pnpm check:rust-checker-source-missing-canonical-candidate",
       canonicalProducerCommand: "pnpm check:rust-checker-source-missing-canonical-producer",
@@ -382,6 +389,28 @@ function compareStyleRecoveryFinding(
     (left.analysisReason ?? "").localeCompare(right.analysisReason ?? "") ||
     (left.valueCertaintyShapeLabel ?? "").localeCompare(right.valueCertaintyShapeLabel ?? "")
   );
+}
+
+function deriveFlowEvidence(flowSummary: ExpressionDomainFlowAnalysisV0) {
+  const convergedGraphCount = flowSummary.analyses.filter(
+    (flowEntry) => flowEntry.analysis.converged,
+  ).length;
+  return {
+    schemaVersion: "0",
+    product: "engine-input-producers.expression-domain-flow-analysis",
+    inputVersion: flowSummary.inputVersion,
+    graphCount: flowSummary.analyses.length,
+    nodeCount: flowSummary.analyses.reduce(
+      (sum, flowEntry) => sum + flowEntry.analysis.nodes.length,
+      0,
+    ),
+    convergedGraphCount,
+    unconvergedGraphCount: flowSummary.analyses.length - convergedGraphCount,
+    maxIterationCount: Math.max(
+      0,
+      ...flowSummary.analyses.map((flowEntry) => flowEntry.analysis.iterationCount),
+    ),
+  };
 }
 
 function compareSourceMissingFinding(

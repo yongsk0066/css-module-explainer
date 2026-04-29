@@ -322,10 +322,24 @@ struct CheckerSourceMissingCanonicalProducerGateV0 {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct CheckerSourceMissingFlowEvidenceV0 {
+    schema_version: &'static str,
+    product: &'static str,
+    input_version: String,
+    graph_count: usize,
+    node_count: usize,
+    converged_graph_count: usize,
+    unconverged_graph_count: usize,
+    max_iteration_count: usize,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct CheckerSourceMissingCanonicalProducerSignalV0 {
     schema_version: &'static str,
     input_version: String,
     canonical_candidate: CheckerSourceMissingCanonicalCandidateBundleV0,
+    flow_evidence: CheckerSourceMissingFlowEvidenceV0,
     bounded_checker_gate: CheckerSourceMissingCanonicalProducerGateV0,
 }
 
@@ -1231,11 +1245,39 @@ fn summarize_checker_source_missing_canonical_candidate(
 fn summarize_checker_source_missing_canonical_producer(
     payload: ShadowPayloadV0,
 ) -> CheckerSourceMissingCanonicalProducerSignalV0 {
+    let flow_summary = summarize_omena_query_expression_domain_flow_analysis(&payload.input);
+    let graph_count = flow_summary.analyses.len();
+    let node_count = flow_summary
+        .analyses
+        .iter()
+        .map(|entry| entry.analysis.nodes.len())
+        .sum::<usize>();
+    let converged_graph_count = flow_summary
+        .analyses
+        .iter()
+        .filter(|entry| entry.analysis.converged)
+        .count();
+    let max_iteration_count = flow_summary
+        .analyses
+        .iter()
+        .map(|entry| entry.analysis.iteration_count)
+        .max()
+        .unwrap_or(0);
     let canonical_candidate = summarize_checker_source_missing_canonical_candidate(payload);
     CheckerSourceMissingCanonicalProducerSignalV0 {
         schema_version: "0",
         input_version: canonical_candidate.input_version.clone(),
         canonical_candidate,
+        flow_evidence: CheckerSourceMissingFlowEvidenceV0 {
+            schema_version: "0",
+            product: "engine-input-producers.expression-domain-flow-analysis",
+            input_version: flow_summary.input_version,
+            graph_count,
+            node_count,
+            converged_graph_count,
+            unconverged_graph_count: graph_count - converged_graph_count,
+            max_iteration_count,
+        },
         bounded_checker_gate: CheckerSourceMissingCanonicalProducerGateV0 {
             canonical_candidate_command: "pnpm check:rust-checker-source-missing-canonical-candidate",
             canonical_producer_command: "pnpm check:rust-checker-source-missing-canonical-producer",

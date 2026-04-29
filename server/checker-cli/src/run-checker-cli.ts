@@ -525,7 +525,8 @@ function writeResult(
     io.stdout(
       `Rust source-missing consumer: findings=${rustSourceMissingCanonicalProducer.canonicalCandidate.summary.total} ` +
         `consistent=${rustSourceMissingConsistency?.findingsMatch === true} ` +
-        `releaseGate=${rustSourceMissingCanonicalProducer.boundedCheckerGate.includedInRustReleaseBundle}\n`,
+        `releaseGate=${rustSourceMissingCanonicalProducer.boundedCheckerGate.includedInRustReleaseBundle} ` +
+        `flowGraphs=${rustSourceMissingCanonicalProducer.flowEvidence.graphCount}\n`,
     );
   }
 

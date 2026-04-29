@@ -1,8 +1,10 @@
 import { deepStrictEqual } from "node:assert";
 import path from "node:path";
+import type { EngineInputV2 } from "../server/engine-core-ts/src/contracts";
 import type { ContractParityEntry } from "./contract-parity-corpus-v1";
 import { buildContractParitySnapshot } from "./contract-parity-runtime";
 import {
+  runShadowExpressionDomainFlowAnalysisInput,
   runShadowCheckerSourceMissingCanonicalCandidate,
   runShadowCheckerSourceMissingCanonicalProducer,
   type CheckerSourceMissingCanonicalProducerSignalV0,
@@ -100,6 +102,10 @@ void (async () => {
     // oxlint-disable-next-line no-await-in-loop
     const snapshot = await buildContractParitySnapshot(entry);
     // oxlint-disable-next-line no-await-in-loop
+    const flowSummary = await runShadowExpressionDomainFlowAnalysisInput(
+      (snapshot as { readonly input: EngineInputV2 }).input,
+    );
+    // oxlint-disable-next-line no-await-in-loop
     const canonicalCandidate = await runShadowCheckerSourceMissingCanonicalCandidate(snapshot);
     // oxlint-disable-next-line no-await-in-loop
     const actual = await runShadowCheckerSourceMissingCanonicalProducer(snapshot);
@@ -108,6 +114,26 @@ void (async () => {
       schemaVersion: "0",
       inputVersion: canonicalCandidate.inputVersion,
       canonicalCandidate,
+      flowEvidence: {
+        schemaVersion: "0",
+        product: "engine-input-producers.expression-domain-flow-analysis",
+        inputVersion: flowSummary.inputVersion,
+        graphCount: flowSummary.analyses.length,
+        nodeCount: flowSummary.analyses.reduce(
+          (sum, flowEntry) => sum + flowEntry.analysis.nodes.length,
+          0,
+        ),
+        convergedGraphCount: flowSummary.analyses.filter(
+          (flowEntry) => flowEntry.analysis.converged,
+        ).length,
+        unconvergedGraphCount: flowSummary.analyses.filter(
+          (flowEntry) => !flowEntry.analysis.converged,
+        ).length,
+        maxIterationCount: Math.max(
+          0,
+          ...flowSummary.analyses.map((flowEntry) => flowEntry.analysis.iterationCount),
+        ),
+      },
       boundedCheckerGate: {
         canonicalCandidateCommand: "pnpm check:rust-checker-source-missing-canonical-candidate",
         canonicalProducerCommand: "pnpm check:rust-checker-source-missing-canonical-producer",
@@ -136,7 +162,7 @@ void (async () => {
       `${entry.label}: checker source-missing canonical producer mismatch`,
     );
     process.stdout.write(
-      `findings=${actual.canonicalCandidate.summary.total} releaseGate=${actual.boundedCheckerGate.includedInRustReleaseBundle}\n\n`,
+      `findings=${actual.canonicalCandidate.summary.total} flowGraphs=${actual.flowEvidence.graphCount} releaseGate=${actual.boundedCheckerGate.includedInRustReleaseBundle}\n\n`,
     );
   }
 })().catch((error: unknown) => {

@@ -677,6 +677,16 @@ export interface CheckerSourceMissingCanonicalProducerSignalV0 {
   readonly schemaVersion: string;
   readonly inputVersion: string;
   readonly canonicalCandidate: CheckerSourceMissingCanonicalCandidateBundleV0;
+  readonly flowEvidence: {
+    readonly schemaVersion: string;
+    readonly product: string;
+    readonly inputVersion: string;
+    readonly graphCount: number;
+    readonly nodeCount: number;
+    readonly convergedGraphCount: number;
+    readonly unconvergedGraphCount: number;
+    readonly maxIterationCount: number;
+  };
   readonly boundedCheckerGate: {
     readonly canonicalCandidateCommand: "pnpm check:rust-checker-source-missing-canonical-candidate";
     readonly canonicalProducerCommand: "pnpm check:rust-checker-source-missing-canonical-producer";

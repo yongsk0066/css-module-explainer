@@ -624,6 +624,10 @@ describe("runCheckerCli", () => {
           }),
         ],
       },
+      flowEvidence: {
+        product: "engine-input-producers.expression-domain-flow-analysis",
+        inputVersion: "2",
+      },
       boundedCheckerGate: {
         consumerBoundaryCommand: "pnpm check:rust-checker-source-missing-consumer-boundary",
         boundedCheckerLaneCommand: "pnpm check:rust-checker-bounded-lanes",
