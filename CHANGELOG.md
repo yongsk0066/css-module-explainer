@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.1.5] — 2026-04-29
+
+### Fixed
+
+- **Theme-token context ranking** — CSS custom property definition and completion now match `:root[data-theme="..."]` declarations to `[data-theme="..."]` usage contexts instead of falling back to unrelated root tokens.
+- **Deep forwarded token coverage** — package-root Sass entries that forward internal token modules are now covered across hover, definition, completion, and checker diagnostics.
+
 ## [4.1.4] — 2026-04-29
 
 ### Fixed
