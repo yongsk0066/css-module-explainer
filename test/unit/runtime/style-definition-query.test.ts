@@ -210,6 +210,31 @@ describe("resolveStyleDefinitionTargets", () => {
     });
   });
 
+  it("prefers matching data-theme CSS custom property context over root declarations", () => {
+    const ws = styleWorkspace({
+      [BUTTON_PATH]: `:root {
+  --brand: #111;
+}
+:root[data-theme="dark"] {
+  --brand: #222;
+}
+[data-theme="dark"] .button {
+  color: var(--br/*|*/and);
+}
+`,
+    });
+    const targets = resolveStyleDefinitionTargets(styleTarget(ws), styleDeps(ws));
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0]).toMatchObject({
+      targetFilePath: BUTTON_PATH,
+      targetSelectionRange: {
+        start: { line: 4, character: 2 },
+        end: { line: 4, character: 9 },
+      },
+    });
+  });
+
   it("falls back to root custom properties when a later theme declaration does not match", () => {
     const ws = styleWorkspace({
       [BUTTON_PATH]: `:root {

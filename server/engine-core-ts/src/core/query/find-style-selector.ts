@@ -413,6 +413,10 @@ function scoreCustomPropertyContextMatch(
       referenceContext.selectorText.includes(declContext.selectorText)
     ) {
       score += 80;
+    } else if (
+      selectorContextTokensMatch(referenceContext.selectorText, declContext.selectorText)
+    ) {
+      score += 70;
     } else if (declContext.selectorText === ":root") {
       score += 10;
     } else {
@@ -421,6 +425,17 @@ function scoreCustomPropertyContextMatch(
   }
   score += declContext.wrapperAtRules.length * 20;
   return score;
+}
+
+function selectorContextTokensMatch(
+  referenceSelectorText: string | null | undefined,
+  declSelectorText: string,
+): boolean {
+  if (!referenceSelectorText) return false;
+  const tokens = [...declSelectorText.matchAll(/(?:\[[^\]]+\]|[.#][A-Za-z0-9_-]+)/gu)].map(
+    (match) => match[0],
+  );
+  return tokens.length > 0 && tokens.every((token) => referenceSelectorText.includes(token));
 }
 
 function declWrapperContextMatches(

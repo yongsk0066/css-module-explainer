@@ -111,6 +111,31 @@ describe("resolveStyleCompletionItems", () => {
     });
   });
 
+  it("uses matching data-theme context for duplicate CSS custom property completions", () => {
+    const scss = `:root {
+  --brand: #111;
+}
+:root[data-theme="dark"] {
+  --brand: #222;
+}
+[data-theme="dark"] .button {
+  color: var(--br)
+}
+`;
+    const result = resolveStyleCompletionItems({
+      content: scss,
+      line: 7,
+      character: 17,
+      styleDocument: parseStyleDocument(scss, SCSS_PATH),
+    });
+
+    expect(result.map((item) => item.label)).toEqual(["--brand"]);
+    expect(result[0]?.sourceRange).toMatchObject({
+      start: { line: 4, character: 2 },
+      end: { line: 4, character: 9 },
+    });
+  });
+
   it("keeps root CSS custom property completions ahead of unrelated theme overrides", () => {
     const scss = `:root {
   --brand: #111;
