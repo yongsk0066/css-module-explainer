@@ -10,6 +10,8 @@ Current public product:
   node IDs, input digests, and dependency edges.
 - `snapshot_from_graph_input` — reusable snapshot materialization for callers
   that want to carry revision state across requests.
+- `IncrementalCancellationRegistryV0` — bounded cooperative cancellation state
+  shared by Rust LSP and future query runtimes.
 
 Primary check:
 

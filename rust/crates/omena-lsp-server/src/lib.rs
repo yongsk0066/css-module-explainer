@@ -3,6 +3,7 @@ use engine_style_parser::{
     SyntaxNode, SyntaxNodePayload, TextSpan, parse_style_module,
     summarize_css_modules_intermediate,
 };
+use omena_incremental::IncrementalCancellationRegistryV0;
 use omena_tsgo_client::{OmenaTsgoClientBoundarySummaryV0, summarize_omena_tsgo_client_boundary};
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -21,7 +22,6 @@ pub const STYLE_DIAGNOSTICS_REQUEST: &str = "cssModuleExplainer/rustStyleDiagnos
 pub const SOURCE_DIAGNOSTICS_REQUEST: &str = "cssModuleExplainer/rustSourceDiagnostics";
 const CANCEL_REQUEST_METHOD: &str = "$/cancelRequest";
 const REQUEST_CANCELLED_ERROR_CODE: i32 = -32800;
-const CANCELLED_REQUEST_CACHE_LIMIT: usize = 128;
 const WORKSPACE_STYLE_INDEX_LIMIT: usize = 512;
 const WORKSPACE_STYLE_INDEX_DIR_LIMIT: usize = 2048;
 const WORKSPACE_STYLE_INDEX_TIME_BUDGET_MS: u128 = 50;
@@ -156,8 +156,8 @@ pub fn summarize_omena_lsp_server_boundary() -> OmenaLspServerBoundarySummaryV0 
         next_decoupling_targets: vec![
             "rustWorkspaceRuntimeRegistry",
             "rustDiagnosticsScheduler",
-            "longLivedTsgoClient",
-            "incrementalQueryCancellation",
+            "tsgoJsonRpcProviderImplementation",
+            "incrementalQueryReuse",
             "thinVsCodeClientHost",
             "multiEditorDistribution",
         ],
@@ -425,7 +425,7 @@ pub struct LspShellState {
     pub should_exit: bool,
     features: LspFeatureSettings,
     diagnostics: LspDiagnosticSettings,
-    cancelled_request_ids: BTreeSet<String>,
+    cancelled_request_ids: IncrementalCancellationRegistryV0,
     workspace_style_index_exhausted_count: usize,
     configuration_change_count: usize,
     documents: BTreeMap<String, LspTextDocumentState>,
@@ -632,15 +632,13 @@ fn cancel_lsp_request(state: &mut LspShellState, params: Option<&Value>) {
         return;
     };
     if let Some(key) = request_id_key(id) {
-        if state.cancelled_request_ids.len() >= CANCELLED_REQUEST_CACHE_LIMIT {
-            state.cancelled_request_ids.clear();
-        }
-        state.cancelled_request_ids.insert(key);
+        state.cancelled_request_ids.cancel(key);
     }
 }
 
 fn take_cancelled_request(state: &mut LspShellState, request_id: &Value) -> bool {
-    request_id_key(request_id).is_some_and(|key| state.cancelled_request_ids.remove(key.as_str()))
+    request_id_key(request_id)
+        .is_some_and(|key| state.cancelled_request_ids.take_cancelled(key.as_str()))
 }
 
 fn request_id_key(id: &Value) -> Option<String> {
@@ -3596,7 +3594,7 @@ mod tests {
         assert!(
             summary
                 .next_decoupling_targets
-                .contains(&"longLivedTsgoClient")
+                .contains(&"tsgoJsonRpcProviderImplementation")
         );
         assert!(
             summary
@@ -3783,7 +3781,7 @@ mod tests {
     #[test]
     fn bounds_late_cancel_request_cache() {
         let mut state = LspShellState::default();
-        for id in 0..=CANCELLED_REQUEST_CACHE_LIMIT {
+        for id in 0..=omena_incremental::DEFAULT_INCREMENTAL_CANCELLATION_LIMIT {
             handle_lsp_message(
                 &mut state,
                 json!({

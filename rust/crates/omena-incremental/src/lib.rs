@@ -14,6 +14,8 @@ pub struct OmenaIncrementalBoundarySummaryV0 {
     pub ready_surfaces: Vec<&'static str>,
 }
 
+pub const DEFAULT_INCREMENTAL_CANCELLATION_LIMIT: usize = 128;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IncrementalRevisionV0 {
@@ -75,6 +77,21 @@ pub struct IncrementalComputationNodeV0 {
     pub reasons: Vec<&'static str>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IncrementalCancellationSnapshotV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub cancelled_request_count: usize,
+    pub cancelled_request_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IncrementalCancellationRegistryV0 {
+    limit: usize,
+    cancelled_request_ids: BTreeSet<String>,
+}
+
 pub fn summarize_omena_incremental_boundary() -> OmenaIncrementalBoundarySummaryV0 {
     OmenaIncrementalBoundarySummaryV0 {
         schema_version: "0",
@@ -92,6 +109,7 @@ pub fn summarize_omena_incremental_boundary() -> OmenaIncrementalBoundarySummary
             "incrementalGraphInput",
             "incrementalSnapshot",
             "incrementalComputationPlan",
+            "incrementalCancellationRegistry",
         ],
     }
 }
@@ -232,11 +250,54 @@ fn propagate_dependency_dirty(
     }
 }
 
+impl Default for IncrementalCancellationRegistryV0 {
+    fn default() -> Self {
+        Self::with_limit(DEFAULT_INCREMENTAL_CANCELLATION_LIMIT)
+    }
+}
+
+impl IncrementalCancellationRegistryV0 {
+    pub fn with_limit(limit: usize) -> Self {
+        Self {
+            limit: limit.max(1),
+            cancelled_request_ids: BTreeSet::new(),
+        }
+    }
+
+    pub fn cancel(&mut self, request_id: impl Into<String>) {
+        if self.cancelled_request_ids.len() >= self.limit {
+            self.cancelled_request_ids.clear();
+        }
+        self.cancelled_request_ids.insert(request_id.into());
+    }
+
+    pub fn take_cancelled(&mut self, request_id: &str) -> bool {
+        self.cancelled_request_ids.remove(request_id)
+    }
+
+    pub fn len(&self) -> usize {
+        self.cancelled_request_ids.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.cancelled_request_ids.is_empty()
+    }
+
+    pub fn snapshot(&self) -> IncrementalCancellationSnapshotV0 {
+        IncrementalCancellationSnapshotV0 {
+            schema_version: "0",
+            product: "omena-incremental.cancellation-registry",
+            cancelled_request_count: self.cancelled_request_ids.len(),
+            cancelled_request_ids: self.cancelled_request_ids.iter().cloned().collect(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        IncrementalGraphInputV0, IncrementalNodeInputV0, IncrementalRevisionV0,
-        plan_incremental_computation, snapshot_from_graph_input,
+        IncrementalCancellationRegistryV0, IncrementalGraphInputV0, IncrementalNodeInputV0,
+        IncrementalRevisionV0, plan_incremental_computation, snapshot_from_graph_input,
         summarize_omena_incremental_boundary,
     };
 
@@ -246,6 +307,11 @@ mod tests {
 
         assert_eq!(summary.product, "omena-incremental.boundary");
         assert!(summary.dirty_reasons.contains(&"dependencyDirty"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"incrementalCancellationRegistry")
+        );
     }
 
     #[test]
@@ -281,6 +347,31 @@ mod tests {
         assert_eq!(plan.dependency_dirty_count, 1);
         assert_eq!(node_reasons(&plan, "a"), vec!["inputDigestChanged"]);
         assert_eq!(node_reasons(&plan, "b"), vec!["dependencyDirty"]);
+    }
+
+    #[test]
+    fn cancellation_registry_tracks_and_consumes_request_ids() {
+        let mut registry = IncrementalCancellationRegistryV0::with_limit(4);
+
+        registry.cancel("s:hover-1");
+
+        assert_eq!(registry.len(), 1);
+        assert!(registry.take_cancelled("s:hover-1"));
+        assert!(!registry.take_cancelled("s:hover-1"));
+        assert!(registry.is_empty());
+    }
+
+    #[test]
+    fn cancellation_registry_bounds_stale_cancelled_requests() {
+        let mut registry = IncrementalCancellationRegistryV0::with_limit(2);
+
+        registry.cancel("n:1");
+        registry.cancel("n:2");
+        registry.cancel("n:3");
+
+        let snapshot = registry.snapshot();
+        assert_eq!(snapshot.product, "omena-incremental.cancellation-registry");
+        assert_eq!(snapshot.cancelled_request_ids, vec!["n:3"]);
     }
 
     fn sample_input(a_digest: &str, b_digest: &str, revision: u64) -> IncrementalGraphInputV0 {

@@ -85,8 +85,12 @@ assert.ok(
   "Rust LSP boundary must explicitly reject full workspace program work on request paths",
 );
 assert.ok(
-  rustSummary.nextDecouplingTargets.includes("longLivedTsgoClient"),
-  "Rust LSP boundary must keep the tsgo client migration visible",
+  rustSummary.nextDecouplingTargets.includes("tsgoJsonRpcProviderImplementation"),
+  "Rust LSP boundary must keep the tsgo provider implementation visible",
+);
+assert.ok(
+  rustSummary.nextDecouplingTargets.includes("incrementalQueryReuse"),
+  "Rust LSP boundary must keep the next incremental reuse target visible",
 );
 assert.equal(rustSummary.tsgoClientBoundary.product, "omena-tsgo-client.boundary");
 assert.equal(rustSummary.tsgoClientBoundary.runtimeModel, "longLivedWorkspaceProcess");

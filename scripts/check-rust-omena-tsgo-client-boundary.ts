@@ -67,7 +67,8 @@ assert.equal(summary.lifecycle.openProjectMethod, "updateSnapshot");
 assert.equal(summary.lifecycle.snapshotReleaseMethod, "release");
 assert.match(summary.lifecycle.cancellationBoundary, /getTypeAtPosition/u);
 assert.ok(summary.readySurfaces.includes("phase3SourceProviderExitGate"));
-assert.ok(summary.nextDecouplingTargets.includes("persistentRustTsgoProcessPool"));
+assert.ok(summary.readySurfaces.includes("persistentWorkspaceProcessPool"));
+assert.ok(summary.nextDecouplingTargets.includes("tsgoJsonRpcTransport"));
 assert.ok(
   summary.cmeCoupledSurfaces.includes("server/engine-host-node/src/tsgo-type-fact-collector.ts"),
 );
