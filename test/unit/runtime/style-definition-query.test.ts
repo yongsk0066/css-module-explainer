@@ -16,6 +16,7 @@ const UTILS_PATH = "/fake/workspace/src/_utils.scss";
 const PACKAGE_TOKENS_ROOT = "/fake/workspace/node_modules/@design/tokens";
 const PACKAGE_TOKENS_JSON_PATH = `${PACKAGE_TOKENS_ROOT}/package.json`;
 const PACKAGE_TOKENS_INDEX_PATH = `${PACKAGE_TOKENS_ROOT}/src/index.scss`;
+const PACKAGE_TOKENS_COLORS_ENTRY_PATH = `${PACKAGE_TOKENS_ROOT}/src/colors.scss`;
 const PACKAGE_COLORS_PATH = "/fake/workspace/node_modules/@design/tokens/_colors.scss";
 const PACKAGE_VARIABLES_CSS_PATH = "/fake/workspace/node_modules/@design/tokens/variables.css";
 const PACKAGE_TYPOGRAPHY_PATH = "/fake/workspace/node_modules/@design/tokens/_typography.scss";
@@ -540,6 +541,29 @@ describe("resolveStyleDefinitionTargets", () => {
       targetSelectionRange: {
         start: { line: 1, character: 7 },
         end: { line: 1, character: 19 },
+      },
+    });
+  });
+
+  it("resolves package Sass subpath imports through package.json exports entries", () => {
+    const ws = styleWorkspace({
+      [BUTTON_PATH]: `@use "@design/tokens/colors" as *;
+
+.button {
+  color: $g/*at:variable*/ray700;
+}
+`,
+      [PACKAGE_TOKENS_JSON_PATH]: `{"exports":{"./colors":{"sass":"./src/colors.scss"}}}`,
+      [PACKAGE_TOKENS_COLORS_ENTRY_PATH]: `$gray700: #767678;`,
+    });
+    const targets = resolveStyleDefinitionTargets(styleTarget(ws, "variable"), styleDeps(ws));
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0]).toMatchObject({
+      targetFilePath: PACKAGE_TOKENS_COLORS_ENTRY_PATH,
+      targetSelectionRange: {
+        start: { line: 0, character: 0 },
+        end: { line: 0, character: 8 },
       },
     });
   });

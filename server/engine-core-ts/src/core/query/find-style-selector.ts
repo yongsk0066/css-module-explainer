@@ -1112,13 +1112,13 @@ function resolveSassPackageJsonEntryBasePath(
 ): string | null {
   if (!options.readFile) return null;
   const parsed = parsePackageSpecifier(packageSpecifier);
-  if (!parsed || parsed.subpath) return null;
+  if (!parsed) return null;
 
   const packageDir = path.join(currentPath, "node_modules", parsed.packageName);
   const packageJsonText = options.readFile(path.join(packageDir, "package.json"));
   if (!packageJsonText) return null;
 
-  const entry = readSassPackageJsonEntry(packageJsonText);
+  const entry = readSassPackageJsonEntry(packageJsonText, parsed.subpath);
   if (!entry) return null;
 
   const candidate = path.resolve(packageDir, normalizePackageJsonEntry(entry));
@@ -1143,7 +1143,7 @@ function parsePackageSpecifier(
   };
 }
 
-function readSassPackageJsonEntry(packageJsonText: string): string | null {
+function readSassPackageJsonEntry(packageJsonText: string, subpath = ""): string | null {
   let packageJson: unknown;
   try {
     packageJson = JSON.parse(packageJsonText);
@@ -1151,12 +1151,31 @@ function readSassPackageJsonEntry(packageJsonText: string): string | null {
     return null;
   }
   if (!isRecord(packageJson)) return null;
+  if (subpath.length > 0) {
+    return readSassPackageExportSubpathEntry(packageJson.exports, subpath);
+  }
   return (
     readStringField(packageJson, "sass") ??
     readStringField(packageJson, "scss") ??
     readStringField(packageJson, "style") ??
     readSassPackageExportEntry(packageJson.exports)
   );
+}
+
+function readSassPackageExportSubpathEntry(exportsValue: unknown, subpath: string): string | null {
+  if (!isRecord(exportsValue)) return null;
+  for (const key of packageExportSubpathKeys(subpath)) {
+    const exportValue = exportsValue[key];
+    if (exportValue === undefined) continue;
+    const entry = readSassPackageExportEntry(exportValue);
+    if (entry) return entry;
+  }
+  return null;
+}
+
+function packageExportSubpathKeys(subpath: string): readonly string[] {
+  const normalized = subpath.replace(/^\.?\//u, "");
+  return [`./${normalized}`, `./${normalized}.scss`, `./${normalized}.sass`, `./${normalized}.css`];
 }
 
 function readSassPackageExportEntry(exportsValue: unknown): string | null {
