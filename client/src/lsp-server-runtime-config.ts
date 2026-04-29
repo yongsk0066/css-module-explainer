@@ -17,6 +17,15 @@ export type LspServerRuntimeSelection =
   | OmenaLspServerRuntimeSelection
   | NodeLspServerRuntimeSelection;
 
+export function buildRustLspFileWatcherGlobs(): readonly string[] {
+  return [
+    "**/*.module.{scss,css,less}",
+    "**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs,d.ts}",
+    "**/tsconfig*.json",
+    "**/jsconfig*.json",
+  ];
+}
+
 export function readClientLspServerRuntimeSetting(value: unknown): ClientLspServerRuntimeSetting {
   if (value === "omena-lsp-server") return "omena-lsp-server";
   return "node";

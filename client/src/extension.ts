@@ -12,6 +12,7 @@ import {
   readTypeFactMaxSyncProgramFilesSetting,
 } from "./type-fact-backend-config";
 import {
+  buildRustLspFileWatcherGlobs,
   readClientLspServerRuntimeSetting,
   resolveLspServerRuntimeSelection,
 } from "./lsp-server-runtime-config";
@@ -71,6 +72,13 @@ export function activate(context: vscode.ExtensionContext): void {
             options: { env: serverEnv },
           },
         };
+  const rustLspFileEvents =
+    runtimeSelection.runtime === "omena-lsp-server"
+      ? buildRustLspFileWatcherGlobs().map((glob) => vscode.workspace.createFileSystemWatcher(glob))
+      : undefined;
+  if (rustLspFileEvents) {
+    context.subscriptions.push(...rustLspFileEvents);
+  }
 
   const clientOptions: LanguageClientOptions = {
     documentSelector: [
@@ -84,6 +92,7 @@ export function activate(context: vscode.ExtensionContext): void {
     ],
     synchronize: {
       configurationSection: ["cssModuleExplainer", "cssModules"],
+      ...(rustLspFileEvents ? { fileEvents: rustLspFileEvents } : {}),
     },
     outputChannelName: "CSS Module Explainer",
     progressOnInitialization: true,

@@ -1,6 +1,7 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  buildRustLspFileWatcherGlobs,
   readClientLspServerRuntimeSetting,
   resolveLspServerRuntimeSelection,
   resolveOmenaLspServerPath,
@@ -52,5 +53,14 @@ describe("client LSP server runtime config", () => {
       runtime: "omena-lsp-server",
       args: [],
     });
+  });
+
+  it("declares static file watchers for the Rust LSP runtime", () => {
+    expect(buildRustLspFileWatcherGlobs()).toEqual([
+      "**/*.module.{scss,css,less}",
+      "**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs,d.ts}",
+      "**/tsconfig*.json",
+      "**/jsconfig*.json",
+    ]);
   });
 });
