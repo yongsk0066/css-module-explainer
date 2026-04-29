@@ -35,6 +35,7 @@ export interface ServerRuntimeSession {
     },
     documents: TextDocuments<TextDocument>,
   ): void;
+  dispose(documents: TextDocuments<TextDocument>): void;
 }
 
 export interface CreateServerRuntimeSessionArgs {
@@ -73,6 +74,9 @@ export function createServerRuntimeSession(
     clientCapabilities,
     handleWorkspaceFolderChange(event, documents): void {
       runtimeManager.applyWorkspaceFolderChange(event, documents);
+    },
+    dispose(documents): void {
+      runtimeManager.disposeAll(documents);
     },
   };
 }

@@ -40,6 +40,7 @@ export interface WorkspaceRuntimeManager {
   ): void;
   addFolder(folder: WorkspaceFolderInfo): void;
   removeFolder(folderUri: string, documents: RuntimeDocumentsLike): boolean;
+  disposeAll(documents: RuntimeDocumentsLike): void;
 }
 
 export function createWorkspaceRuntimeManager(
@@ -115,6 +116,12 @@ export function createWorkspaceRuntimeManager(
         folderUri,
         documents,
       });
+    },
+    disposeAll(documents: RuntimeDocumentsLike): void {
+      for (const folder of registry.getFolders()) {
+        this.removeFolder(folder.uri, documents);
+      }
+      args.typeResolver.clear();
     },
   };
 }

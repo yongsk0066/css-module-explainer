@@ -151,6 +151,7 @@ export function createServer(options: CreateServerOptions): CreatedServer {
   connection.onShutdown(() => {
     handlers.shutdown();
     shutdownEngineShadowRunnerDaemon();
+    session?.dispose(documents);
     void watchedFilesDisposable?.then((d) => d.dispose()).catch(() => {});
     watchedFilesDisposable = null;
     session = null;

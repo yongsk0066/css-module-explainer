@@ -1,4 +1,6 @@
 import { test, expect } from "../_fixtures/protocol";
+import type { ResolvedType } from "@css-module-explainer/shared";
+import type { TypeResolver } from "../../server/engine-core-ts/src/core/ts/type-resolver";
 
 const UNKNOWN_DOCUMENT_POSITION = { line: 0, character: 0 };
 
@@ -26,6 +28,27 @@ test("completes the initialize → initialized → shutdown handshake cleanly", 
   await client.initialize();
   client.initialized();
   await client.shutdown();
+  client.exit();
+});
+
+test("disposes workspace runtime state during shutdown", async ({ makeClient }) => {
+  let clearCalls = 0;
+  const typeResolver: TypeResolver = {
+    resolve(): ResolvedType {
+      return { kind: "unresolvable", values: [] };
+    },
+    invalidate() {},
+    clear() {
+      clearCalls += 1;
+    },
+  };
+  const client = makeClient({ typeResolver });
+
+  await client.initialize();
+  client.initialized();
+  await client.shutdown();
+
+  expect(clearCalls).toBe(1);
   client.exit();
 });
 
