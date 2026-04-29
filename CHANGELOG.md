@@ -1,5 +1,16 @@
 # Changelog
 
+## [4.1.26] — 2026-04-30
+
+### Added
+
+- **Rust LSP thin-client release lane** — added the `omena-tsgo-client` phase-3 boundary, the `omena-lsp-server` phase-4 thin-client endpoint contract, and split/multi-editor gates for the Rust LSP runtime path.
+- **Incremental flow substrate** — added `omena-incremental` as the incremental computation layer for abstract-value flow analysis, wired `omena-abstract-value` incremental flow planning on top of it, and propagated the split publish readiness line through `omena-incremental@0.1.0` and `omena-abstract-value@0.1.3`.
+
+### Changed
+
+- **Native release matrix** — CI and publish workflows now build and package `omena-lsp-server` across the same native platform matrix as `engine-shadow-runner` and `tsgo`, and the VSIX gate verifies the packaged Rust LSP server target coverage.
+
 ## [4.1.25] — 2026-04-30
 
 ### Fixed
