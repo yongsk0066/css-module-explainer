@@ -43,14 +43,11 @@ export function resolveLspServerRuntimeSelection(
   }
 
   const command = resolveOmenaLspServerPath(extensionRoot, env, fileExists);
-  if (runtime === "auto" && !command) {
-    return { runtime: "node" };
-  }
   if (!command) {
     throw new Error(
       [
-        "cssModuleExplainer.lspServerRuntime=omena-lsp-server requires an omena-lsp-server binary.",
-        "Run pnpm build, or set CME_OMENA_LSP_SERVER_PATH to an explicit binary.",
+        `cssModuleExplainer.lspServerRuntime=${runtime} requires an omena-lsp-server binary.`,
+        "Run pnpm build, set CME_OMENA_LSP_SERVER_PATH to an explicit binary, or set cssModuleExplainer.lspServerRuntime=node.",
       ].join("\n"),
     );
   }

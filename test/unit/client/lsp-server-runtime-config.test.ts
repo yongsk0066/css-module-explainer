@@ -17,10 +17,10 @@ describe("client LSP server runtime config", () => {
     expect(resolveLspServerRuntimeSelection("node", "/repo")).toEqual({ runtime: "node" });
   });
 
-  it("falls back to the Node server for auto runtime selection without a Rust binary", () => {
-    expect(resolveLspServerRuntimeSelection("auto", "/repo", {}, () => false)).toEqual({
-      runtime: "node",
-    });
+  it("does not silently fall back to the Node server for auto runtime selection without a Rust binary", () => {
+    expect(() => resolveLspServerRuntimeSelection("auto", "/repo", {}, () => false)).toThrow(
+      "cssModuleExplainer.lspServerRuntime=auto requires an omena-lsp-server binary",
+    );
   });
 
   it("resolves an explicit omena-lsp-server binary path", () => {

@@ -335,7 +335,7 @@
             "omena-lsp-server"
           ],
           "default": "auto",
-          "markdownDescription": "Language-server runtime. `auto` uses the bundled Rust `omena-lsp-server` when available and falls back to the Node server in source checkouts without a built binary. `node` forces the TypeScript LSP server. `omena-lsp-server` requires the bundled or explicit `CME_OMENA_LSP_SERVER_PATH` binary."
+          "markdownDescription": "Language-server runtime. `auto` uses the bundled or built Rust `omena-lsp-server` and fails fast if no binary is available. `node` explicitly forces the legacy TypeScript LSP server. `omena-lsp-server` requires the bundled or explicit `CME_OMENA_LSP_SERVER_PATH` binary."
         },
         "cssModuleExplainer.pathAlias": {
           "type": "object",

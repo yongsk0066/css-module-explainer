@@ -240,9 +240,9 @@ Current checker policy:
 - `pnpm check:rust-phase-2-swap-readiness` is the current v4.1 release-candidate cut-line gate
   - it runs `pnpm check:provider-host-routing-boundary`, `pnpm check:rust-omena-lsp-server-lane`, `pnpm check:rust-selected-query-default-candidate`, and `pnpm check:rust-checker-release-gate-shadow`
   - this is Phase 2 swap candidate evidence, not an omena-semantic V1 freeze or an end-state freeze
-- `pnpm build` now prepares the current-platform release `engine-shadow-runner` and opt-in `omena-lsp-server` binaries at `dist/bin/<platform>-<arch>/`
+- `pnpm build` now prepares the current-platform release `engine-shadow-runner` and default-candidate `omena-lsp-server` binaries at `dist/bin/<platform>-<arch>/`
 - `pnpm check:packaged-engine-shadow-runner-matrix` verifies packaged runner targets before VSIX packaging; CI and publish require Linux, macOS, and Windows runner artifacts
-- `pnpm check:packaged-selected-query-default` verifies the generated VSIX file set still makes packaged runtime choose `rust-selected-query` by default, includes the packaged `omena-lsp-server` binary for opt-in LSP runtime testing, excludes checkout-only Rust/source markers, and preserves the required runner matrix
+- `pnpm check:packaged-selected-query-default` verifies the generated VSIX file set still makes packaged runtime choose `rust-selected-query` and `omena-lsp-server` by default, excludes checkout-only Rust/source markers, and preserves the required runner matrix
 - `pnpm check:editor-path-boundary` is the current editor-path runtime lock point
   - it runs `pnpm check:selected-query-boundary` plus the protocol subset for `diagnostics`, `scss-diagnostics`, `code-actions`, watched-file invalidation, workspace-folder changes, and settings reload
   - those paths now route diagnostics/checker entry, code-action planning, session bootstrap, workspace-folder mutation, watched-file invalidation, and settings-reload orchestration through `engine-host-node` helpers or aggregates instead of owning the runtime policy directly in the LSP layer
@@ -404,7 +404,7 @@ Current checker policy:
   - packaged VSIX runtime now defaults to `rust-selected-query` through a long-lived `engine-shadow-runner` daemon when the bundled runner is present, while source checkouts keep the unset default on `typescript-current`
   - non-daemon async selected-query calls also use a true asynchronous one-shot runner path, so disabling the daemon does not reintroduce event-loop blocking
   - LSP providers now consume `engine-host-node` query helpers instead of importing `core/query` internals directly, and `pnpm check:provider-host-routing-boundary` guards that provider boundary
-  - `cssModuleExplainer.lspServerRuntime=auto` now selects the bundled Rust `omena-lsp-server` when available, while source checkouts without a built binary still fall back to the Node server; the Rust path carries provider parity coverage for style providers, source selector providers, source/style diagnostics, quick fixes, watched-file style index updates, and imported-module source reference scoping
+  - `cssModuleExplainer.lspServerRuntime=auto` now selects the bundled or built Rust `omena-lsp-server` and fails fast when no binary is available; the legacy Node LSP server is only selected through explicit `cssModuleExplainer.lspServerRuntime=node`. The Rust path carries provider parity coverage for style providers, source selector providers, source/style diagnostics, quick fixes, watched-file style index updates, and imported-module source reference scoping
   - style providers now consume Rust-backed semantic graph read models for selector identity, references, diagnostics, completions, rename safety, hover metadata, and style-module usage through host-side caches
   - `pnpm check:rust-phase-2-swap-readiness` batches provider host-routing, selected-query default-candidate, LSP runtime-loop daemon evidence, and checker release-gate shadow evidence as the v4.1.x cut line
   - the Omena Rust split crates are published and externally consumable through crates.io, but this is not yet an omena-semantic or bridge V1 freeze
