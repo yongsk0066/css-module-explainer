@@ -1,5 +1,22 @@
 # Changelog
 
+## [4.2.0] - 2026-04-30
+
+### Added
+
+- **Rust LSP thin-client GA endpoint** - packaged extension builds now launch the Rust `omena-lsp-server` directly from `dist/bin/<platform>-<arch>/omena-lsp-server`, with the Node LSP server kept as a development-only fallback outside the packaged VSIX path.
+- **Published split LSP runtime** - published and verified `omena-lsp-server@0.1.3` with `thinClient` migration status, alongside the existing `omena-tsgo-client`, `omena-resolver`, `omena-query`, `omena-bridge`, `omena-semantic`, `omena-incremental`, and parser/input split crates.
+- **Incremental abstract-value substrate** - added incremental batch flow analysis on top of `omena-incremental`, keeping the 1-CFA abstract-value work ready for the next 4.3 line.
+
+### Changed
+
+- **TS7 source path boundary** - the default `tsgo` backend no longer implicitly creates a synchronous `WorkspaceTypeResolver` fallback for source request paths; direct misses now stay fast and unresolvable unless an explicit fallback is injected.
+- **Release gates** - phase-3 source readiness, phase-4 thin-client readiness, resolver split readiness, and split publish readiness now cover the v4.2.0 cut line.
+
+### Fixed
+
+- **VSIX thin-client packaging** - packaged selected-query/default checks now verify bundled `omena-lsp-server` targets across the native release matrix.
+
 ## [4.1.27] — 2026-04-30
 
 ### Fixed
