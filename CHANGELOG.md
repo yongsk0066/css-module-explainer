@@ -1,5 +1,15 @@
 # Changelog
 
+## [4.1.21] — 2026-04-29
+
+### Fixed
+
+- **Forwarded package CSS custom properties** — CSS custom property completions, hovers, and diagnostics now follow local Sass utility modules that `@forward` package style entries, so `@use "utils" as *` can resolve `var(--...)` tokens from package `style` CSS files.
+
+### Changed
+
+- **Rust package style graph publishing** — published `omena-engine-style-parser@0.1.5` and `omena-query@0.1.11` with plain style package entry parsing and node_modules package graph edge resolution for Rust semantic-graph consumers.
+
 ## [4.1.20] — 2026-04-29
 
 ### Changed
