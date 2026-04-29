@@ -398,7 +398,9 @@ describe("style hover query", () => {
         character: 16,
       },
       makeBaseDeps({
-        styleDocumentForPath: styleDocumentMap([buttonDocument, tokensDocument]),
+        styleDocumentForPath: (filePath) => (filePath === SCSS_PATH ? buttonDocument : null),
+        readStyleFile: (filePath) => (filePath === TOKENS_CSS_PATH ? tokensCss : null),
+        buildStyleDocument: (filePath, content) => parseStyleDocument(content, filePath),
       }),
       {
         env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" },

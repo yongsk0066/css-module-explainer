@@ -155,6 +155,7 @@ export function resolveStyleHoverResult(
     | "settings"
     | "aliasResolver"
     | "readStyleFile"
+    | "buildStyleDocument"
   >,
   options: StyleHoverQueryOptions = {},
 ): StyleHoverResult | null {
@@ -408,6 +409,7 @@ export async function resolveStyleHoverResultAsync(
     | "settings"
     | "aliasResolver"
     | "readStyleFile"
+    | "buildStyleDocument"
   >,
   options: StyleHoverQueryOptions = {},
 ): Promise<StyleHoverResult | null> {
@@ -958,12 +960,15 @@ function withDepsStyleSemanticGraphCache(
 }
 
 function resolveDesignTokenRankingDeclTarget(
-  deps: Pick<ProviderDeps, "styleDocumentForPath">,
+  deps: Pick<ProviderDeps, "styleDocumentForPath" | "readStyleFile" | "buildStyleDocument">,
   ranking: StyleSemanticGraphDesignTokenRankedReferenceReadModel | undefined,
 ): CustomPropertyHoverTarget | null {
   if (!ranking?.winnerDeclarationFilePath) return null;
 
-  const styleDocument = deps.styleDocumentForPath(ranking.winnerDeclarationFilePath);
+  const styleDocument = readDesignTokenRankingTargetStyleDocument(
+    deps,
+    ranking.winnerDeclarationFilePath,
+  );
   if (!styleDocument) return null;
 
   const winnerDeclarationRange = ranking.winnerDeclarationRange;
@@ -978,6 +983,16 @@ function resolveDesignTokenRankingDeclTarget(
     rangeMatchedDecl ??
     (sourceOrderDecl?.name === ranking.referenceName ? sourceOrderDecl : undefined);
   return decl ? { filePath: ranking.winnerDeclarationFilePath, decl } : null;
+}
+
+function readDesignTokenRankingTargetStyleDocument(
+  deps: Pick<ProviderDeps, "styleDocumentForPath" | "readStyleFile" | "buildStyleDocument">,
+  filePath: string,
+): StyleDocumentHIR | null {
+  const indexedDocument = deps.styleDocumentForPath(filePath);
+  if (indexedDocument) return indexedDocument;
+  const content = deps.readStyleFile(filePath);
+  return content === null ? null : deps.buildStyleDocument(filePath, content);
 }
 
 function rangesEqual(left: Range, right: Range): boolean {
