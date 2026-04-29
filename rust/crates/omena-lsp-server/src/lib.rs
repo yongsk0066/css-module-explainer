@@ -15,6 +15,7 @@ pub const NODE_TEXT_DOCUMENT_SYNC_KIND: u8 = 2;
 pub const DEBUG_STATE_REQUEST: &str = "cssModuleExplainer/rustLspState";
 pub const STYLE_HOVER_CANDIDATES_REQUEST: &str = "cssModuleExplainer/rustStyleHoverCandidates";
 pub const STYLE_DIAGNOSTICS_REQUEST: &str = "cssModuleExplainer/rustStyleDiagnostics";
+pub const SOURCE_DIAGNOSTICS_REQUEST: &str = "cssModuleExplainer/rustSourceDiagnostics";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -448,6 +449,11 @@ pub fn handle_lsp_message(state: &mut LspShellState, message: Value) -> Option<V
             "id": request_id,
             "result": resolve_style_diagnostics(state, message.get("params")),
         })),
+        (Some(SOURCE_DIAGNOSTICS_REQUEST), Some(request_id)) => Some(json!({
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "result": resolve_source_diagnostics(state, message.get("params")),
+        })),
         (Some("shutdown"), Some(request_id)) => {
             state.shutdown_requested = true;
             Some(json!({
@@ -502,24 +508,53 @@ pub fn handle_lsp_message_outputs(state: &mut LspShellState, message: Value) -> 
         method.as_deref(),
         Some("textDocument/didOpen" | "textDocument/didChange" | "textDocument/didClose")
     ) && let Some(uri) = document_uri
-        && StyleLanguage::from_module_path(uri.as_str()).is_some()
     {
-        let diagnostics = if method.as_deref() == Some("textDocument/didClose") {
-            json!([])
-        } else {
-            resolve_style_diagnostics_for_uri(state, uri.as_str())
-        };
-        outputs.push(json!({
-            "jsonrpc": "2.0",
-            "method": "textDocument/publishDiagnostics",
-            "params": {
-                "uri": uri,
-                "diagnostics": diagnostics,
+        let is_close = method.as_deref() == Some("textDocument/didClose");
+        outputs.push(publish_diagnostics_notification(
+            uri.as_str(),
+            if is_close {
+                json!([])
+            } else {
+                resolve_document_diagnostics_for_uri(state, uri.as_str())
             },
-        }));
+        ));
+
+        if is_style_document_uri(uri.as_str()) {
+            let source_uris: Vec<String> = state
+                .documents
+                .values()
+                .filter(|document| !is_style_document_uri(document.uri.as_str()))
+                .filter(|document| {
+                    state.document(uri.as_str()).is_none_or(|style_document| {
+                        workspace_folder_compatible(
+                            style_document.workspace_folder_uri.as_deref(),
+                            document,
+                        )
+                    })
+                })
+                .map(|document| document.uri.clone())
+                .collect();
+            for source_uri in source_uris {
+                outputs.push(publish_diagnostics_notification(
+                    source_uri.as_str(),
+                    resolve_source_diagnostics_for_uri(state, source_uri.as_str()),
+                ));
+            }
+        }
     }
 
     outputs
+}
+
+fn publish_diagnostics_notification(uri: &str, diagnostics: Value) -> Value {
+    json!({
+        "jsonrpc": "2.0",
+        "method": "textDocument/publishDiagnostics",
+        "params": {
+            "uri": uri,
+            "diagnostics": diagnostics,
+        },
+    })
 }
 
 fn initialize_workspace_folders(state: &mut LspShellState, params: Option<&Value>) {
@@ -948,6 +983,19 @@ fn resolve_style_diagnostics(state: &LspShellState, params: Option<&Value>) -> V
     resolve_style_diagnostics_for_uri(state, document_uri.as_str())
 }
 
+fn resolve_source_diagnostics(state: &LspShellState, params: Option<&Value>) -> Value {
+    let document_uri = document_uri_from_params(params);
+    resolve_source_diagnostics_for_uri(state, document_uri.as_str())
+}
+
+fn resolve_document_diagnostics_for_uri(state: &LspShellState, document_uri: &str) -> Value {
+    if is_style_document_uri(document_uri) {
+        resolve_style_diagnostics_for_uri(state, document_uri)
+    } else {
+        resolve_source_diagnostics_for_uri(state, document_uri)
+    }
+}
+
 fn resolve_style_diagnostics_for_uri(state: &LspShellState, document_uri: &str) -> Value {
     let Some(document) = state.document(document_uri) else {
         return json!([]);
@@ -989,6 +1037,64 @@ fn resolve_style_diagnostics_for_uri(state: &LspShellState, document_uri: &str) 
                         "range": insertion_range,
                         "newText": format!("\n\n:root {{\n  {}: ;\n}}\n", candidate.name),
                         "propertyName": candidate.name.as_str(),
+                    },
+                },
+            })
+        })
+        .collect();
+
+    json!(diagnostics)
+}
+
+fn resolve_source_diagnostics_for_uri(state: &LspShellState, document_uri: &str) -> Value {
+    let Some(document) = state.document(document_uri) else {
+        return json!([]);
+    };
+    if is_style_document_uri(document.uri.as_str()) {
+        return json!([]);
+    }
+
+    let definitions = style_selector_definitions_from_open_documents(
+        state,
+        "",
+        document.workspace_folder_uri.as_deref(),
+    );
+    if definitions.is_empty() {
+        return json!([]);
+    }
+    let defined_names: BTreeSet<&str> = definitions
+        .iter()
+        .map(|(_, definition)| definition.name.as_str())
+        .collect();
+    let Some((target_style_uri, target_style_document)) =
+        first_style_document_for_workspace(state, document.workspace_folder_uri.as_deref())
+    else {
+        return json!([]);
+    };
+    let insertion_range = end_of_document_range(target_style_document.text.as_str());
+    let has_existing_style_content = !target_style_document.text.trim().is_empty();
+    let diagnostics: Vec<Value> = collect_source_diagnostic_class_reference_candidates(document)
+        .into_iter()
+        .filter(|candidate| !defined_names.contains(candidate.name.as_str()))
+        .map(|candidate| {
+            json!({
+                "range": candidate.range,
+                "severity": 2,
+                "source": "css-module-explainer",
+                "message": format!(
+                    "CSS Module selector '.{}' not found in indexed style tokens.",
+                    candidate.name
+                ),
+                "data": {
+                    "createSelector": {
+                        "uri": target_style_uri.as_str(),
+                        "range": insertion_range,
+                        "newText": if has_existing_style_content {
+                            format!("\n\n.{} {{\n}}\n", candidate.name)
+                        } else {
+                            format!(".{} {{\n}}\n", candidate.name)
+                        },
+                        "selectorName": candidate.name.as_str(),
                     },
                 },
             })
@@ -1042,6 +1148,38 @@ fn resolve_lsp_code_actions(params: Option<&Value>) -> Value {
                 },
             }))
         })
+        .chain(diagnostics.iter().enumerate().filter_map(|(index, diagnostic)| {
+            let payload = diagnostic
+                .pointer("/data/createSelector")
+                .and_then(Value::as_object)?;
+            let uri = payload.get("uri").and_then(Value::as_str)?;
+            let range = payload.get("range")?;
+            let new_text = payload.get("newText").and_then(Value::as_str)?;
+            let selector_name = payload.get("selectorName").and_then(Value::as_str)?;
+            let mut changes = serde_json::Map::new();
+            changes.insert(
+                uri.to_string(),
+                json!([
+                    {
+                        "range": range,
+                        "newText": new_text,
+                    },
+                ]),
+            );
+
+            Some(json!({
+                "title": format!("Add '.{}' to {}", selector_name, file_label_from_uri(uri)),
+                "kind": "quickfix",
+                "diagnostics": [diagnostic],
+                "edit": {
+                    "changes": Value::Object(changes),
+                },
+                "data": {
+                    "source": "openedSourceDocumentIndex",
+                    "diagnosticIndex": index,
+                },
+            }))
+        }))
         .collect();
 
     if actions.is_empty() {
@@ -1480,6 +1618,141 @@ fn collect_source_selector_reference_candidates(
     candidates
 }
 
+fn collect_source_diagnostic_class_reference_candidates(
+    document: &LspTextDocumentState,
+) -> Vec<LspStyleHoverCandidate> {
+    let mut candidates = Vec::new();
+    collect_class_name_attribute_candidates(document, &mut candidates);
+    collect_styles_property_access_candidates(document, &mut candidates);
+    candidates.sort();
+    candidates.dedup();
+    candidates
+}
+
+fn collect_class_name_attribute_candidates(
+    document: &LspTextDocumentState,
+    candidates: &mut Vec<LspStyleHoverCandidate>,
+) {
+    let source = document.text.as_str();
+    let mut search_offset = 0usize;
+    while let Some(relative_match) = source[search_offset..].find("className") {
+        let class_name_start = search_offset + relative_match;
+        let mut cursor = class_name_start + "className".len();
+        cursor = skip_ascii_whitespace(source, cursor);
+        if source.as_bytes().get(cursor) != Some(&b'=') {
+            search_offset = cursor;
+            continue;
+        }
+        cursor = skip_ascii_whitespace(source, cursor + 1);
+        if source.as_bytes().get(cursor) == Some(&b'{') {
+            cursor = skip_ascii_whitespace(source, cursor + 1);
+        }
+        let Some(quote) = source.as_bytes().get(cursor).copied() else {
+            break;
+        };
+        if !matches!(quote, b'\'' | b'"' | b'`') {
+            search_offset = cursor + 1;
+            continue;
+        }
+        let literal_start = cursor + 1;
+        let Some(relative_end) = source[literal_start..].find(char::from(quote)) else {
+            break;
+        };
+        let literal_end = literal_start + relative_end;
+        for span in class_token_byte_spans(source, literal_start, literal_end) {
+            candidates.push(source_diagnostic_candidate(document, span));
+        }
+        search_offset = literal_end + 1;
+    }
+}
+
+fn collect_styles_property_access_candidates(
+    document: &LspTextDocumentState,
+    candidates: &mut Vec<LspStyleHoverCandidate>,
+) {
+    let source = document.text.as_str();
+    let mut search_offset = 0usize;
+    while let Some(relative_match) = source[search_offset..].find("styles.") {
+        let start = search_offset + relative_match + "styles.".len();
+        let end = read_css_identifier_end(source, start);
+        if end > start {
+            candidates.push(source_diagnostic_candidate(
+                document,
+                ParserByteSpanV0 { start, end },
+            ));
+        }
+        search_offset = end.max(start + 1);
+    }
+}
+
+fn source_diagnostic_candidate(
+    document: &LspTextDocumentState,
+    byte_span: ParserByteSpanV0,
+) -> LspStyleHoverCandidate {
+    LspStyleHoverCandidate {
+        kind: "sourceSelectorReference",
+        name: document.text[byte_span.start..byte_span.end].to_string(),
+        range: parser_range_for_byte_span(document.text.as_str(), byte_span),
+        source: "openedSourceDocumentIndex",
+    }
+}
+
+fn class_token_byte_spans(
+    source: &str,
+    literal_start: usize,
+    literal_end: usize,
+) -> Vec<ParserByteSpanV0> {
+    let mut spans = Vec::new();
+    let mut token_start: Option<usize> = None;
+    for (relative_index, ch) in source[literal_start..literal_end].char_indices() {
+        let index = literal_start + relative_index;
+        if ch.is_ascii_whitespace() {
+            if let Some(start) = token_start.take() {
+                push_class_token_span(source, start, index, &mut spans);
+            }
+        } else if token_start.is_none() {
+            token_start = Some(index);
+        }
+    }
+    if let Some(start) = token_start {
+        push_class_token_span(source, start, literal_end, &mut spans);
+    }
+    spans
+}
+
+fn push_class_token_span(
+    source: &str,
+    start: usize,
+    end: usize,
+    spans: &mut Vec<ParserByteSpanV0>,
+) {
+    if start < end && source[start..end].chars().all(is_css_identifier_continue) {
+        spans.push(ParserByteSpanV0 { start, end });
+    }
+}
+
+fn skip_ascii_whitespace(source: &str, mut offset: usize) -> usize {
+    while source
+        .as_bytes()
+        .get(offset)
+        .is_some_and(u8::is_ascii_whitespace)
+    {
+        offset += 1;
+    }
+    offset
+}
+
+fn read_css_identifier_end(source: &str, start: usize) -> usize {
+    let mut end = start;
+    for (relative_index, ch) in source[start..].char_indices() {
+        if !is_css_identifier_continue(ch) {
+            break;
+        }
+        end = start + relative_index + ch.len_utf8();
+    }
+    end
+}
+
 fn style_selector_definitions_from_open_documents(
     state: &LspShellState,
     selector_name: &str,
@@ -1515,6 +1788,19 @@ fn style_selector_definitions_from_open_documents(
         )
     });
     definitions
+}
+
+fn first_style_document_for_workspace<'a>(
+    state: &'a LspShellState,
+    workspace_folder_uri: Option<&str>,
+) -> Option<(String, &'a LspTextDocumentState)> {
+    state
+        .documents
+        .values()
+        .filter(|document| is_style_document_uri(document.uri.as_str()))
+        .filter(|document| workspace_folder_compatible(workspace_folder_uri, document))
+        .map(|document| (document.uri.clone(), document))
+        .next()
 }
 
 fn resolve_source_selector_rename(

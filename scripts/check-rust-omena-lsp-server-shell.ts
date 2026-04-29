@@ -171,23 +171,35 @@ const diagnosticNotifications = messages.filter(
   (message) => message.method === "textDocument/publishDiagnostics",
 );
 assert.equal(responses.length, 4);
-assert.equal(diagnosticNotifications.length, 2);
-assert.deepEqual(diagnosticNotifications[0], {
-  jsonrpc: "2.0",
-  method: "textDocument/publishDiagnostics",
-  params: {
-    uri: "file:///tmp/cme-rust-lsp-shell/src/App.module.scss",
-    diagnostics: [],
-  },
-});
-assert.deepEqual(diagnosticNotifications[1], {
-  jsonrpc: "2.0",
-  method: "textDocument/publishDiagnostics",
-  params: {
-    uri: "file:///tmp/cme-rust-lsp-shell/src/App.module.scss",
-    diagnostics: [],
-  },
-});
+assert.deepEqual(
+  diagnosticNotifications.map((notification) => notification.params),
+  [
+    {
+      uri: "file:///tmp/cme-rust-lsp-shell/src/App.tsx",
+      diagnostics: [],
+    },
+    {
+      uri: "file:///tmp/cme-rust-lsp-shell/src/App.tsx",
+      diagnostics: [],
+    },
+    {
+      uri: "file:///tmp/cme-rust-lsp-shell/src/App.module.scss",
+      diagnostics: [],
+    },
+    {
+      uri: "file:///tmp/cme-rust-lsp-shell/src/App.tsx",
+      diagnostics: [],
+    },
+    {
+      uri: "file:///tmp/cme-rust-lsp-shell/src/App.module.scss",
+      diagnostics: [],
+    },
+    {
+      uri: "file:///tmp/cme-rust-lsp-shell/src/App.tsx",
+      diagnostics: [],
+    },
+  ],
+);
 
 const initializeResponse = responses[0]!;
 assert.equal(initializeResponse.id, 1);

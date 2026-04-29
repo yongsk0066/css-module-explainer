@@ -12,10 +12,14 @@ const workspaceUri = "file:///tmp/cme-rust-lsp-style-provider";
 const stylePath = "/tmp/cme-rust-lsp-style-provider/src/App.module.scss";
 const styleUri = `${workspaceUri}/src/App.module.scss`;
 const sourceUri = `${workspaceUri}/src/App.tsx`;
-const sourceText = 'const cls = "root";';
+const sourceText = 'const cls = "root";\nconst view = <div className="missing" />;';
 const sourceSelectorRange = {
   start: { line: 0, character: 13 },
   end: { line: 0, character: 17 },
+};
+const sourceMissingSelectorRange = {
+  start: { line: 1, character: 29 },
+  end: { line: 1, character: 36 },
 };
 const styleText =
   ".root { color: var(--brand); }\n.theme { --brand: red; }\n.alert { color: var(--missing); }";
@@ -85,6 +89,20 @@ const expectedMissingCustomPropertyDiagnostic = {
       range: documentEndRange(styleText),
       newText: "\n\n:root {\n  --missing: ;\n}\n",
       propertyName: "--missing",
+    },
+  },
+};
+const expectedMissingSelectorDiagnostic = {
+  range: sourceMissingSelectorRange,
+  severity: 2,
+  source: "css-module-explainer",
+  message: "CSS Module selector '.missing' not found in indexed style tokens.",
+  data: {
+    createSelector: {
+      uri: styleUri,
+      range: documentEndRange(styleText),
+      newText: "\n\n.missing {\n}\n",
+      selectorName: "missing",
     },
   },
 };
@@ -336,9 +354,23 @@ const lspSourceRenameRequest = {
     newName: "panel",
   },
 };
-const shutdownRequest = {
+const lspSourceCodeActionRequest = {
   jsonrpc: "2.0",
   id: 20,
+  method: "textDocument/codeAction",
+  params: {
+    textDocument: {
+      uri: sourceUri,
+    },
+    range: sourceMissingSelectorRange,
+    context: {
+      diagnostics: [expectedMissingSelectorDiagnostic],
+    },
+  },
+};
+const shutdownRequest = {
+  jsonrpc: "2.0",
+  id: 21,
   method: "shutdown",
 };
 const exitNotification = {
@@ -371,6 +403,7 @@ const result = spawnSync(invocation.command, [...invocation.args], {
     lspSourceCompletionRequest,
     lspSourcePrepareRenameRequest,
     lspSourceRenameRequest,
+    lspSourceCodeActionRequest,
     shutdownRequest,
     exitNotification,
   ]
@@ -397,14 +430,30 @@ const responses = messages.filter((message) => "id" in message);
 const diagnosticNotifications = messages.filter(
   (message) => message.method === "textDocument/publishDiagnostics",
 );
-assert.equal(responses.length, 20);
+assert.equal(responses.length, 21);
 assert.deepEqual(diagnosticNotifications, [
+  {
+    jsonrpc: "2.0",
+    method: "textDocument/publishDiagnostics",
+    params: {
+      uri: sourceUri,
+      diagnostics: [],
+    },
+  },
   {
     jsonrpc: "2.0",
     method: "textDocument/publishDiagnostics",
     params: {
       uri: styleUri,
       diagnostics: [expectedMissingCustomPropertyDiagnostic],
+    },
+  },
+  {
+    jsonrpc: "2.0",
+    method: "textDocument/publishDiagnostics",
+    params: {
+      uri: sourceUri,
+      diagnostics: [expectedMissingSelectorDiagnostic],
     },
   },
 ]);
@@ -612,6 +661,30 @@ assert.deepEqual(lspSourceRenameResponse.result, {
   },
 });
 
+const lspSourceCodeActionResponse = responses[19]!;
+assert.equal(lspSourceCodeActionResponse.id, 20);
+assert.deepEqual(lspSourceCodeActionResponse.result, [
+  {
+    title: "Add '.missing' to App.module.scss",
+    kind: "quickfix",
+    diagnostics: [expectedMissingSelectorDiagnostic],
+    edit: {
+      changes: {
+        [styleUri]: [
+          {
+            range: expectedMissingSelectorDiagnostic.data.createSelector.range,
+            newText: expectedMissingSelectorDiagnostic.data.createSelector.newText,
+          },
+        ],
+      },
+    },
+    data: {
+      source: "openedSourceDocumentIndex",
+      diagnosticIndex: 0,
+    },
+  },
+]);
+
 process.stdout.write(
   [
     "validated omena-lsp-server style provider parity:",
@@ -637,6 +710,7 @@ process.stdout.write(
       lspSourceRenameResponse.result.changes[styleUri].length +
       lspSourceRenameResponse.result.changes[sourceUri].length
     }`,
+    `sourceCodeActions=${lspSourceCodeActionResponse.result.length}`,
     `line=${styleHoverResponse.result.candidates[0].range.start.line}`,
     `character=${styleHoverResponse.result.candidates[0].range.start.character}`,
     `nodeRangeParity=${JSON.stringify(styleHoverResponse.result.candidates[0].range)}`,
