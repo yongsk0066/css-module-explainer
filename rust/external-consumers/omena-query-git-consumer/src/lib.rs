@@ -138,6 +138,7 @@ fn range(
 mod tests {
     use super::{consume_query_boundary, consume_style_graph_batch, sample_input};
     use omena_query::{
+        summarize_omena_query_expression_domain_flow_analysis,
         summarize_omena_query_expression_semantics_canonical_producer_signal,
         summarize_omena_query_fragment_bundle,
         summarize_omena_query_selected_query_adapter_capabilities,
@@ -156,6 +157,11 @@ mod tests {
         );
         assert_eq!(boundary.total_query_count, 6);
         assert!(boundary.ready_surfaces.contains(&"queryBoundarySummary"));
+        assert!(
+            boundary
+                .ready_surfaces
+                .contains(&"expressionDomainFlowAnalysisBoundary")
+        );
     }
 
     #[test]
@@ -185,12 +191,35 @@ mod tests {
             capabilities
                 .runner_commands
                 .iter()
+                .any(|command| command.command == "input-expression-domain-flow-analysis")
+        );
+        assert!(
+            capabilities
+                .runner_commands
+                .iter()
                 .any(|command| command.command == "style-semantic-graph-batch")
         );
         assert!(
             capabilities
                 .expression_semantics_payload_contracts
                 .contains(&"valueDomainDerivation")
+        );
+    }
+
+    #[test]
+    fn consumes_remote_expression_domain_flow_analysis_contract() {
+        let summary = summarize_omena_query_expression_domain_flow_analysis(&sample_input());
+
+        assert_eq!(
+            summary.product,
+            "engine-input-producers.expression-domain-flow-analysis"
+        );
+        assert_eq!(summary.analyses.len(), 2);
+        assert!(
+            summary
+                .analyses
+                .iter()
+                .all(|entry| entry.analysis.converged)
         );
     }
 
