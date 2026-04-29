@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
 };
 
 pub const NODE_TEXT_DOCUMENT_SYNC_KIND: u8 = 2;
@@ -282,6 +282,8 @@ pub struct LspStyleHoverCandidate {
     pub name: String,
     pub range: ParserRangeV0,
     pub source: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target_style_uri: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -692,6 +694,22 @@ fn path_to_file_uri(path: &Path) -> String {
     format!("file://{}", path.to_string_lossy())
 }
 
+fn normalize_path(path: PathBuf) -> PathBuf {
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                normalized.pop();
+            }
+            Component::Normal(_) | Component::RootDir | Component::Prefix(_) => {
+                normalized.push(component.as_os_str());
+            }
+        }
+    }
+    normalized
+}
+
 fn did_open_text_document(state: &mut LspShellState, params: Option<&Value>) {
     let Some(document) = params.and_then(|value| value.get("textDocument")) else {
         return;
@@ -1020,6 +1038,7 @@ fn resolve_lsp_references(state: &LspShellState, params: Option<&Value>) -> Valu
             state,
             candidate.name.as_str(),
             document.workspace_folder_uri.as_deref(),
+            Some(document.uri.as_str()),
         ));
         locations
     } else if include_declaration {
@@ -1315,6 +1334,7 @@ fn resolve_lsp_code_lens(state: &LspShellState, params: Option<&Value>) -> Value
     let reference_locations_by_name = selector_reference_locations_by_name_from_open_documents(
         state,
         document.workspace_folder_uri.as_deref(),
+        Some(document.uri.as_str()),
     );
     for candidate in candidates
         .iter()
@@ -1359,15 +1379,21 @@ fn selector_reference_locations_from_open_documents(
     state: &LspShellState,
     selector_name: &str,
     workspace_folder_uri: Option<&str>,
+    target_style_uri: Option<&str>,
 ) -> Vec<Value> {
-    selector_reference_locations_by_name_from_open_documents(state, workspace_folder_uri)
-        .remove(selector_name)
-        .unwrap_or_default()
+    selector_reference_locations_by_name_from_open_documents(
+        state,
+        workspace_folder_uri,
+        target_style_uri,
+    )
+    .remove(selector_name)
+    .unwrap_or_default()
 }
 
 fn selector_reference_locations_by_name_from_open_documents(
     state: &LspShellState,
     workspace_folder_uri: Option<&str>,
+    target_style_uri: Option<&str>,
 ) -> BTreeMap<String, Vec<Value>> {
     let mut locations_by_name: BTreeMap<String, Vec<Value>> = BTreeMap::new();
     for document in state.documents.values() {
@@ -1378,6 +1404,9 @@ fn selector_reference_locations_by_name_from_open_documents(
             continue;
         }
         for candidate in collect_source_selector_reference_candidates(state, document) {
+            if !source_candidate_matches_target_style(&candidate, target_style_uri) {
+                continue;
+            }
             locations_by_name
                 .entry(candidate.name)
                 .or_default()
@@ -1391,6 +1420,14 @@ fn selector_reference_locations_by_name_from_open_documents(
         locations.sort_by_key(location_sort_key);
     }
     locations_by_name
+}
+
+fn source_candidate_matches_target_style(
+    candidate: &LspStyleHoverCandidate,
+    target_style_uri: Option<&str>,
+) -> bool {
+    target_style_uri
+        .is_none_or(|target_uri| candidate.target_style_uri.as_deref() == Some(target_uri))
 }
 
 fn reference_lens_title(count: usize) -> String {
@@ -1434,6 +1471,7 @@ fn resolve_lsp_rename(state: &LspShellState, params: Option<&Value>) -> Value {
         return resolve_selector_rename(
             state,
             workspace_folder_uri,
+            candidate.target_style_uri.as_deref(),
             candidate.name.as_str(),
             new_name,
         );
@@ -1451,6 +1489,7 @@ fn resolve_lsp_rename(state: &LspShellState, params: Option<&Value>) -> Value {
         return resolve_selector_rename(
             state,
             workspace_folder_uri,
+            Some(document_uri.as_str()),
             candidate.name.as_str(),
             new_name,
         );
@@ -1591,9 +1630,9 @@ fn resolve_source_lsp_definition(
     let Some(candidate) = source_selector_candidate_at_position(state, document, position) else {
         return Value::Null;
     };
-    let definitions = style_selector_definitions_from_open_documents(
+    let definitions = style_selector_definitions_for_source_candidate(
         state,
-        candidate.name.as_str(),
+        &candidate,
         document.workspace_folder_uri.as_deref(),
     );
     if definitions.is_empty() {
@@ -1621,9 +1660,9 @@ fn resolve_source_lsp_references(
     let mut locations = Vec::new();
     if include_declaration {
         locations.extend(
-            style_selector_definitions_from_open_documents(
+            style_selector_definitions_for_source_candidate(
                 state,
-                candidate.name.as_str(),
+                &candidate,
                 document.workspace_folder_uri.as_deref(),
             )
             .into_iter()
@@ -1634,6 +1673,7 @@ fn resolve_source_lsp_references(
         state,
         candidate.name.as_str(),
         document.workspace_folder_uri.as_deref(),
+        candidate.target_style_uri.as_deref(),
     ));
     locations.sort_by_key(location_sort_key);
 
@@ -1767,24 +1807,40 @@ fn collect_source_selector_reference_candidates(
     state: &LspShellState,
     document: &LspTextDocumentState,
 ) -> Vec<LspStyleHoverCandidate> {
-    let selector_names: BTreeSet<String> = style_selector_definitions_from_open_documents(
+    let definitions = style_selector_definitions_from_open_documents(
         state,
         "",
         document.workspace_folder_uri.as_deref(),
-    )
-    .into_iter()
-    .map(|(_, definition)| definition.name)
-    .collect();
+    );
+    let selector_names: BTreeSet<String> = definitions
+        .iter()
+        .map(|(_, definition)| definition.name.clone())
+        .collect();
     if selector_names.is_empty() {
         return Vec::new();
     }
     let mut candidates: Vec<LspStyleHoverCandidate> =
         collect_source_class_reference_candidates(document)
             .into_iter()
-            .filter(|candidate| selector_names.contains(candidate.name.as_str()))
+            .filter(|candidate| {
+                source_candidate_has_style_definition(candidate, definitions.as_slice())
+            })
             .collect();
     candidates.sort();
     candidates
+}
+
+fn source_candidate_has_style_definition(
+    candidate: &LspStyleHoverCandidate,
+    definitions: &[(String, LspStyleHoverCandidate)],
+) -> bool {
+    definitions.iter().any(|(uri, definition)| {
+        definition.name == candidate.name
+            && candidate
+                .target_style_uri
+                .as_deref()
+                .is_none_or(|target_uri| target_uri == uri)
+    })
 }
 
 fn collect_source_class_reference_candidates(
@@ -1829,7 +1885,7 @@ fn collect_class_name_attribute_candidates(
         };
         let literal_end = literal_start + relative_end;
         for span in class_token_byte_spans(source, literal_start, literal_end) {
-            candidates.push(source_diagnostic_candidate(document, span));
+            candidates.push(source_reference_candidate(document, span, None));
         }
         search_offset = literal_end + 1;
     }
@@ -1839,30 +1895,125 @@ fn collect_styles_property_access_candidates(
     document: &LspTextDocumentState,
     candidates: &mut Vec<LspStyleHoverCandidate>,
 ) {
+    let bindings = imported_style_bindings(document);
+    if bindings.is_empty() {
+        collect_styles_property_access_candidates_for_binding(document, "styles", None, candidates);
+        return;
+    }
+
+    for binding in bindings {
+        collect_styles_property_access_candidates_for_binding(
+            document,
+            binding.binding.as_str(),
+            Some(binding.style_uri.as_str()),
+            candidates,
+        );
+    }
+}
+
+fn collect_styles_property_access_candidates_for_binding(
+    document: &LspTextDocumentState,
+    binding: &str,
+    target_style_uri: Option<&str>,
+    candidates: &mut Vec<LspStyleHoverCandidate>,
+) {
     let source = document.text.as_str();
+    let pattern = format!("{binding}.");
     let mut search_offset = 0usize;
-    while let Some(relative_match) = source[search_offset..].find("styles.") {
-        let start = search_offset + relative_match + "styles.".len();
+    while let Some(relative_match) = source[search_offset..].find(pattern.as_str()) {
+        let start = search_offset + relative_match + pattern.len();
         let end = read_css_identifier_end(source, start);
         if end > start {
-            candidates.push(source_diagnostic_candidate(
+            candidates.push(source_reference_candidate(
                 document,
                 ParserByteSpanV0 { start, end },
+                target_style_uri.map(ToString::to_string),
             ));
         }
         search_offset = end.max(start + 1);
     }
 }
 
-fn source_diagnostic_candidate(
+struct ImportedStyleBinding {
+    binding: String,
+    style_uri: String,
+}
+
+fn imported_style_bindings(document: &LspTextDocumentState) -> Vec<ImportedStyleBinding> {
+    let source = document.text.as_str();
+    let mut bindings = Vec::new();
+    let mut search_offset = 0usize;
+    while let Some(relative_match) = source[search_offset..].find("import ") {
+        let import_start = search_offset + relative_match;
+        let statement_end = source[import_start..]
+            .find(';')
+            .map(|relative_end| import_start + relative_end)
+            .unwrap_or_else(|| source.len());
+        let statement = &source[import_start..statement_end];
+        if let Some(binding) = imported_style_binding_from_statement(document, statement) {
+            bindings.push(binding);
+        }
+        search_offset = statement_end.saturating_add(1);
+    }
+    bindings.sort_by(|left, right| left.binding.cmp(&right.binding));
+    bindings
+        .dedup_by(|left, right| left.binding == right.binding && left.style_uri == right.style_uri);
+    bindings
+}
+
+fn imported_style_binding_from_statement(
+    document: &LspTextDocumentState,
+    statement: &str,
+) -> Option<ImportedStyleBinding> {
+    let from_index = statement.find(" from ")?;
+    let binding_part = statement.get("import ".len()..from_index)?.trim();
+    let specifier_part = statement.get(from_index + " from ".len()..)?.trim();
+    let specifier = quoted_prefix(specifier_part)?;
+    StyleLanguage::from_module_path(specifier)?;
+    let style_uri = style_uri_for_import_specifier(document.uri.as_str(), specifier)?;
+    let binding = if let Some(namespace_binding) = binding_part.strip_prefix("* as ") {
+        namespace_binding.trim()
+    } else {
+        binding_part.split(',').next().unwrap_or_default().trim()
+    };
+    if binding.is_empty() || binding.starts_with('{') {
+        return None;
+    }
+    Some(ImportedStyleBinding {
+        binding: binding.to_string(),
+        style_uri,
+    })
+}
+
+fn quoted_prefix(source: &str) -> Option<&str> {
+    let quote = source.as_bytes().first().copied()?;
+    if !matches!(quote, b'\'' | b'"') {
+        return None;
+    }
+    let end = source[1..].find(char::from(quote))? + 1;
+    source.get(1..end)
+}
+
+fn style_uri_for_import_specifier(source_uri: &str, specifier: &str) -> Option<String> {
+    if !specifier.starts_with('.') {
+        return None;
+    }
+    let source_path = file_uri_to_path(source_uri)?;
+    let imported_path = normalize_path(source_path.parent()?.join(specifier));
+    Some(path_to_file_uri(imported_path.as_path()))
+}
+
+fn source_reference_candidate(
     document: &LspTextDocumentState,
     byte_span: ParserByteSpanV0,
+    target_style_uri: Option<String>,
 ) -> LspStyleHoverCandidate {
     LspStyleHoverCandidate {
         kind: "sourceSelectorReference",
         name: document.text[byte_span.start..byte_span.end].to_string(),
         range: parser_range_for_byte_span(document.text.as_str(), byte_span),
         source: "openedSourceDocumentIndex",
+        target_style_uri,
     }
 }
 
@@ -1959,6 +2110,26 @@ fn style_selector_definitions_from_open_documents(
     definitions
 }
 
+fn style_selector_definitions_for_source_candidate(
+    state: &LspShellState,
+    candidate: &LspStyleHoverCandidate,
+    workspace_folder_uri: Option<&str>,
+) -> Vec<(String, LspStyleHoverCandidate)> {
+    style_selector_definitions_from_open_documents(
+        state,
+        candidate.name.as_str(),
+        workspace_folder_uri,
+    )
+    .into_iter()
+    .filter(|(uri, _)| {
+        candidate
+            .target_style_uri
+            .as_deref()
+            .is_none_or(|target_uri| target_uri == uri)
+    })
+    .collect()
+}
+
 fn first_style_document_for_workspace<'a>(
     state: &'a LspShellState,
     workspace_folder_uri: Option<&str>,
@@ -1975,6 +2146,7 @@ fn first_style_document_for_workspace<'a>(
 fn resolve_selector_rename(
     state: &LspShellState,
     workspace_folder_uri: Option<&str>,
+    target_style_uri: Option<&str>,
     selector_name: &str,
     new_name: &str,
 ) -> Value {
@@ -1986,6 +2158,8 @@ fn resolve_selector_rename(
     let mut changes: BTreeMap<String, Vec<Value>> = BTreeMap::new();
     for (uri, definition) in
         style_selector_definitions_from_open_documents(state, selector_name, workspace_folder_uri)
+            .into_iter()
+            .filter(|(uri, _)| target_style_uri.is_none_or(|target_uri| target_uri == uri))
     {
         changes.entry(uri).or_default().push(json!({
             "range": definition.range,
@@ -2002,6 +2176,7 @@ fn resolve_selector_rename(
         for candidate in collect_source_selector_reference_candidates(state, document)
             .into_iter()
             .filter(|candidate| candidate.name == selector_name)
+            .filter(|candidate| source_candidate_matches_target_style(candidate, target_style_uri))
         {
             changes
                 .entry(document.uri.clone())
@@ -2222,6 +2397,7 @@ fn collect_style_selector_hover_candidates_from_nodes(
                             name: name.to_string(),
                             range: parser_range_for_byte_span(source, byte_span),
                             source: "openedStyleDocumentIndex",
+                            target_style_uri: None,
                         });
                     }
                 }
@@ -2288,6 +2464,7 @@ fn collect_custom_property_hover_candidates(
                 name: fact.name.clone(),
                 range: fact.range,
                 source: "openedStyleDocumentIndex",
+                target_style_uri: None,
             });
         }
     }
@@ -2300,6 +2477,7 @@ fn collect_custom_property_hover_candidates(
                     name: name.clone(),
                     range: parser_range_for_byte_span(source, byte_span),
                     source: "openedStyleDocumentIndex",
+                    target_style_uri: None,
                 });
             }
         }
@@ -2723,7 +2901,7 @@ mod tests {
                         "uri": "file:///workspace-a/src/App.tsx",
                         "languageId": "typescriptreact",
                         "version": 1,
-                        "text": "const view = <div className=\"root\" />;",
+                        "text": "import styles from \"./App.module.scss\";\nconst view = <div className={styles.root} />;",
                     },
                 },
             }),
@@ -3129,12 +3307,12 @@ mod tests {
                 .and_then(|value| value.pointer("/result/0/command/arguments/2/0/range")),
             Some(&json!({
                 "start": {
-                    "line": 0,
-                    "character": 29,
+                    "line": 1,
+                    "character": 36,
                 },
                 "end": {
-                    "line": 0,
-                    "character": 33,
+                    "line": 1,
+                    "character": 40,
                 },
             })),
         );

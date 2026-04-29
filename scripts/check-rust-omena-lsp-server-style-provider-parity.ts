@@ -11,22 +11,24 @@ import { parseStyleDocument } from "../server/engine-core-ts/src/core/scss/scss-
 const workspaceUri = "file:///tmp/cme-rust-lsp-style-provider";
 const stylePath = "/tmp/cme-rust-lsp-style-provider/src/App.module.scss";
 const styleUri = `${workspaceUri}/src/App.module.scss`;
+const otherStyleUri = `${workspaceUri}/src/Other.module.scss`;
 const sourceUri = `${workspaceUri}/src/App.tsx`;
 const sourceText =
-  'const view = <div className="root" />;\nconst missing = <div className="missing" />;';
+  'import styles from "./App.module.scss";\nconst view = <div className={styles.root} />;\nconst missing = <div className="missing" />;';
 const sourceSelectorRange = {
-  start: { line: 0, character: 29 },
-  end: { line: 0, character: 33 },
+  start: { line: 1, character: 36 },
+  end: { line: 1, character: 40 },
 };
 const sourceMissingSelectorRange = {
-  start: { line: 1, character: 32 },
-  end: { line: 1, character: 39 },
+  start: { line: 2, character: 32 },
+  end: { line: 2, character: 39 },
 };
 const styleText =
   ".root { color: var(--brand); }\n.theme { --brand: red; }\n.alert { color: var(--missing); }";
+const otherStyleText = ".root { color: blue; }";
 const sourceSelectorQueryPosition = {
-  line: 0,
-  character: 30,
+  line: 1,
+  character: 37,
 };
 const selectorQueryPosition = {
   line: 0,
@@ -133,6 +135,18 @@ const didOpenStyleNotification = {
       languageId: "scss",
       version: 1,
       text: styleText,
+    },
+  },
+};
+const didOpenOtherStyleNotification = {
+  jsonrpc: "2.0",
+  method: "textDocument/didOpen",
+  params: {
+    textDocument: {
+      uri: otherStyleUri,
+      languageId: "scss",
+      version: 1,
+      text: otherStyleText,
     },
   },
 };
@@ -412,6 +426,7 @@ const result = spawnSync(invocation.command, [...invocation.args], {
     initializeRequest,
     didOpenSourceNotification,
     didOpenStyleNotification,
+    didOpenOtherStyleNotification,
     styleHoverCandidatesRequest,
     customPropertyReferenceCandidatesRequest,
     customPropertyDeclarationCandidatesRequest,
@@ -475,6 +490,22 @@ assert.deepEqual(diagnosticNotifications, [
     params: {
       uri: styleUri,
       diagnostics: [expectedMissingCustomPropertyDiagnostic],
+    },
+  },
+  {
+    jsonrpc: "2.0",
+    method: "textDocument/publishDiagnostics",
+    params: {
+      uri: sourceUri,
+      diagnostics: [expectedMissingSelectorDiagnostic],
+    },
+  },
+  {
+    jsonrpc: "2.0",
+    method: "textDocument/publishDiagnostics",
+    params: {
+      uri: otherStyleUri,
+      diagnostics: [],
     },
   },
   {
