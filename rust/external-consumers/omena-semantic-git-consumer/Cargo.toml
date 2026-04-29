@@ -12,7 +12,7 @@ publish = false
 [dependencies]
 engine-input-producers = { package = "omena-engine-input-producers", git = "https://github.com/omenien/omena-engine-input-producers.git", rev = "a807b9a" }
 engine-style-parser = { package = "omena-engine-style-parser", git = "https://github.com/omenien/omena-engine-style-parser.git", rev = "2001659" }
-omena-semantic = { git = "https://github.com/omenien/omena-semantic.git", rev = "29899a6" }
+omena-semantic = { git = "https://github.com/omenien/omena-semantic.git", rev = "5294ca3" }
 serde_json = "1.0"
 
 [patch.crates-io]

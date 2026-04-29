@@ -44,8 +44,8 @@ dependencies = [
 
 [[package]]
 name = "omena-semantic"
-version = "0.1.6"
-source = "git+https://github.com/omenien/omena-semantic.git?rev=29899a6#29899a693f5d8f60bdcb7947aa0a40c71a03dd17"
+version = "0.1.7"
+source = "git+https://github.com/omenien/omena-semantic.git?rev=5294ca3#5294ca31288bd51883a3a7ae8fe2fb3c4789e0c2"
 dependencies = [
  "omena-engine-input-producers",
  "omena-engine-style-parser",

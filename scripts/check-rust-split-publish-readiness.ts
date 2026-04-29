@@ -45,7 +45,7 @@ const splitRepos: readonly SplitRepo[] = [
     label: "semantic",
     repo: "omenien/omena-semantic",
     packageName: "omena-semantic",
-    expectedVersion: "0.1.6",
+    expectedVersion: "0.1.7",
     libName: "omena_semantic",
     expectedRegistryDependencies: [
       {
@@ -88,7 +88,7 @@ const splitRepos: readonly SplitRepo[] = [
     label: "bridge",
     repo: "omenien/omena-bridge",
     packageName: "omena-bridge",
-    expectedVersion: "0.1.5",
+    expectedVersion: "0.1.6",
     libName: "omena_bridge",
     expectedRegistryDependencies: [
       {
@@ -104,7 +104,7 @@ const splitRepos: readonly SplitRepo[] = [
       {
         dependencyName: "omena-semantic",
         packageName: "omena-semantic",
-        version: "0.1.6",
+        version: "0.1.7",
       },
     ],
   },
@@ -113,7 +113,7 @@ const splitRepos: readonly SplitRepo[] = [
     label: "query",
     repo: "omenien/omena-query",
     packageName: "omena-query",
-    expectedVersion: "0.1.7",
+    expectedVersion: "0.1.8",
     libName: "omena_query",
     expectedRegistryDependencies: [
       {
@@ -129,7 +129,7 @@ const splitRepos: readonly SplitRepo[] = [
       {
         dependencyName: "omena-bridge",
         packageName: "omena-bridge",
-        version: "0.1.5",
+        version: "0.1.6",
       },
       {
         dependencyName: "omena-resolver",
