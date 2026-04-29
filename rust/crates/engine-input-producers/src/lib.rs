@@ -17,6 +17,7 @@ pub use expression_domain::summarize_expression_domain_candidates_input;
 pub use expression_domain::summarize_expression_domain_canonical_candidate_bundle_input;
 pub use expression_domain::summarize_expression_domain_canonical_producer_signal_input;
 pub use expression_domain::summarize_expression_domain_evaluator_candidates_input;
+pub use expression_domain::summarize_expression_domain_flow_analysis_input;
 pub use expression_domain::summarize_expression_domain_fragments_input;
 pub use expression_domain::summarize_expression_domain_plan_input;
 pub use expression_semantics::summarize_expression_semantics_candidates_input;
@@ -311,6 +312,23 @@ pub struct ExpressionDomainCanonicalProducerSignalV0 {
     pub input_version: String,
     pub canonical_bundle: ExpressionDomainCanonicalCandidateBundleV0,
     pub evaluator_candidates: ExpressionDomainEvaluatorCandidatesV0,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExpressionDomainFlowAnalysisV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub input_version: String,
+    pub analyses: Vec<ExpressionDomainFlowAnalysisEntryV0>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExpressionDomainFlowAnalysisEntryV0 {
+    pub graph_id: String,
+    pub file_path: String,
+    pub analysis: omena_abstract_value::ClassValueFlowAnalysisV0,
 }
 
 #[derive(Debug, Serialize)]
@@ -1034,7 +1052,7 @@ pub(crate) fn finite_values_for_facts(facts: &StringTypeFactsV2) -> Option<Vec<S
     omena_abstract_value::finite_values_from_facts(&abstract_value_facts(facts))
 }
 
-fn abstract_value_facts(
+pub(crate) fn abstract_value_facts(
     facts: &StringTypeFactsV2,
 ) -> omena_abstract_value::ExternalStringTypeFactsV0 {
     omena_abstract_value::ExternalStringTypeFactsV0 {

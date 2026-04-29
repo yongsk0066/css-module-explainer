@@ -103,6 +103,11 @@ export const RUST_GATE_EVIDENCE_CORPUS: readonly RustGateEvidenceEntry[] = [
     variants: ["typescript-current"],
   },
   {
+    label: "rust-expression-domain-flow-analysis",
+    argv: ["check:rust-expression-domain-flow-analysis"],
+    variants: ["typescript-current"],
+  },
+  {
     label: "rust-expression-domain-canonical-producer",
     argv: ["check:rust-expression-domain-canonical-producer"],
     variants: ["typescript-current"],

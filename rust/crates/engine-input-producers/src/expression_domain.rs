@@ -5,9 +5,10 @@ use crate::{
     ExpressionDomainCandidatesV0, ExpressionDomainCanonicalCandidateBundleV0,
     ExpressionDomainCanonicalProducerSignalV0, ExpressionDomainEvaluatorCandidatePayloadV0,
     ExpressionDomainEvaluatorCandidateV0, ExpressionDomainEvaluatorCandidatesV0,
+    ExpressionDomainFlowAnalysisEntryV0, ExpressionDomainFlowAnalysisV0,
     ExpressionDomainFragmentV0, ExpressionDomainFragmentsV0, ExpressionDomainPlanSummaryV0,
-    collect_constraint_detail_counts, map_reduced_expression_value_domain_derivation,
-    map_reduced_expression_value_domain_kind,
+    TypeFactEntryV2, abstract_value_facts, collect_constraint_detail_counts,
+    map_reduced_expression_value_domain_derivation, map_reduced_expression_value_domain_kind,
 };
 
 struct ExpressionDomainInputRows {
@@ -209,6 +210,65 @@ pub fn summarize_expression_domain_canonical_producer_signal_input(
     }
 }
 
+pub fn summarize_expression_domain_flow_analysis_input(
+    input: &EngineInputV2,
+) -> ExpressionDomainFlowAnalysisV0 {
+    let mut by_file = BTreeMap::<String, Vec<&TypeFactEntryV2>>::new();
+    for entry in &input.type_facts {
+        by_file
+            .entry(entry.file_path.clone())
+            .or_default()
+            .push(entry);
+    }
+
+    let analyses = by_file
+        .into_iter()
+        .map(|(file_path, mut entries)| {
+            entries.sort_by(|a, b| a.expression_id.cmp(&b.expression_id));
+            let graph_id = format!("{file_path}:expression-domain-flow");
+            let mut nodes = entries
+                .iter()
+                .map(|entry| omena_abstract_value::ClassValueFlowNodeV0 {
+                    id: entry.expression_id.clone(),
+                    predecessors: Vec::new(),
+                    transfer: omena_abstract_value::ClassValueFlowTransferV0::AssignFacts(
+                        abstract_value_facts(&entry.facts),
+                    ),
+                })
+                .collect::<Vec<_>>();
+
+            if entries.len() > 1 {
+                nodes.push(omena_abstract_value::ClassValueFlowNodeV0 {
+                    id: "file-merge".to_string(),
+                    predecessors: entries
+                        .iter()
+                        .map(|entry| entry.expression_id.clone())
+                        .collect(),
+                    transfer: omena_abstract_value::ClassValueFlowTransferV0::Join,
+                });
+            }
+
+            let graph = omena_abstract_value::ClassValueFlowGraphV0 {
+                context_key: Some(graph_id.clone()),
+                nodes,
+            };
+
+            ExpressionDomainFlowAnalysisEntryV0 {
+                graph_id,
+                file_path,
+                analysis: omena_abstract_value::analyze_class_value_flow(&graph),
+            }
+        })
+        .collect();
+
+    ExpressionDomainFlowAnalysisV0 {
+        schema_version: "0",
+        product: "engine-input-producers.expression-domain-flow-analysis",
+        input_version: input.version.clone(),
+        analyses,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -216,9 +276,11 @@ mod tests {
         summarize_expression_domain_canonical_candidate_bundle_input,
         summarize_expression_domain_canonical_producer_signal_input,
         summarize_expression_domain_evaluator_candidates_input,
+        summarize_expression_domain_flow_analysis_input,
         summarize_expression_domain_fragments_input, summarize_expression_domain_plan_input,
     };
     use crate::{StringTypeFactsV2, TypeFactEntryV2, test_support::sample_input};
+    use omena_abstract_value::AbstractClassValueV0;
 
     #[test]
     fn summarizes_expression_domain_counts() {
@@ -350,6 +412,46 @@ mod tests {
     }
 
     #[test]
+    fn summarizes_expression_domain_flow_analysis() {
+        let mut input = sample_input();
+        input.type_facts = vec![
+            exact_type_fact("expr-branch-a", "btn-primary"),
+            exact_type_fact("expr-branch-b", "btn-secondary"),
+            exact_type_fact("expr-branch-c", "card"),
+        ];
+
+        let summary = summarize_expression_domain_flow_analysis_input(&input);
+
+        assert_eq!(summary.schema_version, "0");
+        assert_eq!(
+            summary.product,
+            "engine-input-producers.expression-domain-flow-analysis"
+        );
+        assert_eq!(summary.analyses.len(), 1);
+        assert_eq!(summary.analyses[0].file_path, "/tmp/App.tsx");
+        assert_eq!(summary.analyses[0].analysis.context_sensitivity, "1-cfa");
+        assert!(summary.analyses[0].analysis.converged);
+        assert_eq!(
+            summary.analyses[0]
+                .analysis
+                .nodes
+                .iter()
+                .find(|node| node.id == "file-merge")
+                .map(|node| (node.value_kind, &node.value)),
+            Some((
+                "finiteSet",
+                &AbstractClassValueV0::FiniteSet {
+                    values: vec![
+                        "btn-primary".to_string(),
+                        "btn-secondary".to_string(),
+                        "card".to_string(),
+                    ]
+                }
+            ))
+        );
+    }
+
+    #[test]
     fn summarizes_expression_domain_canonical_producer_signal() {
         let summary = summarize_expression_domain_canonical_producer_signal_input(&sample_input());
 
@@ -366,5 +468,24 @@ mod tests {
         assert_eq!(summary.canonical_bundle.fragments.len(), 2);
         assert_eq!(summary.canonical_bundle.candidates.len(), 2);
         assert_eq!(summary.evaluator_candidates.results.len(), 2);
+    }
+
+    fn exact_type_fact(expression_id: &str, value: &str) -> TypeFactEntryV2 {
+        TypeFactEntryV2 {
+            file_path: "/tmp/App.tsx".to_string(),
+            expression_id: expression_id.to_string(),
+            facts: StringTypeFactsV2 {
+                kind: "exact".to_string(),
+                constraint_kind: None,
+                values: Some(vec![value.to_string()]),
+                prefix: None,
+                suffix: None,
+                min_len: None,
+                max_len: None,
+                char_must: None,
+                char_may: None,
+                may_include_other_chars: None,
+            },
+        }
     }
 }

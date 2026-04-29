@@ -186,6 +186,42 @@ export interface ExpressionDomainCanonicalProducerSignalV0 {
   readonly evaluatorCandidates: ExpressionDomainEvaluatorCandidatesV0;
 }
 
+export interface ExpressionDomainFlowAnalysisV0 {
+  readonly schemaVersion: string;
+  readonly product: string;
+  readonly inputVersion: string;
+  readonly analyses: readonly ExpressionDomainFlowAnalysisEntryV0[];
+}
+
+export interface ExpressionDomainFlowAnalysisEntryV0 {
+  readonly graphId: string;
+  readonly filePath: string;
+  readonly analysis: ClassValueFlowAnalysisV0;
+}
+
+export interface ClassValueFlowAnalysisV0 {
+  readonly schemaVersion: string;
+  readonly product: string;
+  readonly contextSensitivity: string;
+  readonly contextKey?: string;
+  readonly converged: boolean;
+  readonly iterationCount: number;
+  readonly nodes: readonly ClassValueFlowNodeResultV0[];
+}
+
+export interface ClassValueFlowNodeResultV0 {
+  readonly id: string;
+  readonly predecessorIds: readonly string[];
+  readonly transferKind: string;
+  readonly valueKind: string;
+  readonly value: AbstractClassValueV0;
+}
+
+export interface AbstractClassValueV0 {
+  readonly kind: string;
+  readonly [key: string]: unknown;
+}
+
 export interface SelectorUsagePlanSummaryV0 {
   readonly schemaVersion: string;
   readonly inputVersion: string;
@@ -803,6 +839,15 @@ export async function runShadowExpressionDomainEvaluatorCandidatesInput(
 ): Promise<ExpressionDomainEvaluatorCandidatesV0> {
   return runShadowJson<ExpressionDomainEvaluatorCandidatesV0>(
     ["input-expression-domain-evaluator-candidates"],
+    input,
+  );
+}
+
+export async function runShadowExpressionDomainFlowAnalysisInput(
+  input: EngineInputV2,
+): Promise<ExpressionDomainFlowAnalysisV0> {
+  return runShadowJson<ExpressionDomainFlowAnalysisV0>(
+    ["input-expression-domain-flow-analysis"],
     input,
   );
 }

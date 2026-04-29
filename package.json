@@ -134,6 +134,7 @@
     "check:rust-expression-domain-canonical-candidate": "node --import tsx ./scripts/check-rust-expression-domain-canonical-candidate.ts",
     "check:rust-expression-domain-evaluator-candidates": "node --import tsx ./scripts/check-rust-expression-domain-evaluator-candidates.ts",
     "check:rust-expression-domain-reduced-evaluator": "node --import tsx ./scripts/check-rust-expression-domain-reduced-evaluator.ts",
+    "check:rust-expression-domain-flow-analysis": "node --import tsx ./scripts/check-rust-expression-domain-flow-analysis.ts",
     "check:rust-expression-domain-canonical-producer": "node --import tsx ./scripts/check-rust-expression-domain-canonical-producer.ts",
     "check:rust-expression-semantics-candidates": "node --import tsx ./scripts/check-rust-expression-semantics-candidates.ts",
     "check:rust-expression-semantics-fragments": "node --import tsx ./scripts/check-rust-expression-semantics-fragments.ts",

@@ -49,6 +49,7 @@ const DIRECT_PRODUCER_LANE_COMMANDS = new Map([
     "input-expression-domain-evaluator-candidates",
     "summarize_expression_domain_evaluator_candidates_input",
   ],
+  ["input-expression-domain-flow-analysis", "summarize_expression_domain_flow_analysis_input"],
   [
     "input-expression-domain-canonical-producer",
     "summarize_expression_domain_canonical_producer_signal_input",
