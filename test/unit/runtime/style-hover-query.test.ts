@@ -7,6 +7,7 @@ import {
   resolveStyleHoverResult,
   resolveStyleHoverResultAsync,
   resolveStyleSelectorHoverResult,
+  resolveStyleSelectorHoverResultAsync,
 } from "../../../server/engine-host-node/src/style-hover-query";
 import type { StyleSemanticGraphSummaryV0 } from "../../../server/engine-host-node/src/style-semantic-graph-query-backend";
 import { infoAtLine, makeBaseDeps, semanticSiteAt } from "../../_fixtures/test-helpers";
@@ -117,6 +118,42 @@ describe("style hover query", () => {
         env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
         readRustSelectorUsagePayloadForWorkspaceTarget: () => null,
         readRustStyleSemanticGraphForWorkspaceTarget: () => makeGraph("blocked"),
+      },
+    );
+
+    expect(result?.selectorIdentity).toMatchObject({
+      canonicalId: "selector:indicator",
+      canonicalName: "indicator",
+      identityKind: "localClass",
+      rewriteSafety: "blocked",
+      blockers: ["nested-expansion"],
+      range: { start: { line: 5, character: 1 }, end: { line: 5, character: 10 } },
+    });
+    expect(result?.usageSummary).toMatchObject({
+      totalReferences: 3,
+      directReferenceCount: 1,
+      hasExpandedReferences: true,
+      hasAnyReferences: true,
+    });
+  });
+
+  it("attaches async rust semantic graph selector identity metadata for selector hovers", async () => {
+    const deps = makeBaseDeps({
+      selectorMapForPath: () => new Map([["indicator", infoAtLine("indicator", 5)]]),
+      workspaceRoot: "/fake/ws",
+    });
+
+    const result = await resolveStyleSelectorHoverResultAsync(
+      {
+        filePath: SCSS_PATH,
+        line: 5,
+        character: 3,
+      },
+      deps,
+      {
+        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        readRustSelectorUsagePayloadForWorkspaceTarget: () => null,
+        readRustStyleSemanticGraphForWorkspaceTargetAsync: async () => makeGraph("blocked"),
       },
     );
 

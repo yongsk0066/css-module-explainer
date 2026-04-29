@@ -52,10 +52,12 @@ import {
 import { resolveRustStyleSelectorIdentityReadModelForWorkspaceTarget } from "./style-selector-identity-query";
 import {
   buildSelectorReferenceRenderSummaryFromRustGraph,
+  resolveRustStyleSelectorReferenceSummaryForWorkspaceTargetAsync,
   resolveRustStyleSelectorReferenceSummaryForWorkspaceTarget,
   type StyleSelectorReferenceQueryOptions,
 } from "./style-selector-reference-query";
 import {
+  buildStyleSemanticGraphSelectorIdentityReadModels,
   buildStyleSemanticGraphDesignTokenRankedReferenceReadModels,
   resolveRustStyleSemanticGraphForWorkspaceTargetAsync,
   resolveRustStyleSemanticGraphForWorkspaceTarget,
@@ -393,6 +395,14 @@ export async function resolveStyleHoverResultAsync(
   const styleDocument = deps.styleDocumentForPath(args.filePath);
   if (!styleDocument) return null;
 
+  const selectorHover = await resolveStyleSelectorHoverResultForDocumentAsync(
+    styleDocument,
+    args,
+    deps,
+    options,
+  );
+  if (selectorHover) return selectorHover;
+
   const customPropertyRef = findCustomPropertyRefAtCursor(styleDocument, args.line, args.character);
   if (!customPropertyRef) return resolveStyleHoverResult(args, deps, options);
 
@@ -452,6 +462,31 @@ export function resolveStyleSelectorHoverResult(
   if (!styleDocument) return null;
 
   return resolveStyleSelectorHoverResultForDocument(styleDocument, args, deps, options);
+}
+
+export async function resolveStyleSelectorHoverResultAsync(
+  args: {
+    readonly filePath: string;
+    readonly line: number;
+    readonly character: number;
+  },
+  deps: Pick<
+    ProviderDeps,
+    | "analysisCache"
+    | "styleDocumentForPath"
+    | "typeResolver"
+    | "semanticReferenceIndex"
+    | "styleDependencyGraph"
+    | "workspaceRoot"
+    | "settings"
+    | "readStyleFile"
+  >,
+  options: StyleHoverQueryOptions = {},
+): Promise<StyleSelectorHoverResult | null> {
+  const styleDocument = deps.styleDocumentForPath(args.filePath);
+  if (!styleDocument) return null;
+
+  return resolveStyleSelectorHoverResultForDocumentAsync(styleDocument, args, deps, options);
 }
 
 function resolveStyleSelectorHoverResultForDocument(
@@ -539,6 +574,91 @@ function resolveStyleSelectorHoverResultForDocument(
   };
 }
 
+async function resolveStyleSelectorHoverResultForDocumentAsync(
+  styleDocument: StyleDocumentHIR,
+  args: {
+    readonly filePath: string;
+    readonly line: number;
+    readonly character: number;
+  },
+  deps: Pick<
+    ProviderDeps,
+    | "analysisCache"
+    | "styleDocumentForPath"
+    | "typeResolver"
+    | "semanticReferenceIndex"
+    | "styleDependencyGraph"
+    | "workspaceRoot"
+    | "settings"
+    | "readStyleFile"
+  >,
+  options: StyleHoverQueryOptions,
+): Promise<StyleSelectorHoverResult | null> {
+  const selector = findSelectorAtCursor(styleDocument, args.line, args.character);
+  if (selector) {
+    const canonicalSelector = findCanonicalSelector(styleDocument, selector);
+    return {
+      kind: "selector",
+      selector: canonicalSelector,
+      range: selector.bemSuffix?.rawTokenRange ?? selector.range,
+      scssModulePath: args.filePath,
+      usageSummary: await resolveStyleSelectorUsageSummaryAsync(
+        deps,
+        args.filePath,
+        canonicalSelector.canonicalName,
+        options,
+      ),
+      styleDependencies: readSelectorStyleDependencySummary(
+        deps.styleDependencyGraph,
+        args.filePath,
+        canonicalSelector.canonicalName,
+      ),
+      ...(await withStyleSelectorIdentityAsync(
+        deps,
+        styleDocument,
+        args.filePath,
+        canonicalSelector.canonicalName,
+        options,
+      )),
+    };
+  }
+
+  const composesHit = findComposesTokenAtCursor(styleDocument, args.line, args.character);
+  const target = resolveComposesTarget(
+    deps.styleDocumentForPath,
+    styleDocument.filePath,
+    composesHit,
+  );
+  if (!composesHit || !target) return null;
+
+  return {
+    kind: "selector",
+    selector: target.selector,
+    range: composesHit.token.range,
+    scssModulePath: target.filePath,
+    usageSummary: await resolveStyleSelectorUsageSummaryAsync(
+      deps,
+      target.filePath,
+      target.selector.canonicalName,
+      options,
+    ),
+    styleDependencies: readSelectorStyleDependencySummary(
+      deps.styleDependencyGraph,
+      target.filePath,
+      target.selector.canonicalName,
+    ),
+    ...(await withStyleSelectorIdentityAsync(
+      deps,
+      target.styleDocument,
+      target.filePath,
+      target.selector.canonicalName,
+      options,
+    )),
+    headingName: composesHit.token.className,
+    note: `Referenced via \`composes\` from \`.${composesHit.selector.name}\``,
+  };
+}
+
 function resolveStyleSelectorUsageSummary(
   deps: Pick<
     ProviderDeps,
@@ -596,6 +716,34 @@ function resolveStyleSelectorUsageSummary(
   return usage;
 }
 
+async function resolveStyleSelectorUsageSummaryAsync(
+  deps: Pick<
+    ProviderDeps,
+    | "analysisCache"
+    | "styleDocumentForPath"
+    | "typeResolver"
+    | "semanticReferenceIndex"
+    | "styleDependencyGraph"
+    | "workspaceRoot"
+    | "settings"
+    | "readStyleFile"
+  >,
+  filePath: string,
+  canonicalName: string,
+  options: StyleHoverQueryOptions,
+): Promise<SelectorUsageRenderSummary> {
+  const graphReferences = await resolveRustStyleSelectorReferenceSummaryForWorkspaceTargetAsync(
+    { filePath, canonicalName },
+    deps,
+    options,
+  );
+  if (graphReferences) {
+    return buildSelectorReferenceRenderSummaryFromRustGraph(graphReferences);
+  }
+
+  return resolveStyleSelectorUsageSummary(deps, filePath, canonicalName, options);
+}
+
 function withStyleSelectorIdentity(
   deps: Pick<
     ProviderDeps,
@@ -621,6 +769,50 @@ function withStyleSelectorIdentity(
     options,
   );
   return selectorIdentity ? { selectorIdentity } : {};
+}
+
+async function withStyleSelectorIdentityAsync(
+  deps: Pick<
+    ProviderDeps,
+    | "analysisCache"
+    | "styleDocumentForPath"
+    | "typeResolver"
+    | "workspaceRoot"
+    | "settings"
+    | "readStyleFile"
+  >,
+  styleDocument: StyleDocumentHIR,
+  filePath: string,
+  canonicalName: string,
+  options: StyleHoverQueryOptions,
+): Promise<{ readonly selectorIdentity?: StyleSemanticGraphSelectorIdentityReadModel }> {
+  if (!usesRustStyleSemanticGraphBackend(resolveSelectedQueryBackendKind(options.env))) {
+    return {};
+  }
+
+  try {
+    const graph = await (
+      options.readRustStyleSemanticGraphForWorkspaceTargetAsync ??
+      resolveRustStyleSemanticGraphForWorkspaceTargetAsync
+    )(
+      {
+        workspaceRoot: deps.workspaceRoot,
+        classnameTransform: deps.settings.scss.classnameTransform,
+        pathAlias: deps.settings.pathAlias,
+      },
+      deps,
+      filePath,
+      options,
+    );
+    if (!graph) return {};
+    const selectorIdentity = buildStyleSemanticGraphSelectorIdentityReadModels(
+      graph,
+      styleDocument,
+    ).find((identity) => identity.canonicalName === canonicalName);
+    return selectorIdentity ? { selectorIdentity } : {};
+  } catch {
+    return {};
+  }
 }
 
 function withDesignTokenRanking(
