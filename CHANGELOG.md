@@ -1,5 +1,11 @@
 # Changelog
 
+## [4.1.19] — 2026-04-29
+
+### Changed
+
+- **Rust-backed design-token hover targets** — CSS custom property hovers now reuse runtime semantic graph cache entries and can materialize Rust design-token winner files on demand, so imported token declarations remain hoverable even when the legacy TypeScript resolver has not indexed the winner yet.
+
 ## [4.1.18] — 2026-04-29
 
 ### Changed
