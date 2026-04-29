@@ -1,5 +1,16 @@
 # Changelog
 
+## [4.1.3] — 2026-04-29
+
+### Added
+
+- **CSS custom property product path** — custom property tokens now have stronger hover, definition, references, completion, diagnostics, and quick-fix coverage, including edit-time completions and wrapper-aware completion ranking.
+- **Design-token package coverage** — Sass package-root `@forward` flows and package-backed CSS custom properties are now covered across runtime queries and checker diagnostics.
+
+### Fixed
+
+- **Package subpath exports** — style resolution now handles package.json `exports` subpaths such as `@design/tokens/colors`, including Sass and CSS style entry conditions.
+
 ## [4.1.2] — 2026-04-29
 
 ### Fixed
