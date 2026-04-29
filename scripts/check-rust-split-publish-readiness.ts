@@ -171,7 +171,7 @@ const splitRepos: readonly SplitRepo[] = [
     label: "lsp-server",
     repo: "omenien/omena-lsp-server",
     packageName: "omena-lsp-server",
-    expectedVersion: "0.1.0",
+    expectedVersion: "0.1.1",
     libName: "omena_lsp_server",
     expectedRegistryDependencies: [
       {

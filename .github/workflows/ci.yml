@@ -100,6 +100,7 @@ jobs:
         with:
           name: build-output
           path: dist/
+      - run: node ./scripts/restore-native-binary-permissions.mjs
       - run: xvfb-run -a pnpm cme-check run test/extension-host
 
   package:
@@ -121,6 +122,7 @@ jobs:
           pattern: engine-shadow-runner-*
           path: .runner-artifacts
       - run: node ./scripts/merge-engine-shadow-runner-artifacts.mjs
+      - run: node ./scripts/restore-native-binary-permissions.mjs
       - run: pnpm cme-check run release/check/packaged-engine-shadow-runner-matrix
         env:
           CME_PACKAGED_RUNNER_MIN_TARGETS: "3"

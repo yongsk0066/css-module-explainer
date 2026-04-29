@@ -28,6 +28,7 @@ pnpm check
 pnpm test
 pnpm build
 node ./scripts/merge-engine-shadow-runner-artifacts.mjs
+node ./scripts/restore-native-binary-permissions.mjs
 pnpm check:packaged-engine-shadow-runner-matrix
 pnpm check:packaged-tsgo-binary
 
