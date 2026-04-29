@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.1.4] — 2026-04-29
+
+### Fixed
+
+- **Design-token package exports** — package-backed Sass and CSS resolution now handles `exports` wildcard patterns, fallback arrays, and extensionless style targets that need Sass candidate expansion.
+- **Forwarded package token coverage** — local utility modules that `@forward` package subpaths with `as ds_*` are now locked across hover, definition, completion, and checker diagnostics.
+
 ## [4.1.3] — 2026-04-29
 
 ### Added
