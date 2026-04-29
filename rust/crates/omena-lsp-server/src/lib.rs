@@ -305,6 +305,7 @@ pub struct LspWatchedFileChangeState {
 pub struct LspShellStateSnapshot {
     pub shutdown_requested: bool,
     pub should_exit: bool,
+    pub features: LspFeatureSettings,
     pub document_count: usize,
     pub workspace_folder_count: usize,
     pub configuration_change_count: usize,
@@ -314,10 +315,33 @@ pub struct LspShellStateSnapshot {
     pub watched_file_changes: Vec<LspWatchedFileChangeState>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LspFeatureSettings {
+    pub definition: bool,
+    pub hover: bool,
+    pub completion: bool,
+    pub references: bool,
+    pub rename: bool,
+}
+
+impl Default for LspFeatureSettings {
+    fn default() -> Self {
+        Self {
+            definition: true,
+            hover: true,
+            completion: true,
+            references: true,
+            rename: true,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct LspShellState {
     pub shutdown_requested: bool,
     pub should_exit: bool,
+    features: LspFeatureSettings,
     configuration_change_count: usize,
     documents: BTreeMap<String, LspTextDocumentState>,
     workspace_folders: BTreeMap<String, LspWorkspaceFolderState>,
@@ -345,6 +369,7 @@ impl LspShellState {
         LspShellStateSnapshot {
             shutdown_requested: self.shutdown_requested,
             should_exit: self.should_exit,
+            features: self.features.clone(),
             document_count: self.document_count(),
             workspace_folder_count: self.workspace_folder_count(),
             configuration_change_count: self.configuration_change_count,
@@ -392,7 +417,7 @@ pub fn handle_lsp_message(state: &mut LspShellState, message: Value) -> Option<V
             None
         }
         (Some("workspace/didChangeConfiguration"), None) => {
-            did_change_configuration(state);
+            did_change_configuration(state, message.get("params"));
             None
         }
         (Some("workspace/didChangeWatchedFiles"), None) => {
@@ -402,22 +427,22 @@ pub fn handle_lsp_message(state: &mut LspShellState, message: Value) -> Option<V
         (Some("textDocument/hover"), Some(request_id)) => Some(json!({
             "jsonrpc": "2.0",
             "id": request_id,
-            "result": resolve_lsp_hover(state, message.get("params")),
+            "result": if state.features.hover { resolve_lsp_hover(state, message.get("params")) } else { Value::Null },
         })),
         (Some("textDocument/definition"), Some(request_id)) => Some(json!({
             "jsonrpc": "2.0",
             "id": request_id,
-            "result": resolve_lsp_definition(state, message.get("params")),
+            "result": if state.features.definition { resolve_lsp_definition(state, message.get("params")) } else { Value::Null },
         })),
         (Some("textDocument/references"), Some(request_id)) => Some(json!({
             "jsonrpc": "2.0",
             "id": request_id,
-            "result": resolve_lsp_references(state, message.get("params")),
+            "result": if state.features.references { resolve_lsp_references(state, message.get("params")) } else { Value::Null },
         })),
         (Some("textDocument/completion"), Some(request_id)) => Some(json!({
             "jsonrpc": "2.0",
             "id": request_id,
-            "result": resolve_lsp_completion(state, message.get("params")),
+            "result": if state.features.completion { resolve_lsp_completion(state, message.get("params")) } else { Value::Null },
         })),
         (Some("textDocument/codeAction"), Some(request_id)) => Some(json!({
             "jsonrpc": "2.0",
@@ -427,17 +452,17 @@ pub fn handle_lsp_message(state: &mut LspShellState, message: Value) -> Option<V
         (Some("textDocument/codeLens"), Some(request_id)) => Some(json!({
             "jsonrpc": "2.0",
             "id": request_id,
-            "result": resolve_lsp_code_lens(state, message.get("params")),
+            "result": if state.features.references { resolve_lsp_code_lens(state, message.get("params")) } else { Value::Null },
         })),
         (Some("textDocument/prepareRename"), Some(request_id)) => Some(json!({
             "jsonrpc": "2.0",
             "id": request_id,
-            "result": resolve_lsp_prepare_rename(state, message.get("params")),
+            "result": if state.features.rename { resolve_lsp_prepare_rename(state, message.get("params")) } else { Value::Null },
         })),
         (Some("textDocument/rename"), Some(request_id)) => Some(json!({
             "jsonrpc": "2.0",
             "id": request_id,
-            "result": resolve_lsp_rename(state, message.get("params")),
+            "result": if state.features.rename { resolve_lsp_rename(state, message.get("params")) } else { Value::Null },
         })),
         (Some(DEBUG_STATE_REQUEST), Some(request_id)) => Some(json!({
             "jsonrpc": "2.0",
@@ -801,8 +826,31 @@ fn did_change_workspace_folders(state: &mut LspShellState, params: Option<&Value
     refresh_document_workspace_owners(state);
 }
 
-fn did_change_configuration(state: &mut LspShellState) {
+fn did_change_configuration(state: &mut LspShellState, params: Option<&Value>) {
     state.configuration_change_count += 1;
+    let Some(features) = params
+        .and_then(|value| value.get("settings"))
+        .and_then(|value| value.get("cssModuleExplainer"))
+        .and_then(|value| value.get("features"))
+        .and_then(Value::as_object)
+    else {
+        return;
+    };
+    if let Some(value) = features.get("definition").and_then(Value::as_bool) {
+        state.features.definition = value;
+    }
+    if let Some(value) = features.get("hover").and_then(Value::as_bool) {
+        state.features.hover = value;
+    }
+    if let Some(value) = features.get("completion").and_then(Value::as_bool) {
+        state.features.completion = value;
+    }
+    if let Some(value) = features.get("references").and_then(Value::as_bool) {
+        state.features.references = value;
+    }
+    if let Some(value) = features.get("rename").and_then(Value::as_bool) {
+        state.features.rename = value;
+    }
 }
 
 fn did_change_watched_files(state: &mut LspShellState, params: Option<&Value>) {
@@ -2729,6 +2777,92 @@ mod tests {
                 .and_then(|value| value.pointer("/error/code")),
             Some(&json!(-32601)),
         );
+    }
+
+    #[test]
+    fn honors_feature_configuration_toggles() {
+        let mut state = LspShellState::default();
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": "file:///workspace-a/src/App.module.scss",
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": ".root { color: red; }",
+                    },
+                },
+            }),
+        );
+
+        let enabled_hover = handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "textDocument/hover",
+                "params": {
+                    "textDocument": {
+                        "uri": "file:///workspace-a/src/App.module.scss",
+                    },
+                    "position": {
+                        "line": 0,
+                        "character": 2,
+                    },
+                },
+            }),
+        );
+        assert_eq!(
+            enabled_hover
+                .as_ref()
+                .and_then(|value| value.pointer("/result/contents/kind")),
+            Some(&json!("markdown")),
+        );
+
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "workspace/didChangeConfiguration",
+                "params": {
+                    "settings": {
+                        "cssModuleExplainer": {
+                            "features": {
+                                "hover": false,
+                            },
+                        },
+                    },
+                },
+            }),
+        );
+
+        let disabled_hover = handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/hover",
+                "params": {
+                    "textDocument": {
+                        "uri": "file:///workspace-a/src/App.module.scss",
+                    },
+                    "position": {
+                        "line": 0,
+                        "character": 2,
+                    },
+                },
+            }),
+        );
+        assert_eq!(
+            disabled_hover
+                .as_ref()
+                .and_then(|value| value.get("result")),
+            Some(&Value::Null),
+        );
+        assert!(!state.snapshot().features.hover);
     }
 
     #[test]
