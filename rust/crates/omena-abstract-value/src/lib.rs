@@ -187,6 +187,7 @@ pub struct ClassValueFlowAnalysisV0 {
 pub struct ClassValueFlowIncrementalAnalysisV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
+    pub reused_previous_analysis: bool,
     pub incremental_plan: IncrementalComputationPlanV0,
     pub next_snapshot: IncrementalSnapshotV0,
     pub analysis: ClassValueFlowAnalysisV0,
@@ -561,16 +562,32 @@ pub fn analyze_class_value_flow_incremental(
     previous_snapshot: Option<&IncrementalSnapshotV0>,
     revision: u64,
 ) -> ClassValueFlowIncrementalAnalysisV0 {
+    analyze_class_value_flow_incremental_with_reuse(graph, previous_snapshot, None, revision)
+}
+
+pub fn analyze_class_value_flow_incremental_with_reuse(
+    graph: &ClassValueFlowGraphV0,
+    previous_snapshot: Option<&IncrementalSnapshotV0>,
+    previous_analysis: Option<&ClassValueFlowAnalysisV0>,
+    revision: u64,
+) -> ClassValueFlowIncrementalAnalysisV0 {
     let incremental_input = class_value_flow_incremental_input(graph, revision);
     let incremental_plan = plan_incremental_computation(&incremental_input, previous_snapshot);
     let next_snapshot = snapshot_from_graph_input(&incremental_input);
+    let reused_previous_analysis =
+        incremental_plan.dirty_node_count == 0 && previous_analysis.is_some();
+    let analysis = match (incremental_plan.dirty_node_count, previous_analysis) {
+        (0, Some(previous_analysis)) => previous_analysis.clone(),
+        _ => analyze_class_value_flow(graph),
+    };
 
     ClassValueFlowIncrementalAnalysisV0 {
         schema_version: "0",
         product: "omena-abstract-value.incremental-flow-analysis",
+        reused_previous_analysis,
         incremental_plan,
         next_snapshot,
-        analysis: analyze_class_value_flow(graph),
+        analysis,
     }
 }
 
@@ -1727,17 +1744,17 @@ mod tests {
         ClassValueFlowNodeV0, ClassValueFlowTransferV0, CompositeClassValueInputV0,
         ExternalStringTypeFactsV0, MAX_FINITE_CLASS_VALUES, SelectorProjectionCertaintyV0,
         abstract_class_value_from_facts, analyze_class_value_flow,
-        analyze_class_value_flow_incremental, bottom_class_value, char_inclusion_class_value,
-        composite_class_value, derive_selector_projection_certainty, exact_class_value,
-        finite_set_class_value, finite_values_from_facts, intersect_abstract_class_values,
-        join_abstract_class_values, prefix_class_value, prefix_suffix_class_value,
-        project_abstract_value_selectors, reduced_abstract_class_value_from_facts,
-        reduced_class_value_derivation_from_facts, reduced_value_domain_kind_from_facts,
-        selector_certainty_from_facts, selector_certainty_shape_kind_from_facts,
-        selector_certainty_shape_label_from_facts, suffix_class_value,
-        summarize_omena_abstract_value_domain, summarize_omena_abstract_value_flow_analysis,
-        top_class_value, value_certainty_from_facts, value_certainty_shape_kind_from_facts,
-        value_certainty_shape_label_from_facts,
+        analyze_class_value_flow_incremental, analyze_class_value_flow_incremental_with_reuse,
+        bottom_class_value, char_inclusion_class_value, composite_class_value,
+        derive_selector_projection_certainty, exact_class_value, finite_set_class_value,
+        finite_values_from_facts, intersect_abstract_class_values, join_abstract_class_values,
+        prefix_class_value, prefix_suffix_class_value, project_abstract_value_selectors,
+        reduced_abstract_class_value_from_facts, reduced_class_value_derivation_from_facts,
+        reduced_value_domain_kind_from_facts, selector_certainty_from_facts,
+        selector_certainty_shape_kind_from_facts, selector_certainty_shape_label_from_facts,
+        suffix_class_value, summarize_omena_abstract_value_domain,
+        summarize_omena_abstract_value_flow_analysis, top_class_value, value_certainty_from_facts,
+        value_certainty_shape_kind_from_facts, value_certainty_shape_label_from_facts,
     };
 
     #[test]
@@ -2207,6 +2224,7 @@ mod tests {
             first.product,
             "omena-abstract-value.incremental-flow-analysis"
         );
+        assert!(!first.reused_previous_analysis);
         assert_eq!(first.incremental_plan.dirty_node_count, 3);
         assert_eq!(first.incremental_plan.new_node_count, 3);
         assert_eq!(
@@ -2218,6 +2236,7 @@ mod tests {
 
         let unchanged = analyze_class_value_flow_incremental(&graph, Some(&first.next_snapshot), 2);
         assert_eq!(unchanged.incremental_plan.dirty_node_count, 0);
+        assert!(!unchanged.reused_previous_analysis);
         assert!(unchanged.analysis.converged);
 
         let changed_graph = ClassValueFlowGraphV0 {
@@ -2246,6 +2265,34 @@ mod tests {
                 values: vec!["btn-secondary".to_string(), "card".to_string()]
             })
         );
+    }
+
+    #[test]
+    fn reuses_previous_class_value_flow_analysis_when_incremental_plan_is_clean() {
+        let graph = ClassValueFlowGraphV0 {
+            context_key: Some("Button.tsx:render@primary".to_string()),
+            nodes: vec![
+                flow_assign_node("then", external_facts("exact").with_values(["btn-primary"])),
+                flow_assign_node("else", external_facts("exact").with_values(["card"])),
+                ClassValueFlowNodeV0 {
+                    id: "merge".to_string(),
+                    predecessors: vec!["then".to_string(), "else".to_string()],
+                    transfer: ClassValueFlowTransferV0::Join,
+                },
+            ],
+        };
+        let first = analyze_class_value_flow_incremental(&graph, None, 1);
+
+        let reused = analyze_class_value_flow_incremental_with_reuse(
+            &graph,
+            Some(&first.next_snapshot),
+            Some(&first.analysis),
+            2,
+        );
+
+        assert_eq!(reused.incremental_plan.dirty_node_count, 0);
+        assert!(reused.reused_previous_analysis);
+        assert_eq!(reused.analysis, first.analysis);
     }
 
     #[test]

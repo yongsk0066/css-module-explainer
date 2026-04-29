@@ -17,6 +17,8 @@ Current public product:
   class-value flow graphs with assign/refine/join transfers.
 - `analyze_class_value_flow_incremental` — the same flow analysis surfaced with
   an `omena-incremental` recomputation plan and next snapshot.
+- `analyze_class_value_flow_incremental_with_reuse` — incremental flow analysis
+  that reuses the previous result when the plan is clean.
 - `reduced_abstract_class_value_from_facts` /
   `reduced_value_domain_kind_from_facts` — source fact reduction before
   evaluator-facing domain-kind reporting.
