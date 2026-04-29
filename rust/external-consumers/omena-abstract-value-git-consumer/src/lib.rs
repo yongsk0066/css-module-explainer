@@ -33,11 +33,13 @@ pub fn consume_prefix_suffix_projection() -> Vec<String> {
 mod tests {
     use super::{consume_domain_summary_product, consume_prefix_suffix_projection};
     use omena_abstract_value::{
-        AbstractClassValueV0, ExternalStringTypeFactsV0, abstract_class_value_from_facts,
-        char_inclusion_class_value, enumerate_finite_class_values, finite_set_class_value,
-        intersect_abstract_class_values, prefix_class_value,
-        reduced_abstract_class_value_from_facts, reduced_class_value_derivation_from_facts,
-        reduced_value_domain_kind_from_facts, suffix_class_value,
+        AbstractClassValueV0, ClassValueFlowGraphV0, ClassValueFlowNodeV0,
+        ClassValueFlowTransferV0, ExternalStringTypeFactsV0, abstract_class_value_from_facts,
+        analyze_class_value_flow, char_inclusion_class_value, enumerate_finite_class_values,
+        exact_class_value, finite_set_class_value, intersect_abstract_class_values,
+        join_abstract_class_values, prefix_class_value, reduced_abstract_class_value_from_facts,
+        reduced_class_value_derivation_from_facts, reduced_value_domain_kind_from_facts,
+        suffix_class_value, summarize_omena_abstract_value_flow_analysis,
         value_certainty_shape_kind_from_facts,
     };
     use serde_json::json;
@@ -181,6 +183,49 @@ mod tests {
     }
 
     #[test]
+    fn consumes_flow_analysis_contract() {
+        let summary = summarize_omena_abstract_value_flow_analysis();
+        assert_eq!(summary.product, "omena-abstract-value.flow-analysis");
+        assert_eq!(summary.context_sensitivity, "1-cfa");
+
+        assert_eq!(
+            join_abstract_class_values(
+                &exact_class_value("btn-primary"),
+                &exact_class_value("card")
+            ),
+            AbstractClassValueV0::FiniteSet {
+                values: vec!["btn-primary".to_string(), "card".to_string()]
+            }
+        );
+
+        let analysis = analyze_class_value_flow(&ClassValueFlowGraphV0 {
+            context_key: Some("consumer:render@primary".to_string()),
+            nodes: vec![
+                flow_assign_node("then", "btn-primary"),
+                flow_assign_node("else", "card"),
+                ClassValueFlowNodeV0 {
+                    id: "merge".to_string(),
+                    predecessors: vec!["then".to_string(), "else".to_string()],
+                    transfer: ClassValueFlowTransferV0::Join,
+                },
+            ],
+        });
+
+        assert_eq!(analysis.product, "omena-abstract-value.flow-analysis");
+        assert!(analysis.converged);
+        assert_eq!(
+            analysis
+                .nodes
+                .iter()
+                .find(|node| node.id == "merge")
+                .map(|node| &node.value),
+            Some(&AbstractClassValueV0::FiniteSet {
+                values: vec!["btn-primary".to_string(), "card".to_string()]
+            })
+        );
+    }
+
+    #[test]
     fn serializes_remote_domain_summary_for_downstream_consumers() -> Result<(), String> {
         let value =
             serde_json::to_value(omena_abstract_value::summarize_omena_abstract_value_domain())
@@ -190,5 +235,24 @@ mod tests {
         assert_eq!(value["product"], json!("omena-abstract-value.domain"));
         assert_eq!(value["maxFiniteClassValues"], json!(8));
         Ok(())
+    }
+
+    fn flow_assign_node(id: &str, value: &str) -> ClassValueFlowNodeV0 {
+        ClassValueFlowNodeV0 {
+            id: id.to_string(),
+            predecessors: Vec::new(),
+            transfer: ClassValueFlowTransferV0::AssignFacts(ExternalStringTypeFactsV0 {
+                kind: "exact".to_string(),
+                constraint_kind: None,
+                values: Some(vec![value.to_string()]),
+                prefix: None,
+                suffix: None,
+                min_len: None,
+                max_len: None,
+                char_must: None,
+                char_may: None,
+                may_include_other_chars: None,
+            }),
+        }
     }
 }
