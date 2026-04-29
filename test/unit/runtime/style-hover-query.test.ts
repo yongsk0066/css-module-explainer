@@ -229,6 +229,39 @@ describe("style hover query", () => {
     });
   });
 
+  it("attaches rust design token ranking to custom property reference hovers", () => {
+    const css = [
+      ":root { --brand: red; }",
+      ".theme { --brand: blue; }",
+      ".button { --brand: green; color: var(--brand); }",
+    ].join("\n");
+    const styleDocument = parseStyleDocument(css, TOKENS_CSS_PATH);
+
+    const result = resolveStyleHoverResult(
+      {
+        filePath: TOKENS_CSS_PATH,
+        line: 2,
+        character: 39,
+      },
+      makeBaseDeps({
+        styleDocumentForPath: styleDocumentMap([styleDocument]),
+      }),
+      {
+        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" },
+        readRustStyleSemanticGraphForWorkspaceTarget: () => makeDesignTokenRankingGraph(),
+      },
+    );
+
+    expect(result).toMatchObject({
+      kind: "customProperty",
+      headingName: "--brand",
+      designTokenRanking: {
+        winnerDeclaration: { value: "green" },
+        shadowedDeclarations: [{ value: "red" }, { value: "blue" }],
+      },
+    });
+  });
+
   it("resolves workspace-indexed CSS custom property references to source files", () => {
     const buttonScss = `.button {
   color: var(--color-gray-700);
@@ -950,5 +983,77 @@ function makeGraph(rewriteSafety: "safe" | "blocked"): StyleSemanticGraphSummary
     sourceInputEvidence: {},
     promotionEvidence: {},
     losslessCstContract: {},
+  };
+}
+
+function makeDesignTokenRankingGraph(): StyleSemanticGraphSummaryV0 {
+  return {
+    ...makeGraph("safe"),
+    designTokenSemantics: {
+      schemaVersion: "0",
+      product: "omena-semantic.design-token-semantics",
+      status: "same-file-cascade-ranking-seed",
+      resolutionScope: "same-file",
+      declarationCount: 3,
+      referenceCount: 1,
+      resolvedReferenceCount: 1,
+      unresolvedReferenceCount: 0,
+      selectorsWithReferencesCount: 1,
+      contextSignal: {
+        declarationContextSelectorCount: 1,
+        declarationWrapperContextCount: 0,
+        mediaContextSelectorCount: 0,
+        supportsContextSelectorCount: 0,
+        layerContextSelectorCount: 0,
+        wrapperContextCount: 0,
+      },
+      resolutionSignal: {
+        declarationFactCount: 3,
+        referenceFactCount: 1,
+        sourceOrderedDeclarationCount: 3,
+        sourceOrderedReferenceCount: 1,
+        occurrenceResolvedReferenceCount: 1,
+        occurrenceUnresolvedReferenceCount: 0,
+        contextMatchedReferenceCount: 1,
+        contextUnmatchedReferenceCount: 0,
+        rootDeclarationCount: 1,
+        selectorScopedDeclarationCount: 2,
+        wrapperScopedDeclarationCount: 0,
+      },
+      cascadeRankingSignal: {
+        rankedReferenceCount: 1,
+        unrankedReferenceCount: 0,
+        sourceOrderWinnerDeclarationCount: 1,
+        sourceOrderShadowedDeclarationCount: 2,
+        repeatedNameDeclarationCount: 3,
+        rankedReferences: [
+          {
+            referenceName: "--brand",
+            referenceSourceOrder: 0,
+            winnerDeclarationSourceOrder: 2,
+            shadowedDeclarationSourceOrders: [0, 1],
+            candidateDeclarationCount: 3,
+          },
+        ],
+      },
+      capabilities: {
+        sameFileResolutionReady: true,
+        wrapperContextSignalReady: false,
+        sourceOrderSignalReady: true,
+        sourceOrderCascadeRankingReady: true,
+        occurrenceResolutionSignalReady: true,
+        selectorContextResolutionReady: true,
+        themeOverrideContextSignalReady: true,
+        crossFileImportGraphReady: false,
+        crossPackageCascadeRankingReady: false,
+        themeOverrideContextReady: false,
+      },
+      blockingGaps: ["crossFileImportGraph", "crossPackageCascadeRanking", "themeOverrideContext"],
+      nextPriorities: [
+        "crossFileImportGraph",
+        "crossPackageCascadeRanking",
+        "themeOverrideContext",
+      ],
+    },
   };
 }

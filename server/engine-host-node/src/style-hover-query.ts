@@ -42,6 +42,7 @@ import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
 import {
   resolveSelectedQueryBackendKind,
   usesRustSelectorUsageBackend,
+  usesRustStyleSemanticGraphBackend,
 } from "./selected-query-backend";
 import {
   buildSelectorUsageRenderSummaryFromRustPayload,
@@ -56,7 +57,12 @@ import {
   buildSelectorReferenceRenderSummaryFromRustGraph,
   resolveRustStyleSelectorReferenceSummaryForWorkspaceTarget,
 } from "./style-selector-reference-query";
-import type { StyleSemanticGraphSelectorIdentityReadModel } from "./style-semantic-graph-query-backend";
+import {
+  buildStyleSemanticGraphDesignTokenRankedReferenceReadModels,
+  resolveRustStyleSemanticGraphForWorkspaceTarget,
+  type StyleSemanticGraphDesignTokenRankedReferenceReadModel,
+  type StyleSemanticGraphSelectorIdentityReadModel,
+} from "./style-semantic-graph-query-backend";
 
 export interface StyleSelectorHoverResult {
   readonly kind: "selector";
@@ -111,6 +117,7 @@ export interface StyleCustomPropertyHoverResult {
   readonly referenceCount: number;
   readonly headingName?: string;
   readonly note?: string;
+  readonly designTokenRanking?: StyleSemanticGraphDesignTokenRankedReferenceReadModel;
 }
 
 export type StyleHoverResult =
@@ -240,6 +247,7 @@ export function resolveStyleHoverResult(
         styleDocument,
         customPropertyRef.name,
       ),
+      ...withDesignTokenRanking(deps, styleDocument, args.filePath, customPropertyRef, options),
     };
   }
 
@@ -556,6 +564,51 @@ function withStyleSelectorIdentity(
     options,
   );
   return selectorIdentity ? { selectorIdentity } : {};
+}
+
+function withDesignTokenRanking(
+  deps: Pick<
+    ProviderDeps,
+    | "analysisCache"
+    | "styleDocumentForPath"
+    | "typeResolver"
+    | "workspaceRoot"
+    | "settings"
+    | "readStyleFile"
+  >,
+  styleDocument: StyleDocumentHIR,
+  filePath: string,
+  customPropertyRef: StyleDocumentHIR["customPropertyRefs"][number],
+  options: StyleHoverQueryOptions,
+): { readonly designTokenRanking?: StyleSemanticGraphDesignTokenRankedReferenceReadModel } {
+  if (!usesRustStyleSemanticGraphBackend(resolveSelectedQueryBackendKind(options.env))) {
+    return {};
+  }
+
+  try {
+    const graph = (
+      options.readRustStyleSemanticGraphForWorkspaceTarget ??
+      resolveRustStyleSemanticGraphForWorkspaceTarget
+    )(
+      {
+        workspaceRoot: deps.workspaceRoot,
+        classnameTransform: deps.settings.scss.classnameTransform,
+        pathAlias: deps.settings.pathAlias,
+      },
+      deps,
+      filePath,
+      options,
+    );
+    if (!graph) return {};
+
+    const ranking = buildStyleSemanticGraphDesignTokenRankedReferenceReadModels(
+      graph,
+      styleDocument,
+    ).find((readModel) => readModel.reference === customPropertyRef);
+    return ranking ? { designTokenRanking: ranking } : {};
+  } catch {
+    return {};
+  }
 }
 
 function readCustomPropertyReferenceCount(
