@@ -211,6 +211,7 @@ describe("resolveSourceDiagnosticFindings", () => {
           selectorCertaintyShapeLabel: "unknown",
           valueCertaintyShapeKind: "boundedFinite",
           valueCertaintyShapeLabel: "bounded finite (2)",
+          valueDomainDerivation: sampleValueDomainDerivation(),
         }),
       },
     );
@@ -222,6 +223,7 @@ describe("resolveSourceDiagnosticFindings", () => {
       valueCertainty: "inferred",
       selectorCertainty: "possible",
       reason: "flowBranch",
+      valueDomainDerivation: sampleValueDomainDerivation(),
     });
   });
 
@@ -333,4 +335,22 @@ function throwingTypeResolver(): TypeResolver {
     invalidate: () => {},
     clear: () => {},
   };
+}
+
+function sampleValueDomainDerivation() {
+  return {
+    schemaVersion: "0",
+    product: "omena-abstract-value.reduced-class-value-derivation",
+    inputFactKind: "finiteSet",
+    inputValueCount: 2,
+    reducedKind: "finiteSet",
+    steps: [
+      {
+        operation: "baseFromFacts",
+        inputKind: "finiteSet",
+        resultKind: "finiteSet",
+        reason: "preserved finite string literal facts",
+      },
+    ],
+  } as const;
 }

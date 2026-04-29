@@ -98,6 +98,9 @@ function toDiagnostic(
         severity,
         source: DIAGNOSTIC_SOURCE,
         message: formatCheckerFinding(finding, deps.workspaceRoot),
+        ...(finding.valueDomainDerivation
+          ? { data: { valueDomainDerivation: finding.valueDomainDerivation } }
+          : {}),
       };
     case "missing-module":
       return {

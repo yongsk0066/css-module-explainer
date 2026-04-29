@@ -1,5 +1,6 @@
 import type { Range } from "@css-module-explainer/shared";
 import type { CheckerFinding } from "../core/checker/contracts";
+import type { ReducedClassValueDerivation } from "../core/query/read-expression-semantics";
 
 export const CHECKER_REPORT_VERSION_V1 = "1" as const;
 
@@ -12,6 +13,7 @@ export interface CheckerFindingRecordV1 {
   readonly message: string;
   readonly analysisReason?: string;
   readonly valueCertaintyShapeLabel?: string;
+  readonly valueDomainDerivation?: ReducedClassValueDerivation;
 }
 
 export interface CheckerReportSummaryV1 {

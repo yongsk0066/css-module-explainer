@@ -224,6 +224,9 @@ function resolveSourceDiagnosticFindingsViaRustSemantics(
           valueCertainty: semantics.valueCertainty,
           selectorCertainty: semantics.selectorCertainty,
           reason: semantics.reason,
+          ...(semantics.valueDomainDerivation
+            ? { valueDomainDerivation: semantics.valueDomainDerivation }
+            : {}),
         });
         continue;
       }
@@ -243,6 +246,9 @@ function resolveSourceDiagnosticFindingsViaRustSemantics(
         valueCertainty: semantics.valueCertainty,
         selectorCertainty: semantics.selectorCertainty,
         reason: semantics.reason,
+        ...(semantics.valueDomainDerivation
+          ? { valueDomainDerivation: semantics.valueDomainDerivation }
+          : {}),
       });
     } catch (err) {
       deps.logError("diagnostics per-call validation failed", err);
@@ -379,6 +385,9 @@ async function resolveSourceDiagnosticFindingsViaRustSemanticsAsync(
           valueCertainty: semantics.valueCertainty,
           selectorCertainty: semantics.selectorCertainty,
           reason: semantics.reason,
+          ...(semantics.valueDomainDerivation
+            ? { valueDomainDerivation: semantics.valueDomainDerivation }
+            : {}),
         });
         continue;
       }
@@ -398,6 +407,9 @@ async function resolveSourceDiagnosticFindingsViaRustSemanticsAsync(
         valueCertainty: semantics.valueCertainty,
         selectorCertainty: semantics.selectorCertainty,
         reason: semantics.reason,
+        ...(semantics.valueDomainDerivation
+          ? { valueDomainDerivation: semantics.valueDomainDerivation }
+          : {}),
       });
     } catch (err) {
       deps.logError("diagnostics per-call validation failed", err);

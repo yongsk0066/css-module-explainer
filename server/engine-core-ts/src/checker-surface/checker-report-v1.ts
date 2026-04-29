@@ -33,6 +33,9 @@ export function buildCheckerReportV1(
         range: finding.range,
         message: formatCheckerFinding(finding, workspaceRoot),
         ...analysisMetadata,
+        ...("valueDomainDerivation" in finding && finding.valueDomainDerivation
+          ? { valueDomainDerivation: finding.valueDomainDerivation }
+          : {}),
       };
     }),
     summary,

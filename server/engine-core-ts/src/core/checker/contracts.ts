@@ -1,5 +1,6 @@
 import type { Range } from "@css-module-explainer/shared";
 import type { FlowResolution } from "../flow/lattice";
+import type { ReducedClassValueDerivation } from "../query/read-expression-semantics";
 
 export type CheckerSeverity = "warning" | "hint";
 
@@ -47,6 +48,7 @@ export type SourceCheckerFinding =
       readonly valueCertainty: "exact" | "inferred" | "possible";
       readonly selectorCertainty: "exact" | "inferred" | "possible";
       readonly reason: "flowLiteral" | "flowBranch" | "typeUnion";
+      readonly valueDomainDerivation?: ReducedClassValueDerivation;
     }
   | {
       readonly category: "source";
@@ -58,6 +60,7 @@ export type SourceCheckerFinding =
       readonly valueCertainty: "exact" | "inferred" | "possible";
       readonly selectorCertainty: "exact" | "inferred" | "possible";
       readonly reason: "flowLiteral" | "flowBranch" | "typeUnion";
+      readonly valueDomainDerivation?: ReducedClassValueDerivation;
     };
 
 export type StyleCheckerFinding =
