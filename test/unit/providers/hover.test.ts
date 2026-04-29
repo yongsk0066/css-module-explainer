@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import type ts from "typescript";
 import type { CxBinding } from "../../../server/engine-core-ts/src/core/cx/cx-types";
+import { parseStyleDocument } from "../../../server/engine-core-ts/src/core/scss/scss-parser";
 import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
+import type { RustSelectedQueryBackendJsonRunnerAsync } from "../../../server/engine-host-node/src/selected-query-backend";
 import type { ProviderDeps } from "../../../server/lsp-server/src/providers/cursor-dispatch";
 import { handleHover } from "../../../server/lsp-server/src/providers/hover";
 import {
@@ -19,6 +21,7 @@ import {
   info,
   makeBaseDeps,
 } from "../../_fixtures/test-helpers";
+import { makeDesignTokenDefinitionGraph } from "../../_fixtures/style-semantic-graph";
 
 const SOURCE_PATH = "/fake/ws/src/Button.tsx";
 const SOURCE_URI = "file:///fake/ws/src/Button.tsx";
@@ -246,6 +249,62 @@ const el = cx(/*<expr>*/si/*|*/ze/*</expr>*/);
     expect(hover).toBeNull();
     expect(logError).toHaveBeenCalledTimes(1);
     expect(logError).toHaveBeenCalledWith("hover handler failed", expect.any(Error));
+  });
+
+  it("uses the async Rust design-token ranking path for style hovers", async () => {
+    const previousBackend = process.env.CME_SELECTED_QUERY_BACKEND;
+    process.env.CME_SELECTED_QUERY_BACKEND = "rust-selected-query";
+    try {
+      const styleWorkspace = workspace({
+        [STYLE_PATH]: `.button {
+  --brand: green;
+  color: var(--br/*|*/and);
+}
+`,
+      });
+      const styleDocument = parseStyleDocument(styleWorkspace.file(STYLE_PATH).content, STYLE_PATH);
+      const winnerRange = {
+        start: { line: 1, character: 2 },
+        end: { line: 1, character: 9 },
+      };
+      const runner: RustSelectedQueryBackendJsonRunnerAsync = async <T>() =>
+        makeDesignTokenDefinitionGraph({
+          referenceName: "--brand",
+          winnerDeclarationFilePath: STYLE_PATH,
+          winnerDeclarationRange: winnerRange,
+        }) as T;
+      const deps = makeBaseDeps({
+        styleDocumentForPath: (filePath) => (filePath === STYLE_PATH ? styleDocument : null),
+        readStyleFile: (filePath) =>
+          filePath === STYLE_PATH ? styleWorkspace.file(STYLE_PATH).content : null,
+        runRustSelectedQueryBackendJsonAsync: runner,
+      } as Partial<ProviderDeps> & {
+        readonly runRustSelectedQueryBackendJsonAsync: RustSelectedQueryBackendJsonRunnerAsync;
+      });
+
+      const hover = await handleHover(
+        cursorFixture({
+          workspace: styleWorkspace,
+          filePath: STYLE_PATH,
+          documentUri: "file:///fake/ws/src/Button.module.scss",
+          markerName: "cursor",
+          version: 1,
+        }),
+        deps,
+      );
+
+      expect(hover).not.toBeNull();
+      const value = (hover!.contents as { value: string }).value;
+      expect(value).toContain("`--brand`");
+      expect(value).toContain("Cascade ranking");
+      expect(value).toContain("Button.module.scss");
+    } finally {
+      if (previousBackend === undefined) {
+        delete process.env.CME_SELECTED_QUERY_BACKEND;
+      } else {
+        process.env.CME_SELECTED_QUERY_BACKEND = previousBackend;
+      }
+    }
   });
 });
 

@@ -49,16 +49,15 @@ import {
   resolveRustSelectorUsagePayloadForWorkspaceTarget,
   type SelectorUsageRenderSummary,
 } from "./selector-usage-query-backend";
-import {
-  resolveRustStyleSelectorIdentityReadModelForWorkspaceTarget,
-  type StyleSelectorIdentityQueryOptions,
-} from "./style-selector-identity-query";
+import { resolveRustStyleSelectorIdentityReadModelForWorkspaceTarget } from "./style-selector-identity-query";
 import {
   buildSelectorReferenceRenderSummaryFromRustGraph,
   resolveRustStyleSelectorReferenceSummaryForWorkspaceTarget,
+  type StyleSelectorReferenceQueryOptions,
 } from "./style-selector-reference-query";
 import {
   buildStyleSemanticGraphDesignTokenRankedReferenceReadModels,
+  resolveRustStyleSemanticGraphForWorkspaceTargetAsync,
   resolveRustStyleSemanticGraphForWorkspaceTarget,
   type StyleSemanticGraphDesignTokenRankedReferenceReadModel,
   type StyleSemanticGraphSelectorIdentityReadModel,
@@ -127,8 +126,7 @@ export type StyleHoverResult =
   | StyleSassSymbolHoverResult
   | StyleCustomPropertyHoverResult;
 
-export interface StyleHoverQueryOptions extends StyleSelectorIdentityQueryOptions {
-  readonly env?: NodeJS.ProcessEnv;
+export interface StyleHoverQueryOptions extends StyleSelectorReferenceQueryOptions {
   readonly readRustSelectorUsagePayloadForWorkspaceTarget?: typeof resolveRustSelectorUsagePayloadForWorkspaceTarget;
 }
 
@@ -372,6 +370,65 @@ export function resolveStyleHoverResult(
   };
 }
 
+export async function resolveStyleHoverResultAsync(
+  args: {
+    readonly filePath: string;
+    readonly line: number;
+    readonly character: number;
+  },
+  deps: Pick<
+    ProviderDeps,
+    | "analysisCache"
+    | "styleDocumentForPath"
+    | "typeResolver"
+    | "semanticReferenceIndex"
+    | "styleDependencyGraph"
+    | "workspaceRoot"
+    | "settings"
+    | "aliasResolver"
+    | "readStyleFile"
+  >,
+  options: StyleHoverQueryOptions = {},
+): Promise<StyleHoverResult | null> {
+  const styleDocument = deps.styleDocumentForPath(args.filePath);
+  if (!styleDocument) return null;
+
+  const customPropertyRef = findCustomPropertyRefAtCursor(styleDocument, args.line, args.character);
+  if (!customPropertyRef) return resolveStyleHoverResult(args, deps, options);
+
+  const target = resolveCustomPropertyDeclTarget(
+    deps.styleDocumentForPath,
+    args.filePath,
+    styleDocument,
+    customPropertyRef,
+    deps.styleDependencyGraph,
+    deps.aliasResolver,
+    { readFile: deps.readStyleFile },
+  );
+  if (!target) return null;
+
+  return {
+    kind: "customProperty",
+    customPropertyDecl: target.decl,
+    range: customPropertyRef.range,
+    headingName: customPropertyRef.name,
+    note: "Referenced via `var()`",
+    scssModulePath: target.filePath,
+    referenceCount: readCustomPropertyReferenceCount(
+      deps.styleDependencyGraph,
+      styleDocument,
+      customPropertyRef.name,
+    ),
+    ...(await withDesignTokenRankingAsync(
+      deps,
+      styleDocument,
+      args.filePath,
+      customPropertyRef,
+      options,
+    )),
+  };
+}
+
 export function resolveStyleSelectorHoverResult(
   args: {
     readonly filePath: string;
@@ -589,6 +646,53 @@ function withDesignTokenRanking(
     const graph = (
       options.readRustStyleSemanticGraphForWorkspaceTarget ??
       resolveRustStyleSemanticGraphForWorkspaceTarget
+    )(
+      {
+        workspaceRoot: deps.workspaceRoot,
+        classnameTransform: deps.settings.scss.classnameTransform,
+        pathAlias: deps.settings.pathAlias,
+      },
+      deps,
+      filePath,
+      options,
+    );
+    if (!graph) return {};
+
+    const ranking = buildStyleSemanticGraphDesignTokenRankedReferenceReadModels(
+      graph,
+      styleDocument,
+    ).find((readModel) => readModel.reference === customPropertyRef);
+    return ranking ? { designTokenRanking: ranking } : {};
+  } catch {
+    return {};
+  }
+}
+
+async function withDesignTokenRankingAsync(
+  deps: Pick<
+    ProviderDeps,
+    | "analysisCache"
+    | "styleDocumentForPath"
+    | "typeResolver"
+    | "workspaceRoot"
+    | "settings"
+    | "readStyleFile"
+  >,
+  styleDocument: StyleDocumentHIR,
+  filePath: string,
+  customPropertyRef: StyleDocumentHIR["customPropertyRefs"][number],
+  options: StyleHoverQueryOptions,
+): Promise<{
+  readonly designTokenRanking?: StyleSemanticGraphDesignTokenRankedReferenceReadModel;
+}> {
+  if (!usesRustStyleSemanticGraphBackend(resolveSelectedQueryBackendKind(options.env))) {
+    return {};
+  }
+
+  try {
+    const graph = await (
+      options.readRustStyleSemanticGraphForWorkspaceTargetAsync ??
+      resolveRustStyleSemanticGraphForWorkspaceTargetAsync
     )(
       {
         workspaceRoot: deps.workspaceRoot,

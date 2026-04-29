@@ -5,6 +5,7 @@ import { WorkspaceStyleDependencyGraph } from "../../../server/engine-core-ts/sr
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/engine-core-ts/src/core/semantic/workspace-reference-index";
 import {
   resolveStyleHoverResult,
+  resolveStyleHoverResultAsync,
   resolveStyleSelectorHoverResult,
 } from "../../../server/engine-host-node/src/style-hover-query";
 import type { StyleSemanticGraphSummaryV0 } from "../../../server/engine-host-node/src/style-semantic-graph-query-backend";
@@ -249,6 +250,40 @@ describe("style hover query", () => {
       {
         env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" },
         readRustStyleSemanticGraphForWorkspaceTarget: () => makeDesignTokenRankingGraph(),
+      },
+    );
+
+    expect(result).toMatchObject({
+      kind: "customProperty",
+      headingName: "--brand",
+      designTokenRanking: {
+        winnerDeclaration: { value: "green" },
+        shadowedDeclarations: [{ value: "red" }, { value: "blue" }],
+      },
+    });
+  });
+
+  it("attaches async rust design token ranking to custom property reference hovers", async () => {
+    const css = [
+      ":root { --brand: red; }",
+      ".theme { --brand: blue; }",
+      ".button { --brand: green; color: var(--brand); }",
+    ].join("\n");
+    const styleDocument = parseStyleDocument(css, TOKENS_CSS_PATH);
+
+    const result = await resolveStyleHoverResultAsync(
+      {
+        filePath: TOKENS_CSS_PATH,
+        line: 2,
+        character: 39,
+      },
+      makeBaseDeps({
+        styleDocumentForPath: styleDocumentMap([styleDocument]),
+      }),
+      {
+        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" },
+        readRustStyleSemanticGraphForWorkspaceTargetAsync: async () =>
+          makeDesignTokenRankingGraph(),
       },
     );
 

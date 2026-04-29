@@ -4,7 +4,11 @@ import {
   resolveSourceExpressionHoverResultAsync,
 } from "../../../engine-host-node/src/source-hover-query";
 import type { RustSelectedQueryBackendJsonRunnerAsync } from "../../../engine-host-node/src/selected-query-backend";
-import { resolveStyleHoverResult } from "../../../engine-host-node/src/style-hover-query";
+import {
+  resolveStyleHoverResult,
+  resolveStyleHoverResultAsync,
+  type StyleHoverResult,
+} from "../../../engine-host-node/src/style-hover-query";
 import { findLangForPath } from "../../../engine-core-ts/src/core/scss/lang-registry";
 import { toLspRange } from "./lsp-adapters";
 import {
@@ -34,10 +38,11 @@ import type { CursorParams, ProviderDeps } from "./provider-deps";
 export const handleHover = wrapHandler<CursorParams, [maxCandidates?: number], Hover | null>(
   "hover",
   (params, deps, maxCandidates = 10) => {
+    const rustRunner = getRustSelectedQueryBackendJsonRunnerAsync(deps);
     if (findLangForPath(params.filePath)) {
+      if (rustRunner) return buildStyleHoverAsync(params, deps, rustRunner);
       return buildStyleHover(params, deps);
     }
-    const rustRunner = getRustSelectedQueryBackendJsonRunnerAsync(deps);
     if (rustRunner) {
       return withSourceExpressionAtCursor(params, deps, (ctx) =>
         buildHoverAsync(ctx, params, deps, maxCandidates, rustRunner),
@@ -108,6 +113,29 @@ function buildStyleHover(params: CursorParams, deps: ProviderDeps): Hover | null
     },
     deps,
   );
+  return toStyleHover(styleHover, deps);
+}
+
+async function buildStyleHoverAsync(
+  params: CursorParams,
+  deps: ProviderDeps,
+  rustRunner: RustSelectedQueryBackendJsonRunnerAsync,
+): Promise<Hover | null> {
+  const styleHover = await resolveStyleHoverResultAsync(
+    {
+      filePath: params.filePath,
+      line: params.line,
+      character: params.character,
+    },
+    deps,
+    {
+      runRustSelectedQueryBackendJsonAsync: rustRunner,
+    },
+  );
+  return toStyleHover(styleHover, deps);
+}
+
+function toStyleHover(styleHover: StyleHoverResult | null, deps: ProviderDeps): Hover | null {
   if (!styleHover) return null;
 
   const markdown =
