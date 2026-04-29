@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import type { TypeResolver } from "../../../server/engine-core-ts/src/core/ts/type-resolver";
 import { selectTypeFactCollector } from "../../../server/engine-host-node/src/type-fact-collector";
@@ -246,6 +248,44 @@ describe("selectTypeFactCollector", () => {
     collect();
     now = 10;
     collect();
+
+    expect(workerCalls).toHaveLength(2);
+  });
+
+  it("invalidates cached tsgo type facts when tsconfig content changes", () => {
+    const workspaceRoot = mkdtempSync(path.join(tmpdir(), "cme-tsgo-cache-"));
+    const configPath = path.join(workspaceRoot, "tsconfig.json");
+    const workerCalls: unknown[] = [];
+    const cache = createTsgoTypeFactResolvedTypesCache();
+    const sourceEntries = createSourceEntries();
+
+    const collect = () =>
+      collectTypeFactTableV2WithTsgo({
+        workspaceRoot,
+        sourceEntries,
+        typeResolver: finiteSetResolver(["fallback"]),
+        findConfigFile: () => configPath,
+        workerCache: cache,
+        runWorker: (input) => {
+          workerCalls.push(input);
+          return [
+            {
+              filePath: "/repo/src/App.tsx",
+              expressionId: "expr-1",
+              resolvedType: { kind: "union", values: ["primary"] },
+            },
+          ];
+        },
+      });
+
+    try {
+      writeFileSync(configPath, '{"compilerOptions":{"strict":true}}');
+      collect();
+      writeFileSync(configPath, '{"compilerOptions":{"strict":false}}');
+      collect();
+    } finally {
+      rmSync(workspaceRoot, { recursive: true, force: true });
+    }
 
     expect(workerCalls).toHaveLength(2);
   });

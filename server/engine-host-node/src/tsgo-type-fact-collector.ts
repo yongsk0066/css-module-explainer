@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
 import ts from "typescript";
 import type { ResolvedType } from "@css-module-explainer/shared";
 import {
@@ -313,8 +314,26 @@ function createTsgoResolvedTypesCacheKey(
   return JSON.stringify({
     workspaceRoot,
     configPath,
+    configHash: readFileContentHash(configPath),
     sources: sourceSignature,
     targets: targetSignature,
+    workerEnv: readTsgoTypeFactWorkerEnvSignature(process.env),
+  });
+}
+
+function readFileContentHash(filePath: string): string {
+  try {
+    return createHash("sha256").update(readFileSync(filePath)).digest("hex");
+  } catch {
+    return "unreadable";
+  }
+}
+
+function readTsgoTypeFactWorkerEnvSignature(env: NodeJS.ProcessEnv): string {
+  return JSON.stringify({
+    projectRoot: env.CME_PROJECT_ROOT ?? "",
+    tsgoCheckers: env.CME_TSGO_CHECKERS ?? "",
+    tsgoPath: env.CME_TSGO_PATH ?? "",
   });
 }
 
