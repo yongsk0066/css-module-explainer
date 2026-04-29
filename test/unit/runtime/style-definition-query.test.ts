@@ -568,6 +568,29 @@ describe("resolveStyleDefinitionTargets", () => {
     });
   });
 
+  it("resolves package Sass subpath imports through package.json exports patterns", () => {
+    const ws = styleWorkspace({
+      [BUTTON_PATH]: `@use "@design/tokens/colors" as *;
+
+.button {
+  color: $g/*at:variable*/ray700;
+}
+`,
+      [PACKAGE_TOKENS_JSON_PATH]: `{"exports":{"./*":{"sass":"./src/*.scss"}}}`,
+      [PACKAGE_TOKENS_COLORS_ENTRY_PATH]: `$gray700: #767678;`,
+    });
+    const targets = resolveStyleDefinitionTargets(styleTarget(ws, "variable"), styleDeps(ws));
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0]).toMatchObject({
+      targetFilePath: PACKAGE_TOKENS_COLORS_ENTRY_PATH,
+      targetSelectionRange: {
+        start: { line: 0, character: 0 },
+        end: { line: 0, character: 8 },
+      },
+    });
+  });
+
   it("resolves Sass members forwarded through @use targets", () => {
     const ws = styleWorkspace({
       [BUTTON_PATH]: `@use "./theme.module" as *;

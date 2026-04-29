@@ -1170,12 +1170,45 @@ function readSassPackageExportSubpathEntry(exportsValue: unknown, subpath: strin
     const entry = readSassPackageExportEntry(exportValue);
     if (entry) return entry;
   }
+
+  for (const [key, exportValue] of Object.entries(exportsValue)) {
+    const patternMatch = matchPackageExportSubpathPattern(key, subpath);
+    if (patternMatch === null) continue;
+    const entry = readSassPackageExportEntry(exportValue);
+    if (entry) return substitutePackageExportPattern(entry, patternMatch);
+  }
+
   return null;
 }
 
 function packageExportSubpathKeys(subpath: string): readonly string[] {
   const normalized = subpath.replace(/^\.?\//u, "");
   return [`./${normalized}`, `./${normalized}.scss`, `./${normalized}.sass`, `./${normalized}.css`];
+}
+
+function matchPackageExportSubpathPattern(patternKey: string, subpath: string): string | null {
+  const normalizedPattern = patternKey.replace(/^\.?\//u, "");
+  if (!normalizedPattern.includes("*")) return null;
+
+  const [prefix, suffix, ...rest] = normalizedPattern.split("*");
+  if (rest.length > 0) return null;
+
+  for (const candidateKey of packageExportSubpathKeys(subpath)) {
+    const normalizedCandidate = candidateKey.replace(/^\.?\//u, "");
+    if (!normalizedCandidate.startsWith(prefix ?? "")) continue;
+    if (!normalizedCandidate.endsWith(suffix ?? "")) continue;
+
+    return normalizedCandidate.slice(
+      prefix?.length ?? 0,
+      normalizedCandidate.length - (suffix?.length ?? 0),
+    );
+  }
+
+  return null;
+}
+
+function substitutePackageExportPattern(entry: string, patternMatch: string): string {
+  return entry.includes("*") ? entry.split("*").join(patternMatch) : entry;
 }
 
 function readSassPackageExportEntry(exportsValue: unknown): string | null {

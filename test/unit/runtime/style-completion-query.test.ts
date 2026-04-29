@@ -277,6 +277,30 @@ describe("resolveStyleCompletionItems", () => {
     expect(result.map((item) => item.label)).toEqual(["--color-gray-700", "--spacing-md"]);
   });
 
+  it("returns CSS custom property completions through package.json subpath export patterns", () => {
+    const scss = `@use "@design/tokens/colors";
+
+.button {
+  color: var(--)
+}
+`;
+    const packageJson = `{"exports":{"./*":{"style":"./src/*.css"}}}`;
+    const tokensCss = `:root { --color-gray-700: #767678; --spacing-md: 16px; }`;
+    const styleDocument = parseStyleDocument(scss, SCSS_PATH);
+    const tokensDocument = parseStyleDocument(tokensCss, PACKAGE_COLORS_CSS_PATH);
+
+    const result = resolveStyleCompletionItems({
+      content: scss,
+      line: 3,
+      character: 15,
+      styleDocument,
+      styleDocumentForPath: styleDocumentMap([styleDocument, tokensDocument]),
+      readFile: (filePath) => (filePath === PACKAGE_TOKENS_JSON_PATH ? packageJson : null),
+    });
+
+    expect(result.map((item) => item.label)).toEqual(["--color-gray-700", "--spacing-md"]);
+  });
+
   it("returns same-file Sass variable completions after `$`", () => {
     const scss = `$gap: 1rem;
 @mixin raised($depth) {
