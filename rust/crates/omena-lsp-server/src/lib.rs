@@ -1292,6 +1292,10 @@ fn resolve_lsp_code_lens(state: &LspShellState, params: Option<&Value>) -> Value
 
     let mut lenses = Vec::new();
     let mut emitted_selectors = BTreeSet::new();
+    let reference_locations_by_name = selector_reference_locations_by_name_from_open_documents(
+        state,
+        document.workspace_folder_uri.as_deref(),
+    );
     for candidate in candidates
         .iter()
         .filter(|candidate| candidate.kind == "selector")
@@ -1299,11 +1303,10 @@ fn resolve_lsp_code_lens(state: &LspShellState, params: Option<&Value>) -> Value
         if !emitted_selectors.insert(candidate.name.as_str()) {
             continue;
         }
-        let locations = selector_reference_locations_from_open_documents(
-            state,
-            candidate.name.as_str(),
-            document.workspace_folder_uri.as_deref(),
-        );
+        let locations = reference_locations_by_name
+            .get(candidate.name.as_str())
+            .cloned()
+            .unwrap_or_default();
         if locations.is_empty() {
             continue;
         }
@@ -1337,7 +1340,16 @@ fn selector_reference_locations_from_open_documents(
     selector_name: &str,
     workspace_folder_uri: Option<&str>,
 ) -> Vec<Value> {
-    let mut locations = Vec::new();
+    selector_reference_locations_by_name_from_open_documents(state, workspace_folder_uri)
+        .remove(selector_name)
+        .unwrap_or_default()
+}
+
+fn selector_reference_locations_by_name_from_open_documents(
+    state: &LspShellState,
+    workspace_folder_uri: Option<&str>,
+) -> BTreeMap<String, Vec<Value>> {
+    let mut locations_by_name: BTreeMap<String, Vec<Value>> = BTreeMap::new();
     for document in state.documents.values() {
         if is_style_document_uri(document.uri.as_str()) {
             continue;
@@ -1345,33 +1357,20 @@ fn selector_reference_locations_from_open_documents(
         if !workspace_folder_compatible(workspace_folder_uri, document) {
             continue;
         }
-        for candidate in collect_source_selector_reference_candidates(state, document)
-            .into_iter()
-            .filter(|candidate| candidate.name == selector_name)
-        {
-            locations.push(json!({
-                "uri": document.uri.as_str(),
-                "range": candidate.range,
-            }));
+        for candidate in collect_source_selector_reference_candidates(state, document) {
+            locations_by_name
+                .entry(candidate.name)
+                .or_default()
+                .push(json!({
+                    "uri": document.uri.as_str(),
+                    "range": candidate.range,
+                }));
         }
     }
-    locations.sort_by_key(|location| {
-        let uri = location
-            .get("uri")
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_string();
-        let line = location
-            .pointer("/range/start/line")
-            .and_then(Value::as_u64)
-            .unwrap_or_default();
-        let character = location
-            .pointer("/range/start/character")
-            .and_then(Value::as_u64)
-            .unwrap_or_default();
-        (uri, line, character)
-    });
-    locations
+    for locations in locations_by_name.values_mut() {
+        locations.sort_by_key(location_sort_key);
+    }
+    locations_by_name
 }
 
 fn reference_lens_title(count: usize) -> String {
