@@ -381,9 +381,23 @@ const lspStyleSelectorRenameRequest = {
     newName: "panel",
   },
 };
-const shutdownRequest = {
+const lspSourceNoopCompletionRequest = {
   jsonrpc: "2.0",
   id: 22,
+  method: "textDocument/completion",
+  params: {
+    textDocument: {
+      uri: sourceUri,
+    },
+    position: {
+      line: 0,
+      character: 5,
+    },
+  },
+};
+const shutdownRequest = {
+  jsonrpc: "2.0",
+  id: 23,
   method: "shutdown",
 };
 const exitNotification = {
@@ -418,6 +432,7 @@ const result = spawnSync(invocation.command, [...invocation.args], {
     lspSourceRenameRequest,
     lspSourceCodeActionRequest,
     lspStyleSelectorRenameRequest,
+    lspSourceNoopCompletionRequest,
     shutdownRequest,
     exitNotification,
   ]
@@ -444,7 +459,7 @@ const responses = messages.filter((message) => "id" in message);
 const diagnosticNotifications = messages.filter(
   (message) => message.method === "textDocument/publishDiagnostics",
 );
-assert.equal(responses.length, 22);
+assert.equal(responses.length, 23);
 assert.deepEqual(diagnosticNotifications, [
   {
     jsonrpc: "2.0",
@@ -718,6 +733,10 @@ assert.deepEqual(lspStyleSelectorRenameResponse.result, {
   },
 });
 
+const lspSourceNoopCompletionResponse = responses[21]!;
+assert.equal(lspSourceNoopCompletionResponse.id, 22);
+assert.equal(lspSourceNoopCompletionResponse.result, null);
+
 process.stdout.write(
   [
     "validated omena-lsp-server style provider parity:",
@@ -748,6 +767,7 @@ process.stdout.write(
       lspStyleSelectorRenameResponse.result.changes[styleUri].length +
       lspStyleSelectorRenameResponse.result.changes[sourceUri].length
     }`,
+    `sourceNoopCompletion=${lspSourceNoopCompletionResponse.result}`,
     `line=${styleHoverResponse.result.candidates[0].range.start.line}`,
     `character=${styleHoverResponse.result.candidates[0].range.start.character}`,
     `nodeRangeParity=${JSON.stringify(styleHoverResponse.result.candidates[0].range)}`,

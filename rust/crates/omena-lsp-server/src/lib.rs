@@ -1028,7 +1028,7 @@ fn resolve_lsp_completion(state: &LspShellState, params: Option<&Value>) -> Valu
         return Value::Null;
     };
     if !is_style_document_uri(document.uri.as_str()) {
-        return resolve_source_lsp_completion(state, document);
+        return resolve_source_lsp_completion(state, document, params);
     }
 
     let Some((_, candidates)) =
@@ -1625,7 +1625,18 @@ fn resolve_source_lsp_references(
     }
 }
 
-fn resolve_source_lsp_completion(state: &LspShellState, document: &LspTextDocumentState) -> Value {
+fn resolve_source_lsp_completion(
+    state: &LspShellState,
+    document: &LspTextDocumentState,
+    params: Option<&Value>,
+) -> Value {
+    let Some(position) = lsp_position_from_params(params) else {
+        return Value::Null;
+    };
+    if !source_completion_context_at_position(document.text.as_str(), position) {
+        return Value::Null;
+    }
+
     let labels: BTreeSet<String> = style_selector_definitions_from_open_documents(
         state,
         "",
@@ -1652,6 +1663,61 @@ fn resolve_source_lsp_completion(state: &LspShellState, document: &LspTextDocume
         "isIncomplete": false,
         "items": items,
     })
+}
+
+fn source_completion_context_at_position(source: &str, position: ParserPositionV0) -> bool {
+    let Some(offset) = byte_offset_for_parser_position(source, position) else {
+        return false;
+    };
+    is_class_name_literal_completion_context(source, offset)
+        || is_styles_property_access_completion_context(source, offset)
+}
+
+fn is_class_name_literal_completion_context(source: &str, offset: usize) -> bool {
+    let mut search_offset = 0usize;
+    while let Some(relative_match) = source[search_offset..].find("className") {
+        let class_name_start = search_offset + relative_match;
+        let mut cursor = class_name_start + "className".len();
+        cursor = skip_ascii_whitespace(source, cursor);
+        if source.as_bytes().get(cursor) != Some(&b'=') {
+            search_offset = cursor;
+            continue;
+        }
+        cursor = skip_ascii_whitespace(source, cursor + 1);
+        if source.as_bytes().get(cursor) == Some(&b'{') {
+            cursor = skip_ascii_whitespace(source, cursor + 1);
+        }
+        let Some(quote) = source.as_bytes().get(cursor).copied() else {
+            break;
+        };
+        if !matches!(quote, b'\'' | b'"' | b'`') {
+            search_offset = cursor + 1;
+            continue;
+        }
+        let literal_start = cursor + 1;
+        let Some(relative_end) = source[literal_start..].find(char::from(quote)) else {
+            break;
+        };
+        let literal_end = literal_start + relative_end;
+        if offset >= literal_start && offset <= literal_end {
+            return true;
+        }
+        search_offset = literal_end + 1;
+    }
+    false
+}
+
+fn is_styles_property_access_completion_context(source: &str, offset: usize) -> bool {
+    let mut search_offset = 0usize;
+    while let Some(relative_match) = source[search_offset..].find("styles.") {
+        let start = search_offset + relative_match + "styles.".len();
+        let end = read_css_identifier_end(source, start);
+        if offset >= start && offset <= end {
+            return true;
+        }
+        search_offset = end.max(start + 1);
+    }
+    false
 }
 
 fn source_selector_candidate_for_params(
@@ -2278,6 +2344,35 @@ fn parser_position_for_byte_offset(source: &str, offset: usize) -> ParserPositio
     }
 
     ParserPositionV0 { line, character }
+}
+
+fn byte_offset_for_parser_position(source: &str, position: ParserPositionV0) -> Option<usize> {
+    let mut line = 0usize;
+    let mut character = 0usize;
+
+    for (byte_index, ch) in source.char_indices() {
+        if line == position.line && character == position.character {
+            return Some(byte_index);
+        }
+        if ch == '\n' {
+            if line == position.line {
+                return None;
+            }
+            line += 1;
+            character = 0;
+        } else {
+            character += ch.len_utf16();
+            if line == position.line && character > position.character {
+                return None;
+            }
+        }
+    }
+
+    if line == position.line && character == position.character {
+        Some(source.len())
+    } else {
+        None
+    }
 }
 
 fn parser_range_contains_position(range: &ParserRangeV0, position: ParserPositionV0) -> bool {
