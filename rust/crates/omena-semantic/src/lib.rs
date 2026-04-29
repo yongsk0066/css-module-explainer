@@ -14,8 +14,8 @@ mod selector_references;
 mod source_evidence;
 
 pub use design_tokens::{
-    DesignTokenCascadeRankingSignalV0, DesignTokenContextSignalV0, DesignTokenResolutionSignalV0,
-    DesignTokenSemanticCapabilitiesV0, DesignTokenSemanticSummaryV0,
+    DesignTokenCascadeRankingSignalV0, DesignTokenContextSignalV0, DesignTokenRankedReferenceV0,
+    DesignTokenResolutionSignalV0, DesignTokenSemanticCapabilitiesV0, DesignTokenSemanticSummaryV0,
     summarize_design_token_semantics,
 };
 pub use evidence::{
@@ -700,6 +700,25 @@ $color: red;
                 .repeated_name_declaration_count,
             3
         );
+        assert_eq!(summary.cascade_ranking_signal.ranked_references.len(), 2);
+        let first_ranked_reference = &summary.cascade_ranking_signal.ranked_references[0];
+        assert_eq!(first_ranked_reference.reference_name, "--surface");
+        assert_eq!(first_ranked_reference.reference_source_order, 0);
+        assert_eq!(first_ranked_reference.winner_declaration_source_order, 1);
+        assert_eq!(
+            first_ranked_reference.shadowed_declaration_source_orders,
+            vec![0]
+        );
+        assert_eq!(first_ranked_reference.candidate_declaration_count, 2);
+        let second_ranked_reference = &summary.cascade_ranking_signal.ranked_references[1];
+        assert_eq!(second_ranked_reference.reference_name, "--surface");
+        assert_eq!(second_ranked_reference.reference_source_order, 1);
+        assert_eq!(second_ranked_reference.winner_declaration_source_order, 2);
+        assert_eq!(
+            second_ranked_reference.shadowed_declaration_source_orders,
+            vec![0, 1]
+        );
+        assert_eq!(second_ranked_reference.candidate_declaration_count, 3);
         assert!(summary.capabilities.source_order_cascade_ranking_ready);
         assert!(!summary.capabilities.cross_package_cascade_ranking_ready);
         Ok(())

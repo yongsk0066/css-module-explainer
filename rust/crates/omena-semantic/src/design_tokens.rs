@@ -57,6 +57,17 @@ pub struct DesignTokenCascadeRankingSignalV0 {
     pub source_order_winner_declaration_count: usize,
     pub source_order_shadowed_declaration_count: usize,
     pub repeated_name_declaration_count: usize,
+    pub ranked_references: Vec<DesignTokenRankedReferenceV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesignTokenRankedReferenceV0 {
+    pub reference_name: String,
+    pub reference_source_order: usize,
+    pub winner_declaration_source_order: usize,
+    pub shadowed_declaration_source_orders: Vec<usize>,
+    pub candidate_declaration_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -195,6 +206,7 @@ fn summarize_design_token_cascade_ranking_signal(
     let mut shadowed_declarations = BTreeSet::<(String, usize)>::new();
     let mut ranked_reference_count = 0;
     let mut unranked_reference_count = 0;
+    let mut ranked_references = Vec::new();
 
     for declaration in &custom_properties.decl_facts {
         *declaration_name_counts
@@ -220,11 +232,22 @@ fn summarize_design_token_cascade_ranking_signal(
 
         ranked_reference_count += 1;
         winner_declarations.insert(custom_property_declaration_key(winner));
+        let candidate_declaration_count = candidates.len();
+        let mut shadowed_declaration_source_orders = Vec::new();
         for candidate in candidates {
             if candidate.source_order != winner.source_order {
+                shadowed_declaration_source_orders.push(candidate.source_order);
                 shadowed_declarations.insert(custom_property_declaration_key(candidate));
             }
         }
+        shadowed_declaration_source_orders.sort_unstable();
+        ranked_references.push(DesignTokenRankedReferenceV0 {
+            reference_name: reference.name.clone(),
+            reference_source_order: reference.source_order,
+            winner_declaration_source_order: winner.source_order,
+            shadowed_declaration_source_orders,
+            candidate_declaration_count,
+        });
     }
 
     DesignTokenCascadeRankingSignalV0 {
@@ -241,6 +264,7 @@ fn summarize_design_token_cascade_ranking_signal(
                     .is_some_and(|count| *count > 1)
             })
             .count(),
+        ranked_references,
     }
 }
 
