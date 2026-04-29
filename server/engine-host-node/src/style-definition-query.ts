@@ -1,4 +1,16 @@
 import type { Range } from "@css-module-explainer/shared";
+import type { StyleDocumentHIR } from "../../engine-core-ts/src/core/hir/style-types";
+import {
+  buildStyleSemanticGraphDesignTokenRankedReferenceReadModels,
+  resolveRustStyleSemanticGraphForWorkspaceTarget,
+  type StyleSemanticGraphCache,
+  type StyleSemanticGraphQueryOptions,
+  type StyleSemanticGraphSummaryV0,
+} from "./style-semantic-graph-query-backend";
+import {
+  resolveSelectedQueryBackendKind,
+  usesRustStyleSemanticGraphBackend,
+} from "./selected-query-backend";
 import {
   findAnimationNameRefAtCursor,
   findCanonicalSelector,
@@ -28,12 +40,32 @@ export interface StyleDefinitionTarget {
   readonly targetSelectionRange: Range;
 }
 
+export interface StyleDefinitionQueryOptions extends Pick<
+  StyleSemanticGraphQueryOptions,
+  "engineInput" | "sourceDocuments" | "styleFiles" | "styleSemanticGraphCache"
+> {
+  readonly env?: NodeJS.ProcessEnv;
+  readonly readRustStyleSemanticGraphForWorkspaceTarget?: typeof resolveRustStyleSemanticGraphForWorkspaceTarget;
+}
+
+type StyleDefinitionDeps = Pick<
+  ProviderDeps,
+  | "styleDocumentForPath"
+  | "aliasResolver"
+  | "styleDependencyGraph"
+  | "readStyleFile"
+  | "analysisCache"
+  | "settings"
+  | "typeResolver"
+  | "workspaceRoot"
+> & {
+  readonly styleSemanticGraphCache?: StyleSemanticGraphCache;
+};
+
 export function resolveStyleDefinitionTargets(
   params: Pick<CursorParams, "filePath" | "line" | "character">,
-  deps: Pick<
-    ProviderDeps,
-    "styleDocumentForPath" | "aliasResolver" | "styleDependencyGraph" | "readStyleFile"
-  >,
+  deps: StyleDefinitionDeps,
+  options: StyleDefinitionQueryOptions = {},
 ): readonly StyleDefinitionTarget[] {
   const styleDocument = deps.styleDocumentForPath(params.filePath);
   if (!styleDocument) return [];
@@ -80,6 +112,15 @@ export function resolveStyleDefinitionTargets(
     params.character,
   );
   if (customPropertyRef) {
+    const rustTarget = resolveCustomPropertyDefinitionTargetFromRustRanking(
+      params.filePath,
+      styleDocument,
+      customPropertyRef,
+      deps,
+      options,
+    );
+    if (rustTarget) return [rustTarget];
+
     const target = resolveCustomPropertyDeclTarget(
       deps.styleDocumentForPath,
       params.filePath,
@@ -164,6 +205,62 @@ export function resolveStyleDefinitionTargets(
   return valueTarget
     ? [toStyleDefinitionTarget(valueRef.range, valueTarget.filePath, valueTarget.valueDecl)]
     : [];
+}
+
+function resolveCustomPropertyDefinitionTargetFromRustRanking(
+  filePath: string,
+  styleDocument: StyleDocumentHIR,
+  customPropertyRef: NonNullable<ReturnType<typeof findCustomPropertyRefAtCursor>>,
+  deps: StyleDefinitionDeps,
+  options: StyleDefinitionQueryOptions,
+): StyleDefinitionTarget | null {
+  if (!usesRustStyleSemanticGraphBackend(resolveSelectedQueryBackendKind(options.env))) {
+    return null;
+  }
+
+  const graph = safeResolveRustStyleSemanticGraphForDefinition(filePath, deps, options);
+  if (!graph) return null;
+
+  const ranking = buildStyleSemanticGraphDesignTokenRankedReferenceReadModels(
+    graph,
+    styleDocument,
+  ).find((readModel) => readModel.reference === customPropertyRef);
+  if (!ranking?.winnerDeclarationFilePath || !ranking.winnerDeclarationRange) return null;
+
+  return {
+    originRange: customPropertyRef.range,
+    targetFilePath: ranking.winnerDeclarationFilePath,
+    targetRange: ranking.winnerDeclarationRange,
+    targetSelectionRange: ranking.winnerDeclarationRange,
+  };
+}
+
+function safeResolveRustStyleSemanticGraphForDefinition(
+  filePath: string,
+  deps: StyleDefinitionDeps,
+  options: StyleDefinitionQueryOptions,
+): StyleSemanticGraphSummaryV0 | null {
+  const queryOptions =
+    options.styleSemanticGraphCache || !deps.styleSemanticGraphCache
+      ? options
+      : { ...options, styleSemanticGraphCache: deps.styleSemanticGraphCache };
+  try {
+    return (
+      options.readRustStyleSemanticGraphForWorkspaceTarget ??
+      resolveRustStyleSemanticGraphForWorkspaceTarget
+    )(
+      {
+        workspaceRoot: deps.workspaceRoot,
+        classnameTransform: deps.settings.scss.classnameTransform,
+        pathAlias: deps.settings.pathAlias,
+      },
+      deps,
+      filePath,
+      queryOptions,
+    );
+  } catch {
+    return null;
+  }
 }
 
 function toStyleDefinitionTarget(
