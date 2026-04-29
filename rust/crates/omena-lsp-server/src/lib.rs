@@ -615,8 +615,15 @@ pub fn handle_lsp_message_outputs(state: &mut LspShellState, message: Value) -> 
         }
     }
     if method.as_deref() == Some("workspace/didChangeConfiguration") {
-        let document_uris: Vec<String> = state.documents.keys().cloned().collect();
-        for uri in document_uris {
+        for uri in open_document_uris_for_diagnostics(state) {
+            outputs.push(publish_diagnostics_notification(
+                uri.as_str(),
+                resolve_document_diagnostics_for_uri(state, uri.as_str()),
+            ));
+        }
+    }
+    if method.as_deref() == Some("initialized") {
+        for uri in open_document_uris_for_diagnostics(state) {
             outputs.push(publish_diagnostics_notification(
                 uri.as_str(),
                 resolve_document_diagnostics_for_uri(state, uri.as_str()),
@@ -625,6 +632,15 @@ pub fn handle_lsp_message_outputs(state: &mut LspShellState, message: Value) -> 
     }
 
     outputs
+}
+
+fn open_document_uris_for_diagnostics(state: &LspShellState) -> Vec<String> {
+    state
+        .open_document_uris
+        .iter()
+        .filter(|uri| state.documents.contains_key(uri.as_str()))
+        .cloned()
+        .collect()
 }
 
 fn watched_file_uris_from_message(message: &Value) -> Vec<String> {
@@ -4439,6 +4455,103 @@ mod tests {
         assert_eq!(
             indexed.map(|summary| summary.selector_names.clone()),
             Some(vec!["initial".to_string()]),
+        );
+        let _ = std::fs::remove_dir_all(&workspace_root);
+    }
+
+    #[test]
+    fn refreshes_open_document_diagnostics_after_initialized_indexing() {
+        let workspace_root = std::env::temp_dir().join(format!(
+            "omena-lsp-server-initialized-diagnostics-{}",
+            std::process::id()
+        ));
+        let src_dir = workspace_root.join("src");
+        let style_path = src_dir.join("App.module.scss");
+        let _ = std::fs::remove_dir_all(&workspace_root);
+        let create_dir_result = std::fs::create_dir_all(&src_dir);
+        assert!(
+            create_dir_result.is_ok(),
+            "create initialized-diagnostics fixture directory: {:?}",
+            create_dir_result.err(),
+        );
+        let write_result = std::fs::write(&style_path, ".known { color: red; }");
+        assert!(
+            write_result.is_ok(),
+            "write initialized-diagnostics style fixture: {:?}",
+            write_result.err(),
+        );
+
+        let workspace_uri = format!("file://{}", workspace_root.display());
+        let source_uri = format!("file://{}/src/App.tsx", workspace_root.display());
+        let mut state = LspShellState::default();
+        let initialize_outputs = handle_lsp_message_outputs(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "workspaceFolders": [
+                        {
+                            "uri": workspace_uri,
+                            "name": "initialized-diagnostics",
+                        },
+                    ],
+                },
+            }),
+        );
+        assert_eq!(initialize_outputs.len(), 1);
+
+        let open_outputs = handle_lsp_message_outputs(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": source_uri,
+                        "languageId": "typescriptreact",
+                        "version": 1,
+                        "text": "const view = <div className=\"missing\" />;",
+                    },
+                },
+            }),
+        );
+        assert_eq!(
+            open_outputs
+                .first()
+                .and_then(|value| value.pointer("/params/diagnostics")),
+            Some(&json!([])),
+        );
+
+        let initialized_outputs = handle_lsp_message_outputs(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "initialized",
+                "params": {},
+            }),
+        );
+        assert_eq!(
+            initialized_outputs
+                .first()
+                .and_then(|value| value.pointer("/params/uri")),
+            Some(&json!(source_uri)),
+        );
+        assert_eq!(
+            initialized_outputs
+                .first()
+                .and_then(|value| value.pointer("/params/diagnostics/0/range")),
+            Some(&json!({
+                "start": {
+                    "line": 0,
+                    "character": 29,
+                },
+                "end": {
+                    "line": 0,
+                    "character": 36,
+                },
+            })),
         );
         let _ = std::fs::remove_dir_all(&workspace_root);
     }
