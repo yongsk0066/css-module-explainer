@@ -173,22 +173,26 @@ export async function resolveUnusedStyleSelectorsAsync(
     args.scssPath,
     queryOptions,
   );
-  const unused: StyleModuleUsageSelectorSummary[] = [];
-
-  for (const selector of listCanonicalSelectors(args.styleDocument)) {
-    const payload = await readRustPayload(selector.canonicalName);
-    if (!payload) {
-      return readCurrentUnusedStyleSelectors(args, deps);
-    }
-    if (!payload.hasAnyReferences) {
-      unused.push({
-        canonicalName: selector.canonicalName,
-        range: selector.range,
-      });
-    }
+  const selectorPayloads = await Promise.all(
+    listCanonicalSelectors(args.styleDocument).map(async (selector) => ({
+      selector,
+      payload: await readRustPayload(selector.canonicalName),
+    })),
+  );
+  if (selectorPayloads.some(({ payload }) => !payload)) {
+    return readCurrentUnusedStyleSelectors(args, deps);
   }
 
-  return unused;
+  return selectorPayloads.flatMap(({ selector, payload }) =>
+    payload?.hasAnyReferences
+      ? []
+      : [
+          {
+            canonicalName: selector.canonicalName,
+            range: selector.range,
+          },
+        ],
+  );
 }
 
 function createRustSelectorUsagePayloadReader(
