@@ -6,7 +6,6 @@ import type { Range, ResolvedType } from "@css-module-explainer/shared";
 import {
   UNRESOLVABLE_TYPE,
   UnresolvableTypeResolver,
-  WorkspaceTypeResolver,
   type ResolveTypeOptions,
   type TypeResolver,
 } from "../../engine-core-ts/src/core/ts/type-resolver";
@@ -31,7 +30,6 @@ interface TsgoProbeInvocation {
 
 export interface TsgoProbeTypeResolverOptions {
   readonly fallbackResolver?: TypeResolver;
-  readonly createProgram?: (workspaceRoot: string) => ts.Program;
   readonly findConfigFile?: (workspaceRoot: string) => string | null;
   readonly runProbeCommand?: (workspaceRoot: string, configPath: string) => TsgoProbeResult;
 }
@@ -48,13 +46,7 @@ export class TsgoProbeTypeResolver implements TypeResolver {
   private readonly runProbeCommand: (workspaceRoot: string, configPath: string) => TsgoProbeResult;
 
   constructor(options: TsgoProbeTypeResolverOptions = {}) {
-    this.fallbackResolver =
-      options.fallbackResolver ??
-      (options.createProgram
-        ? new WorkspaceTypeResolver({
-            createProgram: options.createProgram,
-          })
-        : new UnresolvableTypeResolver());
+    this.fallbackResolver = options.fallbackResolver ?? new UnresolvableTypeResolver();
     this.findConfigFile =
       options.findConfigFile ??
       ((workspaceRoot) => ts.findConfigFile(workspaceRoot, ts.sys.fileExists) ?? null);

@@ -61,7 +61,7 @@ const nodeCapabilities = buildServerCapabilities();
 
 assert.equal(rustSummary.schemaVersion, "0");
 assert.equal(rustSummary.product, "omena-lsp-server.boundary");
-assert.equal(rustSummary.migrationStatus, "runtimeProviderParity");
+assert.equal(rustSummary.migrationStatus, "thinClient");
 
 assert.deepEqual(rustSummary.capabilities, nodeCapabilities);
 assert.deepEqual(

@@ -41,16 +41,13 @@ export function selectTypeResolver(options: SelectTypeResolverOptions): TypeReso
   }
 
   if (backend === "tsgo") {
-    const probeOptions = options.createProgram
-      ? { createProgram: options.createProgram }
-      : undefined;
     return {
       backend,
       // Keep the TS7 backend selected by default, but avoid synchronous
       // full-workspace TypeScript program construction on the LSP request
       // path. Fine-grained direct misses return unresolvable unless tests or
       // explicit callers inject a current-TS fallback.
-      typeResolver: new TsgoProbeTypeResolver(probeOptions),
+      typeResolver: new TsgoProbeTypeResolver(),
     };
   }
 
