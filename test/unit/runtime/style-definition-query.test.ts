@@ -182,6 +182,30 @@ describe("resolveStyleDefinitionTargets", () => {
     });
   });
 
+  it("resolves CSS custom property references forwarded from a package root through local utilities", () => {
+    const ws = styleWorkspace({
+      [BUTTON_PATH]: `@use "utils" as *;
+
+.button {
+  color: var(--color/*|*/-gray-700);
+}
+`,
+      [UTILS_PATH]: `@forward "@design/tokens" as ds_*;`,
+      [PACKAGE_TOKENS_JSON_PATH]: `{"style":"variables.css"}`,
+      [PACKAGE_VARIABLES_CSS_PATH]: `:root { --color-gray-700: #767678; }`,
+    });
+    const targets = resolveStyleDefinitionTargets(styleTarget(ws), styleDeps(ws));
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0]).toMatchObject({
+      targetFilePath: PACKAGE_VARIABLES_CSS_PATH,
+      targetSelectionRange: {
+        start: { line: 0, character: 8 },
+        end: { line: 0, character: 24 },
+      },
+    });
+  });
+
   it("resolves CSS custom property references to the last matching same-file declaration", () => {
     const ws = styleWorkspace({
       [BUTTON_PATH]: `:root {
