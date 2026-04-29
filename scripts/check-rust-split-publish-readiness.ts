@@ -65,13 +65,13 @@ const splitRepos: readonly SplitRepo[] = [
     label: "abstract-value",
     repo: "omenien/omena-abstract-value",
     packageName: "omena-abstract-value",
-    expectedVersion: "0.1.3",
+    expectedVersion: "0.1.4",
     libName: "omena_abstract_value",
     expectedRegistryDependencies: [
       {
         dependencyName: "omena-incremental",
         packageName: "omena-incremental",
-        version: "0.1.0",
+        version: "0.1.1",
       },
     ],
   },
@@ -80,7 +80,7 @@ const splitRepos: readonly SplitRepo[] = [
     label: "incremental",
     repo: "omenien/omena-incremental",
     packageName: "omena-incremental",
-    expectedVersion: "0.1.0",
+    expectedVersion: "0.1.1",
     libName: "omena_incremental",
   },
   {
@@ -163,7 +163,7 @@ const splitRepos: readonly SplitRepo[] = [
     label: "tsgo-client",
     repo: "omenien/omena-tsgo-client",
     packageName: "omena-tsgo-client",
-    expectedVersion: "0.1.0",
+    expectedVersion: "0.1.1",
     libName: "omena_tsgo_client",
   },
   {
@@ -171,7 +171,7 @@ const splitRepos: readonly SplitRepo[] = [
     label: "lsp-server",
     repo: "omenien/omena-lsp-server",
     packageName: "omena-lsp-server",
-    expectedVersion: "0.1.1",
+    expectedVersion: "0.1.2",
     libName: "omena_lsp_server",
     expectedRegistryDependencies: [
       {
@@ -180,9 +180,14 @@ const splitRepos: readonly SplitRepo[] = [
         version: "0.1.5",
       },
       {
+        dependencyName: "omena-incremental",
+        packageName: "omena-incremental",
+        version: "0.1.1",
+      },
+      {
         dependencyName: "omena-tsgo-client",
         packageName: "omena-tsgo-client",
-        version: "0.1.0",
+        version: "0.1.1",
       },
     ],
   },
