@@ -933,6 +933,7 @@ fn did_change_workspace_folders(state: &mut LspShellState, params: Option<&Value
         for folder in removed {
             if let Some(uri) = folder.get("uri").and_then(Value::as_str) {
                 state.workspace_folders.remove(uri);
+                remove_indexed_documents_for_workspace(state, uri);
             }
         }
     }
@@ -946,6 +947,13 @@ fn did_change_workspace_folders(state: &mut LspShellState, params: Option<&Value
         index_workspace_style_files(state);
     }
     refresh_document_workspace_owners(state);
+}
+
+fn remove_indexed_documents_for_workspace(state: &mut LspShellState, workspace_uri: &str) {
+    state.documents.retain(|uri, document| {
+        state.open_document_uris.contains(uri)
+            || document.workspace_folder_uri.as_deref() != Some(workspace_uri)
+    });
 }
 
 fn did_change_configuration(state: &mut LspShellState, params: Option<&Value>) {
@@ -4199,6 +4207,26 @@ mod tests {
             indexed.map(|summary| summary.selector_names.clone()),
             Some(vec!["added".to_string()]),
         );
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "workspace/didChangeWorkspaceFolders",
+                "params": {
+                    "event": {
+                        "removed": [
+                            {
+                                "uri": workspace_uri,
+                                "name": "workspace-b",
+                            },
+                        ],
+                        "added": [],
+                    },
+                },
+            }),
+        );
+        assert!(state.workspace_folder(workspace_uri.as_str()).is_none());
+        assert!(state.document(style_uri.as_str()).is_none());
         let _ = std::fs::remove_dir_all(&workspace_root);
     }
 
