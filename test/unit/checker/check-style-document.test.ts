@@ -11,6 +11,7 @@ const UTILS_PATH = "/fake/_utils.scss";
 const PACKAGE_TOKENS_ROOT = "/fake/node_modules/@design/tokens";
 const PACKAGE_TOKENS_JSON_PATH = `${PACKAGE_TOKENS_ROOT}/package.json`;
 const PACKAGE_TOKENS_INDEX_PATH = `${PACKAGE_TOKENS_ROOT}/src/index.scss`;
+const PACKAGE_VARIABLES_CSS_PATH = `${PACKAGE_TOKENS_ROOT}/variables.css`;
 
 function styleDocument(selectors: ReadonlyMap<string, ReturnType<typeof info>>) {
   return buildStyleDocumentFromSelectorMap(SCSS_PATH, selectors);
@@ -253,6 +254,43 @@ describe("checkStyleDocument", () => {
       {
         semanticReferenceIndex,
         styleDependencyGraph,
+      },
+      { includeUnusedSelectors: false },
+    );
+
+    expect(findings.filter((finding) => finding.code === "missing-custom-property")).toEqual([]);
+  });
+
+  it("does not report package-root CSS custom properties resolved through package.json style entries", () => {
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    const styleDocumentWithCustomProperties = parseStyleDocument(
+      `@use "@design/tokens";
+
+.button {
+  color: var(--color-gray-700);
+}`,
+      SCSS_PATH,
+    );
+    const tokenDocument = parseStyleDocument(
+      `:root { --color-gray-700: #767678; }`,
+      PACKAGE_VARIABLES_CSS_PATH,
+    );
+    const byPath = new Map([
+      [SCSS_PATH, styleDocumentWithCustomProperties],
+      [PACKAGE_VARIABLES_CSS_PATH, tokenDocument],
+    ]);
+
+    const findings = checkStyleDocument(
+      {
+        scssPath: SCSS_PATH,
+        styleDocument: styleDocumentWithCustomProperties,
+      },
+      {
+        semanticReferenceIndex,
+        styleDependencyGraph: new WorkspaceStyleDependencyGraph(),
+        styleDocumentForPath: (filePath) => byPath.get(filePath) ?? null,
+        readFile: (filePath) =>
+          filePath === PACKAGE_TOKENS_JSON_PATH ? `{"style":"variables.css"}` : null,
       },
       { includeUnusedSelectors: false },
     );
