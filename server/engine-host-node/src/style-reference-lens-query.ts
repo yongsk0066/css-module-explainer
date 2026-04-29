@@ -165,46 +165,48 @@ export async function resolveStyleReferenceLensesAsync(
     filePath,
     queryOptions,
   );
-  for (const selector of listCanonicalSelectors(styleDocument)) {
-    const graphLensResolution = await resolveRustGraphReferenceLensSummaryAsync(
-      deps,
-      filePath,
-      selector.canonicalName,
-      queryOptions,
-    );
-    const selectorUsageLensResolution =
-      canUseRustSelectorUsage &&
-      (!graphLensResolution || !graphLensResolution.usage.hasAnyReferences)
-        ? await resolveRustReferenceLensSummaryAsync(
-            selector.canonicalName,
-            readRustSelectorUsagePayload,
-          )
-        : null;
-    const rustLensResolution = graphLensResolution?.usage.hasAnyReferences
-      ? graphLensResolution
-      : (selectorUsageLensResolution ?? graphLensResolution);
-    if (rustLensResolution) {
-      if (!rustLensResolution.usage.hasAnyReferences) continue;
-      lenses.push({
+  const selectorLenses = await Promise.all(
+    listCanonicalSelectors(styleDocument).map(async (selector) => {
+      const graphLensResolution = await resolveRustGraphReferenceLensSummaryAsync(
+        deps,
+        filePath,
+        selector.canonicalName,
+        queryOptions,
+      );
+      const selectorUsageLensResolution =
+        canUseRustSelectorUsage &&
+        (!graphLensResolution || !graphLensResolution.usage.hasAnyReferences)
+          ? await resolveRustReferenceLensSummaryAsync(
+              selector.canonicalName,
+              readRustSelectorUsagePayload,
+            )
+          : null;
+      const rustLensResolution = graphLensResolution?.usage.hasAnyReferences
+        ? graphLensResolution
+        : (selectorUsageLensResolution ?? graphLensResolution);
+      if (rustLensResolution) {
+        if (!rustLensResolution.usage.hasAnyReferences) return null;
+        return {
+          position: selector.range.start,
+          title: formatReferenceLensTitle(rustLensResolution.usage),
+          locations: rustLensResolution.locations,
+        };
+      }
+
+      const currentUsage = readSelectorUsageSummary(deps, filePath, selector.canonicalName);
+      if (!currentUsage.hasAnyReferences) return null;
+
+      return {
         position: selector.range.start,
-        title: formatReferenceLensTitle(rustLensResolution.usage),
-        locations: rustLensResolution.locations,
-      });
-      continue;
-    }
-
-    const currentUsage = readSelectorUsageSummary(deps, filePath, selector.canonicalName);
-    if (!currentUsage.hasAnyReferences) continue;
-
-    lenses.push({
-      position: selector.range.start,
-      title: formatReferenceLensTitle(currentUsage),
-      locations: currentUsage.allSites.map((site) => ({
-        uri: site.uri,
-        range: site.range,
-      })),
-    });
-  }
+        title: formatReferenceLensTitle(currentUsage),
+        locations: currentUsage.allSites.map((site) => ({
+          uri: site.uri,
+          range: site.range,
+        })),
+      };
+    }),
+  );
+  lenses.push(...selectorLenses.filter((lens): lens is StyleReferenceLensSummary => Boolean(lens)));
   return lenses;
 }
 
