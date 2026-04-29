@@ -1232,7 +1232,7 @@ export function deriveTsShadowSummary(snapshot: EngineParitySnapshotV2): ShadowS
     distinctFactFiles.add(entry.filePath);
     byKind[entry.facts.kind] = (byKind[entry.facts.kind] ?? 0) + 1;
 
-    if (entry.facts.kind === "finiteSet") {
+    if (entry.facts.values) {
       finiteValueCount += entry.facts.values.length;
     }
 
@@ -1552,6 +1552,7 @@ type ExpressionValueDomainPayloadLike = {
   readonly valuePrefix?: string;
   readonly valueSuffix?: string;
   readonly valueMinLen?: number;
+  readonly valueMaxLen?: number;
   readonly valueCharMust?: string;
   readonly valueCharMay?: string;
   readonly valueMayIncludeOtherChars?: boolean;
@@ -1790,33 +1791,33 @@ function expressionValueMatchesCharConstraint(
 export function deriveTsExpressionDomainEvaluatorCandidates(
   snapshot: EngineParitySnapshotV2,
 ): ExpressionDomainEvaluatorCandidatesV0 {
-  const results = snapshot.output.queryResults
-    .filter((query) => query.kind === "expression-semantics")
-    .map((query) => ({
-      kind: "expression-domain" as const,
-      filePath: query.filePath,
-      queryId: query.queryId,
-      payload: {
-        expressionId: query.payload.expressionId,
-        valueDomainKind: deriveReducedExpressionValueDomainKind(query.payload),
-        ...(query.payload.valueConstraintKind
-          ? { valueConstraintKind: query.payload.valueConstraintKind }
-          : {}),
-        ...(query.payload.valuePrefix ? { valuePrefix: query.payload.valuePrefix } : {}),
-        ...(query.payload.valueSuffix ? { valueSuffix: query.payload.valueSuffix } : {}),
-        ...(query.payload.valueMinLen !== undefined
-          ? { valueMinLen: query.payload.valueMinLen }
-          : {}),
-        ...(query.payload.valueMaxLen !== undefined
-          ? { valueMaxLen: query.payload.valueMaxLen }
-          : {}),
-        ...(query.payload.valueCharMust ? { valueCharMust: query.payload.valueCharMust } : {}),
-        ...(query.payload.valueCharMay ? { valueCharMay: query.payload.valueCharMay } : {}),
-        ...(query.payload.valueMayIncludeOtherChars ? { valueMayIncludeOtherChars: true } : {}),
-        finiteValueCount: query.payload.finiteValues?.length ?? 0,
-        valueDomainDerivation: deriveReducedExpressionValueDomainDerivation(query.payload),
-      },
-    }))
+  const results = snapshot.input.typeFacts
+    .map((entry) => {
+      const payload = expressionValueDomainPayloadFromInputFacts(entry.facts);
+      return {
+        kind: "expression-domain" as const,
+        filePath: entry.filePath,
+        queryId: entry.expressionId,
+        payload: {
+          expressionId: entry.expressionId,
+          valueDomainKind: deriveReducedExpressionValueDomainKind(payload),
+          ...(entry.facts.constraintKind !== undefined
+            ? { valueConstraintKind: entry.facts.constraintKind }
+            : {}),
+          ...(entry.facts.prefix !== undefined ? { valuePrefix: entry.facts.prefix } : {}),
+          ...(entry.facts.suffix !== undefined ? { valueSuffix: entry.facts.suffix } : {}),
+          ...(entry.facts.minLen !== undefined ? { valueMinLen: entry.facts.minLen } : {}),
+          ...(entry.facts.maxLen !== undefined ? { valueMaxLen: entry.facts.maxLen } : {}),
+          ...(entry.facts.charMust !== undefined ? { valueCharMust: entry.facts.charMust } : {}),
+          ...(entry.facts.charMay !== undefined ? { valueCharMay: entry.facts.charMay } : {}),
+          ...(entry.facts.mayIncludeOtherChars !== undefined
+            ? { valueMayIncludeOtherChars: entry.facts.mayIncludeOtherChars }
+            : {}),
+          finiteValueCount: entry.facts.values?.length ?? 0,
+          valueDomainDerivation: deriveReducedExpressionValueDomainDerivation(payload),
+        },
+      };
+    })
     .toSorted((a, b) => a.queryId.localeCompare(b.queryId));
 
   return {
@@ -1984,42 +1985,449 @@ export function deriveTsSourceResolutionQueryFragments(
   };
 }
 
+type SourceClassExpressionInputV2 =
+  EngineInputV2["sources"][number]["document"]["classExpressions"][number];
+type StyleAnalysisInputV2 = EngineInputV2["styles"][number];
+type StringTypeFactsInputV2 = EngineInputV2["typeFacts"][number]["facts"];
+type TypeFactEntryInputV2 = EngineInputV2["typeFacts"][number];
+
+interface SourceSideInputRows {
+  readonly expression: SourceClassExpressionInputV2;
+  readonly style: StyleAnalysisInputV2;
+  readonly entry: TypeFactEntryInputV2;
+  readonly selectorNames: readonly string[];
+  readonly candidateNames: readonly string[];
+  readonly finiteValues?: readonly string[];
+  readonly selectorCertainty: string;
+  readonly valueCertainty?: string;
+  readonly selectorCertaintyShapeKind: string;
+  readonly selectorCertaintyShapeLabel: string;
+  readonly valueCertaintyShapeKind: string;
+  readonly valueCertaintyShapeLabel: string;
+}
+
+function collectSourceSideInputRows(snapshot: EngineParitySnapshotV2): SourceSideInputRows[] {
+  const expressionIndex = new Map<string, SourceClassExpressionInputV2>();
+  const styleIndex = new Map<string, StyleAnalysisInputV2>();
+
+  for (const source of snapshot.input.sources) {
+    for (const expression of source.document.classExpressions) {
+      expressionIndex.set(expression.id, expression);
+    }
+  }
+
+  for (const style of snapshot.input.styles) {
+    styleIndex.set(style.filePath, style);
+  }
+
+  const rows: SourceSideInputRows[] = [];
+  for (const entry of snapshot.input.typeFacts) {
+    const expression = expressionIndex.get(entry.expressionId);
+    if (!expression) continue;
+
+    const style = styleIndex.get(expression.scssModulePath);
+    if (!style) continue;
+
+    const selectorNames = resolveInputSelectorNames(style, entry.facts);
+    const finiteValues = finiteValuesForInputFacts(entry.facts);
+    const candidateNames = finiteValues ?? selectorNames;
+    const selectorUniverseCount = canonicalInputSelectorCount(style);
+    const selectorCertainty = mapInputSelectorCertainty(
+      entry.facts,
+      selectorNames.length,
+      selectorUniverseCount,
+    );
+
+    const valueCertainty = mapInputValueCertainty(entry.facts);
+    rows.push({
+      expression,
+      style,
+      entry,
+      selectorNames,
+      candidateNames,
+      ...(finiteValues !== undefined ? { finiteValues } : {}),
+      selectorCertainty,
+      ...(valueCertainty !== undefined ? { valueCertainty } : {}),
+      selectorCertaintyShapeKind: mapInputSelectorCertaintyShapeKind(
+        entry.facts,
+        selectorNames.length,
+        selectorUniverseCount,
+      ),
+      selectorCertaintyShapeLabel: mapInputSelectorCertaintyShapeLabel(
+        entry.facts,
+        selectorNames.length,
+        selectorUniverseCount,
+      ),
+      valueCertaintyShapeKind: mapInputValueCertaintyShapeKind(entry.facts),
+      valueCertaintyShapeLabel: mapInputValueCertaintyShapeLabel(entry.facts),
+    });
+  }
+
+  return rows.toSorted((a, b) => a.entry.expressionId.localeCompare(b.entry.expressionId));
+}
+
+function expressionValueDomainPayloadFromInputFacts(
+  facts: StringTypeFactsInputV2,
+): ExpressionValueDomainPayloadLike {
+  return {
+    valueDomainKind: mapInputExpressionValueDomainKind(facts),
+    ...(facts.constraintKind !== undefined ? { valueConstraintKind: facts.constraintKind } : {}),
+    ...(facts.prefix !== undefined ? { valuePrefix: facts.prefix } : {}),
+    ...(facts.suffix !== undefined ? { valueSuffix: facts.suffix } : {}),
+    ...(facts.minLen !== undefined ? { valueMinLen: facts.minLen } : {}),
+    ...(facts.maxLen !== undefined ? { valueMaxLen: facts.maxLen } : {}),
+    ...(facts.charMust !== undefined ? { valueCharMust: facts.charMust } : {}),
+    ...(facts.charMay !== undefined ? { valueCharMay: facts.charMay } : {}),
+    ...(facts.mayIncludeOtherChars !== undefined
+      ? { valueMayIncludeOtherChars: facts.mayIncludeOtherChars }
+      : {}),
+    finiteValues: facts.values ?? null,
+  };
+}
+
+function mapInputExpressionValueDomainKind(facts: StringTypeFactsInputV2): string {
+  return facts.kind === "unknown" ? "none" : facts.kind;
+}
+
+function mapInputValueCertainty(facts: StringTypeFactsInputV2): string | undefined {
+  switch (facts.kind) {
+    case "exact":
+      return "exact";
+    case "finiteSet":
+    case "constrained":
+      return "inferred";
+    case "unknown":
+    case "top":
+      return "possible";
+    default:
+      return undefined;
+  }
+}
+
+function mapInputValueCertaintyShapeKind(facts: StringTypeFactsInputV2): string {
+  switch (facts.kind) {
+    case "exact":
+      return "exact";
+    case "finiteSet":
+      return "boundedFinite";
+    case "constrained":
+      return "constrained";
+    default:
+      return "unknown";
+  }
+}
+
+function mapInputValueCertaintyShapeLabel(facts: StringTypeFactsInputV2): string {
+  switch (mapInputValueCertainty(facts)) {
+    case "exact":
+      return "exact";
+    case "inferred":
+      if (facts.kind === "finiteSet") {
+        return `bounded finite (${uniqueInputValueCount(facts.values)})`;
+      }
+      if (facts.kind === "constrained") {
+        return constrainedInputValueShapeLabel(facts);
+      }
+      return "unknown";
+    default:
+      return "unknown";
+  }
+}
+
+function mapInputSelectorCertainty(
+  facts: StringTypeFactsInputV2,
+  matchedSelectorCount: number,
+  selectorUniverseCount: number,
+): string {
+  switch (facts.kind) {
+    case "unknown":
+      return "possible";
+    case "exact":
+      return matchedSelectorCount === 1 ? "exact" : "possible";
+    case "finiteSet": {
+      const finiteValueCount = uniqueInputValueCount(facts.values);
+      if (finiteValueCount === 0 || matchedSelectorCount === 0) return "possible";
+      return matchedSelectorCount === finiteValueCount ? "exact" : "inferred";
+    }
+    case "constrained":
+    case "top":
+      if (matchedSelectorCount === 0) return "possible";
+      return matchedSelectorCount === selectorUniverseCount ? "exact" : "inferred";
+    default:
+      return "possible";
+  }
+}
+
+function mapInputSelectorCertaintyShapeKind(
+  facts: StringTypeFactsInputV2,
+  matchedSelectorCount: number,
+  selectorUniverseCount: number,
+): string {
+  switch (mapInputSelectorCertainty(facts, matchedSelectorCount, selectorUniverseCount)) {
+    case "exact":
+      return "exact";
+    case "possible":
+      return "unknown";
+    case "inferred":
+      return isConstrainedInputSelectorShape(facts) ? "constrained" : "boundedFinite";
+    default:
+      return "unknown";
+  }
+}
+
+function mapInputSelectorCertaintyShapeLabel(
+  facts: StringTypeFactsInputV2,
+  matchedSelectorCount: number,
+  selectorUniverseCount: number,
+): string {
+  switch (mapInputSelectorCertainty(facts, matchedSelectorCount, selectorUniverseCount)) {
+    case "exact":
+      return "exact";
+    case "possible":
+      return "unknown";
+    case "inferred":
+      switch (facts.constraintKind) {
+        case "prefix":
+          return `constrained prefix selector set (${matchedSelectorCount})`;
+        case "suffix":
+          return `constrained suffix selector set (${matchedSelectorCount})`;
+        case "prefixSuffix":
+          return `constrained edge selector set (${matchedSelectorCount})`;
+        case "charInclusion":
+          return `constrained character selector set (${matchedSelectorCount})`;
+        case "composite":
+          return `constrained composite selector set (${matchedSelectorCount})`;
+        default:
+          return `bounded selector set (${matchedSelectorCount})`;
+      }
+    default:
+      return "unknown";
+  }
+}
+
+function finiteValuesForInputFacts(facts: StringTypeFactsInputV2): readonly string[] | undefined {
+  if (facts.kind !== "exact" && facts.kind !== "finiteSet") return undefined;
+  return facts.values;
+}
+
+function resolveInputSelectorNames(
+  style: StyleAnalysisInputV2,
+  facts: StringTypeFactsInputV2,
+): readonly string[] {
+  switch (facts.kind) {
+    case "unknown":
+      return [];
+    case "top":
+      return canonicalInputSelectorNames(style);
+    case "exact":
+    case "finiteSet": {
+      const names: string[] = [];
+      for (const value of facts.values ?? []) {
+        pushCanonicalInputMatch(style, value, names);
+      }
+      return names;
+    }
+    case "constrained":
+      return resolveConstrainedInputSelectorNames(style, facts);
+    default:
+      return [];
+  }
+}
+
+function resolveConstrainedInputSelectorNames(
+  style: StyleAnalysisInputV2,
+  facts: StringTypeFactsInputV2,
+): readonly string[] {
+  const names: string[] = [];
+  for (const selector of style.document.selectors) {
+    if (!matchesInputSelectorConstraints(selector.name, facts)) continue;
+    const canonicalName = canonicalInputNameForSelector(style, selector.name);
+    if (canonicalName && !names.includes(canonicalName)) {
+      names.push(canonicalName);
+    }
+  }
+  return names;
+}
+
+function matchesInputSelectorConstraints(
+  selectorName: string,
+  facts: StringTypeFactsInputV2,
+): boolean {
+  switch (facts.constraintKind) {
+    case "prefix":
+      return facts.prefix !== undefined && selectorName.startsWith(facts.prefix);
+    case "suffix":
+      return facts.suffix !== undefined && selectorName.endsWith(facts.suffix);
+    case "prefixSuffix": {
+      const prefixOk = facts.prefix === undefined || selectorName.startsWith(facts.prefix);
+      const suffixOk = facts.suffix === undefined || selectorName.endsWith(facts.suffix);
+      const minLenOk = facts.minLen === undefined || selectorName.length >= facts.minLen;
+      const maxLenOk = facts.maxLen === undefined || selectorName.length <= facts.maxLen;
+      return prefixOk && suffixOk && minLenOk && maxLenOk;
+    }
+    case "charInclusion":
+      return matchesInputCharConstraints(
+        selectorName,
+        facts.charMust ?? "",
+        facts.charMay ?? "",
+        facts.mayIncludeOtherChars === true,
+      );
+    case "composite": {
+      const prefixOk = facts.prefix === undefined || selectorName.startsWith(facts.prefix);
+      const suffixOk = facts.suffix === undefined || selectorName.endsWith(facts.suffix);
+      const minLenOk = facts.minLen === undefined || selectorName.length >= facts.minLen;
+      const maxLenOk = facts.maxLen === undefined || selectorName.length <= facts.maxLen;
+      return (
+        prefixOk &&
+        suffixOk &&
+        minLenOk &&
+        maxLenOk &&
+        matchesInputCharConstraints(
+          selectorName,
+          facts.charMust ?? "",
+          facts.charMay ?? "",
+          facts.mayIncludeOtherChars === true,
+        )
+      );
+    }
+    default:
+      return false;
+  }
+}
+
+function matchesInputCharConstraints(
+  value: string,
+  mustChars: string,
+  mayChars: string,
+  mayIncludeOtherChars: boolean,
+): boolean {
+  const valueChars = new Set(Array.from(value));
+  const mustSet = new Set(Array.from(mustChars));
+  const maySet = new Set(Array.from(mayChars));
+
+  for (const char of mustSet) {
+    if (!valueChars.has(char)) return false;
+  }
+
+  if (!mayIncludeOtherChars) {
+    for (const char of valueChars) {
+      if (!maySet.has(char)) return false;
+    }
+  }
+
+  return true;
+}
+
+function pushCanonicalInputMatch(
+  style: StyleAnalysisInputV2,
+  viewName: string,
+  names: string[],
+): void {
+  const canonicalName = canonicalInputNameForSelector(style, viewName);
+  if (canonicalName && !names.includes(canonicalName)) {
+    names.push(canonicalName);
+  }
+}
+
+function canonicalInputSelectorNames(style: StyleAnalysisInputV2): readonly string[] {
+  const names: string[] = [];
+  for (const selector of style.document.selectors) {
+    if (
+      selector.viewKind === "canonical" &&
+      selector.canonicalName &&
+      !names.includes(selector.canonicalName)
+    ) {
+      names.push(selector.canonicalName);
+    }
+  }
+  return names;
+}
+
+function canonicalInputSelectorCount(style: StyleAnalysisInputV2): number {
+  return canonicalInputSelectorNames(style).length;
+}
+
+function canonicalInputNameForSelector(
+  style: StyleAnalysisInputV2,
+  viewName: string,
+): string | undefined {
+  const matched = style.document.selectors.find((selector) => selector.name === viewName);
+  if (!matched) return undefined;
+
+  const canonical = style.document.selectors.find(
+    (selector) =>
+      selector.viewKind === "canonical" && selector.canonicalName === matched.canonicalName,
+  );
+
+  return canonical?.canonicalName ?? matched.canonicalName ?? matched.name;
+}
+
+function uniqueInputValueCount(values: readonly string[] | undefined): number {
+  return new Set(values ?? []).size;
+}
+
+function constrainedInputValueShapeLabel(facts: StringTypeFactsInputV2): string {
+  switch (facts.constraintKind) {
+    case "prefix":
+      return `constrained prefix \`${facts.prefix ?? ""}\``;
+    case "suffix":
+      return `constrained suffix \`${facts.suffix ?? ""}\``;
+    case "prefixSuffix":
+      return `constrained prefix \`${facts.prefix ?? ""}\` + suffix \`${facts.suffix ?? ""}\``;
+    case "charInclusion":
+      return `constrained character inclusion (${facts.charMust ?? "none"})`;
+    case "composite":
+      return "constrained composite";
+    default:
+      return "unknown";
+  }
+}
+
+function isConstrainedInputSelectorShape(facts: StringTypeFactsInputV2): boolean {
+  return (
+    facts.constraintKind === "prefix" ||
+    facts.constraintKind === "suffix" ||
+    facts.constraintKind === "prefixSuffix" ||
+    facts.constraintKind === "charInclusion" ||
+    facts.constraintKind === "composite"
+  );
+}
+
 export function deriveTsExpressionSemanticsFragments(
   snapshot: EngineParitySnapshotV2,
 ): ExpressionSemanticsFragmentsV0 {
-  const fragments = snapshot.output.queryResults
-    .filter((query) => query.kind === "expression-semantics")
-    .map((query) => {
+  const fragments = collectSourceSideInputRows(snapshot)
+    .map((row) => {
       const fragment: ExpressionSemanticsFragmentV0 = {
-        queryId: query.queryId,
-        expressionId: query.payload.expressionId,
-        expressionKind: query.payload.expressionKind,
-        styleFilePath: query.payload.styleFilePath ?? "",
-        valueDomainKind: query.payload.valueDomainKind,
+        queryId: row.entry.expressionId,
+        expressionId: row.entry.expressionId,
+        expressionKind: row.expression.kind,
+        styleFilePath: row.expression.scssModulePath,
+        valueDomainKind: mapInputExpressionValueDomainKind(row.entry.facts),
       };
-      if (query.payload.valueConstraintKind) {
-        fragment.valueConstraintKind = query.payload.valueConstraintKind;
+      if (row.entry.facts.constraintKind !== undefined) {
+        fragment.valueConstraintKind = row.entry.facts.constraintKind;
       }
-      if (query.payload.valuePrefix) {
-        fragment.valuePrefix = query.payload.valuePrefix;
+      if (row.entry.facts.prefix !== undefined) {
+        fragment.valuePrefix = row.entry.facts.prefix;
       }
-      if (query.payload.valueSuffix) {
-        fragment.valueSuffix = query.payload.valueSuffix;
+      if (row.entry.facts.suffix !== undefined) {
+        fragment.valueSuffix = row.entry.facts.suffix;
       }
-      if (query.payload.valueMinLen !== undefined) {
-        fragment.valueMinLen = query.payload.valueMinLen;
+      if (row.entry.facts.minLen !== undefined) {
+        fragment.valueMinLen = row.entry.facts.minLen;
       }
-      if (query.payload.valueMaxLen !== undefined) {
-        fragment.valueMaxLen = query.payload.valueMaxLen;
+      if (row.entry.facts.maxLen !== undefined) {
+        fragment.valueMaxLen = row.entry.facts.maxLen;
       }
-      if (query.payload.valueCharMust) {
-        fragment.valueCharMust = query.payload.valueCharMust;
+      if (row.entry.facts.charMust !== undefined) {
+        fragment.valueCharMust = row.entry.facts.charMust;
       }
-      if (query.payload.valueCharMay) {
-        fragment.valueCharMay = query.payload.valueCharMay;
+      if (row.entry.facts.charMay !== undefined) {
+        fragment.valueCharMay = row.entry.facts.charMay;
       }
-      if (query.payload.valueMayIncludeOtherChars) {
-        fragment.valueMayIncludeOtherChars = true;
+      if (row.entry.facts.mayIncludeOtherChars !== undefined) {
+        fragment.valueMayIncludeOtherChars = row.entry.facts.mayIncludeOtherChars;
       }
       return fragment;
     })
@@ -2056,18 +2464,17 @@ export function deriveTsExpressionSemanticsQueryFragments(
 export function deriveTsExpressionSemanticsMatchFragments(
   snapshot: EngineParitySnapshotV2,
 ): ExpressionSemanticsMatchFragmentsV0 {
-  const fragments = snapshot.output.queryResults
-    .filter((query) => query.kind === "expression-semantics")
-    .map((query) => {
+  const fragments = collectSourceSideInputRows(snapshot)
+    .map((row) => {
       const fragment: ExpressionSemanticsMatchFragmentV0 = {
-        queryId: query.queryId,
-        expressionId: query.payload.expressionId,
-        styleFilePath: query.payload.styleFilePath ?? "",
-        selectorNames: query.payload.selectorNames,
-        candidateNames: query.payload.candidateNames,
+        queryId: row.entry.expressionId,
+        expressionId: row.entry.expressionId,
+        styleFilePath: row.expression.scssModulePath,
+        selectorNames: row.selectorNames,
+        candidateNames: row.candidateNames,
       };
-      if (query.payload.finiteValues) {
-        fragment.finiteValues = query.payload.finiteValues;
+      if (row.finiteValues !== undefined) {
+        fragment.finiteValues = row.finiteValues;
       }
       return fragment;
     })
@@ -2083,59 +2490,53 @@ export function deriveTsExpressionSemanticsMatchFragments(
 export function deriveTsExpressionSemanticsCandidates(
   snapshot: EngineParitySnapshotV2,
 ): ExpressionSemanticsCandidatesV0 {
-  const candidates = snapshot.output.queryResults
-    .filter((query) => query.kind === "expression-semantics")
-    .map((query) => {
+  const candidates = collectSourceSideInputRows(snapshot)
+    .map((row) => {
       const candidate: ExpressionSemanticsCandidateV0 = {
-        queryId: query.queryId,
-        expressionId: query.payload.expressionId,
-        expressionKind: query.payload.expressionKind,
-        styleFilePath: query.payload.styleFilePath ?? "",
-        selectorNames: query.payload.selectorNames,
-        candidateNames: query.payload.candidateNames,
+        queryId: row.entry.expressionId,
+        expressionId: row.entry.expressionId,
+        expressionKind: row.expression.kind,
+        styleFilePath: row.expression.scssModulePath,
+        selectorNames: row.selectorNames,
+        candidateNames: row.candidateNames,
+        valueDomainKind: mapInputExpressionValueDomainKind(row.entry.facts),
+        selectorCertainty: row.selectorCertainty,
+        selectorCertaintyShapeKind: row.selectorCertaintyShapeKind,
+        selectorCertaintyShapeLabel: row.selectorCertaintyShapeLabel,
+        valueCertaintyShapeKind: row.valueCertaintyShapeKind,
+        valueCertaintyShapeLabel: row.valueCertaintyShapeLabel,
       };
-      if (query.payload.finiteValues) {
-        candidate.finiteValues = query.payload.finiteValues;
+      if (row.finiteValues !== undefined) {
+        candidate.finiteValues = row.finiteValues;
       }
-      candidate.valueDomainKind = query.payload.valueDomainKind;
-      candidate.selectorCertainty = query.payload.selectorCertainty;
-      if (query.payload.valueCertainty) {
-        candidate.valueCertainty = query.payload.valueCertainty;
+      if (row.valueCertainty !== undefined) {
+        candidate.valueCertainty = row.valueCertainty;
       }
-      candidate.selectorCertaintyShapeKind = query.payload.selectorCertaintyShapeKind ?? "unknown";
-      candidate.selectorCertaintyShapeLabel =
-        query.payload.selectorCertaintyShapeLabel ?? "unknown";
-      candidate.valueCertaintyShapeKind = query.payload.valueCertaintyShapeKind ?? "unknown";
-      candidate.valueCertaintyShapeLabel = query.payload.valueCertaintyShapeLabel ?? "unknown";
-      if (query.payload.selectorConstraintKind) {
-        candidate.selectorConstraintKind = query.payload.selectorConstraintKind;
+      if (row.entry.facts.constraintKind !== undefined) {
+        candidate.selectorConstraintKind = row.entry.facts.constraintKind;
+        candidate.valueCertaintyConstraintKind = row.entry.facts.constraintKind;
+        candidate.valueConstraintKind = row.entry.facts.constraintKind;
       }
-      if (query.payload.valueCertaintyConstraintKind) {
-        candidate.valueCertaintyConstraintKind = query.payload.valueCertaintyConstraintKind;
+      if (row.entry.facts.prefix !== undefined) {
+        candidate.valuePrefix = row.entry.facts.prefix;
       }
-      if (query.payload.valueConstraintKind) {
-        candidate.valueConstraintKind = query.payload.valueConstraintKind;
+      if (row.entry.facts.suffix !== undefined) {
+        candidate.valueSuffix = row.entry.facts.suffix;
       }
-      if (query.payload.valuePrefix) {
-        candidate.valuePrefix = query.payload.valuePrefix;
+      if (row.entry.facts.minLen !== undefined) {
+        candidate.valueMinLen = row.entry.facts.minLen;
       }
-      if (query.payload.valueSuffix) {
-        candidate.valueSuffix = query.payload.valueSuffix;
+      if (row.entry.facts.maxLen !== undefined) {
+        candidate.valueMaxLen = row.entry.facts.maxLen;
       }
-      if (query.payload.valueMinLen !== undefined) {
-        candidate.valueMinLen = query.payload.valueMinLen;
+      if (row.entry.facts.charMust !== undefined) {
+        candidate.valueCharMust = row.entry.facts.charMust;
       }
-      if (query.payload.valueMaxLen !== undefined) {
-        candidate.valueMaxLen = query.payload.valueMaxLen;
+      if (row.entry.facts.charMay !== undefined) {
+        candidate.valueCharMay = row.entry.facts.charMay;
       }
-      if (query.payload.valueCharMust) {
-        candidate.valueCharMust = query.payload.valueCharMust;
-      }
-      if (query.payload.valueCharMay) {
-        candidate.valueCharMay = query.payload.valueCharMay;
-      }
-      if (query.payload.valueMayIncludeOtherChars) {
-        candidate.valueMayIncludeOtherChars = true;
+      if (row.entry.facts.mayIncludeOtherChars !== undefined) {
+        candidate.valueMayIncludeOtherChars = row.entry.facts.mayIncludeOtherChars;
       }
       return candidate;
     })
@@ -2164,47 +2565,48 @@ export function deriveTsExpressionSemanticsCanonicalCandidateBundle(
 export function deriveTsExpressionSemanticsEvaluatorCandidates(
   snapshot: EngineParitySnapshotV2,
 ): ExpressionSemanticsEvaluatorCandidatesV0 {
-  const results = snapshot.output.queryResults
-    .filter((query) => query.kind === "expression-semantics")
-    .map((query) => ({
+  const results = collectSourceSideInputRows(snapshot)
+    .map((row) => ({
       kind: "expression-semantics" as const,
-      filePath: query.filePath,
-      queryId: query.queryId,
+      filePath: row.entry.filePath,
+      queryId: row.entry.expressionId,
       payload: {
-        expressionId: query.payload.expressionId,
-        expressionKind: query.payload.expressionKind,
-        styleFilePath: query.payload.styleFilePath ?? "",
-        selectorNames: query.payload.selectorNames,
-        candidateNames: query.payload.candidateNames,
-        ...(query.payload.finiteValues ? { finiteValues: query.payload.finiteValues } : {}),
-        valueDomainKind: query.payload.valueDomainKind,
-        selectorCertainty: query.payload.selectorCertainty,
-        ...(query.payload.valueCertainty ? { valueCertainty: query.payload.valueCertainty } : {}),
-        selectorCertaintyShapeKind: query.payload.selectorCertaintyShapeKind ?? "unknown",
-        selectorCertaintyShapeLabel: query.payload.selectorCertaintyShapeLabel ?? "unknown",
-        valueCertaintyShapeKind: query.payload.valueCertaintyShapeKind ?? "unknown",
-        valueCertaintyShapeLabel: query.payload.valueCertaintyShapeLabel ?? "unknown",
-        ...(query.payload.selectorConstraintKind
-          ? { selectorConstraintKind: query.payload.selectorConstraintKind }
+        expressionId: row.entry.expressionId,
+        expressionKind: row.expression.kind,
+        styleFilePath: row.expression.scssModulePath,
+        selectorNames: row.selectorNames,
+        candidateNames: row.candidateNames,
+        ...(row.finiteValues !== undefined ? { finiteValues: row.finiteValues } : {}),
+        valueDomainKind: mapInputExpressionValueDomainKind(row.entry.facts),
+        selectorCertainty: row.selectorCertainty,
+        ...(row.valueCertainty !== undefined ? { valueCertainty: row.valueCertainty } : {}),
+        selectorCertaintyShapeKind: row.selectorCertaintyShapeKind,
+        selectorCertaintyShapeLabel: row.selectorCertaintyShapeLabel,
+        valueCertaintyShapeKind: row.valueCertaintyShapeKind,
+        valueCertaintyShapeLabel: row.valueCertaintyShapeLabel,
+        ...(row.entry.facts.constraintKind !== undefined
+          ? { selectorConstraintKind: row.entry.facts.constraintKind }
           : {}),
-        ...(query.payload.valueCertaintyConstraintKind
-          ? { valueCertaintyConstraintKind: query.payload.valueCertaintyConstraintKind }
+        ...(row.entry.facts.constraintKind !== undefined
+          ? { valueCertaintyConstraintKind: row.entry.facts.constraintKind }
           : {}),
-        ...(query.payload.valueConstraintKind
-          ? { valueConstraintKind: query.payload.valueConstraintKind }
+        ...(row.entry.facts.constraintKind !== undefined
+          ? { valueConstraintKind: row.entry.facts.constraintKind }
           : {}),
-        ...(query.payload.valuePrefix ? { valuePrefix: query.payload.valuePrefix } : {}),
-        ...(query.payload.valueSuffix ? { valueSuffix: query.payload.valueSuffix } : {}),
-        ...(query.payload.valueMinLen !== undefined
-          ? { valueMinLen: query.payload.valueMinLen }
+        ...(row.entry.facts.prefix !== undefined ? { valuePrefix: row.entry.facts.prefix } : {}),
+        ...(row.entry.facts.suffix !== undefined ? { valueSuffix: row.entry.facts.suffix } : {}),
+        ...(row.entry.facts.minLen !== undefined ? { valueMinLen: row.entry.facts.minLen } : {}),
+        ...(row.entry.facts.maxLen !== undefined ? { valueMaxLen: row.entry.facts.maxLen } : {}),
+        ...(row.entry.facts.charMust !== undefined
+          ? { valueCharMust: row.entry.facts.charMust }
           : {}),
-        ...(query.payload.valueMaxLen !== undefined
-          ? { valueMaxLen: query.payload.valueMaxLen }
+        ...(row.entry.facts.charMay !== undefined ? { valueCharMay: row.entry.facts.charMay } : {}),
+        ...(row.entry.facts.mayIncludeOtherChars !== undefined
+          ? { valueMayIncludeOtherChars: row.entry.facts.mayIncludeOtherChars }
           : {}),
-        ...(query.payload.valueCharMust ? { valueCharMust: query.payload.valueCharMust } : {}),
-        ...(query.payload.valueCharMay ? { valueCharMay: query.payload.valueCharMay } : {}),
-        ...(query.payload.valueMayIncludeOtherChars ? { valueMayIncludeOtherChars: true } : {}),
-        valueDomainDerivation: deriveReducedExpressionValueDomainDerivation(query.payload),
+        valueDomainDerivation: deriveReducedExpressionValueDomainDerivation(
+          expressionValueDomainPayloadFromInputFacts(row.entry.facts),
+        ),
       },
     }))
     .toSorted((a, b) => a.queryId.localeCompare(b.queryId));
@@ -2230,38 +2632,37 @@ export function deriveTsExpressionSemanticsCanonicalProducerSignal(
 export function deriveTsSourceResolutionFragments(
   snapshot: EngineParitySnapshotV2,
 ): SourceResolutionFragmentsV0 {
-  const fragments = snapshot.output.queryResults
-    .filter((query) => query.kind === "source-expression-resolution")
-    .map((query) => {
+  const fragments = collectSourceSideInputRows(snapshot)
+    .map((row) => {
       const fragment: SourceResolutionFragmentV0 = {
-        queryId: query.queryId,
-        expressionId: query.payload.expressionId,
-        styleFilePath: query.payload.styleFilePath ?? "",
-        valueCertaintyShapeKind: query.payload.valueCertaintyShapeKind ?? "unknown",
+        queryId: row.entry.expressionId,
+        expressionId: row.entry.expressionId,
+        styleFilePath: row.expression.scssModulePath,
+        valueCertaintyShapeKind: row.valueCertaintyShapeKind,
       };
-      if (query.payload.valueCertaintyConstraintKind) {
-        fragment.valueCertaintyConstraintKind = query.payload.valueCertaintyConstraintKind;
+      if (row.entry.facts.constraintKind !== undefined) {
+        fragment.valueCertaintyConstraintKind = row.entry.facts.constraintKind;
       }
-      if (query.payload.valuePrefix) {
-        fragment.valuePrefix = query.payload.valuePrefix;
+      if (row.entry.facts.prefix !== undefined) {
+        fragment.valuePrefix = row.entry.facts.prefix;
       }
-      if (query.payload.valueSuffix) {
-        fragment.valueSuffix = query.payload.valueSuffix;
+      if (row.entry.facts.suffix !== undefined) {
+        fragment.valueSuffix = row.entry.facts.suffix;
       }
-      if (query.payload.valueMinLen !== undefined) {
-        fragment.valueMinLen = query.payload.valueMinLen;
+      if (row.entry.facts.minLen !== undefined) {
+        fragment.valueMinLen = row.entry.facts.minLen;
       }
-      if (query.payload.valueMaxLen !== undefined) {
-        fragment.valueMaxLen = query.payload.valueMaxLen;
+      if (row.entry.facts.maxLen !== undefined) {
+        fragment.valueMaxLen = row.entry.facts.maxLen;
       }
-      if (query.payload.valueCharMust) {
-        fragment.valueCharMust = query.payload.valueCharMust;
+      if (row.entry.facts.charMust !== undefined) {
+        fragment.valueCharMust = row.entry.facts.charMust;
       }
-      if (query.payload.valueCharMay) {
-        fragment.valueCharMay = query.payload.valueCharMay;
+      if (row.entry.facts.charMay !== undefined) {
+        fragment.valueCharMay = row.entry.facts.charMay;
       }
-      if (query.payload.valueMayIncludeOtherChars) {
-        fragment.valueMayIncludeOtherChars = true;
+      if (row.entry.facts.mayIncludeOtherChars !== undefined) {
+        fragment.valueMayIncludeOtherChars = row.entry.facts.mayIncludeOtherChars;
       }
       return fragment;
     })
@@ -2277,17 +2678,16 @@ export function deriveTsSourceResolutionFragments(
 export function deriveTsSourceResolutionMatchFragments(
   snapshot: EngineParitySnapshotV2,
 ): SourceResolutionMatchFragmentsV0 {
-  const fragments = snapshot.output.queryResults
-    .filter((query) => query.kind === "source-expression-resolution")
-    .map((query) => {
+  const fragments = collectSourceSideInputRows(snapshot)
+    .map((row) => {
       const fragment: SourceResolutionMatchFragmentV0 = {
-        queryId: query.queryId,
-        expressionId: query.payload.expressionId,
-        styleFilePath: query.payload.styleFilePath ?? "",
-        selectorNames: query.payload.selectorNames,
+        queryId: row.entry.expressionId,
+        expressionId: row.entry.expressionId,
+        styleFilePath: row.expression.scssModulePath,
+        selectorNames: row.selectorNames,
       };
-      if (query.payload.finiteValues) {
-        fragment.finiteValues = query.payload.finiteValues;
+      if (row.finiteValues !== undefined) {
+        fragment.finiteValues = row.finiteValues;
       }
       return fragment;
     })
@@ -2303,53 +2703,49 @@ export function deriveTsSourceResolutionMatchFragments(
 export function deriveTsSourceResolutionCandidates(
   snapshot: EngineParitySnapshotV2,
 ): SourceResolutionCandidatesV0 {
-  const candidates = snapshot.output.queryResults
-    .filter((query) => query.kind === "source-expression-resolution")
-    .map((query) => {
+  const candidates = collectSourceSideInputRows(snapshot)
+    .map((row) => {
       const candidate: SourceResolutionCandidateV0 = {
-        queryId: query.queryId,
-        expressionId: query.payload.expressionId,
-        styleFilePath: query.payload.styleFilePath ?? "",
-        selectorNames: query.payload.selectorNames,
+        queryId: row.entry.expressionId,
+        expressionId: row.entry.expressionId,
+        styleFilePath: row.expression.scssModulePath,
+        selectorNames: row.selectorNames,
+        selectorCertainty: row.selectorCertainty,
+        selectorCertaintyShapeKind: row.selectorCertaintyShapeKind,
+        selectorCertaintyShapeLabel: row.selectorCertaintyShapeLabel,
+        valueCertaintyShapeKind: row.valueCertaintyShapeKind,
+        valueCertaintyShapeLabel: row.valueCertaintyShapeLabel,
       };
-      if (query.payload.finiteValues) {
-        candidate.finiteValues = query.payload.finiteValues;
+      if (row.finiteValues !== undefined) {
+        candidate.finiteValues = row.finiteValues;
       }
-      candidate.selectorCertainty = query.payload.selectorCertainty;
-      if (query.payload.valueCertainty) {
-        candidate.valueCertainty = query.payload.valueCertainty;
+      if (row.valueCertainty !== undefined) {
+        candidate.valueCertainty = row.valueCertainty;
       }
-      candidate.selectorCertaintyShapeKind = query.payload.selectorCertaintyShapeKind ?? "unknown";
-      candidate.selectorCertaintyShapeLabel =
-        query.payload.selectorCertaintyShapeLabel ?? "unknown";
-      candidate.valueCertaintyShapeKind = query.payload.valueCertaintyShapeKind ?? "unknown";
-      candidate.valueCertaintyShapeLabel = query.payload.valueCertaintyShapeLabel ?? "unknown";
-      if (query.payload.selectorConstraintKind) {
-        candidate.selectorConstraintKind = query.payload.selectorConstraintKind;
+      if (row.entry.facts.constraintKind !== undefined) {
+        candidate.selectorConstraintKind = row.entry.facts.constraintKind;
+        candidate.valueCertaintyConstraintKind = row.entry.facts.constraintKind;
       }
-      if (query.payload.valueCertaintyConstraintKind) {
-        candidate.valueCertaintyConstraintKind = query.payload.valueCertaintyConstraintKind;
+      if (row.entry.facts.prefix !== undefined) {
+        candidate.valuePrefix = row.entry.facts.prefix;
       }
-      if (query.payload.valuePrefix) {
-        candidate.valuePrefix = query.payload.valuePrefix;
+      if (row.entry.facts.suffix !== undefined) {
+        candidate.valueSuffix = row.entry.facts.suffix;
       }
-      if (query.payload.valueSuffix) {
-        candidate.valueSuffix = query.payload.valueSuffix;
+      if (row.entry.facts.minLen !== undefined) {
+        candidate.valueMinLen = row.entry.facts.minLen;
       }
-      if (query.payload.valueMinLen !== undefined) {
-        candidate.valueMinLen = query.payload.valueMinLen;
+      if (row.entry.facts.maxLen !== undefined) {
+        candidate.valueMaxLen = row.entry.facts.maxLen;
       }
-      if (query.payload.valueMaxLen !== undefined) {
-        candidate.valueMaxLen = query.payload.valueMaxLen;
+      if (row.entry.facts.charMust !== undefined) {
+        candidate.valueCharMust = row.entry.facts.charMust;
       }
-      if (query.payload.valueCharMust) {
-        candidate.valueCharMust = query.payload.valueCharMust;
+      if (row.entry.facts.charMay !== undefined) {
+        candidate.valueCharMay = row.entry.facts.charMay;
       }
-      if (query.payload.valueCharMay) {
-        candidate.valueCharMay = query.payload.valueCharMay;
-      }
-      if (query.payload.valueMayIncludeOtherChars) {
-        candidate.valueMayIncludeOtherChars = true;
+      if (row.entry.facts.mayIncludeOtherChars !== undefined) {
+        candidate.valueMayIncludeOtherChars = row.entry.facts.mayIncludeOtherChars;
       }
       return candidate;
     })
@@ -2365,40 +2761,39 @@ export function deriveTsSourceResolutionCandidates(
 export function deriveTsSourceResolutionEvaluatorCandidates(
   snapshot: EngineParitySnapshotV2,
 ): SourceResolutionEvaluatorCandidatesV0 {
-  const results = snapshot.output.queryResults
-    .filter((query) => query.kind === "source-expression-resolution")
-    .map((query) => ({
+  const results = collectSourceSideInputRows(snapshot)
+    .map((row) => ({
       kind: "source-expression-resolution" as const,
-      filePath: query.filePath,
-      queryId: query.queryId,
+      filePath: row.entry.filePath,
+      queryId: row.entry.expressionId,
       payload: {
-        expressionId: query.payload.expressionId,
-        styleFilePath: query.payload.styleFilePath ?? "",
-        selectorNames: query.payload.selectorNames,
-        ...(query.payload.finiteValues ? { finiteValues: query.payload.finiteValues } : {}),
-        selectorCertainty: query.payload.selectorCertainty,
-        ...(query.payload.valueCertainty ? { valueCertainty: query.payload.valueCertainty } : {}),
-        selectorCertaintyShapeKind: query.payload.selectorCertaintyShapeKind ?? "unknown",
-        selectorCertaintyShapeLabel: query.payload.selectorCertaintyShapeLabel ?? "unknown",
-        valueCertaintyShapeKind: query.payload.valueCertaintyShapeKind ?? "unknown",
-        valueCertaintyShapeLabel: query.payload.valueCertaintyShapeLabel ?? "unknown",
-        ...(query.payload.selectorConstraintKind
-          ? { selectorConstraintKind: query.payload.selectorConstraintKind }
+        expressionId: row.entry.expressionId,
+        styleFilePath: row.expression.scssModulePath,
+        selectorNames: row.selectorNames,
+        ...(row.finiteValues !== undefined ? { finiteValues: row.finiteValues } : {}),
+        selectorCertainty: row.selectorCertainty,
+        ...(row.valueCertainty !== undefined ? { valueCertainty: row.valueCertainty } : {}),
+        selectorCertaintyShapeKind: row.selectorCertaintyShapeKind,
+        selectorCertaintyShapeLabel: row.selectorCertaintyShapeLabel,
+        valueCertaintyShapeKind: row.valueCertaintyShapeKind,
+        valueCertaintyShapeLabel: row.valueCertaintyShapeLabel,
+        ...(row.entry.facts.constraintKind !== undefined
+          ? { selectorConstraintKind: row.entry.facts.constraintKind }
           : {}),
-        ...(query.payload.valueCertaintyConstraintKind
-          ? { valueCertaintyConstraintKind: query.payload.valueCertaintyConstraintKind }
+        ...(row.entry.facts.constraintKind !== undefined
+          ? { valueCertaintyConstraintKind: row.entry.facts.constraintKind }
           : {}),
-        ...(query.payload.valuePrefix ? { valuePrefix: query.payload.valuePrefix } : {}),
-        ...(query.payload.valueSuffix ? { valueSuffix: query.payload.valueSuffix } : {}),
-        ...(query.payload.valueMinLen !== undefined
-          ? { valueMinLen: query.payload.valueMinLen }
+        ...(row.entry.facts.prefix !== undefined ? { valuePrefix: row.entry.facts.prefix } : {}),
+        ...(row.entry.facts.suffix !== undefined ? { valueSuffix: row.entry.facts.suffix } : {}),
+        ...(row.entry.facts.minLen !== undefined ? { valueMinLen: row.entry.facts.minLen } : {}),
+        ...(row.entry.facts.maxLen !== undefined ? { valueMaxLen: row.entry.facts.maxLen } : {}),
+        ...(row.entry.facts.charMust !== undefined
+          ? { valueCharMust: row.entry.facts.charMust }
           : {}),
-        ...(query.payload.valueMaxLen !== undefined
-          ? { valueMaxLen: query.payload.valueMaxLen }
+        ...(row.entry.facts.charMay !== undefined ? { valueCharMay: row.entry.facts.charMay } : {}),
+        ...(row.entry.facts.mayIncludeOtherChars !== undefined
+          ? { valueMayIncludeOtherChars: row.entry.facts.mayIncludeOtherChars }
           : {}),
-        ...(query.payload.valueCharMust ? { valueCharMust: query.payload.valueCharMust } : {}),
-        ...(query.payload.valueCharMay ? { valueCharMay: query.payload.valueCharMay } : {}),
-        ...(query.payload.valueMayIncludeOtherChars ? { valueMayIncludeOtherChars: true } : {}),
       },
     }))
     .toSorted((a, b) => a.queryId.localeCompare(b.queryId));
@@ -2885,8 +3280,8 @@ export function assertSelectorUsageFragmentsMatch(
 ): void {
   assertEqualField(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
   assertEqualField(label, "inputVersion", actual.inputVersion, expected.inputVersion);
-  const actualJson = JSON.stringify(actual.fragments);
-  const expectedJson = JSON.stringify(expected.fragments);
+  const actualJson = stableJson(actual.fragments);
+  const expectedJson = stableJson(expected.fragments);
   if (actualJson !== expectedJson) {
     throw new Error(
       `${label}: selectorUsageFragments mismatch\nexpected: ${expectedJson}\nreceived: ${actualJson}`,
@@ -2901,8 +3296,8 @@ export function assertSelectorUsageQueryFragmentsMatch(
 ): void {
   assertEqualField(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
   assertEqualField(label, "inputVersion", actual.inputVersion, expected.inputVersion);
-  const actualJson = JSON.stringify(actual.fragments);
-  const expectedJson = JSON.stringify(expected.fragments);
+  const actualJson = stableJson(actual.fragments);
+  const expectedJson = stableJson(expected.fragments);
   if (actualJson !== expectedJson) {
     throw new Error(
       `${label}: selectorUsageQueryFragments mismatch\nexpected: ${expectedJson}\nreceived: ${actualJson}`,
@@ -2957,8 +3352,8 @@ export function assertSourceResolutionQueryFragmentsMatch(
 ): void {
   assertEqualField(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
   assertEqualField(label, "inputVersion", actual.inputVersion, expected.inputVersion);
-  const actualJson = JSON.stringify(actual.fragments);
-  const expectedJson = JSON.stringify(expected.fragments);
+  const actualJson = stableJson(actual.fragments);
+  const expectedJson = stableJson(expected.fragments);
   if (actualJson !== expectedJson) {
     throw new Error(
       `${label}: sourceResolutionQueryFragments mismatch\nexpected: ${expectedJson}\nreceived: ${actualJson}`,
@@ -2973,8 +3368,8 @@ export function assertExpressionSemanticsFragmentsMatch(
 ): void {
   assertEqualField(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
   assertEqualField(label, "inputVersion", actual.inputVersion, expected.inputVersion);
-  const actualJson = JSON.stringify(actual.fragments);
-  const expectedJson = JSON.stringify(expected.fragments);
+  const actualJson = stableJson(actual.fragments);
+  const expectedJson = stableJson(expected.fragments);
   if (actualJson !== expectedJson) {
     throw new Error(
       `${label}: expressionSemanticsFragments mismatch\nexpected: ${expectedJson}\nreceived: ${actualJson}`,
@@ -3029,9 +3424,9 @@ export function assertExpressionSemanticsCandidatesMatch(
       `${label}: expression semantics candidates input version mismatch: ${actual.inputVersion} !== ${expected.inputVersion}`,
     );
   }
-  if (JSON.stringify(actual.candidates) !== JSON.stringify(expected.candidates)) {
+  if (stableJson(actual.candidates) !== stableJson(expected.candidates)) {
     throw new Error(
-      `${label}: expression semantics candidates mismatch\nactual=${JSON.stringify(actual.candidates, null, 2)}\nexpected=${JSON.stringify(expected.candidates, null, 2)}`,
+      `${label}: expression semantics candidates mismatch\nactual=${stableJson(actual.candidates)}\nexpected=${stableJson(expected.candidates)}`,
     );
   }
 }
@@ -3043,24 +3438,24 @@ export function assertExpressionSemanticsCanonicalCandidateBundleMatch(
 ): void {
   assertEqualField(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
   assertEqualField(label, "inputVersion", actual.inputVersion, expected.inputVersion);
-  if (JSON.stringify(actual.queryFragments) !== JSON.stringify(expected.queryFragments)) {
+  if (stableJson(actual.queryFragments) !== stableJson(expected.queryFragments)) {
     throw new Error(
-      `${label}: expression semantics canonical candidate queryFragments mismatch\nactual=${JSON.stringify(actual.queryFragments, null, 2)}\nexpected=${JSON.stringify(expected.queryFragments, null, 2)}`,
+      `${label}: expression semantics canonical candidate queryFragments mismatch\nactual=${stableJson(actual.queryFragments)}\nexpected=${stableJson(expected.queryFragments)}`,
     );
   }
-  if (JSON.stringify(actual.fragments) !== JSON.stringify(expected.fragments)) {
+  if (stableJson(actual.fragments) !== stableJson(expected.fragments)) {
     throw new Error(
-      `${label}: expression semantics canonical candidate fragments mismatch\nactual=${JSON.stringify(actual.fragments, null, 2)}\nexpected=${JSON.stringify(expected.fragments, null, 2)}`,
+      `${label}: expression semantics canonical candidate fragments mismatch\nactual=${stableJson(actual.fragments)}\nexpected=${stableJson(expected.fragments)}`,
     );
   }
-  if (JSON.stringify(actual.matchFragments) !== JSON.stringify(expected.matchFragments)) {
+  if (stableJson(actual.matchFragments) !== stableJson(expected.matchFragments)) {
     throw new Error(
-      `${label}: expression semantics canonical candidate matchFragments mismatch\nactual=${JSON.stringify(actual.matchFragments, null, 2)}\nexpected=${JSON.stringify(expected.matchFragments, null, 2)}`,
+      `${label}: expression semantics canonical candidate matchFragments mismatch\nactual=${stableJson(actual.matchFragments)}\nexpected=${stableJson(expected.matchFragments)}`,
     );
   }
-  if (JSON.stringify(actual.candidates) !== JSON.stringify(expected.candidates)) {
+  if (stableJson(actual.candidates) !== stableJson(expected.candidates)) {
     throw new Error(
-      `${label}: expression semantics canonical candidate candidates mismatch\nactual=${JSON.stringify(actual.candidates, null, 2)}\nexpected=${JSON.stringify(expected.candidates, null, 2)}`,
+      `${label}: expression semantics canonical candidate candidates mismatch\nactual=${stableJson(actual.candidates)}\nexpected=${stableJson(expected.candidates)}`,
     );
   }
 }
@@ -3072,9 +3467,9 @@ export function assertExpressionSemanticsEvaluatorCandidatesMatch(
 ): void {
   assertEqualField(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
   assertEqualField(label, "inputVersion", actual.inputVersion, expected.inputVersion);
-  if (JSON.stringify(actual.results) !== JSON.stringify(expected.results)) {
+  if (stableJson(actual.results) !== stableJson(expected.results)) {
     throw new Error(
-      `${label}: expression semantics evaluator candidates mismatch\nactual=${JSON.stringify(actual.results, null, 2)}\nexpected=${JSON.stringify(expected.results, null, 2)}`,
+      `${label}: expression semantics evaluator candidates mismatch\nactual=${stableJson(actual.results)}\nexpected=${stableJson(expected.results)}`,
     );
   }
 }
@@ -3105,8 +3500,8 @@ export function assertSourceResolutionFragmentsMatch(
 ): void {
   assertEqualField(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
   assertEqualField(label, "inputVersion", actual.inputVersion, expected.inputVersion);
-  const actualJson = JSON.stringify(actual.fragments);
-  const expectedJson = JSON.stringify(expected.fragments);
+  const actualJson = stableJson(actual.fragments);
+  const expectedJson = stableJson(expected.fragments);
   if (actualJson !== expectedJson) {
     throw new Error(
       `${label}: sourceResolutionFragments mismatch\nexpected: ${expectedJson}\nreceived: ${actualJson}`,
@@ -3129,9 +3524,9 @@ export function assertSourceResolutionMatchFragmentsMatch(
       `${label}: source resolution match fragment input version mismatch: ${actual.inputVersion} !== ${expected.inputVersion}`,
     );
   }
-  if (JSON.stringify(actual.fragments) !== JSON.stringify(expected.fragments)) {
+  if (stableJson(actual.fragments) !== stableJson(expected.fragments)) {
     throw new Error(
-      `${label}: source resolution match fragments mismatch\nactual=${JSON.stringify(actual.fragments, null, 2)}\nexpected=${JSON.stringify(expected.fragments, null, 2)}`,
+      `${label}: source resolution match fragments mismatch\nactual=${stableJson(actual.fragments)}\nexpected=${stableJson(expected.fragments)}`,
     );
   }
 }
@@ -3151,9 +3546,9 @@ export function assertSourceResolutionCandidatesMatch(
       `${label}: source resolution candidates input version mismatch: ${actual.inputVersion} !== ${expected.inputVersion}`,
     );
   }
-  if (JSON.stringify(actual.candidates) !== JSON.stringify(expected.candidates)) {
+  if (stableJson(actual.candidates) !== stableJson(expected.candidates)) {
     throw new Error(
-      `${label}: source resolution candidates mismatch\nactual=${JSON.stringify(actual.candidates, null, 2)}\nexpected=${JSON.stringify(expected.candidates, null, 2)}`,
+      `${label}: source resolution candidates mismatch\nactual=${stableJson(actual.candidates)}\nexpected=${stableJson(expected.candidates)}`,
     );
   }
 }
@@ -3173,9 +3568,9 @@ export function assertSourceResolutionEvaluatorCandidatesMatch(
       `${label}: source resolution evaluator candidates input version mismatch: ${actual.inputVersion} !== ${expected.inputVersion}`,
     );
   }
-  if (JSON.stringify(actual.results) !== JSON.stringify(expected.results)) {
+  if (stableJson(actual.results) !== stableJson(expected.results)) {
     throw new Error(
-      `${label}: source resolution evaluator candidates mismatch\nactual=${JSON.stringify(actual.results, null, 2)}\nexpected=${JSON.stringify(expected.results, null, 2)}`,
+      `${label}: source resolution evaluator candidates mismatch\nactual=${stableJson(actual.results)}\nexpected=${stableJson(expected.results)}`,
     );
   }
 }
@@ -3187,24 +3582,24 @@ export function assertSourceResolutionCanonicalCandidateBundleMatch(
 ): void {
   assertEqualField(label, "schemaVersion", actual.schemaVersion, expected.schemaVersion);
   assertEqualField(label, "inputVersion", actual.inputVersion, expected.inputVersion);
-  if (JSON.stringify(actual.queryFragments) !== JSON.stringify(expected.queryFragments)) {
+  if (stableJson(actual.queryFragments) !== stableJson(expected.queryFragments)) {
     throw new Error(
-      `${label}: source resolution canonical candidate queryFragments mismatch\nactual=${JSON.stringify(actual.queryFragments, null, 2)}\nexpected=${JSON.stringify(expected.queryFragments, null, 2)}`,
+      `${label}: source resolution canonical candidate queryFragments mismatch\nactual=${stableJson(actual.queryFragments)}\nexpected=${stableJson(expected.queryFragments)}`,
     );
   }
-  if (JSON.stringify(actual.fragments) !== JSON.stringify(expected.fragments)) {
+  if (stableJson(actual.fragments) !== stableJson(expected.fragments)) {
     throw new Error(
-      `${label}: source resolution canonical candidate fragments mismatch\nactual=${JSON.stringify(actual.fragments, null, 2)}\nexpected=${JSON.stringify(expected.fragments, null, 2)}`,
+      `${label}: source resolution canonical candidate fragments mismatch\nactual=${stableJson(actual.fragments)}\nexpected=${stableJson(expected.fragments)}`,
     );
   }
-  if (JSON.stringify(actual.matchFragments) !== JSON.stringify(expected.matchFragments)) {
+  if (stableJson(actual.matchFragments) !== stableJson(expected.matchFragments)) {
     throw new Error(
-      `${label}: source resolution canonical candidate matchFragments mismatch\nactual=${JSON.stringify(actual.matchFragments, null, 2)}\nexpected=${JSON.stringify(expected.matchFragments, null, 2)}`,
+      `${label}: source resolution canonical candidate matchFragments mismatch\nactual=${stableJson(actual.matchFragments)}\nexpected=${stableJson(expected.matchFragments)}`,
     );
   }
-  if (JSON.stringify(actual.candidates) !== JSON.stringify(expected.candidates)) {
+  if (stableJson(actual.candidates) !== stableJson(expected.candidates)) {
     throw new Error(
-      `${label}: source resolution canonical candidate candidates mismatch\nactual=${JSON.stringify(actual.candidates, null, 2)}\nexpected=${JSON.stringify(expected.candidates, null, 2)}`,
+      `${label}: source resolution canonical candidate candidates mismatch\nactual=${stableJson(actual.candidates)}\nexpected=${stableJson(expected.candidates)}`,
     );
   }
 }

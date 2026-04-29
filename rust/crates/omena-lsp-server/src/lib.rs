@@ -140,6 +140,8 @@ pub fn summarize_omena_lsp_server_boundary() -> OmenaLspServerBoundarySummaryV0 
             "rustDiagnosticsScheduler",
             "longLivedTsgoClient",
             "incrementalQueryCancellation",
+            "thinVsCodeClientHost",
+            "multiEditorDistribution",
         ],
     }
 }
@@ -243,6 +245,11 @@ pub fn lsp_migration_phases() -> Vec<LspMigrationPhaseV0> {
             phase: "phase-3-source-providers",
             goal: "replace Node WorkspaceTypeResolver hot path with a long-lived tsgo client and Rust query runtime",
             exit_gate: "rust/omena-lsp-server/provider-parity",
+        },
+        LspMigrationPhaseV0 {
+            phase: "phase-4-thin-client",
+            goal: "shrink the VS Code extension to UI commands and Rust LSP process orchestration",
+            exit_gate: "rust/omena-lsp-server/thin-client-boundary",
         },
     ]
 }
@@ -3355,6 +3362,17 @@ mod tests {
             summary
                 .next_decoupling_targets
                 .contains(&"longLivedTsgoClient")
+        );
+        assert!(
+            summary
+                .next_decoupling_targets
+                .contains(&"thinVsCodeClientHost")
+        );
+        assert!(
+            summary
+                .migration_phases
+                .iter()
+                .any(|phase| phase.phase == "phase-4-thin-client")
         );
         assert!(
             summary

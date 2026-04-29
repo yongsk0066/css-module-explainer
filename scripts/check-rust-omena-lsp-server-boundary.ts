@@ -36,6 +36,11 @@ interface RustOmenaLspServerBoundarySummary {
     readonly method: string;
     readonly migrationState: string;
   }[];
+  readonly migrationPhases: readonly {
+    readonly phase: string;
+    readonly goal: string;
+    readonly exitGate: string;
+  }[];
   readonly blockingWorkPolicy: readonly string[];
   readonly nextDecouplingTargets: readonly string[];
 }
@@ -78,11 +83,30 @@ assert.ok(
   rustSummary.nextDecouplingTargets.includes("longLivedTsgoClient"),
   "Rust LSP boundary must keep the tsgo client migration visible",
 );
+assert.ok(
+  rustSummary.nextDecouplingTargets.includes("thinVsCodeClientHost"),
+  "Rust LSP boundary must keep the thin VS Code client endpoint visible",
+);
+assert.ok(
+  rustSummary.nextDecouplingTargets.includes("multiEditorDistribution"),
+  "Rust LSP boundary must keep the multi-editor distribution endpoint visible",
+);
+assert.deepEqual(
+  rustSummary.migrationPhases.map((phase) => phase.phase),
+  [
+    "phase-0-boundary",
+    "phase-1-shell",
+    "phase-2-style-providers",
+    "phase-3-source-providers",
+    "phase-4-thin-client",
+  ],
+);
 
 process.stdout.write(
   [
     "validated omena-lsp-server boundary:",
     `handlers=${rustSummary.handlerSurfaces.length}`,
+    `phases=${rustSummary.migrationPhases.length}`,
     `completionTriggers=${rustSummary.capabilities.completionProvider.triggerCharacters.length}`,
     `migration=${rustSummary.migrationStatus}`,
   ].join(" "),
