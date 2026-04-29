@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.1.6] — 2026-04-29
+
+### Added
+
+- **Abstract-value flow analysis** — `omena-abstract-value` now exposes a V0 1-CFA class-value flow analysis core with assign/refine/join transfers and branch-merge joins.
+- **Expression-domain flow runner** — `engine-input-producers` and the packaged shadow runner now expose `input-expression-domain-flow-analysis`, with split crate releases for `omena-abstract-value@0.1.2` and `omena-engine-input-producers@0.1.3`.
+
 ## [4.1.5] — 2026-04-29
 
 ### Fixed
