@@ -2407,6 +2407,7 @@ fn scan_source_class_reference_candidates(
     let mut candidates = Vec::new();
     collect_class_name_attribute_candidates(document, &mut candidates);
     collect_styles_property_access_candidates(document, &mut candidates);
+    collect_classnames_bind_call_candidates(document, &mut candidates);
     candidates.sort();
     candidates.dedup();
     candidates
@@ -2563,6 +2564,172 @@ fn collect_styles_property_access_candidates_for_binding(
 
         search_offset = binding_end;
     }
+}
+
+struct ClassnamesBindUtilityBinding {
+    binding: String,
+    style_uri: String,
+}
+
+fn collect_classnames_bind_call_candidates(
+    document: &LspTextDocumentState,
+    candidates: &mut Vec<LspStyleHoverCandidate>,
+) {
+    for binding in classnames_bind_utility_bindings(document) {
+        collect_string_literal_call_candidates_for_binding(
+            document,
+            binding.binding.as_str(),
+            Some(binding.style_uri.as_str()),
+            candidates,
+        );
+    }
+}
+
+fn classnames_bind_utility_bindings(
+    document: &LspTextDocumentState,
+) -> Vec<ClassnamesBindUtilityBinding> {
+    let source = document.text.as_str();
+    if !source.contains("classnames/bind") {
+        return Vec::new();
+    }
+
+    let style_bindings = imported_style_bindings(document);
+    if style_bindings.is_empty() {
+        return Vec::new();
+    }
+
+    let mut bindings = Vec::new();
+    for keyword in ["const ", "let ", "var "] {
+        let mut search_offset = 0usize;
+        while let Some(relative_match) = source[search_offset..].find(keyword) {
+            let statement_start = search_offset + relative_match;
+            let statement_end = source[statement_start..]
+                .find(';')
+                .map(|relative_end| statement_start + relative_end)
+                .unwrap_or_else(|| source.len());
+            if let Some(binding) = classnames_bind_utility_binding_from_statement(
+                &source[statement_start..statement_end],
+                &style_bindings,
+            ) {
+                bindings.push(binding);
+            }
+            search_offset = statement_end.saturating_add(1);
+        }
+    }
+    bindings.sort_by(|left, right| {
+        left.binding
+            .cmp(&right.binding)
+            .then_with(|| left.style_uri.cmp(&right.style_uri))
+    });
+    bindings
+        .dedup_by(|left, right| left.binding == right.binding && left.style_uri == right.style_uri);
+    bindings
+}
+
+fn classnames_bind_utility_binding_from_statement(
+    statement: &str,
+    style_bindings: &[ImportedStyleBinding],
+) -> Option<ClassnamesBindUtilityBinding> {
+    let keyword_len = ["const ", "let ", "var "]
+        .into_iter()
+        .find_map(|keyword| statement.strip_prefix(keyword).map(|_| keyword.len()))?;
+    let binding_start = skip_ascii_whitespace(statement, keyword_len);
+    let (binding, binding_end) = read_js_identifier(statement, binding_start)?;
+    let equals_offset = skip_ascii_whitespace(statement, binding_end);
+    if statement.as_bytes().get(equals_offset) != Some(&b'=') {
+        return None;
+    }
+    let initializer = &statement[equals_offset + 1..];
+    let bind_offset = initializer.find(".bind")?;
+    let open_paren = skip_ascii_whitespace(initializer, bind_offset + ".bind".len());
+    if initializer.as_bytes().get(open_paren) != Some(&b'(') {
+        return None;
+    }
+    let style_arg_start = skip_ascii_whitespace(initializer, open_paren + 1);
+    let (style_binding_name, _) = read_js_identifier(initializer, style_arg_start)?;
+    let style_uri = style_bindings
+        .iter()
+        .find(|style_binding| style_binding.binding == style_binding_name)?
+        .style_uri
+        .clone();
+
+    Some(ClassnamesBindUtilityBinding {
+        binding: binding.to_string(),
+        style_uri,
+    })
+}
+
+fn collect_string_literal_call_candidates_for_binding(
+    document: &LspTextDocumentState,
+    binding: &str,
+    target_style_uri: Option<&str>,
+    candidates: &mut Vec<LspStyleHoverCandidate>,
+) {
+    let source = document.text.as_str();
+    let mut search_offset = 0usize;
+    while let Some(relative_match) = source[search_offset..].find(binding) {
+        let binding_start = search_offset + relative_match;
+        let binding_end = binding_start + binding.len();
+        if !is_js_identifier_boundary(source, binding_start, binding_end) {
+            search_offset = binding_end;
+            continue;
+        }
+
+        let open_paren = skip_ascii_whitespace(source, binding_end);
+        if source.as_bytes().get(open_paren) != Some(&b'(') {
+            search_offset = binding_end;
+            continue;
+        }
+        let call_end = js_call_end(source, open_paren).unwrap_or(source.len());
+        let mut cursor = open_paren + 1;
+        while cursor < call_end {
+            if let Some((literal_start, literal_end, next_offset)) =
+                js_string_literal_span(source, cursor, call_end)
+            {
+                for span in class_token_byte_spans(source, literal_start, literal_end) {
+                    candidates.push(source_reference_candidate(
+                        document,
+                        span,
+                        target_style_uri.map(ToString::to_string),
+                    ));
+                }
+                cursor = next_offset;
+                continue;
+            }
+            cursor += 1;
+        }
+        search_offset = call_end.saturating_add(1);
+    }
+}
+
+fn js_call_end(source: &str, open_paren: usize) -> Option<usize> {
+    if source.as_bytes().get(open_paren) != Some(&b'(') {
+        return None;
+    }
+    let mut cursor = open_paren + 1;
+    let mut depth = 1usize;
+    while cursor < source.len() {
+        match source.as_bytes().get(cursor).copied()? {
+            b'\'' | b'"' | b'`' => {
+                cursor = skip_js_string_literal(source, cursor, source.len())?;
+            }
+            b'(' => {
+                depth += 1;
+                cursor += 1;
+            }
+            b')' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(cursor);
+                }
+                cursor += 1;
+            }
+            _ => {
+                cursor += 1;
+            }
+        }
+    }
+    None
 }
 
 struct ImportedStyleBinding {
@@ -2806,6 +2973,22 @@ fn read_css_identifier_end(source: &str, start: usize) -> usize {
         end = start + relative_index + ch.len_utf8();
     }
     end
+}
+
+fn read_js_identifier(source: &str, start: usize) -> Option<(&str, usize)> {
+    let first = source[start..].chars().next()?;
+    if !is_js_identifier_start(first) {
+        return None;
+    }
+    let mut end = start + first.len_utf8();
+    let scan_start = end;
+    for (relative_index, ch) in source[scan_start..].char_indices() {
+        if !is_js_identifier_continue(ch) {
+            break;
+        }
+        end = scan_start + relative_index + ch.len_utf8();
+    }
+    Some((&source[start..end], end))
 }
 
 fn style_selector_definitions_from_open_documents(
@@ -3278,6 +3461,10 @@ fn is_js_identifier_boundary(source: &str, start: usize, end: usize) -> bool {
         .next()
         .is_none_or(|ch| !is_js_identifier_continue(ch));
     before && after
+}
+
+fn is_js_identifier_start(ch: char) -> bool {
+    ch.is_ascii_alphabetic() || matches!(ch, '_' | '$')
 }
 
 fn is_js_identifier_continue(ch: char) -> bool {
@@ -4343,6 +4530,97 @@ mod tests {
                 "end": {
                     "line": 1,
                     "character": 40,
+                },
+            })),
+        );
+    }
+
+    #[test]
+    fn resolves_classnames_bind_source_definition_from_opened_documents() {
+        let mut state = LspShellState::default();
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "workspaceFolders": [
+                        {
+                            "uri": "file:///workspace-a",
+                            "name": "workspace-a",
+                        },
+                    ],
+                },
+            }),
+        );
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": "file:///workspace-a/src/App.tsx",
+                        "languageId": "typescriptreact",
+                        "version": 1,
+                        "text": "import bind from \"classnames/bind\";\nimport styles from \"./styles.module.scss\";\nconst cx = bind.bind(styles);\nexport const className = cx(\"root\");",
+                    },
+                },
+            }),
+        );
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": "file:///workspace-a/src/styles.module.scss",
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": ".root { display: block; }",
+                    },
+                },
+            }),
+        );
+
+        let definition_response = handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/definition",
+                "params": {
+                    "textDocument": {
+                        "uri": "file:///workspace-a/src/App.tsx",
+                    },
+                    "position": {
+                        "line": 3,
+                        "character": 30,
+                    },
+                },
+            }),
+        );
+
+        assert_eq!(
+            definition_response
+                .as_ref()
+                .and_then(|value| value.pointer("/result/0/uri")),
+            Some(&json!("file:///workspace-a/src/styles.module.scss")),
+        );
+        assert_eq!(
+            definition_response
+                .as_ref()
+                .and_then(|value| value.pointer("/result/0/range")),
+            Some(&json!({
+                "start": {
+                    "line": 0,
+                    "character": 1,
+                },
+                "end": {
+                    "line": 0,
+                    "character": 5,
                 },
             })),
         );
