@@ -943,6 +943,7 @@ fn did_change_workspace_folders(state: &mut LspShellState, params: Option<&Value
         for folder in added {
             insert_workspace_folder(state, folder);
         }
+        index_workspace_style_files(state);
     }
     refresh_document_workspace_owners(state);
 }
@@ -4126,6 +4127,27 @@ mod tests {
 
     #[test]
     fn tracks_workspace_folder_changes() {
+        let workspace_root = std::env::temp_dir().join(format!(
+            "omena-lsp-server-added-workspace-{}",
+            std::process::id()
+        ));
+        let src_dir = workspace_root.join("src");
+        let style_path = src_dir.join("Added.module.scss");
+        let _ = std::fs::remove_dir_all(&workspace_root);
+        let create_dir_result = std::fs::create_dir_all(&src_dir);
+        assert!(
+            create_dir_result.is_ok(),
+            "create added-workspace fixture directory: {:?}",
+            create_dir_result.err(),
+        );
+        let write_result = std::fs::write(&style_path, ".added { color: red; }");
+        assert!(
+            write_result.is_ok(),
+            "write added-workspace style fixture: {:?}",
+            write_result.err(),
+        );
+        let workspace_uri = format!("file://{}", workspace_root.display());
+        let style_uri = format!("file://{}", style_path.display());
         let mut state = LspShellState::default();
         handle_lsp_message(
             &mut state,
@@ -4158,7 +4180,7 @@ mod tests {
                         ],
                         "added": [
                             {
-                                "uri": "file:///workspace-b",
+                                "uri": workspace_uri,
                                 "name": "workspace-b",
                             },
                         ],
@@ -4169,7 +4191,15 @@ mod tests {
 
         assert_eq!(state.workspace_folder_count(), 1);
         assert!(state.workspace_folder("file:///workspace-a").is_none());
-        assert!(state.workspace_folder("file:///workspace-b").is_some());
+        assert!(state.workspace_folder(workspace_uri.as_str()).is_some());
+        let indexed = state
+            .document(style_uri.as_str())
+            .and_then(|document| document.style_summary.as_ref());
+        assert_eq!(
+            indexed.map(|summary| summary.selector_names.clone()),
+            Some(vec!["added".to_string()]),
+        );
+        let _ = std::fs::remove_dir_all(&workspace_root);
     }
 
     #[test]
