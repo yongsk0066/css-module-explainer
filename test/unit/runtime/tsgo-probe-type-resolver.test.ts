@@ -82,20 +82,32 @@ describe("TsgoProbeTypeResolver", () => {
     expect(probeCalls).toEqual(["/repo", "/repo"]);
   });
 
-  it("throws when the tsgo probe fails", () => {
+  it("returns unresolvable and caches failed tsgo probes", () => {
+    const probeCalls: string[] = [];
+    const resolveCalls: string[] = [];
     const resolver = new TsgoProbeTypeResolver({
-      fallbackResolver: createFakeResolver([]),
+      fallbackResolver: createFakeResolver(resolveCalls),
       findConfigFile: (workspaceRoot) => `${workspaceRoot}/tsconfig.json`,
-      runProbeCommand: () => ({
-        status: 1,
-        stdout: "",
-        stderr: "tsgo failed",
-      }),
+      runProbeCommand: (workspaceRoot) => {
+        probeCalls.push(workspaceRoot);
+        return {
+          status: 1,
+          stdout: "",
+          stderr: "tsgo failed",
+        };
+      },
     });
 
-    expect(() => resolver.resolve("/repo/src/App.tsx", "variant", "/repo", SAMPLE_RANGE)).toThrow(
-      "tsgo probe failed",
-    );
+    expect(resolver.resolve("/repo/src/App.tsx", "variant", "/repo", SAMPLE_RANGE)).toEqual({
+      kind: "unresolvable",
+      values: [],
+    });
+    expect(resolver.resolve("/repo/src/App.tsx", "variant", "/repo", SAMPLE_RANGE)).toEqual({
+      kind: "unresolvable",
+      values: [],
+    });
+    expect(probeCalls).toEqual(["/repo"]);
+    expect(resolveCalls).toEqual([]);
   });
 
   it("prefers an explicit tsgo binary path", () => {

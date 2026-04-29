@@ -67,7 +67,15 @@ export interface CollectTsgoTypeFactsOptions extends CollectTypeFactTableV1Optio
 export function collectTypeFactTableV1WithTsgo(
   options: CollectTsgoTypeFactsOptions,
 ): TypeFactTableV1 {
-  const resolvedTypes = collectTsgoResolvedTypes(options);
+  let resolvedTypes: Map<string, ResolvedType> | null;
+  try {
+    resolvedTypes = collectTsgoResolvedTypes(options);
+  } catch (error) {
+    if (!isRecoverableTsgoWorkerError(error)) {
+      throw error;
+    }
+    return collectTypeFactTableV1(options);
+  }
   if (!resolvedTypes) {
     return collectTypeFactTableV1(options);
   }
@@ -98,7 +106,7 @@ export function collectTypeFactTableV2WithTsgo(
   try {
     resolvedTypes = collectTsgoResolvedTypes(options);
   } catch (error) {
-    if (!isTsgoProjectMissError(error)) {
+    if (!isRecoverableTsgoWorkerError(error)) {
       throw error;
     }
     return collectTypeFactTableV2(options);
@@ -232,6 +240,18 @@ export function buildTsgoTypeFactWorkerInvocation(
 
 function isTsgoProjectMissError(error: unknown): boolean {
   return error instanceof Error && /\bno project found for file\b/u.test(error.message);
+}
+
+function isRecoverableTsgoWorkerError(error: unknown): boolean {
+  if (isTsgoProjectMissError(error)) {
+    return true;
+  }
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  return /\b(tsgo type fact worker failed|No extension-owned tsgo binary|ENOENT|spawn)\b/u.test(
+    error.message,
+  );
 }
 
 function offsetAtPosition(text: string, line: number, character: number): number {

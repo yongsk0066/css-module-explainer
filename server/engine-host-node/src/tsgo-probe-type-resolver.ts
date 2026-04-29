@@ -4,6 +4,7 @@ import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import ts from "typescript";
 import type { Range, ResolvedType } from "@css-module-explainer/shared";
 import {
+  UNRESOLVABLE_TYPE,
   UnresolvableTypeResolver,
   WorkspaceTypeResolver,
   type ResolveTypeOptions,
@@ -67,7 +68,9 @@ export class TsgoProbeTypeResolver implements TypeResolver {
     range: Range,
     options?: ResolveTypeOptions,
   ): ResolvedType {
-    this.ensureWorkspaceProbe(workspaceRoot);
+    if (!this.ensureWorkspaceProbe(workspaceRoot)) {
+      return UNRESOLVABLE_TYPE;
+    }
     return this.fallbackResolver.resolve(filePath, variableName, workspaceRoot, range, options);
   }
 
@@ -81,13 +84,10 @@ export class TsgoProbeTypeResolver implements TypeResolver {
     this.fallbackResolver.clear();
   }
 
-  private ensureWorkspaceProbe(workspaceRoot: string): void {
+  private ensureWorkspaceProbe(workspaceRoot: string): boolean {
     const cached = this.probeStateByWorkspace.get(workspaceRoot);
     if (cached) {
-      if (!cached.ok) {
-        throw new Error(`tsgo probe failed for workspace: ${workspaceRoot}`);
-      }
-      return;
+      return cached.ok;
     }
 
     const configPath = this.findConfigFile(workspaceRoot);
@@ -96,7 +96,7 @@ export class TsgoProbeTypeResolver implements TypeResolver {
         configPath: null,
         ok: true,
       });
-      return;
+      return true;
     }
 
     const result = this.runProbeCommand(workspaceRoot, configPath);
@@ -105,22 +105,14 @@ export class TsgoProbeTypeResolver implements TypeResolver {
         configPath,
         ok: false,
       });
-      throw new Error(
-        [
-          `tsgo probe failed for workspace: ${workspaceRoot}`,
-          `config: ${configPath}`,
-          result.error ? `error: ${result.error.message}` : null,
-          result.stderr.trim() ? `stderr: ${result.stderr.trim()}` : null,
-        ]
-          .filter(Boolean)
-          .join("\n"),
-      );
+      return false;
     }
 
     this.probeStateByWorkspace.set(workspaceRoot, {
       configPath,
       ok: true,
     });
+    return true;
   }
 }
 

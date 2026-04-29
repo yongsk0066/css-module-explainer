@@ -162,6 +162,27 @@ describe("selectTypeFactCollector", () => {
     expect(entry?.facts).toEqual({ kind: "finiteSet", values: ["primary", "secondary"] });
   });
 
+  it("falls back to the resolver when the tsgo worker fails operationally", () => {
+    const collector = selectTypeFactCollector({
+      typeBackend: "tsgo",
+      typeResolver: finiteSetResolver(["fallback"]),
+      findTsgoConfigFile: (workspaceRoot) => `${workspaceRoot}/tsconfig.json`,
+      runTsgoTypeFactWorker: () => {
+        throw new Error("tsgo type fact worker failed\nstderr: spawn tsgo ENOENT");
+      },
+    });
+    const sourceEntries = createSourceEntries();
+
+    expect(collector.collectV1({ workspaceRoot: "/repo", sourceEntries })[0]?.facts).toEqual({
+      kind: "exact",
+      values: ["fallback"],
+    });
+    expect(collector.collectV2({ workspaceRoot: "/repo", sourceEntries })[0]?.facts).toEqual({
+      kind: "exact",
+      values: ["fallback"],
+    });
+  });
+
   it("reuses cached tsgo type facts for identical source snapshots", () => {
     const workerCalls: unknown[] = [];
     const cache = createTsgoTypeFactResolvedTypesCache();
