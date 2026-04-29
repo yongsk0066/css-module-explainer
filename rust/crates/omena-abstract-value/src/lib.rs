@@ -27,6 +27,8 @@ pub struct AbstractValueFlowAnalysisSummaryV0 {
     pub product: &'static str,
     pub context_sensitivity: &'static str,
     pub incremental_engine: &'static str,
+    pub analysis_scopes: Vec<&'static str>,
+    pub reuse_policy: &'static str,
     pub transfer_kinds: Vec<&'static str>,
     pub max_iterations: usize,
 }
@@ -195,6 +197,25 @@ pub struct ClassValueFlowIncrementalAnalysisV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ClassValueFlowIncrementalBatchAnalysisV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub revision: u64,
+    pub context_count: usize,
+    pub dirty_context_count: usize,
+    pub reused_context_count: usize,
+    pub entries: Vec<ClassValueFlowIncrementalBatchEntryV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClassValueFlowIncrementalBatchEntryV0 {
+    pub context_key: String,
+    pub analysis: ClassValueFlowIncrementalAnalysisV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ClassValueFlowNodeResultV0 {
     pub id: String,
     pub predecessor_ids: Vec<String>,
@@ -244,6 +265,8 @@ pub fn summarize_omena_abstract_value_flow_analysis() -> AbstractValueFlowAnalys
         product: "omena-abstract-value.flow-analysis",
         context_sensitivity: "1-cfa",
         incremental_engine: "omena-incremental",
+        analysis_scopes: vec!["singleContext", "multiContextBatch"],
+        reuse_policy: "reuse previous context analysis when its omena-incremental plan is clean",
         transfer_kinds: vec!["assignFacts", "refineFacts", "join"],
         max_iterations: MAX_FLOW_ANALYSIS_ITERATIONS,
     }
@@ -591,6 +614,49 @@ pub fn analyze_class_value_flow_incremental_with_reuse(
     }
 }
 
+pub fn analyze_class_value_flow_incremental_batch_with_reuse(
+    graphs: &[ClassValueFlowGraphV0],
+    previous_snapshots: &BTreeMap<String, IncrementalSnapshotV0>,
+    previous_analyses: &BTreeMap<String, ClassValueFlowAnalysisV0>,
+    revision: u64,
+) -> ClassValueFlowIncrementalBatchAnalysisV0 {
+    let entries = graphs
+        .iter()
+        .enumerate()
+        .map(|(index, graph)| {
+            let context_key = flow_graph_batch_context_key(graph, index);
+            let analysis = analyze_class_value_flow_incremental_with_reuse(
+                graph,
+                previous_snapshots.get(context_key.as_str()),
+                previous_analyses.get(context_key.as_str()),
+                revision,
+            );
+            ClassValueFlowIncrementalBatchEntryV0 {
+                context_key,
+                analysis,
+            }
+        })
+        .collect::<Vec<_>>();
+    let reused_context_count = entries
+        .iter()
+        .filter(|entry| entry.analysis.reused_previous_analysis)
+        .count();
+    let dirty_context_count = entries
+        .iter()
+        .filter(|entry| entry.analysis.incremental_plan.dirty_node_count > 0)
+        .count();
+
+    ClassValueFlowIncrementalBatchAnalysisV0 {
+        schema_version: "0",
+        product: "omena-abstract-value.incremental-flow-analysis-batch",
+        revision,
+        context_count: entries.len(),
+        dirty_context_count,
+        reused_context_count,
+        entries,
+    }
+}
+
 pub fn class_value_flow_incremental_input(
     graph: &ClassValueFlowGraphV0,
     revision: u64,
@@ -607,6 +673,13 @@ pub fn class_value_flow_incremental_input(
             })
             .collect(),
     }
+}
+
+fn flow_graph_batch_context_key(graph: &ClassValueFlowGraphV0, index: usize) -> String {
+    graph
+        .context_key
+        .clone()
+        .unwrap_or_else(|| format!("anonymous-context-{index}"))
 }
 
 pub fn reduced_abstract_class_value_from_facts(
@@ -1744,11 +1817,13 @@ mod tests {
         ClassValueFlowNodeV0, ClassValueFlowTransferV0, CompositeClassValueInputV0,
         ExternalStringTypeFactsV0, MAX_FINITE_CLASS_VALUES, SelectorProjectionCertaintyV0,
         abstract_class_value_from_facts, analyze_class_value_flow,
-        analyze_class_value_flow_incremental, analyze_class_value_flow_incremental_with_reuse,
-        bottom_class_value, char_inclusion_class_value, composite_class_value,
-        derive_selector_projection_certainty, exact_class_value, finite_set_class_value,
-        finite_values_from_facts, intersect_abstract_class_values, join_abstract_class_values,
-        prefix_class_value, prefix_suffix_class_value, project_abstract_value_selectors,
+        analyze_class_value_flow_incremental,
+        analyze_class_value_flow_incremental_batch_with_reuse,
+        analyze_class_value_flow_incremental_with_reuse, bottom_class_value,
+        char_inclusion_class_value, composite_class_value, derive_selector_projection_certainty,
+        exact_class_value, finite_set_class_value, finite_values_from_facts,
+        intersect_abstract_class_values, join_abstract_class_values, prefix_class_value,
+        prefix_suffix_class_value, project_abstract_value_selectors,
         reduced_abstract_class_value_from_facts, reduced_class_value_derivation_from_facts,
         reduced_value_domain_kind_from_facts, selector_certainty_from_facts,
         selector_certainty_shape_kind_from_facts, selector_certainty_shape_label_from_facts,
@@ -1756,6 +1831,7 @@ mod tests {
         summarize_omena_abstract_value_flow_analysis, top_class_value, value_certainty_from_facts,
         value_certainty_shape_kind_from_facts, value_certainty_shape_label_from_facts,
     };
+    use std::collections::BTreeMap;
 
     #[test]
     fn summarizes_domain_boundary_contract() {
@@ -1777,6 +1853,11 @@ mod tests {
         assert_eq!(flow_summary.product, "omena-abstract-value.flow-analysis");
         assert_eq!(flow_summary.context_sensitivity, "1-cfa");
         assert_eq!(flow_summary.incremental_engine, "omena-incremental");
+        assert!(flow_summary.analysis_scopes.contains(&"multiContextBatch"));
+        assert_eq!(
+            flow_summary.reuse_policy,
+            "reuse previous context analysis when its omena-incremental plan is clean"
+        );
         assert!(flow_summary.transfer_kinds.contains(&"join"));
     }
 
@@ -2293,6 +2374,98 @@ mod tests {
         assert_eq!(reused.incremental_plan.dirty_node_count, 0);
         assert!(reused.reused_previous_analysis);
         assert_eq!(reused.analysis, first.analysis);
+    }
+
+    #[test]
+    fn reuses_clean_contexts_in_incremental_flow_batch() {
+        let primary = ClassValueFlowGraphV0 {
+            context_key: Some("Button.tsx:render@primary".to_string()),
+            nodes: vec![
+                flow_assign_node("then", external_facts("exact").with_values(["btn-primary"])),
+                flow_assign_node("else", external_facts("exact").with_values(["card"])),
+                ClassValueFlowNodeV0 {
+                    id: "merge".to_string(),
+                    predecessors: vec!["then".to_string(), "else".to_string()],
+                    transfer: ClassValueFlowTransferV0::Join,
+                },
+            ],
+        };
+        let secondary = ClassValueFlowGraphV0 {
+            context_key: Some("Button.tsx:render@secondary".to_string()),
+            nodes: vec![
+                flow_assign_node(
+                    "base",
+                    external_facts("exact").with_values(["btn-secondary"]),
+                ),
+                ClassValueFlowNodeV0 {
+                    id: "refined".to_string(),
+                    predecessors: vec!["base".to_string()],
+                    transfer: ClassValueFlowTransferV0::RefineFacts(
+                        external_facts("prefix").with_prefix("btn-"),
+                    ),
+                },
+            ],
+        };
+        let first = analyze_class_value_flow_incremental_batch_with_reuse(
+            &[primary.clone(), secondary.clone()],
+            &BTreeMap::new(),
+            &BTreeMap::new(),
+            1,
+        );
+        let previous_snapshots = first
+            .entries
+            .iter()
+            .map(|entry| {
+                (
+                    entry.context_key.clone(),
+                    entry.analysis.next_snapshot.clone(),
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
+        let previous_analyses = first
+            .entries
+            .iter()
+            .map(|entry| (entry.context_key.clone(), entry.analysis.analysis.clone()))
+            .collect::<BTreeMap<_, _>>();
+        let changed_secondary = ClassValueFlowGraphV0 {
+            context_key: Some("Button.tsx:render@secondary".to_string()),
+            nodes: vec![
+                flow_assign_node(
+                    "base",
+                    external_facts("exact").with_values(["btn-tertiary"]),
+                ),
+                ClassValueFlowNodeV0 {
+                    id: "refined".to_string(),
+                    predecessors: vec!["base".to_string()],
+                    transfer: ClassValueFlowTransferV0::RefineFacts(
+                        external_facts("prefix").with_prefix("btn-"),
+                    ),
+                },
+            ],
+        };
+
+        let second = analyze_class_value_flow_incremental_batch_with_reuse(
+            &[primary, changed_secondary],
+            &previous_snapshots,
+            &previous_analyses,
+            2,
+        );
+
+        assert_eq!(
+            second.product,
+            "omena-abstract-value.incremental-flow-analysis-batch"
+        );
+        assert_eq!(second.context_count, 2);
+        assert_eq!(second.reused_context_count, 1);
+        assert_eq!(second.dirty_context_count, 1);
+        assert!(second.entries[0].analysis.reused_previous_analysis);
+        assert!(!second.entries[1].analysis.reused_previous_analysis);
+        assert_eq!(
+            flow_value(&second.entries[1].analysis.analysis, "refined"),
+            Some(&AbstractClassValueV0::Exact {
+                value: "btn-tertiary".to_string()
+            })
+        );
     }
 
     #[test]
