@@ -1220,6 +1220,13 @@ function substitutePackageExportPattern(entry: string, patternMatch: string): st
 
 function readSassPackageExportEntry(exportsValue: unknown): string | null {
   if (typeof exportsValue === "string") return exportsValue;
+  if (Array.isArray(exportsValue)) {
+    for (const value of exportsValue) {
+      const entry = readSassPackageExportEntry(value);
+      if (entry) return entry;
+    }
+    return null;
+  }
   if (!isRecord(exportsValue)) return null;
 
   const rootExport = exportsValue["."];
