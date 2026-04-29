@@ -1,5 +1,16 @@
 # Changelog
 
+## [4.1.9] — 2026-04-29
+
+### Added
+
+- **Value derivation evidence** — Source-missing diagnostics and checker JSON reports now preserve reduced value-domain derivation evidence, including human-readable derivation labels.
+
+### Changed
+
+- **Rust diagnostics performance** — Parallelized Rust-backed source diagnostics, style usage, and reference lens lookups.
+- **Lint hygiene** — Core checks now run with zero lint warnings.
+
 ## [4.1.8] — 2026-04-29
 
 ### Added
