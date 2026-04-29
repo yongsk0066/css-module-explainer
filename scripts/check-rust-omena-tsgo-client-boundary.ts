@@ -61,14 +61,17 @@ assert.ok(summary.requestPathPolicy.includes("returnUnresolvedWhenTsgoUnavailabl
 assert.ok(summary.requestPathPolicy.includes("cooperativeCancellationBeforeTsgoRequest"));
 assert.deepEqual(summary.typeFactContract.targetIdentity, ["filePath", "expressionId", "position"]);
 assert.equal(summary.typeFactContract.inputContract, "TsgoTypeFactRequestV0");
-assert.equal(summary.typeFactContract.outputContract, "TsgoTypeFactWorkerResultEntry[]");
+assert.equal(summary.typeFactContract.outputContract, "TsgoTypeFactResultEntryV0[]");
 assert.match(summary.typeFactContract.projectMissBehavior, /unresolvable/u);
 assert.equal(summary.lifecycle.openProjectMethod, "updateSnapshot");
 assert.equal(summary.lifecycle.snapshotReleaseMethod, "release");
 assert.match(summary.lifecycle.cancellationBoundary, /getTypeAtPosition/u);
 assert.ok(summary.readySurfaces.includes("phase3SourceProviderExitGate"));
 assert.ok(summary.readySurfaces.includes("persistentWorkspaceProcessPool"));
-assert.ok(summary.nextDecouplingTargets.includes("tsgoJsonRpcTransport"));
+assert.ok(summary.readySurfaces.includes("jsonRpcContentLengthTransport"));
+assert.ok(summary.readySurfaces.includes("typeFactRpcClient"));
+assert.ok(summary.readySurfaces.includes("typeFactResultReducer"));
+assert.ok(summary.nextDecouplingTargets.includes("sourceProviderDirectRustAdapter"));
 assert.ok(
   summary.cmeCoupledSurfaces.includes("server/engine-host-node/src/tsgo-type-fact-collector.ts"),
 );

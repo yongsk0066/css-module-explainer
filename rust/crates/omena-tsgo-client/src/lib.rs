@@ -1,10 +1,12 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    io,
+    fmt, io,
     process::{Child, Command, Stdio},
 };
 
 use serde::{Deserialize, Serialize};
+
+pub const TSGO_TYPE_FLAGS_UNION: u64 = 134_217_728;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -79,6 +81,21 @@ pub struct TsgoTypeFactTargetV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct TsgoTypeFactResultEntryV0 {
+    pub file_path: String,
+    pub expression_id: String,
+    pub resolved_type: TsgoResolvedTypeV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TsgoResolvedTypeV0 {
+    pub kind: &'static str,
+    pub values: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TsgoTypeFactCollectionPlanV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
@@ -129,6 +146,38 @@ pub struct TsgoWorkspaceProcessSnapshotV0 {
     pub reused: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TsgoJsonRpcTransportSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub framing: &'static str,
+    pub request_version: &'static str,
+    pub supports_partial_reads: bool,
+    pub error_policy: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TsgoJsonRpcOutboundRequestV0 {
+    pub id: u64,
+    pub method: String,
+    pub frame: Vec<u8>,
+}
+
+#[derive(Debug, Default)]
+pub struct TsgoTypeFactRpcClientV0 {
+    next_id: u64,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TsgoJsonRpcFrameErrorV0 {
+    InvalidHeaderUtf8,
+    MissingContentLength,
+    InvalidContentLength(String),
+    InvalidBodyUtf8,
+    InvalidJson(String),
+}
+
 #[derive(Debug, Default)]
 pub struct TsgoWorkspaceProcessPoolV0 {
     processes: BTreeMap<String, ManagedTsgoWorkspaceProcessV0>,
@@ -159,7 +208,7 @@ pub fn summarize_omena_tsgo_client_boundary() -> OmenaTsgoClientBoundarySummaryV
         type_fact_contract: TypeFactContractV0 {
             input_contract: "TsgoTypeFactRequestV0",
             target_identity: vec!["filePath", "expressionId", "position"],
-            output_contract: "TsgoTypeFactWorkerResultEntry[]",
+            output_contract: "TsgoTypeFactResultEntryV0[]",
             unresolved_behavior: "unavailable or non-literal types become unresolvable",
             project_miss_behavior: "project miss returns unresolvable without entering current-ts fallback",
         },
@@ -175,6 +224,9 @@ pub fn summarize_omena_tsgo_client_boundary() -> OmenaTsgoClientBoundarySummaryV
             "typeFactResultContract",
             "requestSequencePlan",
             "persistentWorkspaceProcessPool",
+            "jsonRpcContentLengthTransport",
+            "typeFactRpcClient",
+            "typeFactResultReducer",
             "phase3SourceProviderExitGate",
         ],
         cme_coupled_surfaces: vec![
@@ -182,11 +234,167 @@ pub fn summarize_omena_tsgo_client_boundary() -> OmenaTsgoClientBoundarySummaryV
             "server/engine-host-node/src/type-fact-collector.ts",
         ],
         next_decoupling_targets: vec![
-            "tsgoJsonRpcTransport",
             "lspCancellationTokenWireup",
             "incrementalSnapshotDiff",
             "sourceProviderDirectRustAdapter",
         ],
+    }
+}
+
+pub fn unresolvable_tsgo_type() -> TsgoResolvedTypeV0 {
+    TsgoResolvedTypeV0 {
+        kind: "unresolvable",
+        values: Vec::new(),
+    }
+}
+
+pub fn union_tsgo_type(values: impl IntoIterator<Item = String>) -> TsgoResolvedTypeV0 {
+    TsgoResolvedTypeV0 {
+        kind: "union",
+        values: values
+            .into_iter()
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect(),
+    }
+}
+
+pub fn reduce_tsgo_type_response(
+    type_response: &serde_json::Value,
+    union_members: &[serde_json::Value],
+) -> TsgoResolvedTypeV0 {
+    if let Some(value) = type_response
+        .get("value")
+        .and_then(serde_json::Value::as_str)
+    {
+        return union_tsgo_type([value.to_string()]);
+    }
+
+    let flags = type_response
+        .get("flags")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or_default();
+    if flags & TSGO_TYPE_FLAGS_UNION == 0 {
+        return unresolvable_tsgo_type();
+    }
+
+    let mut values = Vec::new();
+    for member in union_members {
+        let resolved_member = reduce_tsgo_type_response(member, &[]);
+        if resolved_member.kind != "union" || resolved_member.values.len() != 1 {
+            return unresolvable_tsgo_type();
+        }
+        values.extend(resolved_member.values);
+    }
+
+    if values.is_empty() {
+        unresolvable_tsgo_type()
+    } else {
+        union_tsgo_type(values)
+    }
+}
+
+pub fn build_tsgo_type_fact_result_entry(
+    target: &TsgoTypeFactTargetV0,
+    type_response: &serde_json::Value,
+    union_members: &[serde_json::Value],
+) -> TsgoTypeFactResultEntryV0 {
+    TsgoTypeFactResultEntryV0 {
+        file_path: target.file_path.clone(),
+        expression_id: target.expression_id.clone(),
+        resolved_type: reduce_tsgo_type_response(type_response, union_members),
+    }
+}
+
+impl TsgoTypeFactRpcClientV0 {
+    pub fn initialize(&mut self) -> Result<TsgoJsonRpcOutboundRequestV0, serde_json::Error> {
+        self.request("initialize", None)
+    }
+
+    pub fn update_snapshot(
+        &mut self,
+        config_path: &str,
+    ) -> Result<TsgoJsonRpcOutboundRequestV0, serde_json::Error> {
+        self.request(
+            "updateSnapshot",
+            Some(serde_json::json!({ "openProject": config_path })),
+        )
+    }
+
+    pub fn get_default_project_for_file(
+        &mut self,
+        snapshot: &str,
+        file_path: &str,
+    ) -> Result<TsgoJsonRpcOutboundRequestV0, serde_json::Error> {
+        self.request(
+            "getDefaultProjectForFile",
+            Some(serde_json::json!({
+                "snapshot": snapshot,
+                "file": file_path,
+            })),
+        )
+    }
+
+    pub fn get_type_at_position(
+        &mut self,
+        snapshot: &str,
+        project: &str,
+        target: &TsgoTypeFactTargetV0,
+    ) -> Result<TsgoJsonRpcOutboundRequestV0, serde_json::Error> {
+        self.request(
+            "getTypeAtPosition",
+            Some(serde_json::json!({
+                "snapshot": snapshot,
+                "project": project,
+                "file": target.file_path,
+                "position": target.position,
+            })),
+        )
+    }
+
+    pub fn get_types_of_type(
+        &mut self,
+        snapshot: &str,
+        type_id: &str,
+    ) -> Result<TsgoJsonRpcOutboundRequestV0, serde_json::Error> {
+        self.request(
+            "getTypesOfType",
+            Some(serde_json::json!({
+                "snapshot": snapshot,
+                "type": type_id,
+            })),
+        )
+    }
+
+    pub fn release(
+        &mut self,
+        handle: &str,
+    ) -> Result<TsgoJsonRpcOutboundRequestV0, serde_json::Error> {
+        self.request("release", Some(serde_json::json!({ "handle": handle })))
+    }
+
+    fn request(
+        &mut self,
+        method: &str,
+        params: Option<serde_json::Value>,
+    ) -> Result<TsgoJsonRpcOutboundRequestV0, serde_json::Error> {
+        self.next_id += 1;
+        Ok(TsgoJsonRpcOutboundRequestV0 {
+            id: self.next_id,
+            method: method.to_string(),
+            frame: encode_tsgo_json_rpc_request(self.next_id, method, params)?,
+        })
+    }
+}
+
+pub fn summarize_tsgo_json_rpc_transport() -> TsgoJsonRpcTransportSummaryV0 {
+    TsgoJsonRpcTransportSummaryV0 {
+        schema_version: "0",
+        product: "omena-tsgo-client.json-rpc-transport",
+        framing: "Content-Length header followed by UTF-8 JSON body",
+        request_version: "2.0",
+        supports_partial_reads: true,
+        error_policy: "malformed frames fail fast; incomplete frames stay buffered",
     }
 }
 
@@ -229,6 +437,56 @@ pub fn tsgo_api_methods() -> Vec<TsgoApiMethodV0> {
             request_group: "snapshot",
         },
     ]
+}
+
+pub fn encode_tsgo_json_rpc_request(
+    id: u64,
+    method: &str,
+    params: Option<serde_json::Value>,
+) -> Result<Vec<u8>, serde_json::Error> {
+    let mut request = serde_json::Map::new();
+    request.insert("jsonrpc".to_string(), serde_json::json!("2.0"));
+    request.insert("id".to_string(), serde_json::json!(id));
+    request.insert("method".to_string(), serde_json::json!(method));
+    if let Some(params) = params {
+        request.insert("params".to_string(), params);
+    }
+    encode_tsgo_json_rpc_message(&serde_json::Value::Object(request))
+}
+
+pub fn encode_tsgo_json_rpc_message(
+    message: &serde_json::Value,
+) -> Result<Vec<u8>, serde_json::Error> {
+    let body = serde_json::to_vec(message)?;
+    let mut frame = format!("Content-Length: {}\r\n\r\n", body.len()).into_bytes();
+    frame.extend(body);
+    Ok(frame)
+}
+
+pub fn drain_tsgo_json_rpc_frames(
+    buffer: &mut Vec<u8>,
+) -> Result<Vec<serde_json::Value>, TsgoJsonRpcFrameErrorV0> {
+    let mut messages = Vec::new();
+
+    while let Some(header_end) = find_header_end(buffer) {
+        let header = std::str::from_utf8(&buffer[..header_end])
+            .map_err(|_| TsgoJsonRpcFrameErrorV0::InvalidHeaderUtf8)?;
+        let length = content_length_from_header(header)?;
+        let body_start = header_end + 4;
+        let body_end = body_start + length;
+        if buffer.len() < body_end {
+            break;
+        }
+
+        let body = std::str::from_utf8(&buffer[body_start..body_end])
+            .map_err(|_| TsgoJsonRpcFrameErrorV0::InvalidBodyUtf8)?;
+        let message = serde_json::from_str(body)
+            .map_err(|error| TsgoJsonRpcFrameErrorV0::InvalidJson(error.to_string()))?;
+        messages.push(message);
+        buffer.drain(..body_end);
+    }
+
+    Ok(messages)
 }
 
 pub fn build_tsgo_api_args(workspace_root: &str, checkers: Option<usize>) -> Vec<String> {
@@ -298,6 +556,27 @@ pub fn plan_tsgo_type_fact_collection(
     }
 }
 
+impl fmt::Display for TsgoJsonRpcFrameErrorV0 {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidHeaderUtf8 => formatter.write_str("tsgo JSON-RPC header is not UTF-8"),
+            Self::MissingContentLength => {
+                formatter.write_str("tsgo JSON-RPC frame is missing Content-Length")
+            }
+            Self::InvalidContentLength(value) => {
+                write!(
+                    formatter,
+                    "tsgo JSON-RPC Content-Length is invalid: {value}"
+                )
+            }
+            Self::InvalidBodyUtf8 => formatter.write_str("tsgo JSON-RPC body is not UTF-8"),
+            Self::InvalidJson(value) => write!(formatter, "tsgo JSON-RPC body is invalid: {value}"),
+        }
+    }
+}
+
+impl std::error::Error for TsgoJsonRpcFrameErrorV0 {}
+
 impl TsgoWorkspaceProcessPoolV0 {
     pub fn ensure_workspace_process(
         &mut self,
@@ -354,6 +633,26 @@ impl Drop for TsgoWorkspaceProcessPoolV0 {
     fn drop(&mut self) {
         let _ = self.shutdown_all();
     }
+}
+
+fn find_header_end(buffer: &[u8]) -> Option<usize> {
+    buffer.windows(4).position(|window| window == b"\r\n\r\n")
+}
+
+fn content_length_from_header(header: &str) -> Result<usize, TsgoJsonRpcFrameErrorV0> {
+    for line in header.lines() {
+        let Some((name, value)) = line.split_once(':') else {
+            continue;
+        };
+        if name.eq_ignore_ascii_case("content-length") {
+            return value
+                .trim()
+                .parse::<usize>()
+                .map_err(|_| TsgoJsonRpcFrameErrorV0::InvalidContentLength(value.to_string()));
+        }
+    }
+
+    Err(TsgoJsonRpcFrameErrorV0::MissingContentLength)
 }
 
 fn request_step(
@@ -425,11 +724,14 @@ impl ManagedTsgoWorkspaceProcessV0 {
 #[cfg(test)]
 mod tests {
     use super::{
-        TsgoProcessCommandV0, TsgoTypeFactRequestV0, TsgoTypeFactTargetV0,
-        TsgoWorkspaceProcessConfigV0, TsgoWorkspaceProcessPoolV0, build_tsgo_api_args,
-        build_tsgo_process_command, plan_tsgo_type_fact_collection,
-        summarize_omena_tsgo_client_boundary,
+        TSGO_TYPE_FLAGS_UNION, TsgoProcessCommandV0, TsgoTypeFactRequestV0,
+        TsgoTypeFactRpcClientV0, TsgoTypeFactTargetV0, TsgoWorkspaceProcessConfigV0,
+        TsgoWorkspaceProcessPoolV0, build_tsgo_api_args, build_tsgo_process_command,
+        drain_tsgo_json_rpc_frames, encode_tsgo_json_rpc_message, encode_tsgo_json_rpc_request,
+        plan_tsgo_type_fact_collection, reduce_tsgo_type_response,
+        summarize_omena_tsgo_client_boundary, summarize_tsgo_json_rpc_transport,
     };
+    use serde_json::json;
     use std::io;
 
     #[test]
@@ -456,8 +758,15 @@ mod tests {
         );
         assert!(
             summary
+                .ready_surfaces
+                .contains(&"jsonRpcContentLengthTransport")
+        );
+        assert!(summary.ready_surfaces.contains(&"typeFactRpcClient"));
+        assert!(summary.ready_surfaces.contains(&"typeFactResultReducer"));
+        assert!(
+            summary
                 .next_decoupling_targets
-                .contains(&"tsgoJsonRpcTransport")
+                .contains(&"sourceProviderDirectRustAdapter")
         );
     }
 
@@ -486,6 +795,164 @@ mod tests {
                 cwd: "/workspace".to_string(),
             }
         );
+    }
+
+    #[test]
+    fn summarizes_json_rpc_transport() {
+        let summary = summarize_tsgo_json_rpc_transport();
+
+        assert_eq!(summary.product, "omena-tsgo-client.json-rpc-transport");
+        assert!(summary.supports_partial_reads);
+    }
+
+    #[test]
+    fn encodes_tsgo_json_rpc_request_with_content_length_frame() -> Result<(), serde_json::Error> {
+        let frame = encode_tsgo_json_rpc_request(
+            7,
+            "getTypeAtPosition",
+            Some(json!({ "file": "/repo/App.tsx", "position": 12 })),
+        )?;
+        let frame = String::from_utf8_lossy(&frame);
+
+        assert!(frame.starts_with("Content-Length: "));
+        assert!(frame.contains("\r\n\r\n"));
+        assert!(frame.contains("\"jsonrpc\":\"2.0\""));
+        assert!(frame.contains("\"method\":\"getTypeAtPosition\""));
+        Ok(())
+    }
+
+    #[test]
+    fn drains_complete_and_partial_tsgo_json_rpc_frames() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let first = encode_tsgo_json_rpc_message(&json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": { "snapshot": "s1" }
+        }))?;
+        let second = encode_tsgo_json_rpc_message(&json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "result": { "id": "project" }
+        }))?;
+        let split = second.len() / 2;
+        let mut buffer = Vec::new();
+        buffer.extend(first);
+        buffer.extend(&second[..split]);
+
+        let messages = drain_tsgo_json_rpc_frames(&mut buffer)?;
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0].pointer("/result/snapshot"), Some(&json!("s1")));
+        assert!(!buffer.is_empty());
+
+        buffer.extend(&second[split..]);
+        let messages = drain_tsgo_json_rpc_frames(&mut buffer)?;
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0].pointer("/result/id"), Some(&json!("project")));
+        assert!(buffer.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_tsgo_json_rpc_frames_without_content_length() {
+        let mut buffer = b"X-Test: 1\r\n\r\n{}".to_vec();
+
+        let error = drain_tsgo_json_rpc_frames(&mut buffer).err();
+        assert!(matches!(
+            error,
+            Some(super::TsgoJsonRpcFrameErrorV0::MissingContentLength)
+        ));
+    }
+
+    #[test]
+    fn type_fact_rpc_client_emits_node_compatible_requests()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let target = TsgoTypeFactTargetV0 {
+            file_path: "/repo/src/App.tsx".to_string(),
+            expression_id: "expr-1".to_string(),
+            position: 42,
+        };
+        let mut client = TsgoTypeFactRpcClientV0::default();
+        let requests = vec![
+            client.initialize()?,
+            client.update_snapshot("/repo/tsconfig.json")?,
+            client.get_default_project_for_file("snapshot-1", "/repo/src/App.tsx")?,
+            client.get_type_at_position("snapshot-1", "project-1", &target)?,
+            client.get_types_of_type("snapshot-1", "type-1")?,
+            client.release("snapshot-1")?,
+        ];
+
+        let mut methods = Vec::new();
+        let mut payloads = Vec::new();
+        for request in requests {
+            let mut frame = request.frame;
+            let drained = drain_tsgo_json_rpc_frames(&mut frame)?;
+            assert_eq!(drained.len(), 1);
+            methods.push(
+                drained[0]
+                    .get("method")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or_default()
+                    .to_string(),
+            );
+            payloads.push(drained[0].clone());
+        }
+
+        assert_eq!(
+            methods,
+            vec![
+                "initialize",
+                "updateSnapshot",
+                "getDefaultProjectForFile",
+                "getTypeAtPosition",
+                "getTypesOfType",
+                "release",
+            ]
+        );
+        assert_eq!(
+            payloads[1].pointer("/params/openProject"),
+            Some(&json!("/repo/tsconfig.json"))
+        );
+        assert_eq!(payloads[3].pointer("/params/position"), Some(&json!(42)));
+        assert_eq!(payloads[4].pointer("/params/type"), Some(&json!("type-1")));
+        assert_eq!(
+            payloads[5].pointer("/params/handle"),
+            Some(&json!("snapshot-1"))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn reduces_tsgo_literal_type_response_to_union() {
+        let resolved = reduce_tsgo_type_response(&json!({ "value": "root" }), &[]);
+
+        assert_eq!(resolved.kind, "union");
+        assert_eq!(resolved.values, vec!["root"]);
+    }
+
+    #[test]
+    fn reduces_tsgo_union_type_response_to_deduped_union() {
+        let resolved = reduce_tsgo_type_response(
+            &json!({ "id": "type-1", "flags": TSGO_TYPE_FLAGS_UNION }),
+            &[
+                json!({ "value": "primary" }),
+                json!({ "value": "secondary" }),
+                json!({ "value": "primary" }),
+            ],
+        );
+
+        assert_eq!(resolved.kind, "union");
+        assert_eq!(resolved.values, vec!["primary", "secondary"]);
+    }
+
+    #[test]
+    fn marks_non_literal_tsgo_type_response_unresolvable() {
+        let resolved = reduce_tsgo_type_response(
+            &json!({ "id": "type-1", "flags": TSGO_TYPE_FLAGS_UNION }),
+            &[json!({ "id": "non-literal" })],
+        );
+
+        assert_eq!(resolved.kind, "unresolvable");
+        assert!(resolved.values.is_empty());
     }
 
     #[test]
