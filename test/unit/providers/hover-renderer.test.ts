@@ -4,6 +4,7 @@ import type { SelectorDeclHIR } from "../../../server/engine-core-ts/src/core/hi
 import type { SelectorUsageSummary } from "../../../server/engine-core-ts/src/core/query/read-selector-usage";
 import type { SelectorStyleDependencySummary } from "../../../server/engine-core-ts/src/core/query/read-selector-style-dependencies";
 import {
+  renderCustomPropertyHover,
   renderHover,
   renderSelectorHover,
 } from "../../../server/lsp-server/src/providers/hover-renderer";
@@ -312,5 +313,42 @@ describe("renderHover", () => {
     expect(markdown).toContain("Composes:");
     expect(markdown).toContain("`card` in `src/Card.module.scss`");
     expect(markdown).toContain("`base` in `src/Base.module.scss`");
+  });
+
+  it("renders design token cascade ranking context for custom properties", () => {
+    const markdown = renderCustomPropertyHover({
+      customPropertyDecl: {
+        name: "--brand",
+        value: "green",
+        range: {
+          start: { line: 2, character: 10 },
+          end: { line: 2, character: 17 },
+        },
+      },
+      scssModulePath: SCSS_PATH,
+      referenceCount: 1,
+      workspaceRoot: "/fake/ws",
+      designTokenRanking: {
+        shadowedDeclarationSourceOrders: [0, 1],
+        shadowedDeclarations: [
+          {
+            range: {
+              start: { line: 0, character: 8 },
+              end: { line: 0, character: 15 },
+            },
+          },
+          {
+            range: {
+              start: { line: 1, character: 9 },
+              end: { line: 1, character: 16 },
+            },
+          },
+        ],
+      },
+    });
+
+    expect(markdown).toContain(
+      "Cascade ranking: source-order winner; shadows 2 earlier same-file declarations.",
+    );
   });
 });

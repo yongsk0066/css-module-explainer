@@ -144,6 +144,9 @@ function buildStyleHover(params: CursorParams, deps: ProviderDeps): Hover | null
                 customPropertyDecl: styleHover.customPropertyDecl,
                 ...(styleHover.headingName ? { headingName: styleHover.headingName } : {}),
                 ...(styleHover.note ? { note: styleHover.note } : {}),
+                ...(styleHover.designTokenRanking
+                  ? { designTokenRanking: styleHover.designTokenRanking }
+                  : {}),
                 scssModulePath: styleHover.scssModulePath,
                 referenceCount: styleHover.referenceCount,
                 workspaceRoot: deps.workspaceRoot,

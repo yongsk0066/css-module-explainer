@@ -96,6 +96,10 @@ export interface RenderCustomPropertyHoverArgs {
   readonly workspaceRoot: string;
   readonly headingName?: string;
   readonly note?: string;
+  readonly designTokenRanking?: {
+    readonly shadowedDeclarationSourceOrders: readonly number[];
+    readonly shadowedDeclarations?: readonly Pick<CustomPropertyDeclHIR, "range">[];
+  };
 }
 
 /**
@@ -190,7 +194,8 @@ export function renderCustomPropertyHover(args: RenderCustomPropertyHoverArgs): 
     args.referenceCount === 1
       ? "1 CSS custom property reference"
       : `${args.referenceCount} CSS custom property references`;
-  return `**\`${headingName}\`** — _${location}_${note}\n\n_${referenceLabel}._\n\n\`\`\`css\n${args.customPropertyDecl.name}: ${args.customPropertyDecl.value};\n\`\`\``;
+  const rankingNote = renderDesignTokenRankingNote(args.designTokenRanking);
+  return `**\`${headingName}\`** — _${location}_${note}${rankingNote}\n\n_${referenceLabel}._\n\n\`\`\`css\n${args.customPropertyDecl.name}: ${args.customPropertyDecl.value};\n\`\`\``;
 }
 
 function renderSingle(args: RenderArgs, selector: SelectorDeclHIR): string {
@@ -251,6 +256,17 @@ function renderMulti(args: RenderArgs): string {
   });
   const tail = args.selectors.length > max ? `\n\n_…and ${args.selectors.length - max} more_` : "";
   return `${header}${explanation}\n\n${sections.join("\n\n---\n\n")}${tail}`;
+}
+
+function renderDesignTokenRankingNote(
+  ranking: RenderCustomPropertyHoverArgs["designTokenRanking"],
+): string {
+  if (!ranking) return "";
+  const shadowedCount =
+    ranking.shadowedDeclarations?.length ?? ranking.shadowedDeclarationSourceOrders.length;
+  if (shadowedCount === 0) return "\n\n_Cascade ranking: source-order winner._";
+  const declarationLabel = shadowedCount === 1 ? "declaration" : "declarations";
+  return `\n\n_Cascade ranking: source-order winner; shadows ${shadowedCount} earlier same-file ${declarationLabel}._`;
 }
 
 function buildMultiHeader(args: RenderArgs): string {
