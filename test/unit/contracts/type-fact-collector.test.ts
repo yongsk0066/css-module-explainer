@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import path from "node:path";
 import type { TypeResolver } from "../../../server/engine-core-ts/src/core/ts/type-resolver";
 import { selectTypeFactCollector } from "../../../server/engine-host-node/src/type-fact-collector";
-import { buildTsgoTypeFactWorkerInvocation } from "../../../server/engine-host-node/src/tsgo-type-fact-collector";
+import {
+  buildTsgoTypeFactWorkerInvocation,
+  collectTypeFactTableV2WithTsgo,
+  createTsgoTypeFactResolvedTypesCache,
+} from "../../../server/engine-host-node/src/tsgo-type-fact-collector";
 import type { TypeFactSourceEntry } from "../../../server/engine-host-node/src/historical/type-fact-table-v1";
 import {
   makeSourceDocumentHIR,
@@ -156,6 +160,64 @@ describe("selectTypeFactCollector", () => {
     expect(entry?.facts).toEqual({ kind: "finiteSet", values: ["primary", "secondary"] });
   });
 
+  it("reuses cached tsgo type facts for identical source snapshots", () => {
+    const workerCalls: unknown[] = [];
+    const cache = createTsgoTypeFactResolvedTypesCache();
+    const sourceEntries = createSourceEntries();
+
+    const collect = () =>
+      collectTypeFactTableV2WithTsgo({
+        workspaceRoot: "/repo",
+        sourceEntries,
+        typeResolver: finiteSetResolver(["fallback"]),
+        findConfigFile: (workspaceRoot) => `${workspaceRoot}/tsconfig.json`,
+        workerCache: cache,
+        runWorker: (input) => {
+          workerCalls.push(input);
+          return [
+            {
+              filePath: "/repo/src/App.tsx",
+              expressionId: "expr-1",
+              resolvedType: { kind: "union", values: ["primary", "secondary"] },
+            },
+          ];
+        },
+      });
+
+    expect(collect()[0]?.facts).toEqual({ kind: "finiteSet", values: ["primary", "secondary"] });
+    expect(collect()[0]?.facts).toEqual({ kind: "finiteSet", values: ["primary", "secondary"] });
+    expect(workerCalls).toHaveLength(1);
+  });
+
+  it("invalidates cached tsgo type facts when the source snapshot changes", () => {
+    const workerCalls: unknown[] = [];
+    const cache = createTsgoTypeFactResolvedTypesCache();
+
+    const collect = (contentHash: string) =>
+      collectTypeFactTableV2WithTsgo({
+        workspaceRoot: "/repo",
+        sourceEntries: createSourceEntries({ contentHash }),
+        typeResolver: finiteSetResolver(["fallback"]),
+        findConfigFile: (workspaceRoot) => `${workspaceRoot}/tsconfig.json`,
+        workerCache: cache,
+        runWorker: (input) => {
+          workerCalls.push(input);
+          return [
+            {
+              filePath: "/repo/src/App.tsx",
+              expressionId: "expr-1",
+              resolvedType: { kind: "union", values: ["primary"] },
+            },
+          ];
+        },
+      });
+
+    collect("hash-1");
+    collect("hash-2");
+
+    expect(workerCalls).toHaveLength(2);
+  });
+
   it("passes the packaged tsgo binary to the self-contained type fact worker", () => {
     const projectRoot = path.join("/extension", "css-module-explainer");
     const platformDir = `${process.platform}-${process.arch}`;
@@ -185,7 +247,11 @@ function finiteSetResolver(values: readonly string[]): TypeResolver {
   };
 }
 
-function createSourceEntries(): readonly TypeFactSourceEntry[] {
+function createSourceEntries(
+  options: {
+    readonly contentHash?: string;
+  } = {},
+): readonly TypeFactSourceEntry[] {
   return [
     {
       document: {
@@ -196,7 +262,7 @@ function createSourceEntries(): readonly TypeFactSourceEntry[] {
       },
       analysis: {
         version: 1,
-        contentHash: "hash",
+        contentHash: options.contentHash ?? "hash",
         sourceFile: {} as TypeFactSourceEntry["analysis"]["sourceFile"],
         sourceBinder: {
           filePath: "/repo/src/App.tsx",

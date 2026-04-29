@@ -39,6 +39,12 @@ export type RunTsgoTypeFactWorker = (
   input: TsgoTypeFactWorkerInput,
 ) => readonly TsgoTypeFactWorkerResultEntry[];
 
+export interface TsgoTypeFactResolvedTypesCache {
+  get(key: string): Map<string, ResolvedType> | undefined;
+  set(key: string, resolvedTypes: Map<string, ResolvedType>): void;
+  clear(): void;
+}
+
 export interface TsgoTypeFactWorkerInvocation {
   readonly command: string;
   readonly args: readonly string[];
@@ -49,6 +55,7 @@ export interface TsgoTypeFactWorkerInvocation {
 export interface CollectTsgoTypeFactsOptions extends CollectTypeFactTableV1Options {
   readonly findConfigFile?: (workspaceRoot: string) => string | null;
   readonly runWorker?: RunTsgoTypeFactWorker;
+  readonly workerCache?: TsgoTypeFactResolvedTypesCache;
 }
 
 export function collectTypeFactTableV1WithTsgo(
@@ -146,15 +153,28 @@ function collectTsgoResolvedTypes(
   }
 
   const runWorker = options.runWorker ?? defaultRunTsgoTypeFactWorker;
+  const workerCache = options.workerCache ?? (options.runWorker ? null : defaultResolvedTypesCache);
+  const cacheKey = createTsgoResolvedTypesCacheKey(
+    options.workspaceRoot,
+    configPath,
+    options.sourceEntries,
+    targets,
+  );
+  const cachedResolvedTypes = workerCache?.get(cacheKey);
+  if (cachedResolvedTypes) {
+    return cachedResolvedTypes;
+  }
+
   const resolved = runWorker({
     workspaceRoot: options.workspaceRoot,
     configPath,
     targets,
   });
-
-  return new Map(
+  const resolvedTypes = new Map(
     resolved.map((entry) => [typeFactKey(entry.filePath, entry.expressionId), entry.resolvedType]),
   );
+  workerCache?.set(cacheKey, resolvedTypes);
+  return resolvedTypes;
 }
 
 function defaultRunTsgoTypeFactWorker(
@@ -226,6 +246,80 @@ function offsetAtPosition(text: string, line: number, character: number): number
 
 function typeFactKey(filePath: string, expressionId: string): string {
   return `${filePath}::${expressionId}`;
+}
+
+export function createTsgoTypeFactResolvedTypesCache(
+  maxEntries = 64,
+): TsgoTypeFactResolvedTypesCache {
+  const entries = new Map<string, Map<string, ResolvedType>>();
+
+  return {
+    get(key) {
+      const resolvedTypes = entries.get(key);
+      if (!resolvedTypes) return undefined;
+      entries.delete(key);
+      entries.set(key, resolvedTypes);
+      return cloneResolvedTypes(resolvedTypes);
+    },
+    set(key, resolvedTypes) {
+      entries.delete(key);
+      entries.set(key, cloneResolvedTypes(resolvedTypes));
+      while (entries.size > maxEntries) {
+        const oldestKey = entries.keys().next().value as string | undefined;
+        if (oldestKey === undefined) break;
+        entries.delete(oldestKey);
+      }
+    },
+    clear() {
+      entries.clear();
+    },
+  };
+}
+
+function createTsgoResolvedTypesCacheKey(
+  workspaceRoot: string,
+  configPath: string,
+  sourceEntries: CollectTsgoTypeFactsOptions["sourceEntries"],
+  targets: readonly TsgoTypeFactTarget[],
+): string {
+  const sourceSignature = sourceEntries
+    .map(({ document, analysis }) => ({
+      filePath: document.filePath,
+      version: document.version,
+      contentHash: analysis.contentHash,
+    }))
+    .toSorted((a, b) => a.filePath.localeCompare(b.filePath))
+    .map(({ filePath, version, contentHash }) => `${filePath}:${version}:${contentHash}`)
+    .join("|");
+  const targetSignature = targets
+    .map(({ filePath, expressionId, position }) => `${filePath}:${expressionId}:${position}`)
+    .toSorted()
+    .join("|");
+
+  return JSON.stringify({
+    workspaceRoot,
+    configPath,
+    sources: sourceSignature,
+    targets: targetSignature,
+  });
+}
+
+function cloneResolvedTypes(resolvedTypes: Map<string, ResolvedType>): Map<string, ResolvedType> {
+  return new Map(
+    [...resolvedTypes.entries()].map(([key, resolvedType]) => [
+      key,
+      cloneResolvedType(resolvedType),
+    ]),
+  );
+}
+
+const defaultResolvedTypesCache = createTsgoTypeFactResolvedTypesCache();
+
+function cloneResolvedType(resolvedType: ResolvedType): ResolvedType {
+  if (resolvedType.kind === "union") {
+    return { kind: "union", values: [...resolvedType.values] };
+  }
+  return UNRESOLVABLE;
 }
 
 const TSGO_TYPE_FACT_WORKER_SOURCE = String.raw`
