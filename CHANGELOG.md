@@ -1,5 +1,11 @@
 # Changelog
 
+## [4.1.18] — 2026-04-29
+
+### Changed
+
+- **Daemon-backed style hover graph data** — style-file hovers now route CSS custom property ranking and selector reference/identity metadata through the async Rust selected-query runner when available, aligning hover with the packaged daemon-backed definition path while preserving existing TypeScript fallbacks.
+
 ## [4.1.17] — 2026-04-29
 
 ### Changed
