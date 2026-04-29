@@ -45,15 +45,15 @@ assert.equal(rustEndpoint.transportContract, "LSP stdio JSON-RPC");
 assert.equal(rustEndpoint.commandOwner, "dist/bin/<platform>-<arch>/omena-lsp-server");
 assert.equal(rustEndpoint.nodeFallbackAllowed, false);
 assert.deepEqual(rustEndpoint.fileWatcherGlobs, buildRustLspFileWatcherGlobs());
-assert.deepEqual(clientEndpoint?.fileWatcherGlobs, rustEndpoint.fileWatcherGlobs);
-assert.equal(clientEndpoint?.product, rustEndpoint.endpointName);
-assert.equal(clientEndpoint?.nodeFallbackAllowed, false);
+assert.deepEqual(clientEndpoint.fileWatcherGlobs, rustEndpoint.fileWatcherGlobs);
+assert.equal(clientEndpoint.product, rustEndpoint.endpointName);
+assert.equal(clientEndpoint.nodeFallbackAllowed, false);
 assert.ok(rustEndpoint.hostResponsibilities.includes("startLanguageClient"));
 assert.ok(rustEndpoint.hostResponsibilities.includes("registerStaticFileWatchers"));
 assert.ok(rustEndpoint.rustResponsibilities.includes("ownLspLifecycle"));
 assert.ok(rustEndpoint.rustResponsibilities.includes("ownTsgoClientLifecycle"));
-assert.ok(clientEndpoint?.hostResponsibilities.includes("translateShowReferencesArguments"));
-assert.ok(clientEndpoint?.rustResponsibilities.includes("ownProviderExecution"));
+assert.ok(clientEndpoint.hostResponsibilities.includes("translateShowReferencesArguments"));
+assert.ok(clientEndpoint.rustResponsibilities.includes("ownProviderExecution"));
 
 process.stdout.write(
   [

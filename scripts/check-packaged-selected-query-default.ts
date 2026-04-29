@@ -76,7 +76,6 @@ if (!Number.isInteger(minimumOmenaLspServerTargets) || minimumOmenaLspServerTarg
 for (const entry of [
   "extension/package.json",
   "extension/dist/client/extension.js",
-  "extension/dist/server/server.js",
   `extension/dist/bin/${platformDir}/${binaryName}`,
   `extension/dist/bin/${platformDir}/${omenaLspServerBinaryName}`,
   `extension/dist/bin/${platformDir}/${tsgoBinaryName}`,
@@ -129,6 +128,7 @@ for (const platform of requiredOmenaLspServerPlatforms) {
 for (const prefix of [
   "extension/rust/",
   "extension/client/",
+  "extension/dist/server/",
   "extension/test/",
   "extension/scripts/",
   "extension/server/engine-host-node/",

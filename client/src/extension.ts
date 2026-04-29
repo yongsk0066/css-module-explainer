@@ -1,8 +1,6 @@
-import * as path from "node:path";
 import * as vscode from "vscode";
 import {
   LanguageClient,
-  TransportKind,
   type LanguageClientOptions,
   type ServerOptions,
 } from "vscode-languageclient/node";
@@ -21,7 +19,6 @@ import { isShowReferencesArgs } from "./util/show-references-guards";
 let client: LanguageClient | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
-  const serverModule = context.asAbsolutePath(path.join("dist", "server", "server.js"));
   const typeFactBackend = readClientTypeFactBackendSetting(
     vscode.workspace.getConfiguration("cssModuleExplainer").get("typeFactBackend"),
   );
@@ -54,35 +51,22 @@ export function activate(context: vscode.ExtensionContext): void {
     context.extensionPath,
   );
 
-  const serverOptions: ServerOptions = thinClientEndpoint
-    ? {
-        run: {
-          command: thinClientEndpoint.command,
-          args: [...thinClientEndpoint.args],
-          options: { env: serverEnv, cwd: thinClientEndpoint.cwd },
-        },
-        debug: {
-          command: thinClientEndpoint.command,
-          args: [...thinClientEndpoint.args],
-          options: { env: serverEnv, cwd: thinClientEndpoint.cwd },
-        },
-      }
-    : {
-        run: { module: serverModule, transport: TransportKind.ipc, options: { env: serverEnv } },
-        debug: {
-          module: serverModule,
-          transport: TransportKind.ipc,
-          options: { env: serverEnv },
-        },
-      };
-  const rustLspFileEvents = thinClientEndpoint
-    ? thinClientEndpoint.fileWatcherGlobs.map((glob) =>
-        vscode.workspace.createFileSystemWatcher(glob),
-      )
-    : undefined;
-  if (rustLspFileEvents) {
-    context.subscriptions.push(...rustLspFileEvents);
-  }
+  const serverOptions: ServerOptions = {
+    run: {
+      command: thinClientEndpoint.command,
+      args: [...thinClientEndpoint.args],
+      options: { env: serverEnv, cwd: thinClientEndpoint.cwd },
+    },
+    debug: {
+      command: thinClientEndpoint.command,
+      args: [...thinClientEndpoint.args],
+      options: { env: serverEnv, cwd: thinClientEndpoint.cwd },
+    },
+  };
+  const rustLspFileEvents = thinClientEndpoint.fileWatcherGlobs.map((glob) =>
+    vscode.workspace.createFileSystemWatcher(glob),
+  );
+  context.subscriptions.push(...rustLspFileEvents);
 
   const clientOptions: LanguageClientOptions = {
     documentSelector: [
@@ -96,7 +80,7 @@ export function activate(context: vscode.ExtensionContext): void {
     ],
     synchronize: {
       configurationSection: ["cssModuleExplainer", "cssModules"],
-      ...(rustLspFileEvents ? { fileEvents: rustLspFileEvents } : {}),
+      fileEvents: rustLspFileEvents,
     },
     outputChannelName: "CSS Module Explainer",
     progressOnInitialization: true,

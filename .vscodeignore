@@ -27,6 +27,11 @@ client/
 !dist/bin/**/*.d.ts
 !server/package.json
 
+# Phase-4 thin client runtime: the packaged extension starts the Rust
+# `omena-lsp-server` binary directly. The Node LSP build remains dev-only.
+dist/server/
+dist/server/**
+
 # Development tree
 docs/
 test/

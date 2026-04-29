@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 
-export type ClientLspServerRuntimeSetting = "auto" | "node" | "omena-lsp-server";
+export type ClientLspServerRuntimeSetting = "auto" | "omena-lsp-server";
 
 export interface OmenaLspServerRuntimeSelection {
   readonly runtime: "omena-lsp-server";
@@ -9,13 +9,7 @@ export interface OmenaLspServerRuntimeSelection {
   readonly args: readonly string[];
 }
 
-export interface NodeLspServerRuntimeSelection {
-  readonly runtime: "node";
-}
-
-export type LspServerRuntimeSelection =
-  | OmenaLspServerRuntimeSelection
-  | NodeLspServerRuntimeSelection;
+export type LspServerRuntimeSelection = OmenaLspServerRuntimeSelection;
 
 export interface ThinClientRuntimeEndpoint {
   readonly product: "css-module-explainer.thin-client-runtime-endpoint";
@@ -40,7 +34,6 @@ export function buildRustLspFileWatcherGlobs(): readonly string[] {
 
 export function readClientLspServerRuntimeSetting(value: unknown): ClientLspServerRuntimeSetting {
   if (value === "omena-lsp-server") return "omena-lsp-server";
-  if (value === "node") return "node";
   return "auto";
 }
 
@@ -50,16 +43,12 @@ export function resolveLspServerRuntimeSelection(
   env: NodeJS.ProcessEnv = process.env,
   fileExists: (path: string) => boolean = existsSync,
 ): LspServerRuntimeSelection {
-  if (runtime === "node") {
-    return { runtime: "node" };
-  }
-
   const command = resolveOmenaLspServerPath(extensionRoot, env, fileExists);
   if (!command) {
     throw new Error(
       [
         `cssModuleExplainer.lspServerRuntime=${runtime} requires an omena-lsp-server binary.`,
-        "Run pnpm build, set CME_OMENA_LSP_SERVER_PATH to an explicit binary, or set cssModuleExplainer.lspServerRuntime=node.",
+        "Run pnpm build or set CME_OMENA_LSP_SERVER_PATH to an explicit binary.",
       ].join("\n"),
     );
   }
@@ -69,11 +58,7 @@ export function resolveLspServerRuntimeSelection(
 export function buildThinClientRuntimeEndpoint(
   selection: LspServerRuntimeSelection,
   extensionRoot: string,
-): ThinClientRuntimeEndpoint | null {
-  if (selection.runtime !== "omena-lsp-server") {
-    return null;
-  }
-
+): ThinClientRuntimeEndpoint {
   return {
     product: "css-module-explainer.thin-client-runtime-endpoint",
     runtime: "omena-lsp-server",

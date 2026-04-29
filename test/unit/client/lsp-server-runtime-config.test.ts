@@ -11,11 +11,8 @@ import {
 describe("client LSP server runtime config", () => {
   it("defaults invalid runtime settings to auto runtime selection", () => {
     expect(readClientLspServerRuntimeSetting("future")).toBe("auto");
+    expect(readClientLspServerRuntimeSetting("node")).toBe("auto");
     expect(readClientLspServerRuntimeSetting(undefined)).toBe("auto");
-  });
-
-  it("keeps the Node server for explicit Node runtime selection", () => {
-    expect(resolveLspServerRuntimeSelection("node", "/repo")).toEqual({ runtime: "node" });
   });
 
   it("does not silently fall back to the Node server for auto runtime selection without a Rust binary", () => {
@@ -79,10 +76,6 @@ describe("client LSP server runtime config", () => {
     expect(endpoint?.fileWatcherGlobs).toEqual(buildRustLspFileWatcherGlobs());
     expect(endpoint?.hostResponsibilities).toContain("startLanguageClient");
     expect(endpoint?.rustResponsibilities).toContain("ownTsgoClientLifecycle");
-  });
-
-  it("does not create a thin client endpoint for the Node runtime", () => {
-    expect(buildThinClientRuntimeEndpoint({ runtime: "node" }, "/repo")).toBeNull();
   });
 
   it("declares static file watchers for the Rust LSP runtime", () => {

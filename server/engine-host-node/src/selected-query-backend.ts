@@ -164,9 +164,7 @@ export function isPackagedExtensionRuntime(
   fileExists: (filePath: string) => boolean = existsSync,
 ): boolean {
   const projectRoot = resolveProjectRoot(env, fileExists);
-  const hasBundledEntrypoints =
-    fileExists(path.join(projectRoot, "dist/client/extension.js")) &&
-    fileExists(path.join(projectRoot, "dist/server/server.js"));
+  const hasBundledEntrypoints = fileExists(path.join(projectRoot, "dist/client/extension.js"));
   const hasSourceCheckoutMarkers =
     fileExists(path.join(projectRoot, "server/engine-host-node/src/selected-query-backend.ts")) ||
     fileExists(path.join(projectRoot, "rust/Cargo.toml"));

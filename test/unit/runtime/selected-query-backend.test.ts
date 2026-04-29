@@ -20,11 +20,7 @@ import {
 } from "../../../server/engine-host-node/src/selected-query-backend";
 
 function hasPackagedRuntimeFile(filePath: string): boolean {
-  return (
-    filePath.includes("dist/bin") ||
-    filePath.endsWith("dist/client/extension.js") ||
-    filePath.endsWith("dist/server/server.js")
-  );
+  return filePath.includes("dist/bin") || filePath.endsWith("dist/client/extension.js");
 }
 
 describe("selected query backend", () => {
@@ -41,7 +37,6 @@ describe("selected query backend", () => {
         (filePath) =>
           filePath.includes("dist/bin") ||
           filePath.endsWith("dist/client/extension.js") ||
-          filePath.endsWith("dist/server/server.js") ||
           filePath.endsWith("server/engine-host-node/src/selected-query-backend.ts") ||
           filePath.endsWith("rust/Cargo.toml"),
       ),
@@ -54,9 +49,7 @@ describe("selected query backend", () => {
       resolveSelectedQueryBackendKind(
         { CME_PROJECT_ROOT: projectRoot } as NodeJS.ProcessEnv,
         (filePath) =>
-          filePath.includes("dist/bin") ||
-          filePath.endsWith("dist/client/extension.js") ||
-          filePath.endsWith("dist/server/server.js"),
+          filePath.includes("dist/bin") || filePath.endsWith("dist/client/extension.js"),
       ),
     ).toBe("rust-selected-query");
   });
@@ -138,18 +131,14 @@ describe("selected query backend", () => {
     expect(
       isPackagedExtensionRuntime(
         { CME_PROJECT_ROOT: projectRoot } as NodeJS.ProcessEnv,
-        (filePath) =>
-          filePath.endsWith("dist/client/extension.js") ||
-          filePath.endsWith("dist/server/server.js"),
+        (filePath) => filePath.endsWith("dist/client/extension.js"),
       ),
     ).toBe(true);
     expect(
       isPackagedExtensionRuntime(
         { CME_PROJECT_ROOT: projectRoot } as NodeJS.ProcessEnv,
         (filePath) =>
-          filePath.endsWith("dist/client/extension.js") ||
-          filePath.endsWith("dist/server/server.js") ||
-          filePath.endsWith("rust/Cargo.toml"),
+          filePath.endsWith("dist/client/extension.js") || filePath.endsWith("rust/Cargo.toml"),
       ),
     ).toBe(false);
   });
