@@ -1,5 +1,11 @@
 # Changelog
 
+## [4.1.27] — 2026-04-30
+
+### Fixed
+
+- **Rust LSP `classnames/bind` definition parity** — the Rust LSP source scanner now indexes static `cx("...")` references created by `classnames/bind` utility bindings, restoring go-to-definition for the extension-host smoke path without falling back to the Node server.
+
 ## [4.1.26] — 2026-04-30
 
 ### Added
