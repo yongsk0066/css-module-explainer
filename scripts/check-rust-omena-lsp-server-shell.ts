@@ -178,39 +178,16 @@ assert.equal(responses.length, 4);
 assert.deepEqual(
   diagnosticNotifications.map((notification) => notification.params),
   [
-    {
-      uri: "file:///tmp/cme-rust-lsp-shell/src/App.tsx",
-      diagnostics: [],
-    },
-    {
-      uri: "file:///tmp/cme-rust-lsp-shell/src/App.tsx",
-      diagnostics: [],
-    },
-    {
-      uri: "file:///tmp/cme-rust-lsp-shell/src/App.module.scss",
-      diagnostics: [],
-    },
-    {
-      uri: "file:///tmp/cme-rust-lsp-shell/src/App.tsx",
-      diagnostics: [],
-    },
-    {
-      uri: "file:///tmp/cme-rust-lsp-shell/src/App.module.scss",
-      diagnostics: [],
-    },
-    {
-      uri: "file:///tmp/cme-rust-lsp-shell/src/App.tsx",
-      diagnostics: [],
-    },
-    {
-      uri: "file:///tmp/cme-rust-lsp-shell/src/App.module.scss",
-      diagnostics: [],
-    },
-    {
-      uri: "file:///tmp/cme-rust-lsp-shell/src/App.tsx",
-      diagnostics: [],
-    },
-  ],
+    "file:///tmp/cme-rust-lsp-shell/src/App.tsx",
+    "file:///tmp/cme-rust-lsp-shell/src/App.tsx",
+    "file:///tmp/cme-rust-lsp-shell/src/App.module.scss",
+    "file:///tmp/cme-rust-lsp-shell/src/App.tsx",
+    "file:///tmp/cme-rust-lsp-shell/src/App.module.scss",
+    "file:///tmp/cme-rust-lsp-shell/src/App.tsx",
+    "file:///tmp/cme-rust-lsp-shell/src/App.tsx",
+    "file:///tmp/cme-rust-lsp-shell/src/App.module.scss",
+    "file:///tmp/cme-rust-lsp-shell/src/App.tsx",
+  ].map((uri) => ({ uri, diagnostics: [] })),
 );
 
 const initializeResponse = responses[0]!;

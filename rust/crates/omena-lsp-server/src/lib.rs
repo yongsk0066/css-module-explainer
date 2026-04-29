@@ -609,6 +609,15 @@ pub fn handle_lsp_message_outputs(state: &mut LspShellState, message: Value) -> 
             ));
         }
     }
+    if method.as_deref() == Some("workspace/didChangeConfiguration") {
+        let document_uris: Vec<String> = state.documents.keys().cloned().collect();
+        for uri in document_uris {
+            outputs.push(publish_diagnostics_notification(
+                uri.as_str(),
+                resolve_document_diagnostics_for_uri(state, uri.as_str()),
+            ));
+        }
+    }
 
     outputs
 }
