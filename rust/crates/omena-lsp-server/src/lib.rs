@@ -358,6 +358,7 @@ pub struct LspShellState {
     diagnostics: LspDiagnosticSettings,
     configuration_change_count: usize,
     documents: BTreeMap<String, LspTextDocumentState>,
+    open_document_uris: BTreeSet<String>,
     workspace_folders: BTreeMap<String, LspWorkspaceFolderState>,
     watched_file_changes: Vec<LspWatchedFileChangeState>,
 }
@@ -822,6 +823,7 @@ fn did_open_text_document(state: &mut LspShellState, params: Option<&Value>) {
         return;
     };
 
+    state.open_document_uris.insert(uri.to_string());
     state.documents.insert(
         uri.to_string(),
         LspTextDocumentState {
@@ -911,6 +913,10 @@ fn did_close_text_document(state: &mut LspShellState, params: Option<&Value>) {
     else {
         return;
     };
+    state.open_document_uris.remove(uri);
+    if is_style_document_uri(uri) && reload_indexed_style_document_from_disk(state, uri) {
+        return;
+    }
     state.documents.remove(uri);
 }
 
@@ -1017,16 +1023,23 @@ fn apply_watched_file_change_to_index(state: &mut LspShellState, uri: &str, chan
     if !is_style_document_uri(uri) {
         return;
     }
+    if state.open_document_uris.contains(uri) {
+        return;
+    }
     if change_type == 3 {
         state.documents.remove(uri);
         return;
     }
 
+    reload_indexed_style_document_from_disk(state, uri);
+}
+
+fn reload_indexed_style_document_from_disk(state: &mut LspShellState, uri: &str) -> bool {
     let Some(path) = file_uri_to_path(uri) else {
-        return;
+        return false;
     };
     let Ok(text) = fs::read_to_string(path) else {
-        return;
+        return false;
     };
     state.documents.insert(
         uri.to_string(),
@@ -1042,6 +1055,7 @@ fn apply_watched_file_change_to_index(state: &mut LspShellState, uri: &str, chan
             text,
         },
     );
+    true
 }
 
 fn insert_workspace_folder(state: &mut LspShellState, folder: &Value) {
@@ -4217,6 +4231,70 @@ mod tests {
             Some(vec!["fromDisk".to_string()]),
         );
         assert_eq!(state.snapshot().watched_file_event_count, 1);
+
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": style_uri,
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": ".openBuffer { color: blue; }",
+                    },
+                },
+            }),
+        );
+        let write_while_open_result = std::fs::write(&style_path, ".diskUpdate { color: green; }");
+        assert!(
+            write_while_open_result.is_ok(),
+            "write watched open-buffer fixture: {:?}",
+            write_while_open_result.err(),
+        );
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "workspace/didChangeWatchedFiles",
+                "params": {
+                    "changes": [
+                        {
+                            "uri": style_uri,
+                            "type": 2,
+                        },
+                    ],
+                },
+            }),
+        );
+        let open_buffer = state
+            .document(style_uri.as_str())
+            .and_then(|document| document.style_summary.as_ref());
+        assert_eq!(
+            open_buffer.map(|summary| summary.selector_names.clone()),
+            Some(vec!["openBuffer".to_string()]),
+        );
+
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didClose",
+                "params": {
+                    "textDocument": {
+                        "uri": style_uri,
+                    },
+                },
+            }),
+        );
+        let reloaded_after_close = state
+            .document(style_uri.as_str())
+            .and_then(|document| document.style_summary.as_ref());
+        assert_eq!(
+            reloaded_after_close.map(|summary| summary.selector_names.clone()),
+            Some(vec!["diskUpdate".to_string()]),
+        );
 
         handle_lsp_message(
             &mut state,
