@@ -112,7 +112,7 @@ pub fn summarize_omena_lsp_server_boundary() -> OmenaLspServerBoundarySummaryV0 
         schema_version: "0",
         product: "omena-lsp-server.boundary",
         server_name: "css-module-explainer",
-        migration_status: "runtimeShell",
+        migration_status: "runtimeProviderParity",
         transport_contract: "LSP stdio or IPC JSON-RPC",
         capabilities: current_node_lsp_capability_contract(),
         handler_surfaces: lsp_handler_surfaces(),
@@ -194,8 +194,8 @@ fn style_provider_handler(method: &'static str) -> LspHandlerSurfaceV0 {
     LspHandlerSurfaceV0 {
         method,
         node_owner: "server/lsp-server/src/providers",
-        rust_owner_target: "omena-lsp-server/providers/style",
-        migration_state: "styleSidePartial",
+        rust_owner_target: "omena-lsp-server/providers/style-source",
+        migration_state: "providerParity",
     }
 }
 
@@ -204,7 +204,7 @@ fn runtime_handler(method: &'static str) -> LspHandlerSurfaceV0 {
         method,
         node_owner: "server/lsp-server/src/handler-registration.ts",
         rust_owner_target: "omena-lsp-server/runtime",
-        migration_state: "planned",
+        migration_state: "implemented",
     }
 }
 
@@ -213,7 +213,7 @@ fn diagnostics_handler(method: &'static str) -> LspHandlerSurfaceV0 {
         method,
         node_owner: "server/lsp-server/src/diagnostics-scheduler.ts",
         rust_owner_target: "omena-lsp-server/diagnostics",
-        migration_state: "planned",
+        migration_state: "implemented",
     }
 }
 
