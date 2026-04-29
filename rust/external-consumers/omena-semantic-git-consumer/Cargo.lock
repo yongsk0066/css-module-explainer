@@ -35,8 +35,8 @@ dependencies = [
 
 [[package]]
 name = "omena-engine-style-parser"
-version = "0.1.3"
-source = "git+https://github.com/omenien/omena-engine-style-parser.git?rev=2001659#20016597f6c6347da8ec289a8d56e86e6e0f55e7"
+version = "0.1.4"
+source = "git+https://github.com/omenien/omena-engine-style-parser.git?rev=a72de58#a72de58f0bd5c3de24e041cfd17546f39a17ee21"
 dependencies = [
  "serde",
  "serde_json",
@@ -44,8 +44,8 @@ dependencies = [
 
 [[package]]
 name = "omena-semantic"
-version = "0.1.8"
-source = "git+https://github.com/omenien/omena-semantic.git?rev=26ef6fd#26ef6fd8fd60e94d8e5c465a59c63ed41df7fac1"
+version = "0.1.9"
+source = "git+https://github.com/omenien/omena-semantic.git?rev=63afbdc#63afbdc0f4d5845ec228a91c20299909a2670179"
 dependencies = [
  "omena-engine-input-producers",
  "omena-engine-style-parser",

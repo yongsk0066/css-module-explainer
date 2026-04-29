@@ -11,10 +11,10 @@ publish = false
 
 [dependencies]
 engine-input-producers = { package = "omena-engine-input-producers", git = "https://github.com/omenien/omena-engine-input-producers.git", rev = "a807b9a" }
-engine-style-parser = { package = "omena-engine-style-parser", git = "https://github.com/omenien/omena-engine-style-parser.git", rev = "2001659" }
-omena-semantic = { git = "https://github.com/omenien/omena-semantic.git", rev = "26ef6fd" }
+engine-style-parser = { package = "omena-engine-style-parser", git = "https://github.com/omenien/omena-engine-style-parser.git", rev = "a72de58" }
+omena-semantic = { git = "https://github.com/omenien/omena-semantic.git", rev = "63afbdc" }
 serde_json = "1.0"
 
 [patch.crates-io]
 omena-engine-input-producers = { git = "https://github.com/omenien/omena-engine-input-producers.git", rev = "a807b9a" }
-omena-engine-style-parser = { git = "https://github.com/omenien/omena-engine-style-parser.git", rev = "2001659" }
+omena-engine-style-parser = { git = "https://github.com/omenien/omena-engine-style-parser.git", rev = "a72de58" }

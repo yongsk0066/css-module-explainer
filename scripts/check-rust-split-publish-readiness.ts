@@ -37,7 +37,7 @@ const splitRepos: readonly SplitRepo[] = [
     label: "style-parser",
     repo: "omenien/omena-engine-style-parser",
     packageName: "omena-engine-style-parser",
-    expectedVersion: "0.1.3",
+    expectedVersion: "0.1.4",
     libName: "engine_style_parser",
   },
   {
@@ -45,7 +45,7 @@ const splitRepos: readonly SplitRepo[] = [
     label: "semantic",
     repo: "omenien/omena-semantic",
     packageName: "omena-semantic",
-    expectedVersion: "0.1.8",
+    expectedVersion: "0.1.9",
     libName: "omena_semantic",
     expectedRegistryDependencies: [
       {
@@ -56,7 +56,7 @@ const splitRepos: readonly SplitRepo[] = [
       {
         dependencyName: "engine-style-parser",
         packageName: "omena-engine-style-parser",
-        version: "0.1.3",
+        version: "0.1.4",
       },
     ],
   },
@@ -88,7 +88,7 @@ const splitRepos: readonly SplitRepo[] = [
     label: "bridge",
     repo: "omenien/omena-bridge",
     packageName: "omena-bridge",
-    expectedVersion: "0.1.7",
+    expectedVersion: "0.1.9",
     libName: "omena_bridge",
     expectedRegistryDependencies: [
       {
@@ -99,12 +99,12 @@ const splitRepos: readonly SplitRepo[] = [
       {
         dependencyName: "engine-style-parser",
         packageName: "omena-engine-style-parser",
-        version: "0.1.3",
+        version: "0.1.4",
       },
       {
         dependencyName: "omena-semantic",
         packageName: "omena-semantic",
-        version: "0.1.8",
+        version: "0.1.9",
       },
     ],
   },
@@ -113,13 +113,18 @@ const splitRepos: readonly SplitRepo[] = [
     label: "query",
     repo: "omenien/omena-query",
     packageName: "omena-query",
-    expectedVersion: "0.1.9",
+    expectedVersion: "0.1.10",
     libName: "omena_query",
     expectedRegistryDependencies: [
       {
         dependencyName: "engine-input-producers",
         packageName: "omena-engine-input-producers",
         version: "0.1.3",
+      },
+      {
+        dependencyName: "engine-style-parser",
+        packageName: "omena-engine-style-parser",
+        version: "0.1.4",
       },
       {
         dependencyName: "omena-abstract-value",
@@ -129,7 +134,7 @@ const splitRepos: readonly SplitRepo[] = [
       {
         dependencyName: "omena-bridge",
         packageName: "omena-bridge",
-        version: "0.1.7",
+        version: "0.1.9",
       },
       {
         dependencyName: "omena-resolver",
