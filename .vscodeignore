@@ -24,6 +24,7 @@ shared/
 server/
 client/
 !dist/**/*.js
+!dist/bin/**/*.d.ts
 !server/package.json
 
 # Development tree

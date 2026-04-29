@@ -35,8 +35,9 @@
   "main": "./dist/client/extension.js",
   "scripts": {
     "clean": "rm -rf dist",
-    "build": "pnpm cme-check run core/clean && rolldown -c rolldown.config.ts && pnpm cme-check run core/build/engine-shadow-runner",
+    "build": "pnpm cme-check run core/clean && rolldown -c rolldown.config.ts && pnpm cme-check run core/build/engine-shadow-runner && pnpm cme-check run core/build/tsgo-binary",
     "build:engine-shadow-runner": "cargo build --manifest-path rust/Cargo.toml -p engine-shadow-runner --release && node ./scripts/prepare-engine-shadow-runner.mjs",
+    "build:tsgo-binary": "node ./scripts/prepare-tsgo-binary.mjs",
     "watch": "rolldown -c rolldown.config.ts --watch",
     "cme-check": "node --import tsx ./packages/check-orchestrator/src/cli/main.ts",
     "check:orchestrator-doctor": "pnpm cme-check doctor",
@@ -190,6 +191,7 @@
     "check:rust-phase-2-swap-readiness": "pnpm cme-check run editor/provider-host-routing-boundary && pnpm cme-check run rust/selected-query/default-candidate && pnpm cme-check run rust/lsp-runtime-loop && pnpm cme-check run rust/checker/release-gate-shadow",
     "check:packaged-engine-shadow-runner": "node ./scripts/check-packaged-engine-shadow-runner.mjs",
     "check:packaged-engine-shadow-runner-matrix": "node ./scripts/check-packaged-engine-shadow-runner-matrix.mjs",
+    "check:packaged-tsgo-binary": "node ./scripts/check-packaged-tsgo-binary.mjs",
     "check:packaged-selected-query-default": "node --import tsx ./scripts/check-packaged-selected-query-default.ts",
     "check:editor-path-boundary": "pnpm cme-check run editor/selected-query-boundary && pnpm exec vitest run test/protocol/diagnostics.test.ts test/protocol/scss-diagnostics.test.ts test/protocol/code-actions.test.ts test/protocol/file-watcher.test.ts test/protocol/source-watcher-semantic-reference.test.ts test/protocol/workspace-folders.test.ts test/protocol/multi-root-settings.test.ts test/protocol/multi-root-settings-reload.test.ts test/protocol/reload-settings-reschedule.test.ts",
     "check:rust-gate-evidence": "node --import tsx ./scripts/check-rust-gate-evidence.ts",
@@ -214,7 +216,7 @@
     "check": "pnpm cme-check run core/lint && pnpm cme-check run core/format/check && pnpm cme-check run core/typecheck",
     "update:rust-split-consumer-pins": "node --import tsx ./scripts/update-rust-split-consumer-pins.ts",
     "test:coverage": "vitest run --coverage",
-    "package": "rm -f ./*.vsix && pnpm cme-check run core/build && node ./scripts/merge-engine-shadow-runner-artifacts.mjs && pnpm cme-check run release/check/packaged-engine-shadow-runner-matrix && vsce package --no-dependencies && pnpm cme-check run release/check/packaged-selected-query-default",
+    "package": "rm -f ./*.vsix && pnpm cme-check run core/build && node ./scripts/merge-engine-shadow-runner-artifacts.mjs && pnpm cme-check run release/check/packaged-engine-shadow-runner-matrix && pnpm cme-check run release/check/packaged-tsgo-binary && vsce package --no-dependencies && pnpm cme-check run release/check/packaged-selected-query-default",
     "version-packages": "changeset version && ./scripts/release.sh",
     "release:verify": "./scripts/release.sh && pnpm cme-check run core/check && pnpm cme-check run plugin/consumer-example && pnpm cme-check bundle plugin/consumers && pnpm cme-check bundle rust/release/bundle && pnpm cme-check bundle tsgo/release/bundle && pnpm cme-check run test/test && pnpm cme-check run release/package",
     "release:publish": "./scripts/publish-extension.sh"
@@ -224,7 +226,7 @@
     "@changesets/cli": "^2.30.0",
     "@types/node": "^25.6.0",
     "@types/vscode": "^1.115.0",
-    "@typescript/native-preview": "beta",
+    "@typescript/native-preview": "7.0.0-dev.20260421.2",
     "@vitest/coverage-v8": "^4.1.4",
     "@vscode/test-electron": "^2.5.2",
     "@vscode/vsce": "^3.8.0",
@@ -301,6 +303,16 @@
           "minimum": 1,
           "maximum": 50,
           "description": "Maximum template/variable candidates shown in hover."
+        },
+        "cssModuleExplainer.typeFactBackend": {
+          "type": "string",
+          "enum": [
+            "tsgo",
+            "tsgo-workspace",
+            "typescript-current"
+          ],
+          "default": "tsgo",
+          "markdownDescription": "Type-fact backend used by the language server. `tsgo` uses the extension-bundled TS 7 native compiler probe. `tsgo-workspace` uses `pnpm exec tsgo` in the user workspace. `typescript-current` uses the current TypeScript resolver."
         },
         "cssModuleExplainer.pathAlias": {
           "type": "object",

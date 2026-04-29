@@ -66,8 +66,11 @@ jobs:
       - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version-file: .nvmrc
+      - run: corepack enable && corepack prepare pnpm@10.30.3 --activate
+      - run: pnpm install --frozen-lockfile
       - run: cargo build --manifest-path rust/Cargo.toml -p engine-shadow-runner --release
       - run: node ./scripts/prepare-engine-shadow-runner.mjs
+      - run: node ./scripts/prepare-tsgo-binary.mjs
       - id: target
         shell: bash
         run: |
@@ -120,17 +123,23 @@ jobs:
         env:
           CME_PACKAGED_RUNNER_MIN_TARGETS: "3"
           CME_PACKAGED_RUNNER_REQUIRED_PLATFORMS: linux,darwin,win32
+      - run: pnpm cme-check run release/check/packaged-tsgo-binary
+        env:
+          CME_PACKAGED_TSGO_MIN_TARGETS: "3"
+          CME_PACKAGED_TSGO_REQUIRED_PLATFORMS: linux,darwin,win32
       - run: pnpm exec vsce package --no-dependencies
       - run: pnpm cme-check run release/check/packaged-selected-query-default
         env:
           CME_PACKAGED_RUNNER_MIN_TARGETS: "3"
           CME_PACKAGED_RUNNER_REQUIRED_PLATFORMS: linux,darwin,win32
-      - name: VSIX size gate (max 5 MB)
+          CME_PACKAGED_TSGO_MIN_TARGETS: "3"
+          CME_PACKAGED_TSGO_REQUIRED_PLATFORMS: linux,darwin,win32
+      - name: VSIX size gate (max 128 MB)
         run: |
           SIZE=$(wc -c < *.vsix | tr -d ' ')
           echo "VSIX size: $SIZE bytes"
-          if [ "$SIZE" -gt 5242880 ]; then
-            echo "::error::VSIX exceeds 5 MB budget ($SIZE bytes)"
+          if [ "$SIZE" -gt 134217728 ]; then
+            echo "::error::VSIX exceeds 128 MB budget ($SIZE bytes)"
             exit 1
           fi
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

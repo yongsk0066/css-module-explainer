@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import ts from "typescript";
 import type { Range, ResolvedType } from "@css-module-explainer/shared";
@@ -20,12 +22,23 @@ interface TsgoProbeState {
   readonly ok: boolean;
 }
 
+interface TsgoProbeInvocation {
+  readonly command: string;
+  readonly args: readonly string[];
+  readonly cwd: string;
+}
+
 export interface TsgoProbeTypeResolverOptions {
   readonly fallbackResolver?: TypeResolver;
   readonly createProgram?: (workspaceRoot: string) => ts.Program;
   readonly findConfigFile?: (workspaceRoot: string) => string | null;
   readonly runProbeCommand?: (workspaceRoot: string, configPath: string) => TsgoProbeResult;
 }
+
+const REPO_ROOT = path.resolve(__dirname, "../../..");
+const BUNDLED_EXTENSION_ROOT = path.resolve(__dirname, "../..");
+const TSGO_BINARY_NAME = process.platform === "win32" ? "tsgo.exe" : "tsgo";
+const TSGO_WRAPPER_NAME = process.platform === "win32" ? "tsgo.CMD" : "tsgo";
 
 export class TsgoProbeTypeResolver implements TypeResolver {
   private readonly probeStateByWorkspace = new Map<string, TsgoProbeState>();
@@ -110,25 +123,25 @@ export class TsgoProbeTypeResolver implements TypeResolver {
 }
 
 function defaultRunProbeCommand(workspaceRoot: string, configPath: string): TsgoProbeResult {
-  const child: SpawnSyncReturns<string> = spawnSync(
-    "pnpm",
-    [
-      "exec",
-      "tsgo",
-      "-p",
-      configPath,
-      "--pretty",
-      "false",
-      "--noEmit",
-      ...resolveTsgoCheckerArgs(),
-    ],
-    {
-      cwd: workspaceRoot,
-      encoding: "utf8",
-      stdio: "pipe",
-      env: process.env,
-    },
-  );
+  const invocation = buildTsgoProbeInvocation(workspaceRoot, configPath);
+  if (!invocation) {
+    return {
+      status: 1,
+      stdout: "",
+      stderr: [
+        "No extension-owned tsgo binary was found.",
+        `Expected ${resolveTsgoBinaryPathForEnv(process.env)} or the repo-pinned @typescript/native-preview wrapper.`,
+        "Run pnpm build before packaging, or set CME_TSGO_PATH to an explicit tsgo binary.",
+      ].join("\n"),
+    };
+  }
+
+  const child: SpawnSyncReturns<string> = spawnSync(invocation.command, invocation.args, {
+    cwd: invocation.cwd,
+    encoding: "utf8",
+    stdio: "pipe",
+    env: process.env,
+  });
 
   return {
     status: child.status,
@@ -138,8 +151,89 @@ function defaultRunProbeCommand(workspaceRoot: string, configPath: string): Tsgo
   };
 }
 
-function resolveTsgoCheckerArgs(): readonly string[] {
-  const value = process.env.CME_TSGO_CHECKERS?.trim();
+export function buildTsgoProbeInvocation(
+  workspaceRoot: string,
+  configPath: string,
+  env: NodeJS.ProcessEnv = process.env,
+  fileExists: (filePath: string) => boolean = existsSync,
+): TsgoProbeInvocation | null {
+  const tsgoArgs = [
+    "-p",
+    configPath,
+    "--pretty",
+    "false",
+    "--noEmit",
+    ...resolveTsgoCheckerArgs(env),
+  ];
+
+  if (env.CME_TSGO_PATH) {
+    return {
+      command: path.resolve(env.CME_TSGO_PATH),
+      args: tsgoArgs,
+      cwd: workspaceRoot,
+    };
+  }
+
+  const bundledBinaryPath = resolveTsgoBinaryPathForEnv(env, fileExists);
+  if (fileExists(bundledBinaryPath)) {
+    return {
+      command: bundledBinaryPath,
+      args: tsgoArgs,
+      cwd: workspaceRoot,
+    };
+  }
+
+  const projectRoot = resolveProjectRoot(env, fileExists);
+  const repoPinnedWrapper = path.join(projectRoot, "node_modules", ".bin", TSGO_WRAPPER_NAME);
+  if (fileExists(repoPinnedWrapper)) {
+    return {
+      command: repoPinnedWrapper,
+      args: tsgoArgs,
+      cwd: workspaceRoot,
+    };
+  }
+
+  if (env.CME_TSGO_RESOLUTION === "workspace") {
+    return {
+      command: "pnpm",
+      args: ["exec", "tsgo", ...tsgoArgs],
+      cwd: workspaceRoot,
+    };
+  }
+
+  return null;
+}
+
+export function resolveTsgoBinaryPathForEnv(
+  env: NodeJS.ProcessEnv = process.env,
+  fileExists: (filePath: string) => boolean = existsSync,
+): string {
+  if (env.CME_TSGO_PATH) return path.resolve(env.CME_TSGO_PATH);
+  const projectRoot = resolveProjectRoot(env, fileExists);
+  return path.join(
+    projectRoot,
+    "dist",
+    "bin",
+    `${process.platform}-${process.arch}`,
+    TSGO_BINARY_NAME,
+  );
+}
+
+function resolveProjectRoot(
+  env: NodeJS.ProcessEnv = process.env,
+  fileExists: (filePath: string) => boolean = existsSync,
+): string {
+  if (env.CME_PROJECT_ROOT) return path.resolve(env.CME_PROJECT_ROOT);
+
+  for (const candidate of [REPO_ROOT, BUNDLED_EXTENSION_ROOT, process.cwd()]) {
+    if (fileExists(path.join(candidate, "package.json"))) return candidate;
+  }
+
+  return REPO_ROOT;
+}
+
+function resolveTsgoCheckerArgs(env: NodeJS.ProcessEnv = process.env): readonly string[] {
+  const value = env.CME_TSGO_CHECKERS?.trim();
   if (!value) {
     return [];
   }

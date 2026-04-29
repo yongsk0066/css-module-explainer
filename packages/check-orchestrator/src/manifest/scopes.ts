@@ -97,6 +97,7 @@ export const SCOPE_DEFINITIONS: readonly ScopeDefinition[] = [
       scriptName.startsWith("check:real-project-corpus") ||
       scriptName === "check:packaged-engine-shadow-runner" ||
       scriptName === "check:packaged-engine-shadow-runner-matrix" ||
+      scriptName === "check:packaged-tsgo-binary" ||
       scriptName === "check:packaged-selected-query-default" ||
       scriptName === "package" ||
       scriptName === "version-packages" ||
@@ -118,6 +119,7 @@ export const SCOPE_DEFINITIONS: readonly ScopeDefinition[] = [
       [
         "build",
         "build:engine-shadow-runner",
+        "build:tsgo-binary",
         "check",
         "clean",
         "format",

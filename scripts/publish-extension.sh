@@ -29,6 +29,7 @@ pnpm test
 pnpm build
 node ./scripts/merge-engine-shadow-runner-artifacts.mjs
 pnpm check:packaged-engine-shadow-runner-matrix
+pnpm check:packaged-tsgo-binary
 
 rm -f ./*.vsix
 pnpm exec vsce package "${PACKAGE_ARGS[@]}"

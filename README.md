@@ -71,18 +71,19 @@ All settings live under the `cssModuleExplainer.*` namespace.
 
 ### Core settings
 
-| Setting                                         | Default     | Description                                        |
-| ----------------------------------------------- | ----------- | -------------------------------------------------- |
-| `cssModuleExplainer.features.definition`        | `true`      | Enable Go to Definition.                           |
-| `cssModuleExplainer.features.hover`             | `true`      | Enable Hover.                                      |
-| `cssModuleExplainer.features.completion`        | `true`      | Enable Completion.                                 |
-| `cssModuleExplainer.features.references`        | `true`      | Enable Find References and CodeLens.               |
-| `cssModuleExplainer.features.rename`            | `true`      | Enable Rename.                                     |
-| `cssModuleExplainer.diagnostics.severity`       | `"warning"` | Severity for unknown-class diagnostics.            |
-| `cssModuleExplainer.diagnostics.unusedSelector` | `true`      | Show unused selector hints in style modules.       |
-| `cssModuleExplainer.diagnostics.missingModule`  | `true`      | Warn when a CSS Module import cannot be resolved.  |
-| `cssModuleExplainer.hover.maxCandidates`        | `10`        | Maximum dynamic candidates shown in hover.         |
-| `cssModuleExplainer.scss.classnameTransform`    | `"asIs"`    | Mirror of `css-loader` `modules.localsConvention`. |
+| Setting                                         | Default     | Description                                                             |
+| ----------------------------------------------- | ----------- | ----------------------------------------------------------------------- |
+| `cssModuleExplainer.features.definition`        | `true`      | Enable Go to Definition.                                                |
+| `cssModuleExplainer.features.hover`             | `true`      | Enable Hover.                                                           |
+| `cssModuleExplainer.features.completion`        | `true`      | Enable Completion.                                                      |
+| `cssModuleExplainer.features.references`        | `true`      | Enable Find References and CodeLens.                                    |
+| `cssModuleExplainer.features.rename`            | `true`      | Enable Rename.                                                          |
+| `cssModuleExplainer.diagnostics.severity`       | `"warning"` | Severity for unknown-class diagnostics.                                 |
+| `cssModuleExplainer.diagnostics.unusedSelector` | `true`      | Show unused selector hints in style modules.                            |
+| `cssModuleExplainer.diagnostics.missingModule`  | `true`      | Warn when a CSS Module import cannot be resolved.                       |
+| `cssModuleExplainer.hover.maxCandidates`        | `10`        | Maximum dynamic candidates shown in hover.                              |
+| `cssModuleExplainer.typeFactBackend`            | `"tsgo"`    | Type-fact backend: bundled tsgo, workspace tsgo, or current TypeScript. |
+| `cssModuleExplainer.scss.classnameTransform`    | `"asIs"`    | Mirror of `css-loader` `modules.localsConvention`.                      |
 
 ### Class name transform
 
@@ -258,7 +259,8 @@ Current checker policy:
   - current comparison slot: `tsgo` on `check:backend-typecheck-smoke`
 - `pnpm check:backend-typecheck-smoke` runs a small multi-case corpus (`template-literals`, `path-alias`, `flow-relations`) for the selected typecheck backend
   - the unset `CME_TYPE_FACT_BACKEND` default is now `tsgo`, which activates a host-side tsgo probe before delegating symbol resolution to the current TS resolver
-  - `CME_TYPE_FACT_BACKEND=typescript-current` remains available as the explicit current-TypeScript fallback
+  - packaged extension runtime uses the bundled `dist/bin/<platform>-<arch>/tsgo` probe; `cssModuleExplainer.typeFactBackend=tsgo-workspace` preserves the old workspace `pnpm exec tsgo` mode for power users
+  - `cssModuleExplainer.typeFactBackend=typescript-current` or `CME_TYPE_FACT_BACKEND=typescript-current` remains available as the explicit current-TypeScript fallback
 - `CME_TYPE_FACT_BACKEND=tsgo pnpm check:release-batch` and `pnpm check:real-project-corpus` now exercise the checker path through the same host-side tsgo probe
 - `pnpm check:type-fact-backend-parity` compares canonical `EngineInputV2.typeFacts` across `typescript-current` and `tsgo` on the backend smoke corpus
 - `pnpm check:ts7-phase-a-readiness` is the current aggregate Phase A gate for the TS 7 beta path
@@ -271,7 +273,7 @@ Current checker policy:
 - `pnpm check:ts7-phase-a-stability` directly checks the two tsgo-specific risk points that the basic shadow path does not prove by itself
   - repeated `EngineInputV2.typeFacts` snapshots from `tsgo` must stay byte-stable across runs
   - concurrent `release-batch` and `real-project-corpus` invocations under `CME_TYPE_FACT_BACKEND=tsgo` must keep identical outputs across rounds
-  - tsgo probe calls run through the repo-pinned `@typescript/native-preview` devDependency, and the stability matrix now also repeats backend smoke under fixed `--checkers` values (`1`, `2`, `4`) via `CME_TSGO_CHECKERS`
+  - tsgo probe calls run through the repo-pinned `@typescript/native-preview` binary in source checkouts and the packaged `dist/bin/<platform>-<arch>/tsgo` binary in VSIX runtime; the stability matrix now also repeats backend smoke under fixed `--checkers` values (`1`, `2`, `4`) via `CME_TSGO_CHECKERS`
 - `pnpm check:ts7-phase-a-tsgo-lane` is the current limited non-release aggregate for TS 7 beta Phase A
   - it builds the repo, then runs readiness, shadow, and stability together
 - `pnpm check:ts7-phase-a-shadow-review` reviews recent `TS7 Phase A Shadow` workflow history through `gh`
@@ -405,7 +407,7 @@ Current checker policy:
   - style providers now consume Rust-backed semantic graph read models for selector identity, references, diagnostics, completions, rename safety, hover metadata, and style-module usage through host-side caches
   - `pnpm check:rust-phase-2-swap-readiness` batches provider host-routing, selected-query default-candidate, LSP runtime-loop daemon evidence, and checker release-gate shadow evidence as the v4.1.x cut line
   - the Omena Rust split crates are published and externally consumable through crates.io, but this is not yet an omena-semantic or bridge V1 freeze
-  - `CME_TYPE_FACT_BACKEND` now defaults to `tsgo`, with `typescript-current` retained as an explicit comparison fallback
+  - `CME_TYPE_FACT_BACKEND` now defaults to `tsgo`, packaged runtime carries its own tsgo binary, and `typescript-current` is retained as an explicit comparison fallback
   - `tsgo` is wired into release-batch, real-project corpus, LSP smoke, protocol/editing, server build, workspace build, and Phase C edge-readiness checks
   - the current release-shaped TS 7 aggregate is `pnpm check:tsgo-release-bundle`, and `pnpm release:verify` includes it
   - the current limited non-release default lane is `pnpm check:operational-lane`

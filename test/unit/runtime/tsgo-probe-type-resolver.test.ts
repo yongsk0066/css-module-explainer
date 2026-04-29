@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { Range, ResolvedType } from "@css-module-explainer/shared";
 import type { TypeResolver } from "../../../server/engine-core-ts/src/core/ts/type-resolver";
-import { TsgoProbeTypeResolver } from "../../../server/engine-host-node/src/tsgo-probe-type-resolver";
+import {
+  buildTsgoProbeInvocation,
+  resolveTsgoBinaryPathForEnv,
+  TsgoProbeTypeResolver,
+} from "../../../server/engine-host-node/src/tsgo-probe-type-resolver";
 
 const SAMPLE_RANGE: Range = {
   start: { line: 0, character: 0 },
@@ -62,6 +66,72 @@ describe("TsgoProbeTypeResolver", () => {
     expect(() => resolver.resolve("/repo/src/App.tsx", "variant", "/repo", SAMPLE_RANGE)).toThrow(
       "tsgo probe failed",
     );
+  });
+
+  it("prefers an explicit tsgo binary path", () => {
+    const invocation = buildTsgoProbeInvocation(
+      "/workspace",
+      "/workspace/tsconfig.json",
+      {
+        CME_TSGO_PATH: "/tools/tsgo",
+        CME_TSGO_CHECKERS: "2",
+      },
+      () => false,
+    );
+
+    expect(invocation).toEqual({
+      command: "/tools/tsgo",
+      args: ["-p", "/workspace/tsconfig.json", "--pretty", "false", "--noEmit", "--checkers", "2"],
+      cwd: "/workspace",
+    });
+  });
+
+  it("uses packaged extension tsgo before workspace resolution", () => {
+    const env = { CME_PROJECT_ROOT: "/extension" };
+    const packagedPath = resolveTsgoBinaryPathForEnv(env, (filePath) =>
+      filePath.includes("package.json"),
+    );
+    const invocation = buildTsgoProbeInvocation(
+      "/workspace",
+      "/workspace/tsconfig.json",
+      env,
+      (filePath) => filePath === packagedPath || filePath.includes("package.json"),
+    );
+
+    expect(invocation?.command).toBe(packagedPath);
+    expect(invocation?.args).toEqual([
+      "-p",
+      "/workspace/tsconfig.json",
+      "--pretty",
+      "false",
+      "--noEmit",
+    ]);
+    expect(invocation?.cwd).toBe("/workspace");
+  });
+
+  it("does not fall back to a workspace pnpm tsgo unless explicitly requested", () => {
+    const implicitInvocation = buildTsgoProbeInvocation(
+      "/workspace",
+      "/workspace/tsconfig.json",
+      { CME_PROJECT_ROOT: "/extension" },
+      (filePath) => filePath.includes("package.json"),
+    );
+    const explicitInvocation = buildTsgoProbeInvocation(
+      "/workspace",
+      "/workspace/tsconfig.json",
+      {
+        CME_PROJECT_ROOT: "/extension",
+        CME_TSGO_RESOLUTION: "workspace",
+      },
+      (filePath) => filePath.includes("package.json"),
+    );
+
+    expect(implicitInvocation).toBeNull();
+    expect(explicitInvocation).toEqual({
+      command: "pnpm",
+      args: ["exec", "tsgo", "-p", "/workspace/tsconfig.json", "--pretty", "false", "--noEmit"],
+      cwd: "/workspace",
+    });
   });
 });
 

@@ -6,16 +6,24 @@ import {
   type LanguageClientOptions,
   type ServerOptions,
 } from "vscode-languageclient/node";
+import {
+  buildTypeFactBackendEnv,
+  readClientTypeFactBackendSetting,
+} from "./type-fact-backend-config";
 import { isShowReferencesArgs } from "./util/show-references-guards";
 
 let client: LanguageClient | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
   const serverModule = context.asAbsolutePath(path.join("dist", "server", "server.js"));
+  const typeFactBackend = readClientTypeFactBackendSetting(
+    vscode.workspace.getConfiguration("cssModuleExplainer").get("typeFactBackend"),
+  );
+  const serverEnv = buildTypeFactBackendEnv(typeFactBackend);
 
   const serverOptions: ServerOptions = {
-    run: { module: serverModule, transport: TransportKind.ipc },
-    debug: { module: serverModule, transport: TransportKind.ipc },
+    run: { module: serverModule, transport: TransportKind.ipc, options: { env: serverEnv } },
+    debug: { module: serverModule, transport: TransportKind.ipc, options: { env: serverEnv } },
   };
 
   const clientOptions: LanguageClientOptions = {
