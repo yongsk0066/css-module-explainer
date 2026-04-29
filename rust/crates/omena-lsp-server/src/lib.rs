@@ -306,6 +306,7 @@ pub struct LspShellStateSnapshot {
     pub shutdown_requested: bool,
     pub should_exit: bool,
     pub features: LspFeatureSettings,
+    pub diagnostics: LspDiagnosticSettings,
     pub document_count: usize,
     pub workspace_folder_count: usize,
     pub configuration_change_count: usize,
@@ -337,11 +338,24 @@ impl Default for LspFeatureSettings {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LspDiagnosticSettings {
+    pub severity: u8,
+}
+
+impl Default for LspDiagnosticSettings {
+    fn default() -> Self {
+        Self { severity: 2 }
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct LspShellState {
     pub shutdown_requested: bool,
     pub should_exit: bool,
     features: LspFeatureSettings,
+    diagnostics: LspDiagnosticSettings,
     configuration_change_count: usize,
     documents: BTreeMap<String, LspTextDocumentState>,
     workspace_folders: BTreeMap<String, LspWorkspaceFolderState>,
@@ -370,6 +384,7 @@ impl LspShellState {
             shutdown_requested: self.shutdown_requested,
             should_exit: self.should_exit,
             features: self.features.clone(),
+            diagnostics: self.diagnostics.clone(),
             document_count: self.document_count(),
             workspace_folder_count: self.workspace_folder_count(),
             configuration_change_count: self.configuration_change_count,
@@ -828,12 +843,18 @@ fn did_change_workspace_folders(state: &mut LspShellState, params: Option<&Value
 
 fn did_change_configuration(state: &mut LspShellState, params: Option<&Value>) {
     state.configuration_change_count += 1;
-    let Some(features) = params
+    let Some(settings) = params
         .and_then(|value| value.get("settings"))
         .and_then(|value| value.get("cssModuleExplainer"))
-        .and_then(|value| value.get("features"))
-        .and_then(Value::as_object)
     else {
+        return;
+    };
+    apply_feature_settings(state, settings.get("features"));
+    apply_diagnostic_settings(state, settings.get("diagnostics"));
+}
+
+fn apply_feature_settings(state: &mut LspShellState, features: Option<&Value>) {
+    let Some(features) = features.and_then(Value::as_object) else {
         return;
     };
     if let Some(value) = features.get("definition").and_then(Value::as_bool) {
@@ -850,6 +871,29 @@ fn did_change_configuration(state: &mut LspShellState, params: Option<&Value>) {
     }
     if let Some(value) = features.get("rename").and_then(Value::as_bool) {
         state.features.rename = value;
+    }
+}
+
+fn apply_diagnostic_settings(state: &mut LspShellState, diagnostics: Option<&Value>) {
+    let Some(diagnostics) = diagnostics.and_then(Value::as_object) else {
+        return;
+    };
+    if let Some(value) = diagnostics
+        .get("severity")
+        .and_then(Value::as_str)
+        .and_then(diagnostic_severity_code)
+    {
+        state.diagnostics.severity = value;
+    }
+}
+
+fn diagnostic_severity_code(value: &str) -> Option<u8> {
+    match value {
+        "error" => Some(1),
+        "warning" => Some(2),
+        "information" => Some(3),
+        "hint" => Some(4),
+        _ => None,
     }
 }
 
@@ -1202,7 +1246,7 @@ fn resolve_style_diagnostics_for_uri(state: &LspShellState, document_uri: &str) 
         .map(|candidate| {
             json!({
                 "range": candidate.range,
-                "severity": 2,
+                "severity": state.diagnostics.severity,
                 "source": "css-module-explainer",
                 "message": format!(
                     "CSS custom property '{}' not found in indexed style tokens.",
@@ -1256,7 +1300,7 @@ fn resolve_source_diagnostics_for_uri(state: &LspShellState, document_uri: &str)
         .map(|candidate| {
             json!({
                 "range": candidate.range,
-                "severity": 2,
+                "severity": state.diagnostics.severity,
                 "source": "css-module-explainer",
                 "message": format!(
                     "CSS Module selector '.{}' not found in indexed style tokens.",
@@ -2833,6 +2877,9 @@ mod tests {
                             "features": {
                                 "hover": false,
                             },
+                            "diagnostics": {
+                                "severity": "error",
+                            },
                         },
                     },
                 },
@@ -2863,6 +2910,7 @@ mod tests {
             Some(&Value::Null),
         );
         assert!(!state.snapshot().features.hover);
+        assert_eq!(state.snapshot().diagnostics.severity, 1);
     }
 
     #[test]
