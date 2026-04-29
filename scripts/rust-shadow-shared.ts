@@ -656,6 +656,7 @@ export interface CheckerSourceMissingFindingV0 {
   readonly message: string;
   readonly analysisReason?: string;
   readonly valueCertaintyShapeLabel?: string;
+  readonly valueDomainDerivation?: ReducedClassValueDerivationV0;
 }
 
 export interface CheckerSourceMissingCanonicalCandidateBundleV0 {

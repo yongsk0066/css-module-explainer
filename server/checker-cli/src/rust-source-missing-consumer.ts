@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
 import type { CheckerReportV1 } from "../../engine-core-ts/src/contracts";
+import type { ReducedClassValueDerivation } from "../../engine-core-ts/src/core/query/read-expression-semantics";
 import { buildCheckerEngineParitySnapshotV2 } from "../../engine-host-node/src/engine-parity-v2";
 import type { WorkspaceCheckOptions } from "../../engine-host-node/src/checker-host";
 import {
@@ -45,6 +46,7 @@ export interface CheckerSourceMissingCanonicalProducerSignalV0 {
       readonly message: string;
       readonly analysisReason?: string;
       readonly valueCertaintyShapeLabel?: string;
+      readonly valueDomainDerivation?: ReducedClassValueDerivation;
     }[];
   };
   readonly flowEvidence: {

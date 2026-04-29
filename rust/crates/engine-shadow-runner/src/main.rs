@@ -195,6 +195,32 @@ struct CheckerFindingRecordV1 {
     message: String,
     analysis_reason: Option<String>,
     value_certainty_shape_label: Option<String>,
+    value_domain_derivation: Option<ValueDomainDerivationV0>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "camelCase")]
+struct ValueDomainDerivationV0 {
+    schema_version: String,
+    product: String,
+    input_fact_kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    input_constraint_kind: Option<String>,
+    input_value_count: usize,
+    reduced_kind: String,
+    steps: Vec<ValueDomainDerivationStepV0>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "camelCase")]
+struct ValueDomainDerivationStepV0 {
+    operation: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    input_kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    refinement_kind: Option<String>,
+    result_kind: String,
+    reason: String,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -282,6 +308,8 @@ struct CheckerSourceMissingFindingV0 {
     analysis_reason: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     value_certainty_shape_label: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    value_domain_derivation: Option<ValueDomainDerivationV0>,
 }
 
 #[derive(Debug, Serialize)]
@@ -1221,6 +1249,7 @@ fn summarize_checker_source_missing_canonical_candidate(
             message: finding.message,
             analysis_reason: finding.analysis_reason,
             value_certainty_shape_label: finding.value_certainty_shape_label,
+            value_domain_derivation: finding.value_domain_derivation,
         });
     }
 
