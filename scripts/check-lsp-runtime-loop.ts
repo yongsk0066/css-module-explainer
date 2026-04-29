@@ -228,11 +228,13 @@ async function collectProbeLatencies(connection: ProtocolConnection): Promise<re
   let seq = 0;
   while (performance.now() < deadline) {
     const started = performance.now();
+    // oxlint-disable-next-line eslint/no-await-in-loop
     await requestWithTimeout(
       connection.sendRequest<RuntimeProbeResponse>(RUNTIME_LOOP_PROBE_REQUEST, { seq: ++seq }),
       `runtime-probe:${seq}`,
     );
     latencies.push(performance.now() - started);
+    // oxlint-disable-next-line eslint/no-await-in-loop
     await sleep(PROBE_INTERVAL_MS);
   }
   return latencies;
