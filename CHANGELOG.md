@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.1.12] — 2026-04-29
+
+### Fixed
+
+- **SCSS path-alias token imports** — workspace `tsconfig` path aliases used from Sass `@use` and legacy `@import` now stay indexed and resolve forwarded package tokens through diagnostics and definition lookups.
+- **Nested pseudo-rule mixin diagnostics** — Sass `@include` references inside nested selectors like `&::before` and `&::after` are now attributed to the parent class, so missing mixin diagnostics are reported consistently across argument shapes.
+- **Windows protocol CI portability** — package-token hover assertions now normalize path separators, matching the existing cross-platform hover behavior.
+
 ## [4.1.11] — 2026-04-29
 
 ### Fixed
