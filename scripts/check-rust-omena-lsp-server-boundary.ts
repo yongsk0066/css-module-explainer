@@ -47,6 +47,12 @@ interface RustOmenaLspServerBoundarySummary {
     readonly runtimeModel: string;
     readonly requestPathPolicy: readonly string[];
   };
+  readonly sourceProviderAdapter: {
+    readonly product: string;
+    readonly typeFactOwner: string;
+    readonly requestPathPolicy: readonly string[];
+    readonly providerSurfaces: readonly string[];
+  };
   readonly nextDecouplingTargets: readonly string[];
 }
 
@@ -98,6 +104,17 @@ assert.ok(
   rustSummary.tsgoClientBoundary.requestPathPolicy.includes("noSyncWorkspaceFallbackOnRequestPath"),
   "Rust LSP boundary must embed the phase-3 tsgo client request-path contract",
 );
+assert.equal(
+  rustSummary.sourceProviderAdapter.product,
+  "omena-lsp-server.source-provider-direct-rust-adapter",
+);
+assert.equal(rustSummary.sourceProviderAdapter.typeFactOwner, "omena-tsgo-client");
+assert.ok(
+  rustSummary.sourceProviderAdapter.requestPathPolicy.includes(
+    "noNodeWorkspaceTypeResolverOnSourceProviderPath",
+  ),
+);
+assert.ok(rustSummary.sourceProviderAdapter.providerSurfaces.includes("textDocument/definition"));
 assert.ok(
   rustSummary.nextDecouplingTargets.includes("thinVsCodeClientHost"),
   "Rust LSP boundary must keep the thin VS Code client endpoint visible",

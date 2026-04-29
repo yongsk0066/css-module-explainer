@@ -39,6 +39,7 @@ pub struct OmenaLspServerBoundarySummaryV0 {
     pub migration_phases: Vec<LspMigrationPhaseV0>,
     pub blocking_work_policy: Vec<&'static str>,
     pub tsgo_client_boundary: OmenaTsgoClientBoundarySummaryV0,
+    pub source_provider_adapter: SourceProviderDirectRustAdapterV0,
     pub thin_client_endpoint: ThinClientEndpointV0,
     pub node_parity_contracts: Vec<&'static str>,
     pub next_decoupling_targets: Vec<&'static str>,
@@ -127,6 +128,17 @@ pub struct ThinClientEndpointV0 {
     pub rust_responsibilities: Vec<&'static str>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceProviderDirectRustAdapterV0 {
+    pub product: &'static str,
+    pub candidate_owner: &'static str,
+    pub style_definition_owner: &'static str,
+    pub type_fact_owner: &'static str,
+    pub request_path_policy: Vec<&'static str>,
+    pub provider_surfaces: Vec<&'static str>,
+}
+
 pub fn summarize_omena_lsp_server_boundary() -> OmenaLspServerBoundarySummaryV0 {
     OmenaLspServerBoundarySummaryV0 {
         schema_version: "0",
@@ -144,6 +156,7 @@ pub fn summarize_omena_lsp_server_boundary() -> OmenaLspServerBoundarySummaryV0 
             "staleOrUnresolvableFastReturn",
         ],
         tsgo_client_boundary: summarize_omena_tsgo_client_boundary(),
+        source_provider_adapter: source_provider_direct_rust_adapter_contract(),
         thin_client_endpoint: thin_client_endpoint_contract(),
         node_parity_contracts: vec![
             "initializeCapabilities",
@@ -160,6 +173,27 @@ pub fn summarize_omena_lsp_server_boundary() -> OmenaLspServerBoundarySummaryV0 
             "incrementalQueryReuse",
             "thinVsCodeClientHost",
             "multiEditorDistribution",
+        ],
+    }
+}
+
+pub fn source_provider_direct_rust_adapter_contract() -> SourceProviderDirectRustAdapterV0 {
+    SourceProviderDirectRustAdapterV0 {
+        product: "omena-lsp-server.source-provider-direct-rust-adapter",
+        candidate_owner: "omena-lsp-server/openedSourceDocumentIndex",
+        style_definition_owner: "omena-lsp-server/openedStyleDocumentIndex",
+        type_fact_owner: "omena-tsgo-client",
+        request_path_policy: vec![
+            "noNodeWorkspaceTypeResolverOnSourceProviderPath",
+            "useOpenedDocumentIndexesBeforeWorkspaceFallback",
+            "unresolvedCandidatesRemainFastDiagnostics",
+        ],
+        provider_surfaces: vec![
+            "textDocument/hover",
+            "textDocument/definition",
+            "textDocument/references",
+            "textDocument/completion",
+            "textDocument/publishDiagnostics",
         ],
     }
 }
@@ -351,6 +385,12 @@ pub struct LspStyleHoverCandidate {
     pub source: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub target_style_uri: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SourceProviderCandidateResolution {
+    matched: Vec<LspStyleHoverCandidate>,
+    unresolved: Vec<LspStyleHoverCandidate>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1619,19 +1659,9 @@ fn resolve_source_diagnostics_for_uri(state: &LspShellState, document_uri: &str)
         return json!([]);
     }
 
-    let definitions = style_selector_definitions_from_open_documents(
-        state,
-        "",
-        document.workspace_folder_uri.as_deref(),
-    );
-    if definitions.is_empty() {
-        return json!([]);
-    }
-    let diagnostics: Vec<Value> = collect_source_class_reference_candidates(document)
+    let diagnostics: Vec<Value> = resolve_source_provider_candidates(state, document)
+        .unresolved
         .into_iter()
-        .filter(|candidate| {
-            !source_candidate_has_style_definition(candidate, definitions.as_slice())
-        })
         .filter_map(|candidate| {
             let (target_style_uri, target_style_document) = source_selector_diagnostic_target(
                 state,
@@ -2357,6 +2387,13 @@ fn collect_source_selector_reference_candidates(
     state: &LspShellState,
     document: &LspTextDocumentState,
 ) -> Vec<LspStyleHoverCandidate> {
+    resolve_source_provider_candidates(state, document).matched
+}
+
+fn resolve_source_provider_candidates(
+    state: &LspShellState,
+    document: &LspTextDocumentState,
+) -> SourceProviderCandidateResolution {
     let definitions = style_selector_definitions_from_open_documents(
         state,
         "",
@@ -2367,17 +2404,23 @@ fn collect_source_selector_reference_candidates(
         .map(|(_, definition)| definition.name.clone())
         .collect();
     if selector_names.is_empty() {
-        return Vec::new();
+        return SourceProviderCandidateResolution {
+            matched: Vec::new(),
+            unresolved: Vec::new(),
+        };
     }
-    let mut candidates: Vec<LspStyleHoverCandidate> =
+    let (mut matched, mut unresolved): (Vec<_>, Vec<_>) =
         collect_source_class_reference_candidates(document)
             .into_iter()
-            .filter(|candidate| {
+            .partition(|candidate| {
                 source_candidate_has_style_definition(candidate, definitions.as_slice())
-            })
-            .collect();
-    candidates.sort();
-    candidates
+            });
+    matched.sort();
+    unresolved.sort();
+    SourceProviderCandidateResolution {
+        matched,
+        unresolved,
+    }
 }
 
 fn source_candidate_has_style_definition(
@@ -3629,6 +3672,22 @@ mod tests {
                 .handler_surfaces
                 .iter()
                 .any(|surface| surface.method == CANCEL_REQUEST_METHOD),
+        );
+        assert_eq!(
+            summary.source_provider_adapter.product,
+            "omena-lsp-server.source-provider-direct-rust-adapter"
+        );
+        assert!(
+            summary
+                .source_provider_adapter
+                .request_path_policy
+                .contains(&"noNodeWorkspaceTypeResolverOnSourceProviderPath")
+        );
+        assert!(
+            summary
+                .source_provider_adapter
+                .provider_surfaces
+                .contains(&"textDocument/definition")
         );
     }
 
