@@ -54,11 +54,13 @@ interface ParserIndexSummaryV0 {
   };
   readonly customProperties: {
     readonly declNames: readonly string[];
+    readonly declFacts: readonly CustomPropertyContextFactV0[];
     readonly declContextSelectors: readonly string[];
     readonly declNamesUnderMedia: readonly string[];
     readonly declNamesUnderSupports: readonly string[];
     readonly declNamesUnderLayer: readonly string[];
     readonly refNames: readonly string[];
+    readonly refFacts: readonly CustomPropertyContextFactV0[];
     readonly selectorsWithRefsNames: readonly string[];
     readonly selectorsWithRefsUnderMediaNames: readonly string[];
     readonly selectorsWithRefsUnderSupportsNames: readonly string[];
@@ -112,6 +114,14 @@ interface ParserIndexSummaryV0 {
     readonly selectorsUnderSupportsNames: readonly string[];
     readonly selectorsUnderLayerNames: readonly string[];
   };
+}
+
+interface CustomPropertyContextFactV0 {
+  readonly name: string;
+  readonly selectorContexts: readonly string[];
+  readonly underMedia: boolean;
+  readonly underSupports: boolean;
+  readonly underLayer: boolean;
 }
 
 const CORPUS = [
@@ -535,6 +545,32 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
   const customPropertyDeclsUnderLayer = document.customPropertyDecls.filter((decl) =>
     decl.context.wrapperAtRules.some((wrapper) => wrapper.name === "layer"),
   );
+  const customPropertyDeclFacts = document.customPropertyDecls
+    .map((entry) => ({
+      name: entry.name,
+      selectorContexts: customPropertySelectorContextsForRange(
+        document,
+        entry.context.selectorText,
+        entry.range,
+      ),
+      underMedia: entry.context.wrapperAtRules.some((wrapper) => wrapper.name === "media"),
+      underSupports: entry.context.wrapperAtRules.some((wrapper) => wrapper.name === "supports"),
+      underLayer: entry.context.wrapperAtRules.some((wrapper) => wrapper.name === "layer"),
+    }))
+    .toSorted(compareCustomPropertyContextFact);
+  const customPropertyRefFacts = document.customPropertyRefs
+    .map((entry) => ({
+      name: entry.name,
+      selectorContexts: customPropertySelectorContextsForRange(
+        document,
+        entry.context.selectorText,
+        entry.range,
+      ),
+      underMedia: entry.context.wrapperAtRules.some((wrapper) => wrapper.name === "media"),
+      underSupports: entry.context.wrapperAtRules.some((wrapper) => wrapper.name === "supports"),
+      underLayer: entry.context.wrapperAtRules.some((wrapper) => wrapper.name === "layer"),
+    }))
+    .toSorted(compareCustomPropertyContextFact);
   const selectorsWithComposesUnderMedia = selectorsWithComposes.filter((selector) =>
     wrapperSelectorNames.media.includes(selector.name),
   );
@@ -686,6 +722,7 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
     },
     customProperties: {
       declNames: uniqueSorted(document.customPropertyDecls.map((entry) => entry.name)),
+      declFacts: uniqueCustomPropertyContextFacts(customPropertyDeclFacts),
       declContextSelectors: uniqueSorted(
         document.customPropertyDecls.flatMap((entry) =>
           entry.context.selectorText ? [entry.context.selectorText] : [],
@@ -697,6 +734,7 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
       ),
       declNamesUnderLayer: uniqueSorted(customPropertyDeclsUnderLayer.map((entry) => entry.name)),
       refNames: uniqueSorted(document.customPropertyRefs.map((entry) => entry.name)),
+      refFacts: uniqueCustomPropertyContextFacts(customPropertyRefFacts),
       selectorsWithRefsNames: selectorsWithCustomPropertyRefs
         .map((selector) => selector.name)
         .toSorted(),
@@ -881,6 +919,46 @@ function compareSassModuleUseEdges(
 
 function uniqueSorted(values: readonly string[]): string[] {
   return [...new Set(values)].toSorted((left, right) => left.localeCompare(right));
+}
+
+function customPropertySelectorContextsForRange(
+  document: ReturnType<typeof parseStyleDocument>,
+  selectorText: string | null,
+  range: Parameters<typeof rangeContains>[1],
+): string[] {
+  return uniqueSorted([
+    ...(selectorText ? [selectorText] : []),
+    ...document.selectors
+      .filter((selector) => rangeContains(selector.ruleRange, range))
+      .map((selector) => `.${selector.name}`),
+  ]);
+}
+
+function uniqueCustomPropertyContextFacts(
+  facts: readonly CustomPropertyContextFactV0[],
+): CustomPropertyContextFactV0[] {
+  const byKey = new Map<string, CustomPropertyContextFactV0>();
+  for (const fact of facts) {
+    byKey.set(customPropertyContextFactKey(fact), fact);
+  }
+  return [...byKey.values()].toSorted(compareCustomPropertyContextFact);
+}
+
+function compareCustomPropertyContextFact(
+  left: CustomPropertyContextFactV0,
+  right: CustomPropertyContextFactV0,
+): number {
+  return customPropertyContextFactKey(left).localeCompare(customPropertyContextFactKey(right));
+}
+
+function customPropertyContextFactKey(fact: CustomPropertyContextFactV0): string {
+  return [
+    fact.name,
+    ...fact.selectorContexts,
+    fact.underMedia ? "1" : "0",
+    fact.underSupports ? "1" : "0",
+    fact.underLayer ? "1" : "0",
+  ].join("\u0000");
 }
 
 async function runRustSummary(filePath: string, source: string): Promise<ParserIndexSummaryV0> {
