@@ -14,7 +14,7 @@ const styleUri = `${workspaceUri}/src/App.module.scss`;
 const otherStyleUri = `${workspaceUri}/src/Other.module.scss`;
 const sourceUri = `${workspaceUri}/src/App.tsx`;
 const sourceText =
-  'import styles from "./App.module.scss";\nconst view = <div className={styles.root} />;\nconst bracket = styles["theme"];\nconst bracketMissing = styles["ghost"];\nconst missing = <div className="missing" />;';
+  'import styles from "./App.module.scss";\nconst view = <div className={styles.root} />;\nconst bracket = styles["theme"];\nconst bracketMissing = styles["ghost"];\nconst utility = <div className={clsx("alert")} />;\nconst missing = <div className="missing" />;';
 const sourceSelectorRange = {
   start: { line: 1, character: 36 },
   end: { line: 1, character: 40 },
@@ -24,12 +24,16 @@ const sourceBracketSelectorRange = {
   end: { line: 2, character: 29 },
 };
 const sourceMissingSelectorRange = {
-  start: { line: 4, character: 32 },
-  end: { line: 4, character: 39 },
+  start: { line: 5, character: 32 },
+  end: { line: 5, character: 39 },
 };
 const sourceMissingImportedSelectorRange = {
   start: { line: 3, character: 31 },
   end: { line: 3, character: 36 },
+};
+const sourceUtilitySelectorRange = {
+  start: { line: 4, character: 38 },
+  end: { line: 4, character: 43 },
 };
 const styleText =
   ".root { color: var(--brand); }\n.theme { --brand: red; }\n.alert { color: var(--missing); }";
@@ -42,6 +46,10 @@ const sourceSelectorQueryPosition = {
 const sourceBracketSelectorQueryPosition = {
   line: 2,
   character: 25,
+};
+const sourceUtilitySelectorQueryPosition = {
+  line: 4,
+  character: 39,
 };
 const selectorQueryPosition = {
   line: 0,
@@ -77,6 +85,8 @@ const nodeThemeSelector = findSelectorAtCursor(
   themeSelectorQueryPosition.character,
 );
 assert.ok(nodeThemeSelector, "node theme selector fixture did not produce a hover target");
+const nodeAlertSelector = findSelectorAtCursor(nodeStyleDocument, 2, 2);
+assert.ok(nodeAlertSelector, "node alert selector fixture did not produce a hover target");
 const nodeCustomPropertyReference = findCustomPropertyRefAtCursor(
   nodeStyleDocument,
   customPropertyReferenceQueryPosition.line,
@@ -505,9 +515,68 @@ const lspSourceBracketRenameRequest = {
     newName: "surface",
   },
 };
-const shutdownRequest = {
+const lspSourceUtilityHoverRequest = {
   jsonrpc: "2.0",
   id: 28,
+  method: "textDocument/hover",
+  params: {
+    textDocument: {
+      uri: sourceUri,
+    },
+    position: sourceUtilitySelectorQueryPosition,
+  },
+};
+const lspSourceUtilityDefinitionRequest = {
+  jsonrpc: "2.0",
+  id: 29,
+  method: "textDocument/definition",
+  params: {
+    textDocument: {
+      uri: sourceUri,
+    },
+    position: sourceUtilitySelectorQueryPosition,
+  },
+};
+const lspSourceUtilityReferencesRequest = {
+  jsonrpc: "2.0",
+  id: 30,
+  method: "textDocument/references",
+  params: {
+    textDocument: {
+      uri: sourceUri,
+    },
+    position: sourceUtilitySelectorQueryPosition,
+    context: {
+      includeDeclaration: true,
+    },
+  },
+};
+const lspSourceUtilityCompletionRequest = {
+  jsonrpc: "2.0",
+  id: 31,
+  method: "textDocument/completion",
+  params: {
+    textDocument: {
+      uri: sourceUri,
+    },
+    position: sourceUtilitySelectorQueryPosition,
+  },
+};
+const lspSourceUtilityRenameRequest = {
+  jsonrpc: "2.0",
+  id: 32,
+  method: "textDocument/rename",
+  params: {
+    textDocument: {
+      uri: sourceUri,
+    },
+    position: sourceUtilitySelectorQueryPosition,
+    newName: "notice",
+  },
+};
+const shutdownRequest = {
+  jsonrpc: "2.0",
+  id: 33,
   method: "shutdown",
 };
 const exitNotification = {
@@ -549,6 +618,11 @@ const result = spawnSync(invocation.command, [...invocation.args], {
     lspSourceBracketReferencesRequest,
     lspSourceBracketCompletionRequest,
     lspSourceBracketRenameRequest,
+    lspSourceUtilityHoverRequest,
+    lspSourceUtilityDefinitionRequest,
+    lspSourceUtilityReferencesRequest,
+    lspSourceUtilityCompletionRequest,
+    lspSourceUtilityRenameRequest,
     shutdownRequest,
     exitNotification,
   ]
@@ -575,7 +649,7 @@ const responses = messages.filter((message) => "id" in message);
 const diagnosticNotifications = messages.filter(
   (message) => message.method === "textDocument/publishDiagnostics",
 );
-assert.equal(responses.length, 28);
+assert.equal(responses.length, 33);
 assert.deepEqual(diagnosticNotifications, [
   {
     jsonrpc: "2.0",
@@ -777,6 +851,26 @@ assert.deepEqual(lspCodeLensResponse.result, [
       ],
     },
   },
+  {
+    range: {
+      start: nodeAlertSelector.range.start,
+      end: nodeAlertSelector.range.start,
+    },
+    command: {
+      title: "1 reference",
+      command: "editor.action.showReferences",
+      arguments: [
+        styleUri,
+        nodeAlertSelector.range.start,
+        [
+          {
+            uri: sourceUri,
+            range: sourceUtilitySelectorRange,
+          },
+        ],
+      ],
+    },
+  },
 ]);
 
 const lspSourceHoverResponse = responses[13]!;
@@ -947,6 +1041,64 @@ assert.deepEqual(lspSourceBracketRenameResponse.result, {
   },
 });
 
+const lspSourceUtilityHoverResponse = responses[27]!;
+assert.equal(lspSourceUtilityHoverResponse.id, 28);
+assert.deepEqual(lspSourceUtilityHoverResponse.result.range, sourceUtilitySelectorRange);
+assert.equal(lspSourceUtilityHoverResponse.result.contents.kind, "markdown");
+assert.match(lspSourceUtilityHoverResponse.result.contents.value, /\.alert/);
+assert.match(lspSourceUtilityHoverResponse.result.contents.value, /App\.module\.scss/);
+
+const lspSourceUtilityDefinitionResponse = responses[28]!;
+assert.equal(lspSourceUtilityDefinitionResponse.id, 29);
+assert.deepEqual(lspSourceUtilityDefinitionResponse.result, [
+  {
+    uri: styleUri,
+    range: nodeAlertSelector.range,
+  },
+]);
+
+const lspSourceUtilityReferencesResponse = responses[29]!;
+assert.equal(lspSourceUtilityReferencesResponse.id, 30);
+assert.deepEqual(lspSourceUtilityReferencesResponse.result, [
+  {
+    uri: styleUri,
+    range: nodeAlertSelector.range,
+  },
+  {
+    uri: sourceUri,
+    range: sourceUtilitySelectorRange,
+  },
+]);
+
+const lspSourceUtilityCompletionResponse = responses[30]!;
+assert.equal(lspSourceUtilityCompletionResponse.id, 31);
+assert.equal(lspSourceUtilityCompletionResponse.result.isIncomplete, false);
+assert.deepEqual(
+  lspSourceUtilityCompletionResponse.result.items.map(
+    (item: { readonly label: string }) => item.label,
+  ),
+  ["alert", "card", "ghost", "root", "theme"],
+);
+
+const lspSourceUtilityRenameResponse = responses[31]!;
+assert.equal(lspSourceUtilityRenameResponse.id, 32);
+assert.deepEqual(lspSourceUtilityRenameResponse.result, {
+  changes: {
+    [styleUri]: [
+      {
+        range: nodeAlertSelector.range,
+        newText: "notice",
+      },
+    ],
+    [sourceUri]: [
+      {
+        range: sourceUtilitySelectorRange,
+        newText: "notice",
+      },
+    ],
+  },
+});
+
 process.stdout.write(
   [
     "validated omena-lsp-server style provider parity:",
@@ -985,6 +1137,14 @@ process.stdout.write(
     `sourceBracketRenameEdits=${
       lspSourceBracketRenameResponse.result.changes[styleUri].length +
       lspSourceBracketRenameResponse.result.changes[sourceUri].length
+    }`,
+    `sourceUtilityHover=${lspSourceUtilityHoverResponse.result.contents.kind}`,
+    `sourceUtilityDefinitionTargets=${lspSourceUtilityDefinitionResponse.result.length}`,
+    `sourceUtilityReferences=${lspSourceUtilityReferencesResponse.result.length}`,
+    `sourceUtilityCompletionItems=${lspSourceUtilityCompletionResponse.result.items.length}`,
+    `sourceUtilityRenameEdits=${
+      lspSourceUtilityRenameResponse.result.changes[styleUri].length +
+      lspSourceUtilityRenameResponse.result.changes[sourceUri].length
     }`,
     `line=${styleHoverResponse.result.candidates[0].range.start.line}`,
     `character=${styleHoverResponse.result.candidates[0].range.start.character}`,

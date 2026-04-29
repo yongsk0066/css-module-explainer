@@ -1475,6 +1475,7 @@ fn resolve_lsp_code_lens(state: &LspShellState, params: Option<&Value>) -> Value
             },
         }));
     }
+    lenses.sort_by_key(lsp_range_start_sort_key);
 
     if lenses.is_empty() {
         Value::Null
@@ -1534,8 +1535,12 @@ fn source_candidate_matches_target_style(
     candidate: &LspStyleHoverCandidate,
     target_style_uri: Option<&str>,
 ) -> bool {
-    target_style_uri
-        .is_none_or(|target_uri| candidate.target_style_uri.as_deref() == Some(target_uri))
+    target_style_uri.is_none_or(|target_uri| {
+        candidate
+            .target_style_uri
+            .as_deref()
+            .is_none_or(|candidate_target_uri| candidate_target_uri == target_uri)
+    })
 }
 
 fn reference_lens_title(count: usize) -> String {
@@ -1847,6 +1852,9 @@ fn source_completion_target_style_uri_at_position(
     if is_class_name_literal_completion_context(source, offset) {
         return Some(None);
     }
+    if is_class_utility_expression_completion_context(source, offset) {
+        return Some(None);
+    }
     styles_property_access_completion_target_style_uri(document, offset)
 }
 
@@ -1861,14 +1869,19 @@ fn is_class_name_literal_completion_context(source: &str, offset: usize) -> bool
             continue;
         }
         cursor = skip_ascii_whitespace(source, cursor + 1);
+        let mut expression_end_for_search = None;
         if source.as_bytes().get(cursor) == Some(&b'{') {
-            cursor = skip_ascii_whitespace(source, cursor + 1);
+            let expression_start = cursor + 1;
+            if let Some(expression_end) = jsx_expression_end(source, expression_start) {
+                expression_end_for_search = Some(expression_end);
+            }
+            cursor = skip_ascii_whitespace(source, expression_start);
         }
         let Some(quote) = source.as_bytes().get(cursor).copied() else {
             break;
         };
         if !matches!(quote, b'\'' | b'"' | b'`') {
-            search_offset = cursor + 1;
+            search_offset = expression_end_for_search.map_or(cursor + 1, |end| end + 1);
             continue;
         }
         let literal_start = cursor + 1;
@@ -1880,6 +1893,35 @@ fn is_class_name_literal_completion_context(source: &str, offset: usize) -> bool
             return true;
         }
         search_offset = literal_end + 1;
+    }
+    false
+}
+
+fn is_class_utility_expression_completion_context(source: &str, offset: usize) -> bool {
+    let mut search_offset = 0usize;
+    while let Some(relative_match) = source[search_offset..].find("className") {
+        let class_name_start = search_offset + relative_match;
+        let mut cursor = class_name_start + "className".len();
+        cursor = skip_ascii_whitespace(source, cursor);
+        if source.as_bytes().get(cursor) != Some(&b'=') {
+            search_offset = cursor;
+            continue;
+        }
+        cursor = skip_ascii_whitespace(source, cursor + 1);
+        if source.as_bytes().get(cursor) != Some(&b'{') {
+            search_offset = cursor + 1;
+            continue;
+        }
+        let expression_start = cursor + 1;
+        let Some(expression_end) = jsx_expression_end(source, expression_start) else {
+            break;
+        };
+        if expression_contains_class_utility_call(&source[expression_start..expression_end])
+            && offset_in_js_string_literal(source, expression_start, expression_end, offset)
+        {
+            return true;
+        }
+        search_offset = expression_end + 1;
     }
     false
 }
@@ -2038,14 +2080,25 @@ fn collect_class_name_attribute_candidates(
             continue;
         }
         cursor = skip_ascii_whitespace(source, cursor + 1);
+        let mut expression_end_for_search = None;
         if source.as_bytes().get(cursor) == Some(&b'{') {
-            cursor = skip_ascii_whitespace(source, cursor + 1);
+            let expression_start = cursor + 1;
+            if let Some(expression_end) = jsx_expression_end(source, expression_start) {
+                collect_class_utility_expression_candidates(
+                    document,
+                    expression_start,
+                    expression_end,
+                    candidates,
+                );
+                expression_end_for_search = Some(expression_end);
+            }
+            cursor = skip_ascii_whitespace(source, expression_start);
         }
         let Some(quote) = source.as_bytes().get(cursor).copied() else {
             break;
         };
         if !matches!(quote, b'\'' | b'"' | b'`') {
-            search_offset = cursor + 1;
+            search_offset = expression_end_for_search.map_or(cursor + 1, |end| end + 1);
             continue;
         }
         let literal_start = cursor + 1;
@@ -2058,6 +2111,60 @@ fn collect_class_name_attribute_candidates(
         }
         search_offset = literal_end + 1;
     }
+}
+
+fn collect_class_utility_expression_candidates(
+    document: &LspTextDocumentState,
+    expression_start: usize,
+    expression_end: usize,
+    candidates: &mut Vec<LspStyleHoverCandidate>,
+) {
+    let source = document.text.as_str();
+    if !expression_contains_class_utility_call(&source[expression_start..expression_end]) {
+        return;
+    }
+
+    let mut cursor = expression_start;
+    while cursor < expression_end {
+        let Some(quote) = source.as_bytes().get(cursor).copied() else {
+            break;
+        };
+        if !matches!(quote, b'\'' | b'"') {
+            cursor += 1;
+            continue;
+        }
+        if let Some((literal_start, literal_end, next_offset)) =
+            js_string_literal_span(source, cursor, expression_end)
+        {
+            for span in class_token_byte_spans(source, literal_start, literal_end) {
+                candidates.push(source_reference_candidate(document, span, None));
+            }
+            cursor = next_offset;
+            continue;
+        }
+        cursor += 1;
+    }
+}
+
+fn expression_contains_class_utility_call(expression: &str) -> bool {
+    ["clsx", "classnames", "classNames"]
+        .iter()
+        .any(|utility| expression_contains_js_call(expression, utility))
+}
+
+fn expression_contains_js_call(source: &str, callee: &str) -> bool {
+    let mut search_offset = 0usize;
+    while let Some(relative_match) = source[search_offset..].find(callee) {
+        let start = search_offset + relative_match;
+        let end = start + callee.len();
+        if is_js_identifier_boundary(source, start, end)
+            && source.as_bytes().get(skip_ascii_whitespace(source, end)) == Some(&b'(')
+        {
+            return true;
+        }
+        search_offset = end;
+    }
+    false
 }
 
 fn collect_styles_property_access_candidates(
@@ -2262,6 +2369,88 @@ fn skip_ascii_whitespace(source: &str, mut offset: usize) -> usize {
         offset += 1;
     }
     offset
+}
+
+fn jsx_expression_end(source: &str, start: usize) -> Option<usize> {
+    let mut cursor = start;
+    let mut nested_braces = 0usize;
+    while cursor < source.len() {
+        match source.as_bytes().get(cursor).copied()? {
+            b'\'' | b'"' | b'`' => {
+                cursor = skip_js_string_literal(source, cursor, source.len())?;
+            }
+            b'{' => {
+                nested_braces += 1;
+                cursor += 1;
+            }
+            b'}' => {
+                if nested_braces == 0 {
+                    return Some(cursor);
+                }
+                nested_braces -= 1;
+                cursor += 1;
+            }
+            _ => {
+                cursor += 1;
+            }
+        }
+    }
+    None
+}
+
+fn js_string_literal_span(
+    source: &str,
+    quote_offset: usize,
+    limit: usize,
+) -> Option<(usize, usize, usize)> {
+    let quote = source.as_bytes().get(quote_offset).copied()?;
+    if !matches!(quote, b'\'' | b'"') {
+        return None;
+    }
+    let literal_start = quote_offset + 1;
+    let next_offset = skip_js_string_literal(source, quote_offset, limit)?;
+    Some((literal_start, next_offset - 1, next_offset))
+}
+
+fn offset_in_js_string_literal(source: &str, start: usize, end: usize, offset: usize) -> bool {
+    let mut cursor = start;
+    while cursor < end {
+        let Some(quote) = source.as_bytes().get(cursor).copied() else {
+            break;
+        };
+        if !matches!(quote, b'\'' | b'"') {
+            cursor += 1;
+            continue;
+        }
+        if let Some((literal_start, literal_end, next_offset)) =
+            js_string_literal_span(source, cursor, end)
+        {
+            if offset >= literal_start && offset <= literal_end {
+                return true;
+            }
+            cursor = next_offset;
+            continue;
+        }
+        cursor += 1;
+    }
+    false
+}
+
+fn skip_js_string_literal(source: &str, quote_offset: usize, limit: usize) -> Option<usize> {
+    let quote = source.as_bytes().get(quote_offset).copied()?;
+    let mut cursor = quote_offset + 1;
+    while cursor < limit {
+        let byte = source.as_bytes().get(cursor).copied()?;
+        if byte == b'\\' {
+            cursor = (cursor + 2).min(limit);
+            continue;
+        }
+        if byte == quote {
+            return Some(cursor + 1);
+        }
+        cursor += 1;
+    }
+    None
 }
 
 fn bracket_string_literal_access(
@@ -2502,6 +2691,18 @@ fn location_sort_key(location: &Value) -> (String, u64, u64) {
         .and_then(Value::as_u64)
         .unwrap_or_default();
     (uri, line, character)
+}
+
+fn lsp_range_start_sort_key(value: &Value) -> (u64, u64) {
+    let line = value
+        .pointer("/range/start/line")
+        .and_then(Value::as_u64)
+        .unwrap_or_default();
+    let character = value
+        .pointer("/range/start/character")
+        .and_then(Value::as_u64)
+        .unwrap_or_default();
+    (line, character)
 }
 
 fn render_style_hover_candidate_markdown(candidate: &LspStyleHoverCandidate) -> String {
