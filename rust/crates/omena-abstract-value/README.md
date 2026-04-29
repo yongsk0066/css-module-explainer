@@ -11,6 +11,10 @@ Current public product:
   class-value lattice and selector projection certainty contract.
 - `intersect_abstract_class_values` — reduced-product intersection over finite,
   prefix, suffix, character-inclusion, and composite class-value domains.
+- `join_abstract_class_values` — least-upper-bound merge for branch-sensitive
+  class-value flow.
+- `analyze_class_value_flow` — V0 1-CFA flow analysis over explicit
+  class-value flow graphs with assign/refine/join transfers.
 - `reduced_abstract_class_value_from_facts` /
   `reduced_value_domain_kind_from_facts` — source fact reduction before
   evaluator-facing domain-kind reporting.

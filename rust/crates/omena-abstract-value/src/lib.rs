@@ -1,8 +1,9 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::Serialize;
 
 pub const MAX_FINITE_CLASS_VALUES: usize = 8;
+pub const MAX_FLOW_ANALYSIS_ITERATIONS: usize = 32;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -12,6 +13,16 @@ pub struct AbstractValueDomainSummaryV0 {
     pub domain_kinds: Vec<&'static str>,
     pub max_finite_class_values: usize,
     pub selector_projection_certainties: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AbstractValueFlowAnalysisSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub context_sensitivity: &'static str,
+    pub transfer_kinds: Vec<&'static str>,
+    pub max_iterations: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -132,6 +143,49 @@ pub struct ExternalStringTypeFactsV0 {
     pub may_include_other_chars: Option<bool>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClassValueFlowGraphV0 {
+    pub context_key: Option<String>,
+    pub nodes: Vec<ClassValueFlowNodeV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClassValueFlowNodeV0 {
+    pub id: String,
+    pub predecessors: Vec<String>,
+    pub transfer: ClassValueFlowTransferV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ClassValueFlowTransferV0 {
+    AssignFacts(ExternalStringTypeFactsV0),
+    RefineFacts(ExternalStringTypeFactsV0),
+    Join,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClassValueFlowAnalysisV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub context_sensitivity: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_key: Option<String>,
+    pub converged: bool,
+    pub iteration_count: usize,
+    pub nodes: Vec<ClassValueFlowNodeResultV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClassValueFlowNodeResultV0 {
+    pub id: String,
+    pub predecessor_ids: Vec<String>,
+    pub transfer_kind: &'static str,
+    pub value_kind: &'static str,
+    pub value: AbstractClassValueV0,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum SelectorProjectionCertaintyV0 {
@@ -164,6 +218,16 @@ pub fn summarize_omena_abstract_value_domain() -> AbstractValueDomainSummaryV0 {
         ],
         max_finite_class_values: MAX_FINITE_CLASS_VALUES,
         selector_projection_certainties: vec!["exact", "inferred", "possible"],
+    }
+}
+
+pub fn summarize_omena_abstract_value_flow_analysis() -> AbstractValueFlowAnalysisSummaryV0 {
+    AbstractValueFlowAnalysisSummaryV0 {
+        schema_version: "0",
+        product: "omena-abstract-value.flow-analysis",
+        context_sensitivity: "1-cfa",
+        transfer_kinds: vec!["assignFacts", "refineFacts", "join"],
+        max_iterations: MAX_FLOW_ANALYSIS_ITERATIONS,
     }
 }
 
@@ -340,6 +404,138 @@ pub fn intersect_abstract_class_values(
         }
         (AbstractClassValueV0::Top, value) | (value, AbstractClassValueV0::Top) => value.clone(),
         _ => intersect_non_top_class_values(left, right),
+    }
+}
+
+pub fn join_abstract_class_values(
+    left: &AbstractClassValueV0,
+    right: &AbstractClassValueV0,
+) -> AbstractClassValueV0 {
+    if abstract_value_is_subset(left, right) {
+        return right.clone();
+    }
+    if abstract_value_is_subset(right, left) {
+        return left.clone();
+    }
+
+    match (
+        enumerate_finite_class_values(left),
+        enumerate_finite_class_values(right),
+    ) {
+        (Some(left_values), Some(right_values)) => {
+            return finite_set_class_value(left_values.into_iter().chain(right_values));
+        }
+        (Some(values), None)
+            if values
+                .iter()
+                .all(|value| abstract_value_matches_string(right, value)) =>
+        {
+            return right.clone();
+        }
+        (None, Some(values))
+            if values
+                .iter()
+                .all(|value| abstract_value_matches_string(left, value)) =>
+        {
+            return left.clone();
+        }
+        _ => {}
+    }
+
+    match (left, right) {
+        (
+            AbstractClassValueV0::Prefix {
+                prefix: left_prefix,
+                ..
+            },
+            AbstractClassValueV0::Prefix {
+                prefix: right_prefix,
+                ..
+            },
+        ) => {
+            let prefix =
+                meaningful_longest_common_prefix(&[left_prefix.clone(), right_prefix.clone()]);
+            if prefix.is_empty() {
+                top_class_value()
+            } else {
+                prefix_class_value(prefix, Some(AbstractClassValueProvenanceV0::PrefixJoinLcp))
+            }
+        }
+        (
+            AbstractClassValueV0::Suffix {
+                suffix: left_suffix,
+                ..
+            },
+            AbstractClassValueV0::Suffix {
+                suffix: right_suffix,
+                ..
+            },
+        ) => {
+            let suffix =
+                meaningful_longest_common_suffix(&[left_suffix.clone(), right_suffix.clone()]);
+            if suffix.is_empty() {
+                top_class_value()
+            } else {
+                suffix_class_value(suffix, Some(AbstractClassValueProvenanceV0::SuffixJoinLcs))
+            }
+        }
+        _ => top_class_value(),
+    }
+}
+
+pub fn analyze_class_value_flow(graph: &ClassValueFlowGraphV0) -> ClassValueFlowAnalysisV0 {
+    let mut values = graph
+        .nodes
+        .iter()
+        .map(|node| (node.id.clone(), bottom_class_value()))
+        .collect::<BTreeMap<_, _>>();
+    let mut converged = false;
+    let mut iteration_count = 0;
+
+    for iteration in 1..=MAX_FLOW_ANALYSIS_ITERATIONS {
+        iteration_count = iteration;
+        let mut changed = false;
+
+        for node in &graph.nodes {
+            let incoming = join_predecessor_flow_values(node, &values);
+            let next = apply_flow_transfer(&incoming, &node.transfer);
+
+            if values.get(&node.id) != Some(&next) {
+                values.insert(node.id.clone(), next);
+                changed = true;
+            }
+        }
+
+        if !changed {
+            converged = true;
+            break;
+        }
+    }
+
+    ClassValueFlowAnalysisV0 {
+        schema_version: "0",
+        product: "omena-abstract-value.flow-analysis",
+        context_sensitivity: "1-cfa",
+        context_key: graph.context_key.clone(),
+        converged,
+        iteration_count,
+        nodes: graph
+            .nodes
+            .iter()
+            .map(|node| {
+                let value = values
+                    .get(&node.id)
+                    .cloned()
+                    .unwrap_or_else(bottom_class_value);
+                ClassValueFlowNodeResultV0 {
+                    id: node.id.clone(),
+                    predecessor_ids: node.predecessors.clone(),
+                    transfer_kind: flow_transfer_kind(&node.transfer),
+                    value_kind: abstract_class_value_kind(&value),
+                    value,
+                }
+            })
+            .collect(),
     }
 }
 
@@ -1000,6 +1196,124 @@ fn intersect_non_top_class_values(
     }
 }
 
+fn join_predecessor_flow_values(
+    node: &ClassValueFlowNodeV0,
+    values: &BTreeMap<String, AbstractClassValueV0>,
+) -> AbstractClassValueV0 {
+    node.predecessors
+        .iter()
+        .map(|id| values.get(id).cloned().unwrap_or_else(top_class_value))
+        .reduce(|left, right| join_abstract_class_values(&left, &right))
+        .unwrap_or_else(bottom_class_value)
+}
+
+fn apply_flow_transfer(
+    incoming: &AbstractClassValueV0,
+    transfer: &ClassValueFlowTransferV0,
+) -> AbstractClassValueV0 {
+    match transfer {
+        ClassValueFlowTransferV0::AssignFacts(facts) => {
+            reduced_abstract_class_value_from_facts(facts)
+        }
+        ClassValueFlowTransferV0::RefineFacts(facts) => {
+            let refinement = reduced_abstract_class_value_from_facts(facts);
+            intersect_abstract_class_values(incoming, &refinement)
+        }
+        ClassValueFlowTransferV0::Join => incoming.clone(),
+    }
+}
+
+fn flow_transfer_kind(transfer: &ClassValueFlowTransferV0) -> &'static str {
+    match transfer {
+        ClassValueFlowTransferV0::AssignFacts(_) => "assignFacts",
+        ClassValueFlowTransferV0::RefineFacts(_) => "refineFacts",
+        ClassValueFlowTransferV0::Join => "join",
+    }
+}
+
+fn abstract_value_is_subset(left: &AbstractClassValueV0, right: &AbstractClassValueV0) -> bool {
+    if left == right {
+        return true;
+    }
+
+    match (left, right) {
+        (AbstractClassValueV0::Bottom, _) | (_, AbstractClassValueV0::Top) => true,
+        (AbstractClassValueV0::Top, _) => false,
+        _ => {
+            enumerate_finite_class_values(left).is_some_and(|values| {
+                values
+                    .iter()
+                    .all(|value| abstract_value_matches_string(right, value))
+            }) || constrained_value_is_subset(left, right)
+        }
+    }
+}
+
+fn constrained_value_is_subset(left: &AbstractClassValueV0, right: &AbstractClassValueV0) -> bool {
+    match (left, right) {
+        (
+            AbstractClassValueV0::Prefix {
+                prefix: left_prefix,
+                ..
+            },
+            AbstractClassValueV0::Prefix {
+                prefix: right_prefix,
+                ..
+            },
+        ) => left_prefix.starts_with(right_prefix),
+        (
+            AbstractClassValueV0::Suffix {
+                suffix: left_suffix,
+                ..
+            },
+            AbstractClassValueV0::Suffix {
+                suffix: right_suffix,
+                ..
+            },
+        ) => left_suffix.ends_with(right_suffix),
+        (
+            AbstractClassValueV0::PrefixSuffix {
+                prefix: left_prefix,
+                suffix: _,
+                ..
+            },
+            AbstractClassValueV0::Prefix {
+                prefix: right_prefix,
+                ..
+            },
+        ) => left_prefix.starts_with(right_prefix),
+        (
+            AbstractClassValueV0::PrefixSuffix {
+                prefix: left_prefix,
+                suffix: left_suffix,
+                min_length: left_min_length,
+                ..
+            },
+            AbstractClassValueV0::PrefixSuffix {
+                prefix: right_prefix,
+                suffix: right_suffix,
+                min_length: right_min_length,
+                ..
+            },
+        ) => {
+            left_prefix.starts_with(right_prefix)
+                && left_suffix.ends_with(right_suffix)
+                && left_min_length >= right_min_length
+        }
+        (
+            AbstractClassValueV0::PrefixSuffix {
+                suffix: left_suffix,
+                ..
+            },
+            AbstractClassValueV0::Suffix {
+                suffix: right_suffix,
+                ..
+            },
+        ) => left_suffix.ends_with(right_suffix),
+        _ => false,
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ClassValueReductionFacts {
     prefix: Option<String>,
@@ -1293,18 +1607,20 @@ fn is_constrained_selector_shape(facts: &ExternalStringTypeFactsV0) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        AbstractClassValueProvenanceV0, AbstractClassValueV0, CompositeClassValueInputV0,
+        AbstractClassValueProvenanceV0, AbstractClassValueV0, ClassValueFlowGraphV0,
+        ClassValueFlowNodeV0, ClassValueFlowTransferV0, CompositeClassValueInputV0,
         ExternalStringTypeFactsV0, MAX_FINITE_CLASS_VALUES, SelectorProjectionCertaintyV0,
-        abstract_class_value_from_facts, bottom_class_value, char_inclusion_class_value,
-        composite_class_value, derive_selector_projection_certainty, exact_class_value,
-        finite_set_class_value, finite_values_from_facts, intersect_abstract_class_values,
-        prefix_class_value, prefix_suffix_class_value, project_abstract_value_selectors,
+        abstract_class_value_from_facts, analyze_class_value_flow, bottom_class_value,
+        char_inclusion_class_value, composite_class_value, derive_selector_projection_certainty,
+        exact_class_value, finite_set_class_value, finite_values_from_facts,
+        intersect_abstract_class_values, join_abstract_class_values, prefix_class_value,
+        prefix_suffix_class_value, project_abstract_value_selectors,
         reduced_abstract_class_value_from_facts, reduced_class_value_derivation_from_facts,
         reduced_value_domain_kind_from_facts, selector_certainty_from_facts,
         selector_certainty_shape_kind_from_facts, selector_certainty_shape_label_from_facts,
-        suffix_class_value, summarize_omena_abstract_value_domain, top_class_value,
-        value_certainty_from_facts, value_certainty_shape_kind_from_facts,
-        value_certainty_shape_label_from_facts,
+        suffix_class_value, summarize_omena_abstract_value_domain,
+        summarize_omena_abstract_value_flow_analysis, top_class_value, value_certainty_from_facts,
+        value_certainty_shape_kind_from_facts, value_certainty_shape_label_from_facts,
     };
 
     #[test]
@@ -1321,6 +1637,12 @@ mod tests {
                 .selector_projection_certainties
                 .contains(&"inferred")
         );
+
+        let flow_summary = summarize_omena_abstract_value_flow_analysis();
+        assert_eq!(flow_summary.schema_version, "0");
+        assert_eq!(flow_summary.product, "omena-abstract-value.flow-analysis");
+        assert_eq!(flow_summary.context_sensitivity, "1-cfa");
+        assert!(flow_summary.transfer_kinds.contains(&"join"));
     }
 
     #[test]
@@ -1658,6 +1980,96 @@ mod tests {
     }
 
     #[test]
+    fn joins_abstract_values_for_branch_merges() {
+        assert_eq!(
+            join_abstract_class_values(
+                &exact_class_value("btn-primary"),
+                &exact_class_value("btn-secondary"),
+            ),
+            AbstractClassValueV0::FiniteSet {
+                values: vec!["btn-primary".to_string(), "btn-secondary".to_string()]
+            }
+        );
+
+        assert_eq!(
+            join_abstract_class_values(
+                &prefix_class_value("btn-primary-", None),
+                &prefix_class_value("btn-secondary-", None),
+            ),
+            prefix_class_value("btn-", Some(AbstractClassValueProvenanceV0::PrefixJoinLcp))
+        );
+
+        assert_eq!(
+            join_abstract_class_values(
+                &prefix_class_value("btn-", None),
+                &exact_class_value("btn-primary"),
+            ),
+            prefix_class_value("btn-", None)
+        );
+    }
+
+    #[test]
+    fn analyzes_one_cfa_class_value_flow_with_branch_merge_and_refinement() {
+        let graph = ClassValueFlowGraphV0 {
+            context_key: Some("Button.tsx:render@primary".to_string()),
+            nodes: vec![
+                flow_assign_node("then", external_facts("exact").with_values(["btn-primary"])),
+                flow_assign_node(
+                    "else-if",
+                    external_facts("exact").with_values(["btn-secondary"]),
+                ),
+                flow_assign_node("else", external_facts("exact").with_values(["card"])),
+                ClassValueFlowNodeV0 {
+                    id: "merge".to_string(),
+                    predecessors: vec![
+                        "then".to_string(),
+                        "else-if".to_string(),
+                        "else".to_string(),
+                    ],
+                    transfer: ClassValueFlowTransferV0::Join,
+                },
+                ClassValueFlowNodeV0 {
+                    id: "btn-only".to_string(),
+                    predecessors: vec!["merge".to_string()],
+                    transfer: ClassValueFlowTransferV0::RefineFacts(
+                        external_facts("constrained")
+                            .with_constraint_kind("prefix")
+                            .with_prefix("btn-"),
+                    ),
+                },
+            ],
+        };
+
+        let analysis = analyze_class_value_flow(&graph);
+
+        assert_eq!(analysis.schema_version, "0");
+        assert_eq!(analysis.product, "omena-abstract-value.flow-analysis");
+        assert_eq!(analysis.context_sensitivity, "1-cfa");
+        assert_eq!(
+            analysis.context_key.as_deref(),
+            Some("Button.tsx:render@primary")
+        );
+        assert!(analysis.converged);
+
+        assert_eq!(
+            flow_value(&analysis, "merge"),
+            Some(&AbstractClassValueV0::FiniteSet {
+                values: vec![
+                    "btn-primary".to_string(),
+                    "btn-secondary".to_string(),
+                    "card".to_string(),
+                ]
+            })
+        );
+        assert_eq!(
+            flow_value(&analysis, "btn-only"),
+            Some(&AbstractClassValueV0::FiniteSet {
+                values: vec!["btn-primary".to_string(), "btn-secondary".to_string()]
+            })
+        );
+    }
+
+    #[test]
     fn reduces_external_facts_before_reporting_domain_kind() {
         let finite_with_prefix = external_facts("finiteSet")
             .with_values(["btn-primary", "card"])
@@ -1843,6 +2255,25 @@ mod tests {
             .into_iter()
             .filter(|name| right_names.contains(name))
             .collect()
+    }
+
+    fn flow_assign_node(id: &str, facts: ExternalStringTypeFactsV0) -> ClassValueFlowNodeV0 {
+        ClassValueFlowNodeV0 {
+            id: id.to_string(),
+            predecessors: Vec::new(),
+            transfer: ClassValueFlowTransferV0::AssignFacts(facts),
+        }
+    }
+
+    fn flow_value<'a>(
+        analysis: &'a super::ClassValueFlowAnalysisV0,
+        id: &str,
+    ) -> Option<&'a AbstractClassValueV0> {
+        analysis
+            .nodes
+            .iter()
+            .find(|node| node.id == id)
+            .map(|node| &node.value)
     }
 
     fn external_facts(kind: &str) -> ExternalStringTypeFactsV0 {
