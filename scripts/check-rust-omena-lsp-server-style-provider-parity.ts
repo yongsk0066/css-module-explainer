@@ -368,9 +368,21 @@ const lspSourceCodeActionRequest = {
     },
   },
 };
-const shutdownRequest = {
+const lspStyleSelectorRenameRequest = {
   jsonrpc: "2.0",
   id: 21,
+  method: "textDocument/rename",
+  params: {
+    textDocument: {
+      uri: styleUri,
+    },
+    position: selectorQueryPosition,
+    newName: "panel",
+  },
+};
+const shutdownRequest = {
+  jsonrpc: "2.0",
+  id: 22,
   method: "shutdown",
 };
 const exitNotification = {
@@ -404,6 +416,7 @@ const result = spawnSync(invocation.command, [...invocation.args], {
     lspSourcePrepareRenameRequest,
     lspSourceRenameRequest,
     lspSourceCodeActionRequest,
+    lspStyleSelectorRenameRequest,
     shutdownRequest,
     exitNotification,
   ]
@@ -430,7 +443,7 @@ const responses = messages.filter((message) => "id" in message);
 const diagnosticNotifications = messages.filter(
   (message) => message.method === "textDocument/publishDiagnostics",
 );
-assert.equal(responses.length, 21);
+assert.equal(responses.length, 22);
 assert.deepEqual(diagnosticNotifications, [
   {
     jsonrpc: "2.0",
@@ -685,6 +698,25 @@ assert.deepEqual(lspSourceCodeActionResponse.result, [
   },
 ]);
 
+const lspStyleSelectorRenameResponse = responses[20]!;
+assert.equal(lspStyleSelectorRenameResponse.id, 21);
+assert.deepEqual(lspStyleSelectorRenameResponse.result, {
+  changes: {
+    [styleUri]: [
+      {
+        range: nodeSelector.range,
+        newText: "panel",
+      },
+    ],
+    [sourceUri]: [
+      {
+        range: sourceSelectorRange,
+        newText: "panel",
+      },
+    ],
+  },
+});
+
 process.stdout.write(
   [
     "validated omena-lsp-server style provider parity:",
@@ -711,6 +743,10 @@ process.stdout.write(
       lspSourceRenameResponse.result.changes[sourceUri].length
     }`,
     `sourceCodeActions=${lspSourceCodeActionResponse.result.length}`,
+    `styleSelectorRenameEdits=${
+      lspStyleSelectorRenameResponse.result.changes[styleUri].length +
+      lspStyleSelectorRenameResponse.result.changes[sourceUri].length
+    }`,
     `line=${styleHoverResponse.result.candidates[0].range.start.line}`,
     `character=${styleHoverResponse.result.candidates[0].range.start.character}`,
     `nodeRangeParity=${JSON.stringify(styleHoverResponse.result.candidates[0].range)}`,

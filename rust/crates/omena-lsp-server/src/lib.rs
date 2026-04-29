@@ -1426,9 +1426,12 @@ fn resolve_lsp_rename(state: &LspShellState, params: Option<&Value>) -> Value {
         return Value::Null;
     };
     if let Some((document_uri, candidate)) = source_selector_candidate_for_params(state, params) {
-        return resolve_source_selector_rename(
+        let workspace_folder_uri = state
+            .document(document_uri.as_str())
+            .and_then(|document| document.workspace_folder_uri.as_deref());
+        return resolve_selector_rename(
             state,
-            document_uri.as_str(),
+            workspace_folder_uri,
             candidate.name.as_str(),
             new_name,
         );
@@ -1439,8 +1442,19 @@ fn resolve_lsp_rename(state: &LspShellState, params: Option<&Value>) -> Value {
         return Value::Null;
     };
 
+    if candidate.kind == "selector" {
+        let workspace_folder_uri = state
+            .document(document_uri.as_str())
+            .and_then(|document| document.workspace_folder_uri.as_deref());
+        return resolve_selector_rename(
+            state,
+            workspace_folder_uri,
+            candidate.name.as_str(),
+            new_name,
+        );
+    }
+
     let replacement = match candidate.kind {
-        "selector" => new_name.trim_start_matches('.').to_string(),
         "customPropertyReference" | "customPropertyDeclaration" => new_name.to_string(),
         _ => return Value::Null,
     };
@@ -1892,9 +1906,9 @@ fn first_style_document_for_workspace<'a>(
         .next()
 }
 
-fn resolve_source_selector_rename(
+fn resolve_selector_rename(
     state: &LspShellState,
-    source_document_uri: &str,
+    workspace_folder_uri: Option<&str>,
     selector_name: &str,
     new_name: &str,
 ) -> Value {
@@ -1903,15 +1917,10 @@ fn resolve_source_selector_rename(
         return Value::Null;
     }
 
-    let Some(source_document) = state.document(source_document_uri) else {
-        return Value::Null;
-    };
     let mut changes: BTreeMap<String, Vec<Value>> = BTreeMap::new();
-    for (uri, definition) in style_selector_definitions_from_open_documents(
-        state,
-        selector_name,
-        source_document.workspace_folder_uri.as_deref(),
-    ) {
+    for (uri, definition) in
+        style_selector_definitions_from_open_documents(state, selector_name, workspace_folder_uri)
+    {
         changes.entry(uri).or_default().push(json!({
             "range": definition.range,
             "newText": replacement,
@@ -1919,6 +1928,9 @@ fn resolve_source_selector_rename(
     }
     for document in state.documents.values() {
         if is_style_document_uri(document.uri.as_str()) {
+            continue;
+        }
+        if !workspace_folder_compatible(workspace_folder_uri, document) {
             continue;
         }
         for candidate in collect_source_selector_reference_candidates(state, document)
