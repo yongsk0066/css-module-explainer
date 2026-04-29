@@ -42,6 +42,11 @@ interface RustOmenaLspServerBoundarySummary {
     readonly exitGate: string;
   }[];
   readonly blockingWorkPolicy: readonly string[];
+  readonly tsgoClientBoundary: {
+    readonly product: string;
+    readonly runtimeModel: string;
+    readonly requestPathPolicy: readonly string[];
+  };
   readonly nextDecouplingTargets: readonly string[];
 }
 
@@ -83,6 +88,12 @@ assert.ok(
   rustSummary.nextDecouplingTargets.includes("longLivedTsgoClient"),
   "Rust LSP boundary must keep the tsgo client migration visible",
 );
+assert.equal(rustSummary.tsgoClientBoundary.product, "omena-tsgo-client.boundary");
+assert.equal(rustSummary.tsgoClientBoundary.runtimeModel, "longLivedWorkspaceProcess");
+assert.ok(
+  rustSummary.tsgoClientBoundary.requestPathPolicy.includes("noSyncWorkspaceFallbackOnRequestPath"),
+  "Rust LSP boundary must embed the phase-3 tsgo client request-path contract",
+);
 assert.ok(
   rustSummary.nextDecouplingTargets.includes("thinVsCodeClientHost"),
   "Rust LSP boundary must keep the thin VS Code client endpoint visible",
@@ -100,6 +111,10 @@ assert.deepEqual(
     "phase-3-source-providers",
     "phase-4-thin-client",
   ],
+);
+assert.equal(
+  rustSummary.migrationPhases.find((phase) => phase.phase === "phase-3-source-providers")?.exitGate,
+  "rust/omena-tsgo-client/boundary",
 );
 
 process.stdout.write(

@@ -9,6 +9,7 @@ members = [
   "crates/omena-query",
   "crates/omena-resolver",
   "crates/omena-semantic",
+  "crates/omena-tsgo-client",
 ]
 resolver = "2"
 

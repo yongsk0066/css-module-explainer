@@ -26,6 +26,7 @@ const RUST_FAMILIES = [
   "omena-lsp-server",
   "omena-query",
   "omena-resolver",
+  "omena-tsgo-client",
   "semantic",
   "release",
   "shadow",

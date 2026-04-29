@@ -3,6 +3,7 @@ use engine_style_parser::{
     SyntaxNode, SyntaxNodePayload, TextSpan, parse_style_module,
     summarize_css_modules_intermediate,
 };
+use omena_tsgo_client::{OmenaTsgoClientBoundarySummaryV0, summarize_omena_tsgo_client_boundary};
 use serde::Serialize;
 use serde_json::{Value, json};
 use std::{
@@ -37,6 +38,7 @@ pub struct OmenaLspServerBoundarySummaryV0 {
     pub handler_surfaces: Vec<LspHandlerSurfaceV0>,
     pub migration_phases: Vec<LspMigrationPhaseV0>,
     pub blocking_work_policy: Vec<&'static str>,
+    pub tsgo_client_boundary: OmenaTsgoClientBoundarySummaryV0,
     pub node_parity_contracts: Vec<&'static str>,
     pub next_decoupling_targets: Vec<&'static str>,
 }
@@ -127,6 +129,7 @@ pub fn summarize_omena_lsp_server_boundary() -> OmenaLspServerBoundarySummaryV0 
             "backgroundIndexAndTypeFactWarmup",
             "staleOrUnresolvableFastReturn",
         ],
+        tsgo_client_boundary: summarize_omena_tsgo_client_boundary(),
         node_parity_contracts: vec![
             "initializeCapabilities",
             "textDocumentSync",
@@ -244,7 +247,7 @@ pub fn lsp_migration_phases() -> Vec<LspMigrationPhaseV0> {
         LspMigrationPhaseV0 {
             phase: "phase-3-source-providers",
             goal: "replace Node WorkspaceTypeResolver hot path with a long-lived tsgo client and Rust query runtime",
-            exit_gate: "rust/omena-lsp-server/provider-parity",
+            exit_gate: "rust/omena-tsgo-client/boundary",
         },
         LspMigrationPhaseV0 {
             phase: "phase-4-thin-client",

@@ -64,6 +64,7 @@ name = "omena-lsp-server"
 version = "0.1.0"
 dependencies = [
  "engine-style-parser",
+ "omena-tsgo-client",
  "serde",
  "serde_json",
 ]
@@ -94,6 +95,14 @@ version = "0.1.0"
 dependencies = [
  "engine-input-producers",
  "engine-style-parser",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "omena-tsgo-client"
+version = "0.1.0"
+dependencies = [
  "serde",
  "serde_json",
 ]
