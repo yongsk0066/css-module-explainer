@@ -999,6 +999,7 @@ fn resolve_lsp_references(state: &LspShellState, params: Option<&Value>) -> Valu
         locations.extend(selector_reference_locations_from_open_documents(
             state,
             candidate.name.as_str(),
+            document.workspace_folder_uri.as_deref(),
         ));
         locations
     } else if include_declaration {
@@ -1162,7 +1163,7 @@ fn resolve_source_diagnostics_for_uri(state: &LspShellState, document_uri: &str)
     };
     let insertion_range = end_of_document_range(target_style_document.text.as_str());
     let has_existing_style_content = !target_style_document.text.trim().is_empty();
-    let diagnostics: Vec<Value> = collect_source_diagnostic_class_reference_candidates(document)
+    let diagnostics: Vec<Value> = collect_source_class_reference_candidates(document)
         .into_iter()
         .filter(|candidate| !defined_names.contains(candidate.name.as_str()))
         .map(|candidate| {
@@ -1298,8 +1299,11 @@ fn resolve_lsp_code_lens(state: &LspShellState, params: Option<&Value>) -> Value
         if !emitted_selectors.insert(candidate.name.as_str()) {
             continue;
         }
-        let locations =
-            selector_reference_locations_from_open_documents(state, candidate.name.as_str());
+        let locations = selector_reference_locations_from_open_documents(
+            state,
+            candidate.name.as_str(),
+            document.workspace_folder_uri.as_deref(),
+        );
         if locations.is_empty() {
             continue;
         }
@@ -1331,16 +1335,23 @@ fn resolve_lsp_code_lens(state: &LspShellState, params: Option<&Value>) -> Value
 fn selector_reference_locations_from_open_documents(
     state: &LspShellState,
     selector_name: &str,
+    workspace_folder_uri: Option<&str>,
 ) -> Vec<Value> {
     let mut locations = Vec::new();
     for document in state.documents.values() {
         if is_style_document_uri(document.uri.as_str()) {
             continue;
         }
-        for byte_span in selector_name_byte_spans(document.text.as_str(), selector_name) {
+        if !workspace_folder_compatible(workspace_folder_uri, document) {
+            continue;
+        }
+        for candidate in collect_source_selector_reference_candidates(state, document)
+            .into_iter()
+            .filter(|candidate| candidate.name == selector_name)
+        {
             locations.push(json!({
                 "uri": document.uri.as_str(),
-                "range": parser_range_for_byte_span(document.text.as_str(), byte_span),
+                "range": candidate.range,
             }));
         }
     }
@@ -1361,34 +1372,6 @@ fn selector_reference_locations_from_open_documents(
         (uri, line, character)
     });
     locations
-}
-
-fn selector_name_byte_spans(source: &str, selector_name: &str) -> Vec<ParserByteSpanV0> {
-    let mut spans = Vec::new();
-    let mut search_offset = 0usize;
-
-    while let Some(relative_match) = source[search_offset..].find(selector_name) {
-        let start = search_offset + relative_match;
-        let end = start + selector_name.len();
-        if is_source_reference_name_boundary(source, start, end) {
-            spans.push(ParserByteSpanV0 { start, end });
-        }
-        search_offset += relative_match + selector_name.len();
-    }
-
-    spans
-}
-
-fn is_source_reference_name_boundary(source: &str, start: usize, end: usize) -> bool {
-    let before = source[..start]
-        .chars()
-        .next_back()
-        .is_none_or(|ch| !is_css_identifier_continue(ch));
-    let after = source[end..]
-        .chars()
-        .next()
-        .is_none_or(|ch| !is_css_identifier_continue(ch));
-    before && after
 }
 
 fn reference_lens_title(count: usize) -> String {
@@ -1631,6 +1614,7 @@ fn resolve_source_lsp_references(
     locations.extend(selector_reference_locations_from_open_documents(
         state,
         candidate.name.as_str(),
+        document.workspace_folder_uri.as_deref(),
     ));
     locations.sort_by_key(location_sort_key);
 
@@ -1706,22 +1690,19 @@ fn collect_source_selector_reference_candidates(
     .into_iter()
     .map(|(_, definition)| definition.name)
     .collect();
-    let mut candidates = Vec::new();
-    for selector_name in selector_names {
-        for byte_span in selector_name_byte_spans(document.text.as_str(), selector_name.as_str()) {
-            candidates.push(LspStyleHoverCandidate {
-                kind: "sourceSelectorReference",
-                name: selector_name.clone(),
-                range: parser_range_for_byte_span(document.text.as_str(), byte_span),
-                source: "openedSourceDocumentIndex",
-            });
-        }
+    if selector_names.is_empty() {
+        return Vec::new();
     }
+    let mut candidates: Vec<LspStyleHoverCandidate> =
+        collect_source_class_reference_candidates(document)
+            .into_iter()
+            .filter(|candidate| selector_names.contains(candidate.name.as_str()))
+            .collect();
     candidates.sort();
     candidates
 }
 
-fn collect_source_diagnostic_class_reference_candidates(
+fn collect_source_class_reference_candidates(
     document: &LspTextDocumentState,
 ) -> Vec<LspStyleHoverCandidate> {
     let mut candidates = Vec::new();
@@ -2628,7 +2609,7 @@ mod tests {
                         "uri": "file:///workspace-a/src/App.tsx",
                         "languageId": "typescriptreact",
                         "version": 1,
-                        "text": "const cls = \"root\";",
+                        "text": "const view = <div className=\"root\" />;",
                     },
                 },
             }),
@@ -3035,11 +3016,11 @@ mod tests {
             Some(&json!({
                 "start": {
                     "line": 0,
-                    "character": 13,
+                    "character": 29,
                 },
                 "end": {
                     "line": 0,
-                    "character": 17,
+                    "character": 33,
                 },
             })),
         );

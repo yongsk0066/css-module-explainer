@@ -12,20 +12,21 @@ const workspaceUri = "file:///tmp/cme-rust-lsp-style-provider";
 const stylePath = "/tmp/cme-rust-lsp-style-provider/src/App.module.scss";
 const styleUri = `${workspaceUri}/src/App.module.scss`;
 const sourceUri = `${workspaceUri}/src/App.tsx`;
-const sourceText = 'const cls = "root";\nconst view = <div className="missing" />;';
+const sourceText =
+  'const view = <div className="root" />;\nconst missing = <div className="missing" />;';
 const sourceSelectorRange = {
-  start: { line: 0, character: 13 },
-  end: { line: 0, character: 17 },
+  start: { line: 0, character: 29 },
+  end: { line: 0, character: 33 },
 };
 const sourceMissingSelectorRange = {
-  start: { line: 1, character: 29 },
-  end: { line: 1, character: 36 },
+  start: { line: 1, character: 32 },
+  end: { line: 1, character: 39 },
 };
 const styleText =
   ".root { color: var(--brand); }\n.theme { --brand: red; }\n.alert { color: var(--missing); }";
 const sourceSelectorQueryPosition = {
   line: 0,
-  character: 14,
+  character: 30,
 };
 const selectorQueryPosition = {
   line: 0,
