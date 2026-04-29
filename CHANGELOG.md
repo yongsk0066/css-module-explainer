@@ -1,5 +1,16 @@
 # Changelog
 
+## [4.1.25] — 2026-04-30
+
+### Fixed
+
+- **Large-workspace LSP request blocking** — LSP requests no longer re-enter the synchronous TypeScript workspace resolver when the tsgo-backed source path cannot answer immediately. Unavailable source facts now fail fast as unresolved results instead of allowing hover, definition, references, diagnostics, or completion to trigger workspace-sized blocking work on the Node request path.
+- **Rust LSP cancellation and workspace bounds** — the Rust LSP lane now handles already-cancelled requests before provider work starts and keeps workspace style indexing bounded, reducing the conditions that pinned duplicate Node servers on large Next.js workspaces.
+
+### Changed
+
+- **Rust LSP migration gates** — the phase-2 swap-readiness gate now covers the source-side canonical/evaluator paths from input facts, and the migration boundary explicitly tracks the next phase-4 thin-client endpoint before the `omena-lsp-server` split.
+
 ## [4.1.21] — 2026-04-29
 
 ### Fixed
