@@ -573,6 +573,9 @@ function mapInvalidClassFinding(
         valueCertainty: finding.valueCertainty,
         selectorCertainty: finding.selectorCertainty,
         reason: finding.reason,
+        ...(finding.valueDomainDerivation
+          ? { valueDomainDerivation: finding.valueDomainDerivation }
+          : {}),
       };
     case "missingResolvedClassDomain":
       return {
@@ -585,6 +588,9 @@ function mapInvalidClassFinding(
         valueCertainty: finding.valueCertainty,
         selectorCertainty: finding.selectorCertainty,
         reason: finding.reason,
+        ...(finding.valueDomainDerivation
+          ? { valueDomainDerivation: finding.valueDomainDerivation }
+          : {}),
       };
     default:
       finding satisfies never;

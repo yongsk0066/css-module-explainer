@@ -491,6 +491,9 @@ function writeResult(
           finding.severity
         }] ${finding.code} ${finding.message}\n`,
       );
+      for (const evidenceLine of formatFindingEvidenceLines(finding, "  ")) {
+        io.stdout(evidenceLine);
+      }
     }
   }
 
@@ -504,6 +507,9 @@ function writeResult(
             finding.range.start.character + 1
           } ${finding.message}\n`,
         );
+        for (const evidenceLine of formatFindingEvidenceLines(finding, "    ")) {
+          io.stdout(evidenceLine);
+        }
       }
     }
   }
@@ -676,4 +682,21 @@ function groupFindingsByFile(
     grouped.set(filePath, [finding]);
   }
   return grouped;
+}
+
+function formatFindingEvidenceLines(
+  finding: CheckerReportV1["findings"][number],
+  indent: string,
+): readonly string[] {
+  const lines: string[] = [];
+  if (finding.analysisReason) {
+    lines.push(`${indent}analysis: ${finding.analysisReason}\n`);
+  }
+  if (finding.valueCertaintyShapeLabel) {
+    lines.push(`${indent}value shape: ${finding.valueCertaintyShapeLabel}\n`);
+  }
+  if (finding.valueDomainDerivationLabel) {
+    lines.push(`${indent}value derivation: ${finding.valueDomainDerivationLabel}\n`);
+  }
+  return lines;
 }

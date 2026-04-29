@@ -2,6 +2,7 @@ import type { ClassExpressionHIR } from "../hir/source-types";
 import type { SelectorDeclHIR, StyleDocumentHIR } from "../hir/style-types";
 import type { FlowResolution } from "../flow/lattice";
 import type { EdgeCertainty } from "../semantic/certainty";
+import { enumerateFiniteClassValues } from "../abstract-value/class-value-domain";
 import type {
   ReadSourceExpressionResolutionContext,
   ReadSourceExpressionResolutionEnv,
@@ -49,6 +50,10 @@ export function readExpressionSemantics(
 ): ExpressionSemanticsSummary {
   const resolution = readSourceExpressionResolution(ctx, env);
   const selectorNames = resolution.selectors.map((selector) => selector.name);
+  const valueDomainKind = classifyValueDomain(resolution.abstractValue);
+  const valueDomainDerivation = resolution.abstractValue
+    ? buildReducedClassValueDerivation(resolution.abstractValue, valueDomainKind)
+    : null;
   return {
     expression: ctx.expression,
     styleDocument: resolution.styleDocument,
@@ -56,8 +61,9 @@ export function readExpressionSemantics(
     selectorNames,
     candidateNames: candidateNamesForResolution(resolution),
     finiteValues: resolution.finiteValues,
-    valueDomainKind: classifyValueDomain(resolution.abstractValue),
+    valueDomainKind,
     ...(resolution.abstractValue ? { abstractValue: resolution.abstractValue } : {}),
+    ...(valueDomainDerivation ? { valueDomainDerivation } : {}),
     ...(resolution.valueCertainty ? { valueCertainty: resolution.valueCertainty } : {}),
     ...(resolution.reason ? { reason: resolution.reason } : {}),
     selectorCertainty: resolution.selectorCertainty,
@@ -97,4 +103,31 @@ function classifyValueDomain(
       abstractValue satisfies never;
       return "none";
   }
+}
+
+function buildReducedClassValueDerivation(
+  abstractValue: FlowResolution["abstractValue"],
+  reducedKind: ExpressionValueDomainKind,
+): ReducedClassValueDerivation {
+  return {
+    schemaVersion: "0",
+    product: "omena-abstract-value.reduced-class-value-derivation",
+    inputFactKind: reducedKind,
+    inputValueCount: finiteValueCountForAbstractValue(abstractValue),
+    reducedKind,
+    steps: [
+      {
+        operation: "baseFromFacts",
+        resultKind: reducedKind,
+        reason:
+          reducedKind === "exact" || reducedKind === "finiteSet"
+            ? "preserved finite string literal facts"
+            : "mapped input facts to the base abstract value",
+      },
+    ],
+  };
+}
+
+function finiteValueCountForAbstractValue(abstractValue: FlowResolution["abstractValue"]): number {
+  return enumerateFiniteClassValues(abstractValue)?.length ?? 0;
 }

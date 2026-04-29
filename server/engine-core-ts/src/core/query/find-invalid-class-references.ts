@@ -12,7 +12,10 @@ import type {
   TemplateClassExpressionHIR,
 } from "../hir/source-types";
 import type { StyleDocumentHIR } from "../hir/style-types";
-import { readExpressionSemantics } from "./read-expression-semantics";
+import {
+  readExpressionSemantics,
+  type ReducedClassValueDerivation,
+} from "./read-expression-semantics";
 
 export interface InvalidClassReferenceQueryEnv {
   readonly typeResolver: TypeResolver;
@@ -48,6 +51,7 @@ export type InvalidClassReferenceFinding =
       readonly valueCertainty: "exact" | "inferred" | "possible";
       readonly selectorCertainty: "exact" | "inferred" | "possible";
       readonly reason: "flowLiteral" | "flowBranch" | "typeUnion";
+      readonly valueDomainDerivation?: ReducedClassValueDerivation;
     }
   | {
       readonly kind: "missingResolvedClassDomain";
@@ -57,6 +61,7 @@ export type InvalidClassReferenceFinding =
       readonly valueCertainty: "exact" | "inferred" | "possible";
       readonly selectorCertainty: "exact" | "inferred" | "possible";
       readonly reason: "flowLiteral" | "flowBranch" | "typeUnion";
+      readonly valueDomainDerivation?: ReducedClassValueDerivation;
     };
 
 export function findInvalidClassReference(
@@ -111,6 +116,9 @@ export function findInvalidClassReference(
               valueCertainty: semantics.valueCertainty,
               selectorCertainty: semantics.selectorCertainty,
               reason: semantics.reason,
+              ...(semantics.valueDomainDerivation
+                ? { valueDomainDerivation: semantics.valueDomainDerivation }
+                : {}),
             }
           : null;
       }
@@ -125,6 +133,9 @@ export function findInvalidClassReference(
         valueCertainty: semantics.valueCertainty,
         selectorCertainty: semantics.selectorCertainty,
         reason: semantics.reason,
+        ...(semantics.valueDomainDerivation
+          ? { valueDomainDerivation: semantics.valueDomainDerivation }
+          : {}),
       };
     }
     case "styleAccess":
