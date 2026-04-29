@@ -3,6 +3,7 @@ import type ts from "typescript";
 import type { CxBinding } from "../../../server/engine-core-ts/src/core/cx/cx-types";
 import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
+import type { TypeResolver } from "../../../server/engine-core-ts/src/core/ts/type-resolver";
 import { buildSelectedQueryResultsV2 } from "../../../server/engine-host-node/src/engine-query-v2";
 import {
   EMPTY_ALIAS_RESOLVER,
@@ -342,6 +343,47 @@ describe("buildSelectedQueryResultsV2", () => {
     expect(results.filter((result) => result.kind === "expression-semantics")).toHaveLength(2);
     expect(results.filter((result) => result.kind === "selector-usage")).toHaveLength(2);
   });
+
+  it("does not compute TypeScript fallbacks when rust-selected-query returns source payloads", () => {
+    const deps = makeDeps();
+    const sourceDocuments = [
+      {
+        uri: "file:///fake/src/Button.tsx",
+        content: SYMBOL_REF_TSX,
+        filePath: "/fake/src/Button.tsx",
+        version: 1,
+      },
+    ] as const;
+
+    const results = buildResults({
+      workspaceRoot: "/fake",
+      classnameTransform: "asIs",
+      pathAlias: {},
+      sourceDocuments,
+      styleFiles: ["/fake/src/Button.module.scss"],
+      analysisCache: deps.analysisCache,
+      styleDocumentForPath: deps.styleDocumentForPath,
+      typeResolver: throwingTypeResolver("TypeScript fallback should not run"),
+      semanticReferenceIndex: deps.semanticReferenceIndex,
+      styleDependencyGraph: deps.styleDependencyGraph,
+      env: {
+        CME_SELECTED_QUERY_BACKEND: "rust-selected-query",
+      } as NodeJS.ProcessEnv,
+      readRustSourceResolutionPayloads: () => [makeSourceResolutionPayload("class-expr:0", "indicator")],
+      readRustExpressionSemanticsPayloads: () => [
+        makeExpressionSemanticsPayload("class-expr:0", "indicator"),
+      ],
+      readRustSelectorUsagePayloads: () => [
+        makeSelectorUsageCandidate("/fake/src/Button.module.scss", "indicator"),
+        makeSelectorUsageCandidate("/fake/src/Button.module.scss", "active"),
+      ],
+    });
+
+    expect(results.filter((result) => result.kind === "source-expression-resolution")).toHaveLength(
+      1,
+    );
+    expect(results.filter((result) => result.kind === "expression-semantics")).toHaveLength(1);
+  });
 });
 
 function makeSourceResolutionPayload(expressionId: string, selectorName: string) {
@@ -412,5 +454,15 @@ function makeSelectorUsageCandidate(filePath: string, canonicalName: string) {
       hasStyleDependencyReferences: false,
       hasAnyReferences: true,
     },
+  };
+}
+
+function throwingTypeResolver(message: string): TypeResolver {
+  return {
+    resolve: () => {
+      throw new Error(message);
+    },
+    invalidate: () => {},
+    clear: () => {},
   };
 }

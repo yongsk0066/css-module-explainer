@@ -105,8 +105,6 @@ export function buildSelectedQueryResultsV2(
         sourceBinder: analysis.sourceBinder,
         sourceBindingGraph: analysis.sourceBindingGraph,
       } as const;
-      const resolution = readSourceExpressionResolution(queryContext, queryEnv);
-      const semantics = readExpressionSemantics(queryContext, queryEnv);
       const rustSourceResolutionPayload = readRustSourceResolutionPayload
         ? readRustSourceResolutionPayload(
             {
@@ -133,6 +131,9 @@ export function buildSelectedQueryResultsV2(
             },
           )
         : null;
+      const resolution = rustSourceResolutionPayload
+        ? null
+        : readSourceExpressionResolution(queryContext, queryEnv);
       const rustExpressionSemanticsPayload = readRustExpressionSemanticsPayload
         ? readRustExpressionSemanticsPayload(
             {
@@ -159,6 +160,9 @@ export function buildSelectedQueryResultsV2(
             },
           )
         : null;
+      const semantics = rustExpressionSemanticsPayload
+        ? null
+        : readExpressionSemantics(queryContext, queryEnv);
 
       results.push(
         rustExpressionSemanticsPayload
@@ -168,7 +172,7 @@ export function buildSelectedQueryResultsV2(
               rustExpressionSemanticsPayload,
               options.styleDocumentForPath,
             )
-          : expressionSemanticsResultV2(document.filePath, semantics),
+          : expressionSemanticsResultV2(document.filePath, semantics!),
       );
       results.push(
         rustSourceResolutionPayload
@@ -178,7 +182,7 @@ export function buildSelectedQueryResultsV2(
               rustSourceResolutionPayload,
               options.styleDocumentForPath,
             )
-          : sourceExpressionResolutionResultV2(document.filePath, expression.id, resolution),
+          : sourceExpressionResolutionResultV2(document.filePath, expression.id, resolution!),
       );
     }
   }
