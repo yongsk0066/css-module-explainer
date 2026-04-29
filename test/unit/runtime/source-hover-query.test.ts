@@ -4,6 +4,7 @@ import type { CxBinding } from "../../../server/engine-core-ts/src/core/cx/cx-ty
 import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
 import { readSourceExpressionContextAtCursor } from "../../../server/engine-core-ts/src/core/query";
+import type { TypeResolver } from "../../../server/engine-core-ts/src/core/ts/type-resolver";
 import type { ProviderDeps } from "../../../server/lsp-server/src/providers/cursor-dispatch";
 import { resolveSourceExpressionHoverResult } from "../../../server/engine-host-node/src/source-hover-query";
 import {
@@ -77,7 +78,7 @@ function makeDeps(): ProviderDeps {
   });
 }
 
-function makeSymbolRefDeps(): ProviderDeps {
+function makeSymbolRefDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
   const analysisCache = new DocumentAnalysisCache({
     sourceFileCache,
@@ -116,7 +117,18 @@ function makeSymbolRefDeps(): ProviderDeps {
         ["active", info("active")],
       ]),
     workspaceRoot: "/fake",
+    ...overrides,
   });
+}
+
+function throwingTypeResolver(message: string): TypeResolver {
+  return {
+    resolve: () => {
+      throw new Error(message);
+    },
+    invalidate: () => {},
+    clear: () => {},
+  };
 }
 
 describe("resolveSourceExpressionHoverResult", () => {
@@ -171,6 +183,38 @@ describe("resolveSourceExpressionHoverResult", () => {
 
     expect(result.selectors.map((selector) => selector.name)).toEqual(["indicator"]);
     expect(Array.from(result.styleDependenciesBySelector.keys())).toEqual(["indicator"]);
+  });
+
+  it("does not touch the TypeScript resolver when rust source-resolution returns a match", () => {
+    const deps = makeSymbolRefDeps({
+      typeResolver: throwingTypeResolver("TypeScript resolver should not run"),
+    });
+    const params = {
+      documentUri: "file:///fake/src/Button.tsx",
+      content: SYMBOL_REF_TSX,
+      filePath: "/fake/src/Button.tsx",
+      line: 5,
+      character: 17,
+      version: 1,
+    };
+    const ctx = readSourceExpressionContextAtCursor(params, {
+      analysisCache: deps.analysisCache,
+      styleDocumentForPath: deps.styleDocumentForPath,
+    });
+
+    expect(ctx).not.toBeNull();
+    const result = resolveSourceExpressionHoverResult(ctx!, params, deps, {
+      env: {
+        CME_SELECTED_QUERY_BACKEND: "rust-source-resolution",
+      } as NodeJS.ProcessEnv,
+      readRustSourceResolutionSelectorMatch: () => ({
+        styleFilePath: "/fake/src/Button.module.scss",
+        selectorNames: ["active"],
+      }),
+    });
+
+    expect(result.selectors.map((selector) => selector.name)).toEqual(["active"]);
+    expect(result.dynamicExplanation).toBeNull();
   });
 
   it("can source selectors and explanation from the rust expression-semantics backend", () => {

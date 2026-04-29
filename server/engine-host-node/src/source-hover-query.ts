@@ -52,13 +52,6 @@ export function resolveSourceExpressionHoverResult(
   >,
   options: SourceHoverQueryOptions = {},
 ): SourceHoverResult {
-  const result = resolveRefDetails(ctx, {
-    styleDocumentForPath: deps.styleDocumentForPath,
-    typeResolver: deps.typeResolver,
-    filePath: params.filePath,
-    workspaceRoot: deps.workspaceRoot,
-  });
-
   const backend = resolveSelectedQueryBackendKind(options.env);
   if (usesRustExpressionSemanticsBackend(backend)) {
     const rustResult = resolveHoverFromRustExpressionSemantics(
@@ -69,29 +62,24 @@ export function resolveSourceExpressionHoverResult(
     );
     if (rustResult && rustResult.selectors.length > 0) return rustResult;
   }
-  const selectors = usesRustSourceResolutionBackend(backend)
-    ? (resolveSelectorsFromRustSourceResolution(
-        ctx,
-        params,
-        deps,
-        options.readRustSourceResolutionSelectorMatch ?? resolveRustSourceResolutionSelectorMatch,
-      ) ?? result.selectors)
-    : result.selectors;
+  if (usesRustSourceResolutionBackend(backend)) {
+    const rustSelectors = resolveSelectorsFromRustSourceResolution(
+      ctx,
+      params,
+      deps,
+      options.readRustSourceResolutionSelectorMatch ?? resolveRustSourceResolutionSelectorMatch,
+    );
+    if (rustSelectors) return buildSourceHoverResult(ctx, deps, rustSelectors, null);
+  }
 
-  return {
-    selectors,
-    dynamicExplanation: result.dynamicExplanation,
-    styleDependenciesBySelector: new Map(
-      selectors.map((selector) => [
-        selector.canonicalName,
-        readSelectorStyleDependencySummary(
-          deps.styleDependencyGraph,
-          ctx.expression.scssModulePath,
-          selector.canonicalName,
-        ),
-      ]),
-    ),
-  };
+  const result = resolveRefDetails(ctx, {
+    styleDocumentForPath: deps.styleDocumentForPath,
+    typeResolver: deps.typeResolver,
+    filePath: params.filePath,
+    workspaceRoot: deps.workspaceRoot,
+  });
+
+  return buildSourceHoverResult(ctx, deps, result.selectors, result.dynamicExplanation);
 }
 
 export async function resolveSourceExpressionHoverResultAsync(
@@ -108,13 +96,6 @@ export async function resolveSourceExpressionHoverResultAsync(
   >,
   options: SourceHoverQueryOptions = {},
 ): Promise<SourceHoverResult> {
-  const result = resolveRefDetails(ctx, {
-    styleDocumentForPath: deps.styleDocumentForPath,
-    typeResolver: deps.typeResolver,
-    filePath: params.filePath,
-    workspaceRoot: deps.workspaceRoot,
-  });
-
   const backend = resolveSelectedQueryBackendKind(options.env);
   if (usesRustExpressionSemanticsBackend(backend)) {
     const rustResult = await resolveHoverFromRustExpressionSemanticsAsync(
@@ -125,18 +106,35 @@ export async function resolveSourceExpressionHoverResultAsync(
     );
     if (rustResult && rustResult.selectors.length > 0) return rustResult;
   }
-  const selectors = usesRustSourceResolutionBackend(backend)
-    ? ((await resolveSelectorsFromRustSourceResolutionAsync(
-        ctx,
-        params,
-        deps,
-        options.runRustSelectedQueryBackendJsonAsync,
-      )) ?? result.selectors)
-    : result.selectors;
+  if (usesRustSourceResolutionBackend(backend)) {
+    const rustSelectors = await resolveSelectorsFromRustSourceResolutionAsync(
+      ctx,
+      params,
+      deps,
+      options.runRustSelectedQueryBackendJsonAsync,
+    );
+    if (rustSelectors) return buildSourceHoverResult(ctx, deps, rustSelectors, null);
+  }
 
+  const result = resolveRefDetails(ctx, {
+    styleDocumentForPath: deps.styleDocumentForPath,
+    typeResolver: deps.typeResolver,
+    filePath: params.filePath,
+    workspaceRoot: deps.workspaceRoot,
+  });
+
+  return buildSourceHoverResult(ctx, deps, result.selectors, result.dynamicExplanation);
+}
+
+function buildSourceHoverResult(
+  ctx: SourceExpressionContext,
+  deps: Pick<ProviderDeps, "styleDependencyGraph">,
+  selectors: ReturnType<typeof resolveRefDetails>["selectors"],
+  dynamicExplanation: DynamicHoverExplanation | null,
+): SourceHoverResult {
   return {
     selectors,
-    dynamicExplanation: result.dynamicExplanation,
+    dynamicExplanation,
     styleDependenciesBySelector: new Map(
       selectors.map((selector) => [
         selector.canonicalName,
