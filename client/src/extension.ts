@@ -12,7 +12,7 @@ import {
   readTypeFactMaxSyncProgramFilesSetting,
 } from "./type-fact-backend-config";
 import {
-  buildRustLspFileWatcherGlobs,
+  buildThinClientRuntimeEndpoint,
   readClientLspServerRuntimeSetting,
   resolveLspServerRuntimeSelection,
 } from "./lsp-server-runtime-config";
@@ -49,33 +49,37 @@ export function activate(context: vscode.ExtensionContext): void {
     );
     return;
   }
+  const thinClientEndpoint = buildThinClientRuntimeEndpoint(
+    runtimeSelection,
+    context.extensionPath,
+  );
 
-  const serverOptions: ServerOptions =
-    runtimeSelection.runtime === "omena-lsp-server"
-      ? {
-          run: {
-            command: runtimeSelection.command,
-            args: [...runtimeSelection.args],
-            options: { env: serverEnv, cwd: context.extensionPath },
-          },
-          debug: {
-            command: runtimeSelection.command,
-            args: [...runtimeSelection.args],
-            options: { env: serverEnv, cwd: context.extensionPath },
-          },
-        }
-      : {
-          run: { module: serverModule, transport: TransportKind.ipc, options: { env: serverEnv } },
-          debug: {
-            module: serverModule,
-            transport: TransportKind.ipc,
-            options: { env: serverEnv },
-          },
-        };
-  const rustLspFileEvents =
-    runtimeSelection.runtime === "omena-lsp-server"
-      ? buildRustLspFileWatcherGlobs().map((glob) => vscode.workspace.createFileSystemWatcher(glob))
-      : undefined;
+  const serverOptions: ServerOptions = thinClientEndpoint
+    ? {
+        run: {
+          command: thinClientEndpoint.command,
+          args: [...thinClientEndpoint.args],
+          options: { env: serverEnv, cwd: thinClientEndpoint.cwd },
+        },
+        debug: {
+          command: thinClientEndpoint.command,
+          args: [...thinClientEndpoint.args],
+          options: { env: serverEnv, cwd: thinClientEndpoint.cwd },
+        },
+      }
+    : {
+        run: { module: serverModule, transport: TransportKind.ipc, options: { env: serverEnv } },
+        debug: {
+          module: serverModule,
+          transport: TransportKind.ipc,
+          options: { env: serverEnv },
+        },
+      };
+  const rustLspFileEvents = thinClientEndpoint
+    ? thinClientEndpoint.fileWatcherGlobs.map((glob) =>
+        vscode.workspace.createFileSystemWatcher(glob),
+      )
+    : undefined;
   if (rustLspFileEvents) {
     context.subscriptions.push(...rustLspFileEvents);
   }

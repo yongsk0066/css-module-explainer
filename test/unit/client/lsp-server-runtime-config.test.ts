@@ -2,6 +2,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   buildRustLspFileWatcherGlobs,
+  buildThinClientRuntimeEndpoint,
   readClientLspServerRuntimeSetting,
   resolveLspServerRuntimeSelection,
   resolveOmenaLspServerPath,
@@ -56,6 +57,32 @@ describe("client LSP server runtime config", () => {
       runtime: "omena-lsp-server",
       args: [],
     });
+  });
+
+  it("builds a thin client runtime endpoint for the Rust LSP runtime", () => {
+    const endpoint = buildThinClientRuntimeEndpoint(
+      {
+        runtime: "omena-lsp-server",
+        command: "/repo/dist/bin/darwin-arm64/omena-lsp-server",
+        args: [],
+      },
+      "/repo",
+    );
+
+    expect(endpoint).toMatchObject({
+      product: "css-module-explainer.thin-client-runtime-endpoint",
+      runtime: "omena-lsp-server",
+      command: "/repo/dist/bin/darwin-arm64/omena-lsp-server",
+      cwd: "/repo",
+      nodeFallbackAllowed: false,
+    });
+    expect(endpoint?.fileWatcherGlobs).toEqual(buildRustLspFileWatcherGlobs());
+    expect(endpoint?.hostResponsibilities).toContain("startLanguageClient");
+    expect(endpoint?.rustResponsibilities).toContain("ownTsgoClientLifecycle");
+  });
+
+  it("does not create a thin client endpoint for the Node runtime", () => {
+    expect(buildThinClientRuntimeEndpoint({ runtime: "node" }, "/repo")).toBeNull();
   });
 
   it("declares static file watchers for the Rust LSP runtime", () => {

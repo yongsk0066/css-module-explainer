@@ -39,6 +39,7 @@ pub struct OmenaLspServerBoundarySummaryV0 {
     pub migration_phases: Vec<LspMigrationPhaseV0>,
     pub blocking_work_policy: Vec<&'static str>,
     pub tsgo_client_boundary: OmenaTsgoClientBoundarySummaryV0,
+    pub thin_client_endpoint: ThinClientEndpointV0,
     pub node_parity_contracts: Vec<&'static str>,
     pub next_decoupling_targets: Vec<&'static str>,
 }
@@ -113,6 +114,19 @@ pub struct LspMigrationPhaseV0 {
     pub exit_gate: &'static str,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ThinClientEndpointV0 {
+    pub product: &'static str,
+    pub endpoint_name: &'static str,
+    pub transport_contract: &'static str,
+    pub command_owner: &'static str,
+    pub node_fallback_allowed: bool,
+    pub file_watcher_globs: Vec<&'static str>,
+    pub host_responsibilities: Vec<&'static str>,
+    pub rust_responsibilities: Vec<&'static str>,
+}
+
 pub fn summarize_omena_lsp_server_boundary() -> OmenaLspServerBoundarySummaryV0 {
     OmenaLspServerBoundarySummaryV0 {
         schema_version: "0",
@@ -130,6 +144,7 @@ pub fn summarize_omena_lsp_server_boundary() -> OmenaLspServerBoundarySummaryV0 
             "staleOrUnresolvableFastReturn",
         ],
         tsgo_client_boundary: summarize_omena_tsgo_client_boundary(),
+        thin_client_endpoint: thin_client_endpoint_contract(),
         node_parity_contracts: vec![
             "initializeCapabilities",
             "textDocumentSync",
@@ -145,6 +160,36 @@ pub fn summarize_omena_lsp_server_boundary() -> OmenaLspServerBoundarySummaryV0 
             "incrementalQueryCancellation",
             "thinVsCodeClientHost",
             "multiEditorDistribution",
+        ],
+    }
+}
+
+pub fn thin_client_endpoint_contract() -> ThinClientEndpointV0 {
+    ThinClientEndpointV0 {
+        product: "omena-lsp-server.thin-client-endpoint",
+        endpoint_name: "css-module-explainer.thin-client-runtime-endpoint",
+        transport_contract: "LSP stdio JSON-RPC",
+        command_owner: "dist/bin/<platform>-<arch>/omena-lsp-server",
+        node_fallback_allowed: false,
+        file_watcher_globs: vec![
+            "**/*.module.{scss,css,less}",
+            "**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs,d.ts}",
+            "**/tsconfig*.json",
+            "**/jsconfig*.json",
+        ],
+        host_responsibilities: vec![
+            "resolvePackagedRustBinary",
+            "startLanguageClient",
+            "registerStaticFileWatchers",
+            "translateShowReferencesArguments",
+            "surfaceStartupErrors",
+        ],
+        rust_responsibilities: vec![
+            "ownLspLifecycle",
+            "ownWorkspaceState",
+            "ownDiagnosticsScheduling",
+            "ownProviderExecution",
+            "ownTsgoClientLifecycle",
         ],
     }
 }
@@ -3376,6 +3421,17 @@ mod tests {
                 .migration_phases
                 .iter()
                 .any(|phase| phase.phase == "phase-4-thin-client")
+        );
+        assert_eq!(
+            summary.thin_client_endpoint.product,
+            "omena-lsp-server.thin-client-endpoint"
+        );
+        assert!(!summary.thin_client_endpoint.node_fallback_allowed);
+        assert!(
+            summary
+                .thin_client_endpoint
+                .rust_responsibilities
+                .contains(&"ownTsgoClientLifecycle")
         );
         assert!(
             summary

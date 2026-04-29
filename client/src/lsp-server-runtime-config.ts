@@ -17,6 +17,18 @@ export type LspServerRuntimeSelection =
   | OmenaLspServerRuntimeSelection
   | NodeLspServerRuntimeSelection;
 
+export interface ThinClientRuntimeEndpoint {
+  readonly product: "css-module-explainer.thin-client-runtime-endpoint";
+  readonly runtime: "omena-lsp-server";
+  readonly command: string;
+  readonly args: readonly string[];
+  readonly cwd: string;
+  readonly fileWatcherGlobs: readonly string[];
+  readonly nodeFallbackAllowed: false;
+  readonly hostResponsibilities: readonly string[];
+  readonly rustResponsibilities: readonly string[];
+}
+
 export function buildRustLspFileWatcherGlobs(): readonly string[] {
   return [
     "**/*.module.{scss,css,less}",
@@ -52,6 +64,39 @@ export function resolveLspServerRuntimeSelection(
     );
   }
   return { runtime: "omena-lsp-server", command, args: [] };
+}
+
+export function buildThinClientRuntimeEndpoint(
+  selection: LspServerRuntimeSelection,
+  extensionRoot: string,
+): ThinClientRuntimeEndpoint | null {
+  if (selection.runtime !== "omena-lsp-server") {
+    return null;
+  }
+
+  return {
+    product: "css-module-explainer.thin-client-runtime-endpoint",
+    runtime: "omena-lsp-server",
+    command: selection.command,
+    args: [...selection.args],
+    cwd: extensionRoot,
+    fileWatcherGlobs: buildRustLspFileWatcherGlobs(),
+    nodeFallbackAllowed: false,
+    hostResponsibilities: [
+      "resolvePackagedRustBinary",
+      "startLanguageClient",
+      "registerStaticFileWatchers",
+      "translateShowReferencesArguments",
+      "surfaceStartupErrors",
+    ],
+    rustResponsibilities: [
+      "ownLspLifecycle",
+      "ownWorkspaceState",
+      "ownDiagnosticsScheduling",
+      "ownProviderExecution",
+      "ownTsgoClientLifecycle",
+    ],
+  };
 }
 
 export function resolveOmenaLspServerPath(
