@@ -23,7 +23,8 @@ vitest.config.ts
 shared/
 server/
 client/
-!dist/**/*.js
+!dist/bin/**/*.js
+!dist/client/**/*.js
 !dist/bin/**/*.d.ts
 !server/package.json
 

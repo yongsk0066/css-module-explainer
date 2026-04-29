@@ -131,6 +131,7 @@ jobs:
         env:
           CME_PACKAGED_TSGO_MIN_TARGETS: "3"
           CME_PACKAGED_TSGO_REQUIRED_PLATFORMS: linux,darwin,win32
+      - run: rm -rf dist/server
       - run: pnpm exec vsce package --no-dependencies
       - run: pnpm cme-check run release/check/packaged-selected-query-default
         env:

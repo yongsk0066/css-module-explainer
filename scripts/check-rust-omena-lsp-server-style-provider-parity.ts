@@ -1356,7 +1356,7 @@ function assertSingleCandidate(
 }
 
 function readFrames(stdout: string): any[] {
-  const responses: any[] = [];
+  const frames: any[] = [];
   let offset = 0;
 
   while (offset < stdout.length) {
@@ -1369,9 +1369,9 @@ function readFrames(stdout: string): any[] {
     const bodyStart = headerEnd + 4;
     const bodyEnd = bodyStart + length;
     assert.ok(bodyEnd <= stdout.length, "incomplete response body");
-    responses.push(JSON.parse(stdout.slice(bodyStart, bodyEnd)));
+    frames.push(JSON.parse(stdout.slice(bodyStart, bodyEnd)));
     offset = bodyEnd;
   }
 
-  return responses;
+  return frames;
 }
