@@ -701,6 +701,34 @@ describe("computeScssUnusedDiagnostics", () => {
     );
   });
 
+  it("reports CSS custom property refs when only unmatched workspace theme declarations exist", () => {
+    const stylePath = "/fake/src/Button.module.scss";
+    const themePath = "/fake/src/theme.module.scss";
+    const styleDoc = parseStyleDocument(
+      `.button {
+  color: var(--brand);
+}`,
+      stylePath,
+    );
+    const themeDoc = parseStyleDocument(`.theme { --brand: #222; }`, themePath);
+    const styleDependencyGraph = new WorkspaceStyleDependencyGraph();
+    styleDependencyGraph.record(themePath, themeDoc);
+
+    const diagnostics = computeScssUnusedDiagnostics(
+      stylePath,
+      styleDoc,
+      new WorkspaceSemanticWorkspaceReferenceIndex(),
+      styleDependencyGraph,
+      (filePath) => (filePath === themePath ? themeDoc : null),
+    );
+
+    expect(
+      diagnostics.filter((entry) =>
+        entry.message.includes("CSS custom property '--brand' not found in indexed style tokens."),
+      ),
+    ).toHaveLength(1);
+  });
+
   it("reports missing Sass symbols with create-symbol data", () => {
     const styleDoc = parseStyleDocument(
       `.button {

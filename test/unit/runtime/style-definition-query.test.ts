@@ -119,6 +119,19 @@ describe("resolveStyleDefinitionTargets", () => {
     });
   });
 
+  it("does not resolve unmatched workspace CSS custom property declarations", () => {
+    const ws = styleWorkspace({
+      [BUTTON_PATH]: `.button {
+  color: var(--br/*|*/and);
+}
+`,
+      [THEME_PATH]: `.theme { --brand: #222; }`,
+    });
+    const targets = resolveStyleDefinitionTargets(styleTarget(ws), styleDeps(ws));
+
+    expect(targets).toEqual([]);
+  });
+
   it("resolves CSS custom property references to imported package CSS declarations", () => {
     const ws = styleWorkspace({
       [BUTTON_PATH]: `@use "@design/tokens/variables.css";

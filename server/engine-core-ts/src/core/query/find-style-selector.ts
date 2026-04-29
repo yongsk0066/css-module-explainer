@@ -388,6 +388,7 @@ function pickBestCustomPropertyDecl<T extends Pick<CustomPropertyDeclHIR, "name"
   for (const decl of decls) {
     if (decl.name !== name) continue;
     const score = scoreCustomPropertyContextMatch(decl.context, referenceContext);
+    if (score === Number.NEGATIVE_INFINITY) continue;
     if (score < bestScore) continue;
     bestDecl = decl;
     bestScore = score;

@@ -303,7 +303,12 @@ function checkCustomPropertyResolutionRule({
     ) {
       continue;
     }
-    if (env.styleDependencyGraph?.getCustomPropertyDecls(ref.name).length) continue;
+    if (
+      !env.styleDocumentForPath &&
+      env.styleDependencyGraph?.getCustomPropertyDecls(ref.name).length
+    ) {
+      continue;
+    }
 
     const key = [
       ref.name,
