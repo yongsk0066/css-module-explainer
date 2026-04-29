@@ -1,5 +1,16 @@
 # Changelog
 
+## [4.1.15] — 2026-04-29
+
+### Added
+
+- **Design-token cascade ranking** — Rust semantic graph output now exposes source-order ranked CSS custom property references, including the winning declaration and shadowed same-file declarations.
+- **CSS custom property hover ranking** — `var(--...)` hovers can now surface cascade ranking context from the Rust selected-query semantic graph, showing when a source-order winner shadows earlier same-file declarations.
+
+### Changed
+
+- **Split crate design-token contracts** — published and pinned the ranked-reference contract through `omena-semantic@0.1.8`, `omena-bridge@0.1.7`, and `omena-query@0.1.9`.
+
 ## [4.1.14] — 2026-04-29
 
 ### Fixed
