@@ -61,6 +61,7 @@ pub struct DesignTokenCascadeRankingSignalV0 {
     pub source_order_winner_declaration_count: usize,
     pub source_order_shadowed_declaration_count: usize,
     pub repeated_name_declaration_count: usize,
+    pub theme_context_winner_reference_count: usize,
     pub cross_file_candidate_declaration_count: usize,
     pub cross_file_winner_declaration_count: usize,
     pub cross_file_shadowed_declaration_count: usize,
@@ -79,6 +80,7 @@ pub struct DesignTokenRankedReferenceV0 {
     pub winner_declaration_range: Option<engine_style_parser::ParserRangeV0>,
     pub shadowed_declaration_source_orders: Vec<usize>,
     pub candidate_declaration_count: usize,
+    pub winner_context_kind: &'static str,
     pub cross_file_candidate_declaration_count: usize,
     pub cross_file_shadowed_declaration_count: usize,
 }
@@ -212,7 +214,9 @@ pub fn summarize_design_token_semantics_with_scoped_workspace_declarations(
             blocking_gaps.push("crossFileImportGraph");
         }
         blocking_gaps.push("crossPackageCascadeRanking");
-        blocking_gaps.push("themeOverrideContext");
+        if !cascade_ranking_signal.theme_override_context_ready() {
+            blocking_gaps.push("themeOverrideContext");
+        }
     }
     if !semantic_facts
         .custom_properties
@@ -230,7 +234,9 @@ pub fn summarize_design_token_semantics_with_scoped_workspace_declarations(
             priorities.push("crossFileImportGraph");
         }
         priorities.push("crossPackageCascadeRanking");
-        priorities.push("themeOverrideContext");
+        if !cascade_ranking_signal.theme_override_context_ready() {
+            priorities.push("themeOverrideContext");
+        }
         priorities
     };
     let resolution_scope = if cascade_ranking_signal.has_workspace_signal() {
@@ -276,7 +282,7 @@ pub fn summarize_design_token_semantics_with_scoped_workspace_declarations(
                 || declaration_wrapper_context_count > 0,
             cross_file_import_graph_ready: external_candidate_scope_ready,
             cross_package_cascade_ranking_ready: false,
-            theme_override_context_ready: false,
+            theme_override_context_ready: cascade_ranking_signal.theme_override_context_ready(),
         },
         blocking_gaps,
         next_priorities,
@@ -319,6 +325,7 @@ fn summarize_design_token_cascade_ranking_signal(
     let mut cross_file_candidate_declaration_count = 0;
     let mut cross_file_winner_declaration_count = 0;
     let mut cross_file_shadowed_declaration_count = 0;
+    let mut theme_context_winner_reference_count = 0;
     let mut ranked_references = Vec::new();
 
     for declaration in &custom_properties.decl_facts {
@@ -344,10 +351,9 @@ fn summarize_design_token_cascade_ranking_signal(
         let local_winner = local_candidates
             .iter()
             .copied()
-            .max_by_key(|declaration| declaration.source_order);
+            .max_by(|left, right| compare_local_candidate_for_reference(left, right, reference));
         let workspace_winner = workspace_candidates.iter().copied().max_by(|left, right| {
-            (left.file_path.as_str(), left.source_order)
-                .cmp(&(right.file_path.as_str(), right.source_order))
+            compare_workspace_candidate_for_reference(left, right, reference)
         });
         let winner = local_winner
             .map(DesignTokenCandidateDeclaration::Local)
@@ -379,6 +385,9 @@ fn summarize_design_token_cascade_ranking_signal(
         if winner.is_workspace_winner() {
             cross_file_winner_declaration_count += 1;
         }
+        if winner.is_theme_context_winner(reference) {
+            theme_context_winner_reference_count += 1;
+        }
         shadowed_declaration_source_orders.sort_unstable();
         ranked_references.push(DesignTokenRankedReferenceV0 {
             reference_name: reference.name.clone(),
@@ -388,6 +397,7 @@ fn summarize_design_token_cascade_ranking_signal(
             winner_declaration_range: winner.range(),
             shadowed_declaration_source_orders,
             candidate_declaration_count,
+            winner_context_kind: winner.context_kind(reference),
             cross_file_candidate_declaration_count:
                 reference_cross_file_candidate_declaration_count,
             cross_file_shadowed_declaration_count: reference_cross_file_shadowed_declaration_count,
@@ -408,6 +418,7 @@ fn summarize_design_token_cascade_ranking_signal(
                     .is_some_and(|count| *count > 1)
             })
             .count(),
+        theme_context_winner_reference_count,
         cross_file_candidate_declaration_count,
         cross_file_winner_declaration_count,
         cross_file_shadowed_declaration_count,
@@ -526,6 +537,10 @@ impl DesignTokenCascadeRankingSignalV0 {
     fn has_workspace_signal(&self) -> bool {
         self.cross_file_candidate_declaration_count > 0
     }
+
+    fn theme_override_context_ready(&self) -> bool {
+        self.theme_context_winner_reference_count > 0
+    }
 }
 
 impl DesignTokenExternalDeclarationCandidateScopeV0 {
@@ -596,6 +611,70 @@ impl DesignTokenCandidateDeclaration<'_> {
     fn is_workspace_winner(&self) -> bool {
         matches!(self, DesignTokenCandidateDeclaration::Workspace(_))
     }
+
+    fn is_theme_context_winner(
+        &self,
+        reference: &engine_style_parser::ParserIndexCustomPropertyRefFactV0,
+    ) -> bool {
+        self.context_rank(reference) >= 2
+    }
+
+    fn context_rank(
+        &self,
+        reference: &engine_style_parser::ParserIndexCustomPropertyRefFactV0,
+    ) -> usize {
+        match self {
+            DesignTokenCandidateDeclaration::Local(declaration) => {
+                custom_property_declaration_context_rank(&declaration.selector_contexts, reference)
+            }
+            DesignTokenCandidateDeclaration::Workspace(declaration) => {
+                custom_property_declaration_context_rank(&declaration.selector_contexts, reference)
+            }
+        }
+    }
+
+    fn context_kind(
+        &self,
+        reference: &engine_style_parser::ParserIndexCustomPropertyRefFactV0,
+    ) -> &'static str {
+        match self.context_rank(reference) {
+            2.. => "selector",
+            1 => "root",
+            _ => "global",
+        }
+    }
+}
+
+fn compare_local_candidate_for_reference(
+    left: &engine_style_parser::ParserIndexCustomPropertyDeclFactV0,
+    right: &engine_style_parser::ParserIndexCustomPropertyDeclFactV0,
+    reference: &engine_style_parser::ParserIndexCustomPropertyRefFactV0,
+) -> std::cmp::Ordering {
+    (
+        custom_property_declaration_context_rank(&left.selector_contexts, reference),
+        left.source_order,
+    )
+        .cmp(&(
+            custom_property_declaration_context_rank(&right.selector_contexts, reference),
+            right.source_order,
+        ))
+}
+
+fn compare_workspace_candidate_for_reference(
+    left: &DesignTokenWorkspaceDeclarationFactV0,
+    right: &DesignTokenWorkspaceDeclarationFactV0,
+    reference: &engine_style_parser::ParserIndexCustomPropertyRefFactV0,
+) -> std::cmp::Ordering {
+    (
+        custom_property_declaration_context_rank(&left.selector_contexts, reference),
+        left.file_path.as_str(),
+        left.source_order,
+    )
+        .cmp(&(
+            custom_property_declaration_context_rank(&right.selector_contexts, reference),
+            right.file_path.as_str(),
+            right.source_order,
+        ))
 }
 
 fn custom_property_declaration_key(
@@ -666,4 +745,23 @@ fn custom_property_selector_context_matches(
                 reference_selector == declaration_selector
                     || reference_selector.contains(declaration_selector)
             })
+}
+
+fn custom_property_declaration_context_rank(
+    declaration_selectors: &[String],
+    reference: &engine_style_parser::ParserIndexCustomPropertyRefFactV0,
+) -> usize {
+    if declaration_selectors.iter().any(|selector| {
+        selector != ":root" && custom_property_selector_context_matches(selector, reference)
+    }) {
+        return 2;
+    }
+    if declaration_selectors.is_empty()
+        || declaration_selectors.iter().any(|selector| {
+            selector == ":root" && custom_property_selector_context_matches(selector, reference)
+        })
+    {
+        return 1;
+    }
+    0
 }

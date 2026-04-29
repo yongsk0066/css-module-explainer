@@ -748,6 +748,54 @@ $color: red;
     }
 
     #[test]
+    fn ranks_theme_context_declarations_ahead_of_later_root_tokens() -> Result<(), String> {
+        let sheet = parse_style_module(
+            "Component.module.css",
+            r#"
+:root {
+  --surface: white;
+}
+
+[data-theme="dark"] {
+  --surface: black;
+}
+
+:root {
+  --surface: beige;
+}
+
+[data-theme="dark"] .button {
+  color: var(--surface);
+}
+"#,
+        )
+        .ok_or_else(|| "CSS module path should parse".to_string())?;
+
+        let summary = summarize_style_semantic_boundary(&sheet).design_token_semantics;
+
+        assert_eq!(summary.status, "same-file-cascade-ranking-seed");
+        assert_eq!(summary.cascade_ranking_signal.ranked_reference_count, 1);
+        assert_eq!(
+            summary
+                .cascade_ranking_signal
+                .theme_context_winner_reference_count,
+            1
+        );
+        let ranked_reference = &summary.cascade_ranking_signal.ranked_references[0];
+        assert_eq!(ranked_reference.reference_name, "--surface");
+        assert_eq!(ranked_reference.winner_declaration_source_order, 1);
+        assert_eq!(
+            ranked_reference.shadowed_declaration_source_orders,
+            vec![0, 2]
+        );
+        assert_eq!(ranked_reference.winner_context_kind, "selector");
+        assert!(summary.capabilities.theme_override_context_ready);
+        assert!(!summary.blocking_gaps.contains(&"themeOverrideContext"));
+        assert!(!summary.next_priorities.contains(&"themeOverrideContext"));
+        Ok(())
+    }
+
+    #[test]
     fn exposes_lossless_cst_contract_for_precise_consumers() -> Result<(), String> {
         let sheet = parse_style_module("Component.module.scss", ".button { color: red; }")
             .ok_or_else(|| "SCSS module path should parse".to_string())?;
