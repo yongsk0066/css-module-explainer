@@ -1689,9 +1689,9 @@ fn resolve_source_lsp_hover(
     let Some(candidate) = source_selector_candidate_at_position(state, document, position) else {
         return Value::Null;
     };
-    let definition = style_selector_definitions_from_open_documents(
+    let definition = style_selector_definitions_for_source_candidate(
         state,
-        candidate.name.as_str(),
+        &candidate,
         document.workspace_folder_uri.as_deref(),
     )
     .into_iter()
@@ -1784,9 +1784,10 @@ fn resolve_source_lsp_completion(
     let Some(position) = lsp_position_from_params(params) else {
         return Value::Null;
     };
-    if !source_completion_context_at_position(document.text.as_str(), position) {
+    let Some(target_style_uri) = source_completion_target_style_uri_at_position(document, position)
+    else {
         return Value::Null;
-    }
+    };
 
     let labels: BTreeSet<String> = style_selector_definitions_from_open_documents(
         state,
@@ -1794,6 +1795,11 @@ fn resolve_source_lsp_completion(
         document.workspace_folder_uri.as_deref(),
     )
     .into_iter()
+    .filter(|(uri, _)| {
+        target_style_uri
+            .as_deref()
+            .is_none_or(|target_uri| target_uri == uri)
+    })
     .map(|(_, definition)| definition.name)
     .collect();
     let items: Vec<Value> = labels
@@ -1816,12 +1822,16 @@ fn resolve_source_lsp_completion(
     })
 }
 
-fn source_completion_context_at_position(source: &str, position: ParserPositionV0) -> bool {
-    let Some(offset) = byte_offset_for_parser_position(source, position) else {
-        return false;
-    };
-    is_class_name_literal_completion_context(source, offset)
-        || is_styles_property_access_completion_context(source, offset)
+fn source_completion_target_style_uri_at_position(
+    document: &LspTextDocumentState,
+    position: ParserPositionV0,
+) -> Option<Option<String>> {
+    let source = document.text.as_str();
+    let offset = byte_offset_for_parser_position(source, position)?;
+    if is_class_name_literal_completion_context(source, offset) {
+        return Some(None);
+    }
+    styles_property_access_completion_target_style_uri(document, offset)
 }
 
 fn is_class_name_literal_completion_context(source: &str, offset: usize) -> bool {
@@ -1858,15 +1868,66 @@ fn is_class_name_literal_completion_context(source: &str, offset: usize) -> bool
     false
 }
 
-fn is_styles_property_access_completion_context(source: &str, offset: usize) -> bool {
+fn styles_property_access_completion_target_style_uri(
+    document: &LspTextDocumentState,
+    offset: usize,
+) -> Option<Option<String>> {
+    let bindings = imported_style_bindings(document);
+    if bindings.is_empty() {
+        return is_styles_property_access_completion_context_for_binding(
+            document.text.as_str(),
+            "styles",
+            offset,
+        )
+        .then_some(None);
+    }
+
+    bindings.into_iter().find_map(|binding| {
+        is_styles_property_access_completion_context_for_binding(
+            document.text.as_str(),
+            binding.binding.as_str(),
+            offset,
+        )
+        .then_some(Some(binding.style_uri))
+    })
+}
+
+fn is_styles_property_access_completion_context_for_binding(
+    source: &str,
+    binding: &str,
+    offset: usize,
+) -> bool {
     let mut search_offset = 0usize;
-    while let Some(relative_match) = source[search_offset..].find("styles.") {
-        let start = search_offset + relative_match + "styles.".len();
-        let end = read_css_identifier_end(source, start);
-        if offset >= start && offset <= end {
-            return true;
+    while let Some(relative_match) = source[search_offset..].find(binding) {
+        let binding_start = search_offset + relative_match;
+        let binding_end = binding_start + binding.len();
+        if !is_js_identifier_boundary(source, binding_start, binding_end) {
+            search_offset = binding_end;
+            continue;
         }
-        search_offset = end.max(start + 1);
+
+        let cursor = skip_ascii_whitespace(source, binding_end);
+        if source.as_bytes().get(cursor) == Some(&b'.') {
+            let start = cursor + 1;
+            let end = read_css_identifier_end(source, start);
+            if offset >= start && offset <= end {
+                return true;
+            }
+            search_offset = end.max(binding_end);
+            continue;
+        }
+        if source.as_bytes().get(cursor) == Some(&b'[')
+            && let Some((literal_start, literal_end, bracket_end)) =
+                bracket_string_literal_access(source, cursor)
+        {
+            if offset >= literal_start && offset <= literal_end {
+                return true;
+            }
+            search_offset = bracket_end;
+            continue;
+        }
+
+        search_offset = binding_end;
     }
     false
 }
@@ -2010,19 +2071,52 @@ fn collect_styles_property_access_candidates_for_binding(
     candidates: &mut Vec<LspStyleHoverCandidate>,
 ) {
     let source = document.text.as_str();
-    let pattern = format!("{binding}.");
     let mut search_offset = 0usize;
-    while let Some(relative_match) = source[search_offset..].find(pattern.as_str()) {
-        let start = search_offset + relative_match + pattern.len();
-        let end = read_css_identifier_end(source, start);
-        if end > start {
-            candidates.push(source_reference_candidate(
-                document,
-                ParserByteSpanV0 { start, end },
-                target_style_uri.map(ToString::to_string),
-            ));
+    while let Some(relative_match) = source[search_offset..].find(binding) {
+        let binding_start = search_offset + relative_match;
+        let binding_end = binding_start + binding.len();
+        if !is_js_identifier_boundary(source, binding_start, binding_end) {
+            search_offset = binding_end;
+            continue;
         }
-        search_offset = end.max(start + 1);
+
+        let cursor = skip_ascii_whitespace(source, binding_end);
+        if source.as_bytes().get(cursor) == Some(&b'.') {
+            let start = cursor + 1;
+            let end = read_css_identifier_end(source, start);
+            if end > start {
+                candidates.push(source_reference_candidate(
+                    document,
+                    ParserByteSpanV0 { start, end },
+                    target_style_uri.map(ToString::to_string),
+                ));
+            }
+            search_offset = end.max(binding_end);
+            continue;
+        }
+        if source.as_bytes().get(cursor) == Some(&b'[')
+            && let Some((literal_start, literal_end, bracket_end)) =
+                bracket_string_literal_access(source, cursor)
+        {
+            if literal_end > literal_start
+                && source[literal_start..literal_end]
+                    .chars()
+                    .all(is_css_identifier_continue)
+            {
+                candidates.push(source_reference_candidate(
+                    document,
+                    ParserByteSpanV0 {
+                        start: literal_start,
+                        end: literal_end,
+                    },
+                    target_style_uri.map(ToString::to_string),
+                ));
+            }
+            search_offset = bracket_end;
+            continue;
+        }
+
+        search_offset = binding_end;
     }
 }
 
@@ -2152,6 +2246,28 @@ fn skip_ascii_whitespace(source: &str, mut offset: usize) -> usize {
         offset += 1;
     }
     offset
+}
+
+fn bracket_string_literal_access(
+    source: &str,
+    bracket_offset: usize,
+) -> Option<(usize, usize, usize)> {
+    if source.as_bytes().get(bracket_offset) != Some(&b'[') {
+        return None;
+    }
+    let quote_offset = skip_ascii_whitespace(source, bracket_offset + 1);
+    let quote = source.as_bytes().get(quote_offset).copied()?;
+    if !matches!(quote, b'\'' | b'"') {
+        return None;
+    }
+    let literal_start = quote_offset + 1;
+    let relative_end = source[literal_start..].find(char::from(quote))?;
+    let literal_end = literal_start + relative_end;
+    let closing_bracket = skip_ascii_whitespace(source, literal_end + 1);
+    if source.as_bytes().get(closing_bracket) != Some(&b']') {
+        return None;
+    }
+    Some((literal_start, literal_end, closing_bracket + 1))
 }
 
 fn read_css_identifier_end(source: &str, start: usize) -> usize {
@@ -2602,6 +2718,22 @@ fn is_selector_name_boundary(source: &str, byte_offset: usize) -> bool {
         .chars()
         .next()
         .is_none_or(|ch| !is_css_identifier_continue(ch))
+}
+
+fn is_js_identifier_boundary(source: &str, start: usize, end: usize) -> bool {
+    let before = source[..start]
+        .chars()
+        .next_back()
+        .is_none_or(|ch| !is_js_identifier_continue(ch));
+    let after = source[end..]
+        .chars()
+        .next()
+        .is_none_or(|ch| !is_js_identifier_continue(ch));
+    before && after
+}
+
+fn is_js_identifier_continue(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || matches!(ch, '_' | '$')
 }
 
 fn is_css_identifier_continue(ch: char) -> bool {

@@ -14,24 +14,36 @@ const styleUri = `${workspaceUri}/src/App.module.scss`;
 const otherStyleUri = `${workspaceUri}/src/Other.module.scss`;
 const sourceUri = `${workspaceUri}/src/App.tsx`;
 const sourceText =
-  'import styles from "./App.module.scss";\nconst view = <div className={styles.root} />;\nconst missing = <div className="missing" />;';
+  'import styles from "./App.module.scss";\nconst view = <div className={styles.root} />;\nconst bracket = styles["theme"];\nconst missing = <div className="missing" />;';
 const sourceSelectorRange = {
   start: { line: 1, character: 36 },
   end: { line: 1, character: 40 },
 };
+const sourceBracketSelectorRange = {
+  start: { line: 2, character: 24 },
+  end: { line: 2, character: 29 },
+};
 const sourceMissingSelectorRange = {
-  start: { line: 2, character: 32 },
-  end: { line: 2, character: 39 },
+  start: { line: 3, character: 32 },
+  end: { line: 3, character: 39 },
 };
 const styleText =
   ".root { color: var(--brand); }\n.theme { --brand: red; }\n.alert { color: var(--missing); }";
-const otherStyleText = ".root { color: blue; }";
+const otherStyleText = ".root { color: blue; }\n.theme { color: green; }\n.card { color: green; }";
 const sourceSelectorQueryPosition = {
   line: 1,
   character: 37,
 };
+const sourceBracketSelectorQueryPosition = {
+  line: 2,
+  character: 25,
+};
 const selectorQueryPosition = {
   line: 0,
+  character: 2,
+};
+const themeSelectorQueryPosition = {
+  line: 1,
   character: 2,
 };
 const customPropertyReferenceQueryPosition = {
@@ -54,6 +66,12 @@ const nodeSelector = findSelectorAtCursor(
   selectorQueryPosition.character,
 );
 assert.ok(nodeSelector, "node selector fixture did not produce a hover target");
+const nodeThemeSelector = findSelectorAtCursor(
+  nodeStyleDocument,
+  themeSelectorQueryPosition.line,
+  themeSelectorQueryPosition.character,
+);
+assert.ok(nodeThemeSelector, "node theme selector fixture did not produce a hover target");
 const nodeCustomPropertyReference = findCustomPropertyRefAtCursor(
   nodeStyleDocument,
   customPropertyReferenceQueryPosition.line,
@@ -409,9 +427,68 @@ const lspSourceNoopCompletionRequest = {
     },
   },
 };
-const shutdownRequest = {
+const lspSourceBracketHoverRequest = {
   jsonrpc: "2.0",
   id: 23,
+  method: "textDocument/hover",
+  params: {
+    textDocument: {
+      uri: sourceUri,
+    },
+    position: sourceBracketSelectorQueryPosition,
+  },
+};
+const lspSourceBracketDefinitionRequest = {
+  jsonrpc: "2.0",
+  id: 24,
+  method: "textDocument/definition",
+  params: {
+    textDocument: {
+      uri: sourceUri,
+    },
+    position: sourceBracketSelectorQueryPosition,
+  },
+};
+const lspSourceBracketReferencesRequest = {
+  jsonrpc: "2.0",
+  id: 25,
+  method: "textDocument/references",
+  params: {
+    textDocument: {
+      uri: sourceUri,
+    },
+    position: sourceBracketSelectorQueryPosition,
+    context: {
+      includeDeclaration: true,
+    },
+  },
+};
+const lspSourceBracketCompletionRequest = {
+  jsonrpc: "2.0",
+  id: 26,
+  method: "textDocument/completion",
+  params: {
+    textDocument: {
+      uri: sourceUri,
+    },
+    position: sourceBracketSelectorQueryPosition,
+  },
+};
+const lspSourceBracketRenameRequest = {
+  jsonrpc: "2.0",
+  id: 27,
+  method: "textDocument/rename",
+  params: {
+    textDocument: {
+      uri: sourceUri,
+    },
+    position: sourceBracketSelectorQueryPosition,
+    newName: "surface",
+  },
+};
+const shutdownRequest = {
+  jsonrpc: "2.0",
+  id: 28,
   method: "shutdown",
 };
 const exitNotification = {
@@ -448,6 +525,11 @@ const result = spawnSync(invocation.command, [...invocation.args], {
     lspSourceCodeActionRequest,
     lspStyleSelectorRenameRequest,
     lspSourceNoopCompletionRequest,
+    lspSourceBracketHoverRequest,
+    lspSourceBracketDefinitionRequest,
+    lspSourceBracketReferencesRequest,
+    lspSourceBracketCompletionRequest,
+    lspSourceBracketRenameRequest,
     shutdownRequest,
     exitNotification,
   ]
@@ -474,7 +556,7 @@ const responses = messages.filter((message) => "id" in message);
 const diagnosticNotifications = messages.filter(
   (message) => message.method === "textDocument/publishDiagnostics",
 );
-assert.equal(responses.length, 23);
+assert.equal(responses.length, 28);
 assert.deepEqual(diagnosticNotifications, [
   {
     jsonrpc: "2.0",
@@ -656,6 +738,26 @@ assert.deepEqual(lspCodeLensResponse.result, [
       ],
     },
   },
+  {
+    range: {
+      start: nodeThemeSelector.range.start,
+      end: nodeThemeSelector.range.start,
+    },
+    command: {
+      title: "1 reference",
+      command: "editor.action.showReferences",
+      arguments: [
+        styleUri,
+        nodeThemeSelector.range.start,
+        [
+          {
+            uri: sourceUri,
+            range: sourceBracketSelectorRange,
+          },
+        ],
+      ],
+    },
+  },
 ]);
 
 const lspSourceHoverResponse = responses[13]!;
@@ -768,6 +870,64 @@ const lspSourceNoopCompletionResponse = responses[21]!;
 assert.equal(lspSourceNoopCompletionResponse.id, 22);
 assert.equal(lspSourceNoopCompletionResponse.result, null);
 
+const lspSourceBracketHoverResponse = responses[22]!;
+assert.equal(lspSourceBracketHoverResponse.id, 23);
+assert.deepEqual(lspSourceBracketHoverResponse.result.range, sourceBracketSelectorRange);
+assert.equal(lspSourceBracketHoverResponse.result.contents.kind, "markdown");
+assert.match(lspSourceBracketHoverResponse.result.contents.value, /\.theme/);
+assert.match(lspSourceBracketHoverResponse.result.contents.value, /App\.module\.scss/);
+
+const lspSourceBracketDefinitionResponse = responses[23]!;
+assert.equal(lspSourceBracketDefinitionResponse.id, 24);
+assert.deepEqual(lspSourceBracketDefinitionResponse.result, [
+  {
+    uri: styleUri,
+    range: nodeThemeSelector.range,
+  },
+]);
+
+const lspSourceBracketReferencesResponse = responses[24]!;
+assert.equal(lspSourceBracketReferencesResponse.id, 25);
+assert.deepEqual(lspSourceBracketReferencesResponse.result, [
+  {
+    uri: styleUri,
+    range: nodeThemeSelector.range,
+  },
+  {
+    uri: sourceUri,
+    range: sourceBracketSelectorRange,
+  },
+]);
+
+const lspSourceBracketCompletionResponse = responses[25]!;
+assert.equal(lspSourceBracketCompletionResponse.id, 26);
+assert.equal(lspSourceBracketCompletionResponse.result.isIncomplete, false);
+assert.deepEqual(
+  lspSourceBracketCompletionResponse.result.items.map(
+    (item: { readonly label: string }) => item.label,
+  ),
+  ["alert", "root", "theme"],
+);
+
+const lspSourceBracketRenameResponse = responses[26]!;
+assert.equal(lspSourceBracketRenameResponse.id, 27);
+assert.deepEqual(lspSourceBracketRenameResponse.result, {
+  changes: {
+    [styleUri]: [
+      {
+        range: nodeThemeSelector.range,
+        newText: "surface",
+      },
+    ],
+    [sourceUri]: [
+      {
+        range: sourceBracketSelectorRange,
+        newText: "surface",
+      },
+    ],
+  },
+});
+
 process.stdout.write(
   [
     "validated omena-lsp-server style provider parity:",
@@ -799,6 +959,14 @@ process.stdout.write(
       lspStyleSelectorRenameResponse.result.changes[sourceUri].length
     }`,
     `sourceNoopCompletion=${lspSourceNoopCompletionResponse.result}`,
+    `sourceBracketHover=${lspSourceBracketHoverResponse.result.contents.kind}`,
+    `sourceBracketDefinitionTargets=${lspSourceBracketDefinitionResponse.result.length}`,
+    `sourceBracketReferences=${lspSourceBracketReferencesResponse.result.length}`,
+    `sourceBracketCompletionItems=${lspSourceBracketCompletionResponse.result.items.length}`,
+    `sourceBracketRenameEdits=${
+      lspSourceBracketRenameResponse.result.changes[styleUri].length +
+      lspSourceBracketRenameResponse.result.changes[sourceUri].length
+    }`,
     `line=${styleHoverResponse.result.candidates[0].range.start.line}`,
     `character=${styleHoverResponse.result.candidates[0].range.start.character}`,
     `nodeRangeParity=${JSON.stringify(styleHoverResponse.result.candidates[0].range)}`,
