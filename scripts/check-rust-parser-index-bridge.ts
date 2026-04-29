@@ -119,6 +119,14 @@ interface ParserIndexSummaryV0 {
 interface CustomPropertyContextFactV0 {
   readonly name: string;
   readonly sourceOrder: number;
+  readonly byteSpan?: {
+    readonly start: number;
+    readonly end: number;
+  };
+  readonly range?: {
+    readonly start: { readonly line: number; readonly character: number };
+    readonly end: { readonly line: number; readonly character: number };
+  };
   readonly selectorContexts: readonly string[];
   readonly underMedia: boolean;
   readonly underSupports: boolean;
@@ -284,6 +292,34 @@ function rangeContains(
   return (
     comparePosition(outer.start, inner.start) <= 0 && comparePosition(outer.end, inner.end) >= 0
   );
+}
+
+function byteSpanForRange(
+  source: string,
+  range: {
+    readonly start: { readonly line: number; readonly character: number };
+    readonly end: { readonly line: number; readonly character: number };
+  },
+): { readonly start: number; readonly end: number } {
+  return {
+    start: offsetForPosition(source, range.start),
+    end: offsetForPosition(source, range.end),
+  };
+}
+
+function offsetForPosition(
+  source: string,
+  position: { readonly line: number; readonly character: number },
+): number {
+  let offset = 0;
+  let line = 0;
+  while (line < position.line && offset < source.length) {
+    const nextNewline = source.indexOf("\n", offset);
+    if (nextNewline === -1) return source.length;
+    offset = nextNewline + 1;
+    line += 1;
+  }
+  return Math.min(offset + position.character, source.length);
 }
 
 function findLangForPath(filePath: string): "scss" | "less" | "css" {
@@ -550,6 +586,8 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
     .map((entry, sourceOrder) => ({
       name: entry.name,
       sourceOrder,
+      byteSpan: byteSpanForRange(source, entry.range),
+      range: entry.range,
       selectorContexts: customPropertySelectorContextsForRange(
         document,
         entry.context.selectorText,
