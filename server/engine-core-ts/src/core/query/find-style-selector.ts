@@ -1122,7 +1122,14 @@ function resolveSassPackageJsonEntryBasePath(
   if (!entry) return null;
 
   const candidate = path.resolve(packageDir, normalizePackageJsonEntry(entry));
-  return !fileExists || fileExists(candidate) ? candidate : null;
+  return !fileExists || sassPackageJsonEntryExists(candidate, fileExists) ? candidate : null;
+}
+
+function sassPackageJsonEntryExists(
+  candidate: string,
+  fileExists: (candidate: string) => boolean,
+): boolean {
+  return fileExists(candidate) || expandSassModuleCandidatePaths(candidate).some(fileExists);
 }
 
 function parsePackageSpecifier(
