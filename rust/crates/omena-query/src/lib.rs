@@ -8,7 +8,7 @@ use engine_input_producers::{
     summarize_selector_usage_canonical_producer_signal_input,
     summarize_selector_usage_query_fragments_input,
 };
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::path::{Component, Path, PathBuf};
 
 use engine_style_parser::{Stylesheet, parse_style_module, summarize_css_modules_intermediate};
@@ -367,40 +367,64 @@ fn filter_import_reachable_design_token_workspace_declarations(
     workspace_declarations: &[DesignTokenWorkspaceDeclarationFactV0],
 ) -> Vec<DesignTokenWorkspaceDeclarationFactV0> {
     let reachable_style_paths =
-        collect_import_reachable_style_paths(target_style_path, parsed_styles);
+        collect_import_reachable_style_path_metadata(target_style_path, parsed_styles);
     workspace_declarations
         .iter()
-        .filter(|declaration| {
-            declaration.file_path == target_style_path
-                || reachable_style_paths.contains(declaration.file_path.as_str())
+        .filter_map(|declaration| {
+            if declaration.file_path == target_style_path {
+                return Some(declaration.clone());
+            }
+            let reachability = reachable_style_paths.get(declaration.file_path.as_str())?;
+            let mut declaration = declaration.clone();
+            declaration.import_graph_distance = Some(reachability.distance);
+            declaration.import_graph_order = Some(reachability.order);
+            Some(declaration)
         })
-        .cloned()
         .collect()
 }
 
-fn collect_import_reachable_style_paths(
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ImportReachability {
+    distance: usize,
+    order: usize,
+}
+
+fn collect_import_reachable_style_path_metadata(
     target_style_path: &str,
     parsed_styles: &[(String, Stylesheet)],
-) -> BTreeSet<String> {
+) -> BTreeMap<String, ImportReachability> {
+    let mut reachable_style_paths = BTreeMap::new();
     let available_style_paths = parsed_styles
         .iter()
         .map(|(style_path, _sheet)| style_path.as_str())
         .collect::<BTreeSet<_>>();
-    let style_by_path = parsed_styles
-        .iter()
-        .map(|(style_path, sheet)| (style_path.as_str(), sheet))
-        .collect::<BTreeMap<_, _>>();
-    let mut reachable_style_paths = BTreeSet::new();
     let mut pending_style_paths = collect_import_reachable_direct_style_paths(
         target_style_path,
         parsed_styles,
         &available_style_paths,
-    );
+    )
+    .into_iter()
+    .map(|style_path| (style_path, 1usize))
+    .collect::<VecDeque<_>>();
+    let style_by_path = parsed_styles
+        .iter()
+        .map(|(style_path, sheet)| (style_path.as_str(), sheet))
+        .collect::<BTreeMap<_, _>>();
+    let mut visit_order = 0usize;
 
-    while let Some(style_path) = pending_style_paths.pop() {
-        if style_path == target_style_path || !reachable_style_paths.insert(style_path.clone()) {
+    while let Some((style_path, distance)) = pending_style_paths.pop_front() {
+        if style_path == target_style_path || reachable_style_paths.contains_key(&style_path) {
             continue;
         }
+        reachable_style_paths.insert(
+            style_path.clone(),
+            ImportReachability {
+                distance,
+                order: visit_order,
+            },
+        );
+        visit_order += 1;
+
         let Some(sheet) = style_by_path.get(style_path.as_str()) else {
             continue;
         };
@@ -408,7 +432,7 @@ fn collect_import_reachable_style_paths(
             if let Some(next_style_path) =
                 resolve_style_module_source(&style_path, &source, &available_style_paths)
             {
-                pending_style_paths.push(next_style_path);
+                pending_style_paths.push_back((next_style_path, distance + 1));
             }
         }
     }
@@ -893,6 +917,49 @@ mod tests {
                 .cross_file_candidate_declaration_count,
             1
         );
+    }
+
+    #[test]
+    fn style_semantic_graph_batch_prefers_nearer_import_graph_token_candidates() {
+        let input = sample_input();
+        let batch = summarize_omena_query_style_semantic_graph_batch_from_sources(
+            [
+                ("/tmp/a-direct.module.scss", ":root { --brand: direct; }"),
+                ("/tmp/mid.module.scss", "@forward \"./z-transitive\";"),
+                (
+                    "/tmp/z-transitive.module.scss",
+                    ":root { --brand: transitive; }",
+                ),
+                (
+                    "/tmp/App.module.scss",
+                    "@use \"./a-direct\";\n@use \"./mid\";\n.button { color: var(--brand); }",
+                ),
+            ],
+            &input,
+        );
+
+        let app_graph = batch
+            .graphs
+            .iter()
+            .find(|entry| entry.style_path == "/tmp/App.module.scss")
+            .and_then(|entry| entry.graph.as_ref());
+        assert!(app_graph.is_some());
+        let Some(app_graph) = app_graph else {
+            return;
+        };
+        let ranked_reference = &app_graph
+            .design_token_semantics
+            .cascade_ranking_signal
+            .ranked_references[0];
+
+        assert_eq!(
+            ranked_reference.winner_declaration_file_path.as_deref(),
+            Some("/tmp/a-direct.module.scss")
+        );
+        assert_eq!(ranked_reference.winner_import_graph_distance, Some(1));
+        assert_eq!(ranked_reference.winner_import_graph_order, Some(0));
+        assert_eq!(ranked_reference.cross_file_candidate_declaration_count, 2);
+        assert_eq!(ranked_reference.cross_file_shadowed_declaration_count, 1);
     }
 
     fn backend<'a>(

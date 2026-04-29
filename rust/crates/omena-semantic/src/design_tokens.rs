@@ -78,6 +78,10 @@ pub struct DesignTokenRankedReferenceV0 {
     pub winner_declaration_file_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub winner_declaration_range: Option<engine_style_parser::ParserRangeV0>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub winner_import_graph_distance: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub winner_import_graph_order: Option<usize>,
     pub shadowed_declaration_source_orders: Vec<usize>,
     pub candidate_declaration_count: usize,
     pub winner_context_kind: &'static str,
@@ -106,6 +110,8 @@ pub struct DesignTokenWorkspaceDeclarationFactV0 {
     pub file_path: String,
     pub name: String,
     pub source_order: usize,
+    pub import_graph_distance: Option<usize>,
+    pub import_graph_order: Option<usize>,
     pub byte_span: engine_style_parser::ParserByteSpanV0,
     pub range: engine_style_parser::ParserRangeV0,
     pub selector_contexts: Vec<String>,
@@ -301,6 +307,8 @@ pub fn collect_design_token_workspace_declarations(
             file_path: style_path.to_string(),
             name: declaration.name.clone(),
             source_order: declaration.source_order,
+            import_graph_distance: None,
+            import_graph_order: None,
             byte_span: declaration.byte_span,
             range: declaration.range,
             selector_contexts: declaration.selector_contexts.clone(),
@@ -395,6 +403,8 @@ fn summarize_design_token_cascade_ranking_signal(
             winner_declaration_source_order: winner.source_order(),
             winner_declaration_file_path: winner.file_path().map(ToString::to_string),
             winner_declaration_range: winner.range(),
+            winner_import_graph_distance: winner.import_graph_distance(),
+            winner_import_graph_order: winner.import_graph_order(),
             shadowed_declaration_source_orders,
             candidate_declaration_count,
             winner_context_kind: winner.context_kind(reference),
@@ -590,6 +600,24 @@ impl DesignTokenCandidateDeclaration<'_> {
         }
     }
 
+    fn import_graph_distance(&self) -> Option<usize> {
+        match self {
+            DesignTokenCandidateDeclaration::Local(_) => None,
+            DesignTokenCandidateDeclaration::Workspace(declaration) => {
+                declaration.import_graph_distance
+            }
+        }
+    }
+
+    fn import_graph_order(&self) -> Option<usize> {
+        match self {
+            DesignTokenCandidateDeclaration::Local(_) => None,
+            DesignTokenCandidateDeclaration::Workspace(declaration) => {
+                declaration.import_graph_order
+            }
+        }
+    }
+
     fn is_local_source_order(&self, source_order: usize) -> bool {
         matches!(
             self,
@@ -665,16 +693,32 @@ fn compare_workspace_candidate_for_reference(
     right: &DesignTokenWorkspaceDeclarationFactV0,
     reference: &engine_style_parser::ParserIndexCustomPropertyRefFactV0,
 ) -> std::cmp::Ordering {
-    (
+    compare_ascending_rank(
         custom_property_declaration_context_rank(&left.selector_contexts, reference),
-        left.file_path.as_str(),
-        left.source_order,
+        custom_property_declaration_context_rank(&right.selector_contexts, reference),
     )
-        .cmp(&(
-            custom_property_declaration_context_rank(&right.selector_contexts, reference),
-            right.file_path.as_str(),
-            right.source_order,
-        ))
+    .then_with(|| {
+        compare_descending_rank(
+            left.import_graph_distance.unwrap_or(usize::MAX),
+            right.import_graph_distance.unwrap_or(usize::MAX),
+        )
+    })
+    .then_with(|| {
+        compare_descending_rank(
+            left.import_graph_order.unwrap_or(usize::MAX),
+            right.import_graph_order.unwrap_or(usize::MAX),
+        )
+    })
+    .then_with(|| compare_descending_rank(left.file_path.as_str(), right.file_path.as_str()))
+    .then_with(|| compare_ascending_rank(left.source_order, right.source_order))
+}
+
+fn compare_ascending_rank<T: Ord>(left: T, right: T) -> std::cmp::Ordering {
+    left.cmp(&right)
+}
+
+fn compare_descending_rank<T: Ord>(left: T, right: T) -> std::cmp::Ordering {
+    right.cmp(&left)
 }
 
 fn custom_property_declaration_key(

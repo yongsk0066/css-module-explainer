@@ -98,8 +98,11 @@ export interface StyleSemanticGraphDesignTokenRankedReferenceV0 {
   readonly winnerDeclarationSourceOrder: number;
   readonly winnerDeclarationFilePath?: string;
   readonly winnerDeclarationRange?: Range;
+  readonly winnerImportGraphDistance?: number;
+  readonly winnerImportGraphOrder?: number;
   readonly shadowedDeclarationSourceOrders: readonly number[];
   readonly candidateDeclarationCount: number;
+  readonly winnerContextKind?: string;
   readonly crossFileCandidateDeclarationCount?: number;
   readonly crossFileShadowedDeclarationCount?: number;
 }
@@ -124,9 +127,12 @@ export interface StyleSemanticGraphDesignTokenRankedReferenceReadModel {
   readonly winnerDeclarationSourceOrder: number;
   readonly winnerDeclarationFilePath?: string;
   readonly winnerDeclarationRange?: Range;
+  readonly winnerImportGraphDistance?: number;
+  readonly winnerImportGraphOrder?: number;
   readonly crossFileCandidateScope?: string;
   readonly shadowedDeclarationSourceOrders: readonly number[];
   readonly candidateDeclarationCount: number;
+  readonly winnerContextKind?: string;
   readonly crossFileCandidateDeclarationCount: number;
   readonly crossFileShadowedDeclarationCount: number;
   readonly reference?: StyleDocumentHIR["customPropertyRefs"][number];
@@ -585,6 +591,15 @@ export function buildStyleSemanticGraphDesignTokenRankedReferenceReadModels(
         crossFileCandidateDeclarationCount: reference.crossFileCandidateDeclarationCount ?? 0,
         crossFileShadowedDeclarationCount: reference.crossFileShadowedDeclarationCount ?? 0,
       };
+      if (reference.winnerImportGraphDistance !== undefined) {
+        readModel.winnerImportGraphDistance = reference.winnerImportGraphDistance;
+      }
+      if (reference.winnerImportGraphOrder !== undefined) {
+        readModel.winnerImportGraphOrder = reference.winnerImportGraphOrder;
+      }
+      if (reference.winnerContextKind !== undefined) {
+        readModel.winnerContextKind = reference.winnerContextKind;
+      }
       if (reference.winnerDeclarationFilePath) {
         readModel.winnerDeclarationFilePath = reference.winnerDeclarationFilePath;
         readModel.crossFileCandidateScope = designTokenSemantics.resolutionScope;
