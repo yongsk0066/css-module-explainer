@@ -1852,7 +1852,7 @@ fn source_completion_target_style_uri_at_position(
     if is_class_name_literal_completion_context(source, offset) {
         return Some(None);
     }
-    if is_class_utility_expression_completion_context(source, offset) {
+    if is_class_name_expression_string_completion_context(source, offset) {
         return Some(None);
     }
     styles_property_access_completion_target_style_uri(document, offset)
@@ -1897,7 +1897,7 @@ fn is_class_name_literal_completion_context(source: &str, offset: usize) -> bool
     false
 }
 
-fn is_class_utility_expression_completion_context(source: &str, offset: usize) -> bool {
+fn is_class_name_expression_string_completion_context(source: &str, offset: usize) -> bool {
     let mut search_offset = 0usize;
     while let Some(relative_match) = source[search_offset..].find("className") {
         let class_name_start = search_offset + relative_match;
@@ -1916,9 +1916,7 @@ fn is_class_utility_expression_completion_context(source: &str, offset: usize) -
         let Some(expression_end) = jsx_expression_end(source, expression_start) else {
             break;
         };
-        if expression_contains_class_utility_call(&source[expression_start..expression_end])
-            && offset_in_js_string_literal(source, expression_start, expression_end, offset)
-        {
+        if offset_in_js_string_literal(source, expression_start, expression_end, offset) {
             return true;
         }
         search_offset = expression_end + 1;
@@ -2084,7 +2082,7 @@ fn collect_class_name_attribute_candidates(
         if source.as_bytes().get(cursor) == Some(&b'{') {
             let expression_start = cursor + 1;
             if let Some(expression_end) = jsx_expression_end(source, expression_start) {
-                collect_class_utility_expression_candidates(
+                collect_class_name_expression_string_candidates(
                     document,
                     expression_start,
                     expression_end,
@@ -2113,17 +2111,13 @@ fn collect_class_name_attribute_candidates(
     }
 }
 
-fn collect_class_utility_expression_candidates(
+fn collect_class_name_expression_string_candidates(
     document: &LspTextDocumentState,
     expression_start: usize,
     expression_end: usize,
     candidates: &mut Vec<LspStyleHoverCandidate>,
 ) {
     let source = document.text.as_str();
-    if !expression_contains_class_utility_call(&source[expression_start..expression_end]) {
-        return;
-    }
-
     let mut cursor = expression_start;
     while cursor < expression_end {
         let Some(quote) = source.as_bytes().get(cursor).copied() else {
@@ -2144,27 +2138,6 @@ fn collect_class_utility_expression_candidates(
         }
         cursor += 1;
     }
-}
-
-fn expression_contains_class_utility_call(expression: &str) -> bool {
-    ["clsx", "classnames", "classNames"]
-        .iter()
-        .any(|utility| expression_contains_js_call(expression, utility))
-}
-
-fn expression_contains_js_call(source: &str, callee: &str) -> bool {
-    let mut search_offset = 0usize;
-    while let Some(relative_match) = source[search_offset..].find(callee) {
-        let start = search_offset + relative_match;
-        let end = start + callee.len();
-        if is_js_identifier_boundary(source, start, end)
-            && source.as_bytes().get(skip_ascii_whitespace(source, end)) == Some(&b'(')
-        {
-            return true;
-        }
-        search_offset = end;
-    }
-    false
 }
 
 fn collect_styles_property_access_candidates(

@@ -14,7 +14,7 @@ const styleUri = `${workspaceUri}/src/App.module.scss`;
 const otherStyleUri = `${workspaceUri}/src/Other.module.scss`;
 const sourceUri = `${workspaceUri}/src/App.tsx`;
 const sourceText =
-  'import styles from "./App.module.scss";\nconst view = <div className={styles.root} />;\nconst bracket = styles["theme"];\nconst bracketMissing = styles["ghost"];\nconst utility = <div className={clsx("alert")} />;\nconst missing = <div className="missing" />;';
+  'import styles from "./App.module.scss";\nconst view = <div className={styles.root} />;\nconst bracket = styles["theme"];\nconst bracketMissing = styles["ghost"];\nconst utility = <div className={clsx("alert")} />;\nconst conditional = <div className={active ? "conditional" : ""} />;\nconst missing = <div className="missing" />;';
 const sourceSelectorRange = {
   start: { line: 1, character: 36 },
   end: { line: 1, character: 40 },
@@ -24,8 +24,8 @@ const sourceBracketSelectorRange = {
   end: { line: 2, character: 29 },
 };
 const sourceMissingSelectorRange = {
-  start: { line: 5, character: 32 },
-  end: { line: 5, character: 39 },
+  start: { line: 6, character: 32 },
+  end: { line: 6, character: 39 },
 };
 const sourceMissingImportedSelectorRange = {
   start: { line: 3, character: 31 },
@@ -35,8 +35,12 @@ const sourceUtilitySelectorRange = {
   start: { line: 4, character: 38 },
   end: { line: 4, character: 43 },
 };
+const sourceConditionalSelectorRange = {
+  start: { line: 5, character: 46 },
+  end: { line: 5, character: 57 },
+};
 const styleText =
-  ".root { color: var(--brand); }\n.theme { --brand: red; }\n.alert { color: var(--missing); }";
+  ".root { color: var(--brand); }\n.theme { --brand: red; }\n.alert { color: var(--missing); }\n.conditional { color: green; }";
 const otherStyleText =
   ".root { color: blue; }\n.theme { color: green; }\n.ghost { color: gray; }\n.card { color: green; }";
 const sourceSelectorQueryPosition = {
@@ -50,6 +54,10 @@ const sourceBracketSelectorQueryPosition = {
 const sourceUtilitySelectorQueryPosition = {
   line: 4,
   character: 39,
+};
+const sourceConditionalSelectorQueryPosition = {
+  line: 5,
+  character: 47,
 };
 const selectorQueryPosition = {
   line: 0,
@@ -87,6 +95,11 @@ const nodeThemeSelector = findSelectorAtCursor(
 assert.ok(nodeThemeSelector, "node theme selector fixture did not produce a hover target");
 const nodeAlertSelector = findSelectorAtCursor(nodeStyleDocument, 2, 2);
 assert.ok(nodeAlertSelector, "node alert selector fixture did not produce a hover target");
+const nodeConditionalSelector = findSelectorAtCursor(nodeStyleDocument, 3, 2);
+assert.ok(
+  nodeConditionalSelector,
+  "node conditional selector fixture did not produce a hover target",
+);
 const nodeCustomPropertyReference = findCustomPropertyRefAtCursor(
   nodeStyleDocument,
   customPropertyReferenceQueryPosition.line,
@@ -574,9 +587,68 @@ const lspSourceUtilityRenameRequest = {
     newName: "notice",
   },
 };
-const shutdownRequest = {
+const lspSourceConditionalHoverRequest = {
   jsonrpc: "2.0",
   id: 33,
+  method: "textDocument/hover",
+  params: {
+    textDocument: {
+      uri: sourceUri,
+    },
+    position: sourceConditionalSelectorQueryPosition,
+  },
+};
+const lspSourceConditionalDefinitionRequest = {
+  jsonrpc: "2.0",
+  id: 34,
+  method: "textDocument/definition",
+  params: {
+    textDocument: {
+      uri: sourceUri,
+    },
+    position: sourceConditionalSelectorQueryPosition,
+  },
+};
+const lspSourceConditionalReferencesRequest = {
+  jsonrpc: "2.0",
+  id: 35,
+  method: "textDocument/references",
+  params: {
+    textDocument: {
+      uri: sourceUri,
+    },
+    position: sourceConditionalSelectorQueryPosition,
+    context: {
+      includeDeclaration: true,
+    },
+  },
+};
+const lspSourceConditionalCompletionRequest = {
+  jsonrpc: "2.0",
+  id: 36,
+  method: "textDocument/completion",
+  params: {
+    textDocument: {
+      uri: sourceUri,
+    },
+    position: sourceConditionalSelectorQueryPosition,
+  },
+};
+const lspSourceConditionalRenameRequest = {
+  jsonrpc: "2.0",
+  id: 37,
+  method: "textDocument/rename",
+  params: {
+    textDocument: {
+      uri: sourceUri,
+    },
+    position: sourceConditionalSelectorQueryPosition,
+    newName: "stateful",
+  },
+};
+const shutdownRequest = {
+  jsonrpc: "2.0",
+  id: 38,
   method: "shutdown",
 };
 const exitNotification = {
@@ -623,6 +695,11 @@ const result = spawnSync(invocation.command, [...invocation.args], {
     lspSourceUtilityReferencesRequest,
     lspSourceUtilityCompletionRequest,
     lspSourceUtilityRenameRequest,
+    lspSourceConditionalHoverRequest,
+    lspSourceConditionalDefinitionRequest,
+    lspSourceConditionalReferencesRequest,
+    lspSourceConditionalCompletionRequest,
+    lspSourceConditionalRenameRequest,
     shutdownRequest,
     exitNotification,
   ]
@@ -649,7 +726,7 @@ const responses = messages.filter((message) => "id" in message);
 const diagnosticNotifications = messages.filter(
   (message) => message.method === "textDocument/publishDiagnostics",
 );
-assert.equal(responses.length, 33);
+assert.equal(responses.length, 38);
 assert.deepEqual(diagnosticNotifications, [
   {
     jsonrpc: "2.0",
@@ -753,7 +830,7 @@ assert.equal(lspCompletionResponse.id, 8);
 assert.equal(lspCompletionResponse.result.isIncomplete, false);
 assert.deepEqual(
   lspCompletionResponse.result.items.map((item: { readonly label: string }) => item.label),
-  ["--brand", ".alert", ".root", ".theme"],
+  ["--brand", ".alert", ".conditional", ".root", ".theme"],
 );
 
 const styleDiagnosticsResponse = responses[8]!;
@@ -871,6 +948,26 @@ assert.deepEqual(lspCodeLensResponse.result, [
       ],
     },
   },
+  {
+    range: {
+      start: nodeConditionalSelector.range.start,
+      end: nodeConditionalSelector.range.start,
+    },
+    command: {
+      title: "1 reference",
+      command: "editor.action.showReferences",
+      arguments: [
+        styleUri,
+        nodeConditionalSelector.range.start,
+        [
+          {
+            uri: sourceUri,
+            range: sourceConditionalSelectorRange,
+          },
+        ],
+      ],
+    },
+  },
 ]);
 
 const lspSourceHoverResponse = responses[13]!;
@@ -907,7 +1004,7 @@ assert.equal(lspSourceCompletionResponse.id, 17);
 assert.equal(lspSourceCompletionResponse.result.isIncomplete, false);
 assert.deepEqual(
   lspSourceCompletionResponse.result.items.map((item: { readonly label: string }) => item.label),
-  ["alert", "root", "theme"],
+  ["alert", "conditional", "root", "theme"],
 );
 
 const lspSourcePrepareRenameResponse = responses[17]!;
@@ -1019,7 +1116,7 @@ assert.deepEqual(
   lspSourceBracketCompletionResponse.result.items.map(
     (item: { readonly label: string }) => item.label,
   ),
-  ["alert", "root", "theme"],
+  ["alert", "conditional", "root", "theme"],
 );
 
 const lspSourceBracketRenameResponse = responses[26]!;
@@ -1077,7 +1174,7 @@ assert.deepEqual(
   lspSourceUtilityCompletionResponse.result.items.map(
     (item: { readonly label: string }) => item.label,
   ),
-  ["alert", "card", "ghost", "root", "theme"],
+  ["alert", "card", "conditional", "ghost", "root", "theme"],
 );
 
 const lspSourceUtilityRenameResponse = responses[31]!;
@@ -1094,6 +1191,64 @@ assert.deepEqual(lspSourceUtilityRenameResponse.result, {
       {
         range: sourceUtilitySelectorRange,
         newText: "notice",
+      },
+    ],
+  },
+});
+
+const lspSourceConditionalHoverResponse = responses[32]!;
+assert.equal(lspSourceConditionalHoverResponse.id, 33);
+assert.deepEqual(lspSourceConditionalHoverResponse.result.range, sourceConditionalSelectorRange);
+assert.equal(lspSourceConditionalHoverResponse.result.contents.kind, "markdown");
+assert.match(lspSourceConditionalHoverResponse.result.contents.value, /\.conditional/);
+assert.match(lspSourceConditionalHoverResponse.result.contents.value, /App\.module\.scss/);
+
+const lspSourceConditionalDefinitionResponse = responses[33]!;
+assert.equal(lspSourceConditionalDefinitionResponse.id, 34);
+assert.deepEqual(lspSourceConditionalDefinitionResponse.result, [
+  {
+    uri: styleUri,
+    range: nodeConditionalSelector.range,
+  },
+]);
+
+const lspSourceConditionalReferencesResponse = responses[34]!;
+assert.equal(lspSourceConditionalReferencesResponse.id, 35);
+assert.deepEqual(lspSourceConditionalReferencesResponse.result, [
+  {
+    uri: styleUri,
+    range: nodeConditionalSelector.range,
+  },
+  {
+    uri: sourceUri,
+    range: sourceConditionalSelectorRange,
+  },
+]);
+
+const lspSourceConditionalCompletionResponse = responses[35]!;
+assert.equal(lspSourceConditionalCompletionResponse.id, 36);
+assert.equal(lspSourceConditionalCompletionResponse.result.isIncomplete, false);
+assert.deepEqual(
+  lspSourceConditionalCompletionResponse.result.items.map(
+    (item: { readonly label: string }) => item.label,
+  ),
+  ["alert", "card", "conditional", "ghost", "root", "theme"],
+);
+
+const lspSourceConditionalRenameResponse = responses[36]!;
+assert.equal(lspSourceConditionalRenameResponse.id, 37);
+assert.deepEqual(lspSourceConditionalRenameResponse.result, {
+  changes: {
+    [styleUri]: [
+      {
+        range: nodeConditionalSelector.range,
+        newText: "stateful",
+      },
+    ],
+    [sourceUri]: [
+      {
+        range: sourceConditionalSelectorRange,
+        newText: "stateful",
       },
     ],
   },
@@ -1145,6 +1300,14 @@ process.stdout.write(
     `sourceUtilityRenameEdits=${
       lspSourceUtilityRenameResponse.result.changes[styleUri].length +
       lspSourceUtilityRenameResponse.result.changes[sourceUri].length
+    }`,
+    `sourceConditionalHover=${lspSourceConditionalHoverResponse.result.contents.kind}`,
+    `sourceConditionalDefinitionTargets=${lspSourceConditionalDefinitionResponse.result.length}`,
+    `sourceConditionalReferences=${lspSourceConditionalReferencesResponse.result.length}`,
+    `sourceConditionalCompletionItems=${lspSourceConditionalCompletionResponse.result.items.length}`,
+    `sourceConditionalRenameEdits=${
+      lspSourceConditionalRenameResponse.result.changes[styleUri].length +
+      lspSourceConditionalRenameResponse.result.changes[sourceUri].length
     }`,
     `line=${styleHoverResponse.result.candidates[0].range.start.line}`,
     `character=${styleHoverResponse.result.candidates[0].range.start.character}`,
