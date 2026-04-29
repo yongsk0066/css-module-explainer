@@ -52,6 +52,18 @@ describe("TsgoProbeTypeResolver", () => {
     expect(resolveCalls).toEqual(["/repo", "/repo"]);
   });
 
+  it("returns unresolvable without an implicit current TypeScript fallback", () => {
+    const resolver = new TsgoProbeTypeResolver({
+      findConfigFile: (workspaceRoot) => `${workspaceRoot}/tsconfig.json`,
+      runProbeCommand: () => ({ status: 0, stdout: "", stderr: "" }),
+    });
+
+    expect(resolver.resolve("/repo/src/App.tsx", "variant", "/repo", SAMPLE_RANGE)).toEqual({
+      kind: "unresolvable",
+      values: [],
+    });
+  });
+
   it("re-probes after invalidation", () => {
     const probeCalls: string[] = [];
     const resolver = new TsgoProbeTypeResolver({

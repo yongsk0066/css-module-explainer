@@ -47,9 +47,9 @@ export function selectTypeResolver(options: SelectTypeResolverOptions): TypeReso
     return {
       backend,
       // Keep the TS7 backend selected by default, but avoid synchronous
-      // full-workspace tsgo checks on the LSP request path. Fine-grained
-      // symbol resolution still delegates to the bounded current TS resolver
-      // until a dedicated tsgo-backed resolver exists.
+      // full-workspace TypeScript program construction on the LSP request
+      // path. Fine-grained direct misses return unresolvable unless tests or
+      // explicit callers inject a current-TS fallback.
       typeResolver: new TsgoProbeTypeResolver(probeOptions),
     };
   }

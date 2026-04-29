@@ -3,8 +3,8 @@ import path from "node:path";
 import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import ts from "typescript";
 import type { Range, ResolvedType } from "@css-module-explainer/shared";
-import { createDefaultProgram } from "../../engine-core-ts/src/core/ts/default-program";
 import {
+  UnresolvableTypeResolver,
   WorkspaceTypeResolver,
   type ResolveTypeOptions,
   type TypeResolver,
@@ -49,9 +49,11 @@ export class TsgoProbeTypeResolver implements TypeResolver {
   constructor(options: TsgoProbeTypeResolverOptions = {}) {
     this.fallbackResolver =
       options.fallbackResolver ??
-      new WorkspaceTypeResolver({
-        createProgram: options.createProgram ?? createDefaultProgram,
-      });
+      (options.createProgram
+        ? new WorkspaceTypeResolver({
+            createProgram: options.createProgram,
+          })
+        : new UnresolvableTypeResolver());
     this.findConfigFile =
       options.findConfigFile ??
       ((workspaceRoot) => ts.findConfigFile(workspaceRoot, ts.sys.fileExists) ?? null);

@@ -319,7 +319,7 @@
             "typescript-current"
           ],
           "default": "tsgo",
-          "markdownDescription": "Type-fact backend used by the language server. `tsgo` uses the extension-bundled TS 7 native compiler availability check. `tsgo-workspace` uses `pnpm exec tsgo` in the user workspace. `typescript-current` uses the current TypeScript resolver."
+          "markdownDescription": "Type-fact backend used by the language server. `tsgo` uses the extension-bundled TS 7 native compiler and does not build a synchronous current-TS program on the LSP request path. `tsgo-workspace` uses `pnpm exec tsgo` in the user workspace. `typescript-current` uses the current TypeScript resolver."
         },
         "cssModuleExplainer.typeFactMaxSyncProgramFiles": {
           "type": "number",
