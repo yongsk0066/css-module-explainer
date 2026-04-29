@@ -11,6 +11,8 @@ const UTILS_PATH = "/fake/_utils.scss";
 const PACKAGE_TOKENS_ROOT = "/fake/node_modules/@design/tokens";
 const PACKAGE_TOKENS_JSON_PATH = `${PACKAGE_TOKENS_ROOT}/package.json`;
 const PACKAGE_TOKENS_INDEX_PATH = `${PACKAGE_TOKENS_ROOT}/src/index.scss`;
+const PACKAGE_TOKENS_COLORS_ENTRY_PATH = `${PACKAGE_TOKENS_ROOT}/src/colors.scss`;
+const PACKAGE_TOKENS_TYPOGRAPHY_ENTRY_PATH = `${PACKAGE_TOKENS_ROOT}/src/typography.scss`;
 const PACKAGE_VARIABLES_CSS_PATH = `${PACKAGE_TOKENS_ROOT}/variables.css`;
 
 function styleDocument(selectors: ReadonlyMap<string, ReturnType<typeof info>>) {
@@ -377,6 +379,57 @@ describe("checkStyleDocument", () => {
         styleDocumentForPath: (filePath) => byPath.get(filePath) ?? null,
         readFile: (filePath) =>
           filePath === PACKAGE_TOKENS_JSON_PATH ? `{"sass":"src/index.scss"}` : null,
+      },
+      { includeUnusedSelectors: false },
+    );
+
+    expect(findings.filter((finding) => finding.code === "missing-sass-symbol")).toEqual([]);
+  });
+
+  it("does not report Sass symbols forwarded from package export patterns", () => {
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    const buttonDocument = parseStyleDocument(
+      `@use "utils" as *;
+
+.title {
+  color: $ds_gray700;
+  @include ds_typography16;
+}`,
+      SCSS_PATH,
+    );
+    const utilsDocument = parseStyleDocument(
+      `@forward "@design/tokens/colors" as ds_*;
+@forward "@design/tokens/typography" as ds_*;`,
+      UTILS_PATH,
+    );
+    const colorsDocument = parseStyleDocument(
+      `$gray700: #767678;`,
+      PACKAGE_TOKENS_COLORS_ENTRY_PATH,
+    );
+    const typographyDocument = parseStyleDocument(
+      `@mixin typography16 {}`,
+      PACKAGE_TOKENS_TYPOGRAPHY_ENTRY_PATH,
+    );
+    const byPath = new Map([
+      [SCSS_PATH, buttonDocument],
+      [UTILS_PATH, utilsDocument],
+      [PACKAGE_TOKENS_COLORS_ENTRY_PATH, colorsDocument],
+      [PACKAGE_TOKENS_TYPOGRAPHY_ENTRY_PATH, typographyDocument],
+    ]);
+
+    const findings = checkStyleDocument(
+      {
+        scssPath: SCSS_PATH,
+        styleDocument: buttonDocument,
+      },
+      {
+        semanticReferenceIndex,
+        styleDependencyGraph: new WorkspaceStyleDependencyGraph(),
+        styleDocumentForPath: (filePath) => byPath.get(filePath) ?? null,
+        readFile: (filePath) =>
+          filePath === PACKAGE_TOKENS_JSON_PATH
+            ? `{"exports":{"./*":{"sass":"./src/*.scss"}}}`
+            : null,
       },
       { includeUnusedSelectors: false },
     );

@@ -9,7 +9,9 @@ const TOKENS_PATH = "/fake/src/tokens.module.scss";
 const PACKAGE_TOKENS_ROOT = "/fake/node_modules/@design/tokens";
 const PACKAGE_TOKENS_JSON_PATH = `${PACKAGE_TOKENS_ROOT}/package.json`;
 const PACKAGE_TOKENS_INDEX_PATH = `${PACKAGE_TOKENS_ROOT}/src/index.scss`;
+const PACKAGE_COLORS_SCSS_PATH = `${PACKAGE_TOKENS_ROOT}/src/colors.scss`;
 const PACKAGE_COLORS_CSS_PATH = `${PACKAGE_TOKENS_ROOT}/src/colors.css`;
+const PACKAGE_TYPOGRAPHY_SCSS_PATH = `${PACKAGE_TOKENS_ROOT}/src/typography.scss`;
 const PACKAGE_VARIABLES_CSS_PATH = "/fake/node_modules/@design/tokens/variables.css";
 
 describe("resolveStyleCompletionItems", () => {
@@ -579,6 +581,54 @@ $secret: 2rem;
         styleDocumentForPath,
         readFile: (filePath) =>
           filePath === PACKAGE_TOKENS_JSON_PATH ? `{"sass":"src/index.scss"}` : null,
+      }).map((item) => item.label),
+    ).toEqual(["ds_typography16"]);
+  });
+
+  it("returns prefixed completions forwarded from package export patterns", () => {
+    const scss = `@use "utils" as *;
+
+.title {
+  color: $ds_;
+  @include ds_typo;
+}
+`;
+    const utilsScss = `@forward "@design/tokens/colors" as ds_*;
+@forward "@design/tokens/typography" as ds_*;
+`;
+    const colorsScss = `$gray700: #767678;`;
+    const typographyScss = `@mixin typography16 {}`;
+    const styleDocument = parseStyleDocument(scss, SCSS_PATH);
+    const utilsDocument = parseStyleDocument(utilsScss, "/fake/src/_utils.scss");
+    const colorsDocument = parseStyleDocument(colorsScss, PACKAGE_COLORS_SCSS_PATH);
+    const typographyDocument = parseStyleDocument(typographyScss, PACKAGE_TYPOGRAPHY_SCSS_PATH);
+    const styleDocumentForPath = styleDocumentMap([
+      styleDocument,
+      utilsDocument,
+      colorsDocument,
+      typographyDocument,
+    ]);
+    const readFile = (filePath: string) =>
+      filePath === PACKAGE_TOKENS_JSON_PATH ? `{"exports":{"./*":{"sass":"./src/*.scss"}}}` : null;
+
+    expect(
+      resolveStyleCompletionItems({
+        content: scss,
+        line: 3,
+        character: 13,
+        styleDocument,
+        styleDocumentForPath,
+        readFile,
+      }).map((item) => item.label),
+    ).toEqual(["$ds_gray700"]);
+    expect(
+      resolveStyleCompletionItems({
+        content: scss,
+        line: 4,
+        character: 18,
+        styleDocument,
+        styleDocumentForPath,
+        readFile,
       }).map((item) => item.label),
     ).toEqual(["ds_typography16"]);
   });
