@@ -27,12 +27,91 @@ export interface StyleSemanticGraphSummaryV0 {
   readonly language: string;
   readonly parserFacts: unknown;
   readonly semanticFacts: unknown;
-  readonly designTokenSemantics?: unknown;
+  readonly designTokenSemantics?: StyleSemanticGraphDesignTokenSemanticsV0;
   readonly selectorIdentityEngine: StyleSemanticGraphSelectorIdentityEngineV0;
   readonly selectorReferenceEngine: StyleSemanticGraphSelectorReferenceEngineV0;
   readonly sourceInputEvidence: unknown;
   readonly promotionEvidence: unknown;
   readonly losslessCstContract: unknown;
+}
+
+export interface StyleSemanticGraphDesignTokenSemanticsV0 {
+  readonly schemaVersion: "0";
+  readonly product: "omena-semantic.design-token-semantics";
+  readonly status: string;
+  readonly resolutionScope: string;
+  readonly declarationCount: number;
+  readonly referenceCount: number;
+  readonly resolvedReferenceCount: number;
+  readonly unresolvedReferenceCount: number;
+  readonly selectorsWithReferencesCount: number;
+  readonly contextSignal: StyleSemanticGraphDesignTokenContextSignalV0;
+  readonly resolutionSignal: StyleSemanticGraphDesignTokenResolutionSignalV0;
+  readonly cascadeRankingSignal: StyleSemanticGraphDesignTokenCascadeRankingSignalV0;
+  readonly capabilities: StyleSemanticGraphDesignTokenCapabilitiesV0;
+  readonly blockingGaps: readonly string[];
+  readonly nextPriorities: readonly string[];
+}
+
+export interface StyleSemanticGraphDesignTokenContextSignalV0 {
+  readonly declarationContextSelectorCount: number;
+  readonly declarationWrapperContextCount: number;
+  readonly mediaContextSelectorCount: number;
+  readonly supportsContextSelectorCount: number;
+  readonly layerContextSelectorCount: number;
+  readonly wrapperContextCount: number;
+}
+
+export interface StyleSemanticGraphDesignTokenResolutionSignalV0 {
+  readonly declarationFactCount: number;
+  readonly referenceFactCount: number;
+  readonly sourceOrderedDeclarationCount: number;
+  readonly sourceOrderedReferenceCount: number;
+  readonly occurrenceResolvedReferenceCount: number;
+  readonly occurrenceUnresolvedReferenceCount: number;
+  readonly contextMatchedReferenceCount: number;
+  readonly contextUnmatchedReferenceCount: number;
+  readonly rootDeclarationCount: number;
+  readonly selectorScopedDeclarationCount: number;
+  readonly wrapperScopedDeclarationCount: number;
+}
+
+export interface StyleSemanticGraphDesignTokenCascadeRankingSignalV0 {
+  readonly rankedReferenceCount: number;
+  readonly unrankedReferenceCount: number;
+  readonly sourceOrderWinnerDeclarationCount: number;
+  readonly sourceOrderShadowedDeclarationCount: number;
+  readonly repeatedNameDeclarationCount: number;
+  readonly rankedReferences: readonly StyleSemanticGraphDesignTokenRankedReferenceV0[];
+}
+
+export interface StyleSemanticGraphDesignTokenRankedReferenceV0 {
+  readonly referenceName: string;
+  readonly referenceSourceOrder: number;
+  readonly winnerDeclarationSourceOrder: number;
+  readonly shadowedDeclarationSourceOrders: readonly number[];
+  readonly candidateDeclarationCount: number;
+}
+
+export interface StyleSemanticGraphDesignTokenCapabilitiesV0 {
+  readonly sameFileResolutionReady: boolean;
+  readonly wrapperContextSignalReady: boolean;
+  readonly sourceOrderSignalReady: boolean;
+  readonly sourceOrderCascadeRankingReady: boolean;
+  readonly occurrenceResolutionSignalReady: boolean;
+  readonly selectorContextResolutionReady: boolean;
+  readonly themeOverrideContextSignalReady: boolean;
+  readonly crossFileImportGraphReady: boolean;
+  readonly crossPackageCascadeRankingReady: boolean;
+  readonly themeOverrideContextReady: boolean;
+}
+
+export interface StyleSemanticGraphDesignTokenRankedReferenceReadModel {
+  readonly referenceName: string;
+  readonly referenceSourceOrder: number;
+  readonly winnerDeclarationSourceOrder: number;
+  readonly shadowedDeclarationSourceOrders: readonly number[];
+  readonly candidateDeclarationCount: number;
 }
 
 export interface StyleSemanticGraphSelectorIdentityEngineV0 {
@@ -452,6 +531,20 @@ export function buildStyleSemanticGraphSelectorIdentityReadModels(
       },
     ];
   });
+}
+
+export function buildStyleSemanticGraphDesignTokenRankedReferenceReadModels(
+  graph: StyleSemanticGraphSummaryV0,
+): readonly StyleSemanticGraphDesignTokenRankedReferenceReadModel[] {
+  return (
+    graph.designTokenSemantics?.cascadeRankingSignal.rankedReferences.map((reference) => ({
+      referenceName: reference.referenceName,
+      referenceSourceOrder: reference.referenceSourceOrder,
+      winnerDeclarationSourceOrder: reference.winnerDeclarationSourceOrder,
+      shadowedDeclarationSourceOrders: reference.shadowedDeclarationSourceOrders,
+      candidateDeclarationCount: reference.candidateDeclarationCount,
+    })) ?? []
+  );
 }
 
 function ensureStyleFileIncluded(

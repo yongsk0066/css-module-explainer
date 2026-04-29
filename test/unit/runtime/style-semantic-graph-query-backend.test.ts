@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { EngineInputV2 } from "../../../server/engine-core-ts/src/contracts";
 import { DEFAULT_SETTINGS } from "../../../server/engine-core-ts/src/settings";
 import {
+  buildStyleSemanticGraphDesignTokenRankedReferenceReadModels,
   buildStyleSemanticGraphSelectorIdentityReadModels,
   resolveRustStyleSemanticGraph,
   resolveRustStyleSemanticGraphForWorkspaceTarget,
@@ -93,6 +94,18 @@ describe("style semantic graph query backend", () => {
     expect(buildStyleSemanticGraphSelectorIdentityReadModels(makeGraph(), styleDocument)).toEqual(
       [],
     );
+  });
+
+  it("exposes rust design token ranked references through a host read model", () => {
+    expect(buildStyleSemanticGraphDesignTokenRankedReferenceReadModels(makeGraph())).toEqual([
+      {
+        referenceName: "--brand",
+        referenceSourceOrder: 3,
+        winnerDeclarationSourceOrder: 2,
+        shadowedDeclarationSourceOrders: [0, 1],
+        candidateDeclarationCount: 3,
+      },
+    ]);
   });
 
   it("does not spawn rust when the target style source is unavailable", () => {
@@ -553,6 +566,72 @@ function makeGraph(stylePath = SCSS_PATH): StyleSemanticGraphSummaryV0 {
     language: "scss",
     parserFacts: {},
     semanticFacts: {},
+    designTokenSemantics: {
+      schemaVersion: "0",
+      product: "omena-semantic.design-token-semantics",
+      status: "same-file-cascade-ranking-seed",
+      resolutionScope: "same-file",
+      declarationCount: 3,
+      referenceCount: 1,
+      resolvedReferenceCount: 1,
+      unresolvedReferenceCount: 0,
+      selectorsWithReferencesCount: 1,
+      contextSignal: {
+        declarationContextSelectorCount: 1,
+        declarationWrapperContextCount: 0,
+        mediaContextSelectorCount: 0,
+        supportsContextSelectorCount: 0,
+        layerContextSelectorCount: 0,
+        wrapperContextCount: 0,
+      },
+      resolutionSignal: {
+        declarationFactCount: 3,
+        referenceFactCount: 1,
+        sourceOrderedDeclarationCount: 3,
+        sourceOrderedReferenceCount: 1,
+        occurrenceResolvedReferenceCount: 1,
+        occurrenceUnresolvedReferenceCount: 0,
+        contextMatchedReferenceCount: 1,
+        contextUnmatchedReferenceCount: 0,
+        rootDeclarationCount: 1,
+        selectorScopedDeclarationCount: 2,
+        wrapperScopedDeclarationCount: 0,
+      },
+      cascadeRankingSignal: {
+        rankedReferenceCount: 1,
+        unrankedReferenceCount: 0,
+        sourceOrderWinnerDeclarationCount: 1,
+        sourceOrderShadowedDeclarationCount: 2,
+        repeatedNameDeclarationCount: 3,
+        rankedReferences: [
+          {
+            referenceName: "--brand",
+            referenceSourceOrder: 3,
+            winnerDeclarationSourceOrder: 2,
+            shadowedDeclarationSourceOrders: [0, 1],
+            candidateDeclarationCount: 3,
+          },
+        ],
+      },
+      capabilities: {
+        sameFileResolutionReady: true,
+        wrapperContextSignalReady: false,
+        sourceOrderSignalReady: true,
+        sourceOrderCascadeRankingReady: true,
+        occurrenceResolutionSignalReady: true,
+        selectorContextResolutionReady: true,
+        themeOverrideContextSignalReady: true,
+        crossFileImportGraphReady: false,
+        crossPackageCascadeRankingReady: false,
+        themeOverrideContextReady: false,
+      },
+      blockingGaps: ["crossFileImportGraph", "crossPackageCascadeRanking", "themeOverrideContext"],
+      nextPriorities: [
+        "crossFileImportGraph",
+        "crossPackageCascadeRanking",
+        "themeOverrideContext",
+      ],
+    },
     selectorIdentityEngine: {
       schemaVersion: "0",
       product: "omena-semantic.selector-identity",
