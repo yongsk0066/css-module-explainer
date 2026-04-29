@@ -40,7 +40,7 @@ import {
 } from "../hir/style-types";
 import { rangeContains } from "../util/range-utils";
 import { classifyBemSuffixSite } from "./bem-suffix";
-import { findLangForPath, getRuntimeSyntax } from "./lang-registry";
+import { findStyleDocumentLangForPath, getRuntimeSyntax } from "./lang-registry";
 import {
   atRootTokenRange,
   enumerateGroups,
@@ -109,7 +109,7 @@ export function parseStyleDocument(content: string, filePath: string): StyleDocu
   const keyframesByName = new Map<string, KeyframesDeclHIR>();
   const animationNameRefs: AnimationNameRefHIR[] = [];
 
-  const lang = findLangForPath(filePath);
+  const lang = findStyleDocumentLangForPath(filePath);
   // shared.StyleLang.syntax is typed as `unknown` so the shared
   // module stays runtime-free. The narrowing cast lives in
   // `getRuntimeSyntax` (the single documented `as` cast).

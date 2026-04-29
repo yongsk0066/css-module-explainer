@@ -11,7 +11,7 @@ import {
   resolveSassModuleUseTarget,
   resolveSassModuleUseTargetFilePath,
 } from "../../../engine-core-ts/src/core/query";
-import { findLangForPath } from "../../../engine-core-ts/src/core/scss/lang-registry";
+import { findStyleDocumentLangForPath } from "../../../engine-core-ts/src/core/scss/lang-registry";
 import type { StyleIndexCache } from "../../../engine-core-ts/src/core/scss/scss-index";
 import type { WorkspaceStyleDependencyGraph } from "../../../engine-core-ts/src/core/semantic";
 import type { TypeResolver } from "../../../engine-core-ts/src/core/ts/type-resolver";
@@ -55,7 +55,7 @@ export function createStyleDocumentLookup(
   args: StyleDocumentLookupArgs,
 ): (path: string) => StyleDocumentHIR | null {
   return (path: string): StyleDocumentHIR | null => {
-    if (!findLangForPath(path)) return null;
+    if (!findStyleDocumentLangForPath(path)) return null;
     const buffered = args.readOpenDocumentText(path);
     const mode = args.getModeForPath(path);
     if (buffered !== null) {
@@ -120,7 +120,7 @@ function readStyleDocumentForGraph(
   targetPath: string,
 ): StyleDocumentHIR | null {
   if (targetPath === currentPath) return currentDocument;
-  if (!findLangForPath(targetPath)) return null;
+  if (!findStyleDocumentLangForPath(targetPath)) return null;
   const mode = args.getModeForPath(targetPath);
   const buffered = args.readOpenDocumentText(targetPath);
   if (buffered !== null) {

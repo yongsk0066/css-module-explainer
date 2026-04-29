@@ -32,6 +32,11 @@ export const STYLE_LANGS: readonly StyleLang[] = [
   },
 ] as const;
 
+const STYLE_DOCUMENT_LANGS: readonly StyleLang[] = STYLE_LANGS.map((lang) => ({
+  ...lang,
+  extensions: [...lang.extensions, ...lang.extensions.map((ext) => ext.replace(".module.", "."))],
+}));
+
 /** Flat list of every `.module.<ext>` this project indexes. */
 export function getAllStyleExtensions(): readonly string[] {
   return STYLE_LANGS.flatMap((lang) => lang.extensions);
@@ -51,6 +56,23 @@ export function getRuntimeSyntax(lang: StyleLang): Syntax | null {
 /** Pick the lang entry for a file path, or null if unrelated. */
 export function findLangForPath(filePath: string): StyleLang | null {
   for (const lang of STYLE_LANGS) {
+    for (const ext of lang.extensions) {
+      if (filePath.endsWith(ext)) {
+        return lang;
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Pick the parser/runtime language for any style document we may
+ * need to read. Top-level providers still use `findLangForPath`
+ * so extension features only activate on CSS Modules, but imported
+ * package token files commonly use plain `.css` / `.scss` names.
+ */
+export function findStyleDocumentLangForPath(filePath: string): StyleLang | null {
+  for (const lang of STYLE_DOCUMENT_LANGS) {
     for (const ext of lang.extensions) {
       if (filePath.endsWith(ext)) {
         return lang;
