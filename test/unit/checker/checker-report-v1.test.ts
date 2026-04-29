@@ -42,6 +42,10 @@ describe("buildCheckerReportV1", () => {
 
     expect(report.findings[0]).toMatchObject({
       code: "missing-resolved-class-values",
+      valueDomainDerivationLabel: "finiteSet reduced to finiteSet via baseFromFacts",
+      valueDomainDerivationStepLabels: [
+        "1. baseFromFacts: finiteSet -> finiteSet (preserved finite string literal facts)",
+      ],
       valueDomainDerivation,
     });
   });

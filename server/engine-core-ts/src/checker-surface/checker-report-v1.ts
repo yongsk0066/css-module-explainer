@@ -23,6 +23,7 @@ export function buildCheckerReportV1(
               finding.abstractValue,
               finding.valueCertainty,
               finding.reason,
+              finding.valueDomainDerivation,
             )
           : {};
       return {

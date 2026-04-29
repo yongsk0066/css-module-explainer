@@ -13,6 +13,8 @@ export interface CheckerFindingRecordV1 {
   readonly message: string;
   readonly analysisReason?: string;
   readonly valueCertaintyShapeLabel?: string;
+  readonly valueDomainDerivationLabel?: string;
+  readonly valueDomainDerivationStepLabels?: readonly string[];
   readonly valueDomainDerivation?: ReducedClassValueDerivation;
 }
 

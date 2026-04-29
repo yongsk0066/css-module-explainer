@@ -43,6 +43,8 @@ export interface DynamicExpressionExplanation {
 export interface InvalidClassAnalysisMetadata {
   readonly analysisReason?: string;
   readonly valueCertaintyShapeLabel?: string;
+  readonly valueDomainDerivationLabel?: string;
+  readonly valueDomainDerivationStepLabels?: readonly string[];
 }
 
 export function buildDynamicExpressionExplanation(
@@ -215,6 +217,7 @@ export function buildInvalidClassAnalysisMetadata(
   abstractValue: FlowResolution["abstractValue"] | undefined,
   valueCertainty: EdgeCertainty | undefined,
   reason: FlowResolution["reason"] | undefined,
+  valueDomainDerivation?: ExpressionSemanticsSummary["valueDomainDerivation"],
 ): InvalidClassAnalysisMetadata {
   const reasons = [
     describeValueCertaintyReason(abstractValue, valueCertainty, reason),
@@ -222,10 +225,17 @@ export function buildInvalidClassAnalysisMetadata(
   ].filter((candidate): candidate is string => Boolean(candidate));
   const uniqueReasons = Array.from(new Set(reasons));
   const valueCertaintyProfile = deriveValueCertaintyProfile(abstractValue, valueCertainty);
+  const derivation = describeValueDomainDerivation(valueDomainDerivation);
   return {
     ...(uniqueReasons.length > 0 ? { analysisReason: uniqueReasons.join("; ") } : {}),
     ...(valueCertaintyProfile
       ? { valueCertaintyShapeLabel: valueCertaintyProfile.shapeLabel }
+      : {}),
+    ...(derivation
+      ? {
+          valueDomainDerivationLabel: derivation.label,
+          valueDomainDerivationStepLabels: derivation.stepLabels,
+        }
       : {}),
   };
 }
