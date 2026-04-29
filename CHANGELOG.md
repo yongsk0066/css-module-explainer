@@ -1,5 +1,16 @@
 # Changelog
 
+## [4.1.10] — 2026-04-29
+
+### Added
+
+- **Checker evidence text output** — checker text and compact output now print source analysis evidence, including value shape and value-domain derivation labels for dynamic class misses.
+
+### Changed
+
+- **Source-missing derivation parity** — the default TypeScript checker path now emits the same `omena-abstract-value.reduced-class-value-derivation` evidence contract as the Rust-backed source-missing path.
+- **Rust source-missing consistency** — source-missing consumer checks now compare derivation evidence so shadow gates catch evidence drift, not only finding/count drift.
+
 ## [4.1.9] — 2026-04-29
 
 ### Added

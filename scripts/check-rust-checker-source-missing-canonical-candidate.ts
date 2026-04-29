@@ -142,6 +142,9 @@ function deriveTsCheckerSourceMissingCanonicalCandidate(
       if (finding.valueCertaintyShapeLabel) {
         result.valueCertaintyShapeLabel = finding.valueCertaintyShapeLabel;
       }
+      if (finding.valueDomainDerivation) {
+        result.valueDomainDerivation = finding.valueDomainDerivation;
+      }
       return result;
     })
     .toSorted(compareSourceMissingFinding);
