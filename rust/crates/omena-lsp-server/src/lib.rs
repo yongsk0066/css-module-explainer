@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 pub const NODE_TEXT_DOCUMENT_SYNC_KIND: u8 = 2;
@@ -16,6 +16,7 @@ pub const DEBUG_STATE_REQUEST: &str = "cssModuleExplainer/rustLspState";
 pub const STYLE_HOVER_CANDIDATES_REQUEST: &str = "cssModuleExplainer/rustStyleHoverCandidates";
 pub const STYLE_DIAGNOSTICS_REQUEST: &str = "cssModuleExplainer/rustStyleDiagnostics";
 pub const SOURCE_DIAGNOSTICS_REQUEST: &str = "cssModuleExplainer/rustSourceDiagnostics";
+const WORKSPACE_STYLE_INDEX_LIMIT: usize = 512;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -359,6 +360,7 @@ pub fn handle_lsp_message(state: &mut LspShellState, message: Value) -> Option<V
     match (method, id) {
         (Some("initialize"), Some(request_id)) => {
             initialize_workspace_folders(state, message.get("params"));
+            index_workspace_style_files(state);
             Some(json!({
                 "jsonrpc": "2.0",
                 "id": request_id,
@@ -581,6 +583,93 @@ fn initialize_workspace_folders(state: &mut LspShellState, params: Option<&Value
             },
         );
     }
+}
+
+fn index_workspace_style_files(state: &mut LspShellState) {
+    let folders: Vec<LspWorkspaceFolderState> = state.workspace_folders.values().cloned().collect();
+    let mut remaining = WORKSPACE_STYLE_INDEX_LIMIT;
+    for folder in folders {
+        if remaining == 0 {
+            break;
+        }
+        let Some(path) = file_uri_to_path(folder.uri.as_str()) else {
+            continue;
+        };
+        index_workspace_style_files_from_dir(
+            state,
+            folder.uri.as_str(),
+            path.as_path(),
+            &mut remaining,
+        );
+    }
+}
+
+fn index_workspace_style_files_from_dir(
+    state: &mut LspShellState,
+    workspace_folder_uri: &str,
+    dir: &Path,
+    remaining: &mut usize,
+) {
+    if *remaining == 0 || should_skip_workspace_index_dir(dir) {
+        return;
+    }
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        if *remaining == 0 {
+            return;
+        }
+        let path = entry.path();
+        if path.is_dir() {
+            index_workspace_style_files_from_dir(
+                state,
+                workspace_folder_uri,
+                path.as_path(),
+                remaining,
+            );
+            continue;
+        }
+        if !is_indexable_style_path(path.as_path()) {
+            continue;
+        }
+        let uri = path_to_file_uri(path.as_path());
+        if state.documents.contains_key(uri.as_str()) {
+            continue;
+        }
+        let Ok(text) = fs::read_to_string(path.as_path()) else {
+            continue;
+        };
+        state.documents.insert(
+            uri.clone(),
+            LspTextDocumentState {
+                uri: uri.clone(),
+                workspace_folder_uri: Some(workspace_folder_uri.to_string()),
+                language_id: StyleLanguage::from_module_path(uri.as_str())
+                    .map(style_language_label)
+                    .unwrap_or("unknown")
+                    .to_string(),
+                version: 0,
+                style_summary: summarize_style_document(uri.as_str(), Some(text.as_str())),
+                text,
+            },
+        );
+        *remaining -= 1;
+    }
+}
+
+fn should_skip_workspace_index_dir(dir: &Path) -> bool {
+    dir.file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| matches!(name, ".git" | "node_modules" | "dist" | "target"))
+}
+
+fn is_indexable_style_path(path: &Path) -> bool {
+    StyleLanguage::from_module_path(path.to_string_lossy().as_ref()).is_some()
+}
+
+fn path_to_file_uri(path: &Path) -> String {
+    format!("file://{}", path.to_string_lossy())
 }
 
 fn did_open_text_document(state: &mut LspShellState, params: Option<&Value>) {
@@ -3190,6 +3279,58 @@ mod tests {
             }),
         );
         assert!(state.document(style_uri.as_str()).is_none());
+        let _ = std::fs::remove_dir_all(&workspace_root);
+    }
+
+    #[test]
+    fn indexes_workspace_style_files_on_initialize() {
+        let workspace_root = std::env::temp_dir().join(format!(
+            "omena-lsp-server-initial-index-{}",
+            std::process::id()
+        ));
+        let src_dir = workspace_root.join("src");
+        let style_path = src_dir.join("Initial.module.scss");
+        let _ = std::fs::remove_dir_all(&workspace_root);
+        let create_dir_result = std::fs::create_dir_all(&src_dir);
+        assert!(
+            create_dir_result.is_ok(),
+            "create initial-index fixture directory: {:?}",
+            create_dir_result.err(),
+        );
+        let write_result = std::fs::write(&style_path, ".initial { color: red; }");
+        assert!(
+            write_result.is_ok(),
+            "write initial-index style fixture: {:?}",
+            write_result.err(),
+        );
+
+        let workspace_uri = format!("file://{}", workspace_root.display());
+        let style_uri = format!("file://{}", style_path.display());
+        let mut state = LspShellState::default();
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "workspaceFolders": [
+                        {
+                            "uri": workspace_uri,
+                            "name": "initial-index",
+                        },
+                    ],
+                },
+            }),
+        );
+
+        let indexed = state
+            .document(style_uri.as_str())
+            .and_then(|document| document.style_summary.as_ref());
+        assert_eq!(
+            indexed.map(|summary| summary.selector_names.clone()),
+            Some(vec!["initial".to_string()]),
+        );
         let _ = std::fs::remove_dir_all(&workspace_root);
     }
 
