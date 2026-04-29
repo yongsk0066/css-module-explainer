@@ -1,5 +1,11 @@
 # Changelog
 
+## [4.1.20] — 2026-04-29
+
+### Changed
+
+- **Bundled tsgo probe runtime** — the TS 7 type-fact backend now resolves an extension-owned `tsgo` binary from `dist/bin/<platform>-<arch>` by default, packages the native compiler and lib files alongside the runner matrix, and exposes `cssModuleExplainer.typeFactBackend` for bundled tsgo, workspace tsgo, or current TypeScript.
+
 ## [4.1.19] — 2026-04-29
 
 ### Changed
