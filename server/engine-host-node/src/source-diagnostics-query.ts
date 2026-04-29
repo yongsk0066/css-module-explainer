@@ -298,123 +298,122 @@ async function resolveSourceDiagnosticFindingsViaRustSemanticsAsync(
     }
   }
 
-  for (const expression of entry.sourceDocument.classExpressions) {
-    if (expression.origin !== "cxCall") continue;
-    try {
-      const styleDocument = deps.styleDocumentForPath(expression.scssModulePath);
-      if (!styleDocument) continue;
+  const expressionFindings = await Promise.all(
+    entry.sourceDocument.classExpressions.map(
+      async (expression): Promise<SourceCheckerFinding[]> => {
+        if (expression.origin !== "cxCall") return [];
+        try {
+          const styleDocument = deps.styleDocumentForPath(expression.scssModulePath);
+          if (!styleDocument) return [];
 
-      if (expression.kind !== "symbolRef") {
-        const finding = findInvalidClassReference(expression, entry.sourceFile, styleDocument, {
-          typeResolver: deps.typeResolver,
-          filePath: params.filePath,
-          workspaceRoot: deps.workspaceRoot,
-          sourceBinder: entry.sourceBinder,
-          sourceBindingGraph: entry.sourceBindingGraph,
-        });
-        if (!finding) continue;
-        findings.push(mapInvalidClassFinding(finding, styleDocument.filePath));
-        continue;
-      }
+          if (expression.kind !== "symbolRef") {
+            const finding = findInvalidClassReference(expression, entry.sourceFile, styleDocument, {
+              typeResolver: deps.typeResolver,
+              filePath: params.filePath,
+              workspaceRoot: deps.workspaceRoot,
+              sourceBinder: entry.sourceBinder,
+              sourceBindingGraph: entry.sourceBindingGraph,
+            });
+            if (!finding) return [];
+            return [mapInvalidClassFinding(finding, styleDocument.filePath)];
+          }
 
-      const fallbackFinding = createFallbackFindingReader({
-        expression,
-        sourceFile: entry.sourceFile,
-        styleDocument,
-        sourceBinder: entry.sourceBinder,
-        sourceBindingGraph: entry.sourceBindingGraph,
-        deps,
-        filePath: params.filePath,
-      });
-      const payload = await readRustSemanticsPayload(
-        {
-          uri: params.documentUri,
-          content: params.content,
-          filePath: params.filePath,
-          version: params.version,
-        },
-        expression.id,
-        expression.scssModulePath,
-        deps,
-      );
-      if (!payload || !payload.styleFilePath) {
-        const fallback = fallbackFinding();
-        if (fallback) {
-          findings.push(mapInvalidClassFinding(fallback, styleDocument.filePath));
+          const fallbackFinding = createFallbackFindingReader({
+            expression,
+            sourceFile: entry.sourceFile,
+            styleDocument,
+            sourceBinder: entry.sourceBinder,
+            sourceBindingGraph: entry.sourceBindingGraph,
+            deps,
+            filePath: params.filePath,
+          });
+          const payload = await readRustSemanticsPayload(
+            {
+              uri: params.documentUri,
+              content: params.content,
+              filePath: params.filePath,
+              version: params.version,
+            },
+            expression.id,
+            expression.scssModulePath,
+            deps,
+          );
+          if (!payload || !payload.styleFilePath) {
+            const fallback = fallbackFinding();
+            return fallback ? [mapInvalidClassFinding(fallback, styleDocument.filePath)] : [];
+          }
+
+          const payloadStyleDocument = deps.styleDocumentForPath(payload.styleFilePath);
+          if (!payloadStyleDocument) {
+            const fallback = fallbackFinding();
+            return fallback ? [mapInvalidClassFinding(fallback, styleDocument.filePath)] : [];
+          }
+          const selectors =
+            payloadStyleDocument.selectors.filter((selector) =>
+              payload.selectorNames.includes(selector.name),
+            ) ?? [];
+          const semantics = buildExpressionSemanticsSummaryFromRustPayload(
+            expression,
+            payloadStyleDocument,
+            selectors,
+            payload,
+          );
+          if (!semantics.abstractValue || !semantics.reason || !semantics.valueCertainty) {
+            const fallback = fallbackFinding();
+            return fallback ? [mapInvalidClassFinding(fallback, styleDocument.filePath)] : [];
+          }
+
+          const finiteValues =
+            semantics.finiteValues ?? enumerateFiniteClassValues(semantics.abstractValue);
+          if (!finiteValues) {
+            if (semantics.selectors.length > 0) return [];
+            return [
+              {
+                category: "source",
+                code: "missing-resolved-class-domain",
+                severity: "warning",
+                range: expression.range,
+                scssModulePath: payloadStyleDocument.filePath,
+                abstractValue: semantics.abstractValue,
+                valueCertainty: semantics.valueCertainty,
+                selectorCertainty: semantics.selectorCertainty,
+                reason: semantics.reason,
+                ...(semantics.valueDomainDerivation
+                  ? { valueDomainDerivation: semantics.valueDomainDerivation }
+                  : {}),
+              },
+            ];
+          }
+
+          const missingValues = finiteValues.filter(
+            (value) => !payloadStyleDocument.selectors.some((selector) => selector.name === value),
+          );
+          if (missingValues.length === 0) return [];
+          return [
+            {
+              category: "source",
+              code: "missing-resolved-class-values",
+              severity: "warning",
+              range: expression.range,
+              scssModulePath: payloadStyleDocument.filePath,
+              missingValues,
+              abstractValue: semantics.abstractValue,
+              valueCertainty: semantics.valueCertainty,
+              selectorCertainty: semantics.selectorCertainty,
+              reason: semantics.reason,
+              ...(semantics.valueDomainDerivation
+                ? { valueDomainDerivation: semantics.valueDomainDerivation }
+                : {}),
+            },
+          ];
+        } catch (err) {
+          deps.logError("diagnostics per-call validation failed", err);
+          return [];
         }
-        continue;
-      }
-
-      const payloadStyleDocument = deps.styleDocumentForPath(payload.styleFilePath);
-      if (!payloadStyleDocument) {
-        const fallback = fallbackFinding();
-        if (fallback) {
-          findings.push(mapInvalidClassFinding(fallback, styleDocument.filePath));
-        }
-        continue;
-      }
-      const selectors =
-        payloadStyleDocument.selectors.filter((selector) =>
-          payload.selectorNames.includes(selector.name),
-        ) ?? [];
-      const semantics = buildExpressionSemanticsSummaryFromRustPayload(
-        expression,
-        payloadStyleDocument,
-        selectors,
-        payload,
-      );
-      if (!semantics.abstractValue || !semantics.reason || !semantics.valueCertainty) {
-        const fallback = fallbackFinding();
-        if (fallback) {
-          findings.push(mapInvalidClassFinding(fallback, styleDocument.filePath));
-        }
-        continue;
-      }
-
-      const finiteValues =
-        semantics.finiteValues ?? enumerateFiniteClassValues(semantics.abstractValue);
-      if (!finiteValues) {
-        if (semantics.selectors.length > 0) continue;
-        findings.push({
-          category: "source",
-          code: "missing-resolved-class-domain",
-          severity: "warning",
-          range: expression.range,
-          scssModulePath: payloadStyleDocument.filePath,
-          abstractValue: semantics.abstractValue,
-          valueCertainty: semantics.valueCertainty,
-          selectorCertainty: semantics.selectorCertainty,
-          reason: semantics.reason,
-          ...(semantics.valueDomainDerivation
-            ? { valueDomainDerivation: semantics.valueDomainDerivation }
-            : {}),
-        });
-        continue;
-      }
-
-      const missingValues = finiteValues.filter(
-        (value) => !payloadStyleDocument.selectors.some((selector) => selector.name === value),
-      );
-      if (missingValues.length === 0) continue;
-      findings.push({
-        category: "source",
-        code: "missing-resolved-class-values",
-        severity: "warning",
-        range: expression.range,
-        scssModulePath: payloadStyleDocument.filePath,
-        missingValues,
-        abstractValue: semantics.abstractValue,
-        valueCertainty: semantics.valueCertainty,
-        selectorCertainty: semantics.selectorCertainty,
-        reason: semantics.reason,
-        ...(semantics.valueDomainDerivation
-          ? { valueDomainDerivation: semantics.valueDomainDerivation }
-          : {}),
-      });
-    } catch (err) {
-      deps.logError("diagnostics per-call validation failed", err);
-    }
-  }
+      },
+    ),
+  );
+  findings.push(...expressionFindings.flat());
 
   return findings;
 }
