@@ -19,6 +19,11 @@ const initializeRequest = {
     capabilities: {},
   },
 };
+const initializedNotification = {
+  jsonrpc: "2.0",
+  method: "initialized",
+  params: {},
+};
 const didOpenSourceNotification = {
   jsonrpc: "2.0",
   method: "textDocument/didOpen",
@@ -139,6 +144,7 @@ const result = spawnSync(invocation.command, [...invocation.args], {
   cwd: process.cwd(),
   input: [
     initializeRequest,
+    initializedNotification,
     didOpenSourceNotification,
     didChangeSourceNotification,
     didOpenStyleNotification,

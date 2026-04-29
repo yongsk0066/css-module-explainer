@@ -177,6 +177,7 @@ pub fn lsp_handler_surfaces() -> Vec<LspHandlerSurfaceV0> {
         style_provider_handler("textDocument/codeLens"),
         style_provider_handler("textDocument/prepareRename"),
         style_provider_handler("textDocument/rename"),
+        runtime_handler("initialized"),
         runtime_handler("textDocument/didOpen"),
         runtime_handler("textDocument/didChange"),
         runtime_handler("textDocument/didClose"),
@@ -404,7 +405,6 @@ pub fn handle_lsp_message(state: &mut LspShellState, message: Value) -> Option<V
     match (method, id) {
         (Some("initialize"), Some(request_id)) => {
             initialize_workspace_folders(state, message.get("params"));
-            index_workspace_style_files(state);
             Some(json!({
                 "jsonrpc": "2.0",
                 "id": request_id,
@@ -415,6 +415,10 @@ pub fn handle_lsp_message(state: &mut LspShellState, message: Value) -> Option<V
                     },
                 },
             }))
+        }
+        (Some("initialized"), None) => {
+            index_workspace_style_files(state);
+            None
         }
         (Some("textDocument/didOpen"), None) => {
             did_open_text_document(state, message.get("params"));
@@ -4316,7 +4320,7 @@ mod tests {
     }
 
     #[test]
-    fn indexes_workspace_style_files_on_initialize() {
+    fn defers_workspace_style_file_index_until_initialized_notification() {
         let workspace_root = std::env::temp_dir().join(format!(
             "omena-lsp-server-initial-index-{}",
             std::process::id()
@@ -4354,6 +4358,20 @@ mod tests {
                         },
                     ],
                 },
+            }),
+        );
+
+        let not_indexed_yet = state
+            .document(style_uri.as_str())
+            .and_then(|document| document.style_summary.as_ref());
+        assert!(not_indexed_yet.is_none());
+
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "initialized",
+                "params": {},
             }),
         );
 

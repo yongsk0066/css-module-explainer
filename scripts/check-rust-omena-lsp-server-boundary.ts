@@ -63,6 +63,7 @@ assert.deepEqual(
     "textDocument/publishDiagnostics",
     "textDocument/references",
     "textDocument/rename",
+    "initialized",
     "workspace/didChangeConfiguration",
     "workspace/didChangeWatchedFiles",
     "workspace/didChangeWorkspaceFolders",
