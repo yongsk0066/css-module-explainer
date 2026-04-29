@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 
-export type ClientLspServerRuntimeSetting = "node" | "omena-lsp-server";
+export type ClientLspServerRuntimeSetting = "auto" | "node" | "omena-lsp-server";
 
 export interface OmenaLspServerRuntimeSelection {
   readonly runtime: "omena-lsp-server";
@@ -28,7 +28,8 @@ export function buildRustLspFileWatcherGlobs(): readonly string[] {
 
 export function readClientLspServerRuntimeSetting(value: unknown): ClientLspServerRuntimeSetting {
   if (value === "omena-lsp-server") return "omena-lsp-server";
-  return "node";
+  if (value === "node") return "node";
+  return "auto";
 }
 
 export function resolveLspServerRuntimeSelection(
@@ -37,11 +38,14 @@ export function resolveLspServerRuntimeSelection(
   env: NodeJS.ProcessEnv = process.env,
   fileExists: (path: string) => boolean = existsSync,
 ): LspServerRuntimeSelection {
-  if (runtime !== "omena-lsp-server") {
+  if (runtime === "node") {
     return { runtime: "node" };
   }
 
   const command = resolveOmenaLspServerPath(extensionRoot, env, fileExists);
+  if (runtime === "auto" && !command) {
+    return { runtime: "node" };
+  }
   if (!command) {
     throw new Error(
       [

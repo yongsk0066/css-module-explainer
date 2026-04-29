@@ -11,7 +11,10 @@ import {
   resolveTsgoBinaryPathForEnv,
 } from "../server/engine-host-node/src/tsgo-probe-type-resolver";
 import { buildTsgoTypeFactWorkerInvocation } from "../server/engine-host-node/src/tsgo-type-fact-collector";
-import { resolveOmenaLspServerPath } from "../client/src/lsp-server-runtime-config";
+import {
+  resolveLspServerRuntimeSelection,
+  resolveOmenaLspServerPath,
+} from "../client/src/lsp-server-runtime-config";
 
 const repoRoot = process.cwd();
 const vsixFiles = readdirSync(repoRoot).filter((file) => file.endsWith(".vsix"));
@@ -131,6 +134,22 @@ if (!packagedOmenaLspServerPath || !fileExists(packagedOmenaLspServerPath)) {
     }`,
   );
 }
+const packagedLspRuntime = resolveLspServerRuntimeSelection(
+  "auto",
+  packagedRoot,
+  packagedEnv,
+  fileExists,
+);
+if (
+  packagedLspRuntime.runtime !== "omena-lsp-server" ||
+  packagedLspRuntime.command !== packagedOmenaLspServerPath
+) {
+  throw new Error(
+    `Expected packaged auto LSP runtime to use ${packagedOmenaLspServerPath}, got ${JSON.stringify(
+      packagedLspRuntime,
+    )}`,
+  );
+}
 
 const tsgoInvocation = buildTsgoProbeInvocation(
   packagedRoot,
@@ -195,7 +214,9 @@ if (explicitTypescriptBackend !== "typescript-current") {
   );
 }
 
-console.log(`Packaged selected-query default ok: ${vsixFile} -> ${defaultBackend} daemon=on`);
+console.log(
+  `Packaged selected-query default ok: ${vsixFile} -> ${defaultBackend} daemon=on lsp=${packagedLspRuntime.runtime}`,
+);
 
 function readVsixEntries(filePath: string): ReadonlySet<string> {
   const output = execFileSync("unzip", ["-Z1", filePath], {

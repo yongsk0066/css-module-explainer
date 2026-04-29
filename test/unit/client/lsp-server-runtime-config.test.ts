@@ -8,13 +8,19 @@ import {
 } from "../../../client/src/lsp-server-runtime-config";
 
 describe("client LSP server runtime config", () => {
-  it("defaults invalid runtime settings to the Node server", () => {
-    expect(readClientLspServerRuntimeSetting("future")).toBe("node");
-    expect(readClientLspServerRuntimeSetting(undefined)).toBe("node");
+  it("defaults invalid runtime settings to auto runtime selection", () => {
+    expect(readClientLspServerRuntimeSetting("future")).toBe("auto");
+    expect(readClientLspServerRuntimeSetting(undefined)).toBe("auto");
   });
 
-  it("keeps the Node server as the default runtime selection", () => {
+  it("keeps the Node server for explicit Node runtime selection", () => {
     expect(resolveLspServerRuntimeSelection("node", "/repo")).toEqual({ runtime: "node" });
+  });
+
+  it("falls back to the Node server for auto runtime selection without a Rust binary", () => {
+    expect(resolveLspServerRuntimeSelection("auto", "/repo", {}, () => false)).toEqual({
+      runtime: "node",
+    });
   });
 
   it("resolves an explicit omena-lsp-server binary path", () => {
@@ -42,11 +48,8 @@ describe("client LSP server runtime config", () => {
 
   it("selects the packaged omena-lsp-server binary when available", () => {
     const extensionRoot = path.resolve("/repo");
-    const selected = resolveLspServerRuntimeSelection(
-      "omena-lsp-server",
-      extensionRoot,
-      {},
-      (candidate) => candidate.includes(path.join("dist", "bin")),
+    const selected = resolveLspServerRuntimeSelection("auto", extensionRoot, {}, (candidate) =>
+      candidate.includes(path.join("dist", "bin")),
     );
 
     expect(selected).toMatchObject({

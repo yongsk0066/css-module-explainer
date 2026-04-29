@@ -329,11 +329,12 @@
         "cssModuleExplainer.lspServerRuntime": {
           "type": "string",
           "enum": [
+            "auto",
             "node",
             "omena-lsp-server"
           ],
-          "default": "node",
-          "markdownDescription": "Language-server runtime. `node` uses the mature TypeScript LSP server. `omena-lsp-server` runs the Rust stdio server when the bundled or explicit `CME_OMENA_LSP_SERVER_PATH` binary is available."
+          "default": "auto",
+          "markdownDescription": "Language-server runtime. `auto` uses the bundled Rust `omena-lsp-server` when available and falls back to the Node server in source checkouts without a built binary. `node` forces the TypeScript LSP server. `omena-lsp-server` requires the bundled or explicit `CME_OMENA_LSP_SERVER_PATH` binary."
         },
         "cssModuleExplainer.pathAlias": {
           "type": "object",
