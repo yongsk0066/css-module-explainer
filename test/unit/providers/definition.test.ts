@@ -1,16 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 import type ts from "typescript";
 import type { CxBinding } from "../../../server/engine-core-ts/src/core/cx/cx-types";
+import { parseStyleDocument } from "../../../server/engine-core-ts/src/core/scss/scss-parser";
 import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
 import type { ProviderDeps } from "../../../server/lsp-server/src/providers/cursor-dispatch";
 import { handleDefinition } from "../../../server/lsp-server/src/providers/definition";
+import type { RustSelectedQueryBackendJsonRunnerAsync } from "../../../server/engine-host-node/src/selected-query-backend";
 import {
   cursorFixture,
   scenario,
   workspace,
   type CmeWorkspace,
-  type Range,
 } from "../../../packages/vitest-cme/src";
 import {
   EMPTY_ALIAS_RESOLVER,
@@ -18,6 +19,7 @@ import {
   info,
   makeBaseDeps,
 } from "../../_fixtures/test-helpers";
+import { makeDesignTokenDefinitionGraph } from "../../_fixtures/style-semantic-graph";
 
 const SOURCE_PATH = "/fake/src/Button.tsx";
 const SOURCE_URI = "file:///fake/src/Button.tsx";
@@ -200,6 +202,65 @@ const el = cx(/*<class>*/\`btn-/*|*/\${variant}\`/*</class>*/);
     expect(result).not.toBeNull();
     expect(result).toHaveLength(2);
     expect(result!.every((l) => l.targetUri.startsWith("file://"))).toBe(true);
+  });
+
+  it("uses the async Rust design-token winner path for style definitions", async () => {
+    const previousBackend = process.env.CME_SELECTED_QUERY_BACKEND;
+    process.env.CME_SELECTED_QUERY_BACKEND = "rust-selected-query";
+    try {
+      const winnerPath = "/fake/src/generated.tokens.css";
+      const winnerRange = {
+        start: { line: 3, character: 8 },
+        end: { line: 3, character: 15 },
+      };
+      const styleWorkspace = workspace({
+        [STYLE_PATH]: `.button {
+  color: var(--br/*|*/and);
+}
+`,
+      });
+      const styleDocument = parseStyleDocument(styleWorkspace.file(STYLE_PATH).content, STYLE_PATH);
+      const runner: RustSelectedQueryBackendJsonRunnerAsync = async <T>() =>
+        makeDesignTokenDefinitionGraph({
+          referenceName: "--brand",
+          winnerDeclarationFilePath: winnerPath,
+          winnerDeclarationRange: winnerRange,
+        }) as T;
+      const deps = makeBaseDeps({
+        styleDocumentForPath: (filePath) => (filePath === STYLE_PATH ? styleDocument : null),
+        readStyleFile: (filePath) =>
+          filePath === STYLE_PATH ? styleWorkspace.file(STYLE_PATH).content : null,
+        workspaceRoot: "/fake",
+        runRustSelectedQueryBackendJsonAsync: runner,
+      } as Partial<ProviderDeps> & {
+        readonly runRustSelectedQueryBackendJsonAsync: RustSelectedQueryBackendJsonRunnerAsync;
+      });
+
+      const result = await handleDefinition(
+        cursorFixture({
+          workspace: styleWorkspace,
+          filePath: STYLE_PATH,
+          documentUri: "file:///fake/src/Button.module.scss",
+          markerName: "cursor",
+          version: 1,
+        }),
+        deps,
+      );
+
+      expect(result).toEqual([
+        expect.objectContaining({
+          targetUri: "file:///fake/src/generated.tokens.css",
+          targetRange: winnerRange,
+          targetSelectionRange: winnerRange,
+        }),
+      ]);
+    } finally {
+      if (previousBackend === undefined) {
+        delete process.env.CME_SELECTED_QUERY_BACKEND;
+      } else {
+        process.env.CME_SELECTED_QUERY_BACKEND = previousBackend;
+      }
+    }
   });
 
   it("logs and returns null when the underlying transform raises", () => {

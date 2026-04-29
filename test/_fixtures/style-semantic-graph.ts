@@ -1,0 +1,116 @@
+import type { Range } from "@css-module-explainer/shared";
+import type { StyleSemanticGraphSummaryV0 } from "../../server/engine-host-node/src/style-semantic-graph-query-backend";
+
+export function makeDesignTokenDefinitionGraph(args: {
+  readonly referenceName: string;
+  readonly winnerDeclarationFilePath: string;
+  readonly winnerDeclarationRange: Range;
+  readonly stylePath?: string;
+}): StyleSemanticGraphSummaryV0 {
+  return {
+    schemaVersion: "0",
+    product: "omena-semantic.style-semantic-graph",
+    language: "scss",
+    parserFacts: {},
+    semanticFacts: {},
+    designTokenSemantics: {
+      schemaVersion: "0",
+      product: "omena-semantic.design-token-semantics",
+      status: "cross-file-import-cascade-ranking-seed",
+      resolutionScope: "cross-file-import-candidate",
+      declarationCount: 1,
+      referenceCount: 1,
+      resolvedReferenceCount: 1,
+      unresolvedReferenceCount: 0,
+      selectorsWithReferencesCount: 1,
+      contextSignal: {
+        declarationContextSelectorCount: 1,
+        declarationWrapperContextCount: 0,
+        mediaContextSelectorCount: 0,
+        supportsContextSelectorCount: 0,
+        layerContextSelectorCount: 0,
+        wrapperContextCount: 0,
+      },
+      resolutionSignal: {
+        declarationFactCount: 0,
+        referenceFactCount: 1,
+        sourceOrderedDeclarationCount: 0,
+        sourceOrderedReferenceCount: 1,
+        occurrenceResolvedReferenceCount: 1,
+        occurrenceUnresolvedReferenceCount: 0,
+        workspaceDeclarationFactCount: 1,
+        crossFileDeclarationFactCount: 1,
+        workspaceOccurrenceResolvedReferenceCount: 1,
+        workspaceOccurrenceUnresolvedReferenceCount: 0,
+        contextMatchedReferenceCount: 1,
+        contextUnmatchedReferenceCount: 0,
+        rootDeclarationCount: 1,
+        selectorScopedDeclarationCount: 0,
+        wrapperScopedDeclarationCount: 0,
+      },
+      cascadeRankingSignal: {
+        rankedReferenceCount: 1,
+        unrankedReferenceCount: 0,
+        sourceOrderWinnerDeclarationCount: 1,
+        sourceOrderShadowedDeclarationCount: 0,
+        repeatedNameDeclarationCount: 1,
+        crossFileCandidateDeclarationCount: 1,
+        crossFileWinnerDeclarationCount: 1,
+        crossFileShadowedDeclarationCount: 0,
+        rankedReferences: [
+          {
+            referenceName: args.referenceName,
+            referenceSourceOrder: 0,
+            winnerDeclarationSourceOrder: 0,
+            winnerDeclarationFilePath: args.winnerDeclarationFilePath,
+            winnerDeclarationRange: args.winnerDeclarationRange,
+            shadowedDeclarationSourceOrders: [],
+            candidateDeclarationCount: 1,
+            crossFileCandidateDeclarationCount: 1,
+            crossFileShadowedDeclarationCount: 0,
+          },
+        ],
+      },
+      capabilities: {
+        sameFileResolutionReady: true,
+        wrapperContextSignalReady: true,
+        sourceOrderSignalReady: true,
+        sourceOrderCascadeRankingReady: true,
+        workspaceCascadeCandidateSignalReady: true,
+        occurrenceResolutionSignalReady: true,
+        selectorContextResolutionReady: true,
+        themeOverrideContextSignalReady: true,
+        crossFileImportGraphReady: true,
+        crossPackageCascadeRankingReady: false,
+        themeOverrideContextReady: false,
+      },
+      blockingGaps: ["crossPackageCascadeRanking", "themeOverrideContext"],
+      nextPriorities: ["crossPackageCascadeRanking", "themeOverrideContext"],
+    },
+    selectorIdentityEngine: {
+      schemaVersion: "0",
+      product: "omena-semantic.selector-identity",
+      canonicalIdCount: 0,
+      canonicalIds: [],
+      rewriteSafety: {
+        allCanonicalIdsRewriteSafe: true,
+        safeCanonicalIds: [],
+        blockedCanonicalIds: [],
+        blockers: [],
+      },
+    },
+    selectorReferenceEngine: {
+      schemaVersion: "0",
+      product: "omena-semantic.selector-references",
+      stylePath: args.stylePath ?? null,
+      selectorCount: 0,
+      referencedSelectorCount: 0,
+      unreferencedSelectorCount: 0,
+      totalReferenceSites: 0,
+      selectors: [],
+    },
+    sourceInputEvidence: {},
+    promotionEvidence: {},
+    losslessCstContract: {},
+  };
+}

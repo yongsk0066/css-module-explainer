@@ -7,7 +7,10 @@ import {
   resolveSourceExpressionDefinitionTargetsAsync,
 } from "../../../engine-host-node/src/source-definition-query";
 import type { RustSelectedQueryBackendJsonRunnerAsync } from "../../../engine-host-node/src/selected-query-backend";
-import { resolveStyleDefinitionTargets } from "../../../engine-host-node/src/style-definition-query";
+import {
+  resolveStyleDefinitionTargets,
+  resolveStyleDefinitionTargetsAsync,
+} from "../../../engine-host-node/src/style-definition-query";
 import { toLspRange } from "./lsp-adapters";
 import { wrapHandler } from "./_wrap-handler";
 import { withSourceExpressionAtCursor, type SourceExpressionContext } from "./cursor-dispatch";
@@ -38,10 +41,11 @@ import type { CursorParams, ProviderDeps } from "./provider-deps";
 export const handleDefinition = wrapHandler<CursorParams, [], LocationLink[] | null>(
   "definition",
   (params, deps) => {
+    const rustRunner = getRustSelectedQueryBackendJsonRunnerAsync(deps);
     if (findLangForPath(params.filePath)) {
+      if (rustRunner) return buildStyleDefinitionAsync(params, deps, rustRunner);
       return buildStyleDefinition(params, deps);
     }
-    const rustRunner = getRustSelectedQueryBackendJsonRunnerAsync(deps);
     if (rustRunner) {
       return withSourceExpressionAtCursor(params, deps, (ctx) =>
         buildLinksAsync(ctx, params, deps, rustRunner),
@@ -105,6 +109,25 @@ function toLocationLinkFromTarget(
 
 function buildStyleDefinition(params: CursorParams, deps: ProviderDeps): LocationLink[] | null {
   const targets = resolveStyleDefinitionTargets(params, deps);
+  if (targets.length === 0) return null;
+  return targets.map((target) =>
+    toLocationLinkFromTarget(
+      target.originRange,
+      pathToFileUrl(target.targetFilePath),
+      target.targetRange,
+      target.targetSelectionRange,
+    ),
+  );
+}
+
+async function buildStyleDefinitionAsync(
+  params: CursorParams,
+  deps: ProviderDeps,
+  rustRunner: RustSelectedQueryBackendJsonRunnerAsync,
+): Promise<LocationLink[] | null> {
+  const targets = await resolveStyleDefinitionTargetsAsync(params, deps, {
+    runRustSelectedQueryBackendJsonAsync: rustRunner,
+  });
   if (targets.length === 0) return null;
   return targets.map((target) =>
     toLocationLinkFromTarget(

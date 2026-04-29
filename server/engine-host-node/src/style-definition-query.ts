@@ -2,6 +2,7 @@ import type { Range } from "@css-module-explainer/shared";
 import type { StyleDocumentHIR } from "../../engine-core-ts/src/core/hir/style-types";
 import {
   buildStyleSemanticGraphDesignTokenRankedReferenceReadModels,
+  resolveRustStyleSemanticGraphForWorkspaceTargetAsync,
   resolveRustStyleSemanticGraphForWorkspaceTarget,
   type StyleSemanticGraphCache,
   type StyleSemanticGraphQueryOptions,
@@ -42,10 +43,16 @@ export interface StyleDefinitionTarget {
 
 export interface StyleDefinitionQueryOptions extends Pick<
   StyleSemanticGraphQueryOptions,
-  "engineInput" | "sourceDocuments" | "styleFiles" | "styleSemanticGraphCache"
+  | "engineInput"
+  | "sourceDocuments"
+  | "styleFiles"
+  | "styleSemanticGraphCache"
+  | "runRustSelectedQueryBackendJson"
+  | "runRustSelectedQueryBackendJsonAsync"
 > {
   readonly env?: NodeJS.ProcessEnv;
   readonly readRustStyleSemanticGraphForWorkspaceTarget?: typeof resolveRustStyleSemanticGraphForWorkspaceTarget;
+  readonly readRustStyleSemanticGraphForWorkspaceTargetAsync?: typeof resolveRustStyleSemanticGraphForWorkspaceTargetAsync;
 }
 
 type StyleDefinitionDeps = Pick<
@@ -207,6 +214,38 @@ export function resolveStyleDefinitionTargets(
     : [];
 }
 
+export async function resolveStyleDefinitionTargetsAsync(
+  params: Pick<CursorParams, "filePath" | "line" | "character">,
+  deps: StyleDefinitionDeps,
+  options: StyleDefinitionQueryOptions = {},
+): Promise<readonly StyleDefinitionTarget[]> {
+  const styleDocument = deps.styleDocumentForPath(params.filePath);
+  if (!styleDocument) return [];
+
+  const customPropertyRef = findCustomPropertyRefAtCursor(
+    styleDocument,
+    params.line,
+    params.character,
+  );
+  if (!customPropertyRef) {
+    return resolveStyleDefinitionTargets(params, deps, options);
+  }
+
+  const rustTarget = await resolveCustomPropertyDefinitionTargetFromRustRankingAsync(
+    params.filePath,
+    styleDocument,
+    customPropertyRef,
+    deps,
+    options,
+  );
+  if (rustTarget) return [rustTarget];
+
+  return resolveStyleDefinitionTargets(params, deps, {
+    ...options,
+    readRustStyleSemanticGraphForWorkspaceTarget: () => null,
+  });
+}
+
 function resolveCustomPropertyDefinitionTargetFromRustRanking(
   filePath: string,
   styleDocument: StyleDocumentHIR,
@@ -219,6 +258,34 @@ function resolveCustomPropertyDefinitionTargetFromRustRanking(
   }
 
   const graph = safeResolveRustStyleSemanticGraphForDefinition(filePath, deps, options);
+  if (!graph) return null;
+
+  const ranking = buildStyleSemanticGraphDesignTokenRankedReferenceReadModels(
+    graph,
+    styleDocument,
+  ).find((readModel) => readModel.reference === customPropertyRef);
+  if (!ranking?.winnerDeclarationFilePath || !ranking.winnerDeclarationRange) return null;
+
+  return {
+    originRange: customPropertyRef.range,
+    targetFilePath: ranking.winnerDeclarationFilePath,
+    targetRange: ranking.winnerDeclarationRange,
+    targetSelectionRange: ranking.winnerDeclarationRange,
+  };
+}
+
+async function resolveCustomPropertyDefinitionTargetFromRustRankingAsync(
+  filePath: string,
+  styleDocument: StyleDocumentHIR,
+  customPropertyRef: NonNullable<ReturnType<typeof findCustomPropertyRefAtCursor>>,
+  deps: StyleDefinitionDeps,
+  options: StyleDefinitionQueryOptions,
+): Promise<StyleDefinitionTarget | null> {
+  if (!usesRustStyleSemanticGraphBackend(resolveSelectedQueryBackendKind(options.env))) {
+    return null;
+  }
+
+  const graph = await safeResolveRustStyleSemanticGraphForDefinitionAsync(filePath, deps, options);
   if (!graph) return null;
 
   const ranking = buildStyleSemanticGraphDesignTokenRankedReferenceReadModels(
@@ -248,6 +315,34 @@ function safeResolveRustStyleSemanticGraphForDefinition(
     return (
       options.readRustStyleSemanticGraphForWorkspaceTarget ??
       resolveRustStyleSemanticGraphForWorkspaceTarget
+    )(
+      {
+        workspaceRoot: deps.workspaceRoot,
+        classnameTransform: deps.settings.scss.classnameTransform,
+        pathAlias: deps.settings.pathAlias,
+      },
+      deps,
+      filePath,
+      queryOptions,
+    );
+  } catch {
+    return null;
+  }
+}
+
+async function safeResolveRustStyleSemanticGraphForDefinitionAsync(
+  filePath: string,
+  deps: StyleDefinitionDeps,
+  options: StyleDefinitionQueryOptions,
+): Promise<StyleSemanticGraphSummaryV0 | null> {
+  const queryOptions =
+    options.styleSemanticGraphCache || !deps.styleSemanticGraphCache
+      ? options
+      : { ...options, styleSemanticGraphCache: deps.styleSemanticGraphCache };
+  try {
+    return await (
+      options.readRustStyleSemanticGraphForWorkspaceTargetAsync ??
+      resolveRustStyleSemanticGraphForWorkspaceTargetAsync
     )(
       {
         workspaceRoot: deps.workspaceRoot,
