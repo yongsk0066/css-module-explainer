@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.1.13] — 2026-04-29
+
+### Fixed
+
+- **CSS custom property completion source ranking** — `var(--...)` completions now prefer local declarations, then explicitly imported style-token modules, then workspace-indexed fallbacks when duplicate token names exist.
+- **CSS custom property completion context filtering** — media/theme-specific custom property declarations no longer override root completions when the current selector or wrapper context does not match.
+
 ## [4.1.12] — 2026-04-29
 
 ### Fixed
