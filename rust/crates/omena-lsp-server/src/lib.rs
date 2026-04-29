@@ -286,21 +286,33 @@ pub struct LspWorkspaceFolderState {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct LspWatchedFileChangeState {
+    pub uri: String,
+    pub change_type: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LspShellStateSnapshot {
     pub shutdown_requested: bool,
     pub should_exit: bool,
     pub document_count: usize,
     pub workspace_folder_count: usize,
+    pub configuration_change_count: usize,
+    pub watched_file_event_count: usize,
     pub documents: Vec<LspTextDocumentState>,
     pub workspace_folders: Vec<LspWorkspaceFolderState>,
+    pub watched_file_changes: Vec<LspWatchedFileChangeState>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct LspShellState {
     pub shutdown_requested: bool,
     pub should_exit: bool,
+    configuration_change_count: usize,
     documents: BTreeMap<String, LspTextDocumentState>,
     workspace_folders: BTreeMap<String, LspWorkspaceFolderState>,
+    watched_file_changes: Vec<LspWatchedFileChangeState>,
 }
 
 impl LspShellState {
@@ -326,8 +338,11 @@ impl LspShellState {
             should_exit: self.should_exit,
             document_count: self.document_count(),
             workspace_folder_count: self.workspace_folder_count(),
+            configuration_change_count: self.configuration_change_count,
+            watched_file_event_count: self.watched_file_changes.len(),
             documents: self.documents.values().cloned().collect(),
             workspace_folders: self.workspace_folders.values().cloned().collect(),
+            watched_file_changes: self.watched_file_changes.clone(),
         }
     }
 }
@@ -364,6 +379,14 @@ pub fn handle_lsp_message(state: &mut LspShellState, message: Value) -> Option<V
         }
         (Some("workspace/didChangeWorkspaceFolders"), None) => {
             did_change_workspace_folders(state, message.get("params"));
+            None
+        }
+        (Some("workspace/didChangeConfiguration"), None) => {
+            did_change_configuration(state);
+            None
+        }
+        (Some("workspace/didChangeWatchedFiles"), None) => {
+            did_change_watched_files(state, message.get("params"));
             None
         }
         (Some("textDocument/hover"), Some(request_id)) => Some(json!({
@@ -610,6 +633,29 @@ fn did_change_workspace_folders(state: &mut LspShellState, params: Option<&Value
         }
     }
     refresh_document_workspace_owners(state);
+}
+
+fn did_change_configuration(state: &mut LspShellState) {
+    state.configuration_change_count += 1;
+}
+
+fn did_change_watched_files(state: &mut LspShellState, params: Option<&Value>) {
+    let Some(changes) = params
+        .and_then(|value| value.get("changes"))
+        .and_then(Value::as_array)
+    else {
+        return;
+    };
+    for change in changes {
+        let Some(uri) = change.get("uri").and_then(Value::as_str) else {
+            continue;
+        };
+        let change_type = change.get("type").and_then(Value::as_u64).unwrap_or(0);
+        state.watched_file_changes.push(LspWatchedFileChangeState {
+            uri: uri.to_string(),
+            change_type,
+        });
+    }
 }
 
 fn insert_workspace_folder(state: &mut LspShellState, folder: &Value) {

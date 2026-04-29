@@ -87,6 +87,29 @@ const didChangeWorkspaceFoldersNotification = {
     },
   },
 };
+const didChangeConfigurationNotification = {
+  jsonrpc: "2.0",
+  method: "workspace/didChangeConfiguration",
+  params: {
+    settings: {
+      cssModuleExplainer: {
+        lspServerRuntime: "omena-lsp-server",
+      },
+    },
+  },
+};
+const didChangeWatchedFilesNotification = {
+  jsonrpc: "2.0",
+  method: "workspace/didChangeWatchedFiles",
+  params: {
+    changes: [
+      {
+        uri: "file:///tmp/cme-rust-lsp-shell/src/App.module.scss",
+        type: 2,
+      },
+    ],
+  },
+};
 const debugStateRequest = {
   jsonrpc: "2.0",
   id: 3,
@@ -118,6 +141,8 @@ const result = spawnSync(invocation.command, [...invocation.args], {
     debugStateRequest,
     didCloseStyleNotification,
     didChangeWorkspaceFoldersNotification,
+    didChangeConfigurationNotification,
+    didChangeWatchedFilesNotification,
     debugPostRuntimeChangeRequest,
     shutdownRequest,
     exitNotification,
@@ -175,6 +200,8 @@ const debugStateResponse = responses[1]!;
 assert.equal(debugStateResponse.id, 3);
 assert.equal(debugStateResponse.result.documentCount, 2);
 assert.equal(debugStateResponse.result.workspaceFolderCount, 1);
+assert.equal(debugStateResponse.result.configurationChangeCount, 0);
+assert.equal(debugStateResponse.result.watchedFileEventCount, 0);
 assert.deepEqual(debugStateResponse.result.documents, [
   {
     uri: "file:///tmp/cme-rust-lsp-shell/src/App.module.scss",
@@ -207,11 +234,14 @@ assert.deepEqual(debugStateResponse.result.workspaceFolders, [
     name: "cme-rust-lsp-shell",
   },
 ]);
+assert.deepEqual(debugStateResponse.result.watchedFileChanges, []);
 
 const runtimeChangeResponse = responses[2]!;
 assert.equal(runtimeChangeResponse.id, 4);
 assert.equal(runtimeChangeResponse.result.documentCount, 1);
 assert.equal(runtimeChangeResponse.result.workspaceFolderCount, 1);
+assert.equal(runtimeChangeResponse.result.configurationChangeCount, 1);
+assert.equal(runtimeChangeResponse.result.watchedFileEventCount, 1);
 assert.deepEqual(runtimeChangeResponse.result.documents, [
   {
     uri: "file:///tmp/cme-rust-lsp-shell/src/App.tsx",
@@ -228,6 +258,12 @@ assert.deepEqual(runtimeChangeResponse.result.workspaceFolders, [
     name: "cme-rust-lsp-shell-next",
   },
 ]);
+assert.deepEqual(runtimeChangeResponse.result.watchedFileChanges, [
+  {
+    uri: "file:///tmp/cme-rust-lsp-shell/src/App.module.scss",
+    changeType: 2,
+  },
+]);
 
 const shutdownResponse = responses[3]!;
 assert.equal(shutdownResponse.id, 5);
@@ -241,6 +277,8 @@ process.stdout.write(
     `diagnosticNotifications=${diagnosticNotifications.length}`,
     `documents=${runtimeChangeResponse.result.documentCount}`,
     `workspaceFolders=${runtimeChangeResponse.result.workspaceFolderCount}`,
+    `configurationChanges=${runtimeChangeResponse.result.configurationChangeCount}`,
+    `watchedFileEvents=${runtimeChangeResponse.result.watchedFileEventCount}`,
     `styleSelectors=${debugStateResponse.result.documents[0].styleSummary.selectorNames.length}`,
     `textDocumentSync=${initializeResponse.result.capabilities.textDocumentSync}`,
   ].join(" "),
