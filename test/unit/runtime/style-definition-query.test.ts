@@ -18,6 +18,8 @@ const PACKAGE_TOKENS_JSON_PATH = `${PACKAGE_TOKENS_ROOT}/package.json`;
 const PACKAGE_TOKENS_INDEX_PATH = `${PACKAGE_TOKENS_ROOT}/src/index.scss`;
 const PACKAGE_TOKENS_COLORS_ENTRY_PATH = `${PACKAGE_TOKENS_ROOT}/src/colors.scss`;
 const PACKAGE_TOKENS_TYPOGRAPHY_ENTRY_PATH = `${PACKAGE_TOKENS_ROOT}/src/typography.scss`;
+const PACKAGE_TOKENS_SRC_COLORS_PARTIAL_PATH = `${PACKAGE_TOKENS_ROOT}/src/_colors.scss`;
+const PACKAGE_TOKENS_SRC_TYPOGRAPHY_PARTIAL_PATH = `${PACKAGE_TOKENS_ROOT}/src/_typography.scss`;
 const PACKAGE_COLORS_PATH = "/fake/workspace/node_modules/@design/tokens/_colors.scss";
 const PACKAGE_VARIABLES_CSS_PATH = "/fake/workspace/node_modules/@design/tokens/variables.css";
 const PACKAGE_TYPOGRAPHY_PATH = "/fake/workspace/node_modules/@design/tokens/_typography.scss";
@@ -851,6 +853,46 @@ $secret: 2rem;
       targetSelectionRange: {
         start: { line: 1, character: 7 },
         end: { line: 1, character: 19 },
+      },
+    });
+  });
+
+  it("resolves prefixed Sass members through package-root internal forward chains", () => {
+    const ws = styleWorkspace({
+      [BUTTON_PATH]: `@use "utils" as *;
+
+.title {
+  color: $ds_g/*at:variable*/ray700;
+  @include ds_t/*at:mixin*/ypography16;
+}
+`,
+      [UTILS_PATH]: `@forward "@design/tokens" as ds_*;`,
+      [PACKAGE_TOKENS_JSON_PATH]: `{"sass":"src/index.scss"}`,
+      [PACKAGE_TOKENS_INDEX_PATH]: `@forward "./colors";
+@forward "./typography";
+`,
+      [PACKAGE_TOKENS_SRC_COLORS_PARTIAL_PATH]: `$gray700: #767678;`,
+      [PACKAGE_TOKENS_SRC_TYPOGRAPHY_PARTIAL_PATH]: `@mixin typography16 {}`,
+    });
+    const deps = styleDeps(ws);
+
+    const variableTargets = resolveStyleDefinitionTargets(styleTarget(ws, "variable"), deps);
+    expect(variableTargets).toHaveLength(1);
+    expect(variableTargets[0]).toMatchObject({
+      targetFilePath: PACKAGE_TOKENS_SRC_COLORS_PARTIAL_PATH,
+      targetSelectionRange: {
+        start: { line: 0, character: 0 },
+        end: { line: 0, character: 8 },
+      },
+    });
+
+    const mixinTargets = resolveStyleDefinitionTargets(styleTarget(ws, "mixin"), deps);
+    expect(mixinTargets).toHaveLength(1);
+    expect(mixinTargets[0]).toMatchObject({
+      targetFilePath: PACKAGE_TOKENS_SRC_TYPOGRAPHY_PARTIAL_PATH,
+      targetSelectionRange: {
+        start: { line: 0, character: 7 },
+        end: { line: 0, character: 19 },
       },
     });
   });

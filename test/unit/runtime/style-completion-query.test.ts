@@ -681,6 +681,57 @@ $secret: 2rem;
     ).toEqual(["ds_typography16"]);
   });
 
+  it("returns prefixed completions through package-root internal forward chains", () => {
+    const scss = `@use "utils" as *;
+
+.title {
+  color: $ds_;
+  @include ds_typo;
+}
+`;
+    const utilsScss = `@forward "@design/tokens" as ds_*;`;
+    const indexScss = `@forward "./colors";
+@forward "./typography";
+`;
+    const colorsScss = `$gray700: #767678;`;
+    const typographyScss = `@mixin typography16 {}`;
+    const styleDocument = parseStyleDocument(scss, SCSS_PATH);
+    const utilsDocument = parseStyleDocument(utilsScss, "/fake/src/_utils.scss");
+    const indexDocument = parseStyleDocument(indexScss, PACKAGE_TOKENS_INDEX_PATH);
+    const colorsDocument = parseStyleDocument(colorsScss, PACKAGE_COLORS_SCSS_PATH);
+    const typographyDocument = parseStyleDocument(typographyScss, PACKAGE_TYPOGRAPHY_SCSS_PATH);
+    const styleDocumentForPath = styleDocumentMap([
+      styleDocument,
+      utilsDocument,
+      indexDocument,
+      colorsDocument,
+      typographyDocument,
+    ]);
+    const readFile = (filePath: string) =>
+      filePath === PACKAGE_TOKENS_JSON_PATH ? `{"sass":"src/index.scss"}` : null;
+
+    expect(
+      resolveStyleCompletionItems({
+        content: scss,
+        line: 3,
+        character: 13,
+        styleDocument,
+        styleDocumentForPath,
+        readFile,
+      }).map((item) => item.label),
+    ).toEqual(["$ds_gray700"]);
+    expect(
+      resolveStyleCompletionItems({
+        content: scss,
+        line: 4,
+        character: 18,
+        styleDocument,
+        styleDocumentForPath,
+        readFile,
+      }).map((item) => item.label),
+    ).toEqual(["ds_typography16"]);
+  });
+
   it("keeps Sass parameter variables local to their callable body", () => {
     const scss = `$gap: 1rem;
 @mixin raised($depth) {

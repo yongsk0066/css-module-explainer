@@ -19,6 +19,8 @@ const PACKAGE_TOKENS_JSON_PATH = `${PACKAGE_TOKENS_ROOT}/package.json`;
 const PACKAGE_TOKENS_INDEX_PATH = `${PACKAGE_TOKENS_ROOT}/src/index.scss`;
 const PACKAGE_TOKENS_COLORS_ENTRY_PATH = `${PACKAGE_TOKENS_ROOT}/src/colors.scss`;
 const PACKAGE_TOKENS_TYPOGRAPHY_ENTRY_PATH = `${PACKAGE_TOKENS_ROOT}/src/typography.scss`;
+const PACKAGE_TOKENS_SRC_COLORS_PARTIAL_PATH = `${PACKAGE_TOKENS_ROOT}/src/_colors.scss`;
+const PACKAGE_TOKENS_SRC_TYPOGRAPHY_PARTIAL_PATH = `${PACKAGE_TOKENS_ROOT}/src/_typography.scss`;
 const PACKAGE_COLORS_PATH = "/fake/ws/node_modules/@design/tokens/_colors.scss";
 const PACKAGE_VARIABLES_CSS_PATH = "/fake/ws/node_modules/@design/tokens/variables.css";
 const PACKAGE_TYPOGRAPHY_PATH = "/fake/ws/node_modules/@design/tokens/_typography.scss";
@@ -804,6 +806,64 @@ describe("style hover query", () => {
     expect(mixinResult).toMatchObject({
       kind: "sassSymbol",
       scssModulePath: PACKAGE_TOKENS_INDEX_PATH,
+      headingName: "ds_typography16",
+      note: "Referenced via Sass wildcard include",
+    });
+  });
+
+  it("resolves hover through package-root internal forward chains", () => {
+    const buttonScss = `@use "utils" as *;
+
+.title {
+  color: $ds_gray700;
+  @include ds_typography16;
+}
+`;
+    const utilsScss = `@forward "@design/tokens" as ds_*;`;
+    const indexScss = `@forward "./colors";
+@forward "./typography";
+`;
+    const colorsScss = `$gray700: #767678;`;
+    const typographyScss = `@mixin typography16 {}`;
+    const documents = [
+      parseStyleDocument(buttonScss, SCSS_PATH),
+      parseStyleDocument(utilsScss, UTILS_PATH),
+      parseStyleDocument(indexScss, PACKAGE_TOKENS_INDEX_PATH),
+      parseStyleDocument(colorsScss, PACKAGE_TOKENS_SRC_COLORS_PARTIAL_PATH),
+      parseStyleDocument(typographyScss, PACKAGE_TOKENS_SRC_TYPOGRAPHY_PARTIAL_PATH),
+    ];
+    const deps = makeBaseDeps({
+      styleDocumentForPath: styleDocumentMap(documents),
+      readStyleFile: (filePath) =>
+        filePath === PACKAGE_TOKENS_JSON_PATH ? `{"sass":"src/index.scss"}` : null,
+    });
+
+    const variableResult = resolveStyleHoverResult(
+      {
+        filePath: SCSS_PATH,
+        line: 3,
+        character: 14,
+      },
+      deps,
+    );
+    expect(variableResult).toMatchObject({
+      kind: "sassSymbol",
+      scssModulePath: PACKAGE_TOKENS_SRC_COLORS_PARTIAL_PATH,
+      headingName: "ds_gray700",
+      note: "Referenced via Sass wildcard reference",
+    });
+
+    const mixinResult = resolveStyleHoverResult(
+      {
+        filePath: SCSS_PATH,
+        line: 4,
+        character: 15,
+      },
+      deps,
+    );
+    expect(mixinResult).toMatchObject({
+      kind: "sassSymbol",
+      scssModulePath: PACKAGE_TOKENS_SRC_TYPOGRAPHY_PARTIAL_PATH,
       headingName: "ds_typography16",
       note: "Referenced via Sass wildcard include",
     });
