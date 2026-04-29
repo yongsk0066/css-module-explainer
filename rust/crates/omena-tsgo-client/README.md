@@ -9,6 +9,7 @@ The crate is intentionally narrow:
 - describe the type-fact request and result contracts;
 - own a workspace-scoped persistent process pool for the tsgo API process;
 - encode and drain tsgo's `Content-Length` JSON-RPC transport frames;
+- write and read JSON-RPC frames against the managed tsgo process I/O;
 - build typed type-fact RPC requests for tsgo's source-fact methods;
 - reduce tsgo literal and union type responses into CME-compatible type facts;
 - keep the LSP request path policy explicit;

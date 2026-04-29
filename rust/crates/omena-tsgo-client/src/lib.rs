@@ -1,6 +1,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    fmt, io,
+    fmt,
+    io::{self, Read, Write},
     process::{Child, Command, Stdio},
 };
 
@@ -178,6 +179,14 @@ pub enum TsgoJsonRpcFrameErrorV0 {
     InvalidJson(String),
 }
 
+#[derive(Debug)]
+pub enum TsgoJsonRpcIoErrorV0 {
+    Io(io::Error),
+    Frame(TsgoJsonRpcFrameErrorV0),
+    MissingChildStdin,
+    MissingChildStdout,
+}
+
 #[derive(Debug, Default)]
 pub struct TsgoWorkspaceProcessPoolV0 {
     processes: BTreeMap<String, ManagedTsgoWorkspaceProcessV0>,
@@ -225,6 +234,7 @@ pub fn summarize_omena_tsgo_client_boundary() -> OmenaTsgoClientBoundarySummaryV
             "requestSequencePlan",
             "persistentWorkspaceProcessPool",
             "jsonRpcContentLengthTransport",
+            "jsonRpcProcessIo",
             "typeFactRpcClient",
             "typeFactResultReducer",
             "phase3SourceProviderExitGate",
@@ -489,6 +499,32 @@ pub fn drain_tsgo_json_rpc_frames(
     Ok(messages)
 }
 
+pub fn write_tsgo_json_rpc_request(
+    writer: &mut impl Write,
+    request: &TsgoJsonRpcOutboundRequestV0,
+) -> io::Result<()> {
+    writer.write_all(&request.frame)?;
+    writer.flush()
+}
+
+pub fn read_tsgo_json_rpc_message(
+    reader: &mut impl Read,
+    buffer: &mut Vec<u8>,
+) -> Result<Option<serde_json::Value>, TsgoJsonRpcIoErrorV0> {
+    if let Some(message) = drain_tsgo_json_rpc_frames(buffer)?.into_iter().next() {
+        return Ok(Some(message));
+    }
+
+    let mut chunk = [0; 8192];
+    let read = reader.read(&mut chunk)?;
+    if read == 0 {
+        return Ok(None);
+    }
+    buffer.extend_from_slice(&chunk[..read]);
+
+    Ok(drain_tsgo_json_rpc_frames(buffer)?.into_iter().next())
+}
+
 pub fn build_tsgo_api_args(workspace_root: &str, checkers: Option<usize>) -> Vec<String> {
     let mut args = vec![
         "--api".to_string(),
@@ -577,6 +613,31 @@ impl fmt::Display for TsgoJsonRpcFrameErrorV0 {
 
 impl std::error::Error for TsgoJsonRpcFrameErrorV0 {}
 
+impl fmt::Display for TsgoJsonRpcIoErrorV0 {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Io(error) => write!(formatter, "tsgo JSON-RPC I/O failed: {error}"),
+            Self::Frame(error) => write!(formatter, "tsgo JSON-RPC frame failed: {error}"),
+            Self::MissingChildStdin => formatter.write_str("tsgo child process stdin is missing"),
+            Self::MissingChildStdout => formatter.write_str("tsgo child process stdout is missing"),
+        }
+    }
+}
+
+impl std::error::Error for TsgoJsonRpcIoErrorV0 {}
+
+impl From<io::Error> for TsgoJsonRpcIoErrorV0 {
+    fn from(error: io::Error) -> Self {
+        Self::Io(error)
+    }
+}
+
+impl From<TsgoJsonRpcFrameErrorV0> for TsgoJsonRpcIoErrorV0 {
+    fn from(error: TsgoJsonRpcFrameErrorV0) -> Self {
+        Self::Frame(error)
+    }
+}
+
 impl TsgoWorkspaceProcessPoolV0 {
     pub fn ensure_workspace_process(
         &mut self,
@@ -607,6 +668,17 @@ impl TsgoWorkspaceProcessPoolV0 {
         };
         process.shutdown()?;
         Ok(true)
+    }
+
+    pub fn send_json_rpc_request(
+        &mut self,
+        workspace_root: &str,
+        request: &TsgoJsonRpcOutboundRequestV0,
+    ) -> Result<Option<serde_json::Value>, TsgoJsonRpcIoErrorV0> {
+        let Some(process) = self.processes.get_mut(workspace_root) else {
+            return Ok(None);
+        };
+        process.send_json_rpc_request(request)
     }
 
     pub fn shutdown_all(&mut self) -> io::Result<usize> {
@@ -674,6 +746,7 @@ struct ManagedTsgoWorkspaceProcessV0 {
     config: TsgoWorkspaceProcessConfigV0,
     child: Child,
     generation: u64,
+    stdout_buffer: Vec<u8>,
 }
 
 impl ManagedTsgoWorkspaceProcessV0 {
@@ -690,6 +763,7 @@ impl ManagedTsgoWorkspaceProcessV0 {
             config,
             child,
             generation,
+            stdout_buffer: Vec::new(),
         })
     }
 
@@ -719,6 +793,25 @@ impl ManagedTsgoWorkspaceProcessV0 {
         self.child.wait()?;
         Ok(())
     }
+
+    fn send_json_rpc_request(
+        &mut self,
+        request: &TsgoJsonRpcOutboundRequestV0,
+    ) -> Result<Option<serde_json::Value>, TsgoJsonRpcIoErrorV0> {
+        let stdin = self
+            .child
+            .stdin
+            .as_mut()
+            .ok_or(TsgoJsonRpcIoErrorV0::MissingChildStdin)?;
+        write_tsgo_json_rpc_request(stdin, request)?;
+
+        let stdout = self
+            .child
+            .stdout
+            .as_mut()
+            .ok_or(TsgoJsonRpcIoErrorV0::MissingChildStdout)?;
+        read_tsgo_json_rpc_message(stdout, &mut self.stdout_buffer)
+    }
 }
 
 #[cfg(test)]
@@ -728,8 +821,9 @@ mod tests {
         TsgoTypeFactRpcClientV0, TsgoTypeFactTargetV0, TsgoWorkspaceProcessConfigV0,
         TsgoWorkspaceProcessPoolV0, build_tsgo_api_args, build_tsgo_process_command,
         drain_tsgo_json_rpc_frames, encode_tsgo_json_rpc_message, encode_tsgo_json_rpc_request,
-        plan_tsgo_type_fact_collection, reduce_tsgo_type_response,
+        plan_tsgo_type_fact_collection, read_tsgo_json_rpc_message, reduce_tsgo_type_response,
         summarize_omena_tsgo_client_boundary, summarize_tsgo_json_rpc_transport,
+        write_tsgo_json_rpc_request,
     };
     use serde_json::json;
     use std::io;
@@ -861,6 +955,35 @@ mod tests {
             error,
             Some(super::TsgoJsonRpcFrameErrorV0::MissingContentLength)
         ));
+    }
+
+    #[test]
+    fn writes_and_reads_tsgo_json_rpc_messages_over_generic_io()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let request = encode_tsgo_json_rpc_request(1, "initialize", None)?;
+        let outbound = super::TsgoJsonRpcOutboundRequestV0 {
+            id: 1,
+            method: "initialize".to_string(),
+            frame: request,
+        };
+        let mut writer = Vec::new();
+
+        write_tsgo_json_rpc_request(&mut writer, &outbound)?;
+
+        let mut reader = std::io::Cursor::new(encode_tsgo_json_rpc_message(&json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": { "ok": true }
+        }))?);
+        let mut buffer = Vec::new();
+        let response = read_tsgo_json_rpc_message(&mut reader, &mut buffer)?;
+
+        assert!(String::from_utf8_lossy(&writer).contains("\"method\":\"initialize\""));
+        assert_eq!(
+            response.and_then(|message| message.pointer("/result/ok").cloned()),
+            Some(json!(true))
+        );
+        Ok(())
     }
 
     #[test]
