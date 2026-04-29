@@ -1,6 +1,6 @@
 # Zed
 
-This project now ships a generic `lsp-server` entrypoint. For a local checkout, build the repo first:
+This project now ships a Rust `omena-lsp-server` entrypoint. For a local checkout, build the repo first:
 
 ```bash
 pnpm install
@@ -10,7 +10,7 @@ pnpm build
 The server entrypoint is:
 
 ```text
-<repo>/dist/server/server.js
+<repo>/dist/bin/<platform>-<arch>/omena-lsp-server
 ```
 
 ## settings.json example
@@ -27,8 +27,8 @@ Example:
   "lsp": {
     "css-module-explainer": {
       "binary": {
-        "path": "node",
-        "arguments": ["/absolute/path/to/css-module-explainer/dist/server/server.js", "--stdio"]
+        "path": "/absolute/path/to/css-module-explainer/dist/bin/darwin-arm64/omena-lsp-server",
+        "arguments": []
       }
     }
   },
@@ -59,12 +59,13 @@ Example:
 
 ## Notes
 
+- Replace `darwin-arm64` with your packaged `<platform>-<arch>` directory.
 - This server is intended to run beside Zed's default TS/JS server, not replace it.
 - Start with `TypeScript`, `TSX`, and `SCSS` if you want the smallest config surface.
 - The repo-local smoke command for this transport is:
 
 ```bash
-pnpm check:lsp-server-smoke
+pnpm cme-check run rust/omena-lsp-server/thin-client-boundary
 ```
 
 ## References

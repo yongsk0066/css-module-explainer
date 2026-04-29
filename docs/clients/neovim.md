@@ -1,6 +1,6 @@
 # Neovim
 
-This project now ships a generic `lsp-server` entrypoint. For a local checkout, build the repo first:
+This project now ships a Rust `omena-lsp-server` entrypoint. For a local checkout, build the repo first:
 
 ```bash
 pnpm install
@@ -10,7 +10,7 @@ pnpm build
 The server entrypoint is:
 
 ```text
-<repo>/dist/server/server.js
+<repo>/dist/bin/<platform>-<arch>/omena-lsp-server
 ```
 
 ## Neovim 0.11+
@@ -24,9 +24,7 @@ local repo_root = "/absolute/path/to/css-module-explainer"
 
 vim.lsp.config("css_module_explainer", {
   cmd = {
-    "node",
-    repo_root .. "/dist/server/server.js",
-    "--stdio",
+    repo_root .. "/dist/bin/darwin-arm64/omena-lsp-server",
   },
   filetypes = {
     "typescript",
@@ -49,6 +47,7 @@ vim.lsp.enable("css_module_explainer")
 
 ## Notes
 
+- Replace `darwin-arm64` with your packaged `<platform>-<arch>` directory.
 - This server complements your main JS/TS language server. Keep `ts_ls`, `vtsls`, or your existing TypeScript server enabled.
 - The CSS Module Explainer server provides:
   - hover
@@ -61,7 +60,7 @@ vim.lsp.enable("css_module_explainer")
 - The repo-local smoke command for this transport is:
 
 ```bash
-pnpm check:lsp-server-smoke
+pnpm cme-check run rust/omena-lsp-server/thin-client-boundary
 ```
 
 ## References
