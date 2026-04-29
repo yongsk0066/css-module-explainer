@@ -51,6 +51,7 @@ assert.deepEqual(rustSummary.capabilities, nodeCapabilities);
 assert.deepEqual(
   rustSummary.handlerSurfaces.map((surface) => surface.method).toSorted(),
   [
+    "$/cancelRequest",
     "textDocument/codeAction",
     "textDocument/codeLens",
     "textDocument/completion",

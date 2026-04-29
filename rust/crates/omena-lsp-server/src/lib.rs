@@ -18,6 +18,9 @@ pub const RUNTIME_LOOP_PROBE_REQUEST: &str = "cssModuleExplainer/runtimeLoopProb
 pub const STYLE_HOVER_CANDIDATES_REQUEST: &str = "cssModuleExplainer/rustStyleHoverCandidates";
 pub const STYLE_DIAGNOSTICS_REQUEST: &str = "cssModuleExplainer/rustStyleDiagnostics";
 pub const SOURCE_DIAGNOSTICS_REQUEST: &str = "cssModuleExplainer/rustSourceDiagnostics";
+const CANCEL_REQUEST_METHOD: &str = "$/cancelRequest";
+const REQUEST_CANCELLED_ERROR_CODE: i32 = -32800;
+const CANCELLED_REQUEST_CACHE_LIMIT: usize = 128;
 const WORKSPACE_STYLE_INDEX_LIMIT: usize = 512;
 const WORKSPACE_STYLE_INDEX_DIR_LIMIT: usize = 2048;
 
@@ -187,6 +190,7 @@ pub fn lsp_handler_surfaces() -> Vec<LspHandlerSurfaceV0> {
         runtime_handler("workspace/didChangeConfiguration"),
         runtime_handler("workspace/didChangeWorkspaceFolders"),
         diagnostics_handler("textDocument/publishDiagnostics"),
+        runtime_handler(CANCEL_REQUEST_METHOD),
     ]
 }
 
@@ -314,6 +318,7 @@ pub struct LspShellStateSnapshot {
     pub should_exit: bool,
     pub features: LspFeatureSettings,
     pub diagnostics: LspDiagnosticSettings,
+    pub cancelled_request_count: usize,
     pub document_count: usize,
     pub workspace_folder_count: usize,
     pub configuration_change_count: usize,
@@ -363,6 +368,7 @@ pub struct LspShellState {
     pub should_exit: bool,
     features: LspFeatureSettings,
     diagnostics: LspDiagnosticSettings,
+    cancelled_request_ids: BTreeSet<String>,
     configuration_change_count: usize,
     documents: BTreeMap<String, LspTextDocumentState>,
     open_document_uris: BTreeSet<String>,
@@ -393,6 +399,7 @@ impl LspShellState {
             should_exit: self.should_exit,
             features: self.features.clone(),
             diagnostics: self.diagnostics.clone(),
+            cancelled_request_count: self.cancelled_request_ids.len(),
             document_count: self.document_count(),
             workspace_folder_count: self.workspace_folder_count(),
             configuration_change_count: self.configuration_change_count,
@@ -407,6 +414,17 @@ impl LspShellState {
 pub fn handle_lsp_message(state: &mut LspShellState, message: Value) -> Option<Value> {
     let method = message.get("method").and_then(Value::as_str);
     let id = message.get("id").cloned();
+
+    if method == Some(CANCEL_REQUEST_METHOD) && id.is_none() {
+        cancel_lsp_request(state, message.get("params"));
+        return None;
+    }
+
+    if let Some(request_id) = id.as_ref()
+        && take_cancelled_request(state, request_id)
+    {
+        return Some(cancelled_request_response(request_id.clone()));
+    }
 
     match (method, id) {
         (Some("initialize"), Some(request_id)) => {
@@ -548,6 +566,43 @@ pub fn handle_lsp_message(state: &mut LspShellState, message: Value) -> Option<V
         })),
         (None, None) => None,
     }
+}
+
+fn cancel_lsp_request(state: &mut LspShellState, params: Option<&Value>) {
+    let Some(id) = params.and_then(|value| value.get("id")) else {
+        return;
+    };
+    if let Some(key) = request_id_key(id) {
+        if state.cancelled_request_ids.len() >= CANCELLED_REQUEST_CACHE_LIMIT {
+            state.cancelled_request_ids.clear();
+        }
+        state.cancelled_request_ids.insert(key);
+    }
+}
+
+fn take_cancelled_request(state: &mut LspShellState, request_id: &Value) -> bool {
+    request_id_key(request_id).is_some_and(|key| state.cancelled_request_ids.remove(key.as_str()))
+}
+
+fn request_id_key(id: &Value) -> Option<String> {
+    if let Some(value) = id.as_str() {
+        return Some(format!("s:{value}"));
+    }
+    if id.is_number() {
+        return Some(format!("n:{id}"));
+    }
+    None
+}
+
+fn cancelled_request_response(request_id: Value) -> Value {
+    json!({
+        "jsonrpc": "2.0",
+        "id": request_id,
+        "error": {
+            "code": REQUEST_CANCELLED_ERROR_CODE,
+            "message": "Request cancelled",
+        },
+    })
 }
 
 pub fn handle_lsp_message_outputs(state: &mut LspShellState, message: Value) -> Vec<Value> {
@@ -3251,6 +3306,12 @@ mod tests {
                 .iter()
                 .any(|surface| surface.method == "textDocument/hover"),
         );
+        assert!(
+            summary
+                .handler_surfaces
+                .iter()
+                .any(|surface| surface.method == CANCEL_REQUEST_METHOD),
+        );
     }
 
     #[test]
@@ -3355,6 +3416,67 @@ mod tests {
                 .and_then(|value| value.pointer("/error/code")),
             Some(&json!(-32601)),
         );
+    }
+
+    #[test]
+    fn cancels_queued_requests_before_provider_work() {
+        let mut state = LspShellState::default();
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": CANCEL_REQUEST_METHOD,
+                "params": {
+                    "id": "hover-1",
+                },
+            }),
+        );
+        assert_eq!(state.snapshot().cancelled_request_count, 1);
+
+        let response = handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": "hover-1",
+                "method": "textDocument/hover",
+                "params": {
+                    "textDocument": {
+                        "uri": "file:///workspace-a/src/App.module.scss",
+                    },
+                    "position": {
+                        "line": 0,
+                        "character": 2,
+                    },
+                },
+            }),
+        );
+
+        assert_eq!(
+            response
+                .as_ref()
+                .and_then(|value| value.pointer("/error/code")),
+            Some(&json!(REQUEST_CANCELLED_ERROR_CODE)),
+        );
+        assert_eq!(state.snapshot().cancelled_request_count, 0);
+    }
+
+    #[test]
+    fn bounds_late_cancel_request_cache() {
+        let mut state = LspShellState::default();
+        for id in 0..=CANCELLED_REQUEST_CACHE_LIMIT {
+            handle_lsp_message(
+                &mut state,
+                json!({
+                    "jsonrpc": "2.0",
+                    "method": CANCEL_REQUEST_METHOD,
+                    "params": {
+                        "id": id,
+                    },
+                }),
+            );
+        }
+
+        assert_eq!(state.snapshot().cancelled_request_count, 1);
     }
 
     #[test]
