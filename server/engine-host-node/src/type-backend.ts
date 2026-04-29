@@ -46,8 +46,9 @@ export function selectTypeResolver(options: SelectTypeResolverOptions): TypeReso
       : undefined;
     return {
       backend,
-      // First cut: run a real tsgo probe at the host boundary, then
-      // delegate fine-grained symbol resolution to the current TS resolver
+      // Keep the TS7 backend selected by default, but avoid synchronous
+      // full-workspace tsgo checks on the LSP request path. Fine-grained
+      // symbol resolution still delegates to the bounded current TS resolver
       // until a dedicated tsgo-backed resolver exists.
       typeResolver: new TsgoProbeTypeResolver(probeOptions),
     };

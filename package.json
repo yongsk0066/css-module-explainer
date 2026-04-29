@@ -312,7 +312,13 @@
             "typescript-current"
           ],
           "default": "tsgo",
-          "markdownDescription": "Type-fact backend used by the language server. `tsgo` uses the extension-bundled TS 7 native compiler probe. `tsgo-workspace` uses `pnpm exec tsgo` in the user workspace. `typescript-current` uses the current TypeScript resolver."
+          "markdownDescription": "Type-fact backend used by the language server. `tsgo` uses the extension-bundled TS 7 native compiler availability check. `tsgo-workspace` uses `pnpm exec tsgo` in the user workspace. `typescript-current` uses the current TypeScript resolver."
+        },
+        "cssModuleExplainer.typeFactMaxSyncProgramFiles": {
+          "type": "number",
+          "default": 500,
+          "minimum": 0,
+          "markdownDescription": "Maximum tsconfig root file count before the synchronous TypeScript resolver returns unresolved type facts instead of building a full `ts.Program` on the language-server request path. Set to `0` to disable the guard."
         },
         "cssModuleExplainer.pathAlias": {
           "type": "object",

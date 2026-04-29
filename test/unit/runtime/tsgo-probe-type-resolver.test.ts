@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Range, ResolvedType } from "@css-module-explainer/shared";
 import type { TypeResolver } from "../../../server/engine-core-ts/src/core/ts/type-resolver";
 import {
+  buildTsgoAvailabilityInvocation,
   buildTsgoProbeInvocation,
   resolveTsgoBinaryPathForEnv,
   TsgoProbeTypeResolver,
@@ -13,6 +14,23 @@ const SAMPLE_RANGE: Range = {
 };
 
 describe("TsgoProbeTypeResolver", () => {
+  it("builds a cheap tsgo availability probe for the request path", () => {
+    const invocation = buildTsgoAvailabilityInvocation(
+      "/workspace",
+      {
+        CME_TSGO_PATH: "/tools/tsgo",
+        CME_TSGO_CHECKERS: "4",
+      },
+      () => false,
+    );
+
+    expect(invocation).toEqual({
+      command: "/tools/tsgo",
+      args: ["--version"],
+      cwd: "/workspace",
+    });
+  });
+
   it("probes once per workspace and delegates to the fallback resolver", () => {
     const probeCalls: string[] = [];
     const resolveCalls: string[] = [];

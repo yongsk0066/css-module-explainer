@@ -123,7 +123,9 @@ export class TsgoProbeTypeResolver implements TypeResolver {
 }
 
 function defaultRunProbeCommand(workspaceRoot: string, configPath: string): TsgoProbeResult {
-  const invocation = buildTsgoProbeInvocation(workspaceRoot, configPath);
+  const invocation = shouldRunSyncWorkspaceProbe(process.env)
+    ? buildTsgoProbeInvocation(workspaceRoot, configPath)
+    : buildTsgoAvailabilityInvocation(workspaceRoot);
   if (!invocation) {
     return {
       status: 1,
@@ -149,6 +151,51 @@ function defaultRunProbeCommand(workspaceRoot: string, configPath: string): Tsgo
     stderr: child.stderr ?? "",
     ...(child.error ? { error: child.error } : {}),
   };
+}
+
+export function buildTsgoAvailabilityInvocation(
+  workspaceRoot: string,
+  env: NodeJS.ProcessEnv = process.env,
+  fileExists: (filePath: string) => boolean = existsSync,
+): TsgoProbeInvocation | null {
+  const tsgoArgs = ["--version"];
+
+  if (env.CME_TSGO_PATH) {
+    return {
+      command: path.resolve(env.CME_TSGO_PATH),
+      args: tsgoArgs,
+      cwd: workspaceRoot,
+    };
+  }
+
+  const bundledBinaryPath = resolveTsgoBinaryPathForEnv(env, fileExists);
+  if (fileExists(bundledBinaryPath)) {
+    return {
+      command: bundledBinaryPath,
+      args: tsgoArgs,
+      cwd: workspaceRoot,
+    };
+  }
+
+  const projectRoot = resolveProjectRoot(env, fileExists);
+  const repoPinnedWrapper = path.join(projectRoot, "node_modules", ".bin", TSGO_WRAPPER_NAME);
+  if (fileExists(repoPinnedWrapper)) {
+    return {
+      command: repoPinnedWrapper,
+      args: tsgoArgs,
+      cwd: workspaceRoot,
+    };
+  }
+
+  if (env.CME_TSGO_RESOLUTION === "workspace") {
+    return {
+      command: "pnpm",
+      args: ["exec", "tsgo", ...tsgoArgs],
+      cwd: workspaceRoot,
+    };
+  }
+
+  return null;
 }
 
 export function buildTsgoProbeInvocation(
@@ -238,4 +285,9 @@ function resolveTsgoCheckerArgs(env: NodeJS.ProcessEnv = process.env): readonly 
     return [];
   }
   return ["--checkers", value];
+}
+
+function shouldRunSyncWorkspaceProbe(env: NodeJS.ProcessEnv): boolean {
+  const value = env.CME_TSGO_SYNC_WORKSPACE_PROBE?.trim().toLowerCase();
+  return value === "1" || value === "true";
 }

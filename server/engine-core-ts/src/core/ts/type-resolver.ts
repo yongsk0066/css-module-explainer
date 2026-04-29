@@ -58,6 +58,18 @@ export interface WorkspaceTypeResolverDeps {
   createProgram: (workspaceRoot: string) => ts.Program;
 }
 
+export const UNRESOLVABLE_TYPE: ResolvedType = { kind: "unresolvable", values: [] };
+
+export class UnresolvableTypeResolver implements TypeResolver {
+  resolve(): ResolvedType {
+    return UNRESOLVABLE_TYPE;
+  }
+
+  invalidate(): void {}
+
+  clear(): void {}
+}
+
 /**
  * Default implementation of TypeResolver. Lazily builds one
  * ts.Program per workspaceRoot on first resolve, caches it, and
@@ -81,7 +93,7 @@ export class WorkspaceTypeResolver implements TypeResolver {
     const program = this.getOrCreateProgram(workspaceRoot);
     const sourceFile = program.getSourceFile(filePath);
     if (!sourceFile) {
-      return UNRESOLVABLE;
+      return UNRESOLVABLE_TYPE;
     }
     const checker = program.getTypeChecker();
 
@@ -90,7 +102,7 @@ export class WorkspaceTypeResolver implements TypeResolver {
 
     let symbol = findIdentifierSymbol(sourceFile, rootName, checker, range, options);
     if (!symbol) {
-      return UNRESOLVABLE;
+      return UNRESOLVABLE_TYPE;
     }
 
     // Follow import aliases so `import { sizes } from './theme'`
@@ -104,7 +116,7 @@ export class WorkspaceTypeResolver implements TypeResolver {
     // Walk the property chain for dotted paths like `sizes.large`.
     for (let i = 1; i < parts.length; i++) {
       const prop = type.getProperty(parts[i]!);
-      if (!prop) return UNRESOLVABLE;
+      if (!prop) return UNRESOLVABLE_TYPE;
       type = checker.getTypeOfSymbolAtLocation(prop, sourceFile);
     }
 
@@ -127,8 +139,6 @@ export class WorkspaceTypeResolver implements TypeResolver {
     return program;
   }
 }
-
-const UNRESOLVABLE: ResolvedType = { kind: "unresolvable", values: [] };
 
 /**
  * Walk the source file for an identifier matching `variableName`
@@ -257,7 +267,7 @@ const MAX_CONSTRAINT_DEPTH = 10;
 
 function extractStringLiterals(type: ts.Type, checker: ts.TypeChecker, depth = 0): ResolvedType {
   if (depth > MAX_CONSTRAINT_DEPTH) {
-    return UNRESOLVABLE;
+    return UNRESOLVABLE_TYPE;
   }
 
   if (type.isStringLiteral()) {
@@ -271,7 +281,7 @@ function extractStringLiterals(type: ts.Type, checker: ts.TypeChecker, depth = 0
         values.push(member.value);
       } else {
         // Mixed union (e.g. `"a" | number`) — refuse to narrow.
-        return UNRESOLVABLE;
+        return UNRESOLVABLE_TYPE;
       }
     }
     if (values.length > 0) {
@@ -285,5 +295,5 @@ function extractStringLiterals(type: ts.Type, checker: ts.TypeChecker, depth = 0
     return extractStringLiterals(base, checker, depth + 1);
   }
 
-  return UNRESOLVABLE;
+  return UNRESOLVABLE_TYPE;
 }

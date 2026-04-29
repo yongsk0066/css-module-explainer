@@ -9,6 +9,7 @@ import {
 import {
   buildTypeFactBackendEnv,
   readClientTypeFactBackendSetting,
+  readTypeFactMaxSyncProgramFilesSetting,
 } from "./type-fact-backend-config";
 import { isShowReferencesArgs } from "./util/show-references-guards";
 
@@ -19,7 +20,12 @@ export function activate(context: vscode.ExtensionContext): void {
   const typeFactBackend = readClientTypeFactBackendSetting(
     vscode.workspace.getConfiguration("cssModuleExplainer").get("typeFactBackend"),
   );
-  const serverEnv = buildTypeFactBackendEnv(typeFactBackend);
+  const maxSyncProgramFiles = readTypeFactMaxSyncProgramFilesSetting(
+    vscode.workspace.getConfiguration("cssModuleExplainer").get("typeFactMaxSyncProgramFiles"),
+  );
+  const serverEnv = buildTypeFactBackendEnv(typeFactBackend, process.env, {
+    maxSyncProgramFiles,
+  });
 
   const serverOptions: ServerOptions = {
     run: { module: serverModule, transport: TransportKind.ipc, options: { env: serverEnv } },
