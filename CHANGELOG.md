@@ -1,5 +1,11 @@
 # Changelog
 
+## [4.1.8] — 2026-04-29
+
+### Added
+
+- **Source-missing Flow evidence** — Rust source-missing checker producer output now includes expression-domain flow evidence, including graph/node counts and convergence status.
+
 ## [4.1.7] — 2026-04-29
 
 ### Added
