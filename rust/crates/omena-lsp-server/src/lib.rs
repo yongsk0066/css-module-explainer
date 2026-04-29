@@ -9,10 +9,12 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
     path::{Component, Path, PathBuf},
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 pub const NODE_TEXT_DOCUMENT_SYNC_KIND: u8 = 2;
 pub const DEBUG_STATE_REQUEST: &str = "cssModuleExplainer/rustLspState";
+pub const RUNTIME_LOOP_PROBE_REQUEST: &str = "cssModuleExplainer/runtimeLoopProbe";
 pub const STYLE_HOVER_CANDIDATES_REQUEST: &str = "cssModuleExplainer/rustStyleHoverCandidates";
 pub const STYLE_DIAGNOSTICS_REQUEST: &str = "cssModuleExplainer/rustStyleDiagnostics";
 pub const SOURCE_DIAGNOSTICS_REQUEST: &str = "cssModuleExplainer/rustSourceDiagnostics";
@@ -249,6 +251,10 @@ pub struct LspTextDocumentState {
     pub version: i64,
     pub text: String,
     pub style_summary: Option<LspStyleDocumentSummary>,
+    #[serde(skip)]
+    pub style_candidates: Vec<LspStyleHoverCandidate>,
+    #[serde(skip)]
+    pub source_selector_candidates: Vec<LspStyleHoverCandidate>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -489,6 +495,13 @@ pub fn handle_lsp_message(state: &mut LspShellState, message: Value) -> Option<V
             "id": request_id,
             "result": state.snapshot(),
         })),
+        (Some(RUNTIME_LOOP_PROBE_REQUEST), Some(request_id)) => Some(json!({
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "result": {
+                "now": current_time_millis(),
+            },
+        })),
         (Some(STYLE_HOVER_CANDIDATES_REQUEST), Some(request_id)) => Some(json!({
             "jsonrpc": "2.0",
             "id": request_id,
@@ -643,6 +656,12 @@ fn open_document_uris_for_diagnostics(state: &LspShellState) -> Vec<String> {
         .collect()
 }
 
+fn current_time_millis() -> u128 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |duration| duration.as_millis())
+}
+
 fn watched_file_uris_from_message(message: &Value) -> Vec<String> {
     message
         .get("params")
@@ -775,17 +794,16 @@ fn index_workspace_style_files_from_dir(
         };
         state.documents.insert(
             uri.clone(),
-            LspTextDocumentState {
-                uri: uri.clone(),
-                workspace_folder_uri: Some(workspace_folder_uri.to_string()),
-                language_id: StyleLanguage::from_module_path(uri.as_str())
+            lsp_text_document_state(
+                uri.clone(),
+                Some(workspace_folder_uri.to_string()),
+                StyleLanguage::from_module_path(uri.as_str())
                     .map(style_language_label)
                     .unwrap_or("unknown")
                     .to_string(),
-                version: 0,
-                style_summary: summarize_style_document(uri.as_str(), Some(text.as_str())),
+                0,
                 text,
-            },
+            ),
         );
         *remaining_style_files -= 1;
     }
@@ -835,6 +853,37 @@ fn normalize_path(path: PathBuf) -> PathBuf {
     normalized
 }
 
+fn lsp_text_document_state(
+    uri: String,
+    workspace_folder_uri: Option<String>,
+    language_id: String,
+    version: i64,
+    text: String,
+) -> LspTextDocumentState {
+    let mut document = LspTextDocumentState {
+        uri,
+        workspace_folder_uri,
+        language_id,
+        version,
+        text,
+        style_summary: None,
+        style_candidates: Vec::new(),
+        source_selector_candidates: Vec::new(),
+    };
+    refresh_document_indexes(&mut document);
+    document
+}
+
+fn refresh_document_indexes(document: &mut LspTextDocumentState) {
+    document.style_summary =
+        summarize_style_document(document.uri.as_str(), Some(document.text.as_str()));
+    document.style_candidates =
+        collect_style_hover_candidates(document.uri.as_str(), document.text.as_str())
+            .map(|(_, candidates)| candidates)
+            .unwrap_or_default();
+    document.source_selector_candidates = scan_source_class_reference_candidates(document);
+}
+
 fn did_open_text_document(state: &mut LspShellState, params: Option<&Value>) {
     let Some(document) = params.and_then(|value| value.get("textDocument")) else {
         return;
@@ -846,25 +895,21 @@ fn did_open_text_document(state: &mut LspShellState, params: Option<&Value>) {
     state.open_document_uris.insert(uri.to_string());
     state.documents.insert(
         uri.to_string(),
-        LspTextDocumentState {
-            uri: uri.to_string(),
-            workspace_folder_uri: resolve_workspace_folder_uri(state, uri),
-            language_id: document
+        lsp_text_document_state(
+            uri.to_string(),
+            resolve_workspace_folder_uri(state, uri),
+            document
                 .get("languageId")
                 .and_then(Value::as_str)
                 .unwrap_or("unknown")
                 .to_string(),
-            version: document.get("version").and_then(Value::as_i64).unwrap_or(0),
-            text: document
+            document.get("version").and_then(Value::as_i64).unwrap_or(0),
+            document
                 .get("text")
                 .and_then(Value::as_str)
                 .unwrap_or_default()
                 .to_string(),
-            style_summary: summarize_style_document(
-                uri,
-                document.get("text").and_then(Value::as_str),
-            ),
-        },
+        ),
     );
 }
 
@@ -896,7 +941,7 @@ fn did_change_text_document(state: &mut LspShellState, params: Option<&Value>) {
         }
     }
     if text_changed {
-        existing.style_summary = summarize_style_document(uri, Some(existing.text.as_str()));
+        refresh_document_indexes(existing);
     }
 }
 
@@ -1072,17 +1117,16 @@ fn reload_indexed_style_document_from_disk(state: &mut LspShellState, uri: &str)
     };
     state.documents.insert(
         uri.to_string(),
-        LspTextDocumentState {
-            uri: uri.to_string(),
-            workspace_folder_uri: resolve_workspace_folder_uri(state, uri),
-            language_id: StyleLanguage::from_module_path(uri)
+        lsp_text_document_state(
+            uri.to_string(),
+            resolve_workspace_folder_uri(state, uri),
+            StyleLanguage::from_module_path(uri)
                 .map(style_language_label)
                 .unwrap_or("unknown")
                 .to_string(),
-            version: 0,
-            style_summary: summarize_style_document(uri, Some(text.as_str())),
+            0,
             text,
-        },
+        ),
     );
     true
 }
@@ -1157,9 +1201,7 @@ pub fn resolve_style_hover_candidates(
         return empty_style_hover_candidates_result(document_uri, None, query_position);
     };
 
-    let Some((language, mut candidates)) =
-        collect_style_hover_candidates(document.uri.as_str(), document.text.as_str())
-    else {
+    let Some((language, mut candidates)) = style_hover_candidates_for_document(document) else {
         return empty_style_hover_candidates_result(
             document_uri,
             document.workspace_folder_uri.clone(),
@@ -1183,6 +1225,13 @@ pub fn resolve_style_hover_candidates(
     }
 }
 
+fn style_hover_candidates_for_document(
+    document: &LspTextDocumentState,
+) -> Option<(&'static str, Vec<LspStyleHoverCandidate>)> {
+    let summary = document.style_summary.as_ref()?;
+    Some((summary.language, document.style_candidates.clone()))
+}
+
 fn resolve_lsp_definition(state: &LspShellState, params: Option<&Value>) -> Value {
     let document_uri = document_uri_from_params(params);
     let Some(position) = lsp_position_from_params(params) else {
@@ -1195,9 +1244,7 @@ fn resolve_lsp_definition(state: &LspShellState, params: Option<&Value>) -> Valu
         return resolve_source_lsp_definition(state, document, position);
     }
 
-    let Some((_, candidates)) =
-        collect_style_hover_candidates(document.uri.as_str(), document.text.as_str())
-    else {
+    let Some((_, candidates)) = style_hover_candidates_for_document(document) else {
         return Value::Null;
     };
     let Some(candidate) = candidates
@@ -1237,9 +1284,7 @@ fn resolve_lsp_references(state: &LspShellState, params: Option<&Value>) -> Valu
         return resolve_source_lsp_references(state, document, position, params);
     }
 
-    let Some((_, candidates)) =
-        collect_style_hover_candidates(document.uri.as_str(), document.text.as_str())
-    else {
+    let Some((_, candidates)) = style_hover_candidates_for_document(document) else {
         return Value::Null;
     };
     let Some(candidate) = candidates
@@ -1301,9 +1346,7 @@ fn resolve_lsp_completion(state: &LspShellState, params: Option<&Value>) -> Valu
         return resolve_source_lsp_completion(state, document, params);
     }
 
-    let Some((_, candidates)) =
-        collect_style_hover_candidates(document.uri.as_str(), document.text.as_str())
-    else {
+    let Some((_, candidates)) = style_hover_candidates_for_document(document) else {
         return Value::Null;
     };
 
@@ -1360,9 +1403,7 @@ fn resolve_style_diagnostics_for_uri(state: &LspShellState, document_uri: &str) 
     let Some(document) = state.document(document_uri) else {
         return json!([]);
     };
-    let Some((_, candidates)) =
-        collect_style_hover_candidates(document.uri.as_str(), document.text.as_str())
-    else {
+    let Some((_, candidates)) = style_hover_candidates_for_document(document) else {
         return json!([]);
     };
 
@@ -1570,9 +1611,7 @@ fn resolve_lsp_code_lens(state: &LspShellState, params: Option<&Value>) -> Value
     let Some(document) = state.document(document_uri.as_str()) else {
         return Value::Null;
     };
-    let Some((_, candidates)) =
-        collect_style_hover_candidates(document.uri.as_str(), document.text.as_str())
-    else {
+    let Some((_, candidates)) = style_hover_candidates_for_document(document) else {
         return Value::Null;
     };
 
@@ -1790,8 +1829,7 @@ fn style_candidates_for_params(
     let document_uri = document_uri_from_params(params);
     let position = lsp_position_from_params(params)?;
     let document = state.document(document_uri.as_str())?;
-    let (_, candidates) =
-        collect_style_hover_candidates(document.uri.as_str(), document.text.as_str())?;
+    let (_, candidates) = style_hover_candidates_for_document(document)?;
     let candidate = candidates
         .iter()
         .find(|candidate| parser_range_contains_position(&candidate.range, position))?
@@ -2192,6 +2230,12 @@ fn source_candidate_has_style_definition(
 }
 
 fn collect_source_class_reference_candidates(
+    document: &LspTextDocumentState,
+) -> Vec<LspStyleHoverCandidate> {
+    document.source_selector_candidates.clone()
+}
+
+fn scan_source_class_reference_candidates(
     document: &LspTextDocumentState,
 ) -> Vec<LspStyleHoverCandidate> {
     let mut candidates = Vec::new();
@@ -2610,9 +2654,7 @@ fn style_selector_definitions_from_open_documents(
         {
             continue;
         }
-        let Some((_, candidates)) =
-            collect_style_hover_candidates(document.uri.as_str(), document.text.as_str())
-        else {
+        let Some((_, candidates)) = style_hover_candidates_for_document(document) else {
             continue;
         };
         definitions.extend(
@@ -3250,11 +3292,31 @@ mod tests {
             Some("workspace-a"),
         );
 
-        let shutdown = handle_lsp_message(
+        let runtime_probe = handle_lsp_message(
             &mut state,
             json!({
                 "jsonrpc": "2.0",
                 "id": 2,
+                "method": RUNTIME_LOOP_PROBE_REQUEST,
+            }),
+        );
+        assert_eq!(
+            runtime_probe.as_ref().and_then(|value| value.get("id")),
+            Some(&json!(2)),
+        );
+        assert!(
+            runtime_probe
+                .as_ref()
+                .and_then(|value| value.pointer("/result/now"))
+                .and_then(Value::as_u64)
+                .is_some(),
+        );
+
+        let shutdown = handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
                 "method": "shutdown",
             }),
         );

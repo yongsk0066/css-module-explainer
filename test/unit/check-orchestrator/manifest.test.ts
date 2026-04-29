@@ -43,6 +43,9 @@ describe("check orchestrator manifest", () => {
     expect(resolveGateTarget(manifest, "rust/omena-lsp-server/provider-parity")?.scriptName).toBe(
       "check:rust-omena-lsp-server-provider-parity",
     );
+    expect(resolveGateTarget(manifest, "rust/omena-lsp-server/runtime-loop")?.scriptName).toBe(
+      "check:rust-omena-lsp-server-runtime-loop",
+    );
     expect(
       resolveGateTarget(manifest, "rust/omena-lsp-server/style-provider-parity")?.scriptName,
     ).toBe("check:rust-omena-lsp-server-style-provider-parity");
@@ -137,6 +140,7 @@ describe("check orchestrator manifest", () => {
         "check:rust-omena-lsp-server-boundary",
         "check:rust-omena-lsp-server-shell",
         "check:rust-omena-lsp-server-provider-parity",
+        "check:rust-omena-lsp-server-runtime-loop",
       ]),
     );
 
