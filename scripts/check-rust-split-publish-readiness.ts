@@ -143,6 +143,34 @@ const splitRepos: readonly SplitRepo[] = [
       },
     ],
   },
+  {
+    kind: "publish-ready",
+    label: "tsgo-client",
+    repo: "omenien/omena-tsgo-client",
+    packageName: "omena-tsgo-client",
+    expectedVersion: "0.1.0",
+    libName: "omena_tsgo_client",
+  },
+  {
+    kind: "publish-ready",
+    label: "lsp-server",
+    repo: "omenien/omena-lsp-server",
+    packageName: "omena-lsp-server",
+    expectedVersion: "0.1.0",
+    libName: "omena_lsp_server",
+    expectedRegistryDependencies: [
+      {
+        dependencyName: "engine-style-parser",
+        packageName: "omena-engine-style-parser",
+        version: "0.1.5",
+      },
+      {
+        dependencyName: "omena-tsgo-client",
+        packageName: "omena-tsgo-client",
+        version: "0.1.0",
+      },
+    ],
+  },
 ] as const;
 
 void main().catch((error: unknown) => {
