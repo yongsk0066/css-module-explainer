@@ -17,6 +17,7 @@ pub const STYLE_HOVER_CANDIDATES_REQUEST: &str = "cssModuleExplainer/rustStyleHo
 pub const STYLE_DIAGNOSTICS_REQUEST: &str = "cssModuleExplainer/rustStyleDiagnostics";
 pub const SOURCE_DIAGNOSTICS_REQUEST: &str = "cssModuleExplainer/rustSourceDiagnostics";
 const WORKSPACE_STYLE_INDEX_LIMIT: usize = 512;
+const WORKSPACE_STYLE_INDEX_DIR_LIMIT: usize = 2048;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -587,9 +588,10 @@ fn initialize_workspace_folders(state: &mut LspShellState, params: Option<&Value
 
 fn index_workspace_style_files(state: &mut LspShellState) {
     let folders: Vec<LspWorkspaceFolderState> = state.workspace_folders.values().cloned().collect();
-    let mut remaining = WORKSPACE_STYLE_INDEX_LIMIT;
+    let mut remaining_style_files = WORKSPACE_STYLE_INDEX_LIMIT;
+    let mut remaining_dirs = WORKSPACE_STYLE_INDEX_DIR_LIMIT;
     for folder in folders {
-        if remaining == 0 {
+        if remaining_style_files == 0 || remaining_dirs == 0 {
             break;
         }
         let Some(path) = file_uri_to_path(folder.uri.as_str()) else {
@@ -599,7 +601,8 @@ fn index_workspace_style_files(state: &mut LspShellState) {
             state,
             folder.uri.as_str(),
             path.as_path(),
-            &mut remaining,
+            &mut remaining_style_files,
+            &mut remaining_dirs,
         );
     }
 }
@@ -608,16 +611,18 @@ fn index_workspace_style_files_from_dir(
     state: &mut LspShellState,
     workspace_folder_uri: &str,
     dir: &Path,
-    remaining: &mut usize,
+    remaining_style_files: &mut usize,
+    remaining_dirs: &mut usize,
 ) {
-    if *remaining == 0 || should_skip_workspace_index_dir(dir) {
+    if *remaining_style_files == 0 || *remaining_dirs == 0 || should_skip_workspace_index_dir(dir) {
         return;
     }
+    *remaining_dirs -= 1;
     let Ok(entries) = fs::read_dir(dir) else {
         return;
     };
     for entry in entries.flatten() {
-        if *remaining == 0 {
+        if *remaining_style_files == 0 || *remaining_dirs == 0 {
             return;
         }
         let path = entry.path();
@@ -626,7 +631,8 @@ fn index_workspace_style_files_from_dir(
                 state,
                 workspace_folder_uri,
                 path.as_path(),
-                remaining,
+                remaining_style_files,
+                remaining_dirs,
             );
             continue;
         }
@@ -654,14 +660,28 @@ fn index_workspace_style_files_from_dir(
                 text,
             },
         );
-        *remaining -= 1;
+        *remaining_style_files -= 1;
     }
 }
 
 fn should_skip_workspace_index_dir(dir: &Path) -> bool {
     dir.file_name()
         .and_then(|name| name.to_str())
-        .is_some_and(|name| matches!(name, ".git" | "node_modules" | "dist" | "target"))
+        .is_some_and(|name| {
+            matches!(
+                name,
+                ".cache"
+                    | ".git"
+                    | ".next"
+                    | ".turbo"
+                    | "build"
+                    | "coverage"
+                    | "dist"
+                    | "node_modules"
+                    | "out"
+                    | "target"
+            )
+        })
 }
 
 fn is_indexable_style_path(path: &Path) -> bool {
