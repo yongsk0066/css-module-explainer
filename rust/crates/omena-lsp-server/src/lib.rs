@@ -5,7 +5,11 @@ use engine_style_parser::{
 };
 use serde::Serialize;
 use serde_json::{Value, json};
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs,
+    path::PathBuf,
+};
 
 pub const NODE_TEXT_DOCUMENT_SYNC_KIND: u8 = 2;
 pub const DEBUG_STATE_REQUEST: &str = "cssModuleExplainer/rustLspState";
@@ -655,7 +659,39 @@ fn did_change_watched_files(state: &mut LspShellState, params: Option<&Value>) {
             uri: uri.to_string(),
             change_type,
         });
+        apply_watched_file_change_to_index(state, uri, change_type);
     }
+}
+
+fn apply_watched_file_change_to_index(state: &mut LspShellState, uri: &str, change_type: u64) {
+    if !is_style_document_uri(uri) {
+        return;
+    }
+    if change_type == 3 {
+        state.documents.remove(uri);
+        return;
+    }
+
+    let Some(path) = file_uri_to_path(uri) else {
+        return;
+    };
+    let Ok(text) = fs::read_to_string(path) else {
+        return;
+    };
+    state.documents.insert(
+        uri.to_string(),
+        LspTextDocumentState {
+            uri: uri.to_string(),
+            workspace_folder_uri: resolve_workspace_folder_uri(state, uri),
+            language_id: StyleLanguage::from_module_path(uri)
+                .map(style_language_label)
+                .unwrap_or("unknown")
+                .to_string(),
+            version: 0,
+            style_summary: summarize_style_document(uri, Some(text.as_str())),
+            text,
+        },
+    );
 }
 
 fn insert_workspace_folder(state: &mut LspShellState, folder: &Value) {
@@ -1565,6 +1601,38 @@ fn workspace_folder_compatible(
 
 fn is_style_document_uri(uri: &str) -> bool {
     StyleLanguage::from_module_path(uri).is_some()
+}
+
+fn file_uri_to_path(uri: &str) -> Option<PathBuf> {
+    let raw_path = uri.strip_prefix("file://")?;
+    Some(PathBuf::from(percent_decode_uri_path(raw_path)?))
+}
+
+fn percent_decode_uri_path(raw_path: &str) -> Option<String> {
+    let bytes = raw_path.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0usize;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            let high = bytes.get(index + 1).and_then(|byte| hex_value(*byte))?;
+            let low = bytes.get(index + 2).and_then(|byte| hex_value(*byte))?;
+            decoded.push((high << 4) | low);
+            index += 3;
+        } else {
+            decoded.push(bytes[index]);
+            index += 1;
+        }
+    }
+    String::from_utf8(decoded).ok()
+}
+
+fn hex_value(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
 }
 
 fn location_sort_key(location: &Value) -> (String, u64, u64) {
@@ -2754,6 +2822,89 @@ mod tests {
         assert_eq!(state.workspace_folder_count(), 1);
         assert!(state.workspace_folder("file:///workspace-a").is_none());
         assert!(state.workspace_folder("file:///workspace-b").is_some());
+    }
+
+    #[test]
+    fn indexes_watched_style_file_changes_from_disk() {
+        let workspace_root =
+            std::env::temp_dir().join(format!("omena-lsp-server-watched-{}", std::process::id()));
+        let src_dir = workspace_root.join("src");
+        let style_path = src_dir.join("App.module.scss");
+        let _ = std::fs::remove_dir_all(&workspace_root);
+        let create_dir_result = std::fs::create_dir_all(&src_dir);
+        assert!(
+            create_dir_result.is_ok(),
+            "create watched fixture directory: {:?}",
+            create_dir_result.err(),
+        );
+        let write_result = std::fs::write(&style_path, ".fromDisk { color: red; }");
+        assert!(
+            write_result.is_ok(),
+            "write watched style fixture: {:?}",
+            write_result.err(),
+        );
+
+        let workspace_uri = format!("file://{}", workspace_root.display());
+        let style_uri = format!("file://{}", style_path.display());
+        let mut state = LspShellState::default();
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "workspaceFolders": [
+                        {
+                            "uri": workspace_uri,
+                            "name": "watched",
+                        },
+                    ],
+                },
+            }),
+        );
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "workspace/didChangeWatchedFiles",
+                "params": {
+                    "changes": [
+                        {
+                            "uri": style_uri,
+                            "type": 2,
+                        },
+                    ],
+                },
+            }),
+        );
+
+        let indexed = state
+            .document(style_uri.as_str())
+            .and_then(|document| document.style_summary.as_ref());
+        assert_eq!(
+            indexed.map(|summary| summary.selector_names.clone()),
+            Some(vec!["fromDisk".to_string()]),
+        );
+        assert_eq!(state.snapshot().watched_file_event_count, 1);
+
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "workspace/didChangeWatchedFiles",
+                "params": {
+                    "changes": [
+                        {
+                            "uri": style_uri,
+                            "type": 3,
+                        },
+                    ],
+                },
+            }),
+        );
+        assert!(state.document(style_uri.as_str()).is_none());
+        let _ = std::fs::remove_dir_all(&workspace_root);
     }
 
     #[test]
