@@ -118,6 +118,7 @@ interface ParserIndexSummaryV0 {
 
 interface CustomPropertyContextFactV0 {
   readonly name: string;
+  readonly sourceOrder: number;
   readonly selectorContexts: readonly string[];
   readonly underMedia: boolean;
   readonly underSupports: boolean;
@@ -546,8 +547,9 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
     decl.context.wrapperAtRules.some((wrapper) => wrapper.name === "layer"),
   );
   const customPropertyDeclFacts = document.customPropertyDecls
-    .map((entry) => ({
+    .map((entry, sourceOrder) => ({
       name: entry.name,
+      sourceOrder,
       selectorContexts: customPropertySelectorContextsForRange(
         document,
         entry.context.selectorText,
@@ -559,8 +561,9 @@ function deriveTsSummary(filePath: string, source: string): ParserIndexSummaryV0
     }))
     .toSorted(compareCustomPropertyContextFact);
   const customPropertyRefFacts = document.customPropertyRefs
-    .map((entry) => ({
+    .map((entry, sourceOrder) => ({
       name: entry.name,
+      sourceOrder,
       selectorContexts: customPropertySelectorContextsForRange(
         document,
         entry.context.selectorText,
@@ -954,6 +957,7 @@ function compareCustomPropertyContextFact(
 function customPropertyContextFactKey(fact: CustomPropertyContextFactV0): string {
   return [
     fact.name,
+    String(fact.sourceOrder),
     ...fact.selectorContexts,
     fact.underMedia ? "1" : "0",
     fact.underSupports ? "1" : "0",

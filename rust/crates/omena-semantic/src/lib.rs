@@ -492,6 +492,11 @@ $color: red;
         assert_eq!(summary.resolution_signal.declaration_fact_count, 1);
         assert_eq!(summary.resolution_signal.reference_fact_count, 2);
         assert_eq!(
+            summary.resolution_signal.source_ordered_declaration_count,
+            1
+        );
+        assert_eq!(summary.resolution_signal.source_ordered_reference_count, 2);
+        assert_eq!(
             summary
                 .resolution_signal
                 .occurrence_resolved_reference_count,
@@ -514,6 +519,7 @@ $color: red;
         );
         assert!(summary.capabilities.same_file_resolution_ready);
         assert!(summary.capabilities.wrapper_context_signal_ready);
+        assert!(summary.capabilities.source_order_signal_ready);
         assert!(summary.capabilities.occurrence_resolution_signal_ready);
         assert!(summary.capabilities.selector_context_resolution_ready);
         assert!(summary.capabilities.theme_override_context_signal_ready);
@@ -571,6 +577,11 @@ $color: red;
         assert_eq!(summary.resolution_signal.declaration_fact_count, 2);
         assert_eq!(summary.resolution_signal.reference_fact_count, 3);
         assert_eq!(
+            summary.resolution_signal.source_ordered_declaration_count,
+            2
+        );
+        assert_eq!(summary.resolution_signal.source_ordered_reference_count, 3);
+        assert_eq!(
             summary
                 .resolution_signal
                 .occurrence_resolved_reference_count,
@@ -593,6 +604,7 @@ $color: red;
             1
         );
         assert!(summary.capabilities.occurrence_resolution_signal_ready);
+        assert!(summary.capabilities.source_order_signal_ready);
         assert!(summary.capabilities.selector_context_resolution_ready);
         Ok(())
     }

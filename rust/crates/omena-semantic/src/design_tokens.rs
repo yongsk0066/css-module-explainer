@@ -36,6 +36,8 @@ pub struct DesignTokenContextSignalV0 {
 pub struct DesignTokenResolutionSignalV0 {
     pub declaration_fact_count: usize,
     pub reference_fact_count: usize,
+    pub source_ordered_declaration_count: usize,
+    pub source_ordered_reference_count: usize,
     pub occurrence_resolved_reference_count: usize,
     pub occurrence_unresolved_reference_count: usize,
     pub context_matched_reference_count: usize,
@@ -50,6 +52,7 @@ pub struct DesignTokenResolutionSignalV0 {
 pub struct DesignTokenSemanticCapabilitiesV0 {
     pub same_file_resolution_ready: bool,
     pub wrapper_context_signal_ready: bool,
+    pub source_order_signal_ready: bool,
     pub occurrence_resolution_signal_ready: bool,
     pub selector_context_resolution_ready: bool,
     pub theme_override_context_signal_ready: bool,
@@ -149,6 +152,7 @@ pub fn summarize_design_token_semantics(
         capabilities: DesignTokenSemanticCapabilitiesV0 {
             same_file_resolution_ready: declaration_count > 0 || reference_count > 0,
             wrapper_context_signal_ready: wrapper_context_count > 0,
+            source_order_signal_ready: resolution_signal.source_order_signal_ready(),
             occurrence_resolution_signal_ready: resolution_signal.occurrence_resolution_ready(),
             selector_context_resolution_ready: resolution_signal
                 .selector_context_resolution_ready(),
@@ -185,6 +189,8 @@ fn summarize_design_token_resolution_signal(
     DesignTokenResolutionSignalV0 {
         declaration_fact_count: custom_properties.decl_facts.len(),
         reference_fact_count: custom_properties.ref_facts.len(),
+        source_ordered_declaration_count: custom_properties.decl_facts.len(),
+        source_ordered_reference_count: custom_properties.ref_facts.len(),
         occurrence_resolved_reference_count,
         occurrence_unresolved_reference_count,
         context_matched_reference_count: occurrence_resolved_reference_count,
@@ -222,6 +228,10 @@ fn summarize_design_token_resolution_signal(
 impl DesignTokenResolutionSignalV0 {
     fn occurrence_resolution_ready(&self) -> bool {
         self.declaration_fact_count > 0 || self.reference_fact_count > 0
+    }
+
+    fn source_order_signal_ready(&self) -> bool {
+        self.source_ordered_declaration_count > 0 || self.source_ordered_reference_count > 0
     }
 
     fn selector_context_resolution_ready(&self) -> bool {

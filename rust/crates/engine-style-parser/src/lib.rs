@@ -415,6 +415,7 @@ pub struct ParserIndexCustomPropertyFactsV0 {
 #[serde(rename_all = "camelCase")]
 pub struct ParserIndexCustomPropertyDeclFactV0 {
     pub name: String,
+    pub source_order: usize,
     pub selector_contexts: Vec<String>,
     pub under_media: bool,
     pub under_supports: bool,
@@ -425,6 +426,7 @@ pub struct ParserIndexCustomPropertyDeclFactV0 {
 #[serde(rename_all = "camelCase")]
 pub struct ParserIndexCustomPropertyRefFactV0 {
     pub name: String,
+    pub source_order: usize,
     pub selector_contexts: Vec<String>,
     pub under_media: bool,
     pub under_supports: bool,
@@ -2116,18 +2118,21 @@ fn collect_index_names(
                 let custom_property_decl_names = custom_property_decl_names_in_rule(&node.children);
                 if !custom_property_decl_names.is_empty() {
                     let selector_contexts = selector_contexts_for_rule(rule, &resolved_branches);
+                    let source_order_offset = acc.custom_property_decl_facts.len();
                     acc.custom_property_decl_context_selectors
                         .extend(selector_contexts.iter().cloned());
                     acc.custom_property_decl_facts.extend(
-                        custom_property_decl_names.into_iter().map(|name| {
-                            ParserIndexCustomPropertyDeclFactV0 {
+                        custom_property_decl_names
+                            .into_iter()
+                            .enumerate()
+                            .map(|(index, name)| ParserIndexCustomPropertyDeclFactV0 {
                                 name,
+                                source_order: source_order_offset + index,
                                 selector_contexts: selector_contexts.clone(),
                                 under_media: wrapper_ctx.under_media,
                                 under_supports: wrapper_ctx.under_supports,
                                 under_layer: wrapper_ctx.under_layer,
-                            }
-                        }),
+                            }),
                     );
                 }
                 if !resolved_branches.is_empty() {
@@ -2743,6 +2748,7 @@ fn collect_index_selector_attachment_facts_with_context(
                 }
                 if ref_facts.has_custom_property_refs {
                     let selector_contexts = selector_contexts_for_rule(rule, &resolved_branches);
+                    let source_order_offset = acc.custom_property_ref_facts.len();
                     acc.selectors_with_custom_property_refs_names
                         .extend(resolved.iter().cloned());
                     acc.custom_property_ref_facts.extend(
@@ -2750,8 +2756,10 @@ fn collect_index_selector_attachment_facts_with_context(
                             .custom_property_ref_names
                             .iter()
                             .cloned()
-                            .map(|name| ParserIndexCustomPropertyRefFactV0 {
+                            .enumerate()
+                            .map(|(index, name)| ParserIndexCustomPropertyRefFactV0 {
                                 name,
+                                source_order: source_order_offset + index,
                                 selector_contexts: selector_contexts.clone(),
                                 under_media: wrapper_ctx.under_media,
                                 under_supports: wrapper_ctx.under_supports,
@@ -4925,6 +4933,7 @@ $gap: 1rem;
                 .iter()
                 .map(|fact| (
                     fact.name.as_str(),
+                    fact.source_order,
                     fact.selector_contexts.as_slice(),
                     fact.under_media,
                     fact.under_supports,
@@ -4934,6 +4943,7 @@ $gap: 1rem;
             vec![
                 (
                     "--brand",
+                    1,
                     vec![":root".to_string()].as_slice(),
                     true,
                     false,
@@ -4941,6 +4951,7 @@ $gap: 1rem;
                 ),
                 (
                     "--color-gray-700",
+                    0,
                     vec![":root".to_string()].as_slice(),
                     false,
                     false,
@@ -4948,6 +4959,7 @@ $gap: 1rem;
                 ),
                 (
                     "--surface",
+                    2,
                     vec!["[data-theme=\"dark\"]".to_string()].as_slice(),
                     false,
                     true,
@@ -4982,6 +4994,7 @@ $gap: 1rem;
                 .iter()
                 .map(|fact| (
                     fact.name.as_str(),
+                    fact.source_order,
                     fact.selector_contexts.as_slice(),
                     fact.under_media,
                     fact.under_supports,
@@ -4991,6 +5004,7 @@ $gap: 1rem;
             vec![
                 (
                     "--color-gray-700",
+                    0,
                     vec![".btn".to_string()].as_slice(),
                     true,
                     false,
@@ -4998,6 +5012,7 @@ $gap: 1rem;
                 ),
                 (
                     "--missing",
+                    1,
                     vec![".card".to_string()].as_slice(),
                     false,
                     true,
