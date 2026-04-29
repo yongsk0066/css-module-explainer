@@ -131,6 +131,7 @@ fn range(
 mod tests {
     use super::sample_input;
     use engine_input_producers::{
+        StringTypeFactsV2, TypeFactEntryV2, summarize_expression_domain_flow_analysis_input,
         summarize_semantic_canonical_producer_signal_input,
         summarize_source_side_canonical_producer_signal_input,
     };
@@ -164,6 +165,33 @@ mod tests {
     }
 
     #[test]
+    fn consumes_expression_domain_flow_analysis_contract() {
+        let mut input = sample_input();
+        input.type_facts = vec![
+            exact_type_fact("expr-branch-a", "btn-primary"),
+            exact_type_fact("expr-branch-b", "btn-secondary"),
+            exact_type_fact("expr-branch-c", "card"),
+        ];
+
+        let summary = summarize_expression_domain_flow_analysis_input(&input);
+
+        assert_eq!(
+            summary.product,
+            "engine-input-producers.expression-domain-flow-analysis"
+        );
+        assert_eq!(summary.analyses[0].analysis.context_sensitivity, "1-cfa");
+        assert_eq!(
+            summary.analyses[0]
+                .analysis
+                .nodes
+                .iter()
+                .find(|node| node.id == "file-merge")
+                .map(|node| node.value_kind),
+            Some("finiteSet")
+        );
+    }
+
+    #[test]
     fn serializes_remote_semantic_signal_for_downstream_consumers() -> Result<(), String> {
         let signal = summarize_semantic_canonical_producer_signal_input(&sample_input());
         let value = serde_json::to_value(&signal).map_err(|error| error.to_string())?;
@@ -190,15 +218,34 @@ mod tests {
             json!("prefixSuffix")
         );
         assert_eq!(
-            value["evaluatorCandidates"]["expressionDomain"]["results"][0]["payload"]
-                ["valueDomainDerivation"]["product"],
+            value["evaluatorCandidates"]["expressionDomain"]["results"][0]["payload"]["valueDomainDerivation"]
+                ["product"],
             json!("omena-abstract-value.reduced-class-value-derivation")
         );
         assert_eq!(
-            value["evaluatorCandidates"]["expressionDomain"]["results"][0]["payload"]
-                ["valueDomainDerivation"]["reducedKind"],
+            value["evaluatorCandidates"]["expressionDomain"]["results"][0]["payload"]["valueDomainDerivation"]
+                ["reducedKind"],
             json!("prefixSuffix")
         );
         Ok(())
+    }
+
+    fn exact_type_fact(expression_id: &str, value: &str) -> TypeFactEntryV2 {
+        TypeFactEntryV2 {
+            file_path: "/tmp/App.tsx".to_string(),
+            expression_id: expression_id.to_string(),
+            facts: StringTypeFactsV2 {
+                kind: "exact".to_string(),
+                constraint_kind: None,
+                values: Some(vec![value.to_string()]),
+                prefix: None,
+                suffix: None,
+                min_len: None,
+                max_len: None,
+                char_must: None,
+                char_may: None,
+                may_include_other_chars: None,
+            },
+        }
     }
 }
