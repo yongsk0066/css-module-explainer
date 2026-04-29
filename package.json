@@ -1,7 +1,7 @@
 {
   "name": "css-module-explainer",
   "displayName": "CSS Module Explainer",
-  "version": "4.2.0",
+  "version": "4.3.0",
   "private": true,
   "description": "Go to Definition, Hover, Autocomplete, Diagnostics, Quick Fixes, and Find References for classnames/bind cx() patterns with CSS Modules.",
   "categories": [
@@ -236,7 +236,7 @@
     "test:coverage": "vitest run --coverage",
     "package": "rm -f ./*.vsix && pnpm cme-check run core/build && node ./scripts/merge-engine-shadow-runner-artifacts.mjs && pnpm cme-check run release/check/packaged-engine-shadow-runner-matrix && pnpm cme-check run release/check/packaged-tsgo-binary && rm -rf dist/server && vsce package --no-dependencies && pnpm cme-check run release/check/packaged-selected-query-default",
     "version-packages": "changeset version && ./scripts/release.sh",
-    "release:verify": "./scripts/release.sh && pnpm cme-check run core/check && pnpm cme-check run plugin/consumer-example && pnpm cme-check bundle plugin/consumers && pnpm cme-check bundle rust/release/bundle && pnpm cme-check bundle tsgo/release/bundle && pnpm cme-check run test/test && pnpm cme-check run release/package",
+    "release:verify": "./scripts/release.sh && pnpm cme-check run core/build && pnpm cme-check run core/check && pnpm cme-check run plugin/consumer-example && pnpm cme-check bundle plugin/consumers && pnpm cme-check bundle rust/release/bundle && pnpm cme-check bundle tsgo/release/bundle && pnpm cme-check run test/test && pnpm cme-check run release/package",
     "release:publish": "./scripts/publish-extension.sh"
   },
   "devDependencies": {

@@ -1,5 +1,18 @@
 # Changelog
 
+## [4.3.0] - 2026-04-30
+
+### Added
+
+- **Abstract-value 1-CFA MVD** - added call-site-discriminated 1-CFA batch analysis with per-call-site flow results, callee exit summaries, and testable derivation steps.
+- **Published 1-CFA split surface** - published and verified `omena-abstract-value@0.1.6`, and updated the external git-consumer fixture to exercise the new call-site flow API.
+
+### Changed
+
+- **Rust release gates** - `rust/omena-abstract-value/one-cfa` now participates in the abstract-value split boundary, Rust lane bundle, and Rust release bundle.
+- **Release verification order** - `pnpm release:verify` now builds the extension before Rust gate evidence so LSP smoke checks always have `dist/server/server.js` available.
+- **Publish workflow release target** - GitHub Release creation now uses the checked-out commit SHA as `target_commitish`, avoiding tag-name target failures during publish.
+
 ## [4.2.0] - 2026-04-30
 
 ### Added
