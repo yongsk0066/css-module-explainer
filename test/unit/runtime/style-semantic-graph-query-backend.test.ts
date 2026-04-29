@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EngineInputV2 } from "../../../server/engine-core-ts/src/contracts";
+import { parseStyleDocument } from "../../../server/engine-core-ts/src/core/scss/scss-parser";
 import { DEFAULT_SETTINGS } from "../../../server/engine-core-ts/src/settings";
 import {
   buildStyleSemanticGraphDesignTokenRankedReferenceReadModels,
@@ -100,11 +101,34 @@ describe("style semantic graph query backend", () => {
     expect(buildStyleSemanticGraphDesignTokenRankedReferenceReadModels(makeGraph())).toEqual([
       {
         referenceName: "--brand",
-        referenceSourceOrder: 3,
+        referenceSourceOrder: 0,
         winnerDeclarationSourceOrder: 2,
         shadowedDeclarationSourceOrders: [0, 1],
         candidateDeclarationCount: 3,
       },
+    ]);
+  });
+
+  it("attaches host HIR ranges to rust design token ranked references", () => {
+    const styleDocument = parseStyleDocument(
+      [
+        ":root { --brand: red; }",
+        ".theme { --brand: blue; }",
+        ".button { --brand: green; color: var(--brand); }",
+      ].join("\n"),
+      SCSS_PATH,
+    );
+
+    const [readModel] = buildStyleSemanticGraphDesignTokenRankedReferenceReadModels(
+      makeGraph(),
+      styleDocument,
+    );
+
+    expect(readModel?.reference?.name).toBe("--brand");
+    expect(readModel?.winnerDeclaration?.value).toBe("green");
+    expect(readModel?.shadowedDeclarations?.map((declaration) => declaration.value)).toEqual([
+      "red",
+      "blue",
     ]);
   });
 
@@ -606,7 +630,7 @@ function makeGraph(stylePath = SCSS_PATH): StyleSemanticGraphSummaryV0 {
         rankedReferences: [
           {
             referenceName: "--brand",
-            referenceSourceOrder: 3,
+            referenceSourceOrder: 0,
             winnerDeclarationSourceOrder: 2,
             shadowedDeclarationSourceOrders: [0, 1],
             candidateDeclarationCount: 3,

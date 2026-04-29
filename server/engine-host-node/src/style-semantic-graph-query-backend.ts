@@ -112,6 +112,9 @@ export interface StyleSemanticGraphDesignTokenRankedReferenceReadModel {
   readonly winnerDeclarationSourceOrder: number;
   readonly shadowedDeclarationSourceOrders: readonly number[];
   readonly candidateDeclarationCount: number;
+  readonly reference?: StyleDocumentHIR["customPropertyRefs"][number];
+  readonly winnerDeclaration?: StyleDocumentHIR["customPropertyDecls"][number];
+  readonly shadowedDeclarations?: readonly StyleDocumentHIR["customPropertyDecls"][number][];
 }
 
 export interface StyleSemanticGraphSelectorIdentityEngineV0 {
@@ -535,15 +538,31 @@ export function buildStyleSemanticGraphSelectorIdentityReadModels(
 
 export function buildStyleSemanticGraphDesignTokenRankedReferenceReadModels(
   graph: StyleSemanticGraphSummaryV0,
+  styleDocument?: StyleDocumentHIR,
 ): readonly StyleSemanticGraphDesignTokenRankedReferenceReadModel[] {
   return (
-    graph.designTokenSemantics?.cascadeRankingSignal.rankedReferences.map((reference) => ({
-      referenceName: reference.referenceName,
-      referenceSourceOrder: reference.referenceSourceOrder,
-      winnerDeclarationSourceOrder: reference.winnerDeclarationSourceOrder,
-      shadowedDeclarationSourceOrders: reference.shadowedDeclarationSourceOrders,
-      candidateDeclarationCount: reference.candidateDeclarationCount,
-    })) ?? []
+    graph.designTokenSemantics?.cascadeRankingSignal.rankedReferences.map((reference) => {
+      const referenceNode = styleDocument?.customPropertyRefs[reference.referenceSourceOrder];
+      const winnerDeclaration =
+        styleDocument?.customPropertyDecls[reference.winnerDeclarationSourceOrder];
+      const shadowedDeclarations = styleDocument
+        ? reference.shadowedDeclarationSourceOrders.flatMap((sourceOrder) => {
+            const declaration = styleDocument.customPropertyDecls[sourceOrder];
+            return declaration ? [declaration] : [];
+          })
+        : undefined;
+
+      return {
+        referenceName: reference.referenceName,
+        referenceSourceOrder: reference.referenceSourceOrder,
+        winnerDeclarationSourceOrder: reference.winnerDeclarationSourceOrder,
+        shadowedDeclarationSourceOrders: reference.shadowedDeclarationSourceOrders,
+        candidateDeclarationCount: reference.candidateDeclarationCount,
+        ...(referenceNode ? { reference: referenceNode } : {}),
+        ...(winnerDeclaration ? { winnerDeclaration } : {}),
+        ...(shadowedDeclarations ? { shadowedDeclarations } : {}),
+      };
+    }) ?? []
   );
 }
 
