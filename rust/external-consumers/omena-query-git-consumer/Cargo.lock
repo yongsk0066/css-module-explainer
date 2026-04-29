@@ -47,9 +47,9 @@ dependencies = [
 
 [[package]]
 name = "omena-engine-style-parser"
-version = "0.1.4"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db8b390574dadbf8ecbbee8f1c3245ebd7bdfe25d596cd92fcb9bd42f996bdc5"
+checksum = "cb5fb5baa47a6bd088922c5b944e3a7f71947f56c43bbfc75370846681665f19"
 dependencies = [
  "serde",
  "serde_json",
@@ -57,8 +57,8 @@ dependencies = [
 
 [[package]]
 name = "omena-query"
-version = "0.1.10"
-source = "git+https://github.com/omenien/omena-query.git?rev=6cdb06d#6cdb06d023347c250cb63456ab5558832e2099a6"
+version = "0.1.11"
+source = "git+https://github.com/omenien/omena-query.git?rev=4697a6c#4697a6c3ea6a1a4738d50a0db905ef6d8b9a0a48"
 dependencies = [
  "omena-abstract-value",
  "omena-bridge",

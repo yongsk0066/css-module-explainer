@@ -35,8 +35,8 @@ dependencies = [
 
 [[package]]
 name = "omena-engine-style-parser"
-version = "0.1.4"
-source = "git+https://github.com/omenien/omena-engine-style-parser.git?rev=a72de58#a72de58f0bd5c3de24e041cfd17546f39a17ee21"
+version = "0.1.5"
+source = "git+https://github.com/omenien/omena-engine-style-parser.git?rev=287dd0f#287dd0f09b54b059a6a01575aa9f06219769343d"
 dependencies = [
  "serde",
  "serde_json",
