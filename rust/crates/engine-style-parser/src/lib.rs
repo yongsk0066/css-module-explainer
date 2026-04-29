@@ -10,11 +10,11 @@ pub enum StyleLanguage {
 
 impl StyleLanguage {
     pub fn from_module_path(path: &str) -> Option<Self> {
-        if path.ends_with(".module.css") {
+        if path.ends_with(".module.css") || path.ends_with(".css") {
             Some(Self::Css)
-        } else if path.ends_with(".module.scss") {
+        } else if path.ends_with(".module.scss") || path.ends_with(".scss") {
             Some(Self::Scss)
-        } else if path.ends_with(".module.less") {
+        } else if path.ends_with(".module.less") || path.ends_with(".less") {
             Some(Self::Less)
         } else {
             None
@@ -4345,7 +4345,18 @@ mod tests {
             StyleLanguage::from_module_path("/x/Button.module.less"),
             Some(StyleLanguage::Less)
         );
-        assert_eq!(StyleLanguage::from_module_path("/x/Button.css"), None);
+        assert_eq!(
+            StyleLanguage::from_module_path("/x/Button.css"),
+            Some(StyleLanguage::Css)
+        );
+        assert_eq!(
+            StyleLanguage::from_module_path("/x/_tokens.scss"),
+            Some(StyleLanguage::Scss)
+        );
+        assert_eq!(
+            StyleLanguage::from_module_path("/x/theme.less"),
+            Some(StyleLanguage::Less)
+        );
     }
 
     #[test]

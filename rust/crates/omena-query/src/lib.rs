@@ -499,25 +499,119 @@ fn style_module_source_candidates(from_style_path: &str, source: &str) -> Vec<St
             .unwrap_or_else(|| PathBuf::from(source))
     };
     let mut candidates = Vec::new();
-    push_style_path_candidate(&mut candidates, base_path.clone());
-    push_partial_style_path_candidate(&mut candidates, &base_path);
-
-    if source_path.extension().is_none() {
-        for extension in [
-            ".module.scss",
-            ".module.css",
-            ".module.less",
-            ".scss",
-            ".css",
-            ".less",
-        ] {
-            let candidate = PathBuf::from(format!("{}{}", base_path.display(), extension));
-            push_style_path_candidate(&mut candidates, candidate.clone());
-            push_partial_style_path_candidate(&mut candidates, &candidate);
-        }
+    push_style_module_path_candidates(
+        &mut candidates,
+        base_path,
+        source_path.extension().is_none(),
+    );
+    for package_base_path in package_style_module_base_candidates(from_style_path, source) {
+        push_style_module_path_candidates(&mut candidates, package_base_path, true);
     }
 
     candidates
+}
+
+fn push_style_module_path_candidates(
+    candidates: &mut Vec<String>,
+    base_path: PathBuf,
+    include_extension_variants: bool,
+) {
+    push_style_path_candidate(candidates, base_path.clone());
+    push_partial_style_path_candidate(candidates, &base_path);
+
+    if !include_extension_variants {
+        return;
+    }
+
+    for extension in [
+        ".module.scss",
+        ".module.css",
+        ".module.less",
+        ".scss",
+        ".css",
+        ".less",
+    ] {
+        let candidate = PathBuf::from(format!("{}{}", base_path.display(), extension));
+        push_style_path_candidate(candidates, candidate.clone());
+        push_partial_style_path_candidate(candidates, &candidate);
+    }
+}
+
+fn package_style_module_base_candidates(from_style_path: &str, source: &str) -> Vec<PathBuf> {
+    let Some(package_source) = parse_package_style_source(source) else {
+        return Vec::new();
+    };
+    let Some(from_dir) = Path::new(from_style_path).parent() else {
+        return Vec::new();
+    };
+    let mut candidates = Vec::new();
+    let mut current_dir = Some(from_dir);
+    while let Some(dir) = current_dir {
+        let package_root = dir.join("node_modules").join(package_source.package_name);
+        let package_entry = match package_source.subpath {
+            Some(subpath) => package_root.join(subpath),
+            None => package_root.clone(),
+        };
+        push_unique_pathbuf(&mut candidates, package_entry.clone());
+        if let Some(subpath) = package_source.subpath {
+            push_unique_pathbuf(&mut candidates, package_root.join("src").join(subpath));
+        } else {
+            push_unique_pathbuf(&mut candidates, package_root.join("index"));
+            push_unique_pathbuf(&mut candidates, package_root.join("src").join("index"));
+        }
+        current_dir = dir.parent();
+    }
+    candidates
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct PackageStyleSource<'a> {
+    package_name: &'a str,
+    subpath: Option<&'a str>,
+}
+
+fn parse_package_style_source(source: &str) -> Option<PackageStyleSource<'_>> {
+    if source.starts_with('.')
+        || source.starts_with('/')
+        || source.starts_with("sass:")
+        || source.starts_with("http://")
+        || source.starts_with("https://")
+    {
+        return None;
+    }
+
+    if source.starts_with('@') {
+        let mut segments = source.splitn(3, '/');
+        let scope = segments.next()?;
+        let package = segments.next()?;
+        if scope.len() <= 1 || package.is_empty() {
+            return None;
+        }
+        let package_name_end = scope.len() + 1 + package.len();
+        let package_name = &source[..package_name_end];
+        let subpath = segments.next().filter(|subpath| !subpath.is_empty());
+        return Some(PackageStyleSource {
+            package_name,
+            subpath,
+        });
+    }
+
+    let mut segments = source.splitn(2, '/');
+    let package_name = segments.next()?;
+    if package_name.is_empty() {
+        return None;
+    }
+    let subpath = segments.next().filter(|subpath| !subpath.is_empty());
+    Some(PackageStyleSource {
+        package_name,
+        subpath,
+    })
+}
+
+fn push_unique_pathbuf(candidates: &mut Vec<PathBuf>, value: PathBuf) {
+    if !candidates.contains(&value) {
+        candidates.push(value);
+    }
 }
 
 fn push_partial_style_path_candidate(candidates: &mut Vec<String>, path: &Path) {
@@ -960,6 +1054,53 @@ mod tests {
         assert_eq!(ranked_reference.winner_import_graph_order, Some(0));
         assert_eq!(ranked_reference.cross_file_candidate_declaration_count, 2);
         assert_eq!(ranked_reference.cross_file_shadowed_declaration_count, 1);
+    }
+
+    #[test]
+    fn style_semantic_graph_batch_resolves_package_root_forward_chain_token_candidates() {
+        let input = sample_input();
+        let batch = summarize_omena_query_style_semantic_graph_batch_from_sources(
+            [
+                (
+                    "/fake/workspace/node_modules/@design/tokens/src/index.scss",
+                    "@forward \"./colors\";",
+                ),
+                (
+                    "/fake/workspace/node_modules/@design/tokens/src/_colors.scss",
+                    ":root { --brand: package; }",
+                ),
+                (
+                    "/fake/workspace/src/_utils.scss",
+                    "@forward \"@design/tokens\" as ds_*;",
+                ),
+                (
+                    "/fake/workspace/src/App.module.scss",
+                    "@use \"./utils\";\n.button { color: var(--brand); }",
+                ),
+            ],
+            &input,
+        );
+
+        let app_graph = batch
+            .graphs
+            .iter()
+            .find(|entry| entry.style_path == "/fake/workspace/src/App.module.scss")
+            .and_then(|entry| entry.graph.as_ref());
+        assert!(app_graph.is_some());
+        let Some(app_graph) = app_graph else {
+            return;
+        };
+        let ranked_reference = &app_graph
+            .design_token_semantics
+            .cascade_ranking_signal
+            .ranked_references[0];
+
+        assert_eq!(
+            ranked_reference.winner_declaration_file_path.as_deref(),
+            Some("/fake/workspace/node_modules/@design/tokens/src/_colors.scss")
+        );
+        assert_eq!(ranked_reference.winner_import_graph_distance, Some(3));
+        assert_eq!(ranked_reference.cross_file_candidate_declaration_count, 1);
     }
 
     fn backend<'a>(
