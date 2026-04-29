@@ -23,6 +23,10 @@ Current public products:
   expression semantics, and selector usage runner commands. These keep the
   existing JSON output contracts stable while moving ownership into
   `omena-query`.
+- selected-query expression-domain flow analysis wrapper for the
+  `input-expression-domain-flow-analysis` runner command. This exposes the
+  `omena-abstract-value` flow product through the query boundary while keeping
+  the lower-level product name stable.
 - selected-query style semantic graph adapter wrappers. These preserve the
   `omena-semantic.style-semantic-graph` products while delegating graph assembly
   to `omena-bridge`.

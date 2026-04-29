@@ -28,6 +28,10 @@ const OMENA_QUERY_OWNED_COMMANDS = new Map([
     "summarize_omena_query_expression_semantics_canonical_producer_signal",
   ],
   [
+    "input-expression-domain-flow-analysis",
+    "summarize_omena_query_expression_domain_flow_analysis",
+  ],
+  [
     "input-selector-usage-canonical-producer",
     "summarize_omena_query_selector_usage_canonical_producer_signal",
   ],
@@ -49,7 +53,6 @@ const DIRECT_PRODUCER_LANE_COMMANDS = new Map([
     "input-expression-domain-evaluator-candidates",
     "summarize_expression_domain_evaluator_candidates_input",
   ],
-  ["input-expression-domain-flow-analysis", "summarize_expression_domain_flow_analysis_input"],
   [
     "input-expression-domain-canonical-producer",
     "summarize_expression_domain_canonical_producer_signal_input",

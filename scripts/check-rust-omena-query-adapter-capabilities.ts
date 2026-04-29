@@ -35,6 +35,14 @@ const EXPECTED_RUNNER_COMMANDS = new Map([
     },
   ],
   [
+    "expressionDomainFlowAnalysis",
+    {
+      command: SELECTED_QUERY_RUNNER_COMMANDS.expressionDomainFlowAnalysis,
+      inputContract: "EngineInputV2",
+      outputProduct: "engine-input-producers.expression-domain-flow-analysis",
+    },
+  ],
+  [
     "selectorUsage",
     {
       command: SELECTED_QUERY_RUNNER_COMMANDS.selectorUsageCanonicalProducer,
@@ -79,6 +87,7 @@ void (async () => {
   assert.deepEqual([...summary.adapterReadiness].toSorted(), [
     "backendCapabilityMatrix",
     "canonicalProducerWrapperBoundary",
+    "expressionDomainFlowAnalysisRunner",
     "expressionSemanticsDerivationPayload",
     "fragmentBundleBoundary",
     "runnerCommandContract",
