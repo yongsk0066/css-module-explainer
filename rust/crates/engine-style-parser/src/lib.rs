@@ -416,6 +416,8 @@ pub struct ParserIndexCustomPropertyFactsV0 {
 pub struct ParserIndexCustomPropertyDeclFactV0 {
     pub name: String,
     pub source_order: usize,
+    pub byte_span: ParserByteSpanV0,
+    pub range: ParserRangeV0,
     pub selector_contexts: Vec<String>,
     pub under_media: bool,
     pub under_supports: bool,
@@ -476,7 +478,7 @@ pub struct ParserIndexSassSameFileResolutionFactsV0 {
     pub resolved_function_call_names: Vec<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ParserByteSpanV0 {
     pub start: usize,
@@ -492,14 +494,14 @@ impl From<TextSpan> for ParserByteSpanV0 {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ParserPositionV0 {
     pub line: usize,
     pub character: usize,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ParserRangeV0 {
     pub start: ParserPositionV0,
@@ -783,6 +785,7 @@ pub fn summarize_parity_lite(sheet: &Stylesheet) -> ParserParityLiteSummaryV0 {
 pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSummaryV0 {
     let mut acc = IndexSummaryAcc::default();
     collect_index_names(
+        &sheet.source,
         &sheet.nodes,
         &mut acc,
         &[],
@@ -1703,6 +1706,13 @@ struct SassNameSpan {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+struct CustomPropertyDeclNameSpan {
+    name: String,
+    byte_span: ParserByteSpanV0,
+    range: ParserRangeV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct SassVariableDeclFact {
     name: String,
     scope: SassVariableScope,
@@ -2098,6 +2108,7 @@ fn sass_variable_scope_contains(scope: SassVariableScope, byte_span: ParserByteS
 }
 
 fn collect_index_names(
+    source: &str,
     nodes: &[SyntaxNode],
     acc: &mut IndexSummaryAcc,
     parent_branches: &[ResolvedSelectorBranch],
@@ -2115,24 +2126,26 @@ fn collect_index_names(
             Some(SyntaxNodePayload::Rule(rule)) => {
                 next_sass_scope = Some(node.span);
                 let resolved_branches = resolve_rule_selector_branches(rule, parent_branches);
-                let custom_property_decl_names = custom_property_decl_names_in_rule(&node.children);
-                if !custom_property_decl_names.is_empty() {
+                let custom_property_decl_name_spans =
+                    custom_property_decl_name_spans_in_rule(&node.children, source);
+                if !custom_property_decl_name_spans.is_empty() {
                     let selector_contexts = selector_contexts_for_rule(rule, &resolved_branches);
                     let source_order_offset = acc.custom_property_decl_facts.len();
                     acc.custom_property_decl_context_selectors
                         .extend(selector_contexts.iter().cloned());
                     acc.custom_property_decl_facts.extend(
-                        custom_property_decl_names
-                            .into_iter()
-                            .enumerate()
-                            .map(|(index, name)| ParserIndexCustomPropertyDeclFactV0 {
-                                name,
+                        custom_property_decl_name_spans.into_iter().enumerate().map(
+                            |(index, fact)| ParserIndexCustomPropertyDeclFactV0 {
+                                name: fact.name,
                                 source_order: source_order_offset + index,
+                                byte_span: fact.byte_span,
+                                range: fact.range,
                                 selector_contexts: selector_contexts.clone(),
                                 under_media: wrapper_ctx.under_media,
                                 under_supports: wrapper_ctx.under_supports,
                                 under_layer: wrapper_ctx.under_layer,
-                            }),
+                            },
+                        ),
                     );
                 }
                 if !resolved_branches.is_empty() {
@@ -2340,6 +2353,7 @@ fn collect_index_names(
         if split_child_branches {
             for parent_branch in &next_parent_branches {
                 collect_index_names(
+                    source,
                     &node.children,
                     acc,
                     std::slice::from_ref(parent_branch),
@@ -2350,6 +2364,7 @@ fn collect_index_names(
             }
         } else {
             collect_index_names(
+                source,
                 &node.children,
                 acc,
                 &next_parent_branches,
@@ -2361,14 +2376,25 @@ fn collect_index_names(
     }
 }
 
-fn custom_property_decl_names_in_rule(children: &[SyntaxNode]) -> Vec<String> {
+fn custom_property_decl_name_spans_in_rule(
+    children: &[SyntaxNode],
+    source: &str,
+) -> Vec<CustomPropertyDeclNameSpan> {
     children
         .iter()
         .filter_map(|child| match &child.payload {
             Some(SyntaxNodePayload::Declaration(declaration))
                 if is_css_custom_property_name(&declaration.property) =>
             {
-                Some(declaration.property.clone())
+                let byte_span = ParserByteSpanV0 {
+                    start: child.span.start,
+                    end: child.span.start + declaration.property.len(),
+                };
+                Some(CustomPropertyDeclNameSpan {
+                    name: declaration.property.clone(),
+                    byte_span,
+                    range: source_range_for_byte_span(source, byte_span),
+                })
             }
             _ => None,
         })

@@ -884,6 +884,10 @@ mod tests {
                 .as_deref(),
             Some("/tmp/tokens.module.scss")
         );
+        let winner_range =
+            design_tokens.cascade_ranking_signal.ranked_references[0].winner_declaration_range;
+        assert_eq!(winner_range.map(|range| range.start.line), Some(0));
+        assert_eq!(winner_range.map(|range| range.start.character), Some(8));
         assert_eq!(
             design_tokens.cascade_ranking_signal.ranked_references[0]
                 .cross_file_candidate_declaration_count,

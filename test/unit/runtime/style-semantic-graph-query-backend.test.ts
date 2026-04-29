@@ -151,6 +151,10 @@ describe("style semantic graph query backend", () => {
                   referenceSourceOrder: 0,
                   winnerDeclarationSourceOrder: 0,
                   winnerDeclarationFilePath: "/fake/ws/src/tokens.scss",
+                  winnerDeclarationRange: {
+                    start: { line: 0, character: 8 },
+                    end: { line: 0, character: 15 },
+                  },
                   shadowedDeclarationSourceOrders: [],
                   candidateDeclarationCount: 1,
                   crossFileCandidateDeclarationCount: 1,
@@ -169,6 +173,10 @@ describe("style semantic graph query backend", () => {
 
     expect(readModel?.reference?.name).toBe("--brand");
     expect(readModel?.winnerDeclarationFilePath).toBe("/fake/ws/src/tokens.scss");
+    expect(readModel?.winnerDeclarationRange).toEqual({
+      start: { line: 0, character: 8 },
+      end: { line: 0, character: 15 },
+    });
     expect(readModel?.crossFileCandidateScope).toBe("cross-file-import-candidate");
     expect(readModel?.winnerDeclaration).toBeUndefined();
   });

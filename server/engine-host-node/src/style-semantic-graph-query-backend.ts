@@ -97,6 +97,7 @@ export interface StyleSemanticGraphDesignTokenRankedReferenceV0 {
   readonly referenceSourceOrder: number;
   readonly winnerDeclarationSourceOrder: number;
   readonly winnerDeclarationFilePath?: string;
+  readonly winnerDeclarationRange?: Range;
   readonly shadowedDeclarationSourceOrders: readonly number[];
   readonly candidateDeclarationCount: number;
   readonly crossFileCandidateDeclarationCount?: number;
@@ -122,6 +123,7 @@ export interface StyleSemanticGraphDesignTokenRankedReferenceReadModel {
   readonly referenceSourceOrder: number;
   readonly winnerDeclarationSourceOrder: number;
   readonly winnerDeclarationFilePath?: string;
+  readonly winnerDeclarationRange?: Range;
   readonly crossFileCandidateScope?: string;
   readonly shadowedDeclarationSourceOrders: readonly number[];
   readonly candidateDeclarationCount: number;
@@ -586,6 +588,9 @@ export function buildStyleSemanticGraphDesignTokenRankedReferenceReadModels(
       if (reference.winnerDeclarationFilePath) {
         readModel.winnerDeclarationFilePath = reference.winnerDeclarationFilePath;
         readModel.crossFileCandidateScope = designTokenSemantics.resolutionScope;
+      }
+      if (reference.winnerDeclarationRange) {
+        readModel.winnerDeclarationRange = reference.winnerDeclarationRange;
       }
       if (referenceNode) readModel.reference = referenceNode;
       if (winnerDeclaration) readModel.winnerDeclaration = winnerDeclaration;

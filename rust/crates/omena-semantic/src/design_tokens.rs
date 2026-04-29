@@ -75,6 +75,8 @@ pub struct DesignTokenRankedReferenceV0 {
     pub winner_declaration_source_order: usize,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub winner_declaration_file_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub winner_declaration_range: Option<engine_style_parser::ParserRangeV0>,
     pub shadowed_declaration_source_orders: Vec<usize>,
     pub candidate_declaration_count: usize,
     pub cross_file_candidate_declaration_count: usize,
@@ -102,6 +104,8 @@ pub struct DesignTokenWorkspaceDeclarationFactV0 {
     pub file_path: String,
     pub name: String,
     pub source_order: usize,
+    pub byte_span: engine_style_parser::ParserByteSpanV0,
+    pub range: engine_style_parser::ParserRangeV0,
     pub selector_contexts: Vec<String>,
     pub under_media: bool,
     pub under_supports: bool,
@@ -291,6 +295,8 @@ pub fn collect_design_token_workspace_declarations(
             file_path: style_path.to_string(),
             name: declaration.name.clone(),
             source_order: declaration.source_order,
+            byte_span: declaration.byte_span,
+            range: declaration.range,
             selector_contexts: declaration.selector_contexts.clone(),
             under_media: declaration.under_media,
             under_supports: declaration.under_supports,
@@ -379,6 +385,7 @@ fn summarize_design_token_cascade_ranking_signal(
             reference_source_order: reference.source_order,
             winner_declaration_source_order: winner.source_order(),
             winner_declaration_file_path: winner.file_path().map(ToString::to_string),
+            winner_declaration_range: winner.range(),
             shadowed_declaration_source_orders,
             candidate_declaration_count,
             cross_file_candidate_declaration_count:
@@ -558,6 +565,13 @@ impl DesignTokenCandidateDeclaration<'_> {
             DesignTokenCandidateDeclaration::Workspace(declaration) => {
                 Some(declaration.file_path.as_str())
             }
+        }
+    }
+
+    fn range(&self) -> Option<engine_style_parser::ParserRangeV0> {
+        match self {
+            DesignTokenCandidateDeclaration::Local(_) => None,
+            DesignTokenCandidateDeclaration::Workspace(declaration) => Some(declaration.range),
         }
     }
 
