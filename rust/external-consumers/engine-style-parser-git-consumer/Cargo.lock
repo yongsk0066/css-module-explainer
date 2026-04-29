@@ -24,8 +24,8 @@ checksum = "f8ca58f447f06ed17d5fc4043ce1b10dd205e060fb3ce5b979b8ed8e59ff3f79"
 
 [[package]]
 name = "omena-engine-style-parser"
-version = "0.1.1"
-source = "git+https://github.com/omenien/omena-engine-style-parser.git?rev=c226413#c22641389d8ed8f30265e9bc72d279c52ceab3c7"
+version = "0.1.2"
+source = "git+https://github.com/omenien/omena-engine-style-parser.git?rev=dfcc6f5#dfcc6f50d1c2b13e856843dc2980441d892dc022"
 dependencies = [
  "serde",
  "serde_json",
