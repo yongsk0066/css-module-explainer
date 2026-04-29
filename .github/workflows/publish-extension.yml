@@ -115,15 +115,17 @@ jobs:
             PRERELEASE=false
             NAME="v${VERSION}"
           fi
+          TARGET_COMMIT="$(git rev-parse HEAD)"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "prerelease=${PRERELEASE}" >> "$GITHUB_OUTPUT"
           echo "name=${NAME}" >> "$GITHUB_OUTPUT"
+          echo "target_commit=${TARGET_COMMIT}" >> "$GITHUB_OUTPUT"
       - uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
         if: github.event.inputs.create_github_release == 'true'
         with:
           tag_name: ${{ steps.meta.outputs.tag }}
           name: ${{ steps.meta.outputs.name }}
           prerelease: ${{ steps.meta.outputs.prerelease }}
-          target_commitish: ${{ github.event.inputs.ref }}
+          target_commitish: ${{ steps.meta.outputs.target_commit }}
           files: "*.vsix"

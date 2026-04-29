@@ -214,6 +214,66 @@ pub struct ClassValueFlowIncrementalBatchEntryV0 {
     pub analysis: ClassValueFlowIncrementalAnalysisV0,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OneCfaCallSiteFlowInputV0 {
+    pub callee_key: String,
+    pub call_site_id: String,
+    pub graph: ClassValueFlowGraphV0,
+    pub exit_node_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OneCfaCallSiteFlowAnalysisV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub context_sensitivity: &'static str,
+    pub call_site_count: usize,
+    pub callee_count: usize,
+    pub entries: Vec<OneCfaCallSiteFlowEntryV0>,
+    pub callee_summaries: Vec<OneCfaCalleeFlowSummaryV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OneCfaCallSiteFlowEntryV0 {
+    pub callee_key: String,
+    pub call_site_id: String,
+    pub context_key: String,
+    pub exit_node_id: String,
+    pub exit_value_kind: &'static str,
+    pub exit_value: AbstractClassValueV0,
+    pub analysis: ClassValueFlowAnalysisV0,
+    pub derivation: OneCfaCallSiteDerivationV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OneCfaCalleeFlowSummaryV0 {
+    pub callee_key: String,
+    pub call_site_count: usize,
+    pub joined_exit_value_kind: &'static str,
+    pub joined_exit_value: AbstractClassValueV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OneCfaCallSiteDerivationV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub call_site_id: String,
+    pub context_key: String,
+    pub steps: Vec<OneCfaCallSiteDerivationStepV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OneCfaCallSiteDerivationStepV0 {
+    pub operation: &'static str,
+    pub result_kind: &'static str,
+    pub reason: &'static str,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ClassValueFlowNodeResultV0 {
@@ -265,7 +325,7 @@ pub fn summarize_omena_abstract_value_flow_analysis() -> AbstractValueFlowAnalys
         product: "omena-abstract-value.flow-analysis",
         context_sensitivity: "1-cfa",
         incremental_engine: "omena-incremental",
-        analysis_scopes: vec!["singleContext", "multiContextBatch"],
+        analysis_scopes: vec!["singleContext", "multiContextBatch", "callSiteBatch"],
         reuse_policy: "reuse previous context analysis when its omena-incremental plan is clean",
         transfer_kinds: vec!["assignFacts", "refineFacts", "join"],
         max_iterations: MAX_FLOW_ANALYSIS_ITERATIONS,
@@ -657,6 +717,46 @@ pub fn analyze_class_value_flow_incremental_batch_with_reuse(
     }
 }
 
+pub fn analyze_one_cfa_call_site_flows(
+    inputs: &[OneCfaCallSiteFlowInputV0],
+) -> OneCfaCallSiteFlowAnalysisV0 {
+    let entries = inputs
+        .iter()
+        .map(|input| {
+            let context_key = one_cfa_context_key(input);
+            let mut graph = input.graph.clone();
+            graph.context_key = Some(context_key.clone());
+            let analysis = analyze_class_value_flow(&graph);
+            let exit_value = flow_analysis_node_value(&analysis, &input.exit_node_id)
+                .cloned()
+                .unwrap_or_else(bottom_class_value);
+            let exit_value_kind = abstract_class_value_kind(&exit_value);
+
+            OneCfaCallSiteFlowEntryV0 {
+                callee_key: input.callee_key.clone(),
+                call_site_id: input.call_site_id.clone(),
+                context_key: context_key.clone(),
+                exit_node_id: input.exit_node_id.clone(),
+                exit_value_kind,
+                exit_value: exit_value.clone(),
+                analysis,
+                derivation: one_cfa_call_site_derivation(input, &context_key, &exit_value),
+            }
+        })
+        .collect::<Vec<_>>();
+    let callee_summaries = summarize_one_cfa_callees(&entries);
+
+    OneCfaCallSiteFlowAnalysisV0 {
+        schema_version: "0",
+        product: "omena-abstract-value.one-cfa-call-site-flow",
+        context_sensitivity: "1-cfa",
+        call_site_count: entries.len(),
+        callee_count: callee_summaries.len(),
+        entries,
+        callee_summaries,
+    }
+}
+
 pub fn class_value_flow_incremental_input(
     graph: &ClassValueFlowGraphV0,
     revision: u64,
@@ -680,6 +780,80 @@ fn flow_graph_batch_context_key(graph: &ClassValueFlowGraphV0, index: usize) -> 
         .context_key
         .clone()
         .unwrap_or_else(|| format!("anonymous-context-{index}"))
+}
+
+fn one_cfa_context_key(input: &OneCfaCallSiteFlowInputV0) -> String {
+    format!("{}@{}", input.callee_key, input.call_site_id)
+}
+
+fn flow_analysis_node_value<'a>(
+    analysis: &'a ClassValueFlowAnalysisV0,
+    node_id: &str,
+) -> Option<&'a AbstractClassValueV0> {
+    analysis
+        .nodes
+        .iter()
+        .find(|node| node.id == node_id)
+        .map(|node| &node.value)
+}
+
+fn one_cfa_call_site_derivation(
+    input: &OneCfaCallSiteFlowInputV0,
+    context_key: &str,
+    exit_value: &AbstractClassValueV0,
+) -> OneCfaCallSiteDerivationV0 {
+    OneCfaCallSiteDerivationV0 {
+        schema_version: "0",
+        product: "omena-abstract-value.one-cfa-call-site-derivation",
+        call_site_id: input.call_site_id.clone(),
+        context_key: context_key.to_string(),
+        steps: vec![
+            OneCfaCallSiteDerivationStepV0 {
+                operation: "contextFromCallSite",
+                result_kind: "context",
+                reason: "1-CFA separates flow facts by the immediate call-site identity",
+            },
+            OneCfaCallSiteDerivationStepV0 {
+                operation: "analyzeFlowGraph",
+                result_kind: "flowAnalysis",
+                reason: "ran the class-value flow graph inside the call-site context",
+            },
+            OneCfaCallSiteDerivationStepV0 {
+                operation: "projectExitNode",
+                result_kind: abstract_class_value_kind(exit_value),
+                reason: "projected the requested exit node as the call-site result",
+            },
+        ],
+    }
+}
+
+fn summarize_one_cfa_callees(
+    entries: &[OneCfaCallSiteFlowEntryV0],
+) -> Vec<OneCfaCalleeFlowSummaryV0> {
+    let mut by_callee = BTreeMap::<String, Vec<AbstractClassValueV0>>::new();
+    for entry in entries {
+        by_callee
+            .entry(entry.callee_key.clone())
+            .or_default()
+            .push(entry.exit_value.clone());
+    }
+
+    by_callee
+        .into_iter()
+        .map(|(callee_key, values)| {
+            let call_site_count = values.len();
+            let joined_exit_value = values
+                .into_iter()
+                .reduce(|left, right| join_abstract_class_values(&left, &right))
+                .unwrap_or_else(bottom_class_value);
+            OneCfaCalleeFlowSummaryV0 {
+                callee_key,
+                call_site_count,
+                joined_exit_value_kind: abstract_class_value_kind(&joined_exit_value),
+                joined_exit_value,
+            }
+        })
+        .collect()
 }
 
 pub fn reduced_abstract_class_value_from_facts(
@@ -1815,15 +1989,15 @@ mod tests {
     use super::{
         AbstractClassValueProvenanceV0, AbstractClassValueV0, ClassValueFlowGraphV0,
         ClassValueFlowNodeV0, ClassValueFlowTransferV0, CompositeClassValueInputV0,
-        ExternalStringTypeFactsV0, MAX_FINITE_CLASS_VALUES, SelectorProjectionCertaintyV0,
-        abstract_class_value_from_facts, analyze_class_value_flow,
+        ExternalStringTypeFactsV0, MAX_FINITE_CLASS_VALUES, OneCfaCallSiteFlowInputV0,
+        SelectorProjectionCertaintyV0, abstract_class_value_from_facts, analyze_class_value_flow,
         analyze_class_value_flow_incremental,
         analyze_class_value_flow_incremental_batch_with_reuse,
-        analyze_class_value_flow_incremental_with_reuse, bottom_class_value,
-        char_inclusion_class_value, composite_class_value, derive_selector_projection_certainty,
-        exact_class_value, finite_set_class_value, finite_values_from_facts,
-        intersect_abstract_class_values, join_abstract_class_values, prefix_class_value,
-        prefix_suffix_class_value, project_abstract_value_selectors,
+        analyze_class_value_flow_incremental_with_reuse, analyze_one_cfa_call_site_flows,
+        bottom_class_value, char_inclusion_class_value, composite_class_value,
+        derive_selector_projection_certainty, exact_class_value, finite_set_class_value,
+        finite_values_from_facts, intersect_abstract_class_values, join_abstract_class_values,
+        prefix_class_value, prefix_suffix_class_value, project_abstract_value_selectors,
         reduced_abstract_class_value_from_facts, reduced_class_value_derivation_from_facts,
         reduced_value_domain_kind_from_facts, selector_certainty_from_facts,
         selector_certainty_shape_kind_from_facts, selector_certainty_shape_label_from_facts,
@@ -1854,6 +2028,7 @@ mod tests {
         assert_eq!(flow_summary.context_sensitivity, "1-cfa");
         assert_eq!(flow_summary.incremental_engine, "omena-incremental");
         assert!(flow_summary.analysis_scopes.contains(&"multiContextBatch"));
+        assert!(flow_summary.analysis_scopes.contains(&"callSiteBatch"));
         assert_eq!(
             flow_summary.reuse_policy,
             "reuse previous context analysis when its omena-incremental plan is clean"
@@ -2283,6 +2458,102 @@ mod tests {
                 values: vec!["btn-primary".to_string(), "btn-secondary".to_string()]
             })
         );
+    }
+
+    #[test]
+    fn analyzes_one_cfa_call_site_flows_with_context_discrimination() {
+        let primary_graph = ClassValueFlowGraphV0 {
+            context_key: None,
+            nodes: vec![
+                flow_assign_node(
+                    "variant",
+                    external_facts("exact").with_values(["btn-primary"]),
+                ),
+                ClassValueFlowNodeV0 {
+                    id: "exit".to_string(),
+                    predecessors: vec!["variant".to_string()],
+                    transfer: ClassValueFlowTransferV0::RefineFacts(
+                        external_facts("constrained")
+                            .with_constraint_kind("prefix")
+                            .with_prefix("btn-"),
+                    ),
+                },
+            ],
+        };
+        let secondary_graph = ClassValueFlowGraphV0 {
+            context_key: None,
+            nodes: vec![
+                flow_assign_node(
+                    "variant",
+                    external_facts("exact").with_values(["btn-secondary"]),
+                ),
+                ClassValueFlowNodeV0 {
+                    id: "exit".to_string(),
+                    predecessors: vec!["variant".to_string()],
+                    transfer: ClassValueFlowTransferV0::RefineFacts(
+                        external_facts("constrained")
+                            .with_constraint_kind("prefix")
+                            .with_prefix("btn-"),
+                    ),
+                },
+            ],
+        };
+
+        let analysis = analyze_one_cfa_call_site_flows(&[
+            OneCfaCallSiteFlowInputV0 {
+                callee_key: "classForVariant".to_string(),
+                call_site_id: "Button.tsx:10:className".to_string(),
+                graph: primary_graph,
+                exit_node_id: "exit".to_string(),
+            },
+            OneCfaCallSiteFlowInputV0 {
+                callee_key: "classForVariant".to_string(),
+                call_site_id: "Card.tsx:22:className".to_string(),
+                graph: secondary_graph,
+                exit_node_id: "exit".to_string(),
+            },
+        ]);
+
+        assert_eq!(analysis.schema_version, "0");
+        assert_eq!(
+            analysis.product,
+            "omena-abstract-value.one-cfa-call-site-flow"
+        );
+        assert_eq!(analysis.context_sensitivity, "1-cfa");
+        assert_eq!(analysis.call_site_count, 2);
+        assert_eq!(analysis.callee_count, 1);
+        assert_eq!(
+            analysis.entries[0].context_key,
+            "classForVariant@Button.tsx:10:className"
+        );
+        assert_eq!(
+            analysis.entries[1].context_key,
+            "classForVariant@Card.tsx:22:className"
+        );
+        assert_eq!(
+            analysis.entries[0].exit_value,
+            exact_class_value("btn-primary")
+        );
+        assert_eq!(
+            analysis.entries[1].exit_value,
+            exact_class_value("btn-secondary")
+        );
+        assert_eq!(
+            analysis.callee_summaries[0].joined_exit_value,
+            AbstractClassValueV0::FiniteSet {
+                values: vec!["btn-primary".to_string(), "btn-secondary".to_string()]
+            }
+        );
+        assert_eq!(analysis.entries[0].derivation.steps.len(), 3);
+        assert_eq!(
+            analysis.entries[0].derivation.steps[0].operation,
+            "contextFromCallSite"
+        );
+        assert_eq!(
+            analysis.entries[0].derivation.steps[2].operation,
+            "projectExitNode"
+        );
+        assert_eq!(analysis.entries[0].derivation.steps[2].result_kind, "exact");
     }
 
     #[test]
