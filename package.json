@@ -35,8 +35,9 @@
   "main": "./dist/client/extension.js",
   "scripts": {
     "clean": "rm -rf dist",
-    "build": "pnpm cme-check run core/clean && rolldown -c rolldown.config.ts && pnpm cme-check run core/build/engine-shadow-runner && pnpm cme-check run core/build/tsgo-binary",
+    "build": "pnpm cme-check run core/clean && rolldown -c rolldown.config.ts && pnpm cme-check run core/build/engine-shadow-runner && pnpm cme-check run core/build/omena-lsp-server && pnpm cme-check run core/build/tsgo-binary",
     "build:engine-shadow-runner": "cargo build --manifest-path rust/Cargo.toml -p engine-shadow-runner --release && node ./scripts/prepare-engine-shadow-runner.mjs",
+    "build:omena-lsp-server": "cargo build --manifest-path rust/Cargo.toml -p omena-lsp-server --release && node ./scripts/prepare-omena-lsp-server.mjs",
     "build:tsgo-binary": "node ./scripts/prepare-tsgo-binary.mjs",
     "watch": "rolldown -c rolldown.config.ts --watch",
     "cme-check": "node --import tsx ./packages/check-orchestrator/src/cli/main.ts",
@@ -91,6 +92,11 @@
     "check:rust-omena-bridge-boundary": "cargo test --manifest-path rust/Cargo.toml -p omena-bridge",
     "check:rust-omena-bridge-git-consumer": "./scripts/check-rust-omena-bridge-git-consumer.sh",
     "check:rust-omena-bridge-split-boundary": "pnpm cme-check run rust/omena-bridge/boundary && pnpm cme-check run rust/omena-bridge/git-consumer",
+    "check:rust-omena-lsp-server-boundary": "cargo test --manifest-path rust/Cargo.toml -p omena-lsp-server && node --import tsx ./scripts/check-rust-omena-lsp-server-boundary.ts",
+    "check:rust-omena-lsp-server-shell": "node --import tsx ./scripts/check-rust-omena-lsp-server-shell.ts",
+    "check:rust-omena-lsp-server-provider-parity": "node --import tsx ./scripts/check-rust-omena-lsp-server-style-provider-parity.ts",
+    "check:rust-omena-lsp-server-style-provider-parity": "node --import tsx ./scripts/check-rust-omena-lsp-server-style-provider-parity.ts",
+    "check:rust-omena-lsp-server-lane": "pnpm cme-check run rust/omena-lsp-server/boundary && pnpm cme-check run rust/omena-lsp-server/shell && pnpm cme-check run rust/omena-lsp-server/provider-parity",
     "check:rust-omena-semantic-observation-harness": "node --import tsx ./scripts/check-rust-omena-semantic-observation-harness.ts",
     "check:rust-omena-semantic-publish-readiness": "node --import tsx ./scripts/check-rust-omena-semantic-publish-readiness.ts",
     "check:rust-omena-semantic-git-consumer": "./scripts/check-rust-omena-semantic-git-consumer.sh",
@@ -188,7 +194,7 @@
     "check:rust-selected-query-workspace": "pnpm cme-check run rust/selected-query/warmup && node --import tsx ./scripts/check-rust-selected-query-workspace.ts",
     "check:rust-selected-query-release-default": "pnpm cme-check run core/build && node ./scripts/merge-engine-shadow-runner-artifacts.mjs && pnpm cme-check run release/check/packaged-engine-shadow-runner-matrix && CME_SELECTED_QUERY_BACKEND=auto pnpm cme-check run test/protocol",
     "check:rust-selected-query-default-candidate": "pnpm cme-check run rust/selected-query/release-default && CME_ENGINE_SHADOW_RUNNER=prebuilt pnpm cme-check run rust/selected-query/consumers && pnpm cme-check run rust/selected-query/protocol && pnpm cme-check run rust/selected-query/daemon-protocol && pnpm cme-check run rust/selected-query/runner-daemon && pnpm cme-check run rust/selected-query/workspace",
-    "check:rust-phase-2-swap-readiness": "pnpm cme-check run editor/provider-host-routing-boundary && pnpm cme-check run rust/selected-query/default-candidate && pnpm cme-check run rust/lsp-runtime-loop && pnpm cme-check run rust/checker/release-gate-shadow",
+    "check:rust-phase-2-swap-readiness": "pnpm cme-check run editor/provider-host-routing-boundary && pnpm cme-check run rust/omena-lsp-server/lane && pnpm cme-check run rust/selected-query/default-candidate && pnpm cme-check run rust/lsp-runtime-loop && pnpm cme-check run rust/checker/release-gate-shadow",
     "check:packaged-engine-shadow-runner": "node ./scripts/check-packaged-engine-shadow-runner.mjs",
     "check:packaged-engine-shadow-runner-matrix": "node ./scripts/check-packaged-engine-shadow-runner-matrix.mjs",
     "check:packaged-tsgo-binary": "node ./scripts/check-packaged-tsgo-binary.mjs",
@@ -319,6 +325,15 @@
           "default": 500,
           "minimum": 0,
           "markdownDescription": "Maximum tsconfig root file count before the synchronous TypeScript resolver returns unresolved type facts instead of building a full `ts.Program` on the language-server request path. Set to `0` to disable the guard."
+        },
+        "cssModuleExplainer.lspServerRuntime": {
+          "type": "string",
+          "enum": [
+            "node",
+            "omena-lsp-server"
+          ],
+          "default": "node",
+          "markdownDescription": "Language-server runtime. `node` uses the mature TypeScript LSP server. `omena-lsp-server` runs the Rust stdio server when the bundled or explicit `CME_OMENA_LSP_SERVER_PATH` binary is available."
         },
         "cssModuleExplainer.pathAlias": {
           "type": "object",

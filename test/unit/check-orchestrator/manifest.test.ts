@@ -34,6 +34,21 @@ describe("check orchestrator manifest", () => {
     expect(resolveGateTarget(manifest, "rust/omena-resolver/split-boundary")?.scriptName).toBe(
       "check:rust-omena-resolver-split-boundary",
     );
+    expect(resolveGateTarget(manifest, "rust/omena-lsp-server/boundary")?.scriptName).toBe(
+      "check:rust-omena-lsp-server-boundary",
+    );
+    expect(resolveGateTarget(manifest, "rust/omena-lsp-server/shell")?.scriptName).toBe(
+      "check:rust-omena-lsp-server-shell",
+    );
+    expect(resolveGateTarget(manifest, "rust/omena-lsp-server/provider-parity")?.scriptName).toBe(
+      "check:rust-omena-lsp-server-provider-parity",
+    );
+    expect(
+      resolveGateTarget(manifest, "rust/omena-lsp-server/style-provider-parity")?.scriptName,
+    ).toBe("check:rust-omena-lsp-server-style-provider-parity");
+    expect(resolveGateTarget(manifest, "rust/omena-lsp-server/lane")?.scriptName).toBe(
+      "check:rust-omena-lsp-server-lane",
+    );
     expect(resolveGateTarget(manifest, "ts7/phase-b/protocol@tsgo")?.scriptName).toBe(
       "check:ts7-phase-b-protocol-tsgo",
     );
@@ -109,8 +124,19 @@ describe("check orchestrator manifest", () => {
     expect(phase2SwapReadiness?.referencedScripts).toEqual(
       expect.arrayContaining([
         "check:provider-host-routing-boundary",
+        "check:rust-omena-lsp-server-lane",
         "check:rust-selected-query-default-candidate",
         "check:rust-checker-release-gate-shadow",
+      ]),
+    );
+
+    const rustLspLane = resolveGateTarget(manifest, "rust/omena-lsp-server/lane");
+    expect(rustLspLane?.kind).toBe("bundle");
+    expect(rustLspLane?.referencedScripts).toEqual(
+      expect.arrayContaining([
+        "check:rust-omena-lsp-server-boundary",
+        "check:rust-omena-lsp-server-shell",
+        "check:rust-omena-lsp-server-provider-parity",
       ]),
     );
 

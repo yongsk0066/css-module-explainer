@@ -11,6 +11,7 @@ import {
   resolveTsgoBinaryPathForEnv,
 } from "../server/engine-host-node/src/tsgo-probe-type-resolver";
 import { buildTsgoTypeFactWorkerInvocation } from "../server/engine-host-node/src/tsgo-type-fact-collector";
+import { resolveOmenaLspServerPath } from "../client/src/lsp-server-runtime-config";
 
 const repoRoot = process.cwd();
 const vsixFiles = readdirSync(repoRoot).filter((file) => file.endsWith(".vsix"));
@@ -25,6 +26,8 @@ const platformDir = `${process.platform}-${process.arch}`;
 const binaryName =
   process.platform === "win32" ? "engine-shadow-runner.exe" : "engine-shadow-runner";
 const tsgoBinaryName = process.platform === "win32" ? "tsgo.exe" : "tsgo";
+const omenaLspServerBinaryName =
+  process.platform === "win32" ? "omena-lsp-server.exe" : "omena-lsp-server";
 const minimumRunnerTargets = Number.parseInt(
   process.env.CME_PACKAGED_RUNNER_MIN_TARGETS ?? "1",
   10,
@@ -56,6 +59,7 @@ for (const entry of [
   "extension/dist/client/extension.js",
   "extension/dist/server/server.js",
   `extension/dist/bin/${platformDir}/${binaryName}`,
+  `extension/dist/bin/${platformDir}/${omenaLspServerBinaryName}`,
   `extension/dist/bin/${platformDir}/${tsgoBinaryName}`,
   `extension/dist/bin/${platformDir}/lib.d.ts`,
 ]) {
@@ -117,6 +121,15 @@ if (!isPackagedExtensionRuntime(packagedEnv, fileExists)) {
 const packagedTsgoPath = resolveTsgoBinaryPathForEnv(packagedEnv, fileExists);
 if (!fileExists(packagedTsgoPath)) {
   throw new Error(`VSIX file set did not satisfy packaged tsgo detection: ${packagedTsgoPath}`);
+}
+
+const packagedOmenaLspServerPath = resolveOmenaLspServerPath(packagedRoot, packagedEnv, fileExists);
+if (!packagedOmenaLspServerPath || !fileExists(packagedOmenaLspServerPath)) {
+  throw new Error(
+    `VSIX file set did not satisfy packaged omena-lsp-server detection: ${
+      packagedOmenaLspServerPath ?? "null"
+    }`,
+  );
 }
 
 const tsgoInvocation = buildTsgoProbeInvocation(

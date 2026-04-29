@@ -1,0 +1,16 @@
+[package]
+name = "omena-lsp-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Rust LSP server boundary scaffold for CSS Module Explainer"
+repository = "https://github.com/yongsk0066/css-module-explainer"
+
+[lints]
+workspace = true
+
+[dependencies]
+engine-style-parser = { path = "../engine-style-parser" }
+serde.workspace = true
+serde_json.workspace = true

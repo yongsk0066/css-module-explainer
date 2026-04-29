@@ -1,0 +1,29 @@
+#!/usr/bin/env node
+import { chmodSync, copyFileSync, existsSync, mkdirSync, statSync } from "node:fs";
+import path from "node:path";
+
+const repoRoot = path.resolve(import.meta.dirname, "..");
+const platform = process.env.CME_OMENA_LSP_SERVER_PLATFORM || process.platform;
+const arch = process.env.CME_OMENA_LSP_SERVER_ARCH || process.arch;
+const binaryName = platform === "win32" ? "omena-lsp-server.exe" : "omena-lsp-server";
+const sourcePath = process.env.CME_OMENA_LSP_SERVER_SOURCE
+  ? path.resolve(repoRoot, process.env.CME_OMENA_LSP_SERVER_SOURCE)
+  : path.join(repoRoot, "rust", "target", "release", binaryName);
+const outputDir = path.join(repoRoot, "dist", "bin", `${platform}-${arch}`);
+const outputPath = path.join(outputDir, binaryName);
+
+if (!existsSync(sourcePath)) {
+  throw new Error(
+    `Missing ${sourcePath}; run cargo build --manifest-path rust/Cargo.toml -p omena-lsp-server --release first`,
+  );
+}
+
+mkdirSync(outputDir, { recursive: true });
+copyFileSync(sourcePath, outputPath);
+
+if (platform !== "win32") {
+  chmodSync(outputPath, 0o755);
+}
+
+const size = statSync(outputPath).size;
+console.log(`Prepared ${path.relative(repoRoot, outputPath)} (${size} bytes)`);

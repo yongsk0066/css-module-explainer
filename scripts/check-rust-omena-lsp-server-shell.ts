@@ -1,0 +1,274 @@
+import { spawnSync } from "node:child_process";
+import { strict as assert } from "node:assert";
+import { buildServerCapabilities } from "../server/lsp-server/src/server-capabilities";
+import { resolveOmenaLspServerInvocation } from "./omena-lsp-server-invocation";
+
+const initializeRequest = {
+  jsonrpc: "2.0",
+  id: 1,
+  method: "initialize",
+  params: {
+    processId: null,
+    rootUri: "file:///tmp/cme-rust-lsp-shell",
+    workspaceFolders: [
+      {
+        uri: "file:///tmp/cme-rust-lsp-shell",
+        name: "cme-rust-lsp-shell",
+      },
+    ],
+    capabilities: {},
+  },
+};
+const didOpenSourceNotification = {
+  jsonrpc: "2.0",
+  method: "textDocument/didOpen",
+  params: {
+    textDocument: {
+      uri: "file:///tmp/cme-rust-lsp-shell/src/App.tsx",
+      languageId: "typescriptreact",
+      version: 1,
+      text: "const tone = 'blue';",
+    },
+  },
+};
+const didChangeSourceNotification = {
+  jsonrpc: "2.0",
+  method: "textDocument/didChange",
+  params: {
+    textDocument: {
+      uri: "file:///tmp/cme-rust-lsp-shell/src/App.tsx",
+      version: 2,
+    },
+    contentChanges: [
+      {
+        text: "const tone = 'red';",
+      },
+    ],
+  },
+};
+const didOpenStyleNotification = {
+  jsonrpc: "2.0",
+  method: "textDocument/didOpen",
+  params: {
+    textDocument: {
+      uri: "file:///tmp/cme-rust-lsp-shell/src/App.module.scss",
+      languageId: "scss",
+      version: 1,
+      text: ".root { color: var(--brand); } :root { --brand: red; }",
+    },
+  },
+};
+const didCloseStyleNotification = {
+  jsonrpc: "2.0",
+  method: "textDocument/didClose",
+  params: {
+    textDocument: {
+      uri: "file:///tmp/cme-rust-lsp-shell/src/App.module.scss",
+    },
+  },
+};
+const didChangeWorkspaceFoldersNotification = {
+  jsonrpc: "2.0",
+  method: "workspace/didChangeWorkspaceFolders",
+  params: {
+    event: {
+      removed: [
+        {
+          uri: "file:///tmp/cme-rust-lsp-shell",
+          name: "cme-rust-lsp-shell",
+        },
+      ],
+      added: [
+        {
+          uri: "file:///tmp/cme-rust-lsp-shell-next",
+          name: "cme-rust-lsp-shell-next",
+        },
+      ],
+    },
+  },
+};
+const debugStateRequest = {
+  jsonrpc: "2.0",
+  id: 3,
+  method: "cssModuleExplainer/rustLspState",
+};
+const debugPostRuntimeChangeRequest = {
+  jsonrpc: "2.0",
+  id: 4,
+  method: "cssModuleExplainer/rustLspState",
+};
+const shutdownRequest = {
+  jsonrpc: "2.0",
+  id: 5,
+  method: "shutdown",
+};
+const exitNotification = {
+  jsonrpc: "2.0",
+  method: "exit",
+};
+
+const invocation = resolveOmenaLspServerInvocation();
+const result = spawnSync(invocation.command, [...invocation.args], {
+  cwd: process.cwd(),
+  input: [
+    initializeRequest,
+    didOpenSourceNotification,
+    didChangeSourceNotification,
+    didOpenStyleNotification,
+    debugStateRequest,
+    didCloseStyleNotification,
+    didChangeWorkspaceFoldersNotification,
+    debugPostRuntimeChangeRequest,
+    shutdownRequest,
+    exitNotification,
+  ]
+    .map(frame)
+    .join(""),
+  encoding: "utf8",
+  stdio: ["pipe", "pipe", "pipe"],
+});
+
+assert.equal(
+  result.status,
+  0,
+  [
+    "omena-lsp-server shell failed",
+    result.error ? `error=${result.error.message}` : null,
+    result.stderr.trim() ? `stderr=${result.stderr.trim()}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n"),
+);
+
+const messages = readFrames(result.stdout);
+const responses = messages.filter((message) => "id" in message);
+const diagnosticNotifications = messages.filter(
+  (message) => message.method === "textDocument/publishDiagnostics",
+);
+assert.equal(responses.length, 4);
+assert.equal(diagnosticNotifications.length, 2);
+assert.deepEqual(diagnosticNotifications[0], {
+  jsonrpc: "2.0",
+  method: "textDocument/publishDiagnostics",
+  params: {
+    uri: "file:///tmp/cme-rust-lsp-shell/src/App.module.scss",
+    diagnostics: [],
+  },
+});
+assert.deepEqual(diagnosticNotifications[1], {
+  jsonrpc: "2.0",
+  method: "textDocument/publishDiagnostics",
+  params: {
+    uri: "file:///tmp/cme-rust-lsp-shell/src/App.module.scss",
+    diagnostics: [],
+  },
+});
+
+const initializeResponse = responses[0]!;
+assert.equal(initializeResponse.id, 1);
+assert.deepEqual(initializeResponse.result.capabilities, buildServerCapabilities());
+assert.deepEqual(initializeResponse.result.serverInfo, {
+  name: "css-module-explainer-rust",
+});
+
+const debugStateResponse = responses[1]!;
+assert.equal(debugStateResponse.id, 3);
+assert.equal(debugStateResponse.result.documentCount, 2);
+assert.equal(debugStateResponse.result.workspaceFolderCount, 1);
+assert.deepEqual(debugStateResponse.result.documents, [
+  {
+    uri: "file:///tmp/cme-rust-lsp-shell/src/App.module.scss",
+    workspaceFolderUri: "file:///tmp/cme-rust-lsp-shell",
+    languageId: "scss",
+    version: 1,
+    text: ".root { color: var(--brand); } :root { --brand: red; }",
+    styleSummary: {
+      language: "scss",
+      selectorNames: ["root"],
+      customPropertyDeclNames: ["--brand"],
+      customPropertyRefNames: ["--brand"],
+      sassModuleUseSources: [],
+      sassModuleForwardSources: [],
+      diagnosticCount: 0,
+    },
+  },
+  {
+    uri: "file:///tmp/cme-rust-lsp-shell/src/App.tsx",
+    workspaceFolderUri: "file:///tmp/cme-rust-lsp-shell",
+    languageId: "typescriptreact",
+    version: 2,
+    text: "const tone = 'red';",
+    styleSummary: null,
+  },
+]);
+assert.deepEqual(debugStateResponse.result.workspaceFolders, [
+  {
+    uri: "file:///tmp/cme-rust-lsp-shell",
+    name: "cme-rust-lsp-shell",
+  },
+]);
+
+const runtimeChangeResponse = responses[2]!;
+assert.equal(runtimeChangeResponse.id, 4);
+assert.equal(runtimeChangeResponse.result.documentCount, 1);
+assert.equal(runtimeChangeResponse.result.workspaceFolderCount, 1);
+assert.deepEqual(runtimeChangeResponse.result.documents, [
+  {
+    uri: "file:///tmp/cme-rust-lsp-shell/src/App.tsx",
+    workspaceFolderUri: null,
+    languageId: "typescriptreact",
+    version: 2,
+    text: "const tone = 'red';",
+    styleSummary: null,
+  },
+]);
+assert.deepEqual(runtimeChangeResponse.result.workspaceFolders, [
+  {
+    uri: "file:///tmp/cme-rust-lsp-shell-next",
+    name: "cme-rust-lsp-shell-next",
+  },
+]);
+
+const shutdownResponse = responses[3]!;
+assert.equal(shutdownResponse.id, 5);
+assert.equal(shutdownResponse.result, null);
+
+process.stdout.write(
+  [
+    "validated omena-lsp-server shell:",
+    `command=${invocation.command}`,
+    `responses=${responses.length}`,
+    `diagnosticNotifications=${diagnosticNotifications.length}`,
+    `documents=${runtimeChangeResponse.result.documentCount}`,
+    `workspaceFolders=${runtimeChangeResponse.result.workspaceFolderCount}`,
+    `styleSelectors=${debugStateResponse.result.documents[0].styleSummary.selectorNames.length}`,
+    `textDocumentSync=${initializeResponse.result.capabilities.textDocumentSync}`,
+  ].join(" "),
+);
+process.stdout.write("\n");
+
+function frame(value: unknown): string {
+  const body = JSON.stringify(value);
+  return `Content-Length: ${Buffer.byteLength(body, "utf8")}\r\n\r\n${body}`;
+}
+
+function readFrames(stdout: string): any[] {
+  const responses: any[] = [];
+  let offset = 0;
+
+  while (offset < stdout.length) {
+    const headerEnd = stdout.indexOf("\r\n\r\n", offset);
+    if (headerEnd < 0) break;
+    const header = stdout.slice(offset, headerEnd);
+    const match = /^Content-Length:\s*(\d+)$/imu.exec(header);
+    assert.ok(match, `missing Content-Length in response header: ${header}`);
+    const length = Number(match[1]);
+    const bodyStart = headerEnd + 4;
+    const bodyEnd = bodyStart + length;
+    assert.ok(bodyEnd <= stdout.length, "incomplete response body");
+    responses.push(JSON.parse(stdout.slice(bodyStart, bodyEnd)));
+    offset = bodyEnd;
+  }
+
+  return responses;
+}

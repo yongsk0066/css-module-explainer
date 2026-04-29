@@ -11,6 +11,10 @@ import {
   readClientTypeFactBackendSetting,
   readTypeFactMaxSyncProgramFilesSetting,
 } from "./type-fact-backend-config";
+import {
+  readClientLspServerRuntimeSetting,
+  resolveLspServerRuntimeSelection,
+} from "./lsp-server-runtime-config";
 import { isShowReferencesArgs } from "./util/show-references-guards";
 
 let client: LanguageClient | undefined;
@@ -26,11 +30,47 @@ export function activate(context: vscode.ExtensionContext): void {
   const serverEnv = buildTypeFactBackendEnv(typeFactBackend, process.env, {
     maxSyncProgramFiles,
   });
+  const lspServerRuntime = readClientLspServerRuntimeSetting(
+    vscode.workspace.getConfiguration("cssModuleExplainer").get("lspServerRuntime"),
+  );
+  let runtimeSelection;
+  try {
+    runtimeSelection = resolveLspServerRuntimeSelection(
+      lspServerRuntime,
+      context.extensionPath,
+      process.env,
+    );
+  } catch (err) {
+    void vscode.window.showErrorMessage(
+      `CSS Module Explainer failed to resolve language-server runtime: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+    return;
+  }
 
-  const serverOptions: ServerOptions = {
-    run: { module: serverModule, transport: TransportKind.ipc, options: { env: serverEnv } },
-    debug: { module: serverModule, transport: TransportKind.ipc, options: { env: serverEnv } },
-  };
+  const serverOptions: ServerOptions =
+    runtimeSelection.runtime === "omena-lsp-server"
+      ? {
+          run: {
+            command: runtimeSelection.command,
+            args: [...runtimeSelection.args],
+            options: { env: serverEnv, cwd: context.extensionPath },
+          },
+          debug: {
+            command: runtimeSelection.command,
+            args: [...runtimeSelection.args],
+            options: { env: serverEnv, cwd: context.extensionPath },
+          },
+        }
+      : {
+          run: { module: serverModule, transport: TransportKind.ipc, options: { env: serverEnv } },
+          debug: {
+            module: serverModule,
+            transport: TransportKind.ipc,
+            options: { env: serverEnv },
+          },
+        };
 
   const clientOptions: LanguageClientOptions = {
     documentSelector: [

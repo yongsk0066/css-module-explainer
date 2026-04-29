@@ -60,6 +60,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "omena-lsp-server"
+version = "0.1.0"
+dependencies = [
+ "engine-style-parser",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "omena-query"
 version = "0.1.0"
 dependencies = [

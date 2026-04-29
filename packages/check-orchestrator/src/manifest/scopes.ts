@@ -23,6 +23,7 @@ const RUST_FAMILIES = [
   "parser",
   "omena-abstract-value",
   "omena-bridge",
+  "omena-lsp-server",
   "omena-query",
   "omena-resolver",
   "semantic",
@@ -119,6 +120,7 @@ export const SCOPE_DEFINITIONS: readonly ScopeDefinition[] = [
       [
         "build",
         "build:engine-shadow-runner",
+        "build:omena-lsp-server",
         "build:tsgo-binary",
         "check",
         "clean",
