@@ -14,8 +14,8 @@ mod selector_references;
 mod source_evidence;
 
 pub use design_tokens::{
-    DesignTokenContextSignalV0, DesignTokenSemanticCapabilitiesV0, DesignTokenSemanticSummaryV0,
-    summarize_design_token_semantics,
+    DesignTokenContextSignalV0, DesignTokenResolutionSignalV0, DesignTokenSemanticCapabilitiesV0,
+    DesignTokenSemanticSummaryV0, summarize_design_token_semantics,
 };
 pub use evidence::{
     SemanticPromotionEvidenceItemV0, SemanticPromotionEvidenceSummaryV0,
@@ -478,7 +478,7 @@ $color: red;
         let summary = summarize_style_semantic_boundary(&sheet).design_token_semantics;
 
         assert_eq!(summary.product, "omena-semantic.design-token-semantics");
-        assert_eq!(summary.status, "context-aware-seed");
+        assert_eq!(summary.status, "context-aware-resolution-seed");
         assert_eq!(summary.resolution_scope, "same-file");
         assert_eq!(summary.declaration_count, 1);
         assert_eq!(summary.reference_count, 2);
@@ -489,8 +489,33 @@ $color: red;
         assert_eq!(summary.context_signal.declaration_wrapper_context_count, 0);
         assert_eq!(summary.context_signal.media_context_selector_count, 1);
         assert_eq!(summary.context_signal.wrapper_context_count, 1);
+        assert_eq!(summary.resolution_signal.declaration_fact_count, 1);
+        assert_eq!(summary.resolution_signal.reference_fact_count, 2);
+        assert_eq!(
+            summary
+                .resolution_signal
+                .occurrence_resolved_reference_count,
+            1
+        );
+        assert_eq!(
+            summary
+                .resolution_signal
+                .occurrence_unresolved_reference_count,
+            1
+        );
+        assert_eq!(summary.resolution_signal.root_declaration_count, 1);
+        assert_eq!(
+            summary.resolution_signal.selector_scoped_declaration_count,
+            0
+        );
+        assert_eq!(
+            summary.resolution_signal.wrapper_scoped_declaration_count,
+            0
+        );
         assert!(summary.capabilities.same_file_resolution_ready);
         assert!(summary.capabilities.wrapper_context_signal_ready);
+        assert!(summary.capabilities.occurrence_resolution_signal_ready);
+        assert!(summary.capabilities.selector_context_resolution_ready);
         assert!(summary.capabilities.theme_override_context_signal_ready);
         assert!(!summary.capabilities.cross_package_cascade_ranking_ready);
         assert!(!summary.capabilities.theme_override_context_ready);
@@ -511,6 +536,64 @@ $color: red;
                 "themeOverrideContext"
             ]
         );
+        Ok(())
+    }
+
+    #[test]
+    fn exposes_design_token_occurrence_context_resolution_signal() -> Result<(), String> {
+        let sheet = parse_style_module(
+            "Component.module.css",
+            r#"
+:root {
+  --surface: white;
+}
+
+.theme {
+  --brand: #222;
+}
+
+.button {
+  color: var(--brand);
+  background: var(--surface);
+}
+
+.theme .button {
+  border-color: var(--brand);
+}
+"#,
+        )
+        .ok_or_else(|| "CSS module path should parse".to_string())?;
+
+        let summary = summarize_style_semantic_boundary(&sheet).design_token_semantics;
+
+        assert_eq!(summary.resolved_reference_count, 2);
+        assert_eq!(summary.unresolved_reference_count, 1);
+        assert_eq!(summary.resolution_signal.declaration_fact_count, 2);
+        assert_eq!(summary.resolution_signal.reference_fact_count, 3);
+        assert_eq!(
+            summary
+                .resolution_signal
+                .occurrence_resolved_reference_count,
+            2
+        );
+        assert_eq!(
+            summary
+                .resolution_signal
+                .occurrence_unresolved_reference_count,
+            1
+        );
+        assert_eq!(summary.resolution_signal.context_matched_reference_count, 2);
+        assert_eq!(
+            summary.resolution_signal.context_unmatched_reference_count,
+            1
+        );
+        assert_eq!(summary.resolution_signal.root_declaration_count, 1);
+        assert_eq!(
+            summary.resolution_signal.selector_scoped_declaration_count,
+            1
+        );
+        assert!(summary.capabilities.occurrence_resolution_signal_ready);
+        assert!(summary.capabilities.selector_context_resolution_ready);
         Ok(())
     }
 
