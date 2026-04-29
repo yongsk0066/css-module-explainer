@@ -1,5 +1,11 @@
 # Changelog
 
+## [4.1.14] — 2026-04-29
+
+### Fixed
+
+- **CSS custom property selector-context diagnostics** — unmatched workspace theme declarations no longer suppress missing `var(--...)` diagnostics or definition lookups for unrelated selector contexts.
+
 ## [4.1.13] — 2026-04-29
 
 ### Fixed
