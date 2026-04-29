@@ -64,6 +64,7 @@ name = "omena-query"
 version = "0.1.0"
 dependencies = [
  "engine-input-producers",
+ "engine-style-parser",
  "omena-abstract-value",
  "omena-bridge",
  "omena-resolver",

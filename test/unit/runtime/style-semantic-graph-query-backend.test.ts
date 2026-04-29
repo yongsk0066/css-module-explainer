@@ -105,6 +105,8 @@ describe("style semantic graph query backend", () => {
         winnerDeclarationSourceOrder: 2,
         shadowedDeclarationSourceOrders: [0, 1],
         candidateDeclarationCount: 3,
+        crossFileCandidateDeclarationCount: 0,
+        crossFileShadowedDeclarationCount: 0,
       },
     ]);
   });
@@ -130,6 +132,43 @@ describe("style semantic graph query backend", () => {
       "red",
       "blue",
     ]);
+  });
+
+  it("does not attach local HIR declarations to external rust design token winners", () => {
+    const styleDocument = parseStyleDocument(".button { color: var(--brand); }", SCSS_PATH);
+    const graph = makeGraph();
+    const externalGraph: StyleSemanticGraphSummaryV0 = {
+      ...graph,
+      designTokenSemantics: graph.designTokenSemantics
+        ? {
+            ...graph.designTokenSemantics,
+            cascadeRankingSignal: {
+              ...graph.designTokenSemantics.cascadeRankingSignal,
+              rankedReferences: [
+                {
+                  referenceName: "--brand",
+                  referenceSourceOrder: 0,
+                  winnerDeclarationSourceOrder: 0,
+                  winnerDeclarationFilePath: "/fake/ws/src/tokens.scss",
+                  shadowedDeclarationSourceOrders: [],
+                  candidateDeclarationCount: 1,
+                  crossFileCandidateDeclarationCount: 1,
+                  crossFileShadowedDeclarationCount: 0,
+                },
+              ],
+            },
+          }
+        : undefined,
+    };
+
+    const [readModel] = buildStyleSemanticGraphDesignTokenRankedReferenceReadModels(
+      externalGraph,
+      styleDocument,
+    );
+
+    expect(readModel?.reference?.name).toBe("--brand");
+    expect(readModel?.winnerDeclarationFilePath).toBe("/fake/ws/src/tokens.scss");
+    expect(readModel?.winnerDeclaration).toBeUndefined();
   });
 
   it("does not spawn rust when the target style source is unavailable", () => {

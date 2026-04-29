@@ -351,4 +351,30 @@ describe("renderHover", () => {
       "Cascade ranking: source-order winner; shadows 2 earlier same-file declarations.",
     );
   });
+
+  it("renders workspace design token cascade candidate context for custom properties", () => {
+    const markdown = renderCustomPropertyHover({
+      customPropertyDecl: {
+        name: "--brand",
+        value: "red",
+        range: {
+          start: { line: 2, character: 10 },
+          end: { line: 2, character: 17 },
+        },
+      },
+      scssModulePath: SCSS_PATH,
+      referenceCount: 1,
+      workspaceRoot: "/fake/ws",
+      designTokenRanking: {
+        winnerDeclarationFilePath: "/fake/ws/src/tokens.scss",
+        shadowedDeclarationSourceOrders: [],
+        crossFileCandidateDeclarationCount: 1,
+        crossFileShadowedDeclarationCount: 0,
+      },
+    });
+
+    expect(markdown).toContain(
+      "Cascade ranking: workspace candidate winner from `src/tokens.scss`; 1 cross-file candidate observed.",
+    );
+  });
 });

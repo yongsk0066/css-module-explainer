@@ -99,6 +99,9 @@ export interface RenderCustomPropertyHoverArgs {
   readonly designTokenRanking?: {
     readonly shadowedDeclarationSourceOrders: readonly number[];
     readonly shadowedDeclarations?: readonly Pick<CustomPropertyDeclHIR, "range">[];
+    readonly winnerDeclarationFilePath?: string;
+    readonly crossFileCandidateDeclarationCount?: number;
+    readonly crossFileShadowedDeclarationCount?: number;
   };
 }
 
@@ -194,7 +197,7 @@ export function renderCustomPropertyHover(args: RenderCustomPropertyHoverArgs): 
     args.referenceCount === 1
       ? "1 CSS custom property reference"
       : `${args.referenceCount} CSS custom property references`;
-  const rankingNote = renderDesignTokenRankingNote(args.designTokenRanking);
+  const rankingNote = renderDesignTokenRankingNote(args.designTokenRanking, args.workspaceRoot);
   return `**\`${headingName}\`** — _${location}_${note}${rankingNote}\n\n_${referenceLabel}._\n\n\`\`\`css\n${args.customPropertyDecl.name}: ${args.customPropertyDecl.value};\n\`\`\``;
 }
 
@@ -260,8 +263,15 @@ function renderMulti(args: RenderArgs): string {
 
 function renderDesignTokenRankingNote(
   ranking: RenderCustomPropertyHoverArgs["designTokenRanking"],
+  workspaceRoot: string,
 ): string {
   if (!ranking) return "";
+  if (ranking.winnerDeclarationFilePath) {
+    const candidateCount = ranking.crossFileCandidateDeclarationCount ?? 1;
+    const candidateLabel = candidateCount === 1 ? "candidate" : "candidates";
+    const winnerPath = relative(workspaceRoot, ranking.winnerDeclarationFilePath);
+    return `\n\n_Cascade ranking: workspace candidate winner from \`${winnerPath || ranking.winnerDeclarationFilePath}\`; ${candidateCount} cross-file ${candidateLabel} observed._`;
+  }
   const shadowedCount =
     ranking.shadowedDeclarations?.length ?? ranking.shadowedDeclarationSourceOrders.length;
   if (shadowedCount === 0) return "\n\n_Cascade ranking: source-order winner._";

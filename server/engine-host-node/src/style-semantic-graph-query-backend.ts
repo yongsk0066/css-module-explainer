@@ -69,6 +69,10 @@ export interface StyleSemanticGraphDesignTokenResolutionSignalV0 {
   readonly sourceOrderedReferenceCount: number;
   readonly occurrenceResolvedReferenceCount: number;
   readonly occurrenceUnresolvedReferenceCount: number;
+  readonly workspaceDeclarationFactCount?: number;
+  readonly crossFileDeclarationFactCount?: number;
+  readonly workspaceOccurrenceResolvedReferenceCount?: number;
+  readonly workspaceOccurrenceUnresolvedReferenceCount?: number;
   readonly contextMatchedReferenceCount: number;
   readonly contextUnmatchedReferenceCount: number;
   readonly rootDeclarationCount: number;
@@ -82,6 +86,9 @@ export interface StyleSemanticGraphDesignTokenCascadeRankingSignalV0 {
   readonly sourceOrderWinnerDeclarationCount: number;
   readonly sourceOrderShadowedDeclarationCount: number;
   readonly repeatedNameDeclarationCount: number;
+  readonly crossFileCandidateDeclarationCount?: number;
+  readonly crossFileWinnerDeclarationCount?: number;
+  readonly crossFileShadowedDeclarationCount?: number;
   readonly rankedReferences: readonly StyleSemanticGraphDesignTokenRankedReferenceV0[];
 }
 
@@ -89,8 +96,11 @@ export interface StyleSemanticGraphDesignTokenRankedReferenceV0 {
   readonly referenceName: string;
   readonly referenceSourceOrder: number;
   readonly winnerDeclarationSourceOrder: number;
+  readonly winnerDeclarationFilePath?: string;
   readonly shadowedDeclarationSourceOrders: readonly number[];
   readonly candidateDeclarationCount: number;
+  readonly crossFileCandidateDeclarationCount?: number;
+  readonly crossFileShadowedDeclarationCount?: number;
 }
 
 export interface StyleSemanticGraphDesignTokenCapabilitiesV0 {
@@ -98,6 +108,7 @@ export interface StyleSemanticGraphDesignTokenCapabilitiesV0 {
   readonly wrapperContextSignalReady: boolean;
   readonly sourceOrderSignalReady: boolean;
   readonly sourceOrderCascadeRankingReady: boolean;
+  readonly workspaceCascadeCandidateSignalReady?: boolean;
   readonly occurrenceResolutionSignalReady: boolean;
   readonly selectorContextResolutionReady: boolean;
   readonly themeOverrideContextSignalReady: boolean;
@@ -110,8 +121,11 @@ export interface StyleSemanticGraphDesignTokenRankedReferenceReadModel {
   readonly referenceName: string;
   readonly referenceSourceOrder: number;
   readonly winnerDeclarationSourceOrder: number;
+  readonly winnerDeclarationFilePath?: string;
   readonly shadowedDeclarationSourceOrders: readonly number[];
   readonly candidateDeclarationCount: number;
+  readonly crossFileCandidateDeclarationCount: number;
+  readonly crossFileShadowedDeclarationCount: number;
   readonly reference?: StyleDocumentHIR["customPropertyRefs"][number];
   readonly winnerDeclaration?: StyleDocumentHIR["customPropertyDecls"][number];
   readonly shadowedDeclarations?: readonly StyleDocumentHIR["customPropertyDecls"][number][];
@@ -544,7 +558,9 @@ export function buildStyleSemanticGraphDesignTokenRankedReferenceReadModels(
     graph.designTokenSemantics?.cascadeRankingSignal.rankedReferences.map((reference) => {
       const referenceNode = styleDocument?.customPropertyRefs[reference.referenceSourceOrder];
       const winnerDeclaration =
-        styleDocument?.customPropertyDecls[reference.winnerDeclarationSourceOrder];
+        reference.winnerDeclarationFilePath === undefined
+          ? styleDocument?.customPropertyDecls[reference.winnerDeclarationSourceOrder]
+          : undefined;
       const shadowedDeclarations = styleDocument
         ? reference.shadowedDeclarationSourceOrders.flatMap((sourceOrder) => {
             const declaration = styleDocument.customPropertyDecls[sourceOrder];
@@ -556,8 +572,13 @@ export function buildStyleSemanticGraphDesignTokenRankedReferenceReadModels(
         referenceName: reference.referenceName,
         referenceSourceOrder: reference.referenceSourceOrder,
         winnerDeclarationSourceOrder: reference.winnerDeclarationSourceOrder,
+        ...(reference.winnerDeclarationFilePath
+          ? { winnerDeclarationFilePath: reference.winnerDeclarationFilePath }
+          : {}),
         shadowedDeclarationSourceOrders: reference.shadowedDeclarationSourceOrders,
         candidateDeclarationCount: reference.candidateDeclarationCount,
+        crossFileCandidateDeclarationCount: reference.crossFileCandidateDeclarationCount ?? 0,
+        crossFileShadowedDeclarationCount: reference.crossFileShadowedDeclarationCount ?? 0,
         ...(referenceNode ? { reference: referenceNode } : {}),
         ...(winnerDeclaration ? { winnerDeclaration } : {}),
         ...(shadowedDeclarations ? { shadowedDeclarations } : {}),

@@ -8,9 +8,12 @@ use engine_input_producers::{
     summarize_selector_usage_canonical_producer_signal_input,
     summarize_selector_usage_query_fragments_input,
 };
+use engine_style_parser::{Stylesheet, parse_style_module};
 use omena_abstract_value::{AbstractValueDomainSummaryV0, summarize_omena_abstract_value_domain};
 use omena_bridge::{
-    StyleSemanticGraphSummaryV0, summarize_omena_bridge_style_semantic_graph_from_source,
+    StyleSemanticGraphSummaryV0, collect_omena_bridge_design_token_workspace_declarations,
+    summarize_omena_bridge_style_semantic_graph_for_path_with_workspace_declarations,
+    summarize_omena_bridge_style_semantic_graph_from_source,
 };
 use omena_resolver::{
     summarize_omena_resolver_canonical_producer_signal, summarize_omena_resolver_query_fragments,
@@ -299,16 +302,33 @@ pub fn summarize_omena_query_style_semantic_graph_batch_from_sources<'a>(
     styles: impl IntoIterator<Item = (&'a str, &'a str)>,
     input: &EngineInputV2,
 ) -> OmenaQueryStyleSemanticGraphBatchOutputV0 {
-    let graphs = styles
+    let style_sources = styles.into_iter().collect::<Vec<_>>();
+    let parsed_styles = style_sources
+        .iter()
+        .filter_map(|(style_path, style_source)| {
+            parse_style_module(style_path, style_source)
+                .map(|sheet| ((*style_path).to_string(), sheet))
+        })
+        .collect::<Vec<_>>();
+    let workspace_declarations = parsed_styles
+        .iter()
+        .flat_map(|(style_path, sheet)| {
+            collect_omena_bridge_design_token_workspace_declarations(style_path, sheet)
+        })
+        .collect::<Vec<_>>();
+    let graphs = style_sources
         .into_iter()
         .map(
-            |(style_path, style_source)| OmenaQueryStyleSemanticGraphBatchEntryV0 {
+            |(style_path, _style_source)| OmenaQueryStyleSemanticGraphBatchEntryV0 {
                 style_path: style_path.to_string(),
-                graph: summarize_omena_query_style_semantic_graph_from_source(
-                    style_path,
-                    style_source,
-                    input,
-                ),
+                graph: parsed_style_by_path(&parsed_styles, style_path).map(|sheet| {
+                    summarize_omena_bridge_style_semantic_graph_for_path_with_workspace_declarations(
+                        sheet,
+                        input,
+                        Some(style_path),
+                        &workspace_declarations,
+                    )
+                }),
             },
         )
         .collect::<Vec<_>>();
@@ -318,6 +338,16 @@ pub fn summarize_omena_query_style_semantic_graph_batch_from_sources<'a>(
         product: "omena-semantic.style-semantic-graph-batch",
         graphs,
     }
+}
+
+fn parsed_style_by_path<'a>(
+    parsed_styles: &'a [(String, Stylesheet)],
+    style_path: &str,
+) -> Option<&'a Stylesheet> {
+    parsed_styles
+        .iter()
+        .find(|(parsed_style_path, _sheet)| parsed_style_path == style_path)
+        .map(|(_style_path, sheet)| sheet)
 }
 
 #[cfg(test)]
@@ -595,6 +625,70 @@ mod tests {
         assert_eq!(batch.graphs[0].style_path, "/tmp/App.module.scss");
         assert!(batch.graphs[0].graph.is_some());
         assert!(batch.graphs[1].graph.is_some());
+    }
+
+    #[test]
+    fn style_semantic_graph_batch_feeds_workspace_design_token_candidates() {
+        let input = sample_input();
+        let batch = summarize_omena_query_style_semantic_graph_batch_from_sources(
+            [
+                ("/tmp/tokens.module.scss", ":root { --brand: red; }"),
+                ("/tmp/App.module.scss", ".button { color: var(--brand); }"),
+            ],
+            &input,
+        );
+
+        let app_graph = batch
+            .graphs
+            .iter()
+            .find(|entry| entry.style_path == "/tmp/App.module.scss")
+            .and_then(|entry| entry.graph.as_ref())
+            .expect("App graph should parse");
+        let design_tokens = &app_graph.design_token_semantics;
+
+        assert_eq!(design_tokens.status, "workspace-cascade-ranking-seed");
+        assert_eq!(design_tokens.resolution_scope, "workspace-candidate");
+        assert!(
+            design_tokens
+                .capabilities
+                .workspace_cascade_candidate_signal_ready
+        );
+        assert!(!design_tokens.capabilities.cross_file_import_graph_ready);
+        assert_eq!(
+            design_tokens
+                .resolution_signal
+                .cross_file_declaration_fact_count,
+            1
+        );
+        assert_eq!(
+            design_tokens
+                .resolution_signal
+                .workspace_occurrence_resolved_reference_count,
+            1
+        );
+        assert_eq!(
+            design_tokens
+                .cascade_ranking_signal
+                .cross_file_candidate_declaration_count,
+            1
+        );
+        assert_eq!(
+            design_tokens
+                .cascade_ranking_signal
+                .cross_file_winner_declaration_count,
+            1
+        );
+        assert_eq!(
+            design_tokens.cascade_ranking_signal.ranked_references[0]
+                .winner_declaration_file_path
+                .as_deref(),
+            Some("/tmp/tokens.module.scss")
+        );
+        assert_eq!(
+            design_tokens.cascade_ranking_signal.ranked_references[0]
+                .cross_file_candidate_declaration_count,
+            1
+        );
     }
 
     fn backend<'a>(

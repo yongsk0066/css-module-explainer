@@ -16,7 +16,8 @@ mod source_evidence;
 pub use design_tokens::{
     DesignTokenCascadeRankingSignalV0, DesignTokenContextSignalV0, DesignTokenRankedReferenceV0,
     DesignTokenResolutionSignalV0, DesignTokenSemanticCapabilitiesV0, DesignTokenSemanticSummaryV0,
-    summarize_design_token_semantics,
+    DesignTokenWorkspaceDeclarationFactV0, collect_design_token_workspace_declarations,
+    summarize_design_token_semantics, summarize_design_token_semantics_with_workspace_declarations,
 };
 pub use evidence::{
     SemanticPromotionEvidenceItemV0, SemanticPromotionEvidenceSummaryV0,
@@ -109,10 +110,29 @@ pub fn summarize_style_semantic_graph_for_path(
     input: &EngineInputV2,
     style_path: Option<&str>,
 ) -> StyleSemanticGraphSummaryV0 {
+    summarize_style_semantic_graph_for_path_with_workspace_declarations(
+        sheet,
+        input,
+        style_path,
+        &[],
+    )
+}
+
+pub fn summarize_style_semantic_graph_for_path_with_workspace_declarations(
+    sheet: &Stylesheet,
+    input: &EngineInputV2,
+    style_path: Option<&str>,
+    workspace_declarations: &[DesignTokenWorkspaceDeclarationFactV0],
+) -> StyleSemanticGraphSummaryV0 {
     let boundary = summarize_semantic_boundary(sheet);
     let parser_facts = boundary.parser_facts;
     let semantic_facts = boundary.semantic_facts;
-    let design_token_semantics = summarize_design_token_semantics(&parser_facts, &semantic_facts);
+    let design_token_semantics = summarize_design_token_semantics_with_workspace_declarations(
+        &parser_facts,
+        &semantic_facts,
+        style_path,
+        workspace_declarations,
+    );
     let selector_identity_engine =
         summarize_selector_identity_engine(&semantic_facts.selector_identity);
     let selector_reference_engine = summarize_selector_reference_engine(input, style_path);

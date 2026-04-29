@@ -13,6 +13,7 @@ workspace = true
 
 [dependencies]
 engine-input-producers = { path = "../engine-input-producers" }
+engine-style-parser = { path = "../engine-style-parser" }
 omena-abstract-value = { path = "../omena-abstract-value" }
 omena-bridge = { path = "../omena-bridge" }
 omena-resolver = { path = "../omena-resolver" }
