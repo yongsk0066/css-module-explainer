@@ -37,7 +37,7 @@ const splitRepos: readonly SplitRepo[] = [
     label: "style-parser",
     repo: "omenien/omena-engine-style-parser",
     packageName: "omena-engine-style-parser",
-    expectedVersion: "0.1.2",
+    expectedVersion: "0.1.3",
     libName: "engine_style_parser",
   },
   {
@@ -45,7 +45,7 @@ const splitRepos: readonly SplitRepo[] = [
     label: "semantic",
     repo: "omenien/omena-semantic",
     packageName: "omena-semantic",
-    expectedVersion: "0.1.5",
+    expectedVersion: "0.1.6",
     libName: "omena_semantic",
     expectedRegistryDependencies: [
       {
@@ -56,7 +56,7 @@ const splitRepos: readonly SplitRepo[] = [
       {
         dependencyName: "engine-style-parser",
         packageName: "omena-engine-style-parser",
-        version: "0.1.2",
+        version: "0.1.3",
       },
     ],
   },
@@ -88,7 +88,7 @@ const splitRepos: readonly SplitRepo[] = [
     label: "bridge",
     repo: "omenien/omena-bridge",
     packageName: "omena-bridge",
-    expectedVersion: "0.1.4",
+    expectedVersion: "0.1.5",
     libName: "omena_bridge",
     expectedRegistryDependencies: [
       {
@@ -99,12 +99,12 @@ const splitRepos: readonly SplitRepo[] = [
       {
         dependencyName: "engine-style-parser",
         packageName: "omena-engine-style-parser",
-        version: "0.1.2",
+        version: "0.1.3",
       },
       {
         dependencyName: "omena-semantic",
         packageName: "omena-semantic",
-        version: "0.1.5",
+        version: "0.1.6",
       },
     ],
   },
@@ -113,7 +113,7 @@ const splitRepos: readonly SplitRepo[] = [
     label: "query",
     repo: "omenien/omena-query",
     packageName: "omena-query",
-    expectedVersion: "0.1.6",
+    expectedVersion: "0.1.7",
     libName: "omena_query",
     expectedRegistryDependencies: [
       {
@@ -129,7 +129,7 @@ const splitRepos: readonly SplitRepo[] = [
       {
         dependencyName: "omena-bridge",
         packageName: "omena-bridge",
-        version: "0.1.4",
+        version: "0.1.5",
       },
       {
         dependencyName: "omena-resolver",
