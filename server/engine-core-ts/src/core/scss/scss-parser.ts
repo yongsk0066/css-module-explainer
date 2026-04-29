@@ -301,8 +301,10 @@ function recordRule(
     resolvedSelectors.push(resolved);
     const bemSuffix = classifyBemSuffixSite(rule, raw, offset, parentCtx, groups.length);
     const isNested = parentCtx.selector !== "" || raw.includes("&");
+    let introducedClassCount = 0;
 
     for (const className of extractIntroducedClassNames(raw, resolved)) {
+      introducedClassCount += 1;
       const existing = selectors.find(
         (selector) => selector.name === className && selector.viewKind === "canonical",
       );
@@ -326,6 +328,20 @@ function recordRule(
       );
       sassModuleMemberRefs.push(
         ...collectDirectSassModuleMemberRefs(rule.nodes, className, ruleRange),
+      );
+    }
+
+    if (introducedClassCount === 0 && parentCtx.className) {
+      sassSymbols.push(
+        ...collectDirectSassSymbolOccurrences(
+          rule.nodes,
+          parentCtx.className,
+          ruleRange,
+          sassSymbolTargets,
+        ),
+      );
+      sassModuleMemberRefs.push(
+        ...collectDirectSassModuleMemberRefs(rule.nodes, parentCtx.className, ruleRange),
       );
     }
   }

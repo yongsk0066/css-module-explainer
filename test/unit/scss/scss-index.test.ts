@@ -653,6 +653,38 @@ describe("parseStyleSelectorMap / edge cases", () => {
       ]);
     });
 
+    it("records @include mixin references consistently across argument shapes", () => {
+      const source = `.icon {
+  &::before {
+    @include position(absolute, all);
+  }
+  .dot {
+    @include position(absolute, (top -1px, left -1px));
+  }
+}
+.image {
+  &::after {
+    @include position(absolute, all);
+  }
+}
+.link-detail {
+  @include position(absolute, all);
+}
+`;
+      const document = parseStyleDocument(source, "/fake/a.module.scss");
+
+      expect(
+        document.sassSymbols
+          .filter((symbol) => symbol.symbolKind === "mixin" && symbol.name === "position")
+          .map((symbol) => [symbol.selectorName, symbol.role, sliceRange(source, symbol.range)]),
+      ).toEqual([
+        ["icon", "include", "position"],
+        ["dot", "include", "position"],
+        ["image", "include", "position"],
+        ["link-detail", "include", "position"],
+      ]);
+    });
+
     it("records same-file Sass symbol declarations", () => {
       const source = `$gap: 1rem;
 @mixin raised($depth) { box-shadow: 0 0 $depth black; }

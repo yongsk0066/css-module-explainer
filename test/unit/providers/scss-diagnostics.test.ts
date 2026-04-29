@@ -745,6 +745,41 @@ describe("computeScssUnusedDiagnostics", () => {
     });
   });
 
+  it("reports missing mixins consistently inside nested pseudo rules", () => {
+    const styleDoc = parseStyleDocument(
+      `.icon {
+  &::before {
+    @include position(absolute, all);
+  }
+  .dot {
+    @include position(absolute, (top -1px, left -1px));
+  }
+}
+.image {
+  &::after {
+    @include position(absolute, all);
+  }
+}
+.link-detail {
+  @include position(absolute, all);
+}
+`,
+      SCSS_PATH,
+    );
+
+    const diagnostics = computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      styleDoc,
+      new WorkspaceSemanticWorkspaceReferenceIndex(),
+    );
+
+    expect(
+      diagnostics.filter((entry) =>
+        entry.message.includes("Sass mixin '@mixin position' not found in this file."),
+      ),
+    ).toHaveLength(4);
+  });
+
   it("reports missing Less variables with create-symbol data", () => {
     const lessPath = "/fake/Button.module.less";
     const styleDoc = parseStyleDocument(

@@ -104,6 +104,10 @@ function openStyleDocument(client: LspTestClient, content: string): void {
   });
 }
 
+function normalizePathSeparators(text: string): string {
+  return text.replaceAll("\\", "/");
+}
+
 describe("design-token package protocol integration", () => {
   let client: LspTestClient | null = null;
 
@@ -127,16 +131,18 @@ describe("design-token package protocol integration", () => {
     expect((customHover!.contents as { value: string }).value).toContain("variables.css");
 
     const variableHover = await client.hover(positionParams(REFERENCE_WORKSPACE, "variable"));
-    expect((variableHover!.contents as { value: string }).value).toContain("`$ds_gray700`");
-    expect((variableHover!.contents as { value: string }).value).toContain(
-      "node_modules/@design/tokens/src/_colors.scss",
+    const variableHoverText = normalizePathSeparators(
+      (variableHover!.contents as { value: string }).value,
     );
+    expect(variableHoverText).toContain("`$ds_gray700`");
+    expect(variableHoverText).toContain("node_modules/@design/tokens/src/_colors.scss");
 
     const mixinHover = await client.hover(positionParams(REFERENCE_WORKSPACE, "mixin"));
-    expect((mixinHover!.contents as { value: string }).value).toContain("`@mixin ds_typography16`");
-    expect((mixinHover!.contents as { value: string }).value).toContain(
-      "node_modules/@design/tokens/src/_typography.scss",
+    const mixinHoverText = normalizePathSeparators(
+      (mixinHover!.contents as { value: string }).value,
     );
+    expect(mixinHoverText).toContain("`@mixin ds_typography16`");
+    expect(mixinHoverText).toContain("node_modules/@design/tokens/src/_typography.scss");
 
     const variableDefinition = await client.definition(
       positionParams(REFERENCE_WORKSPACE, "variable"),
