@@ -14,10 +14,13 @@ mod selector_references;
 mod source_evidence;
 
 pub use design_tokens::{
-    DesignTokenCascadeRankingSignalV0, DesignTokenContextSignalV0, DesignTokenRankedReferenceV0,
+    DesignTokenCascadeRankingSignalV0, DesignTokenContextSignalV0,
+    DesignTokenExternalDeclarationCandidateScopeV0, DesignTokenRankedReferenceV0,
     DesignTokenResolutionSignalV0, DesignTokenSemanticCapabilitiesV0, DesignTokenSemanticSummaryV0,
     DesignTokenWorkspaceDeclarationFactV0, collect_design_token_workspace_declarations,
-    summarize_design_token_semantics, summarize_design_token_semantics_with_workspace_declarations,
+    summarize_design_token_semantics,
+    summarize_design_token_semantics_with_scoped_workspace_declarations,
+    summarize_design_token_semantics_with_workspace_declarations,
 };
 pub use evidence::{
     SemanticPromotionEvidenceItemV0, SemanticPromotionEvidenceSummaryV0,

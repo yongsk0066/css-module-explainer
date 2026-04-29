@@ -100,6 +100,7 @@ export interface RenderCustomPropertyHoverArgs {
     readonly shadowedDeclarationSourceOrders: readonly number[];
     readonly shadowedDeclarations?: readonly Pick<CustomPropertyDeclHIR, "range">[];
     readonly winnerDeclarationFilePath?: string;
+    readonly crossFileCandidateScope?: string;
     readonly crossFileCandidateDeclarationCount?: number;
     readonly crossFileShadowedDeclarationCount?: number;
   };
@@ -270,7 +271,11 @@ function renderDesignTokenRankingNote(
     const candidateCount = ranking.crossFileCandidateDeclarationCount ?? 1;
     const candidateLabel = candidateCount === 1 ? "candidate" : "candidates";
     const winnerPath = relative(workspaceRoot, ranking.winnerDeclarationFilePath);
-    return `\n\n_Cascade ranking: workspace candidate winner from \`${winnerPath || ranking.winnerDeclarationFilePath}\`; ${candidateCount} cross-file ${candidateLabel} observed._`;
+    const scopeLabel =
+      ranking.crossFileCandidateScope === "cross-file-import-candidate"
+        ? "import graph candidate"
+        : "workspace candidate";
+    return `\n\n_Cascade ranking: ${scopeLabel} winner from \`${winnerPath || ranking.winnerDeclarationFilePath}\`; ${candidateCount} cross-file ${candidateLabel} observed._`;
   }
   const shadowedCount =
     ranking.shadowedDeclarations?.length ?? ranking.shadowedDeclarationSourceOrders.length;

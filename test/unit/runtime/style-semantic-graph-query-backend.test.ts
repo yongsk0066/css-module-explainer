@@ -142,6 +142,7 @@ describe("style semantic graph query backend", () => {
       designTokenSemantics: graph.designTokenSemantics
         ? {
             ...graph.designTokenSemantics,
+            resolutionScope: "cross-file-import-candidate",
             cascadeRankingSignal: {
               ...graph.designTokenSemantics.cascadeRankingSignal,
               rankedReferences: [
@@ -168,6 +169,7 @@ describe("style semantic graph query backend", () => {
 
     expect(readModel?.reference?.name).toBe("--brand");
     expect(readModel?.winnerDeclarationFilePath).toBe("/fake/ws/src/tokens.scss");
+    expect(readModel?.crossFileCandidateScope).toBe("cross-file-import-candidate");
     expect(readModel?.winnerDeclaration).toBeUndefined();
   });
 

@@ -8,11 +8,15 @@ use engine_input_producers::{
     summarize_selector_usage_canonical_producer_signal_input,
     summarize_selector_usage_query_fragments_input,
 };
-use engine_style_parser::{Stylesheet, parse_style_module};
+use std::collections::{BTreeMap, BTreeSet};
+use std::path::{Component, Path, PathBuf};
+
+use engine_style_parser::{Stylesheet, parse_style_module, summarize_css_modules_intermediate};
 use omena_abstract_value::{AbstractValueDomainSummaryV0, summarize_omena_abstract_value_domain};
 use omena_bridge::{
+    DesignTokenExternalDeclarationCandidateScopeV0, DesignTokenWorkspaceDeclarationFactV0,
     StyleSemanticGraphSummaryV0, collect_omena_bridge_design_token_workspace_declarations,
-    summarize_omena_bridge_style_semantic_graph_for_path_with_workspace_declarations,
+    summarize_omena_bridge_style_semantic_graph_for_path_with_scoped_workspace_declarations,
     summarize_omena_bridge_style_semantic_graph_from_source,
 };
 use omena_resolver::{
@@ -322,11 +326,18 @@ pub fn summarize_omena_query_style_semantic_graph_batch_from_sources<'a>(
             |(style_path, _style_source)| OmenaQueryStyleSemanticGraphBatchEntryV0 {
                 style_path: style_path.to_string(),
                 graph: parsed_style_by_path(&parsed_styles, style_path).map(|sheet| {
-                    summarize_omena_bridge_style_semantic_graph_for_path_with_workspace_declarations(
+                    let import_reachable_declarations =
+                        filter_import_reachable_design_token_workspace_declarations(
+                            style_path,
+                            &parsed_styles,
+                            &workspace_declarations,
+                        );
+                    summarize_omena_bridge_style_semantic_graph_for_path_with_scoped_workspace_declarations(
                         sheet,
                         input,
                         Some(style_path),
-                        &workspace_declarations,
+                        &import_reachable_declarations,
+                        DesignTokenExternalDeclarationCandidateScopeV0::CrossFileImportGraph,
                     )
                 }),
             },
@@ -348,6 +359,181 @@ fn parsed_style_by_path<'a>(
         .iter()
         .find(|(parsed_style_path, _sheet)| parsed_style_path == style_path)
         .map(|(_style_path, sheet)| sheet)
+}
+
+fn filter_import_reachable_design_token_workspace_declarations(
+    target_style_path: &str,
+    parsed_styles: &[(String, Stylesheet)],
+    workspace_declarations: &[DesignTokenWorkspaceDeclarationFactV0],
+) -> Vec<DesignTokenWorkspaceDeclarationFactV0> {
+    let reachable_style_paths =
+        collect_import_reachable_style_paths(target_style_path, parsed_styles);
+    workspace_declarations
+        .iter()
+        .filter(|declaration| {
+            declaration.file_path == target_style_path
+                || reachable_style_paths.contains(declaration.file_path.as_str())
+        })
+        .cloned()
+        .collect()
+}
+
+fn collect_import_reachable_style_paths(
+    target_style_path: &str,
+    parsed_styles: &[(String, Stylesheet)],
+) -> BTreeSet<String> {
+    let available_style_paths = parsed_styles
+        .iter()
+        .map(|(style_path, _sheet)| style_path.as_str())
+        .collect::<BTreeSet<_>>();
+    let style_by_path = parsed_styles
+        .iter()
+        .map(|(style_path, sheet)| (style_path.as_str(), sheet))
+        .collect::<BTreeMap<_, _>>();
+    let mut reachable_style_paths = BTreeSet::new();
+    let mut pending_style_paths = collect_import_reachable_direct_style_paths(
+        target_style_path,
+        parsed_styles,
+        &available_style_paths,
+    );
+
+    while let Some(style_path) = pending_style_paths.pop() {
+        if style_path == target_style_path || !reachable_style_paths.insert(style_path.clone()) {
+            continue;
+        }
+        let Some(sheet) = style_by_path.get(style_path.as_str()) else {
+            continue;
+        };
+        for source in collect_sass_module_sources(sheet) {
+            if let Some(next_style_path) =
+                resolve_style_module_source(&style_path, &source, &available_style_paths)
+            {
+                pending_style_paths.push(next_style_path);
+            }
+        }
+    }
+
+    reachable_style_paths
+}
+
+fn collect_import_reachable_direct_style_paths(
+    target_style_path: &str,
+    parsed_styles: &[(String, Stylesheet)],
+    available_style_paths: &BTreeSet<&str>,
+) -> Vec<String> {
+    let Some(target_sheet) = parsed_style_by_path(parsed_styles, target_style_path) else {
+        return Vec::new();
+    };
+    collect_sass_module_sources(target_sheet)
+        .into_iter()
+        .filter_map(|source| {
+            resolve_style_module_source(target_style_path, &source, available_style_paths)
+        })
+        .collect()
+}
+
+fn collect_sass_module_sources(sheet: &Stylesheet) -> Vec<String> {
+    let summary = summarize_css_modules_intermediate(sheet);
+    let mut sources = Vec::new();
+    for edge in summary.sass.module_use_edges {
+        push_unique_string(&mut sources, edge.source);
+    }
+    for source in summary.sass.module_forward_sources {
+        push_unique_string(&mut sources, source);
+    }
+    for source in summary.sass.module_import_sources {
+        push_unique_string(&mut sources, source);
+    }
+    sources
+}
+
+fn resolve_style_module_source(
+    from_style_path: &str,
+    source: &str,
+    available_style_paths: &BTreeSet<&str>,
+) -> Option<String> {
+    if source.starts_with("sass:")
+        || source.starts_with("http://")
+        || source.starts_with("https://")
+    {
+        return None;
+    }
+
+    style_module_source_candidates(from_style_path, source)
+        .into_iter()
+        .find(|candidate| available_style_paths.contains(candidate.as_str()))
+}
+
+fn style_module_source_candidates(from_style_path: &str, source: &str) -> Vec<String> {
+    let source_path = Path::new(source);
+    let base_path = if source_path.is_absolute() {
+        PathBuf::from(source)
+    } else {
+        Path::new(from_style_path)
+            .parent()
+            .map(|parent| parent.join(source))
+            .unwrap_or_else(|| PathBuf::from(source))
+    };
+    let mut candidates = Vec::new();
+    push_style_path_candidate(&mut candidates, base_path.clone());
+    push_partial_style_path_candidate(&mut candidates, &base_path);
+
+    if source_path.extension().is_none() {
+        for extension in [
+            ".module.scss",
+            ".module.css",
+            ".module.less",
+            ".scss",
+            ".css",
+            ".less",
+        ] {
+            let candidate = PathBuf::from(format!("{}{}", base_path.display(), extension));
+            push_style_path_candidate(&mut candidates, candidate.clone());
+            push_partial_style_path_candidate(&mut candidates, &candidate);
+        }
+    }
+
+    candidates
+}
+
+fn push_partial_style_path_candidate(candidates: &mut Vec<String>, path: &Path) {
+    let Some(file_name) = path.file_name().and_then(|file_name| file_name.to_str()) else {
+        return;
+    };
+    if file_name.starts_with('_') {
+        return;
+    }
+    let mut partial_path = path.to_path_buf();
+    partial_path.set_file_name(format!("_{file_name}"));
+    push_style_path_candidate(candidates, partial_path);
+}
+
+fn push_style_path_candidate(candidates: &mut Vec<String>, path: PathBuf) {
+    let candidate = normalize_style_path(path);
+    if !candidates.contains(&candidate) {
+        candidates.push(candidate);
+    }
+}
+
+fn normalize_style_path(path: PathBuf) -> String {
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                normalized.pop();
+            }
+            Component::Normal(part) => normalized.push(part),
+            Component::RootDir | Component::Prefix(_) => normalized.push(component.as_os_str()),
+        }
+    }
+    normalized.to_string_lossy().replace('\\', "/")
+}
+
+fn push_unique_string(values: &mut Vec<String>, value: String) {
+    if !values.contains(&value) {
+        values.push(value);
+    }
 }
 
 #[cfg(test)]
@@ -633,7 +819,12 @@ mod tests {
         let batch = summarize_omena_query_style_semantic_graph_batch_from_sources(
             [
                 ("/tmp/tokens.module.scss", ":root { --brand: red; }"),
-                ("/tmp/App.module.scss", ".button { color: var(--brand); }"),
+                ("/tmp/theme.module.scss", "@forward \"./tokens\";"),
+                ("/tmp/unrelated.module.scss", ":root { --brand: blue; }"),
+                (
+                    "/tmp/App.module.scss",
+                    "@use \"./theme\";\n.button { color: var(--brand); }",
+                ),
             ],
             &input,
         );
@@ -649,14 +840,20 @@ mod tests {
         };
         let design_tokens = &app_graph.design_token_semantics;
 
-        assert_eq!(design_tokens.status, "workspace-cascade-ranking-seed");
-        assert_eq!(design_tokens.resolution_scope, "workspace-candidate");
+        assert_eq!(
+            design_tokens.status,
+            "cross-file-import-cascade-ranking-seed"
+        );
+        assert_eq!(
+            design_tokens.resolution_scope,
+            "cross-file-import-candidate"
+        );
         assert!(
             design_tokens
                 .capabilities
                 .workspace_cascade_candidate_signal_ready
         );
-        assert!(!design_tokens.capabilities.cross_file_import_graph_ready);
+        assert!(design_tokens.capabilities.cross_file_import_graph_ready);
         assert_eq!(
             design_tokens
                 .resolution_signal

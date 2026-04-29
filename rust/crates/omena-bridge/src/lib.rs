@@ -2,9 +2,11 @@ use engine_input_producers::EngineInputV2;
 use engine_style_parser::{
     ParserBoundarySyntaxFactsV0, StyleSemanticFactsV0, Stylesheet, parse_style_module,
 };
+pub use omena_semantic::{
+    DesignTokenExternalDeclarationCandidateScopeV0, DesignTokenWorkspaceDeclarationFactV0,
+};
 use omena_semantic::{
-    DesignTokenSemanticSummaryV0, DesignTokenWorkspaceDeclarationFactV0, LosslessCstContractV0,
-    SelectorIdentityEngineSummaryV0,
+    DesignTokenSemanticSummaryV0, LosslessCstContractV0, SelectorIdentityEngineSummaryV0,
 };
 use serde::Serialize;
 
@@ -120,15 +122,32 @@ pub fn summarize_omena_bridge_style_semantic_graph_for_path_with_workspace_decla
     style_path: Option<&str>,
     workspace_declarations: &[DesignTokenWorkspaceDeclarationFactV0],
 ) -> StyleSemanticGraphSummaryV0 {
+    summarize_omena_bridge_style_semantic_graph_for_path_with_scoped_workspace_declarations(
+        sheet,
+        input,
+        style_path,
+        workspace_declarations,
+        DesignTokenExternalDeclarationCandidateScopeV0::Workspace,
+    )
+}
+
+pub fn summarize_omena_bridge_style_semantic_graph_for_path_with_scoped_workspace_declarations(
+    sheet: &Stylesheet,
+    input: &EngineInputV2,
+    style_path: Option<&str>,
+    workspace_declarations: &[DesignTokenWorkspaceDeclarationFactV0],
+    candidate_scope: DesignTokenExternalDeclarationCandidateScopeV0,
+) -> StyleSemanticGraphSummaryV0 {
     let boundary = omena_semantic::summarize_style_semantic_boundary(sheet);
     let parser_facts = boundary.parser_facts;
     let semantic_facts = boundary.semantic_facts;
     let design_token_semantics =
-        omena_semantic::summarize_design_token_semantics_with_workspace_declarations(
+        omena_semantic::summarize_design_token_semantics_with_scoped_workspace_declarations(
             &parser_facts,
             &semantic_facts,
             style_path,
             workspace_declarations,
+            candidate_scope,
         );
     let selector_identity_engine = boundary.selector_identity_engine;
     let selector_reference_engine =

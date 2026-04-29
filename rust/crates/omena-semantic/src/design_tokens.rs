@@ -108,6 +108,12 @@ pub struct DesignTokenWorkspaceDeclarationFactV0 {
     pub under_layer: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DesignTokenExternalDeclarationCandidateScopeV0 {
+    Workspace,
+    CrossFileImportGraph,
+}
+
 pub fn summarize_design_token_semantics(
     parser_facts: &ParserBoundarySyntaxFactsV0,
     semantic_facts: &StyleSemanticFactsV0,
@@ -125,6 +131,22 @@ pub fn summarize_design_token_semantics_with_workspace_declarations(
     semantic_facts: &StyleSemanticFactsV0,
     target_style_path: Option<&str>,
     workspace_declarations: &[DesignTokenWorkspaceDeclarationFactV0],
+) -> DesignTokenSemanticSummaryV0 {
+    summarize_design_token_semantics_with_scoped_workspace_declarations(
+        parser_facts,
+        semantic_facts,
+        target_style_path,
+        workspace_declarations,
+        DesignTokenExternalDeclarationCandidateScopeV0::Workspace,
+    )
+}
+
+pub fn summarize_design_token_semantics_with_scoped_workspace_declarations(
+    parser_facts: &ParserBoundarySyntaxFactsV0,
+    semantic_facts: &StyleSemanticFactsV0,
+    target_style_path: Option<&str>,
+    workspace_declarations: &[DesignTokenWorkspaceDeclarationFactV0],
+    candidate_scope: DesignTokenExternalDeclarationCandidateScopeV0,
 ) -> DesignTokenSemanticSummaryV0 {
     let media_context_selector_count = parser_facts
         .custom_properties
@@ -163,8 +185,11 @@ pub fn summarize_design_token_semantics_with_workspace_declarations(
         workspace_declarations,
     );
 
+    let external_candidate_scope_ready = candidate_scope.cross_file_import_graph_ready();
     let status = if reference_count == 0 && declaration_count == 0 {
         "empty"
+    } else if cascade_ranking_signal.has_workspace_signal() && external_candidate_scope_ready {
+        "cross-file-import-cascade-ranking-seed"
     } else if cascade_ranking_signal.has_workspace_signal() {
         "workspace-cascade-ranking-seed"
     } else if cascade_ranking_signal.has_shadowing_signal() {
@@ -179,7 +204,9 @@ pub fn summarize_design_token_semantics_with_workspace_declarations(
 
     let mut blocking_gaps = Vec::new();
     if reference_count > 0 || declaration_count > 0 {
-        blocking_gaps.push("crossFileImportGraph");
+        if !external_candidate_scope_ready {
+            blocking_gaps.push("crossFileImportGraph");
+        }
         blocking_gaps.push("crossPackageCascadeRanking");
         blocking_gaps.push("themeOverrideContext");
     }
@@ -194,14 +221,16 @@ pub fn summarize_design_token_semantics_with_workspace_declarations(
     let next_priorities = if reference_count == 0 && declaration_count == 0 {
         vec!["designTokenSeed"]
     } else {
-        vec![
-            "crossFileImportGraph",
-            "crossPackageCascadeRanking",
-            "themeOverrideContext",
-        ]
+        let mut priorities = Vec::new();
+        if !external_candidate_scope_ready {
+            priorities.push("crossFileImportGraph");
+        }
+        priorities.push("crossPackageCascadeRanking");
+        priorities.push("themeOverrideContext");
+        priorities
     };
     let resolution_scope = if cascade_ranking_signal.has_workspace_signal() {
-        "workspace-candidate"
+        candidate_scope.resolution_scope()
     } else {
         "same-file"
     };
@@ -241,7 +270,7 @@ pub fn summarize_design_token_semantics_with_workspace_declarations(
                 .selector_context_resolution_ready(),
             theme_override_context_signal_ready: declaration_context_selector_count > 0
                 || declaration_wrapper_context_count > 0,
-            cross_file_import_graph_ready: false,
+            cross_file_import_graph_ready: external_candidate_scope_ready,
             cross_package_cascade_ranking_ready: false,
             theme_override_context_ready: false,
         },
@@ -489,6 +518,24 @@ impl DesignTokenCascadeRankingSignalV0 {
 
     fn has_workspace_signal(&self) -> bool {
         self.cross_file_candidate_declaration_count > 0
+    }
+}
+
+impl DesignTokenExternalDeclarationCandidateScopeV0 {
+    fn cross_file_import_graph_ready(self) -> bool {
+        matches!(
+            self,
+            DesignTokenExternalDeclarationCandidateScopeV0::CrossFileImportGraph
+        )
+    }
+
+    fn resolution_scope(self) -> &'static str {
+        match self {
+            DesignTokenExternalDeclarationCandidateScopeV0::Workspace => "workspace-candidate",
+            DesignTokenExternalDeclarationCandidateScopeV0::CrossFileImportGraph => {
+                "cross-file-import-candidate"
+            }
+        }
     }
 }
 

@@ -122,6 +122,7 @@ export interface StyleSemanticGraphDesignTokenRankedReferenceReadModel {
   readonly referenceSourceOrder: number;
   readonly winnerDeclarationSourceOrder: number;
   readonly winnerDeclarationFilePath?: string;
+  readonly crossFileCandidateScope?: string;
   readonly shadowedDeclarationSourceOrders: readonly number[];
   readonly candidateDeclarationCount: number;
   readonly crossFileCandidateDeclarationCount: number;
@@ -130,6 +131,10 @@ export interface StyleSemanticGraphDesignTokenRankedReferenceReadModel {
   readonly winnerDeclaration?: StyleDocumentHIR["customPropertyDecls"][number];
   readonly shadowedDeclarations?: readonly StyleDocumentHIR["customPropertyDecls"][number][];
 }
+
+type MutableStyleSemanticGraphDesignTokenRankedReferenceReadModel = {
+  -readonly [K in keyof StyleSemanticGraphDesignTokenRankedReferenceReadModel]: StyleSemanticGraphDesignTokenRankedReferenceReadModel[K];
+};
 
 export interface StyleSemanticGraphSelectorIdentityEngineV0 {
   readonly schemaVersion: "0";
@@ -554,8 +559,9 @@ export function buildStyleSemanticGraphDesignTokenRankedReferenceReadModels(
   graph: StyleSemanticGraphSummaryV0,
   styleDocument?: StyleDocumentHIR,
 ): readonly StyleSemanticGraphDesignTokenRankedReferenceReadModel[] {
+  const designTokenSemantics = graph.designTokenSemantics;
   return (
-    graph.designTokenSemantics?.cascadeRankingSignal.rankedReferences.map((reference) => {
+    designTokenSemantics?.cascadeRankingSignal.rankedReferences.map((reference) => {
       const referenceNode = styleDocument?.customPropertyRefs[reference.referenceSourceOrder];
       const winnerDeclaration =
         reference.winnerDeclarationFilePath === undefined
@@ -568,21 +574,23 @@ export function buildStyleSemanticGraphDesignTokenRankedReferenceReadModels(
           })
         : undefined;
 
-      return {
+      const readModel: MutableStyleSemanticGraphDesignTokenRankedReferenceReadModel = {
         referenceName: reference.referenceName,
         referenceSourceOrder: reference.referenceSourceOrder,
         winnerDeclarationSourceOrder: reference.winnerDeclarationSourceOrder,
-        ...(reference.winnerDeclarationFilePath
-          ? { winnerDeclarationFilePath: reference.winnerDeclarationFilePath }
-          : {}),
         shadowedDeclarationSourceOrders: reference.shadowedDeclarationSourceOrders,
         candidateDeclarationCount: reference.candidateDeclarationCount,
         crossFileCandidateDeclarationCount: reference.crossFileCandidateDeclarationCount ?? 0,
         crossFileShadowedDeclarationCount: reference.crossFileShadowedDeclarationCount ?? 0,
-        ...(referenceNode ? { reference: referenceNode } : {}),
-        ...(winnerDeclaration ? { winnerDeclaration } : {}),
-        ...(shadowedDeclarations ? { shadowedDeclarations } : {}),
       };
+      if (reference.winnerDeclarationFilePath) {
+        readModel.winnerDeclarationFilePath = reference.winnerDeclarationFilePath;
+        readModel.crossFileCandidateScope = designTokenSemantics.resolutionScope;
+      }
+      if (referenceNode) readModel.reference = referenceNode;
+      if (winnerDeclaration) readModel.winnerDeclaration = winnerDeclaration;
+      if (shadowedDeclarations) readModel.shadowedDeclarations = shadowedDeclarations;
+      return readModel;
     }) ?? []
   );
 }
