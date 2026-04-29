@@ -1,5 +1,16 @@
 # Changelog
 
+## [4.1.16] — 2026-04-29
+
+### Added
+
+- **Import-aware design-token ranking** — Rust selected-query semantic graphs now filter cross-file CSS custom property candidates through Sass `@use`, `@forward`, and legacy `@import` reachability instead of treating every workspace style module as an equal candidate.
+- **External design-token winner ranges** — external CSS custom property winners now carry declaration ranges through the Rust semantic graph into the host read model, preparing imported token winners for precise navigation surfaces.
+
+### Changed
+
+- **Design-token hover wording** — cross-file custom property ranking notes now distinguish import-graph candidates from broader workspace candidates.
+
 ## [4.1.15] — 2026-04-29
 
 ### Added
