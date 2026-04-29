@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.1.7] — 2026-04-29
+
+### Added
+
+- **Checker Rust flow consumer** — checker CLI now supports `--rust-flow-analysis-consumer`, adding Rust expression-domain flow graph summaries to JSON output and a compact text summary.
+- **Query-boundary flow routing** — `omena-query` now owns the `input-expression-domain-flow-analysis` runner boundary and is published as `omena-query@0.1.4`.
+
 ## [4.1.6] — 2026-04-29
 
 ### Added
