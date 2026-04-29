@@ -41,7 +41,11 @@ const didChangeSourceNotification = {
     },
     contentChanges: [
       {
-        text: "const tone = 'red';",
+        range: {
+          start: { line: 0, character: 14 },
+          end: { line: 0, character: 18 },
+        },
+        text: "red",
       },
     ],
   },

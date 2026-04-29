@@ -796,15 +796,47 @@ fn did_change_text_document(state: &mut LspShellState, params: Option<&Value>) {
     if let Some(version) = text_document.get("version").and_then(Value::as_i64) {
         existing.version = version;
     }
-    if let Some(next_text) = params
+    let Some(changes) = params
         .and_then(|value| value.get("contentChanges"))
         .and_then(Value::as_array)
-        .and_then(|changes| changes.iter().rev().find_map(|change| change.get("text")))
-        .and_then(Value::as_str)
-    {
-        existing.text = next_text.to_string();
-        existing.style_summary = summarize_style_document(uri, Some(next_text));
+    else {
+        return;
+    };
+
+    let mut text_changed = false;
+    for change in changes {
+        if apply_text_document_content_change(existing, change) {
+            text_changed = true;
+        }
     }
+    if text_changed {
+        existing.style_summary = summarize_style_document(uri, Some(existing.text.as_str()));
+    }
+}
+
+fn apply_text_document_content_change(document: &mut LspTextDocumentState, change: &Value) -> bool {
+    let Some(next_text) = change.get("text").and_then(Value::as_str) else {
+        return false;
+    };
+    let Some(range) = change.get("range").and_then(lsp_range_from_value) else {
+        document.text = next_text.to_string();
+        return true;
+    };
+    let Some(start_offset) = byte_offset_for_parser_position(document.text.as_str(), range.start)
+    else {
+        return false;
+    };
+    let Some(end_offset) = byte_offset_for_parser_position(document.text.as_str(), range.end)
+    else {
+        return false;
+    };
+    if start_offset > end_offset {
+        return false;
+    }
+    document
+        .text
+        .replace_range(start_offset..end_offset, next_text);
+    true
 }
 
 fn did_close_text_document(state: &mut LspShellState, params: Option<&Value>) {
@@ -2747,6 +2779,17 @@ fn empty_style_hover_candidates_result(
 
 fn lsp_position_from_params(params: Option<&Value>) -> Option<ParserPositionV0> {
     let position = params.and_then(|value| value.get("position"))?;
+    lsp_position_from_value(position)
+}
+
+fn lsp_range_from_value(value: &Value) -> Option<ParserRangeV0> {
+    Some(ParserRangeV0 {
+        start: lsp_position_from_value(value.get("start")?)?,
+        end: lsp_position_from_value(value.get("end")?)?,
+    })
+}
+
+fn lsp_position_from_value(position: &Value) -> Option<ParserPositionV0> {
     Some(ParserPositionV0 {
         line: position.get("line").and_then(Value::as_u64)? as usize,
         character: position.get("character").and_then(Value::as_u64)? as usize,
@@ -3300,6 +3343,35 @@ mod tests {
             &mut state,
             json!({
                 "jsonrpc": "2.0",
+                "method": "textDocument/didChange",
+                "params": {
+                    "textDocument": {
+                        "uri": "file:///workspace-a/src/App.tsx",
+                        "version": 3,
+                    },
+                    "contentChanges": [
+                        {
+                            "range": {
+                                "start": { "line": 0, "character": 14 },
+                                "end": { "line": 0, "character": 17 },
+                            },
+                            "text": "green",
+                        },
+                    ],
+                },
+            }),
+        );
+        let document = state.document("file:///workspace-a/src/App.tsx");
+        assert_eq!(document.map(|document| document.version), Some(3));
+        assert_eq!(
+            document.map(|document| document.text.as_str()),
+            Some("const tone = 'green';"),
+        );
+
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
                 "method": "textDocument/didClose",
                 "params": {
                     "textDocument": {
@@ -3373,6 +3445,36 @@ mod tests {
         assert_eq!(
             updated.map(|summary| summary.custom_property_decl_names.clone()),
             Some(vec!["--gap".to_string()]),
+        );
+
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didChange",
+                "params": {
+                    "textDocument": {
+                        "uri": "file:///workspace-a/src/App.module.scss",
+                        "version": 3,
+                    },
+                    "contentChanges": [
+                        {
+                            "range": {
+                                "start": { "line": 0, "character": 1 },
+                                "end": { "line": 0, "character": 5 },
+                            },
+                            "text": "panel",
+                        },
+                    ],
+                },
+            }),
+        );
+        let incrementally_updated = state
+            .document("file:///workspace-a/src/App.module.scss")
+            .and_then(|document| document.style_summary.as_ref());
+        assert_eq!(
+            incrementally_updated.map(|summary| summary.selector_names.clone()),
+            Some(vec!["panel".to_string()]),
         );
     }
 
