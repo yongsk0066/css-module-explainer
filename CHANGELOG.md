@@ -1,5 +1,11 @@
 # Changelog
 
+## [4.1.17] — 2026-04-29
+
+### Changed
+
+- **External design-token definition runtime** — style `var(--...)` go-to-definition now routes Rust semantic-graph winner lookups through the async selected-query runner, so packaged LSP requests use the daemon-backed path while preserving the existing TypeScript fallback when no Rust winner is available.
+
 ## [4.1.16] — 2026-04-29
 
 ### Added
