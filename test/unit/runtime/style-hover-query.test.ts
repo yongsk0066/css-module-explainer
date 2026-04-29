@@ -533,6 +533,43 @@ describe("style hover query", () => {
     });
   });
 
+  it("resolves CSS custom property references forwarded from a package root through a local utility module", () => {
+    const buttonScss = `@use "utils" as *;
+
+.button {
+  color: var(--color-gray-700);
+}
+`;
+    const utilsScss = `@forward "@design/tokens" as ds_*;`;
+    const tokensCss = `:root { --color-gray-700: #767678; }`;
+    const buttonDocument = parseStyleDocument(buttonScss, SCSS_PATH);
+    const utilsDocument = parseStyleDocument(utilsScss, UTILS_PATH);
+    const tokensDocument = parseStyleDocument(tokensCss, PACKAGE_VARIABLES_CSS_PATH);
+
+    const result = resolveStyleHoverResult(
+      {
+        filePath: SCSS_PATH,
+        line: 3,
+        character: 16,
+      },
+      makeBaseDeps({
+        styleDocumentForPath: styleDocumentMap([buttonDocument, utilsDocument, tokensDocument]),
+        readStyleFile: (filePath) =>
+          filePath === PACKAGE_TOKENS_JSON_PATH ? `{"style":"variables.css"}` : null,
+      }),
+    );
+
+    expect(result).toMatchObject({
+      kind: "customProperty",
+      scssModulePath: PACKAGE_VARIABLES_CSS_PATH,
+      headingName: "--color-gray-700",
+      customPropertyDecl: {
+        name: "--color-gray-700",
+        value: "#767678",
+      },
+    });
+  });
+
   it("resolves same-file Sass symbol references to declaration hover data", () => {
     const scss = `$gap: 1rem;
 .button {

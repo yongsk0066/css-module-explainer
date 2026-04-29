@@ -313,13 +313,65 @@ export function listCustomPropertyModuleUseDeclTargets(
       options,
     );
     if (!target) continue;
-    for (const decl of target.styleDocument.customPropertyDecls) {
-      const key = `${target.filePath}\u0000${decl.name}`;
+    for (const exportedTarget of listCustomPropertyModuleExportedDeclTargets(
+      styleDocumentForPath,
+      target.filePath,
+      target.styleDocument,
+      aliasResolver,
+      new Set(),
+      options,
+    )) {
+      const { decl } = exportedTarget;
+      const filePath = exportedTarget.filePath;
+      const key = `${filePath}\u0000${decl.name}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      targets.push({ filePath: target.filePath, decl });
+      targets.push({ filePath, decl });
     }
   }
+  return targets;
+}
+
+function listCustomPropertyModuleExportedDeclTargets(
+  styleDocumentForPath: (filePath: string) => StyleDocumentHIR | null,
+  styleFilePath: string,
+  styleDocument: StyleDocumentHIR,
+  aliasResolver?: SassModulePathAliasResolver,
+  visited: ReadonlySet<string> = new Set(),
+  options: SassModuleResolutionOptions = {},
+): readonly ResolvedCustomPropertyDeclTarget[] {
+  if (visited.has(styleFilePath)) return [];
+  const nextVisited = new Set(visited);
+  nextVisited.add(styleFilePath);
+
+  const targets = styleDocument.customPropertyDecls.map<ResolvedCustomPropertyDeclTarget>(
+    (decl) => ({
+      filePath: styleFilePath,
+      decl,
+    }),
+  );
+
+  for (const moduleForward of styleDocument.sassModuleForwards) {
+    const forwardTarget = resolveSassModuleForwardTarget(
+      styleDocumentForPath,
+      styleFilePath,
+      moduleForward,
+      aliasResolver,
+      options,
+    );
+    if (!forwardTarget) continue;
+    targets.push(
+      ...listCustomPropertyModuleExportedDeclTargets(
+        styleDocumentForPath,
+        forwardTarget.filePath,
+        forwardTarget.styleDocument,
+        aliasResolver,
+        nextVisited,
+        options,
+      ),
+    );
+  }
+
   return targets;
 }
 

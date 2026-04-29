@@ -701,6 +701,45 @@ describe("computeScssUnusedDiagnostics", () => {
     );
   });
 
+  it("does not report CSS custom property refs forwarded from a package root through local utilities", () => {
+    const stylePath = "/fake/src/Button.module.scss";
+    const utilsPath = "/fake/src/_utils.scss";
+    const packageRoot = "/fake/node_modules/@design/tokens";
+    const packageJsonPath = `${packageRoot}/package.json`;
+    const packagePath = `${packageRoot}/variables.css`;
+    const styleDoc = parseStyleDocument(
+      `@use "utils" as *;
+
+.title {
+  color: var(--color-gray-700);
+}`,
+      stylePath,
+    );
+    const utilsDoc = parseStyleDocument(`@forward "@design/tokens" as ds_*;`, utilsPath);
+    const packageDoc = parseStyleDocument(`:root { --color-gray-700: #767678; }`, packagePath);
+    const byPath = new Map([
+      [stylePath, styleDoc],
+      [utilsPath, utilsDoc],
+      [packagePath, packageDoc],
+    ]);
+
+    const diagnostics = computeScssUnusedDiagnostics(
+      stylePath,
+      styleDoc,
+      new WorkspaceSemanticWorkspaceReferenceIndex(),
+      new WorkspaceStyleDependencyGraph(),
+      (filePath) => byPath.get(filePath) ?? null,
+      {
+        readStyleFile: (filePath) =>
+          filePath === packageJsonPath ? `{"style":"variables.css"}` : null,
+      },
+    );
+
+    expect(diagnostics.filter((entry) => entry.message.includes("CSS custom property"))).toEqual(
+      [],
+    );
+  });
+
   it("reports CSS custom property refs when only unmatched workspace theme declarations exist", () => {
     const stylePath = "/fake/src/Button.module.scss";
     const themePath = "/fake/src/theme.module.scss";
