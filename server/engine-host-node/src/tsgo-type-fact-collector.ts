@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import path from "node:path";
+import { existsSync } from "node:fs";
 import ts from "typescript";
 import type { ResolvedType } from "@css-module-explainer/shared";
 import {
@@ -13,6 +13,7 @@ import {
   type CollectTypeFactTableV1Options,
 } from "./historical/type-fact-table-v1";
 import { collectTypeFactTableV2 } from "./type-fact-table-v2";
+import { resolveTsgoBinaryPathForEnv } from "./tsgo-probe-type-resolver";
 
 const UNRESOLVABLE: ResolvedType = { kind: "unresolvable", values: [] };
 
@@ -37,6 +38,13 @@ export interface TsgoTypeFactWorkerResultEntry {
 export type RunTsgoTypeFactWorker = (
   input: TsgoTypeFactWorkerInput,
 ) => readonly TsgoTypeFactWorkerResultEntry[];
+
+export interface TsgoTypeFactWorkerInvocation {
+  readonly command: string;
+  readonly args: readonly string[];
+  readonly cwd: string;
+  readonly env: NodeJS.ProcessEnv;
+}
 
 export interface CollectTsgoTypeFactsOptions extends CollectTypeFactTableV1Options {
   readonly findConfigFile?: (workspaceRoot: string) => string | null;
@@ -152,13 +160,13 @@ function collectTsgoResolvedTypes(
 function defaultRunTsgoTypeFactWorker(
   input: TsgoTypeFactWorkerInput,
 ): readonly TsgoTypeFactWorkerResultEntry[] {
-  const workerPath = path.join(process.cwd(), "scripts/collect-tsgo-type-facts.mjs");
-  const child = spawnSync(process.execPath, [workerPath], {
-    cwd: input.workspaceRoot,
+  const invocation = buildTsgoTypeFactWorkerInvocation(input.workspaceRoot);
+  const child = spawnSync(invocation.command, invocation.args, {
+    cwd: invocation.cwd,
     input: JSON.stringify(input),
     encoding: "utf8",
     stdio: ["pipe", "pipe", "pipe"],
-    env: process.env,
+    env: invocation.env,
   });
 
   if (child.status !== 0) {
@@ -175,6 +183,25 @@ function defaultRunTsgoTypeFactWorker(
   }
 
   return JSON.parse(child.stdout) as readonly TsgoTypeFactWorkerResultEntry[];
+}
+
+export function buildTsgoTypeFactWorkerInvocation(
+  workspaceRoot: string,
+  env: NodeJS.ProcessEnv = process.env,
+  fileExists: (filePath: string) => boolean = existsSync,
+): TsgoTypeFactWorkerInvocation {
+  const workerEnv = { ...env };
+  const tsgoPath = resolveTsgoBinaryPathForEnv(workerEnv, fileExists);
+  if (fileExists(tsgoPath)) {
+    workerEnv.CME_TSGO_PATH = tsgoPath;
+  }
+
+  return {
+    command: process.execPath,
+    args: ["-e", TSGO_TYPE_FACT_WORKER_SOURCE],
+    cwd: workspaceRoot,
+    env: workerEnv,
+  };
 }
 
 function isTsgoProjectMissError(error: unknown): boolean {
@@ -200,3 +227,211 @@ function offsetAtPosition(text: string, line: number, character: number): number
 function typeFactKey(filePath: string, expressionId: string): string {
   return `${filePath}::${expressionId}`;
 }
+
+const TSGO_TYPE_FACT_WORKER_SOURCE = String.raw`
+const { spawn } = require("node:child_process");
+const { readFileSync } = require("node:fs");
+const path = require("node:path");
+
+const TYPE_FLAGS_UNION = 134217728;
+const UNRESOLVABLE = { kind: "unresolvable", values: [] };
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
+
+async function main() {
+  const input = JSON.parse(readFileSync(0, "utf8"));
+  const tsgo = resolveTsgoInvocation(input.workspaceRoot);
+  const child = spawn(tsgo.command, tsgo.args, {
+    cwd: input.workspaceRoot,
+    stdio: ["pipe", "pipe", "pipe"],
+    env: process.env,
+  });
+  const stderr = [];
+  child.stderr.setEncoding("utf8");
+  child.stderr.on("data", (chunk) => stderr.push(chunk));
+
+  const rpc = createJsonRpcClient(child);
+  try {
+    await rpc.sendRequest("initialize");
+    const snapshotResponse = await rpc.sendRequest("updateSnapshot", {
+      openProject: input.configPath,
+    });
+    const snapshot = snapshotResponse.snapshot;
+    const projectByFile = new Map(
+      await Promise.all(
+        [...new Set(input.targets.map((target) => target.filePath))].map(async (filePath) => {
+          const projectResponse = await rpc.sendRequest("getDefaultProjectForFile", {
+            snapshot,
+            file: filePath,
+          });
+          return [filePath, projectResponse.id];
+        }),
+      ),
+    );
+    const results = await Promise.all(
+      input.targets.map(async (target) => {
+        const typeResponse = await rpc.sendRequest("getTypeAtPosition", {
+          snapshot,
+          project: projectByFile.get(target.filePath),
+          file: target.filePath,
+          position: target.position,
+        });
+        const resolvedType = await extractResolvedType(rpc, snapshot, typeResponse);
+        return {
+          filePath: target.filePath,
+          expressionId: target.expressionId,
+          resolvedType,
+        };
+      }),
+    );
+    await rpc.sendRequest("release", { handle: snapshot });
+    process.stdout.write(JSON.stringify(results));
+  } finally {
+    rpc.dispose();
+    child.kill("SIGKILL");
+    await waitForExit(child);
+    if (child.exitCode && stderr.length > 0) {
+      process.stderr.write(stderr.join(""));
+    }
+  }
+}
+
+function resolveTsgoInvocation(workspaceRoot) {
+  const tsgoArgs = ["--api", "--async", "--cwd", workspaceRoot, ...resolveTsgoCheckerArgs()];
+  if (process.env.CME_TSGO_PATH) {
+    return {
+      command: path.resolve(process.env.CME_TSGO_PATH),
+      args: tsgoArgs,
+    };
+  }
+  return {
+    command: "pnpm",
+    args: ["exec", "tsgo", ...tsgoArgs],
+  };
+}
+
+function createJsonRpcClient(child) {
+  let nextId = 0;
+  let buffer = Buffer.alloc(0);
+  const pending = new Map();
+
+  child.stdout.on("data", (chunk) => {
+    buffer = Buffer.concat([buffer, Buffer.from(chunk)]);
+    drainMessages();
+  });
+  child.on("error", (error) => rejectAll(error));
+  child.on("exit", (code, signal) => {
+    rejectAll(new Error([
+      "tsgo API process exited",
+      "code=" + (code ?? "unknown"),
+      signal ? "signal=" + signal : "",
+    ].filter(Boolean).join(" ")));
+  });
+
+  function sendRequest(method, params) {
+    const id = ++nextId;
+    const request = { jsonrpc: "2.0", id, method };
+    if (params !== undefined) request.params = params;
+    const body = Buffer.from(JSON.stringify(request), "utf8");
+    child.stdin.write(Buffer.from("Content-Length: " + body.length + "\r\n\r\n", "utf8"));
+    child.stdin.write(body);
+
+    return new Promise((resolve, reject) => {
+      pending.set(id, { resolve, reject });
+    });
+  }
+
+  function drainMessages() {
+    while (true) {
+      const headerEnd = buffer.indexOf("\r\n\r\n");
+      if (headerEnd < 0) return;
+      const header = buffer.subarray(0, headerEnd).toString("utf8");
+      const match = /^Content-Length:\s*(\d+)/imu.exec(header);
+      if (!match) {
+        rejectAll(new Error("tsgo API response missing Content-Length"));
+        return;
+      }
+      const length = Number(match[1]);
+      const bodyStart = headerEnd + 4;
+      const bodyEnd = bodyStart + length;
+      if (buffer.length < bodyEnd) return;
+      const body = buffer.subarray(bodyStart, bodyEnd).toString("utf8");
+      buffer = buffer.subarray(bodyEnd);
+      handleMessage(JSON.parse(body));
+    }
+  }
+
+  function handleMessage(message) {
+    if (message.id === undefined || message.id === null) return;
+    const request = pending.get(message.id);
+    if (!request) return;
+    pending.delete(message.id);
+    if (message.error) {
+      request.reject(new Error(message.error.message ?? JSON.stringify(message.error)));
+      return;
+    }
+    request.resolve(message.result);
+  }
+
+  function rejectAll(error) {
+    for (const request of pending.values()) request.reject(error);
+    pending.clear();
+  }
+
+  return {
+    sendRequest,
+    dispose() {
+      child.stdin.end();
+      rejectAll(new Error("tsgo API client disposed"));
+    },
+  };
+}
+
+async function extractResolvedType(rpc, snapshot, typeResponse) {
+  if (typeof typeResponse?.value === "string") {
+    return { kind: "union", values: [typeResponse.value] };
+  }
+  if ((Number(typeResponse?.flags ?? 0) & TYPE_FLAGS_UNION) !== 0) {
+    const members = await rpc.sendRequest("getTypesOfType", {
+      snapshot,
+      type: typeResponse.id,
+    });
+    const resolvedMembers = await Promise.all(
+      (members ?? []).map((member) => extractResolvedType(rpc, snapshot, member)),
+    );
+    const values = [];
+    for (const resolved of resolvedMembers) {
+      if (resolved.kind !== "union" || resolved.values.length !== 1) {
+        return UNRESOLVABLE;
+      }
+      values.push(resolved.values[0]);
+    }
+    const deduped = [...new Set(values)];
+    return deduped.length > 0 ? { kind: "union", values: deduped } : UNRESOLVABLE;
+  }
+  return UNRESOLVABLE;
+}
+
+function waitForExit(child) {
+  if (child.exitCode !== null || child.signalCode !== null) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(), 1000);
+    const done = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    child.once("exit", done);
+    child.once("close", done);
+  });
+}
+
+function resolveTsgoCheckerArgs() {
+  const value = process.env.CME_TSGO_CHECKERS?.trim();
+  return value ? ["--checkers", value] : [];
+}
+`;

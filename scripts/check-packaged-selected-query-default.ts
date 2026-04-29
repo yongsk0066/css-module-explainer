@@ -10,6 +10,7 @@ import {
   buildTsgoProbeInvocation,
   resolveTsgoBinaryPathForEnv,
 } from "../server/engine-host-node/src/tsgo-probe-type-resolver";
+import { buildTsgoTypeFactWorkerInvocation } from "../server/engine-host-node/src/tsgo-type-fact-collector";
 
 const repoRoot = process.cwd();
 const vsixFiles = readdirSync(repoRoot).filter((file) => file.endsWith(".vsix"));
@@ -128,6 +129,19 @@ if (!tsgoInvocation || tsgoInvocation.command !== packagedTsgoPath) {
   throw new Error(
     `Expected packaged tsgo probe invocation to use ${packagedTsgoPath}, got ${
       tsgoInvocation?.command ?? "null"
+    }`,
+  );
+}
+
+const tsgoTypeFactWorkerInvocation = buildTsgoTypeFactWorkerInvocation(
+  packagedRoot,
+  packagedEnv,
+  fileExists,
+);
+if (tsgoTypeFactWorkerInvocation.env.CME_TSGO_PATH !== packagedTsgoPath) {
+  throw new Error(
+    `Expected packaged tsgo type-fact worker to use ${packagedTsgoPath}, got ${
+      tsgoTypeFactWorkerInvocation.env.CME_TSGO_PATH ?? "unset"
     }`,
   );
 }

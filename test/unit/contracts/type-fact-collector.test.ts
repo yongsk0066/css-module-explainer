@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import path from "node:path";
 import type { TypeResolver } from "../../../server/engine-core-ts/src/core/ts/type-resolver";
 import { selectTypeFactCollector } from "../../../server/engine-host-node/src/type-fact-collector";
+import { buildTsgoTypeFactWorkerInvocation } from "../../../server/engine-host-node/src/tsgo-type-fact-collector";
 import type { TypeFactSourceEntry } from "../../../server/engine-host-node/src/historical/type-fact-table-v1";
 import {
   makeSourceDocumentHIR,
@@ -152,6 +154,24 @@ describe("selectTypeFactCollector", () => {
     });
 
     expect(entry?.facts).toEqual({ kind: "finiteSet", values: ["primary", "secondary"] });
+  });
+
+  it("passes the packaged tsgo binary to the self-contained type fact worker", () => {
+    const projectRoot = path.join("/extension", "css-module-explainer");
+    const platformDir = `${process.platform}-${process.arch}`;
+    const binaryName = process.platform === "win32" ? "tsgo.exe" : "tsgo";
+    const packagedTsgoPath = path.join(projectRoot, "dist", "bin", platformDir, binaryName);
+
+    const invocation = buildTsgoTypeFactWorkerInvocation(
+      "/workspace",
+      { CME_PROJECT_ROOT: projectRoot } as NodeJS.ProcessEnv,
+      (filePath) => filePath === packagedTsgoPath,
+    );
+
+    expect(invocation.command).toBe(process.execPath);
+    expect(invocation.args[0]).toBe("-e");
+    expect(invocation.cwd).toBe("/workspace");
+    expect(invocation.env.CME_TSGO_PATH).toBe(packagedTsgoPath);
   });
 });
 

@@ -369,7 +369,9 @@ describe("buildSelectedQueryResultsV2", () => {
       env: {
         CME_SELECTED_QUERY_BACKEND: "rust-selected-query",
       } as NodeJS.ProcessEnv,
-      readRustSourceResolutionPayloads: () => [makeSourceResolutionPayload("class-expr:0", "indicator")],
+      readRustSourceResolutionPayloads: () => [
+        makeSourceResolutionPayload("class-expr:0", "indicator"),
+      ],
       readRustExpressionSemanticsPayloads: () => [
         makeExpressionSemanticsPayload("class-expr:0", "indicator"),
       ],
