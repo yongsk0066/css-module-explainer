@@ -7,6 +7,10 @@ import { info, semanticSiteAt } from "../../_fixtures/test-helpers";
 import { buildStyleDocumentFromSelectorMap } from "../../_fixtures/style-documents";
 
 const SCSS_PATH = "/fake/Button.module.scss";
+const UTILS_PATH = "/fake/_utils.scss";
+const PACKAGE_TOKENS_ROOT = "/fake/node_modules/@design/tokens";
+const PACKAGE_TOKENS_JSON_PATH = `${PACKAGE_TOKENS_ROOT}/package.json`;
+const PACKAGE_TOKENS_INDEX_PATH = `${PACKAGE_TOKENS_ROOT}/src/index.scss`;
 
 function styleDocument(selectors: ReadonlyMap<string, ReturnType<typeof info>>) {
   return buildStyleDocumentFromSelectorMap(SCSS_PATH, selectors);
@@ -299,6 +303,47 @@ describe("checkStyleDocument", () => {
         }),
       ]),
     );
+  });
+
+  it("does not report Sass symbols forwarded from a package root through a local utility module", () => {
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    const buttonDocument = parseStyleDocument(
+      `@use "utils" as *;
+
+.title {
+  color: $ds_gray700;
+  @include ds_typography16;
+}`,
+      SCSS_PATH,
+    );
+    const utilsDocument = parseStyleDocument(`@forward "@design/tokens" as ds_*;`, UTILS_PATH);
+    const tokensDocument = parseStyleDocument(
+      `$gray700: #767678;
+@mixin typography16 {}`,
+      PACKAGE_TOKENS_INDEX_PATH,
+    );
+    const byPath = new Map([
+      [SCSS_PATH, buttonDocument],
+      [UTILS_PATH, utilsDocument],
+      [PACKAGE_TOKENS_INDEX_PATH, tokensDocument],
+    ]);
+
+    const findings = checkStyleDocument(
+      {
+        scssPath: SCSS_PATH,
+        styleDocument: buttonDocument,
+      },
+      {
+        semanticReferenceIndex,
+        styleDependencyGraph: new WorkspaceStyleDependencyGraph(),
+        styleDocumentForPath: (filePath) => byPath.get(filePath) ?? null,
+        readFile: (filePath) =>
+          filePath === PACKAGE_TOKENS_JSON_PATH ? `{"sass":"src/index.scss"}` : null,
+      },
+      { includeUnusedSelectors: false },
+    );
+
+    expect(findings.filter((finding) => finding.code === "missing-sass-symbol")).toEqual([]);
   });
 
   it("returns missing Less variable findings for unresolved same-file variables", () => {

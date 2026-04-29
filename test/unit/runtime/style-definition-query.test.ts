@@ -684,6 +684,44 @@ $secret: 2rem;
     });
   });
 
+  it("resolves prefixed Sass members forwarded from a package root through a local utility module", () => {
+    const ws = styleWorkspace({
+      [BUTTON_PATH]: `@use "utils" as *;
+
+.title {
+  color: $ds_g/*at:variable*/ray700;
+  @include ds_t/*at:mixin*/ypography16;
+}
+`,
+      [UTILS_PATH]: `@forward "@design/tokens" as ds_*;`,
+      [PACKAGE_TOKENS_JSON_PATH]: `{"sass":"src/index.scss"}`,
+      [PACKAGE_TOKENS_INDEX_PATH]: `$gray700: #767678;
+@mixin typography16 {}
+`,
+    });
+    const deps = styleDeps(ws);
+
+    const variableTargets = resolveStyleDefinitionTargets(styleTarget(ws, "variable"), deps);
+    expect(variableTargets).toHaveLength(1);
+    expect(variableTargets[0]).toMatchObject({
+      targetFilePath: PACKAGE_TOKENS_INDEX_PATH,
+      targetSelectionRange: {
+        start: { line: 0, character: 0 },
+        end: { line: 0, character: 8 },
+      },
+    });
+
+    const mixinTargets = resolveStyleDefinitionTargets(styleTarget(ws, "mixin"), deps);
+    expect(mixinTargets).toHaveLength(1);
+    expect(mixinTargets[0]).toMatchObject({
+      targetFilePath: PACKAGE_TOKENS_INDEX_PATH,
+      targetSelectionRange: {
+        start: { line: 1, character: 7 },
+        end: { line: 1, character: 19 },
+      },
+    });
+  });
+
   it("resolves same-file Sass symbol references to declarations", () => {
     const ws = styleWorkspace({
       [BUTTON_PATH]: `$gap: 1rem;

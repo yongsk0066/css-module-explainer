@@ -694,6 +694,60 @@ describe("style hover query", () => {
       note: "Referenced via Sass wildcard include",
     });
   });
+
+  it("resolves hover for prefixed Sass members forwarded from a package root through a local utility module", () => {
+    const buttonScss = `@use "utils" as *;
+
+.title {
+  color: $ds_gray700;
+  @include ds_typography16;
+}
+`;
+    const utilsScss = `@forward "@design/tokens" as ds_*;`;
+    const tokensScss = `$gray700: #767678;
+@mixin typography16 {}
+`;
+    const documents = [
+      parseStyleDocument(buttonScss, SCSS_PATH),
+      parseStyleDocument(utilsScss, UTILS_PATH),
+      parseStyleDocument(tokensScss, PACKAGE_TOKENS_INDEX_PATH),
+    ];
+    const deps = makeBaseDeps({
+      styleDocumentForPath: styleDocumentMap(documents),
+      readStyleFile: (filePath) =>
+        filePath === PACKAGE_TOKENS_JSON_PATH ? `{"sass":"src/index.scss"}` : null,
+    });
+
+    const variableResult = resolveStyleHoverResult(
+      {
+        filePath: SCSS_PATH,
+        line: 3,
+        character: 14,
+      },
+      deps,
+    );
+    expect(variableResult).toMatchObject({
+      kind: "sassSymbol",
+      scssModulePath: PACKAGE_TOKENS_INDEX_PATH,
+      headingName: "ds_gray700",
+      note: "Referenced via Sass wildcard reference",
+    });
+
+    const mixinResult = resolveStyleHoverResult(
+      {
+        filePath: SCSS_PATH,
+        line: 4,
+        character: 15,
+      },
+      deps,
+    );
+    expect(mixinResult).toMatchObject({
+      kind: "sassSymbol",
+      scssModulePath: PACKAGE_TOKENS_INDEX_PATH,
+      headingName: "ds_typography16",
+      note: "Referenced via Sass wildcard include",
+    });
+  });
 });
 
 function styleDocumentMap(documents: readonly StyleDocumentHIR[]) {

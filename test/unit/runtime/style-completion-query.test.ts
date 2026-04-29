@@ -8,6 +8,7 @@ const THEME_PATH = "/fake/src/theme.module.scss";
 const TOKENS_PATH = "/fake/src/tokens.module.scss";
 const PACKAGE_TOKENS_ROOT = "/fake/node_modules/@design/tokens";
 const PACKAGE_TOKENS_JSON_PATH = `${PACKAGE_TOKENS_ROOT}/package.json`;
+const PACKAGE_TOKENS_INDEX_PATH = `${PACKAGE_TOKENS_ROOT}/src/index.scss`;
 const PACKAGE_VARIABLES_CSS_PATH = "/fake/node_modules/@design/tokens/variables.css";
 
 describe("resolveStyleCompletionItems", () => {
@@ -490,6 +491,47 @@ $secret: 2rem;
         styleDocumentForPath,
       }).map((item) => item.label),
     ).toEqual(["theme-tone"]);
+  });
+
+  it("returns prefixed completions forwarded from a package root through a local utility module", () => {
+    const scss = `@use "utils" as *;
+
+.title {
+  color: $ds_;
+  @include ds_typo;
+}
+`;
+    const utilsScss = `@forward "@design/tokens" as ds_*;`;
+    const tokensScss = `$gray700: #767678;
+@mixin typography16 {}
+`;
+    const styleDocument = parseStyleDocument(scss, SCSS_PATH);
+    const utilsDocument = parseStyleDocument(utilsScss, "/fake/src/_utils.scss");
+    const tokensDocument = parseStyleDocument(tokensScss, PACKAGE_TOKENS_INDEX_PATH);
+    const styleDocumentForPath = styleDocumentMap([styleDocument, utilsDocument, tokensDocument]);
+
+    expect(
+      resolveStyleCompletionItems({
+        content: scss,
+        line: 3,
+        character: 13,
+        styleDocument,
+        styleDocumentForPath,
+        readFile: (filePath) =>
+          filePath === PACKAGE_TOKENS_JSON_PATH ? `{"sass":"src/index.scss"}` : null,
+      }).map((item) => item.label),
+    ).toEqual(["$ds_gray700"]);
+    expect(
+      resolveStyleCompletionItems({
+        content: scss,
+        line: 4,
+        character: 18,
+        styleDocument,
+        styleDocumentForPath,
+        readFile: (filePath) =>
+          filePath === PACKAGE_TOKENS_JSON_PATH ? `{"sass":"src/index.scss"}` : null,
+      }).map((item) => item.label),
+    ).toEqual(["ds_typography16"]);
   });
 
   it("keeps Sass parameter variables local to their callable body", () => {
