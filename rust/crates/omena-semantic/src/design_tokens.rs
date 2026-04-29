@@ -1,5 +1,6 @@
 use engine_style_parser::{ParserBoundarySyntaxFactsV0, StyleSemanticFactsV0};
 use serde::Serialize;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -15,6 +16,7 @@ pub struct DesignTokenSemanticSummaryV0 {
     pub selectors_with_references_count: usize,
     pub context_signal: DesignTokenContextSignalV0,
     pub resolution_signal: DesignTokenResolutionSignalV0,
+    pub cascade_ranking_signal: DesignTokenCascadeRankingSignalV0,
     pub capabilities: DesignTokenSemanticCapabilitiesV0,
     pub blocking_gaps: Vec<&'static str>,
     pub next_priorities: Vec<&'static str>,
@@ -49,10 +51,21 @@ pub struct DesignTokenResolutionSignalV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct DesignTokenCascadeRankingSignalV0 {
+    pub ranked_reference_count: usize,
+    pub unranked_reference_count: usize,
+    pub source_order_winner_declaration_count: usize,
+    pub source_order_shadowed_declaration_count: usize,
+    pub repeated_name_declaration_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DesignTokenSemanticCapabilitiesV0 {
     pub same_file_resolution_ready: bool,
     pub wrapper_context_signal_ready: bool,
     pub source_order_signal_ready: bool,
+    pub source_order_cascade_ranking_ready: bool,
     pub occurrence_resolution_signal_ready: bool,
     pub selector_context_resolution_ready: bool,
     pub theme_override_context_signal_ready: bool,
@@ -92,9 +105,12 @@ pub fn summarize_design_token_semantics(
     let reference_count = semantic_facts.custom_properties.ref_names.len();
     let declaration_count = semantic_facts.custom_properties.decl_names.len();
     let resolution_signal = summarize_design_token_resolution_signal(parser_facts);
+    let cascade_ranking_signal = summarize_design_token_cascade_ranking_signal(parser_facts);
 
     let status = if reference_count == 0 && declaration_count == 0 {
         "empty"
+    } else if cascade_ranking_signal.has_shadowing_signal() {
+        "same-file-cascade-ranking-seed"
     } else if resolution_signal.occurrence_resolution_ready() {
         "context-aware-resolution-seed"
     } else if wrapper_context_count > 0 {
@@ -149,10 +165,13 @@ pub fn summarize_design_token_semantics(
             wrapper_context_count,
         },
         resolution_signal: resolution_signal.clone(),
+        cascade_ranking_signal: cascade_ranking_signal.clone(),
         capabilities: DesignTokenSemanticCapabilitiesV0 {
             same_file_resolution_ready: declaration_count > 0 || reference_count > 0,
             wrapper_context_signal_ready: wrapper_context_count > 0,
             source_order_signal_ready: resolution_signal.source_order_signal_ready(),
+            source_order_cascade_ranking_ready: cascade_ranking_signal
+                .source_order_cascade_ranking_ready(),
             occurrence_resolution_signal_ready: resolution_signal.occurrence_resolution_ready(),
             selector_context_resolution_ready: resolution_signal
                 .selector_context_resolution_ready(),
@@ -164,6 +183,64 @@ pub fn summarize_design_token_semantics(
         },
         blocking_gaps,
         next_priorities,
+    }
+}
+
+fn summarize_design_token_cascade_ranking_signal(
+    parser_facts: &ParserBoundarySyntaxFactsV0,
+) -> DesignTokenCascadeRankingSignalV0 {
+    let custom_properties = &parser_facts.custom_properties;
+    let mut declaration_name_counts = BTreeMap::<&str, usize>::new();
+    let mut winner_declarations = BTreeSet::<(String, usize)>::new();
+    let mut shadowed_declarations = BTreeSet::<(String, usize)>::new();
+    let mut ranked_reference_count = 0;
+    let mut unranked_reference_count = 0;
+
+    for declaration in &custom_properties.decl_facts {
+        *declaration_name_counts
+            .entry(declaration.name.as_str())
+            .or_insert(0) += 1;
+    }
+
+    for reference in &custom_properties.ref_facts {
+        let candidates = custom_properties
+            .decl_facts
+            .iter()
+            .filter(|declaration| custom_property_context_matches(declaration, reference))
+            .collect::<Vec<_>>();
+
+        let Some(winner) = candidates
+            .iter()
+            .copied()
+            .max_by_key(|declaration| declaration.source_order)
+        else {
+            unranked_reference_count += 1;
+            continue;
+        };
+
+        ranked_reference_count += 1;
+        winner_declarations.insert(custom_property_declaration_key(winner));
+        for candidate in candidates {
+            if candidate.source_order != winner.source_order {
+                shadowed_declarations.insert(custom_property_declaration_key(candidate));
+            }
+        }
+    }
+
+    DesignTokenCascadeRankingSignalV0 {
+        ranked_reference_count,
+        unranked_reference_count,
+        source_order_winner_declaration_count: winner_declarations.len(),
+        source_order_shadowed_declaration_count: shadowed_declarations.len(),
+        repeated_name_declaration_count: custom_properties
+            .decl_facts
+            .iter()
+            .filter(|declaration| {
+                declaration_name_counts
+                    .get(declaration.name.as_str())
+                    .is_some_and(|count| *count > 1)
+            })
+            .count(),
     }
 }
 
@@ -238,6 +315,22 @@ impl DesignTokenResolutionSignalV0 {
         self.occurrence_resolution_ready()
             && (self.root_declaration_count > 0 || self.selector_scoped_declaration_count > 0)
     }
+}
+
+impl DesignTokenCascadeRankingSignalV0 {
+    fn source_order_cascade_ranking_ready(&self) -> bool {
+        self.ranked_reference_count > 0
+    }
+
+    fn has_shadowing_signal(&self) -> bool {
+        self.source_order_shadowed_declaration_count > 0
+    }
+}
+
+fn custom_property_declaration_key(
+    declaration: &engine_style_parser::ParserIndexCustomPropertyDeclFactV0,
+) -> (String, usize) {
+    (declaration.name.clone(), declaration.source_order)
 }
 
 fn custom_property_context_matches(

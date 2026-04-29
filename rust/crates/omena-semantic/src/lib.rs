@@ -14,8 +14,9 @@ mod selector_references;
 mod source_evidence;
 
 pub use design_tokens::{
-    DesignTokenContextSignalV0, DesignTokenResolutionSignalV0, DesignTokenSemanticCapabilitiesV0,
-    DesignTokenSemanticSummaryV0, summarize_design_token_semantics,
+    DesignTokenCascadeRankingSignalV0, DesignTokenContextSignalV0, DesignTokenResolutionSignalV0,
+    DesignTokenSemanticCapabilitiesV0, DesignTokenSemanticSummaryV0,
+    summarize_design_token_semantics,
 };
 pub use evidence::{
     SemanticPromotionEvidenceItemV0, SemanticPromotionEvidenceSummaryV0,
@@ -517,9 +518,30 @@ $color: red;
             summary.resolution_signal.wrapper_scoped_declaration_count,
             0
         );
+        assert_eq!(summary.cascade_ranking_signal.ranked_reference_count, 1);
+        assert_eq!(summary.cascade_ranking_signal.unranked_reference_count, 1);
+        assert_eq!(
+            summary
+                .cascade_ranking_signal
+                .source_order_winner_declaration_count,
+            1
+        );
+        assert_eq!(
+            summary
+                .cascade_ranking_signal
+                .source_order_shadowed_declaration_count,
+            0
+        );
+        assert_eq!(
+            summary
+                .cascade_ranking_signal
+                .repeated_name_declaration_count,
+            0
+        );
         assert!(summary.capabilities.same_file_resolution_ready);
         assert!(summary.capabilities.wrapper_context_signal_ready);
         assert!(summary.capabilities.source_order_signal_ready);
+        assert!(summary.capabilities.source_order_cascade_ranking_ready);
         assert!(summary.capabilities.occurrence_resolution_signal_ready);
         assert!(summary.capabilities.selector_context_resolution_ready);
         assert!(summary.capabilities.theme_override_context_signal_ready);
@@ -598,6 +620,20 @@ $color: red;
             summary.resolution_signal.context_unmatched_reference_count,
             1
         );
+        assert_eq!(summary.cascade_ranking_signal.ranked_reference_count, 2);
+        assert_eq!(summary.cascade_ranking_signal.unranked_reference_count, 1);
+        assert_eq!(
+            summary
+                .cascade_ranking_signal
+                .source_order_winner_declaration_count,
+            2
+        );
+        assert_eq!(
+            summary
+                .cascade_ranking_signal
+                .source_order_shadowed_declaration_count,
+            0
+        );
         assert_eq!(summary.resolution_signal.root_declaration_count, 1);
         assert_eq!(
             summary.resolution_signal.selector_scoped_declaration_count,
@@ -606,6 +642,66 @@ $color: red;
         assert!(summary.capabilities.occurrence_resolution_signal_ready);
         assert!(summary.capabilities.source_order_signal_ready);
         assert!(summary.capabilities.selector_context_resolution_ready);
+        Ok(())
+    }
+
+    #[test]
+    fn exposes_design_token_source_order_cascade_ranking_signal() -> Result<(), String> {
+        let sheet = parse_style_module(
+            "Component.module.css",
+            r#"
+:root {
+  --surface: white;
+}
+
+:root {
+  --surface: black;
+}
+
+.theme {
+  --surface: gray;
+}
+
+.button {
+  color: var(--surface);
+}
+
+.theme .button {
+  background: var(--surface);
+}
+"#,
+        )
+        .ok_or_else(|| "CSS module path should parse".to_string())?;
+
+        let summary = summarize_style_semantic_boundary(&sheet).design_token_semantics;
+
+        assert_eq!(summary.status, "same-file-cascade-ranking-seed");
+        assert_eq!(summary.declaration_count, 1);
+        assert_eq!(summary.reference_count, 1);
+        assert_eq!(summary.resolved_reference_count, 1);
+        assert_eq!(summary.unresolved_reference_count, 0);
+        assert_eq!(summary.cascade_ranking_signal.ranked_reference_count, 2);
+        assert_eq!(summary.cascade_ranking_signal.unranked_reference_count, 0);
+        assert_eq!(
+            summary
+                .cascade_ranking_signal
+                .source_order_winner_declaration_count,
+            2
+        );
+        assert_eq!(
+            summary
+                .cascade_ranking_signal
+                .source_order_shadowed_declaration_count,
+            2
+        );
+        assert_eq!(
+            summary
+                .cascade_ranking_signal
+                .repeated_name_declaration_count,
+            3
+        );
+        assert!(summary.capabilities.source_order_cascade_ranking_ready);
+        assert!(!summary.capabilities.cross_package_cascade_ranking_ready);
         Ok(())
     }
 

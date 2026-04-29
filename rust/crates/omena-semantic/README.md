@@ -17,8 +17,9 @@ Current public products:
   and identity-preserving reference sites derived from `EngineInputV2`.
 - `omena-semantic.design-token-semantics` — CSS custom property resolver
   readiness surface that exposes same-file and occurrence-level resolution
-  counts, source-order facts, selector/wrapper context signals, and the remaining
-  cross-file/cascade/theme gaps.
+  counts, source-order facts, same-file cascade ranking signals,
+  selector/wrapper context signals, and the remaining cross-file/package/theme
+  gaps.
 - `omena-semantic.promotion-evidence` — explicit readiness/gap checklist for
   promotion beyond output parity, including parser-backed design-token seed
   evidence from CSS custom properties.
