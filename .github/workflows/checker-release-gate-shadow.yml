@@ -48,7 +48,7 @@ jobs:
         continue-on-error: true
       - id: rust_gate_evidence
         name: Run rust-gate-evidence
-        run: pnpm cme-check run rust/gate/evidence -- --variant typescript-current --repeat 1 --json
+        run: pnpm cme-check run rust/gate/evidence -- --variant tsgo --repeat 1 --json
         continue-on-error: true
       - id: checker_entrance
         name: Run checker entrance gate

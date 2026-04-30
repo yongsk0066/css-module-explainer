@@ -47,7 +47,7 @@
     "changeset": "changeset",
     "typecheck": "tsc -b",
     "test": "vitest run",
-    "check:eslint-plugin-smoke": "node --import tsx ./scripts/check-eslint-plugin-smoke.ts",
+    "check:eslint-plugin-smoke": "pnpm exec tsc -b server/engine-core-ts server/engine-host-node && node --import tsx ./scripts/check-eslint-plugin-smoke.ts",
     "check:stylelint-plugin-smoke": "node ./scripts/check-stylelint-plugin-smoke.mjs",
     "check:plugin-consumer-example": "node --import tsx ./scripts/check-plugin-consumer-eslint-example.ts && node ./scripts/check-plugin-consumer-stylelint-example.mjs",
     "check:plugin-consumers": "pnpm cme-check run plugin/consumer-example && pnpm cme-check run plugin/eslint-plugin-smoke && pnpm cme-check run plugin/stylelint-plugin-smoke",

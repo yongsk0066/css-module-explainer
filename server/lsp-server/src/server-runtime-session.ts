@@ -1,7 +1,6 @@
 import type { TextDocuments } from "vscode-languageserver/node";
 import type { Connection, InitializeParams } from "vscode-languageserver/node";
 import type { TextDocument } from "vscode-languageserver-textdocument";
-import type ts from "typescript";
 import type { TypeResolver } from "../../engine-core-ts/src/core/ts/type-resolver";
 import type { FileTask } from "../../engine-core-ts/src/core/indexing/indexer-worker";
 import {
@@ -18,7 +17,6 @@ import {
 
 export interface ServerRuntimeSessionOptions {
   readonly typeResolver?: TypeResolver;
-  readonly createProgram?: (workspaceRoot: string) => ts.Program;
   readonly fileSupplier?: () => AsyncIterable<FileTask>;
   readonly readStyleFileAsync?: (path: string) => Promise<string | null>;
   readonly fileExists?: (path: string) => boolean;

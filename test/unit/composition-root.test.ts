@@ -1,16 +1,8 @@
 import { PassThrough } from "node:stream";
 import { describe, expect, it } from "vitest";
-import ts from "typescript";
 import { StreamMessageReader, StreamMessageWriter } from "vscode-jsonrpc/node";
-import { createDefaultProgram, createServer } from "../../server/lsp-server/src/composition-root";
+import { createServer } from "../../server/lsp-server/src/composition-root";
 import type { FileTask } from "../../server/engine-core-ts/src/core/indexing/indexer-worker";
-
-describe("createDefaultProgram", () => {
-  it("returns a program with an empty rootNames list when no tsconfig.json is found", () => {
-    const program = createDefaultProgram("/nonexistent/path/that/has/no/tsconfig");
-    expect(program.getRootFileNames()).toEqual([]);
-  });
-});
 
 /**
  * Empty AsyncIterable factory used to keep the indexer worker
@@ -27,13 +19,6 @@ function emptySupplier(): AsyncIterable<FileTask> {
   };
 }
 
-function emptyProgram(): ts.Program {
-  return ts.createProgram({
-    rootNames: [],
-    options: { allowJs: true, jsx: ts.JsxEmit.Preserve },
-  });
-}
-
 describe("createServer transport discriminated union", () => {
   // Auto-transport construction requires the LanguageClient's
   // argv flags (`--node-ipc` / `--stdio`) to wire stdin/stdout.
@@ -44,7 +29,6 @@ describe("createServer transport discriminated union", () => {
   it("routes the default shape (no transport field) through the auto branch", () => {
     expect(() =>
       createServer({
-        createProgram: () => emptyProgram(),
         fileSupplier: () => emptySupplier(),
         readStyleFileAsync: () => Promise.resolve(null),
       }),
@@ -55,7 +39,6 @@ describe("createServer transport discriminated union", () => {
     expect(() =>
       createServer({
         transport: "auto",
-        createProgram: () => emptyProgram(),
         fileSupplier: () => emptySupplier(),
         readStyleFileAsync: () => Promise.resolve(null),
       }),
@@ -71,7 +54,6 @@ describe("createServer transport discriminated union", () => {
       transport: "streams",
       reader,
       writer,
-      createProgram: () => emptyProgram(),
       fileSupplier: () => emptySupplier(),
       readStyleFileAsync: () => Promise.resolve(null),
     });

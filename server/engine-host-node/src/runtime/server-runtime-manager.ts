@@ -1,5 +1,4 @@
 import { existsSync } from "node:fs";
-import type ts from "typescript";
 import { DEFAULT_RESOURCE_SETTINGS } from "../../../engine-core-ts/src/settings";
 import type { FileTask } from "../../../engine-core-ts/src/core/indexing/indexer-worker";
 import type { TypeResolver } from "../../../engine-core-ts/src/core/ts/type-resolver";
@@ -18,7 +17,6 @@ import type { RuntimeSink } from "./runtime-sink";
 
 export interface ServerRuntimeManagerOptions {
   readonly typeResolver?: TypeResolver;
-  readonly createProgram?: (workspaceRoot: string) => ts.Program;
   readonly fileSupplier?: () => AsyncIterable<FileTask>;
   readonly readStyleFileAsync?: (path: string) => Promise<string | null>;
   readonly fileExists?: (path: string) => boolean;
@@ -41,10 +39,9 @@ export function createServerRuntimeManager(
   args: CreateServerRuntimeManagerArgs,
 ): ServerRuntimeManagerBundle {
   const caches = buildSharedRuntimeCaches();
-  const typeResolver = createRuntimeTypeResolver({
-    ...(args.options.typeResolver ? { typeResolver: args.options.typeResolver } : {}),
-    ...(args.options.createProgram ? { createProgram: args.options.createProgram } : {}),
-  });
+  const typeResolver = args.options.typeResolver
+    ? createRuntimeTypeResolver({ typeResolver: args.options.typeResolver })
+    : createRuntimeTypeResolver({});
   const fileExists = args.options.fileExists ?? existsSync;
   const runtimeIO = createWorkspaceRuntimeIO({
     readStyleFile: args.readStyleFile,

@@ -1,4 +1,3 @@
-import type ts from "typescript";
 import type { TypeResolver } from "../../engine-core-ts/src/core/ts/type-resolver";
 import { TsgoProbeTypeResolver } from "./tsgo-probe-type-resolver";
 
@@ -7,7 +6,6 @@ export type TypeFactBackendKind = "typescript-current" | "tsgo";
 export interface SelectTypeResolverOptions {
   readonly typeResolver?: TypeResolver;
   readonly typeBackend?: TypeFactBackendKind;
-  readonly createProgram?: (workspaceRoot: string) => ts.Program;
   readonly env?: NodeJS.ProcessEnv;
 }
 

@@ -53,7 +53,6 @@ import {
   type WorkspaceEdit,
 } from "vscode-languageserver-protocol/node";
 import { StreamMessageReader, StreamMessageWriter } from "vscode-jsonrpc/node";
-import ts from "typescript";
 import {
   createServer,
   type CreateServerOptions,
@@ -175,19 +174,7 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
   // tests: exiting kills the vitest worker. Wrapping hides the raw
   // `.read` method and skips the auto-exit block.
   //
-  // Default `createProgram` to an empty ts.Program. Without this,
-  // composition-root's createDefaultProgram calls
-  // `ts.findConfigFile("/fake/workspace", ...)` which walks upward
-  // from /fake/workspace (nonexistent) and can find the REAL repo
-  // tsconfig.json at /Users/.../css-module-explainer/tsconfig.json —
-  // a test-hermeticity leak. The spread lets individual tests
-  // override.
   const { connection: serverConnection } = createServer({
-    createProgram: () =>
-      ts.createProgram({
-        rootNames: [],
-        options: { allowJs: true, jsx: ts.JsxEmit.Preserve },
-      }),
     // Default indexer supplier → empty. Tests exercise providers
     // via didOpen + in-memory readStyleFile; the background walk
     // is not wanted because it would hit the real filesystem.

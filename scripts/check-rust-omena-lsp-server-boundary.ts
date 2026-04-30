@@ -233,6 +233,21 @@ function readRustBoundarySummary(): RustOmenaLspServerBoundarySummary {
 }
 
 function assertDefaultHostPathHasNoNodeWorkspaceResolver(root: string): void {
+  const coreTypeResolverSource = readRepoFile(
+    root,
+    "server/engine-core-ts/src/core/ts/type-resolver.ts",
+  );
+  assert.doesNotMatch(
+    coreTypeResolverSource,
+    /\bclass\s+WorkspaceTypeResolver\b/u,
+    "engine-core-ts must keep TypeResolver as a contract only, without the legacy sync workspace resolver implementation",
+  );
+  assert.doesNotMatch(
+    coreTypeResolverSource,
+    /\bcreateProgram\b/u,
+    "engine-core-ts TypeResolver contract must not expose synchronous ts.Program construction",
+  );
+
   const typeBackendSource = readRepoFile(root, "server/engine-host-node/src/type-backend.ts");
   assert.doesNotMatch(
     typeBackendSource,
