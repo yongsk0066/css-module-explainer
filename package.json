@@ -339,7 +339,7 @@
             "omena-lsp-server"
           ],
           "default": "auto",
-          "markdownDescription": "Language-server runtime. `auto` uses the bundled or built Rust `omena-lsp-server` and fails fast if no binary is available. `omena-lsp-server` requires the bundled or explicit `CME_OMENA_LSP_SERVER_PATH` binary."
+          "markdownDescription": "Language-server runtime. `auto` uses the bundled or built Rust `omena-lsp-server` and fails fast if no binary is available. `omena-lsp-server` requires the bundled binary, explicit `CME_OMENA_LSP_SERVER_PATH`, or explicit `CME_OMENA_LSP_SERVER_COMMAND` command."
         },
         "cssModuleExplainer.pathAlias": {
           "type": "object",

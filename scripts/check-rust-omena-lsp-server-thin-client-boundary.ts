@@ -54,6 +54,8 @@ assert.deepEqual(rustEndpoint.fileWatcherGlobs, buildRustLspFileWatcherGlobs());
 assert.deepEqual(clientEndpoint.fileWatcherGlobs, rustEndpoint.fileWatcherGlobs);
 assert.equal(clientEndpoint.product, rustEndpoint.endpointName);
 assert.equal(clientEndpoint.nodeFallbackAllowed, false);
+assert.ok(rustEndpoint.hostResponsibilities.includes("resolveStandaloneRustCommand"));
+assert.ok(clientEndpoint.hostResponsibilities.includes("resolveStandaloneRustCommand"));
 assert.ok(rustEndpoint.hostResponsibilities.includes("startLanguageClient"));
 assert.ok(rustEndpoint.hostResponsibilities.includes("registerStaticFileWatchers"));
 assert.ok(rustEndpoint.rustResponsibilities.includes("ownLspLifecycle"));

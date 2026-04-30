@@ -222,6 +222,7 @@ pub fn thin_client_endpoint_contract() -> ThinClientEndpointV0 {
         ],
         host_responsibilities: vec![
             "resolvePackagedRustBinary",
+            "resolveStandaloneRustCommand",
             "startLanguageClient",
             "registerStaticFileWatchers",
             "translateShowReferencesArguments",

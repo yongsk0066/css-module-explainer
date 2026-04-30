@@ -34,6 +34,16 @@ describe("client LSP server runtime config", () => {
     ).toBe(explicit);
   });
 
+  it("resolves an explicit omena-lsp-server command without requiring a repo-local file", () => {
+    expect(
+      resolveOmenaLspServerPath(
+        "/repo",
+        { CME_OMENA_LSP_SERVER_COMMAND: "omena-lsp-server" },
+        () => false,
+      ),
+    ).toBe("omena-lsp-server");
+  });
+
   it("throws when an explicit omena-lsp-server path is missing", () => {
     expect(() =>
       resolveOmenaLspServerPath(
@@ -74,6 +84,7 @@ describe("client LSP server runtime config", () => {
       nodeFallbackAllowed: false,
     });
     expect(endpoint?.fileWatcherGlobs).toEqual(buildRustLspFileWatcherGlobs());
+    expect(endpoint?.hostResponsibilities).toContain("resolveStandaloneRustCommand");
     expect(endpoint?.hostResponsibilities).toContain("startLanguageClient");
     expect(endpoint?.rustResponsibilities).toContain("ownTsgoClientLifecycle");
   });

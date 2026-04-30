@@ -48,7 +48,7 @@ export function resolveLspServerRuntimeSelection(
     throw new Error(
       [
         `cssModuleExplainer.lspServerRuntime=${runtime} requires an omena-lsp-server binary.`,
-        "Run pnpm build or set CME_OMENA_LSP_SERVER_PATH to an explicit binary.",
+        "Run pnpm build, set CME_OMENA_LSP_SERVER_PATH to an explicit binary, or set CME_OMENA_LSP_SERVER_COMMAND to a command on PATH.",
       ].join("\n"),
     );
   }
@@ -69,6 +69,7 @@ export function buildThinClientRuntimeEndpoint(
     nodeFallbackAllowed: false,
     hostResponsibilities: [
       "resolvePackagedRustBinary",
+      "resolveStandaloneRustCommand",
       "startLanguageClient",
       "registerStaticFileWatchers",
       "translateShowReferencesArguments",
@@ -89,6 +90,9 @@ export function resolveOmenaLspServerPath(
   env: NodeJS.ProcessEnv = process.env,
   fileExists: (path: string) => boolean = existsSync,
 ): string | null {
+  const explicitCommand = env.CME_OMENA_LSP_SERVER_COMMAND?.trim();
+  if (explicitCommand) return explicitCommand;
+
   const explicitPath = env.CME_OMENA_LSP_SERVER_PATH?.trim();
   if (explicitPath) {
     const resolved = path.resolve(extensionRoot, explicitPath);
