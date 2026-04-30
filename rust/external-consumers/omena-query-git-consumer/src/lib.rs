@@ -5,7 +5,8 @@ use engine_input_producers::{
 };
 use omena_query::{
     OmenaQueryBoundarySummaryV0, OmenaQueryStyleSemanticGraphBatchOutputV0,
-    summarize_omena_query_boundary, summarize_omena_query_style_semantic_graph_batch_from_sources,
+    summarize_omena_query_boundary,
+    summarize_omena_query_style_semantic_graph_batch_from_sources,
 };
 
 pub fn consume_query_boundary() -> OmenaQueryBoundarySummaryV0 {
@@ -142,6 +143,7 @@ mod tests {
         summarize_omena_query_expression_semantics_canonical_producer_signal,
         summarize_omena_query_fragment_bundle,
         summarize_omena_query_selected_query_adapter_capabilities,
+        summarize_omena_query_source_resolution_runtime,
     };
     use serde_json::json;
 
@@ -161,6 +163,16 @@ mod tests {
             boundary
                 .ready_surfaces
                 .contains(&"expressionDomainFlowAnalysisBoundary")
+        );
+        assert!(
+            boundary
+                .ready_surfaces
+                .contains(&"sourceResolutionRuntimeIndex")
+        );
+        assert!(
+            boundary
+                .delegated_fragment_products
+                .contains(&"omena-resolver.source-resolution-runtime-index")
         );
     }
 
@@ -191,6 +203,12 @@ mod tests {
             capabilities
                 .runner_commands
                 .iter()
+                .any(|command| command.command == "input-omena-resolver-source-resolution-runtime")
+        );
+        assert!(
+            capabilities
+                .runner_commands
+                .iter()
                 .any(|command| command.command == "input-expression-domain-flow-analysis")
         );
         assert!(
@@ -203,6 +221,31 @@ mod tests {
             capabilities
                 .expression_semantics_payload_contracts
                 .contains(&"valueDomainDerivation")
+        );
+        assert!(
+            capabilities
+                .adapter_readiness
+                .contains(&"sourceResolutionRuntimeIndex")
+        );
+    }
+
+    #[test]
+    fn consumes_remote_source_resolution_runtime_contract() {
+        let runtime_index = summarize_omena_query_source_resolution_runtime(&sample_input());
+
+        assert_eq!(
+            runtime_index.product,
+            "omena-resolver.source-resolution-runtime-index"
+        );
+        assert_eq!(runtime_index.expression_count, 2);
+        assert_eq!(runtime_index.resolved_expression_count, 2);
+        assert_eq!(runtime_index.unresolved_expression_count, 0);
+        assert!(
+            runtime_index
+                .entries
+                .iter()
+                .any(|entry| entry.expression_id == "expr-1"
+                    && entry.selector_names == ["btn-active"])
         );
     }
 

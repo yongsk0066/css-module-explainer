@@ -35,8 +35,8 @@ dependencies = [
 
 [[package]]
 name = "omena-resolver"
-version = "0.1.0"
-source = "git+https://github.com/omenien/omena-resolver.git?rev=3f29bc1#3f29bc10d72863799ff1d937bd47787b98e6702c"
+version = "0.1.1"
+source = "git+https://github.com/omenien/omena-resolver.git?rev=94fdb6e#94fdb6e4518ded5442f7f380ddc8769043dd8de8"
 dependencies = [
  "omena-engine-input-producers",
  "serde",

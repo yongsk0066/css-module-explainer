@@ -5,8 +5,10 @@ use engine_input_producers::{
 };
 use omena_resolver::{
     OmenaResolverBoundarySummaryV0, OmenaResolverModuleGraphSummaryV0,
-    OmenaResolverRuntimeQueryBoundarySummaryV0, summarize_omena_resolver_boundary,
-    summarize_omena_resolver_module_graph_index, summarize_omena_resolver_runtime_query_boundary,
+    OmenaResolverRuntimeQueryBoundarySummaryV0, OmenaResolverSourceResolutionRuntimeIndexV0,
+    summarize_omena_resolver_boundary, summarize_omena_resolver_module_graph_index,
+    summarize_omena_resolver_runtime_query_boundary,
+    summarize_omena_resolver_source_resolution_runtime,
 };
 
 pub fn consume_resolver_boundary() -> OmenaResolverBoundarySummaryV0 {
@@ -19,6 +21,10 @@ pub fn consume_resolver_module_graph() -> OmenaResolverModuleGraphSummaryV0 {
 
 pub fn consume_resolver_runtime_query_boundary() -> OmenaResolverRuntimeQueryBoundarySummaryV0 {
     summarize_omena_resolver_runtime_query_boundary(&consume_resolver_module_graph())
+}
+
+pub fn consume_resolver_source_resolution_runtime() -> OmenaResolverSourceResolutionRuntimeIndexV0 {
+    summarize_omena_resolver_source_resolution_runtime(&sample_input())
 }
 
 fn sample_input() -> EngineInputV2 {
@@ -137,11 +143,12 @@ fn range(
 mod tests {
     use super::{
         consume_resolver_boundary, consume_resolver_module_graph,
-        consume_resolver_runtime_query_boundary, sample_input,
+        consume_resolver_runtime_query_boundary, consume_resolver_source_resolution_runtime,
+        sample_input,
     };
     use omena_resolver::{
-        query_omena_resolver_runtime_module, summarize_omena_resolver_module_graph_index,
-        summarize_omena_resolver_query_fragments,
+        query_omena_resolver_runtime_module, query_omena_resolver_source_expression,
+        summarize_omena_resolver_module_graph_index, summarize_omena_resolver_query_fragments,
     };
     use serde_json::json;
 
@@ -157,6 +164,11 @@ mod tests {
         assert_eq!(boundary.module_graph_source_expression_edge_count, 2);
         assert_eq!(boundary.runtime_query_module_count, 2);
         assert_eq!(boundary.runtime_query_ready_module_count, 2);
+        assert_eq!(boundary.source_resolution_runtime_expression_count, 2);
+        assert_eq!(
+            boundary.source_resolution_runtime_resolved_expression_count,
+            2
+        );
         assert!(
             boundary
                 .resolver_owned_products
@@ -169,8 +181,18 @@ mod tests {
         );
         assert!(
             boundary
+                .resolver_owned_products
+                .contains(&"omena-resolver.source-resolution-runtime-index")
+        );
+        assert!(
+            boundary
                 .ready_surfaces
                 .contains(&"resolverModuleGraphIndex")
+        );
+        assert!(
+            boundary
+                .ready_surfaces
+                .contains(&"resolverSourceResolutionRuntimeIndex")
         );
     }
 
@@ -231,6 +253,31 @@ mod tests {
         assert!(app.can_resolve_source_expressions);
         assert!(app.can_check_type_fact_edges);
         assert!(app.can_query_selector_names);
+    }
+
+    #[test]
+    fn consumes_remote_source_resolution_runtime_via_git_dependency() {
+        let runtime_index = consume_resolver_source_resolution_runtime();
+
+        assert_eq!(
+            runtime_index.product,
+            "omena-resolver.source-resolution-runtime-index"
+        );
+        assert_eq!(runtime_index.expression_count, 2);
+        assert_eq!(runtime_index.resolved_expression_count, 2);
+        assert_eq!(runtime_index.unresolved_expression_count, 0);
+        assert!(runtime_index.blocking_gaps.is_empty());
+
+        let app = query_omena_resolver_source_expression(&runtime_index, "expr-1");
+        assert!(app.is_some());
+        let Some(app) = app else {
+            return;
+        };
+        assert_eq!(app.status, "resolved");
+        assert_eq!(app.expression_kind, "symbolRef");
+        assert_eq!(app.selector_names, ["btn-active"]);
+        assert_eq!(app.selector_certainty_shape_kind, "exact");
+        assert!(app.can_resolve_source_expression);
     }
 
     #[test]

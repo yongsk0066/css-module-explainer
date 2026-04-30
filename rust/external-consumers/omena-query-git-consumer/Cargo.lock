@@ -57,8 +57,8 @@ dependencies = [
 
 [[package]]
 name = "omena-query"
-version = "0.1.11"
-source = "git+https://github.com/omenien/omena-query.git?rev=4697a6c#4697a6c3ea6a1a4738d50a0db905ef6d8b9a0a48"
+version = "0.1.12"
+source = "git+https://github.com/omenien/omena-query.git?rev=19584e6#19584e655322ee1bb1d0d978c687e66c44a354da"
 dependencies = [
  "omena-abstract-value",
  "omena-bridge",
@@ -79,9 +79,9 @@ dependencies = [
 
 [[package]]
 name = "omena-resolver"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a579a4b896e04f611782901664c548e82ab14b203b8b2ac4c70465d3a3f0232b"
+checksum = "dbbe2f9e4de1b1c7f403b809e94b9243b8f89d680b2ed3898b4d5b3780d59483"
 dependencies = [
  "omena-engine-input-producers",
  "serde",

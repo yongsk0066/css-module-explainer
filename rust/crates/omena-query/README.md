@@ -23,6 +23,10 @@ Current public products:
   expression semantics, and selector usage runner commands. These keep the
   existing JSON output contracts stable while moving ownership into
   `omena-query`.
+- selected-query source-resolution runtime index wrapper for the
+  `input-omena-resolver-source-resolution-runtime` runner command. This exposes
+  the resolver-owned expression-to-selector runtime product through the selected
+  query boundary.
 - selected-query expression-domain flow analysis wrapper for the
   `input-expression-domain-flow-analysis` runner command. This exposes the
   `omena-abstract-value` flow product through the query boundary while keeping
