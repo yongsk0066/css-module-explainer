@@ -1,13 +1,29 @@
 # Neovim
 
-This project now ships a Rust `omena-lsp-server` entrypoint. For a local checkout, build the repo first:
+This project now ships a standalone Rust `omena-lsp-server` entrypoint.
+
+Install the editor-agnostic server from crates.io:
+
+```bash
+cargo install omena-lsp-server --version 0.1.3
+```
+
+The standalone server entrypoint is then:
+
+```text
+omena-lsp-server
+```
+
+Standalone source repository: https://github.com/omenien/omena-lsp-server
+
+For a local checkout, you can also build the repo directly:
 
 ```bash
 pnpm install
 pnpm build
 ```
 
-The server entrypoint is:
+The repo-local server entrypoint is:
 
 ```text
 <repo>/dist/bin/<platform>-<arch>/omena-lsp-server
@@ -20,11 +36,9 @@ Neovim's built-in LSP client can define a config with `vim.lsp.config()` and ena
 Example:
 
 ```lua
-local repo_root = "/absolute/path/to/css-module-explainer"
-
 vim.lsp.config("css_module_explainer", {
   cmd = {
-    repo_root .. "/dist/bin/darwin-arm64/omena-lsp-server",
+    "omena-lsp-server",
   },
   filetypes = {
     "typescript",
@@ -47,7 +61,8 @@ vim.lsp.enable("css_module_explainer")
 
 ## Notes
 
-- Replace `darwin-arm64` with your packaged `<platform>-<arch>` directory.
+- Prefer the crates.io-installed `omena-lsp-server` for non-VS Code editors.
+- If you use a repo-local build instead, replace `darwin-arm64` with your packaged `<platform>-<arch>` directory.
 - This server complements your main JS/TS language server. Keep `ts_ls`, `vtsls`, or your existing TypeScript server enabled.
 - The CSS Module Explainer server provides:
   - hover

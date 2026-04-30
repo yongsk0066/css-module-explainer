@@ -1,13 +1,29 @@
 # Zed
 
-This project now ships a Rust `omena-lsp-server` entrypoint. For a local checkout, build the repo first:
+This project now ships a standalone Rust `omena-lsp-server` entrypoint.
+
+Install the editor-agnostic server from crates.io:
+
+```bash
+cargo install omena-lsp-server --version 0.1.3
+```
+
+The standalone server entrypoint is then:
+
+```text
+omena-lsp-server
+```
+
+Standalone source repository: https://github.com/omenien/omena-lsp-server
+
+For a local checkout, you can also build the repo directly:
 
 ```bash
 pnpm install
 pnpm build
 ```
 
-The server entrypoint is:
+The repo-local server entrypoint is:
 
 ```text
 <repo>/dist/bin/<platform>-<arch>/omena-lsp-server
@@ -27,7 +43,7 @@ Example:
   "lsp": {
     "css-module-explainer": {
       "binary": {
-        "path": "/absolute/path/to/css-module-explainer/dist/bin/darwin-arm64/omena-lsp-server",
+        "path": "omena-lsp-server",
         "arguments": []
       }
     }
@@ -59,7 +75,8 @@ Example:
 
 ## Notes
 
-- Replace `darwin-arm64` with your packaged `<platform>-<arch>` directory.
+- Prefer the crates.io-installed `omena-lsp-server` for non-VS Code editors.
+- If you use a repo-local build instead, replace `darwin-arm64` with your packaged `<platform>-<arch>` directory.
 - This server is intended to run beside Zed's default TS/JS server, not replace it.
 - Start with `TypeScript`, `TSX`, and `SCSS` if you want the smallest config surface.
 - The repo-local smoke command for this transport is:

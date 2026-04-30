@@ -57,6 +57,12 @@ interface RustOmenaLspServerBoundarySummary {
     readonly requestPathPolicy: readonly string[];
     readonly providerSurfaces: readonly string[];
   };
+  readonly thinClientEndpoint: {
+    readonly product: string;
+    readonly standalonePackage: string;
+    readonly splitRepository: string;
+    readonly cargoInstallCommand: string;
+  };
   readonly nextDecouplingTargets: readonly string[];
 }
 
@@ -154,6 +160,16 @@ assert.ok(
 assert.ok(
   rustSummary.nextDecouplingTargets.includes("multiEditorDistribution"),
   "Rust LSP boundary must keep the multi-editor distribution endpoint visible",
+);
+assert.equal(rustSummary.thinClientEndpoint.product, "omena-lsp-server.thin-client-endpoint");
+assert.equal(rustSummary.thinClientEndpoint.standalonePackage, "omena-lsp-server");
+assert.equal(
+  rustSummary.thinClientEndpoint.splitRepository,
+  "https://github.com/omenien/omena-lsp-server",
+);
+assert.equal(
+  rustSummary.thinClientEndpoint.cargoInstallCommand,
+  "cargo install omena-lsp-server --version 0.1.3",
 );
 assert.deepEqual(
   rustSummary.migrationPhases.map((phase) => phase.phase),
