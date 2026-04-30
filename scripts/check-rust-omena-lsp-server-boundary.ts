@@ -49,6 +49,7 @@ interface RustOmenaLspServerBoundarySummary {
   };
   readonly sourceProviderAdapter: {
     readonly product: string;
+    readonly candidateOwner: string;
     readonly typeFactOwner: string;
     readonly requestPathPolicy: readonly string[];
     readonly providerSurfaces: readonly string[];
@@ -108,10 +109,19 @@ assert.equal(
   rustSummary.sourceProviderAdapter.product,
   "omena-lsp-server.source-provider-direct-rust-adapter",
 );
+assert.equal(
+  rustSummary.sourceProviderAdapter.candidateOwner,
+  "omena-lsp-server/sourceSyntaxIndex",
+);
 assert.equal(rustSummary.sourceProviderAdapter.typeFactOwner, "omena-tsgo-client");
 assert.ok(
   rustSummary.sourceProviderAdapter.requestPathPolicy.includes(
     "noNodeWorkspaceTypeResolverOnSourceProviderPath",
+  ),
+);
+assert.ok(
+  rustSummary.sourceProviderAdapter.requestPathPolicy.includes(
+    "buildSourceSyntaxIndexOnDocumentChange",
   ),
 );
 assert.ok(rustSummary.sourceProviderAdapter.providerSurfaces.includes("textDocument/definition"));

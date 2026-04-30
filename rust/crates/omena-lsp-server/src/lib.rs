@@ -180,11 +180,12 @@ pub fn summarize_omena_lsp_server_boundary() -> OmenaLspServerBoundarySummaryV0 
 pub fn source_provider_direct_rust_adapter_contract() -> SourceProviderDirectRustAdapterV0 {
     SourceProviderDirectRustAdapterV0 {
         product: "omena-lsp-server.source-provider-direct-rust-adapter",
-        candidate_owner: "omena-lsp-server/openedSourceDocumentIndex",
+        candidate_owner: "omena-lsp-server/sourceSyntaxIndex",
         style_definition_owner: "omena-lsp-server/openedStyleDocumentIndex",
         type_fact_owner: "omena-tsgo-client",
         request_path_policy: vec![
             "noNodeWorkspaceTypeResolverOnSourceProviderPath",
+            "buildSourceSyntaxIndexOnDocumentChange",
             "useOpenedDocumentIndexesBeforeWorkspaceFallback",
             "unresolvedCandidatesRemainFastDiagnostics",
         ],
@@ -348,7 +349,29 @@ pub struct LspTextDocumentState {
     #[serde(skip)]
     pub style_candidates: Vec<LspStyleHoverCandidate>,
     #[serde(skip)]
+    source_syntax_index: SourceSyntaxIndex,
+    #[serde(skip)]
     pub source_selector_candidates: Vec<LspStyleHoverCandidate>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct SourceSyntaxIndex {
+    imported_style_bindings: Vec<ImportedStyleBinding>,
+    class_string_literals: Vec<ParserByteSpanV0>,
+    style_property_accesses: Vec<SourceStylePropertyAccessFact>,
+    selector_references: Vec<SourceSelectorReferenceFact>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SourceStylePropertyAccessFact {
+    byte_span: ParserByteSpanV0,
+    target_style_uri: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SourceSelectorReferenceFact {
+    byte_span: ParserByteSpanV0,
+    target_style_uri: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1072,6 +1095,7 @@ fn lsp_text_document_state(
         text,
         style_summary: None,
         style_candidates: Vec::new(),
+        source_syntax_index: SourceSyntaxIndex::default(),
         source_selector_candidates: Vec::new(),
     };
     refresh_document_indexes(&mut document);
@@ -1085,7 +1109,10 @@ fn refresh_document_indexes(document: &mut LspTextDocumentState) {
         collect_style_hover_candidates(document.uri.as_str(), document.text.as_str())
             .map(|(_, candidates)| candidates)
             .unwrap_or_default();
-    document.source_selector_candidates = scan_source_class_reference_candidates(document);
+    let source_syntax_index = build_source_syntax_index(document);
+    document.source_selector_candidates =
+        source_selector_candidates_from_index(document, &source_syntax_index);
+    document.source_syntax_index = source_syntax_index;
 }
 
 fn did_open_text_document(state: &mut LspShellState, params: Option<&Value>) {
@@ -2218,145 +2245,28 @@ fn source_completion_target_style_uri_at_position(
     document: &LspTextDocumentState,
     position: ParserPositionV0,
 ) -> Option<Option<String>> {
-    let source = document.text.as_str();
-    let offset = byte_offset_for_parser_position(source, position)?;
-    if is_class_name_literal_completion_context(source, offset) {
-        return Some(None);
-    }
-    if is_class_name_expression_string_completion_context(source, offset) {
+    let offset = byte_offset_for_parser_position(document.text.as_str(), position)?;
+    if document
+        .source_syntax_index
+        .class_string_literals
+        .iter()
+        .any(|span| offset >= span.start && offset <= span.end)
+    {
         return Some(None);
     }
     styles_property_access_completion_target_style_uri(document, offset)
-}
-
-fn is_class_name_literal_completion_context(source: &str, offset: usize) -> bool {
-    let mut search_offset = 0usize;
-    while let Some(relative_match) = source[search_offset..].find("className") {
-        let class_name_start = search_offset + relative_match;
-        let mut cursor = class_name_start + "className".len();
-        cursor = skip_ascii_whitespace(source, cursor);
-        if source.as_bytes().get(cursor) != Some(&b'=') {
-            search_offset = cursor;
-            continue;
-        }
-        cursor = skip_ascii_whitespace(source, cursor + 1);
-        let mut expression_end_for_search = None;
-        if source.as_bytes().get(cursor) == Some(&b'{') {
-            let expression_start = cursor + 1;
-            if let Some(expression_end) = jsx_expression_end(source, expression_start) {
-                expression_end_for_search = Some(expression_end);
-            }
-            cursor = skip_ascii_whitespace(source, expression_start);
-        }
-        let Some(quote) = source.as_bytes().get(cursor).copied() else {
-            break;
-        };
-        if !matches!(quote, b'\'' | b'"' | b'`') {
-            search_offset = expression_end_for_search.map_or(cursor + 1, |end| end + 1);
-            continue;
-        }
-        let literal_start = cursor + 1;
-        let Some(relative_end) = source[literal_start..].find(char::from(quote)) else {
-            break;
-        };
-        let literal_end = literal_start + relative_end;
-        if offset >= literal_start && offset <= literal_end {
-            return true;
-        }
-        search_offset = literal_end + 1;
-    }
-    false
-}
-
-fn is_class_name_expression_string_completion_context(source: &str, offset: usize) -> bool {
-    let mut search_offset = 0usize;
-    while let Some(relative_match) = source[search_offset..].find("className") {
-        let class_name_start = search_offset + relative_match;
-        let mut cursor = class_name_start + "className".len();
-        cursor = skip_ascii_whitespace(source, cursor);
-        if source.as_bytes().get(cursor) != Some(&b'=') {
-            search_offset = cursor;
-            continue;
-        }
-        cursor = skip_ascii_whitespace(source, cursor + 1);
-        if source.as_bytes().get(cursor) != Some(&b'{') {
-            search_offset = cursor + 1;
-            continue;
-        }
-        let expression_start = cursor + 1;
-        let Some(expression_end) = jsx_expression_end(source, expression_start) else {
-            break;
-        };
-        if offset_in_js_string_literal(source, expression_start, expression_end, offset) {
-            return true;
-        }
-        search_offset = expression_end + 1;
-    }
-    false
 }
 
 fn styles_property_access_completion_target_style_uri(
     document: &LspTextDocumentState,
     offset: usize,
 ) -> Option<Option<String>> {
-    let bindings = imported_style_bindings(document);
-    if bindings.is_empty() {
-        return is_styles_property_access_completion_context_for_binding(
-            document.text.as_str(),
-            "styles",
-            offset,
-        )
-        .then_some(None);
-    }
-
-    bindings.into_iter().find_map(|binding| {
-        is_styles_property_access_completion_context_for_binding(
-            document.text.as_str(),
-            binding.binding.as_str(),
-            offset,
-        )
-        .then_some(Some(binding.style_uri))
-    })
-}
-
-fn is_styles_property_access_completion_context_for_binding(
-    source: &str,
-    binding: &str,
-    offset: usize,
-) -> bool {
-    let mut search_offset = 0usize;
-    while let Some(relative_match) = source[search_offset..].find(binding) {
-        let binding_start = search_offset + relative_match;
-        let binding_end = binding_start + binding.len();
-        if !is_js_identifier_boundary(source, binding_start, binding_end) {
-            search_offset = binding_end;
-            continue;
-        }
-
-        let cursor = skip_ascii_whitespace(source, binding_end);
-        if source.as_bytes().get(cursor) == Some(&b'.') {
-            let start = cursor + 1;
-            let end = read_css_identifier_end(source, start);
-            if offset >= start && offset <= end {
-                return true;
-            }
-            search_offset = end.max(binding_end);
-            continue;
-        }
-        if source.as_bytes().get(cursor) == Some(&b'[')
-            && let Some((literal_start, literal_end, bracket_end)) =
-                bracket_string_literal_access(source, cursor)
-        {
-            if offset >= literal_start && offset <= literal_end {
-                return true;
-            }
-            search_offset = bracket_end;
-            continue;
-        }
-
-        search_offset = binding_end;
-    }
-    false
+    document
+        .source_syntax_index
+        .style_property_accesses
+        .iter()
+        .find(|access| offset >= access.byte_span.start && offset <= access.byte_span.end)
+        .map(|access| access.target_style_uri.clone())
 }
 
 fn source_selector_candidate_for_params(
@@ -2442,219 +2352,375 @@ fn collect_source_class_reference_candidates(
     document.source_selector_candidates.clone()
 }
 
-fn scan_source_class_reference_candidates(
+fn source_selector_candidates_from_index(
     document: &LspTextDocumentState,
+    index: &SourceSyntaxIndex,
 ) -> Vec<LspStyleHoverCandidate> {
-    let mut candidates = Vec::new();
-    collect_class_name_attribute_candidates(document, &mut candidates);
-    collect_styles_property_access_candidates(document, &mut candidates);
-    collect_classnames_bind_call_candidates(document, &mut candidates);
+    let mut candidates: Vec<LspStyleHoverCandidate> = index
+        .selector_references
+        .iter()
+        .map(|reference| {
+            source_reference_candidate(
+                document,
+                reference.byte_span,
+                reference.target_style_uri.clone(),
+            )
+        })
+        .collect();
     candidates.sort();
     candidates.dedup();
     candidates
 }
 
-fn collect_class_name_attribute_candidates(
-    document: &LspTextDocumentState,
-    candidates: &mut Vec<LspStyleHoverCandidate>,
-) {
+fn build_source_syntax_index(document: &LspTextDocumentState) -> SourceSyntaxIndex {
+    if is_style_document_uri(document.uri.as_str()) {
+        return SourceSyntaxIndex::default();
+    }
+
     let source = document.text.as_str();
-    let mut search_offset = 0usize;
-    while let Some(relative_match) = source[search_offset..].find("className") {
-        let class_name_start = search_offset + relative_match;
-        let mut cursor = class_name_start + "className".len();
-        cursor = skip_ascii_whitespace(source, cursor);
-        if source.as_bytes().get(cursor) != Some(&b'=') {
-            search_offset = cursor;
+    let imports = collect_source_imports(document);
+    let imported_style_targets = imported_style_targets(imports.imported_style_bindings.as_slice());
+    let property_access_targets =
+        property_access_style_targets(imports.imported_style_bindings.as_slice());
+    let classnames_bind_targets = collect_classnames_bind_utility_bindings(
+        source,
+        imported_style_targets.as_slice(),
+        imports.classnames_bind_bindings.as_slice(),
+    );
+
+    let mut index = SourceSyntaxIndex {
+        imported_style_bindings: imports.imported_style_bindings,
+        class_string_literals: collect_class_name_string_literal_spans(source),
+        style_property_accesses: collect_style_property_access_facts(
+            source,
+            property_access_targets.as_slice(),
+        ),
+        selector_references: Vec::new(),
+    };
+
+    for span in &index.class_string_literals {
+        push_string_literal_selector_references(
+            source,
+            *span,
+            None,
+            &mut index.selector_references,
+        );
+    }
+    for access in &index.style_property_accesses {
+        index.selector_references.push(SourceSelectorReferenceFact {
+            byte_span: access.byte_span,
+            target_style_uri: access.target_style_uri.clone(),
+        });
+    }
+    for binding in classnames_bind_targets {
+        collect_string_literal_call_reference_facts(
+            source,
+            binding.binding.as_str(),
+            Some(binding.style_uri.as_str()),
+            &mut index.selector_references,
+        );
+    }
+
+    index
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SourceImportIndex {
+    imported_style_bindings: Vec<ImportedStyleBinding>,
+    classnames_bind_bindings: Vec<String>,
+}
+
+fn collect_source_imports(document: &LspTextDocumentState) -> SourceImportIndex {
+    let source = document.text.as_str();
+    let mut imports = SourceImportIndex {
+        imported_style_bindings: Vec::new(),
+        classnames_bind_bindings: Vec::new(),
+    };
+    let mut cursor = 0usize;
+    while let Some(identifier) = next_code_identifier(source, cursor) {
+        cursor = identifier.end;
+        if identifier.text != "import" {
             continue;
         }
-        cursor = skip_ascii_whitespace(source, cursor + 1);
-        let mut expression_end_for_search = None;
-        if source.as_bytes().get(cursor) == Some(&b'{') {
-            let expression_start = cursor + 1;
-            if let Some(expression_end) = jsx_expression_end(source, expression_start) {
-                collect_class_name_expression_string_candidates(
-                    document,
-                    expression_start,
-                    expression_end,
-                    candidates,
-                );
-                expression_end_for_search = Some(expression_end);
+        if let Some(import) = parse_source_import_declaration(document, identifier.end) {
+            if import.specifier == "classnames/bind" {
+                imports.classnames_bind_bindings.push(import.binding);
+            } else if StyleLanguage::from_module_path(import.specifier.as_str()).is_some()
+                && let Some(style_uri) =
+                    style_uri_for_import_specifier(document.uri.as_str(), import.specifier.as_str())
+            {
+                imports.imported_style_bindings.push(ImportedStyleBinding {
+                    binding: import.binding,
+                    style_uri,
+                });
             }
-            cursor = skip_ascii_whitespace(source, expression_start);
         }
-        let Some(quote) = source.as_bytes().get(cursor).copied() else {
+    }
+    imports
+        .imported_style_bindings
+        .sort_by(|left, right| left.binding.cmp(&right.binding));
+    imports
+        .imported_style_bindings
+        .dedup_by(|left, right| left.binding == right.binding && left.style_uri == right.style_uri);
+    imports.classnames_bind_bindings.sort();
+    imports.classnames_bind_bindings.dedup();
+    imports
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SourceImportDeclaration {
+    binding: String,
+    specifier: String,
+}
+
+fn parse_source_import_declaration(
+    document: &LspTextDocumentState,
+    after_import: usize,
+) -> Option<SourceImportDeclaration> {
+    let source = document.text.as_str();
+    let mut cursor = skip_js_trivia(source, after_import);
+    match source.as_bytes().get(cursor).copied()? {
+        b'(' | b'\'' | b'"' => return None,
+        _ => {}
+    }
+
+    let clause_start = cursor;
+    let mut clause_end = None;
+    let mut specifier = None;
+    while cursor < source.len() {
+        cursor = skip_js_trivia(source, cursor);
+        let Some(byte) = source.as_bytes().get(cursor).copied() else {
             break;
         };
-        if !matches!(quote, b'\'' | b'"' | b'`') {
-            search_offset = expression_end_for_search.map_or(cursor + 1, |end| end + 1);
+        if matches!(byte, b'\'' | b'"') {
+            if clause_end.is_some()
+                && let Some((literal_start, literal_end, _)) =
+                    js_string_literal_span(source, cursor, source.len())
+            {
+                specifier = source.get(literal_start..literal_end).map(str::to_string);
+            }
+            break;
+        }
+        if byte == b';' {
+            break;
+        }
+        if byte.is_ascii_alphabetic() || matches!(byte, b'_' | b'$') {
+            let (identifier, identifier_end) = read_js_identifier(source, cursor)?;
+            if identifier == "from" && clause_end.is_none() {
+                clause_end = Some(cursor);
+            }
+            cursor = identifier_end;
             continue;
         }
-        let literal_start = cursor + 1;
-        let Some(relative_end) = source[literal_start..].find(char::from(quote)) else {
-            break;
-        };
-        let literal_end = literal_start + relative_end;
-        for span in class_token_byte_spans(source, literal_start, literal_end) {
-            candidates.push(source_reference_candidate(document, span, None));
-        }
-        search_offset = literal_end + 1;
+        cursor += 1;
+    }
+
+    let clause = source.get(clause_start..clause_end?)?;
+    Some(SourceImportDeclaration {
+        binding: import_binding_from_clause(clause)?.to_string(),
+        specifier: specifier?,
+    })
+}
+
+fn import_binding_from_clause(clause: &str) -> Option<&str> {
+    let clause = clause.trim();
+    if clause.is_empty() || clause.starts_with('{') {
+        return None;
+    }
+    if let Some(namespace_clause) = clause.strip_prefix('*') {
+        let namespace_clause = namespace_clause.trim_start();
+        let namespace_clause = namespace_clause.strip_prefix("as")?.trim_start();
+        let (binding, _) = read_js_identifier(namespace_clause, 0)?;
+        return Some(binding);
+    }
+
+    let default_clause = clause.split(',').next()?.trim();
+    let (binding, _) = read_js_identifier(default_clause, 0)?;
+    if binding == "type" {
+        return None;
+    }
+    Some(binding)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SourceStyleBindingTarget {
+    binding: String,
+    target_style_uri: Option<String>,
+}
+
+fn imported_style_targets(bindings: &[ImportedStyleBinding]) -> Vec<SourceStyleBindingTarget> {
+    bindings
+        .iter()
+        .map(|binding| SourceStyleBindingTarget {
+            binding: binding.binding.clone(),
+            target_style_uri: Some(binding.style_uri.clone()),
+        })
+        .collect()
+}
+
+fn property_access_style_targets(
+    bindings: &[ImportedStyleBinding],
+) -> Vec<SourceStyleBindingTarget> {
+    let imported = imported_style_targets(bindings);
+    if imported.is_empty() {
+        vec![SourceStyleBindingTarget {
+            binding: "styles".to_string(),
+            target_style_uri: None,
+        }]
+    } else {
+        imported
     }
 }
 
-fn collect_class_name_expression_string_candidates(
-    document: &LspTextDocumentState,
-    expression_start: usize,
-    expression_end: usize,
-    candidates: &mut Vec<LspStyleHoverCandidate>,
-) {
-    let source = document.text.as_str();
-    let mut cursor = expression_start;
-    while cursor < expression_end {
-        let Some(quote) = source.as_bytes().get(cursor).copied() else {
-            break;
-        };
-        if !matches!(quote, b'\'' | b'"') {
-            cursor += 1;
+fn collect_class_name_string_literal_spans(source: &str) -> Vec<ParserByteSpanV0> {
+    let mut spans = Vec::new();
+    let mut cursor = 0usize;
+    while let Some(identifier) = next_code_identifier(source, cursor) {
+        cursor = identifier.end;
+        if identifier.text != "className" {
             continue;
         }
-        if let Some((literal_start, literal_end, next_offset)) =
-            js_string_literal_span(source, cursor, expression_end)
-        {
-            for span in class_token_byte_spans(source, literal_start, literal_end) {
-                candidates.push(source_reference_candidate(document, span, None));
+        let equals_offset = skip_js_trivia(source, identifier.end);
+        if source.as_bytes().get(equals_offset) != Some(&b'=') {
+            continue;
+        }
+        let value_offset = skip_js_trivia(source, equals_offset + 1);
+        match source.as_bytes().get(value_offset).copied() {
+            Some(b'\'' | b'"' | b'`') => {
+                if let Some((literal_start, literal_end, next_offset)) =
+                    js_string_literal_span(source, value_offset, source.len())
+                {
+                    spans.push(ParserByteSpanV0 {
+                        start: literal_start,
+                        end: literal_end,
+                    });
+                    cursor = next_offset;
+                }
             }
+            Some(b'{') => {
+                let expression_start = value_offset + 1;
+                if let Some(expression_end) = jsx_expression_end(source, expression_start) {
+                    spans.extend(collect_js_string_literal_spans(
+                        source,
+                        expression_start,
+                        expression_end,
+                    ));
+                    cursor = (expression_end + 1).min(source.len());
+                }
+            }
+            _ => {}
+        }
+    }
+    spans
+}
+
+fn collect_js_string_literal_spans(
+    source: &str,
+    start: usize,
+    end: usize,
+) -> Vec<ParserByteSpanV0> {
+    let mut spans = Vec::new();
+    let mut cursor = start;
+    while cursor < end {
+        cursor = skip_js_trivia_until(source, cursor, end);
+        let Some(byte) = source.as_bytes().get(cursor).copied() else {
+            break;
+        };
+        if matches!(byte, b'\'' | b'"')
+            && let Some((literal_start, literal_end, next_offset)) =
+                js_string_literal_span(source, cursor, end)
+        {
+            spans.push(ParserByteSpanV0 {
+                start: literal_start,
+                end: literal_end,
+            });
             cursor = next_offset;
             continue;
         }
         cursor += 1;
     }
+    spans
 }
 
-fn collect_styles_property_access_candidates(
-    document: &LspTextDocumentState,
-    candidates: &mut Vec<LspStyleHoverCandidate>,
-) {
-    let bindings = imported_style_bindings(document);
-    if bindings.is_empty() {
-        collect_styles_property_access_candidates_for_binding(document, "styles", None, candidates);
-        return;
-    }
-
-    for binding in bindings {
-        collect_styles_property_access_candidates_for_binding(
-            document,
-            binding.binding.as_str(),
-            Some(binding.style_uri.as_str()),
-            candidates,
-        );
-    }
-}
-
-fn collect_styles_property_access_candidates_for_binding(
-    document: &LspTextDocumentState,
-    binding: &str,
-    target_style_uri: Option<&str>,
-    candidates: &mut Vec<LspStyleHoverCandidate>,
-) {
-    let source = document.text.as_str();
-    let mut search_offset = 0usize;
-    while let Some(relative_match) = source[search_offset..].find(binding) {
-        let binding_start = search_offset + relative_match;
-        let binding_end = binding_start + binding.len();
-        if !is_js_identifier_boundary(source, binding_start, binding_end) {
-            search_offset = binding_end;
+fn collect_style_property_access_facts(
+    source: &str,
+    targets: &[SourceStyleBindingTarget],
+) -> Vec<SourceStylePropertyAccessFact> {
+    let mut facts = Vec::new();
+    let mut cursor = 0usize;
+    while let Some(identifier) = next_code_identifier(source, cursor) {
+        cursor = identifier.end;
+        let Some(target) = targets
+            .iter()
+            .find(|target| target.binding == identifier.text)
+        else {
             continue;
-        }
-
-        let cursor = skip_ascii_whitespace(source, binding_end);
-        if source.as_bytes().get(cursor) == Some(&b'.') {
-            let start = cursor + 1;
+        };
+        let member_offset = skip_js_trivia(source, identifier.end);
+        if source.as_bytes().get(member_offset) == Some(&b'.') {
+            let start = member_offset + 1;
             let end = read_css_identifier_end(source, start);
             if end > start {
-                candidates.push(source_reference_candidate(
-                    document,
-                    ParserByteSpanV0 { start, end },
-                    target_style_uri.map(ToString::to_string),
-                ));
+                facts.push(SourceStylePropertyAccessFact {
+                    byte_span: ParserByteSpanV0 { start, end },
+                    target_style_uri: target.target_style_uri.clone(),
+                });
+                cursor = end;
             }
-            search_offset = end.max(binding_end);
             continue;
         }
-        if source.as_bytes().get(cursor) == Some(&b'[')
+        if source.as_bytes().get(member_offset) == Some(&b'[')
             && let Some((literal_start, literal_end, bracket_end)) =
-                bracket_string_literal_access(source, cursor)
+                bracket_string_literal_access(source, member_offset)
         {
             if literal_end > literal_start
                 && source[literal_start..literal_end]
                     .chars()
                     .all(is_css_identifier_continue)
             {
-                candidates.push(source_reference_candidate(
-                    document,
-                    ParserByteSpanV0 {
+                facts.push(SourceStylePropertyAccessFact {
+                    byte_span: ParserByteSpanV0 {
                         start: literal_start,
                         end: literal_end,
                     },
-                    target_style_uri.map(ToString::to_string),
-                ));
+                    target_style_uri: target.target_style_uri.clone(),
+                });
             }
-            search_offset = bracket_end;
-            continue;
+            cursor = bracket_end.min(source.len());
         }
-
-        search_offset = binding_end;
     }
+    facts
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct ClassnamesBindUtilityBinding {
     binding: String,
     style_uri: String,
 }
 
-fn collect_classnames_bind_call_candidates(
-    document: &LspTextDocumentState,
-    candidates: &mut Vec<LspStyleHoverCandidate>,
-) {
-    for binding in classnames_bind_utility_bindings(document) {
-        collect_string_literal_call_candidates_for_binding(
-            document,
-            binding.binding.as_str(),
-            Some(binding.style_uri.as_str()),
-            candidates,
-        );
-    }
-}
-
-fn classnames_bind_utility_bindings(
-    document: &LspTextDocumentState,
+fn collect_classnames_bind_utility_bindings(
+    source: &str,
+    style_targets: &[SourceStyleBindingTarget],
+    classnames_bind_imports: &[String],
 ) -> Vec<ClassnamesBindUtilityBinding> {
-    let source = document.text.as_str();
-    if !source.contains("classnames/bind") {
+    if style_targets.is_empty() || classnames_bind_imports.is_empty() {
         return Vec::new();
     }
-
-    let style_bindings = imported_style_bindings(document);
-    if style_bindings.is_empty() {
-        return Vec::new();
-    }
-
     let mut bindings = Vec::new();
-    for keyword in ["const ", "let ", "var "] {
-        let mut search_offset = 0usize;
-        while let Some(relative_match) = source[search_offset..].find(keyword) {
-            let statement_start = search_offset + relative_match;
-            let statement_end = source[statement_start..]
-                .find(';')
-                .map(|relative_end| statement_start + relative_end)
-                .unwrap_or_else(|| source.len());
-            if let Some(binding) = classnames_bind_utility_binding_from_statement(
-                &source[statement_start..statement_end],
-                &style_bindings,
-            ) {
-                bindings.push(binding);
-            }
-            search_offset = statement_end.saturating_add(1);
+    let mut cursor = 0usize;
+    while let Some(keyword) = next_code_identifier(source, cursor) {
+        cursor = keyword.end;
+        if !matches!(keyword.text, "const" | "let" | "var") {
+            continue;
+        }
+        if let Some((binding, next_offset)) = parse_classnames_bind_utility_binding(
+            source,
+            keyword.end,
+            style_targets,
+            classnames_bind_imports,
+        ) {
+            bindings.push(binding);
+            cursor = next_offset;
         }
     }
     bindings.sort_by(|left, right| {
@@ -2667,79 +2733,82 @@ fn classnames_bind_utility_bindings(
     bindings
 }
 
-fn classnames_bind_utility_binding_from_statement(
-    statement: &str,
-    style_bindings: &[ImportedStyleBinding],
-) -> Option<ClassnamesBindUtilityBinding> {
-    let keyword_len = ["const ", "let ", "var "]
-        .into_iter()
-        .find_map(|keyword| statement.strip_prefix(keyword).map(|_| keyword.len()))?;
-    let binding_start = skip_ascii_whitespace(statement, keyword_len);
-    let (binding, binding_end) = read_js_identifier(statement, binding_start)?;
-    let equals_offset = skip_ascii_whitespace(statement, binding_end);
-    if statement.as_bytes().get(equals_offset) != Some(&b'=') {
+fn parse_classnames_bind_utility_binding(
+    source: &str,
+    after_keyword: usize,
+    style_targets: &[SourceStyleBindingTarget],
+    classnames_bind_imports: &[String],
+) -> Option<(ClassnamesBindUtilityBinding, usize)> {
+    let binding_start = skip_js_trivia(source, after_keyword);
+    let (binding, binding_end) = read_js_identifier(source, binding_start)?;
+    let equals_offset = skip_js_trivia(source, binding_end);
+    if source.as_bytes().get(equals_offset) != Some(&b'=') {
         return None;
     }
-    let initializer = &statement[equals_offset + 1..];
-    let bind_offset = initializer.find(".bind")?;
-    let open_paren = skip_ascii_whitespace(initializer, bind_offset + ".bind".len());
-    if initializer.as_bytes().get(open_paren) != Some(&b'(') {
+    let callee_start = skip_js_trivia(source, equals_offset + 1);
+    let (callee, callee_end) = read_js_identifier(source, callee_start)?;
+    if !classnames_bind_imports
+        .iter()
+        .any(|import_binding| import_binding == callee)
+    {
         return None;
     }
-    let style_arg_start = skip_ascii_whitespace(initializer, open_paren + 1);
-    let (style_binding_name, _) = read_js_identifier(initializer, style_arg_start)?;
-    let style_uri = style_bindings
+    let dot_offset = skip_js_trivia(source, callee_end);
+    if source.as_bytes().get(dot_offset) != Some(&b'.') {
+        return None;
+    }
+    let (property, property_end) = read_js_identifier(source, dot_offset + 1)?;
+    if property != "bind" {
+        return None;
+    }
+    let open_paren = skip_js_trivia(source, property_end);
+    if source.as_bytes().get(open_paren) != Some(&b'(') {
+        return None;
+    }
+    let style_arg_start = skip_js_trivia(source, open_paren + 1);
+    let (style_binding_name, style_binding_end) = read_js_identifier(source, style_arg_start)?;
+    let style_uri = style_targets
         .iter()
         .find(|style_binding| style_binding.binding == style_binding_name)?
-        .style_uri
+        .target_style_uri
         .clone();
+    let style_uri = style_uri?;
 
-    Some(ClassnamesBindUtilityBinding {
-        binding: binding.to_string(),
-        style_uri,
-    })
+    Some((
+        ClassnamesBindUtilityBinding {
+            binding: binding.to_string(),
+            style_uri,
+        },
+        style_binding_end,
+    ))
 }
 
-fn collect_string_literal_call_candidates_for_binding(
-    document: &LspTextDocumentState,
+fn collect_string_literal_call_reference_facts(
+    source: &str,
     binding: &str,
     target_style_uri: Option<&str>,
-    candidates: &mut Vec<LspStyleHoverCandidate>,
+    references: &mut Vec<SourceSelectorReferenceFact>,
 ) {
-    let source = document.text.as_str();
-    let mut search_offset = 0usize;
-    while let Some(relative_match) = source[search_offset..].find(binding) {
-        let binding_start = search_offset + relative_match;
-        let binding_end = binding_start + binding.len();
-        if !is_js_identifier_boundary(source, binding_start, binding_end) {
-            search_offset = binding_end;
+    let mut cursor = 0usize;
+    while let Some(identifier) = next_code_identifier(source, cursor) {
+        cursor = identifier.end;
+        if identifier.text != binding {
             continue;
         }
-
-        let open_paren = skip_ascii_whitespace(source, binding_end);
+        let open_paren = skip_js_trivia(source, identifier.end);
         if source.as_bytes().get(open_paren) != Some(&b'(') {
-            search_offset = binding_end;
             continue;
         }
         let call_end = js_call_end(source, open_paren).unwrap_or(source.len());
-        let mut cursor = open_paren + 1;
-        while cursor < call_end {
-            if let Some((literal_start, literal_end, next_offset)) =
-                js_string_literal_span(source, cursor, call_end)
-            {
-                for span in class_token_byte_spans(source, literal_start, literal_end) {
-                    candidates.push(source_reference_candidate(
-                        document,
-                        span,
-                        target_style_uri.map(ToString::to_string),
-                    ));
-                }
-                cursor = next_offset;
-                continue;
-            }
-            cursor += 1;
+        for literal_span in collect_js_string_literal_spans(source, open_paren + 1, call_end) {
+            push_string_literal_selector_references(
+                source,
+                literal_span,
+                target_style_uri.map(ToString::to_string),
+                references,
+            );
         }
-        search_offset = call_end.saturating_add(1);
+        cursor = call_end.saturating_add(1).min(source.len());
     }
 }
 
@@ -2773,64 +2842,105 @@ fn js_call_end(source: &str, open_paren: usize) -> Option<usize> {
     None
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct ImportedStyleBinding {
     binding: String,
     style_uri: String,
 }
 
-fn imported_style_bindings(document: &LspTextDocumentState) -> Vec<ImportedStyleBinding> {
-    let source = document.text.as_str();
-    let mut bindings = Vec::new();
-    let mut search_offset = 0usize;
-    while let Some(relative_match) = source[search_offset..].find("import ") {
-        let import_start = search_offset + relative_match;
-        let statement_end = source[import_start..]
-            .find(';')
-            .map(|relative_end| import_start + relative_end)
-            .unwrap_or_else(|| source.len());
-        let statement = &source[import_start..statement_end];
-        if let Some(binding) = imported_style_binding_from_statement(document, statement) {
-            bindings.push(binding);
+fn push_string_literal_selector_references(
+    source: &str,
+    literal_span: ParserByteSpanV0,
+    target_style_uri: Option<String>,
+    references: &mut Vec<SourceSelectorReferenceFact>,
+) {
+    for span in class_token_byte_spans(source, literal_span.start, literal_span.end) {
+        references.push(SourceSelectorReferenceFact {
+            byte_span: span,
+            target_style_uri: target_style_uri.clone(),
+        });
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct CodeIdentifier<'a> {
+    text: &'a str,
+    end: usize,
+}
+
+fn next_code_identifier(source: &str, mut cursor: usize) -> Option<CodeIdentifier<'_>> {
+    while cursor < source.len() {
+        cursor = skip_js_trivia(source, cursor);
+        let byte = source.as_bytes().get(cursor).copied()?;
+        if matches!(byte, b'\'' | b'"' | b'`') {
+            cursor = skip_js_string_literal(source, cursor, source.len()).unwrap_or(source.len());
+            continue;
         }
-        search_offset = statement_end.saturating_add(1);
+        if byte.is_ascii_alphabetic() || matches!(byte, b'_' | b'$') {
+            let (text, end) = read_js_identifier(source, cursor)?;
+            return Some(CodeIdentifier { text, end });
+        }
+        cursor += 1;
     }
-    bindings.sort_by(|left, right| left.binding.cmp(&right.binding));
-    bindings
-        .dedup_by(|left, right| left.binding == right.binding && left.style_uri == right.style_uri);
-    bindings
+    None
 }
 
-fn imported_style_binding_from_statement(
-    document: &LspTextDocumentState,
-    statement: &str,
-) -> Option<ImportedStyleBinding> {
-    let from_index = statement.find(" from ")?;
-    let binding_part = statement.get("import ".len()..from_index)?.trim();
-    let specifier_part = statement.get(from_index + " from ".len()..)?.trim();
-    let specifier = quoted_prefix(specifier_part)?;
-    StyleLanguage::from_module_path(specifier)?;
-    let style_uri = style_uri_for_import_specifier(document.uri.as_str(), specifier)?;
-    let binding = if let Some(namespace_binding) = binding_part.strip_prefix("* as ") {
-        namespace_binding.trim()
-    } else {
-        binding_part.split(',').next().unwrap_or_default().trim()
-    };
-    if binding.is_empty() || binding.starts_with('{') {
-        return None;
-    }
-    Some(ImportedStyleBinding {
-        binding: binding.to_string(),
-        style_uri,
-    })
+fn skip_js_trivia(source: &str, cursor: usize) -> usize {
+    skip_js_trivia_until(source, cursor, source.len())
 }
 
-fn quoted_prefix(source: &str) -> Option<&str> {
-    let quote = source.as_bytes().first().copied()?;
-    if !matches!(quote, b'\'' | b'"') {
-        return None;
+fn skip_js_trivia_until(source: &str, mut cursor: usize, limit: usize) -> usize {
+    loop {
+        cursor = skip_ascii_whitespace_until(source, cursor, limit);
+        if source.as_bytes().get(cursor) == Some(&b'/') {
+            match source.as_bytes().get(cursor + 1).copied() {
+                Some(b'/') => {
+                    cursor = skip_js_line_comment(source, cursor + 2, limit);
+                    continue;
+                }
+                Some(b'*') => {
+                    cursor = skip_js_block_comment(source, cursor + 2, limit);
+                    continue;
+                }
+                _ => {}
+            }
+        }
+        return cursor;
     }
-    let end = source[1..].find(char::from(quote))? + 1;
-    source.get(1..end)
+}
+
+fn skip_ascii_whitespace_until(source: &str, mut offset: usize, limit: usize) -> usize {
+    while offset < limit
+        && source
+            .as_bytes()
+            .get(offset)
+            .is_some_and(u8::is_ascii_whitespace)
+    {
+        offset += 1;
+    }
+    offset
+}
+
+fn skip_js_line_comment(source: &str, mut cursor: usize, limit: usize) -> usize {
+    while cursor < limit {
+        if source.as_bytes().get(cursor) == Some(&b'\n') {
+            return cursor + 1;
+        }
+        cursor += 1;
+    }
+    limit
+}
+
+fn skip_js_block_comment(source: &str, mut cursor: usize, limit: usize) -> usize {
+    while cursor + 1 < limit {
+        if source.as_bytes().get(cursor) == Some(&b'*')
+            && source.as_bytes().get(cursor + 1) == Some(&b'/')
+        {
+            return cursor + 2;
+        }
+        cursor += 1;
+    }
+    limit
 }
 
 fn style_uri_for_import_specifier(source_uri: &str, specifier: &str) -> Option<String> {
@@ -2934,36 +3044,12 @@ fn js_string_literal_span(
     limit: usize,
 ) -> Option<(usize, usize, usize)> {
     let quote = source.as_bytes().get(quote_offset).copied()?;
-    if !matches!(quote, b'\'' | b'"') {
+    if !matches!(quote, b'\'' | b'"' | b'`') {
         return None;
     }
     let literal_start = quote_offset + 1;
     let next_offset = skip_js_string_literal(source, quote_offset, limit)?;
     Some((literal_start, next_offset - 1, next_offset))
-}
-
-fn offset_in_js_string_literal(source: &str, start: usize, end: usize, offset: usize) -> bool {
-    let mut cursor = start;
-    while cursor < end {
-        let Some(quote) = source.as_bytes().get(cursor).copied() else {
-            break;
-        };
-        if !matches!(quote, b'\'' | b'"') {
-            cursor += 1;
-            continue;
-        }
-        if let Some((literal_start, literal_end, next_offset)) =
-            js_string_literal_span(source, cursor, end)
-        {
-            if offset >= literal_start && offset <= literal_end {
-                return true;
-            }
-            cursor = next_offset;
-            continue;
-        }
-        cursor += 1;
-    }
-    false
 }
 
 fn skip_js_string_literal(source: &str, quote_offset: usize, limit: usize) -> Option<usize> {
@@ -2995,9 +3081,11 @@ fn bracket_string_literal_access(
     if !matches!(quote, b'\'' | b'"') {
         return None;
     }
-    let literal_start = quote_offset + 1;
-    let relative_end = source[literal_start..].find(char::from(quote))?;
-    let literal_end = literal_start + relative_end;
+    let (literal_start, literal_end, literal_next) =
+        js_string_literal_span(source, quote_offset, source.len())?;
+    if literal_next > source.len() {
+        return None;
+    }
     let closing_bracket = skip_ascii_whitespace(source, literal_end + 1);
     if source.as_bytes().get(closing_bracket) != Some(&b']') {
         return None;
@@ -3490,18 +3578,6 @@ fn is_selector_name_boundary(source: &str, byte_offset: usize) -> bool {
         .chars()
         .next()
         .is_none_or(|ch| !is_css_identifier_continue(ch))
-}
-
-fn is_js_identifier_boundary(source: &str, start: usize, end: usize) -> bool {
-    let before = source[..start]
-        .chars()
-        .next_back()
-        .is_none_or(|ch| !is_js_identifier_continue(ch));
-    let after = source[end..]
-        .chars()
-        .next()
-        .is_none_or(|ch| !is_js_identifier_continue(ch));
-    before && after
 }
 
 fn is_js_identifier_start(ch: char) -> bool {
@@ -4655,6 +4731,113 @@ mod tests {
                     "position": {
                         "line": 3,
                         "character": 30,
+                    },
+                },
+            }),
+        );
+
+        assert_eq!(
+            definition_response
+                .as_ref()
+                .and_then(|value| value.pointer("/result/0/uri")),
+            Some(&json!("file:///workspace-a/src/styles.module.scss")),
+        );
+        assert_eq!(
+            definition_response
+                .as_ref()
+                .and_then(|value| value.pointer("/result/0/range")),
+            Some(&json!({
+                "start": {
+                    "line": 0,
+                    "character": 1,
+                },
+                "end": {
+                    "line": 0,
+                    "character": 5,
+                },
+            })),
+        );
+    }
+
+    #[test]
+    fn resolves_source_references_from_asi_imports_without_panicking() {
+        let mut state = LspShellState::default();
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "workspaceFolders": [
+                        {
+                            "uri": "file:///workspace-a",
+                            "name": "workspace-a",
+                        },
+                    ],
+                },
+            }),
+        );
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": "file:///workspace-a/src/App.tsx",
+                        "languageId": "typescriptreact",
+                        "version": 1,
+                        "text": "import {WidgetA, WidgetB} from \"@repo/widgets\"\nimport styles from \"./styles.module.scss\"\nconst view = <div className={styles.root} />",
+                    },
+                },
+            }),
+        );
+        let source_index = state
+            .document("file:///workspace-a/src/App.tsx")
+            .map(|document| document.source_syntax_index.clone());
+        assert_eq!(
+            source_index
+                .as_ref()
+                .map(|index| index.imported_style_bindings.as_slice()),
+            Some(
+                [ImportedStyleBinding {
+                    binding: "styles".to_string(),
+                    style_uri: "file:///workspace-a/src/styles.module.scss".to_string(),
+                }]
+                .as_slice()
+            ),
+        );
+
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": "file:///workspace-a/src/styles.module.scss",
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": ".root { display: block; }",
+                    },
+                },
+            }),
+        );
+
+        let definition_response = handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/definition",
+                "params": {
+                    "textDocument": {
+                        "uri": "file:///workspace-a/src/App.tsx",
+                    },
+                    "position": {
+                        "line": 2,
+                        "character": 37,
                     },
                 },
             }),
