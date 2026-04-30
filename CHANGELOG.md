@@ -1,5 +1,16 @@
 # Changelog
 
+## [4.4.0] - 2026-04-30
+
+### Changed
+
+- **Rust LSP source syntax index** - source-side CSS Module imports, `className` string literals, `styles.*` / `styles["..."]` references, and `classnames/bind` utility calls now share a document-level Rust source syntax index built on open/change instead of each provider re-scanning raw text on request.
+- **Source provider boundary** - the Rust LSP boundary now declares `omena-lsp-server/sourceSyntaxIndex` as the source candidate owner and guards the request path with `buildSourceSyntaxIndexOnDocumentChange`.
+
+### Fixed
+
+- **ASI import crash** - TS/TSX files with semicolon-free import declarations no longer panic the Rust LSP server while resolving hover, definition, references, completion, or diagnostics for CSS Module references.
+
 ## [4.3.0] - 2026-04-30
 
 ### Added
