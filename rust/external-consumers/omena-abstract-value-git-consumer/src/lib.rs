@@ -37,9 +37,9 @@ mod tests {
         ClassValueFlowTransferV0, ExternalStringTypeFactsV0, OneCfaCallSiteFlowInputV0,
         abstract_class_value_from_facts, analyze_class_value_flow,
         analyze_one_cfa_call_site_flows, char_inclusion_class_value,
-        enumerate_finite_class_values, exact_class_value, finite_set_class_value,
-        intersect_abstract_class_values, join_abstract_class_values, prefix_class_value,
-        reduced_abstract_class_value_from_facts,
+        concatenate_abstract_class_values, enumerate_finite_class_values, exact_class_value,
+        finite_set_class_value, intersect_abstract_class_values, join_abstract_class_values,
+        prefix_class_value, reduced_abstract_class_value_from_facts,
         reduced_class_value_derivation_from_facts, reduced_value_domain_kind_from_facts,
         suffix_class_value, summarize_omena_abstract_value_flow_analysis,
         value_certainty_shape_kind_from_facts,
@@ -190,6 +190,7 @@ mod tests {
         assert_eq!(summary.product, "omena-abstract-value.flow-analysis");
         assert_eq!(summary.context_sensitivity, "1-cfa");
         assert!(summary.analysis_scopes.contains(&"callSiteBatch"));
+        assert!(summary.transfer_kinds.contains(&"concatFacts"));
 
         assert_eq!(
             join_abstract_class_values(
@@ -201,15 +202,35 @@ mod tests {
             }
         );
 
+        assert_eq!(
+            concatenate_abstract_class_values(
+                &exact_class_value("btn-"),
+                &finite_set_class_value(["primary", "secondary"]),
+            ),
+            AbstractClassValueV0::FiniteSet {
+                values: vec!["btn-primary".to_string(), "btn-secondary".to_string()]
+            }
+        );
+
         let analysis = analyze_class_value_flow(&ClassValueFlowGraphV0 {
             context_key: Some("consumer:render@primary".to_string()),
             nodes: vec![
-                flow_assign_node("then", "btn-primary"),
-                flow_assign_node("else", "card"),
+                flow_assign_node("base", "btn-"),
                 ClassValueFlowNodeV0 {
-                    id: "merge".to_string(),
-                    predecessors: vec!["then".to_string(), "else".to_string()],
-                    transfer: ClassValueFlowTransferV0::Join,
+                    id: "variant".to_string(),
+                    predecessors: vec!["base".to_string()],
+                    transfer: ClassValueFlowTransferV0::ConcatFacts(ExternalStringTypeFactsV0 {
+                        kind: "finiteSet".to_string(),
+                        constraint_kind: None,
+                        values: Some(vec!["primary".to_string(), "secondary".to_string()]),
+                        prefix: None,
+                        suffix: None,
+                        min_len: None,
+                        max_len: None,
+                        char_must: None,
+                        char_may: None,
+                        may_include_other_chars: None,
+                    }),
                 },
             ],
         });
@@ -220,10 +241,10 @@ mod tests {
             analysis
                 .nodes
                 .iter()
-                .find(|node| node.id == "merge")
+                .find(|node| node.id == "variant")
                 .map(|node| &node.value),
             Some(&AbstractClassValueV0::FiniteSet {
-                values: vec!["btn-primary".to_string(), "card".to_string()]
+                values: vec!["btn-primary".to_string(), "btn-secondary".to_string()]
             })
         );
     }
