@@ -1,4 +1,6 @@
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { strict as assert } from "node:assert";
 import { buildServerCapabilities } from "../server/lsp-server/src/server-capabilities";
 
@@ -50,6 +52,7 @@ interface RustOmenaLspServerBoundarySummary {
   readonly sourceProviderAdapter: {
     readonly product: string;
     readonly candidateOwner: string;
+    readonly styleDefinitionOwner: string;
     readonly typeFactOwner: string;
     readonly requestPathPolicy: readonly string[];
     readonly providerSurfaces: readonly string[];
@@ -59,6 +62,7 @@ interface RustOmenaLspServerBoundarySummary {
 
 const rustSummary = readRustBoundarySummary();
 const nodeCapabilities = buildServerCapabilities();
+const repoRoot = process.cwd();
 
 assert.equal(rustSummary.schemaVersion, "0");
 assert.equal(rustSummary.product, "omena-lsp-server.boundary");
@@ -113,6 +117,10 @@ assert.equal(
   rustSummary.sourceProviderAdapter.candidateOwner,
   "omena-lsp-server/sourceSyntaxIndex",
 );
+assert.equal(
+  rustSummary.sourceProviderAdapter.styleDefinitionOwner,
+  "engine-style-parser/selectorDefinitionFacts",
+);
 assert.equal(rustSummary.sourceProviderAdapter.typeFactOwner, "omena-tsgo-client");
 assert.ok(
   rustSummary.sourceProviderAdapter.requestPathPolicy.includes(
@@ -124,7 +132,21 @@ assert.ok(
     "buildSourceSyntaxIndexOnDocumentChange",
   ),
 );
+assert.ok(
+  rustSummary.sourceProviderAdapter.requestPathPolicy.includes("dedupeTargetAwareSourceCandidates"),
+);
+assert.ok(
+  rustSummary.sourceProviderAdapter.requestPathPolicy.includes(
+    "consumeParserCanonicalSelectorFacts",
+  ),
+);
+assert.ok(
+  rustSummary.sourceProviderAdapter.requestPathPolicy.includes(
+    "consumeParserSelectorDefinitionFacts",
+  ),
+);
 assert.ok(rustSummary.sourceProviderAdapter.providerSurfaces.includes("textDocument/definition"));
+assertDefaultHostPathHasNoNodeWorkspaceResolver(repoRoot);
 assert.ok(
   rustSummary.nextDecouplingTargets.includes("thinVsCodeClientHost"),
   "Rust LSP boundary must keep the thin VS Code client endpoint visible",
@@ -192,4 +214,53 @@ function readRustBoundarySummary(): RustOmenaLspServerBoundarySummary {
   );
 
   return JSON.parse(result.stdout) as RustOmenaLspServerBoundarySummary;
+}
+
+function assertDefaultHostPathHasNoNodeWorkspaceResolver(root: string): void {
+  const typeBackendSource = readRepoFile(root, "server/engine-host-node/src/type-backend.ts");
+  assert.doesNotMatch(
+    typeBackendSource,
+    /\bWorkspaceTypeResolver\b/u,
+    "type-backend.ts must not import or construct WorkspaceTypeResolver on the default host path",
+  );
+  assert.doesNotMatch(
+    typeBackendSource,
+    /\bcreateDefaultProgram\b/u,
+    "type-backend.ts must not create a synchronous TypeScript program on the default host path",
+  );
+
+  const extensionSource = readRepoFile(root, "client/src/extension.ts");
+  assert.doesNotMatch(
+    extensionSource,
+    /\btypeFactMaxSyncProgramFiles\b|CME_TYPE_FACT_MAX_SYNC_PROGRAM_FILES/u,
+    "VS Code thin client must not expose sync TypeScript program budget settings",
+  );
+
+  const typeFactConfigSource = readRepoFile(root, "client/src/type-fact-backend-config.ts");
+  assert.doesNotMatch(
+    typeFactConfigSource,
+    /typescript-current|CME_TYPE_FACT_MAX_SYNC_PROGRAM_FILES|readTypeFactMaxSyncProgramFilesSetting/u,
+    "client type-fact config must expose only tsgo-backed product modes",
+  );
+
+  const packageJson = JSON.parse(readRepoFile(root, "package.json")) as {
+    contributes?: { configuration?: { properties?: Record<string, unknown> } };
+  };
+  const properties = packageJson.contributes?.configuration?.properties ?? {};
+  assert.ok(
+    !Object.hasOwn(properties, "cssModuleExplainer.typeFactMaxSyncProgramFiles"),
+    "package settings must not expose sync TypeScript resolver budget",
+  );
+  const typeFactBackend = properties["cssModuleExplainer.typeFactBackend"] as
+    | { enum?: readonly string[] }
+    | undefined;
+  assert.deepEqual(
+    typeFactBackend?.enum,
+    ["tsgo", "tsgo-workspace"],
+    "package settings must expose only tsgo-backed type fact backends",
+  );
+}
+
+function readRepoFile(root: string, relativePath: string): string {
+  return readFileSync(path.join(root, relativePath), "utf8");
 }

@@ -1,3 +1,4 @@
+import { strict as assert } from "node:assert";
 import path from "node:path";
 import {
   collectSourceDocuments,
@@ -8,6 +9,7 @@ import { buildEngineInputV2 } from "../server/engine-host-node/src/engine-input-
 import { stableJsonStringify } from "./contract-parity-runtime";
 
 const repoRoot = process.cwd();
+
 const parityFixtures = [
   {
     fixture: "literal-union",
@@ -21,6 +23,7 @@ const parityFixtures = [
         "test/_fixtures/type-fact-backend-parity/literal-union/src/App.module.scss",
       ),
     ],
+    expectedFacts: { kind: "finiteSet", values: ["button-primary", "button-secondary"] },
   },
   {
     fixture: "path-alias",
@@ -31,23 +34,44 @@ const parityFixtures = [
     styleFilePaths: [
       path.join(repoRoot, "test/_fixtures/type-fact-backend-parity/path-alias/src/App.module.scss"),
     ],
+    expectedFacts: { kind: "finiteSet", values: ["button-primary", "button-secondary"] },
+  },
+  {
+    fixture: "composite",
+    workspaceRoot: path.join(repoRoot, "test/_fixtures/type-fact-backend-parity/composite"),
+    sourceFilePaths: [
+      path.join(repoRoot, "test/_fixtures/type-fact-backend-parity/composite/src/App.ts"),
+    ],
+    styleFilePaths: [
+      path.join(repoRoot, "test/_fixtures/type-fact-backend-parity/composite/src/App.module.scss"),
+    ],
+    expectedFacts: {
+      kind: "constrained",
+      constraintKind: "composite",
+      prefix: "btn-",
+      suffix: "-active",
+      minLen: 12,
+      charMust: "-abceintv",
+      charMay: "-abcdefghijntv",
+      provenance: "finiteSetWideningComposite",
+    },
   },
 ] as const;
 
 void (async () => {
   const results = await Promise.all(
     parityFixtures.map(async (entry) => {
-      const baseline = await buildTypeFactSnapshot(entry, "typescript-current");
-      const tsgo = await buildTypeFactSnapshot(entry, "tsgo");
+      const snapshot = await buildTsgoTypeFactSnapshot(entry);
+      const matches =
+        snapshot.typeFacts.length === 1 &&
+        stableJsonStringify(snapshot.typeFacts[0]?.facts) ===
+          stableJsonStringify(entry.expectedFacts);
+
       return {
         fixture: entry.fixture,
-        v2Matches: stableJsonStringify(baseline.typeFacts) === stableJsonStringify(tsgo.typeFacts),
-        baseline: {
-          v2TypeFacts: baseline.typeFacts,
-        },
-        tsgo: {
-          v2TypeFacts: tsgo.typeFacts,
-        },
+        matches,
+        expectedFacts: entry.expectedFacts,
+        actualTypeFacts: snapshot.typeFacts,
       };
     }),
   );
@@ -55,8 +79,9 @@ void (async () => {
   process.stdout.write(
     `${JSON.stringify(
       {
-        schemaVersion: "2",
+        schemaVersion: "3",
         tool: "css-module-explainer/type-fact-backend-parity",
+        backend: "tsgo",
         results,
       },
       null,
@@ -64,18 +89,16 @@ void (async () => {
     )}\n`,
   );
 
-  process.exitCode = results.every((result) => result.v2Matches) ? 0 : 1;
+  for (const result of results) {
+    assert.equal(result.matches, true, `${result.fixture}: tsgo type fact contract mismatch`);
+  }
 })();
 
-async function buildTypeFactSnapshot(
-  fixture: {
-    readonly fixture: string;
-    readonly workspaceRoot: string;
-    readonly sourceFilePaths: readonly string[];
-    readonly styleFilePaths: readonly string[];
-  },
-  typeBackend: "typescript-current" | "tsgo",
-) {
+async function buildTsgoTypeFactSnapshot(fixture: {
+  readonly workspaceRoot: string;
+  readonly sourceFilePaths: readonly string[];
+  readonly styleFilePaths: readonly string[];
+}) {
   const styleFiles = fixture.styleFilePaths;
   const styleHost = createWorkspaceStyleHost({
     styleFiles,
@@ -86,10 +109,10 @@ async function buildTypeFactSnapshot(
     classnameTransform: "asIs",
     pathAlias: {},
     styleDocumentForPath: styleHost.styleDocumentForPath,
-    typeBackend,
+    typeBackend: "tsgo",
     env: {
       ...process.env,
-      CME_TYPE_FACT_BACKEND: typeBackend,
+      CME_TYPE_FACT_BACKEND: "tsgo",
     },
   });
   const sourceDocuments = collectSourceDocuments(
@@ -105,10 +128,10 @@ async function buildTypeFactSnapshot(
     styleFiles,
     analysisCache: analysisHost.analysisCache,
     styleDocumentForPath: styleHost.styleDocumentForPath,
-    typeBackend,
+    typeBackend: "tsgo",
     env: {
       ...process.env,
-      CME_TYPE_FACT_BACKEND: typeBackend,
+      CME_TYPE_FACT_BACKEND: "tsgo",
     },
   });
 }

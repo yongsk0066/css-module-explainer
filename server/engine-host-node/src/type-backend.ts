@@ -1,9 +1,5 @@
 import type ts from "typescript";
-import { createDefaultProgram } from "../../engine-core-ts/src/core/ts/default-program";
-import {
-  WorkspaceTypeResolver,
-  type TypeResolver,
-} from "../../engine-core-ts/src/core/ts/type-resolver";
+import type { TypeResolver } from "../../engine-core-ts/src/core/ts/type-resolver";
 import { TsgoProbeTypeResolver } from "./tsgo-probe-type-resolver";
 
 export type TypeFactBackendKind = "typescript-current" | "tsgo";
@@ -43,18 +39,11 @@ export function selectTypeResolver(options: SelectTypeResolverOptions): TypeReso
   if (backend === "tsgo") {
     return {
       backend,
-      // Keep the TS7 backend selected by default, but avoid synchronous
-      // full-workspace TypeScript program construction on the LSP request
-      // path. Fine-grained direct misses return unresolvable unless tests or
-      // explicit callers inject a current-TS fallback.
       typeResolver: new TsgoProbeTypeResolver(),
     };
   }
 
-  return {
-    backend,
-    typeResolver: new WorkspaceTypeResolver({
-      createProgram: options.createProgram ?? createDefaultProgram,
-    }),
-  };
+  throw new Error(
+    "typescript-current requires an explicit TypeResolver; the default runtime no longer constructs the current TypeScript workspace resolver.",
+  );
 }

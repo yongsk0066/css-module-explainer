@@ -142,7 +142,7 @@ describe("selectTypeFactCollector", () => {
     expect(entry?.facts).toEqual({ kind: "finiteSet", values: ["primary", "secondary"] });
   });
 
-  it("falls back to the resolver when tsgo has no project for a target file", () => {
+  it("returns unknown facts when tsgo has no project for a target file", () => {
     const collector = selectTypeFactCollector({
       typeBackend: "tsgo",
       typeResolver: finiteSetResolver(["primary", "secondary"]),
@@ -159,10 +159,10 @@ describe("selectTypeFactCollector", () => {
       sourceEntries: createSourceEntries(),
     });
 
-    expect(entry?.facts).toEqual({ kind: "finiteSet", values: ["primary", "secondary"] });
+    expect(entry?.facts).toEqual({ kind: "unknown" });
   });
 
-  it("falls back to the resolver when the tsgo worker fails operationally", () => {
+  it("returns unknown facts when the tsgo worker fails operationally", () => {
     const collector = selectTypeFactCollector({
       typeBackend: "tsgo",
       typeResolver: finiteSetResolver(["fallback"]),
@@ -174,12 +174,10 @@ describe("selectTypeFactCollector", () => {
     const sourceEntries = createSourceEntries();
 
     expect(collector.collectV1({ workspaceRoot: "/repo", sourceEntries })[0]?.facts).toEqual({
-      kind: "exact",
-      values: ["fallback"],
+      kind: "unknown",
     });
     expect(collector.collectV2({ workspaceRoot: "/repo", sourceEntries })[0]?.facts).toEqual({
-      kind: "exact",
-      values: ["fallback"],
+      kind: "unknown",
     });
   });
 

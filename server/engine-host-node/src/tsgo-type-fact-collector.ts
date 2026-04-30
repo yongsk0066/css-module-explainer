@@ -9,11 +9,7 @@ import {
   type TypeFactTableV1,
   type TypeFactTableV2,
 } from "../../engine-core-ts/src/contracts";
-import {
-  collectTypeFactTableV1,
-  type CollectTypeFactTableV1Options,
-} from "./historical/type-fact-table-v1";
-import { collectTypeFactTableV2 } from "./type-fact-table-v2";
+import type { CollectTypeFactTableV1Options } from "./historical/type-fact-table-v1";
 import { resolveTsgoBinaryPathForEnv } from "./tsgo-probe-type-resolver";
 
 const UNRESOLVABLE: ResolvedType = { kind: "unresolvable", values: [] };
@@ -74,10 +70,10 @@ export function collectTypeFactTableV1WithTsgo(
     if (!isRecoverableTsgoWorkerError(error)) {
       throw error;
     }
-    return collectTypeFactTableV1(options);
+    resolvedTypes = new Map();
   }
   if (!resolvedTypes) {
-    return collectTypeFactTableV1(options);
+    resolvedTypes = new Map();
   }
 
   return options.sourceEntries
@@ -109,10 +105,10 @@ export function collectTypeFactTableV2WithTsgo(
     if (!isRecoverableTsgoWorkerError(error)) {
       throw error;
     }
-    return collectTypeFactTableV2(options);
+    resolvedTypes = new Map();
   }
   if (!resolvedTypes) {
-    return collectTypeFactTableV2(options);
+    resolvedTypes = new Map();
   }
 
   return options.sourceEntries

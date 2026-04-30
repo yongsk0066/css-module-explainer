@@ -1,7 +1,7 @@
 {
   "name": "css-module-explainer",
   "displayName": "CSS Module Explainer",
-  "version": "4.4.0",
+  "version": "4.5.0",
   "private": true,
   "description": "Go to Definition, Hover, Autocomplete, Diagnostics, Quick Fixes, and Find References for classnames/bind cx() patterns with CSS Modules.",
   "categories": [
@@ -100,7 +100,7 @@
     "check:rust-omena-tsgo-client-split-boundary": "pnpm cme-check run rust/omena-tsgo-client/boundary",
     "check:rust-omena-lsp-server-boundary": "cargo test --manifest-path rust/Cargo.toml -p omena-lsp-server && node --import tsx ./scripts/check-rust-omena-lsp-server-boundary.ts",
     "check:rust-omena-lsp-server-shell": "node --import tsx ./scripts/check-rust-omena-lsp-server-shell.ts",
-    "check:rust-omena-lsp-server-provider-parity": "node --import tsx ./scripts/check-rust-omena-lsp-server-style-provider-parity.ts",
+    "check:rust-omena-lsp-server-provider-parity": "node --import tsx ./scripts/check-rust-omena-lsp-server-style-provider-parity.ts && node --import tsx ./scripts/check-rust-omena-lsp-server-examples-regression.ts",
     "check:rust-omena-lsp-server-runtime-loop": "node --import tsx ./scripts/check-rust-omena-lsp-server-runtime-loop.ts",
     "check:rust-omena-lsp-server-thin-client-boundary": "node --import tsx ./scripts/check-rust-omena-lsp-server-thin-client-boundary.ts",
     "check:rust-omena-lsp-server-multi-editor": "node --import tsx ./scripts/check-rust-omena-lsp-server-multi-editor.ts",
@@ -175,7 +175,7 @@
     "check:rust-split-consumer-pins": "node --import tsx ./scripts/update-rust-split-consumer-pins.ts --check",
     "check:rust-split-publish-readiness": "node --import tsx ./scripts/check-rust-split-publish-readiness.ts",
     "check:rust-lane-bundle": "pnpm cme-check run rust/omena-abstract-value/domain && pnpm cme-check run rust/omena-abstract-value/incremental-flow && pnpm cme-check run rust/omena-abstract-value/one-cfa && pnpm cme-check run rust/omena-incremental/boundary && pnpm cme-check run rust/omena-resolver/boundary && pnpm cme-check run rust/omena-query/boundary && pnpm cme-check bundle rust/producer-boundary && pnpm cme-check run rust/parser/public-product && pnpm cme-check run rust/omena-bridge/boundary && pnpm cme-check run rust/omena-semantic-boundary && pnpm cme-check run rust/omena-semantic-publish-readiness && pnpm cme-check run rust/checker/entrance",
-    "check:rust-release-bundle": "pnpm cme-check run rust/workspace && pnpm cme-check run rust/omena-abstract-value/domain && pnpm cme-check run rust/omena-abstract-value/incremental-flow && pnpm cme-check run rust/omena-abstract-value/one-cfa && pnpm cme-check run rust/omena-incremental/boundary && pnpm cme-check run rust/omena-resolver/boundary && pnpm cme-check run rust/omena-query/boundary && pnpm cme-check bundle rust/producer-boundary && pnpm cme-check run rust/parser/public-product && pnpm cme-check run rust/omena-bridge/boundary && pnpm cme-check run rust/omena-semantic-boundary && pnpm cme-check run rust/omena-semantic-publish-readiness && pnpm cme-check run rust/checker/entrance && pnpm cme-check run rust/gate/evidence -- --variant typescript-current --repeat 1 --json",
+    "check:rust-release-bundle": "pnpm cme-check run rust/workspace && pnpm cme-check run rust/omena-abstract-value/domain && pnpm cme-check run rust/omena-abstract-value/incremental-flow && pnpm cme-check run rust/omena-abstract-value/one-cfa && pnpm cme-check run rust/omena-incremental/boundary && pnpm cme-check run rust/omena-resolver/boundary && pnpm cme-check run rust/omena-query/boundary && pnpm cme-check bundle rust/producer-boundary && pnpm cme-check run rust/parser/public-product && pnpm cme-check run rust/omena-bridge/boundary && pnpm cme-check run rust/omena-semantic-boundary && pnpm cme-check run rust/omena-semantic-publish-readiness && pnpm cme-check run rust/checker/entrance && pnpm cme-check run rust/gate/evidence -- --variant tsgo --repeat 1 --json",
     "check:rust-source-resolution-match-fragments": "node --import tsx ./scripts/check-rust-source-resolution-match-fragments.ts",
     "check:rust-source-resolution-candidates": "node --import tsx ./scripts/check-rust-source-resolution-candidates.ts",
     "check:rust-source-resolution-evaluator-candidates": "node --import tsx ./scripts/check-rust-source-resolution-evaluator-candidates.ts",
@@ -326,17 +326,10 @@
           "type": "string",
           "enum": [
             "tsgo",
-            "tsgo-workspace",
-            "typescript-current"
+            "tsgo-workspace"
           ],
           "default": "tsgo",
-          "markdownDescription": "Type-fact backend used by the language server. `tsgo` uses the extension-bundled TS 7 native compiler and does not build a synchronous current-TS program on the LSP request path. `tsgo-workspace` uses `pnpm exec tsgo` in the user workspace. `typescript-current` uses the current TypeScript resolver."
-        },
-        "cssModuleExplainer.typeFactMaxSyncProgramFiles": {
-          "type": "number",
-          "default": 500,
-          "minimum": 0,
-          "markdownDescription": "Maximum tsconfig root file count before the synchronous TypeScript resolver returns unresolved type facts instead of building a full `ts.Program` on the language-server request path. Set to `0` to disable the guard."
+          "markdownDescription": "Type-fact backend used by the language server. `tsgo` uses the extension-bundled TS 7 native compiler and does not build a synchronous current-TS program on the LSP request path. `tsgo-workspace` uses `pnpm exec tsgo` in the user workspace."
         },
         "cssModuleExplainer.lspServerRuntime": {
           "type": "string",

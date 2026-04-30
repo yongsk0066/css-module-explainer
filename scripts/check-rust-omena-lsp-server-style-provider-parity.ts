@@ -776,7 +776,7 @@ assertSingleCandidate(styleHoverResponse, selectorQueryPosition, {
   kind: "selector",
   name: nodeSelector.name,
   range: nodeSelector.range,
-  source: "openedStyleDocumentIndex",
+  source: "engineStyleParserSelectorDefinitionFacts",
 });
 
 const customPropertyReferenceResponse = responses[2]!;

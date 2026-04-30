@@ -1,5 +1,19 @@
 # Changelog
 
+## [4.5.0] - 2026-04-30
+
+### Changed
+
+- **Parser-owned selector definition facts** - `engine-style-parser` now exposes range-aware selector definition facts for LSP consumers, including CSS Module exportable class segments and resolved nested BEM suffix selectors.
+- **Rust LSP thin-client closure** - the Rust LSP boundary now reports `thinClient`, enforces the no-Node-workspace-resolver product path, and declares target-aware source-candidate dedupe plus parser selector definition fact consumption as part of the request path policy.
+- **Type-fact product modes** - VS Code settings now expose only tsgo-backed type-fact modes; the old current-TypeScript resolver path is no longer available as a product fallback.
+
+### Fixed
+
+- **Rust LSP source hover parity** - source hovers now render product-facing selector markdown from the target style definition and rule snippet instead of exposing internal Rust opened-document index wording.
+- **Rust LSP target-aware definitions** - `classnames/bind` source references now prefer imported CSS Module targets over generic source candidates, preventing cross-module go-to-definition results and doubled style code-lens reference counts.
+- **Rust LSP nested BEM parity** - nested SCSS `&--...` and `&__...` selectors are now consumed from parser-owned selector definition facts for definition, diagnostics, references, and code lens in the Rust LSP path.
+
 ## [4.4.0] - 2026-04-30
 
 ### Changed

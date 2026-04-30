@@ -7,7 +7,6 @@ import {
 import {
   buildTypeFactBackendEnv,
   readClientTypeFactBackendSetting,
-  readTypeFactMaxSyncProgramFilesSetting,
 } from "./type-fact-backend-config";
 import {
   buildThinClientRuntimeEndpoint,
@@ -22,12 +21,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const typeFactBackend = readClientTypeFactBackendSetting(
     vscode.workspace.getConfiguration("cssModuleExplainer").get("typeFactBackend"),
   );
-  const maxSyncProgramFiles = readTypeFactMaxSyncProgramFilesSetting(
-    vscode.workspace.getConfiguration("cssModuleExplainer").get("typeFactMaxSyncProgramFiles"),
-  );
-  const serverEnv = buildTypeFactBackendEnv(typeFactBackend, process.env, {
-    maxSyncProgramFiles,
-  });
+  const serverEnv = buildTypeFactBackendEnv(typeFactBackend, process.env);
   const lspServerRuntime = readClientLspServerRuntimeSetting(
     vscode.workspace.getConfiguration("cssModuleExplainer").get("lspServerRuntime"),
   );

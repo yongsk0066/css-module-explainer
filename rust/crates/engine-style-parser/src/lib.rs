@@ -353,6 +353,7 @@ pub struct ParserPublicProductGateSignalV0 {
 #[serde(rename_all = "camelCase")]
 pub struct ParserIndexSelectorFactsV0 {
     pub names: Vec<String>,
+    pub definition_facts: Vec<ParserIndexSelectorDefinitionFactV0>,
     pub bem_suffix_parent_names: Vec<String>,
     pub bem_suffix_safe_names: Vec<String>,
     pub nested_unsafe_names: Vec<String>,
@@ -361,6 +362,21 @@ pub struct ParserIndexSelectorFactsV0 {
     pub selectors_with_animation_name_ref_names: Vec<String>,
     pub bem_suffix_count: usize,
     pub nested_safety_counts: NestedSafetyCountsV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ParserIndexSelectorDefinitionFactV0 {
+    pub name: String,
+    pub source_order: usize,
+    pub byte_span: ParserByteSpanV0,
+    pub range: ParserRangeV0,
+    pub nested_safety_kind: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bem_suffix_parent_name: Option<String>,
+    pub under_media: bool,
+    pub under_supports: bool,
+    pub under_layer: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
@@ -621,6 +637,7 @@ struct ParityLiteAcc {
 #[derive(Debug, Default)]
 struct IndexSummaryAcc {
     selector_names: Vec<String>,
+    selector_definition_facts: Vec<ParserIndexSelectorDefinitionFactV0>,
     bem_suffix_parent_names: Vec<String>,
     bem_suffix_safe_selector_names: Vec<String>,
     selectors_with_composes_names: Vec<String>,
@@ -832,6 +849,8 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
     collect_index_selector_attachment_facts(&sheet.nodes, selector_attachment_ctx, &mut acc, &[]);
 
     acc.selector_names.sort();
+    acc.selector_definition_facts.sort();
+    acc.selector_definition_facts.dedup();
     acc.bem_suffix_parent_names.sort();
     acc.bem_suffix_safe_selector_names.sort();
     acc.selectors_with_composes_names.sort();
@@ -1008,6 +1027,7 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
         },
         selectors: ParserIndexSelectorFactsV0 {
             names: acc.selector_names,
+            definition_facts: acc.selector_definition_facts,
             bem_suffix_parent_names: acc.bem_suffix_parent_names,
             bem_suffix_safe_names: acc.bem_suffix_safe_selector_names,
             nested_unsafe_names: acc.nested_unsafe_selector_names,
@@ -1356,6 +1376,7 @@ pub fn summarize_semantic_boundary(sheet: &Stylesheet) -> ParserSemanticBoundary
     } = index;
     let ParserIndexSelectorFactsV0 {
         names,
+        definition_facts,
         bem_suffix_parent_names,
         bem_suffix_safe_names,
         nested_unsafe_names,
@@ -1397,6 +1418,7 @@ pub fn summarize_semantic_boundary(sheet: &Stylesheet) -> ParserSemanticBoundary
             lossless_cst: summarize_lossless_cst(sheet),
             selectors: ParserIndexSelectorFactsV0 {
                 names: names.clone(),
+                definition_facts,
                 bem_suffix_parent_names: bem_suffix_parent_names.clone(),
                 bem_suffix_safe_names: bem_suffix_safe_names.clone(),
                 nested_unsafe_names: nested_unsafe_names.clone(),
@@ -1848,6 +1870,162 @@ fn increment_nested_safety_count(
     }
 }
 
+fn nested_safety_kind_label(kind: NestedSafetyKind) -> &'static str {
+    match kind {
+        NestedSafetyKind::Flat => "flat",
+        NestedSafetyKind::BemSuffixSafe => "bemSuffixSafe",
+        NestedSafetyKind::NestedUnsafe => "nestedUnsafe",
+    }
+}
+
+fn rule_selector_definition_spans(
+    source: &str,
+    header_span: TextSpan,
+    rule: &RulePayload,
+    resolved_names: &[String],
+    parent_branches: &[ResolvedSelectorBranch],
+) -> Vec<(String, ParserByteSpanV0)> {
+    let resolved_names: BTreeSet<&str> = resolved_names.iter().map(String::as_str).collect();
+    let mut seen = BTreeSet::new();
+    let mut spans = Vec::new();
+
+    for group in &rule.selector_groups {
+        let include_all_class_segments = selector_group_allows_all_class_definition_facts(group);
+        for segment in &group.segments {
+            let SelectorSegment::ClassName(name) = segment else {
+                continue;
+            };
+            if !include_all_class_segments && !resolved_names.contains(name.as_str()) {
+                continue;
+            }
+            for byte_span in class_name_byte_spans_in_header(source, header_span, name) {
+                if seen.insert((byte_span.start, byte_span.end, name.clone())) {
+                    spans.push((name.clone(), byte_span));
+                }
+            }
+        }
+
+        for (name, byte_span) in
+            bem_suffix_selector_definition_spans(source, header_span, group, parent_branches)
+        {
+            if !resolved_names.contains(name.as_str()) {
+                continue;
+            }
+            if seen.insert((byte_span.start, byte_span.end, name.clone())) {
+                spans.push((name, byte_span));
+            }
+        }
+    }
+
+    spans
+}
+
+fn selector_group_allows_all_class_definition_facts(group: &SelectorGroup) -> bool {
+    ![":global(", ":not(", ":is(", ":where(", ":has("]
+        .iter()
+        .any(|marker| group.raw.contains(marker))
+}
+
+fn bem_suffix_selector_definition_spans(
+    source: &str,
+    header_span: TextSpan,
+    group: &SelectorGroup,
+    parent_branches: &[ResolvedSelectorBranch],
+) -> Vec<(String, ParserByteSpanV0)> {
+    let suffix = match group.segments.as_slice() {
+        [
+            SelectorSegment::Ampersand,
+            SelectorSegment::BemSuffix(suffix),
+        ]
+        | [
+            SelectorSegment::Ampersand,
+            SelectorSegment::AmpersandSuffix(suffix),
+        ] => suffix,
+        segments => {
+            let last_combinator = segments
+                .iter()
+                .enumerate()
+                .rev()
+                .find_map(|(index, segment)| {
+                    matches!(segment, SelectorSegment::Combinator(_)).then_some(index)
+                });
+            let tail = last_combinator
+                .map(|index| &segments[index + 1..])
+                .unwrap_or(segments);
+            match tail {
+                [
+                    SelectorSegment::Ampersand,
+                    SelectorSegment::BemSuffix(suffix),
+                ]
+                | [
+                    SelectorSegment::Ampersand,
+                    SelectorSegment::AmpersandSuffix(suffix),
+                ] => suffix,
+                _ => return Vec::new(),
+            }
+        }
+    };
+    let Some(suffix_span) = ampersand_suffix_byte_span_in_header(source, header_span, suffix)
+    else {
+        return Vec::new();
+    };
+
+    parent_branches
+        .iter()
+        .filter(|parent| parent.bare_suffix_base)
+        .map(|parent| (format!("{}{}", parent.name, suffix), suffix_span))
+        .collect()
+}
+
+fn ampersand_suffix_byte_span_in_header(
+    source: &str,
+    header_span: TextSpan,
+    suffix: &str,
+) -> Option<ParserByteSpanV0> {
+    let header = &source[header_span.start..header_span.end];
+    let needle = format!("&{suffix}");
+    let relative_match = header.find(&needle)?;
+    let suffix_start = header_span.start + relative_match + 1;
+    let suffix_end = suffix_start + suffix.len();
+    Some(ParserByteSpanV0 {
+        start: suffix_start,
+        end: suffix_end,
+    })
+}
+
+fn class_name_byte_spans_in_header(
+    source: &str,
+    header_span: TextSpan,
+    name: &str,
+) -> Vec<ParserByteSpanV0> {
+    let header = &source[header_span.start..header_span.end];
+    let needle = format!(".{name}");
+    let mut spans = Vec::new();
+    let mut search_offset = 0usize;
+
+    while let Some(relative_match) = header[search_offset..].find(&needle) {
+        let dot_start = header_span.start + search_offset + relative_match;
+        let name_start = dot_start + 1;
+        let name_end = name_start + name.len();
+        if is_selector_name_boundary(source, name_end) {
+            spans.push(ParserByteSpanV0 {
+                start: name_start,
+                end: name_end,
+            });
+        }
+        search_offset += relative_match + needle.len();
+    }
+
+    spans
+}
+
+fn is_selector_name_boundary(source: &str, byte_offset: usize) -> bool {
+    source[byte_offset..]
+        .chars()
+        .next()
+        .is_none_or(|ch| !is_selector_ident_continue(ch))
+}
+
 fn collect_rule_composes_facts(children: &[SyntaxNode]) -> RuleComposesFacts {
     let mut facts = RuleComposesFacts::default();
     for child in children {
@@ -2155,6 +2333,37 @@ fn collect_index_names(
                         .collect();
                     let selector_facts =
                         classify_rule_selector_facts(rule, parent_branches, parent_is_grouped);
+                    let selector_definition_source_order_offset =
+                        acc.selector_definition_facts.len();
+                    let selector_definition_spans = rule_selector_definition_spans(
+                        source,
+                        node.header_span.unwrap_or(node.span),
+                        rule,
+                        &resolved,
+                        parent_branches,
+                    );
+                    acc.selector_definition_facts.extend(
+                        selector_definition_spans.into_iter().enumerate().map(
+                            |(index, (name, byte_span))| ParserIndexSelectorDefinitionFactV0 {
+                                name,
+                                source_order: selector_definition_source_order_offset + index,
+                                byte_span,
+                                range: source_range_for_byte_span(source, byte_span),
+                                nested_safety_kind: nested_safety_kind_label(
+                                    selector_facts.nested_safety,
+                                ),
+                                bem_suffix_parent_name: match selector_facts.nested_safety {
+                                    NestedSafetyKind::BemSuffixSafe => {
+                                        parent_branches.first().map(|parent| parent.name.clone())
+                                    }
+                                    NestedSafetyKind::Flat | NestedSafetyKind::NestedUnsafe => None,
+                                },
+                                under_media: wrapper_ctx.under_media,
+                                under_supports: wrapper_ctx.under_supports,
+                                under_layer: wrapper_ctx.under_layer,
+                            },
+                        ),
+                    );
                     acc.bem_suffix_count += selector_facts.bem_suffix_count;
                     increment_nested_safety_count(
                         &mut acc.nested_safety_counts,
@@ -4706,6 +4915,45 @@ mod tests {
         let sheet = parse_stylesheet(StyleLanguage::Scss, source);
         let summary = super::summarize_parity_lite(&sheet);
         assert_eq!(summary.selector_names, vec!["b"]);
+    }
+
+    #[test]
+    fn index_summary_exposes_selector_definition_facts_for_lsp_consumers() -> Result<(), String> {
+        let source = ".item { &.compact .body { color: red; } &--primary { color: blue; } }";
+        let sheet = parse_stylesheet(StyleLanguage::Scss, source);
+        let summary = super::summarize_css_modules_intermediate(&sheet);
+        let definition_names: Vec<&str> = summary
+            .selectors
+            .definition_facts
+            .iter()
+            .map(|fact| fact.name.as_str())
+            .collect();
+        assert_eq!(
+            definition_names,
+            vec!["body", "compact", "item", "item--primary"]
+        );
+        assert_eq!(
+            summary
+                .selectors
+                .definition_facts
+                .iter()
+                .find(|fact| fact.name == "compact")
+                .map(|fact| fact.range),
+            Some(range_after(source, "&.compact", "compact")?)
+        );
+        assert_eq!(
+            summary
+                .selectors
+                .definition_facts
+                .iter()
+                .find(|fact| fact.name == "item--primary")
+                .map(|fact| (fact.range, fact.bem_suffix_parent_name.as_deref())),
+            Some((
+                range_after(source, "&--primary", "--primary")?,
+                Some("item")
+            ))
+        );
+        Ok(())
     }
 
     #[test]

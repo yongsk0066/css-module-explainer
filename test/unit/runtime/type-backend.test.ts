@@ -43,6 +43,14 @@ describe("type backend selection", () => {
     expect(selection.typeResolver).toBeInstanceOf(TsgoProbeTypeResolver);
   });
 
+  it("does not construct a current TypeScript workspace resolver by default", () => {
+    expect(() =>
+      selectTypeResolver({
+        typeBackend: "typescript-current",
+      }),
+    ).toThrow("typescript-current requires an explicit TypeResolver");
+  });
+
   it("throws on unknown backend values", () => {
     expect(() =>
       resolveTypeFactBackendKind({

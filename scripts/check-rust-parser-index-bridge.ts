@@ -11,6 +11,7 @@ interface ParserIndexSummaryV0 {
   readonly language: "css" | "scss" | "less";
   readonly selectors: {
     readonly names: readonly string[];
+    readonly definitionFacts?: readonly unknown[];
     readonly bemSuffixParentNames: readonly string[];
     readonly bemSuffixSafeNames: readonly string[];
     readonly nestedUnsafeNames: readonly string[];
@@ -1054,9 +1055,10 @@ void (async () => {
     const expected = deriveTsSummary(entry.filePath, entry.source);
     // oxlint-disable-next-line eslint/no-await-in-loop
     const actual = await runRustSummary(entry.filePath, entry.source);
+    const actualTsComparable = omitParserOnlySelectorDefinitionFacts(actual);
 
     assert.deepEqual(
-      actual,
+      actualTsComparable,
       expected,
       [
         `parser index bridge mismatch for ${entry.label}`,
@@ -1073,3 +1075,14 @@ void (async () => {
   console.error(error);
   process.exit(1);
 });
+
+function omitParserOnlySelectorDefinitionFacts(
+  summary: ParserIndexSummaryV0,
+): ParserIndexSummaryV0 {
+  const { definitionFacts, ...selectors } = summary.selectors;
+  void definitionFacts;
+  return {
+    ...summary,
+    selectors,
+  };
+}

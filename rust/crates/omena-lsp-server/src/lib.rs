@@ -1,6 +1,5 @@
 use engine_style_parser::{
-    ParserByteSpanV0, ParserPositionV0, ParserRangeV0, RulePayload, SelectorSegment, StyleLanguage,
-    SyntaxNode, SyntaxNodePayload, TextSpan, parse_style_module,
+    ParserByteSpanV0, ParserPositionV0, ParserRangeV0, StyleLanguage, parse_style_module,
     summarize_css_modules_intermediate,
 };
 use omena_incremental::IncrementalCancellationRegistryV0;
@@ -181,11 +180,14 @@ pub fn source_provider_direct_rust_adapter_contract() -> SourceProviderDirectRus
     SourceProviderDirectRustAdapterV0 {
         product: "omena-lsp-server.source-provider-direct-rust-adapter",
         candidate_owner: "omena-lsp-server/sourceSyntaxIndex",
-        style_definition_owner: "omena-lsp-server/openedStyleDocumentIndex",
+        style_definition_owner: "engine-style-parser/selectorDefinitionFacts",
         type_fact_owner: "omena-tsgo-client",
         request_path_policy: vec![
             "noNodeWorkspaceTypeResolverOnSourceProviderPath",
             "buildSourceSyntaxIndexOnDocumentChange",
+            "dedupeTargetAwareSourceCandidates",
+            "consumeParserCanonicalSelectorFacts",
+            "consumeParserSelectorDefinitionFacts",
             "useOpenedDocumentIndexesBeforeWorkspaceFallback",
             "unresolvedCandidatesRemainFastDiagnostics",
         ],
@@ -1586,11 +1588,9 @@ fn resolve_lsp_completion(state: &LspShellState, params: Option<&Value>) -> Valu
         .iter()
         .filter_map(|candidate| match candidate.kind {
             "selector" => Some((format!(".{}", candidate.name), 7, "CSS Module selector")),
-            "customPropertyDeclaration" => Some((
-                candidate.name.clone(),
-                10,
-                "CSS custom property from opened style document index",
-            )),
+            "customPropertyDeclaration" => {
+                Some((candidate.name.clone(), 10, "CSS custom property"))
+            }
             _ => None,
         })
         .filter(|(label, _, _)| emitted_labels.insert(label.clone()))
@@ -1926,6 +1926,8 @@ fn selector_reference_locations_by_name_from_open_documents(
     }
     for locations in locations_by_name.values_mut() {
         locations.sort_by_key(location_sort_key);
+        locations
+            .dedup_by(|left, right| location_identity_key(left) == location_identity_key(right));
     }
     locations_by_name
 }
@@ -2087,11 +2089,18 @@ fn resolve_lsp_hover(state: &LspShellState, params: Option<&Value>) -> Value {
     let Some(candidate) = candidates.candidates.first() else {
         return Value::Null;
     };
+    let Some(document) = state.document(document_uri.as_str()) else {
+        return Value::Null;
+    };
 
     json!({
         "contents": {
             "kind": "markdown",
-            "value": render_style_hover_candidate_markdown(candidate),
+            "value": render_style_hover_candidate_markdown(
+                document.uri.as_str(),
+                document.text.as_str(),
+                candidate,
+            ),
         },
         "range": candidate.range,
     })
@@ -2115,19 +2124,23 @@ fn resolve_source_lsp_hover(
     )
     .into_iter()
     .next();
-    let definition_label = definition
+    let value = definition
         .as_ref()
-        .map(|(uri, _)| format!("\n\nDefined in `{}`.", file_label_from_uri(uri)))
-        .unwrap_or_default();
+        .and_then(|(uri, definition)| {
+            state.document(uri).map(|style_document| {
+                render_style_hover_candidate_markdown(
+                    uri.as_str(),
+                    style_document.text.as_str(),
+                    definition,
+                )
+            })
+        })
+        .unwrap_or_else(|| format!("**`.{}`**", candidate.name));
 
     json!({
         "contents": {
             "kind": "markdown",
-            "value": format!(
-                "### .{}\n\nCSS Module selector reference from the Rust opened source document index.{}",
-                candidate.name,
-                definition_label
-            ),
+            "value": value,
         },
         "range": candidate.range,
     })
@@ -2227,7 +2240,7 @@ fn resolve_source_lsp_completion(
             json!({
                 "label": label,
                 "kind": 10,
-                "detail": "CSS Module selector from opened style document index",
+                "detail": "CSS Module selector",
                 "data": {
                     "source": "openedStyleDocumentIndex",
                 },
@@ -2420,8 +2433,34 @@ fn build_source_syntax_index(document: &LspTextDocumentState) -> SourceSyntaxInd
             &mut index.selector_references,
         );
     }
+    canonicalize_source_selector_references(&mut index.selector_references);
 
     index
+}
+
+fn canonicalize_source_selector_references(references: &mut Vec<SourceSelectorReferenceFact>) {
+    let mut targets_by_span: BTreeMap<(usize, usize), BTreeSet<Option<String>>> = BTreeMap::new();
+    for reference in references.iter() {
+        targets_by_span
+            .entry((reference.byte_span.start, reference.byte_span.end))
+            .or_default()
+            .insert(reference.target_style_uri.clone());
+    }
+
+    let mut canonical = Vec::new();
+    for ((start, end), targets) in targets_by_span {
+        let has_targeted_reference = targets.iter().any(Option::is_some);
+        for target_style_uri in targets {
+            if has_targeted_reference && target_style_uri.is_none() {
+                continue;
+            }
+            canonical.push(SourceSelectorReferenceFact {
+                byte_span: ParserByteSpanV0 { start, end },
+                target_style_uri,
+            });
+        }
+    }
+    *references = canonical;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -3325,6 +3364,31 @@ fn location_sort_key(location: &Value) -> (String, u64, u64) {
     (uri, line, character)
 }
 
+fn location_identity_key(location: &Value) -> (String, u64, u64, u64, u64) {
+    let uri = location
+        .get("uri")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let start_line = location
+        .pointer("/range/start/line")
+        .and_then(Value::as_u64)
+        .unwrap_or_default();
+    let start_character = location
+        .pointer("/range/start/character")
+        .and_then(Value::as_u64)
+        .unwrap_or_default();
+    let end_line = location
+        .pointer("/range/end/line")
+        .and_then(Value::as_u64)
+        .unwrap_or_default();
+    let end_character = location
+        .pointer("/range/end/character")
+        .and_then(Value::as_u64)
+        .unwrap_or_default();
+    (uri, start_line, start_character, end_line, end_character)
+}
+
 fn lsp_range_start_sort_key(value: &Value) -> (u64, u64) {
     let line = value
         .pointer("/range/start/line")
@@ -3337,22 +3401,94 @@ fn lsp_range_start_sort_key(value: &Value) -> (u64, u64) {
     (line, character)
 }
 
-fn render_style_hover_candidate_markdown(candidate: &LspStyleHoverCandidate) -> String {
+fn render_style_hover_candidate_markdown(
+    document_uri: &str,
+    source: &str,
+    candidate: &LspStyleHoverCandidate,
+) -> String {
+    let location = format!(
+        "{}:{}",
+        file_label_from_uri(document_uri),
+        candidate.range.start.line + 1
+    );
     match candidate.kind {
-        "selector" => format!(
-            "### .{}\n\nCSS Module selector from the Rust opened style document index.",
-            candidate.name
-        ),
-        "customPropertyReference" => format!(
-            "### var({})\n\nCSS custom property reference from the Rust opened style document index.",
-            candidate.name
-        ),
-        "customPropertyDeclaration" => format!(
-            "### {}\n\nCSS custom property declaration from the Rust opened style document index.",
-            candidate.name
-        ),
+        "selector" => {
+            let snippet = rule_snippet_around_position(source, candidate.range.start)
+                .unwrap_or_else(|| format!(".{} {{ ... }}", candidate.name));
+            format!(
+                "**`.{}`** - _{}_\n\n```scss\n{}\n```",
+                candidate.name, location, snippet
+            )
+        }
+        "customPropertyReference" => {
+            let snippet =
+                line_snippet_at_position(source, candidate.range.start).unwrap_or_default();
+            format!(
+                "**`var({})`** - _{}_\n\n```scss\n{}\n```",
+                candidate.name, location, snippet
+            )
+        }
+        "customPropertyDeclaration" => {
+            let snippet =
+                line_snippet_at_position(source, candidate.range.start).unwrap_or_default();
+            format!(
+                "**`{}`** - _{}_\n\n```scss\n{}\n```",
+                candidate.name, location, snippet
+            )
+        }
         _ => candidate.name.clone(),
     }
+}
+
+fn rule_snippet_around_position(source: &str, position: ParserPositionV0) -> Option<String> {
+    let line_start = byte_offset_for_parser_position(
+        source,
+        ParserPositionV0 {
+            line: position.line,
+            character: 0,
+        },
+    )?;
+    let open_brace = source[line_start..].find('{')? + line_start;
+    let mut depth = 0usize;
+    let mut cursor = open_brace;
+    while cursor < source.len() {
+        match source.as_bytes().get(cursor).copied()? {
+            b'{' => depth += 1,
+            b'}' => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    let snippet = source[line_start..=cursor].trim();
+                    return Some(trim_hover_snippet(snippet));
+                }
+            }
+            _ => {}
+        }
+        cursor += 1;
+    }
+    None
+}
+
+fn line_snippet_at_position(source: &str, position: ParserPositionV0) -> Option<String> {
+    let line_start = byte_offset_for_parser_position(
+        source,
+        ParserPositionV0 {
+            line: position.line,
+            character: 0,
+        },
+    )?;
+    let line_end = source[line_start..]
+        .find('\n')
+        .map(|offset| line_start + offset)
+        .unwrap_or(source.len());
+    Some(source[line_start..line_end].trim().to_string())
+}
+
+fn trim_hover_snippet(snippet: &str) -> String {
+    const MAX_SNIPPET_LEN: usize = 1200;
+    if snippet.len() <= MAX_SNIPPET_LEN {
+        return snippet.to_string();
+    }
+    format!("{}...", snippet[..MAX_SNIPPET_LEN].trim_end())
 }
 
 fn include_declaration_from_params(params: Option<&Value>) -> bool {
@@ -3431,9 +3567,8 @@ fn collect_style_hover_candidates(
     let index = summarize_css_modules_intermediate(&sheet);
     let mut seen = BTreeSet::new();
     let mut candidates = Vec::new();
-    collect_style_selector_hover_candidates_from_nodes(
-        sheet.source.as_str(),
-        sheet.nodes.as_slice(),
+    collect_style_selector_hover_candidates_from_parser_facts(
+        index.selectors.definition_facts.as_slice(),
         &mut seen,
         &mut candidates,
     );
@@ -3448,74 +3583,22 @@ fn collect_style_hover_candidates(
     Some((style_language_label(sheet.language), candidates))
 }
 
-fn collect_style_selector_hover_candidates_from_nodes(
-    source: &str,
-    nodes: &[SyntaxNode],
+fn collect_style_selector_hover_candidates_from_parser_facts(
+    definition_facts: &[engine_style_parser::ParserIndexSelectorDefinitionFactV0],
     seen: &mut BTreeSet<(usize, usize, String)>,
     candidates: &mut Vec<LspStyleHoverCandidate>,
 ) {
-    for node in nodes {
-        if let Some(SyntaxNodePayload::Rule(rule)) = &node.payload {
-            let header_span = node.header_span.unwrap_or(node.span);
-            for name in class_segment_names(rule) {
-                for byte_span in class_name_byte_spans_in_header(source, header_span, name) {
-                    if seen.insert((byte_span.start, byte_span.end, name.to_string())) {
-                        candidates.push(LspStyleHoverCandidate {
-                            kind: "selector",
-                            name: name.to_string(),
-                            range: parser_range_for_byte_span(source, byte_span),
-                            source: "openedStyleDocumentIndex",
-                            target_style_uri: None,
-                        });
-                    }
-                }
-            }
-        }
-        collect_style_selector_hover_candidates_from_nodes(
-            source,
-            node.children.as_slice(),
-            seen,
-            candidates,
-        );
-    }
-}
-
-fn class_segment_names(rule: &RulePayload) -> Vec<&str> {
-    rule.selector_groups
-        .iter()
-        .flat_map(|group| {
-            group.segments.iter().filter_map(|segment| match segment {
-                SelectorSegment::ClassName(name) => Some(name.as_str()),
-                _ => None,
-            })
-        })
-        .collect()
-}
-
-fn class_name_byte_spans_in_header(
-    source: &str,
-    header_span: TextSpan,
-    name: &str,
-) -> Vec<ParserByteSpanV0> {
-    let header = &source[header_span.start..header_span.end];
-    let needle = format!(".{name}");
-    let mut spans = Vec::new();
-    let mut search_offset = 0usize;
-
-    while let Some(relative_match) = header[search_offset..].find(&needle) {
-        let dot_start = header_span.start + search_offset + relative_match;
-        let name_start = dot_start + 1;
-        let name_end = name_start + name.len();
-        if is_selector_name_boundary(source, name_end) {
-            spans.push(ParserByteSpanV0 {
-                start: name_start,
-                end: name_end,
+    for fact in definition_facts {
+        if seen.insert((fact.byte_span.start, fact.byte_span.end, fact.name.clone())) {
+            candidates.push(LspStyleHoverCandidate {
+                kind: "selector",
+                name: fact.name.clone(),
+                range: fact.range,
+                source: "engineStyleParserSelectorDefinitionFacts",
+                target_style_uri: None,
             });
         }
-        search_offset += relative_match + needle.len();
     }
-
-    spans
 }
 
 fn collect_custom_property_hover_candidates(
