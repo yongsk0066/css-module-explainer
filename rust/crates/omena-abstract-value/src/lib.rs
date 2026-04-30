@@ -168,6 +168,7 @@ pub struct ClassValueFlowNodeV0 {
 pub enum ClassValueFlowTransferV0 {
     AssignFacts(ExternalStringTypeFactsV0),
     RefineFacts(ExternalStringTypeFactsV0),
+    ConcatFacts(ExternalStringTypeFactsV0),
     Join,
 }
 
@@ -327,7 +328,7 @@ pub fn summarize_omena_abstract_value_flow_analysis() -> AbstractValueFlowAnalys
         incremental_engine: "omena-incremental",
         analysis_scopes: vec!["singleContext", "multiContextBatch", "callSiteBatch"],
         reuse_policy: "reuse previous context analysis when its omena-incremental plan is clean",
-        transfer_kinds: vec!["assignFacts", "refineFacts", "join"],
+        transfer_kinds: vec!["assignFacts", "refineFacts", "concatFacts", "join"],
         max_iterations: MAX_FLOW_ANALYSIS_ITERATIONS,
     }
 }
@@ -580,6 +581,176 @@ pub fn join_abstract_class_values(
                 suffix_class_value(suffix, Some(AbstractClassValueProvenanceV0::SuffixJoinLcs))
             }
         }
+        _ => top_class_value(),
+    }
+}
+
+pub fn concatenate_abstract_class_values(
+    left: &AbstractClassValueV0,
+    right: &AbstractClassValueV0,
+) -> AbstractClassValueV0 {
+    match (left, right) {
+        (AbstractClassValueV0::Bottom, _) | (_, AbstractClassValueV0::Bottom) => {
+            return bottom_class_value();
+        }
+        (AbstractClassValueV0::Top, _) | (_, AbstractClassValueV0::Top) => {
+            return top_class_value();
+        }
+        _ => {}
+    }
+
+    if let (Some(left_values), Some(right_values)) = (
+        enumerate_finite_class_values(left),
+        enumerate_finite_class_values(right),
+    ) {
+        return finite_set_class_value(left_values.into_iter().flat_map(|left_value| {
+            right_values
+                .iter()
+                .map(move |right_value| format!("{left_value}{right_value}"))
+        }));
+    }
+
+    match (left, right) {
+        (AbstractClassValueV0::Exact { value }, AbstractClassValueV0::Prefix { prefix, .. }) => {
+            prefix_class_value(format!("{value}{prefix}"), None)
+        }
+        (AbstractClassValueV0::Exact { value }, AbstractClassValueV0::Suffix { suffix, .. }) => {
+            prefix_suffix_class_value(value, suffix, Some(value.len() + suffix.len()), None)
+        }
+        (
+            AbstractClassValueV0::Exact { value },
+            AbstractClassValueV0::PrefixSuffix {
+                prefix,
+                suffix,
+                min_length,
+                ..
+            },
+        ) => prefix_suffix_class_value(
+            format!("{value}{prefix}"),
+            suffix,
+            Some(value.len() + min_length),
+            None,
+        ),
+        (AbstractClassValueV0::Prefix { prefix, .. }, AbstractClassValueV0::Exact { value }) => {
+            prefix_suffix_class_value(prefix, value, Some(prefix.len() + value.len()), None)
+        }
+        (
+            AbstractClassValueV0::Prefix { prefix, .. },
+            AbstractClassValueV0::FiniteSet { values },
+        ) => {
+            let suffix = meaningful_longest_common_suffix(values);
+            if suffix.is_empty() {
+                prefix_class_value(prefix, None)
+            } else {
+                prefix_suffix_class_value(
+                    prefix,
+                    suffix.clone(),
+                    Some(prefix.len() + suffix.len()),
+                    None,
+                )
+            }
+        }
+        (AbstractClassValueV0::Prefix { prefix, .. }, AbstractClassValueV0::Prefix { .. }) => {
+            prefix_class_value(prefix, None)
+        }
+        (
+            AbstractClassValueV0::Prefix { prefix, .. },
+            AbstractClassValueV0::Suffix { suffix, .. },
+        )
+        | (
+            AbstractClassValueV0::Prefix { prefix, .. },
+            AbstractClassValueV0::PrefixSuffix { suffix, .. },
+        ) => prefix_suffix_class_value(prefix, suffix, Some(prefix.len() + suffix.len()), None),
+        (
+            AbstractClassValueV0::FiniteSet { values },
+            AbstractClassValueV0::Prefix { prefix, .. },
+        ) => {
+            let values = values
+                .iter()
+                .map(|value| format!("{value}{prefix}"))
+                .collect::<Vec<_>>();
+            let prefix = meaningful_longest_common_prefix(&values);
+            if prefix.is_empty() {
+                top_class_value()
+            } else {
+                prefix_class_value(prefix, None)
+            }
+        }
+        (
+            AbstractClassValueV0::FiniteSet { values },
+            AbstractClassValueV0::Suffix { suffix, .. },
+        ) => {
+            let prefix = meaningful_longest_common_prefix(values);
+            if prefix.is_empty() {
+                suffix_class_value(suffix, None)
+            } else {
+                prefix_suffix_class_value(prefix, suffix, Some(suffix.len()), None)
+            }
+        }
+        (AbstractClassValueV0::Suffix { .. }, AbstractClassValueV0::FiniteSet { values }) => {
+            let suffix = meaningful_longest_common_suffix(values);
+            if suffix.is_empty() {
+                top_class_value()
+            } else {
+                suffix_class_value(suffix, None)
+            }
+        }
+        (AbstractClassValueV0::Suffix { .. }, AbstractClassValueV0::Suffix { suffix, .. }) => {
+            suffix_class_value(suffix, None)
+        }
+        (
+            AbstractClassValueV0::Suffix { .. },
+            AbstractClassValueV0::PrefixSuffix { suffix, .. },
+        ) => suffix_class_value(suffix, None),
+        (
+            AbstractClassValueV0::PrefixSuffix { prefix, .. },
+            AbstractClassValueV0::Prefix { .. },
+        ) => prefix_class_value(prefix, None),
+        (
+            AbstractClassValueV0::PrefixSuffix {
+                prefix,
+                suffix,
+                min_length,
+                ..
+            },
+            AbstractClassValueV0::Exact { value },
+        ) => prefix_suffix_class_value(
+            prefix,
+            format!("{suffix}{value}"),
+            Some(min_length + value.len()),
+            None,
+        ),
+        (
+            AbstractClassValueV0::PrefixSuffix {
+                prefix,
+                suffix,
+                min_length,
+                ..
+            },
+            AbstractClassValueV0::FiniteSet { values },
+        ) => {
+            let shared_suffix = meaningful_longest_common_suffix(values);
+            if shared_suffix.is_empty() {
+                prefix_class_value(prefix, None)
+            } else {
+                prefix_suffix_class_value(
+                    prefix,
+                    format!("{suffix}{shared_suffix}"),
+                    Some(min_length + shared_suffix.len()),
+                    None,
+                )
+            }
+        }
+        (
+            AbstractClassValueV0::PrefixSuffix { prefix, .. },
+            AbstractClassValueV0::Suffix { suffix, .. },
+        ) => prefix_suffix_class_value(prefix, suffix, Some(prefix.len() + suffix.len()), None),
+        (
+            AbstractClassValueV0::PrefixSuffix { prefix, .. },
+            AbstractClassValueV0::PrefixSuffix {
+                suffix, min_length, ..
+            },
+        ) => prefix_suffix_class_value(prefix, suffix, Some(prefix.len() + min_length), None),
         _ => top_class_value(),
     }
 }
@@ -1536,6 +1707,10 @@ fn apply_flow_transfer(
             let refinement = reduced_abstract_class_value_from_facts(facts);
             intersect_abstract_class_values(incoming, &refinement)
         }
+        ClassValueFlowTransferV0::ConcatFacts(facts) => {
+            let right = reduced_abstract_class_value_from_facts(facts);
+            concatenate_abstract_class_values(incoming, &right)
+        }
         ClassValueFlowTransferV0::Join => incoming.clone(),
     }
 }
@@ -1544,6 +1719,7 @@ fn flow_transfer_kind(transfer: &ClassValueFlowTransferV0) -> &'static str {
     match transfer {
         ClassValueFlowTransferV0::AssignFacts(_) => "assignFacts",
         ClassValueFlowTransferV0::RefineFacts(_) => "refineFacts",
+        ClassValueFlowTransferV0::ConcatFacts(_) => "concatFacts",
         ClassValueFlowTransferV0::Join => "join",
     }
 }
@@ -1557,7 +1733,8 @@ fn flow_node_incremental_digest(node: &ClassValueFlowNodeV0) -> String {
 
     match &node.transfer {
         ClassValueFlowTransferV0::AssignFacts(facts)
-        | ClassValueFlowTransferV0::RefineFacts(facts) => {
+        | ClassValueFlowTransferV0::RefineFacts(facts)
+        | ClassValueFlowTransferV0::ConcatFacts(facts) => {
             push_external_facts_digest_parts(&mut parts, facts);
         }
         ClassValueFlowTransferV0::Join => {}
@@ -1995,15 +2172,16 @@ mod tests {
         analyze_class_value_flow_incremental_batch_with_reuse,
         analyze_class_value_flow_incremental_with_reuse, analyze_one_cfa_call_site_flows,
         bottom_class_value, char_inclusion_class_value, composite_class_value,
-        derive_selector_projection_certainty, exact_class_value, finite_set_class_value,
-        finite_values_from_facts, intersect_abstract_class_values, join_abstract_class_values,
-        prefix_class_value, prefix_suffix_class_value, project_abstract_value_selectors,
-        reduced_abstract_class_value_from_facts, reduced_class_value_derivation_from_facts,
-        reduced_value_domain_kind_from_facts, selector_certainty_from_facts,
-        selector_certainty_shape_kind_from_facts, selector_certainty_shape_label_from_facts,
-        suffix_class_value, summarize_omena_abstract_value_domain,
-        summarize_omena_abstract_value_flow_analysis, top_class_value, value_certainty_from_facts,
-        value_certainty_shape_kind_from_facts, value_certainty_shape_label_from_facts,
+        concatenate_abstract_class_values, derive_selector_projection_certainty, exact_class_value,
+        finite_set_class_value, finite_values_from_facts, intersect_abstract_class_values,
+        join_abstract_class_values, prefix_class_value, prefix_suffix_class_value,
+        project_abstract_value_selectors, reduced_abstract_class_value_from_facts,
+        reduced_class_value_derivation_from_facts, reduced_value_domain_kind_from_facts,
+        selector_certainty_from_facts, selector_certainty_shape_kind_from_facts,
+        selector_certainty_shape_label_from_facts, suffix_class_value,
+        summarize_omena_abstract_value_domain, summarize_omena_abstract_value_flow_analysis,
+        top_class_value, value_certainty_from_facts, value_certainty_shape_kind_from_facts,
+        value_certainty_shape_label_from_facts,
     };
     use std::collections::BTreeMap;
 
@@ -2034,6 +2212,7 @@ mod tests {
             "reuse previous context analysis when its omena-incremental plan is clean"
         );
         assert!(flow_summary.transfer_kinds.contains(&"join"));
+        assert!(flow_summary.transfer_kinds.contains(&"concatFacts"));
     }
 
     #[test]
@@ -2397,6 +2576,81 @@ mod tests {
             ),
             prefix_class_value("btn-", None)
         );
+    }
+
+    #[test]
+    fn concatenates_abstract_values_for_template_edges() {
+        assert_eq!(
+            concatenate_abstract_class_values(
+                &exact_class_value("btn-"),
+                &finite_set_class_value(["primary", "secondary"]),
+            ),
+            AbstractClassValueV0::FiniteSet {
+                values: vec!["btn-primary".to_string(), "btn-secondary".to_string()]
+            }
+        );
+
+        assert_eq!(
+            concatenate_abstract_class_values(
+                &prefix_class_value("btn-", None),
+                &suffix_class_value("-active", None),
+            ),
+            prefix_suffix_class_value("btn-", "-active", Some("btn--active".len()), None)
+        );
+
+        assert_eq!(
+            concatenate_abstract_class_values(
+                &finite_set_class_value(["card-primary", "card-secondary"]),
+                &prefix_class_value("--", None),
+            ),
+            prefix_class_value("card-", None)
+        );
+    }
+
+    #[test]
+    fn analyzes_flow_concat_facts_before_refinement() {
+        let graph = ClassValueFlowGraphV0 {
+            context_key: Some("Button.tsx:render@concat".to_string()),
+            nodes: vec![
+                flow_assign_node("base", external_facts("exact").with_values(["btn-"])),
+                ClassValueFlowNodeV0 {
+                    id: "variant".to_string(),
+                    predecessors: vec!["base".to_string()],
+                    transfer: ClassValueFlowTransferV0::ConcatFacts(
+                        external_facts("finiteSet").with_values(["primary", "secondary", "icon"]),
+                    ),
+                },
+                ClassValueFlowNodeV0 {
+                    id: "btn-only".to_string(),
+                    predecessors: vec!["variant".to_string()],
+                    transfer: ClassValueFlowTransferV0::RefineFacts(
+                        external_facts("constrained")
+                            .with_constraint_kind("suffix")
+                            .with_suffix("primary"),
+                    ),
+                },
+            ],
+        };
+
+        let analysis = analyze_class_value_flow(&graph);
+
+        assert_eq!(
+            flow_value(&analysis, "variant"),
+            Some(&AbstractClassValueV0::FiniteSet {
+                values: vec![
+                    "btn-icon".to_string(),
+                    "btn-primary".to_string(),
+                    "btn-secondary".to_string(),
+                ]
+            })
+        );
+        assert_eq!(
+            flow_value(&analysis, "btn-only"),
+            Some(&AbstractClassValueV0::Exact {
+                value: "btn-primary".to_string()
+            })
+        );
+        assert_eq!(analysis.nodes[1].transfer_kind, "concatFacts");
     }
 
     #[test]
