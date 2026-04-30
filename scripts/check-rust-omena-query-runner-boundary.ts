@@ -24,6 +24,10 @@ const OMENA_QUERY_OWNED_COMMANDS = new Map([
     "summarize_omena_query_source_resolution_canonical_producer_signal",
   ],
   [
+    "input-omena-resolver-source-resolution-runtime",
+    "summarize_omena_query_source_resolution_runtime",
+  ],
+  [
     "input-expression-semantics-canonical-producer",
     "summarize_omena_query_expression_semantics_canonical_producer_signal",
   ],

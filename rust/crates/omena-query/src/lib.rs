@@ -20,7 +20,9 @@ use omena_bridge::{
     summarize_omena_bridge_style_semantic_graph_from_source,
 };
 use omena_resolver::{
+    OmenaResolverSourceResolutionRuntimeIndexV0,
     summarize_omena_resolver_canonical_producer_signal, summarize_omena_resolver_query_fragments,
+    summarize_omena_resolver_source_resolution_runtime,
 };
 use serde::Serialize;
 
@@ -120,6 +122,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "engine-input-producers.expression-semantics-query-fragments",
             "engine-input-producers.source-resolution-query-fragments",
             "omena-resolver.boundary",
+            "omena-resolver.source-resolution-runtime-index",
             "engine-input-producers.selector-usage-query-fragments",
             "engine-input-producers.expression-domain-flow-analysis",
         ],
@@ -133,6 +136,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "queryFragmentBundle",
             "abstractValueProjectionContract",
             "sourceResolutionResolverBoundary",
+            "sourceResolutionRuntimeIndex",
             "expressionDomainFlowAnalysisBoundary",
             "queryBoundarySummary",
         ],
@@ -192,6 +196,12 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
                 output_product: "engine-input-producers.source-resolution-canonical-producer",
             },
             SelectedQueryRunnerCommandV0 {
+                surface: "sourceResolutionRuntime",
+                command: "input-omena-resolver-source-resolution-runtime",
+                input_contract: "EngineInputV2",
+                output_product: "omena-resolver.source-resolution-runtime-index",
+            },
+            SelectedQueryRunnerCommandV0 {
                 surface: "expressionSemantics",
                 command: "input-expression-semantics-canonical-producer",
                 input_contract: "EngineInputV2",
@@ -234,6 +244,7 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
             "styleSemanticGraphBridgeBoundary",
             "runnerCommandContract",
             "fragmentBundleBoundary",
+            "sourceResolutionRuntimeIndex",
             "expressionSemanticsDerivationPayload",
             "expressionDomainFlowAnalysisRunner",
         ],
@@ -280,6 +291,12 @@ pub fn summarize_omena_query_source_resolution_canonical_producer_signal(
     input: &EngineInputV2,
 ) -> SourceResolutionCanonicalProducerSignalV0 {
     summarize_omena_resolver_canonical_producer_signal(input)
+}
+
+pub fn summarize_omena_query_source_resolution_runtime(
+    input: &EngineInputV2,
+) -> OmenaResolverSourceResolutionRuntimeIndexV0 {
+    summarize_omena_resolver_source_resolution_runtime(input)
 }
 
 pub fn summarize_omena_query_expression_semantics_canonical_producer_signal(
@@ -673,6 +690,7 @@ mod tests {
         summarize_omena_query_selector_usage_query_fragments,
         summarize_omena_query_source_resolution_canonical_producer_signal,
         summarize_omena_query_source_resolution_query_fragments,
+        summarize_omena_query_source_resolution_runtime,
         summarize_omena_query_style_semantic_graph_batch_from_sources,
         summarize_omena_query_style_semantic_graph_from_source,
     };
@@ -716,12 +734,22 @@ mod tests {
         assert!(
             summary
                 .delegated_fragment_products
+                .contains(&"omena-resolver.source-resolution-runtime-index")
+        );
+        assert!(
+            summary
+                .delegated_fragment_products
                 .contains(&"engine-input-producers.expression-domain-flow-analysis")
         );
         assert!(
             summary
                 .ready_surfaces
                 .contains(&"expressionDomainFlowAnalysisBoundary")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"sourceResolutionRuntimeIndex")
         );
         assert!(
             summary
@@ -805,6 +833,12 @@ mod tests {
             summary
                 .runner_commands
                 .iter()
+                .any(|command| command.command == "input-omena-resolver-source-resolution-runtime")
+        );
+        assert!(
+            summary
+                .runner_commands
+                .iter()
                 .any(|command| command.command == "input-expression-domain-flow-analysis")
         );
         assert!(
@@ -833,6 +867,11 @@ mod tests {
             summary
                 .adapter_readiness
                 .contains(&"expressionDomainFlowAnalysisRunner")
+        );
+        assert!(
+            summary
+                .adapter_readiness
+                .contains(&"sourceResolutionRuntimeIndex")
         );
     }
 
@@ -898,6 +937,27 @@ mod tests {
         assert_eq!(selector.input_version, "2");
         assert_eq!(selector.canonical_bundle.query_fragments.len(), 2);
         assert_eq!(selector.evaluator_candidates.results.len(), 2);
+    }
+
+    #[test]
+    fn owns_source_resolution_runtime_index_wrapper() {
+        let input = sample_input();
+        let runtime_index = summarize_omena_query_source_resolution_runtime(&input);
+
+        assert_eq!(
+            runtime_index.product,
+            "omena-resolver.source-resolution-runtime-index"
+        );
+        assert_eq!(runtime_index.expression_count, 2);
+        assert_eq!(runtime_index.resolved_expression_count, 2);
+        assert_eq!(runtime_index.unresolved_expression_count, 0);
+        assert!(
+            runtime_index
+                .entries
+                .iter()
+                .any(|entry| entry.expression_id == "expr-1"
+                    && entry.selector_names == ["btn-active"])
+        );
     }
 
     #[test]

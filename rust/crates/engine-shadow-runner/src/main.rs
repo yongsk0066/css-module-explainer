@@ -35,6 +35,7 @@ use omena_query::{
     summarize_omena_query_selector_usage_query_fragments,
     summarize_omena_query_source_resolution_canonical_producer_signal,
     summarize_omena_query_source_resolution_query_fragments,
+    summarize_omena_query_source_resolution_runtime,
     summarize_omena_query_style_semantic_graph_batch_from_sources,
     summarize_omena_query_style_semantic_graph_from_source,
 };
@@ -706,6 +707,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some("input-omena-resolver-module-graph") => {
             let input: EngineInputV2 = serde_json::from_str(&stdin)?;
             let summary = summarize_omena_resolver_module_graph_index(&input);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
+        Some("input-omena-resolver-source-resolution-runtime") => {
+            let input: EngineInputV2 = serde_json::from_str(&stdin)?;
+            let summary = summarize_omena_query_source_resolution_runtime(&input);
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
         Some("omena-resolver-runtime-query-boundary") => {

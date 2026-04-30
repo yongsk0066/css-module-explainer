@@ -14,6 +14,9 @@ Current public products:
   style module paths, source expressions, type facts, and selector names.
 - `omena-resolver.runtime-query-boundary` — module graph backed runtime/query
   boundary for style-path module lookup and edge lookup readiness.
+- `omena-resolver.source-resolution-runtime-index` — expression-level runtime
+  index from source expressions to selector candidates, finite values, certainty
+  labels, and resolvability status.
 - source-resolution query fragment wrapper for the existing
   `engine-input-producers.source-resolution-query-fragments` product.
 - source-resolution canonical producer wrapper for the existing

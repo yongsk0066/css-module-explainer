@@ -27,6 +27,14 @@ const EXPECTED_RUNNER_COMMANDS = new Map([
     },
   ],
   [
+    "sourceResolutionRuntime",
+    {
+      command: SELECTED_QUERY_RUNNER_COMMANDS.sourceResolutionRuntime,
+      inputContract: "EngineInputV2",
+      outputProduct: "omena-resolver.source-resolution-runtime-index",
+    },
+  ],
+  [
     "expressionSemantics",
     {
       command: SELECTED_QUERY_RUNNER_COMMANDS.expressionSemanticsCanonicalProducer,
@@ -91,6 +99,7 @@ void (async () => {
     "expressionSemanticsDerivationPayload",
     "fragmentBundleBoundary",
     "runnerCommandContract",
+    "sourceResolutionRuntimeIndex",
     "styleSemanticGraphBridgeBoundary",
   ]);
 

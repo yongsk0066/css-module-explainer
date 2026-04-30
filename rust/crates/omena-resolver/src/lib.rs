@@ -1,7 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use engine_input_producers::{
-    EngineInputV2, SourceResolutionCanonicalProducerSignalV0, SourceResolutionQueryFragmentsV0,
+    EngineInputV2, SourceResolutionCandidateV0, SourceResolutionCanonicalProducerSignalV0,
+    SourceResolutionQueryFragmentV0, SourceResolutionQueryFragmentsV0,
     summarize_source_resolution_canonical_producer_signal_input,
     summarize_source_resolution_query_fragments_input,
 };
@@ -23,6 +24,8 @@ pub struct OmenaResolverBoundarySummaryV0 {
     pub module_graph_source_expression_edge_count: usize,
     pub runtime_query_module_count: usize,
     pub runtime_query_ready_module_count: usize,
+    pub source_resolution_runtime_expression_count: usize,
+    pub source_resolution_runtime_resolved_expression_count: usize,
     pub ready_surfaces: Vec<&'static str>,
     pub cme_coupled_surfaces: Vec<&'static str>,
     pub next_decoupling_targets: Vec<&'static str>,
@@ -88,6 +91,39 @@ pub struct OmenaResolverRuntimeModuleQueryV0 {
     pub status: &'static str,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaResolverSourceResolutionRuntimeIndexV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub input_product: &'static str,
+    pub input_version: String,
+    pub expression_count: usize,
+    pub resolved_expression_count: usize,
+    pub unresolved_expression_count: usize,
+    pub blocking_gaps: Vec<&'static str>,
+    pub entries: Vec<OmenaResolverSourceResolutionRuntimeEntryV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaResolverSourceResolutionRuntimeEntryV0 {
+    pub query_id: String,
+    pub expression_id: String,
+    pub expression_kind: String,
+    pub style_file_path: String,
+    pub selector_names: Vec<String>,
+    pub finite_values: Option<Vec<String>>,
+    pub selector_certainty: String,
+    pub value_certainty: Option<String>,
+    pub selector_certainty_shape_kind: String,
+    pub value_certainty_shape_kind: String,
+    pub has_selector_match: bool,
+    pub has_finite_values: bool,
+    pub can_resolve_source_expression: bool,
+    pub status: &'static str,
+}
+
 #[derive(Debug, Default)]
 struct ModuleGraphAccumulator {
     source_expression_ids: BTreeSet<String>,
@@ -104,6 +140,7 @@ pub fn summarize_omena_resolver_boundary(input: &EngineInputV2) -> OmenaResolver
     let canonical_signal = summarize_omena_resolver_canonical_producer_signal(input);
     let module_graph = summarize_omena_resolver_module_graph_index(input);
     let runtime_query = summarize_omena_resolver_runtime_query_boundary(&module_graph);
+    let source_resolution_runtime = summarize_omena_resolver_source_resolution_runtime(input);
 
     OmenaResolverBoundarySummaryV0 {
         schema_version: "0",
@@ -117,6 +154,7 @@ pub fn summarize_omena_resolver_boundary(input: &EngineInputV2) -> OmenaResolver
         resolver_owned_products: vec![
             "omena-resolver.module-graph-index",
             "omena-resolver.runtime-query-boundary",
+            "omena-resolver.source-resolution-runtime-index",
         ],
         source_resolution_query_count: canonical_signal.canonical_bundle.query_fragments.len(),
         source_resolution_candidate_count: canonical_signal.canonical_bundle.candidates.len(),
@@ -128,10 +166,14 @@ pub fn summarize_omena_resolver_boundary(input: &EngineInputV2) -> OmenaResolver
         module_graph_source_expression_edge_count: module_graph.source_expression_edge_count,
         runtime_query_module_count: runtime_query.module_query_count,
         runtime_query_ready_module_count: runtime_query.fully_resolvable_module_count,
+        source_resolution_runtime_expression_count: source_resolution_runtime.expression_count,
+        source_resolution_runtime_resolved_expression_count: source_resolution_runtime
+            .resolved_expression_count,
         ready_surfaces: vec![
             "resolverBoundarySummary",
             "resolverModuleGraphIndex",
             "resolverRuntimeQueryBoundary",
+            "resolverSourceResolutionRuntimeIndex",
             "sourceResolutionQueryFragments",
             "sourceResolutionCanonicalProducerSignal",
         ],
@@ -333,6 +375,108 @@ pub fn summarize_omena_resolver_canonical_producer_signal(
     summarize_source_resolution_canonical_producer_signal_input(input)
 }
 
+pub fn summarize_omena_resolver_source_resolution_runtime(
+    input: &EngineInputV2,
+) -> OmenaResolverSourceResolutionRuntimeIndexV0 {
+    let canonical_signal = summarize_omena_resolver_canonical_producer_signal(input);
+    let mut candidates_by_expression = BTreeMap::<String, SourceResolutionCandidateV0>::new();
+
+    for candidate in canonical_signal.canonical_bundle.candidates {
+        candidates_by_expression.insert(candidate.expression_id.clone(), candidate);
+    }
+
+    let entries = canonical_signal
+        .canonical_bundle
+        .query_fragments
+        .iter()
+        .map(|fragment| {
+            runtime_source_resolution_entry_from_fragment(
+                fragment,
+                candidates_by_expression.get(&fragment.expression_id),
+            )
+        })
+        .collect::<Vec<_>>();
+    let resolved_expression_count = entries
+        .iter()
+        .filter(|entry| entry.can_resolve_source_expression)
+        .count();
+    let unresolved_expression_count = entries.len() - resolved_expression_count;
+    let mut blocking_gaps = Vec::new();
+
+    if entries.is_empty() {
+        blocking_gaps.push("emptySourceResolutionRuntimeIndex");
+    }
+    if unresolved_expression_count > 0 {
+        blocking_gaps.push("unresolvedSourceExpressions");
+    }
+
+    OmenaResolverSourceResolutionRuntimeIndexV0 {
+        schema_version: "0",
+        product: "omena-resolver.source-resolution-runtime-index",
+        input_product: "engine-input-producers.source-resolution-canonical-producer",
+        input_version: canonical_signal.input_version,
+        expression_count: entries.len(),
+        resolved_expression_count,
+        unresolved_expression_count,
+        blocking_gaps,
+        entries,
+    }
+}
+
+pub fn query_omena_resolver_source_expression(
+    runtime_index: &OmenaResolverSourceResolutionRuntimeIndexV0,
+    expression_id: &str,
+) -> Option<OmenaResolverSourceResolutionRuntimeEntryV0> {
+    runtime_index
+        .entries
+        .iter()
+        .find(|entry| entry.expression_id == expression_id)
+        .cloned()
+}
+
+fn runtime_source_resolution_entry_from_fragment(
+    fragment: &SourceResolutionQueryFragmentV0,
+    candidate: Option<&SourceResolutionCandidateV0>,
+) -> OmenaResolverSourceResolutionRuntimeEntryV0 {
+    let selector_names = candidate
+        .map(|candidate| candidate.selector_names.clone())
+        .unwrap_or_default();
+    let finite_values = candidate.and_then(|candidate| candidate.finite_values.clone());
+    let has_selector_match = !selector_names.is_empty();
+    let has_finite_values = finite_values
+        .as_ref()
+        .is_some_and(|values| !values.is_empty());
+
+    OmenaResolverSourceResolutionRuntimeEntryV0 {
+        query_id: fragment.query_id.clone(),
+        expression_id: fragment.expression_id.clone(),
+        expression_kind: fragment.expression_kind.clone(),
+        style_file_path: fragment.style_file_path.clone(),
+        selector_names,
+        finite_values,
+        selector_certainty: candidate
+            .map(|candidate| candidate.selector_certainty.clone())
+            .unwrap_or_else(|| "unresolved".to_string()),
+        value_certainty: candidate.and_then(|candidate| candidate.value_certainty.clone()),
+        selector_certainty_shape_kind: candidate
+            .map(|candidate| candidate.selector_certainty_shape_kind.clone())
+            .unwrap_or_else(|| "missingTypeFacts".to_string()),
+        value_certainty_shape_kind: candidate
+            .map(|candidate| candidate.value_certainty_shape_kind.clone())
+            .unwrap_or_else(|| "missingTypeFacts".to_string()),
+        has_selector_match,
+        has_finite_values,
+        can_resolve_source_expression: has_selector_match,
+        status: if has_selector_match {
+            "resolved"
+        } else if candidate.is_some() {
+            "unresolvedSelectorSet"
+        } else {
+            "missingTypeFacts"
+        },
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use engine_input_producers::{
@@ -342,10 +486,11 @@ mod tests {
     };
 
     use super::{
-        query_omena_resolver_runtime_module, summarize_omena_resolver_boundary,
-        summarize_omena_resolver_canonical_producer_signal,
+        query_omena_resolver_runtime_module, query_omena_resolver_source_expression,
+        summarize_omena_resolver_boundary, summarize_omena_resolver_canonical_producer_signal,
         summarize_omena_resolver_module_graph_index, summarize_omena_resolver_query_fragments,
         summarize_omena_resolver_runtime_query_boundary,
+        summarize_omena_resolver_source_resolution_runtime,
     };
 
     #[test]
@@ -364,6 +509,11 @@ mod tests {
         assert_eq!(summary.module_graph_source_expression_edge_count, 2);
         assert_eq!(summary.runtime_query_module_count, 2);
         assert_eq!(summary.runtime_query_ready_module_count, 2);
+        assert_eq!(summary.source_resolution_runtime_expression_count, 2);
+        assert_eq!(
+            summary.source_resolution_runtime_resolved_expression_count,
+            2
+        );
         assert!(
             summary
                 .delegated_source_resolution_products
@@ -379,11 +529,21 @@ mod tests {
                 .resolver_owned_products
                 .contains(&"omena-resolver.runtime-query-boundary")
         );
+        assert!(
+            summary
+                .resolver_owned_products
+                .contains(&"omena-resolver.source-resolution-runtime-index")
+        );
         assert!(summary.ready_surfaces.contains(&"resolverModuleGraphIndex"));
         assert!(
             summary
                 .ready_surfaces
                 .contains(&"resolverRuntimeQueryBoundary")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"resolverSourceResolutionRuntimeIndex")
         );
         assert!(
             summary
@@ -478,6 +638,56 @@ mod tests {
         assert!(app.can_query_selector_names);
         assert_eq!(app.source_expression_ids, ["expr-1"]);
         assert_eq!(app.selector_names, ["btn-active"]);
+    }
+
+    #[test]
+    fn builds_source_resolution_runtime_index_from_canonical_candidates() {
+        let input = sample_input();
+        let runtime_index = summarize_omena_resolver_source_resolution_runtime(&input);
+
+        assert_eq!(runtime_index.schema_version, "0");
+        assert_eq!(
+            runtime_index.product,
+            "omena-resolver.source-resolution-runtime-index"
+        );
+        assert_eq!(
+            runtime_index.input_product,
+            "engine-input-producers.source-resolution-canonical-producer"
+        );
+        assert_eq!(runtime_index.input_version, "2");
+        assert_eq!(runtime_index.expression_count, 2);
+        assert_eq!(runtime_index.resolved_expression_count, 2);
+        assert_eq!(runtime_index.unresolved_expression_count, 0);
+        assert!(runtime_index.blocking_gaps.is_empty());
+
+        let app = query_omena_resolver_source_expression(&runtime_index, "expr-1");
+        assert!(app.is_some());
+        let Some(app) = app else {
+            return;
+        };
+        assert_eq!(app.query_id, "expr-1");
+        assert_eq!(app.expression_kind, "symbolRef");
+        assert_eq!(app.style_file_path, "/tmp/App.module.scss");
+        assert_eq!(app.selector_names, ["btn-active"]);
+        assert_eq!(app.selector_certainty, "exact");
+        assert_eq!(app.selector_certainty_shape_kind, "exact");
+        assert_eq!(app.value_certainty_shape_kind, "constrained");
+        assert!(app.has_selector_match);
+        assert!(!app.has_finite_values);
+        assert!(app.can_resolve_source_expression);
+        assert_eq!(app.status, "resolved");
+
+        let card = query_omena_resolver_source_expression(&runtime_index, "expr-2");
+        assert!(card.is_some());
+        let Some(card) = card else {
+            return;
+        };
+        assert_eq!(card.selector_names, ["card-header"]);
+        assert_eq!(
+            card.finite_values,
+            Some(vec!["card-header".to_string(), "card-body".to_string()])
+        );
+        assert!(card.has_finite_values);
     }
 
     #[test]
