@@ -42,7 +42,7 @@
     {
       "workflow": "census-instrument.yml",
       "job": "census-instrument",
-      "semanticDigest": "9a63a2fa2fe28b9c489f7160f0ea7eab032294faef7cc29f240880bd20fe5106"
+      "semanticDigest": "6d6aea437916a65848728e694e5d0175089f69de33f1318d6823a8369dc6c470"
     },
     {
       "workflow": "ci-probe.yml",

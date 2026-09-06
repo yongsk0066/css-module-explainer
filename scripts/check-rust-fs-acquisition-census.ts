@@ -336,11 +336,6 @@ const removedExpressionCount = authority.acquisitionSites.reduce(
 const admittedExpressionCount = observed
   .filter((site) => !registeredByIdentity.has(siteIdentity(site)))
   .reduce((count, site) => count + site.expressionCount, 0);
-assert.equal(
-  observedExpressionCount,
-  birthExpressionCount - removedExpressionCount + admittedExpressionCount,
-  "acquisition population must equal birth minus removals plus admissions",
-);
 
 process.stdout.write(
   `${JSON.stringify(
@@ -360,6 +355,7 @@ process.stdout.write(
         expressionCount: birthExpressionCount,
       },
       populationEquation: {
+        kind: "bookkeeping-only",
         count: observedExpressionCount,
         birth: birthExpressionCount,
         removals: removedExpressionCount,

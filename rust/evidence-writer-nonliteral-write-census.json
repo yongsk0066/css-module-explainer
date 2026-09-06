@@ -653,7 +653,7 @@
     {
       "fingerprint": "700292dcfa6e5e1ba8a05fb8a658266814d288e17b9fd326ddd443c545bc11d1",
       "writerScript": "scripts/check-rust-census-instrument-s0.ts",
-      "line": 1390,
+      "line": 1418,
       "writeApi": "writeFileSync",
       "writeExpression": "target",
       "disposition": "outside-registry-writer"

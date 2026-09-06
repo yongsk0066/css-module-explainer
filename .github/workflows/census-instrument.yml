@@ -8,6 +8,9 @@ concurrency:
   group: census-instrument-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  OMENA_SCCACHE: ${{ vars.OMENA_SCCACHE || 'on' }}
+
 permissions:
   contents: read
   issues: write

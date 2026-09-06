@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { parse as parseYaml } from "yaml";
 import {
   adoptCiWorkflow,
   checkCiWorkflow,
@@ -77,6 +78,17 @@ jobs:
     steps:
       - run: node ./scripts/check-ci-required-results.mjs
 `;
+
+describe("scheduled census compute condition", () => {
+  it("uses the push workflow compiler-cache policy without changing cadence", () => {
+    const scheduled = parseYaml(
+      readFileSync(path.join(repoRoot, ".github/workflows/census-instrument.yml"), "utf8"),
+    );
+    const push = parseYaml(readFileSync(path.join(repoRoot, ".github/workflows/ci.yml"), "utf8"));
+    expect(scheduled.env?.OMENA_SCCACHE).toBe(push.env.OMENA_SCCACHE);
+    expect(scheduled.on.schedule).toEqual([{ cron: "23 17 * * *" }]);
+  });
+});
 
 describe("ci-workflow generator (generated workflow)", () => {
   it("NO-OP PROOF: adopt(write(committed ci.yml)) round-trips byte-identically on the real repository", () => {

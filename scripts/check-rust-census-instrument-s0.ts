@@ -1146,7 +1146,10 @@ function proofControls(authority: Authority): ProofControl[] {
         {
           kind: "append",
           file: "scripts/check-rust-census-instrument-s0.ts",
-          text: "\nfunction injectedSelector(row: any) { " + selection + " }\n",
+          text:
+            "\nfunction injectedSelector() { for (const row of authority.s0Rows) { " +
+            selection +
+            " } }\n",
         },
       ],
       command: authorityCommand,
@@ -1160,13 +1163,38 @@ function proofControls(authority: Authority): ProofControl[] {
       {
         kind: "append",
         file: "scripts/check-rust-census-instrument-s0.ts",
-        text: '\nconst sharedRowId = "a1";\nfunction injectedSharedSelector(row: any) { return row.id === sharedRowId; }\n',
+        text: '\nconst sharedRowId = "a1";\nfunction injectedSharedSelector() { for (const record of authority.s0Rows) { return record.id === sharedRowId; } }\n',
       },
     ],
     command: authorityCommand,
     expectedExit: 1,
     expectedText: "per-row literal selection is forbidden",
   });
+  for (const [index, selection] of [
+    'for (const { id: token } of authority.s0Rows) { if (token === "a1") {} }',
+    'authority.s0Rows.filter(spectralEntry => spectralEntry.id.startsWith("a"));',
+    'authority.s0Rows.filter(record => record.id.endsWith("1"));',
+    'authority.s0Rows.filter(record => record.id.indexOf("a") >= 0);',
+    'authority.s0Rows.filter(record => record.id.lastIndexOf("a") >= 0);',
+    "authority.s0Rows.filter(record => record.id.match(/a/));",
+    "authority.s0Rows.filter(record => record.id.search(/a/));",
+    "authority.s0Rows.filter(record => /a/.test(record.id));",
+    "const dispatch: any = {}; for (const record of authority.s0Rows) dispatch[record.id]();",
+  ].entries()) {
+    controls.push({
+      id: "authority-row-selection-" + index,
+      mutations: [
+        {
+          kind: "append",
+          file: "scripts/check-rust-census-instrument-s0.ts",
+          text: "\nfunction injectedAuthoritySelector() { " + selection + " }\n",
+        },
+      ],
+      command: authorityCommand,
+      expectedExit: 1,
+      expectedText: "per-row literal selection is forbidden",
+    });
+  }
   controls.push({
     id: "staging-destination-rewired",
     mutations: [
