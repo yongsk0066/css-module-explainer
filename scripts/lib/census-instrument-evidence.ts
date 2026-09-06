@@ -95,23 +95,70 @@ export function checkerInventory(
 
 export function assertNoLiteralRowSelection(source: string): void {
   const file = parsedSource(source);
-  const program = ts.createProgram(
-    [file.fileName],
-    { noLib: true, noResolve: true },
-    {
-      getSourceFile: (name) => (name === file.fileName ? file : undefined),
-      getDefaultLibFileName: () => "no-lib.d.ts",
-      writeFile: () => undefined,
-      getCurrentDirectory: () => "",
-      getDirectories: () => [],
-      getCanonicalFileName: (name) => name,
-      useCaseSensitiveFileNames: () => true,
-      getNewLine: () => "\n",
-      fileExists: (name) => name === file.fileName,
-      readFile: (name) => (name === file.fileName ? source : undefined),
-    },
-  );
-  const checker = program.getTypeChecker();
+  interface Scope {
+    readonly parent?: Scope;
+    readonly declarations: Map<string, tsTypes.Node>;
+    readonly functionBoundary: boolean;
+  }
+  const scopes = new Map<tsTypes.Node, Scope>();
+  const rootScope: Scope = { declarations: new Map(), functionBoundary: true };
+  const declare = (name: tsTypes.BindingName, declaration: tsTypes.Node, scope: Scope): void => {
+    if (ts.isIdentifier(name)) scope.declarations.set(name.text, declaration);
+    else
+      for (const element of name.elements)
+        if (ts.isBindingElement(element)) declare(element.name, element, scope);
+  };
+  const indexScopes = (node: tsTypes.Node, parent: Scope): void => {
+    if ((ts.isFunctionDeclaration(node) || ts.isClassDeclaration(node)) && node.name)
+      declare(node.name, node, parent);
+    const functionBoundary =
+      ts.isFunctionDeclaration(node) ||
+      ts.isFunctionExpression(node) ||
+      ts.isArrowFunction(node) ||
+      ts.isMethodDeclaration(node) ||
+      ts.isGetAccessorDeclaration(node) ||
+      ts.isSetAccessorDeclaration(node) ||
+      ts.isConstructorDeclaration(node);
+    const scope =
+      functionBoundary ||
+      ts.isBlock(node) ||
+      ts.isForOfStatement(node) ||
+      ts.isForInStatement(node) ||
+      ts.isForStatement(node) ||
+      ts.isCatchClause(node) ||
+      node.kind === ts.SyntaxKind.CaseBlock
+        ? { parent, declarations: new Map<string, tsTypes.Node>(), functionBoundary }
+        : parent;
+    scopes.set(node, scope);
+    if (ts.isFunctionExpression(node) && node.name) declare(node.name, node, scope);
+    if (ts.isVariableDeclaration(node) || ts.isParameter(node)) {
+      let owner = scope;
+      if (
+        ts.isVariableDeclarationList(node.parent) &&
+        node.parent.getFirstToken(file)?.kind === ts.SyntaxKind.VarKeyword
+      )
+        while (!owner.functionBoundary && owner.parent) owner = owner.parent;
+      declare(node.name, node, owner);
+    }
+    ts.forEachChild(node, (child) => indexScopes(child, scope));
+  };
+  // Index declarations before following references so aliases preserve lexical shadowing.
+  indexScopes(file, rootScope);
+  const resolveBinding = (node: tsTypes.Node): tsTypes.Node | undefined => {
+    if (!ts.isIdentifier(node)) return undefined;
+    const parent = node.parent;
+    if (
+      ((ts.isPropertyAccessExpression(parent) || ts.isPropertyAssignment(parent)) &&
+        parent.name === node) ||
+      (ts.isBindingElement(parent) && parent.propertyName === node)
+    )
+      return undefined;
+    for (let scope = scopes.get(node); scope; scope = scope.parent) {
+      const declaration = scope.declarations.get(node.text);
+      if (declaration) return declaration;
+    }
+    return undefined;
+  };
   type Flow =
     | "rows"
     | "row"
@@ -124,7 +171,7 @@ export function assertNoLiteralRowSelection(source: string): void {
     | tsTypes.CallExpression;
   type Flows = ReadonlySet<Flow>;
   const empty: Flows = new Set();
-  const bindings = new Map<tsTypes.Symbol, Set<Flow>>();
+  const bindings = new Map<tsTypes.Node, Set<Flow>>();
   const returns = new Map<tsTypes.Node, Set<Flow>>();
   const unwrap = (node: tsTypes.Node): tsTypes.Node =>
     ts.isParenthesizedExpression(node) ||
@@ -133,13 +180,9 @@ export function assertNoLiteralRowSelection(source: string): void {
     ts.isTypeAssertionExpression(node)
       ? unwrap(node.expression)
       : node;
-  const symbol = (node: tsTypes.Node): tsTypes.Symbol | undefined =>
-    ts.isShorthandPropertyAssignment(node.parent) && node.parent.name === node
-      ? checker.getShorthandAssignmentValueSymbol(node.parent)
-      : checker.getSymbolAtLocation(node);
   const callable = (
     input: tsTypes.Node,
-    seen = new Set<tsTypes.Symbol>(),
+    seen = new Set<tsTypes.Node>(),
   ):
     | tsTypes.FunctionDeclaration
     | tsTypes.FunctionExpression
@@ -148,20 +191,19 @@ export function assertNoLiteralRowSelection(source: string): void {
     const node = unwrap(input);
     if (ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node) || ts.isArrowFunction(node))
       return node;
-    const key = symbol(node);
+    const key = resolveBinding(node);
     if (!key || seen.has(key)) return undefined;
     seen.add(key);
-    const declaration = key.valueDeclaration;
-    if (declaration && ts.isVariableDeclaration(declaration) && declaration.initializer)
-      return callable(declaration.initializer, seen);
-    return declaration && ts.isFunctionDeclaration(declaration) ? declaration : undefined;
+    if (ts.isVariableDeclaration(key) && key.initializer) return callable(key.initializer, seen);
+    return ts.isFunctionDeclaration(key) || ts.isFunctionExpression(key) ? key : undefined;
   };
   const merged = (...sets: Flows[]): Set<Flow> => new Set(sets.flatMap((set) => [...set]));
   const member = (input: Flows, name: string): Flows => {
-    // Schema fields seed provenance; the binder supplies declaration identity and scope.
+    // Schema fields seed provenance; lexical declarations supply identity and scope.
     if (name === "s0Rows") return new Set(["rows"]);
     const result = new Set<Flow>();
-    if (input.has("row") && name === "id") result.add("selector");
+    if (input.has("row") && ["id", "refusal", "refusalPrefix"].includes(name))
+      result.add("selector");
     if (input.has("row") && name === "expected") result.add("expected");
     if (input.has("expected") && ["refusal", "refusalPrefix"].includes(name))
       result.add("selector");
@@ -249,7 +291,7 @@ export function assertNoLiteralRowSelection(source: string): void {
     )
       return new Set(["literal"]);
     if (ts.isIdentifier(node)) {
-      const key = symbol(node);
+      const key = resolveBinding(node);
       return key ? (bindings.get(key) ?? empty) : empty;
     }
     if (ts.isPropertyAccessExpression(node)) return member(flow(node.expression), node.name.text);
@@ -309,7 +351,7 @@ export function assertNoLiteralRowSelection(source: string): void {
   };
   const bind = (name: tsTypes.BindingName, values: Flows): void => {
     if (ts.isIdentifier(name)) {
-      const key = symbol(name);
+      const key = resolveBinding(name);
       if (key) add(bindings, key, values);
     } else if (ts.isObjectBindingPattern(name)) {
       for (const binding of name.elements) {

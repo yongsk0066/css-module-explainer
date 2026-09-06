@@ -151,6 +151,46 @@ describe("census evidence operands", () => {
       ).not.toThrow();
   });
 
+  it.each(["map", "filter", "find", "some", "every", "forEach"])(
+    "binds renamed and destructured selectors in %s callbacks",
+    (method) => {
+      for (const callback of [
+        '(nebulaEntry) => { const alias = nebulaEntry; return alias.id === "off-menu"; }',
+        "({ id: needle }) => /off-menu/.test(needle)",
+        '({ refusal }) => refusal.includes("off-menu")',
+        '(nebulaEntry) => nebulaEntry.refusalPrefix.startsWith("off-menu")',
+      ])
+        expect(() =>
+          assertNoLiteralRowSelection("inventory.s0Rows." + method + "(" + callback + ");"),
+        ).toThrow("per-row literal selection is forbidden");
+    },
+  );
+
+  it("tracks loop aliases and refusal destructuring by their lexical declarations", () => {
+    for (const body of [
+      'for (const nebulaEntry of inventory.s0Rows) { const alias = nebulaEntry; const { refusal } = alias; if (refusal === "off-menu") {} }',
+      'for (const { refusal: message } of inventory.s0Rows) { if (message.endsWith("off-menu")) {} }',
+      "for (const { refusalPrefix } of inventory.s0Rows) { dispatch[refusalPrefix](); }",
+      'for (const entry of inventory.s0Rows) { { var\n needle = entry.id; } if (needle === "off-menu") {} }',
+      'const choose = function inspect(entry) { return entry.id === "off-menu"; }; inventory.s0Rows.some(choose);',
+    ])
+      expect(() => assertNoLiteralRowSelection(body)).toThrow(
+        "per-row literal selection is forbidden",
+      );
+  });
+
+  it("keeps loop, callback, catch and block shadowing independent of authority bindings", () => {
+    for (const body of [
+      'const entry = external; for (const entry of inventory.s0Rows) { use(entry.id); } if (entry.id === "unrelated") {}',
+      'inventory.s0Rows.forEach(entry => use(entry.id)); others.forEach(entry => entry.id === "unrelated");',
+      'for (const entry of inventory.s0Rows) { try {} catch (entry) { if (entry.id === "unrelated") {} } }',
+      'for (const entry of inventory.s0Rows) { { const alias = external; if (alias.id === "unrelated") {} } const alias = entry; use(alias.id); }',
+      'const entry = external; for (const entry of inventory.s0Rows) { function nested(entry) { return entry.id === "unrelated"; } nested(external); }',
+      'const id = "unrelated"; for (const entry of inventory.s0Rows) { if (entry.id === external.id) {} }',
+    ])
+      expect(() => assertNoLiteralRowSelection(body)).not.toThrow();
+  });
+
   it("keys actual calls and the helper definition by their complete source content", () => {
     const source =
       'function blockBody(x) { return x; }\nassert.match(value, /required/);\nblockBody("x");\n';
